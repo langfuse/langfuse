@@ -2,12 +2,17 @@ import { type ReactNode } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import {
+  BotMessageSquare,
   ChevronRight,
   Copy,
   LibraryBig,
   LifeBuoy,
   TriangleAlert,
 } from "lucide-react";
+import {
+  useCanUseInAppAgent,
+  useInAppAiAgent,
+} from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
@@ -344,6 +349,16 @@ export function V4MigrationDetailsContent({
     onNavigate?.();
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
+  const canUseAgent = useCanUseInAppAgent();
+  const { setOpen: setAgentOpen } = useInAppAiAgent();
+  // Deprecated evals are migrated inside Langfuse (repoint the target), so
+  // this is minimal-change work the in-app assistant can do — unlike the
+  // SDK/API items, which need the coding-agent prompt in the user's codebase.
+  const handleMigrateEvalsWithAgent = () => {
+    capture("v4_migration:migrate_evals_with_agent_clicked");
+    onNavigate?.();
+    setAgentOpen(true);
+  };
   const evalsUrl =
     typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
   const integrationsUrl =
@@ -383,8 +398,8 @@ export function V4MigrationDetailsContent({
           update?
         </div>
         <p className="text-muted-foreground text-sm">
-          Some features will stop working after{" "}
-          <span className="text-dark-yellow">Oct 1</span>.
+          Some features will stop working{" "}
+          <span className="text-dark-yellow">soon</span>.
         </p>
         <div>
           <V4MigrationSdkSection sdk={migrationData.sdk} />
@@ -413,24 +428,40 @@ export function V4MigrationDetailsContent({
                   {migrationData.evals.count === 1
                     ? "eval targets"
                     : "evals target"}{" "}
-                  trace input/output, which stops running{" "}
-                  <span className="text-dark-yellow">Oct 1</span>. Point{" "}
-                  {migrationData.evals.count === 1 ? "it" : "them"} at an
-                  observation instead.
+                  traces or dataset runs, which{" "}
+                  <span className="text-dark-yellow">
+                    {migrationData.evals.count === 1 ? "stops" : "stop"} running
+                    soon
+                  </span>
+                  . Repointing {migrationData.evals.count === 1 ? "it" : "them"}{" "}
+                  at observations or experiments requires minimal changes
+                  {canUseAgent ? " — the assistant can do it for you" : ""}.
                 </p>
-                {evalsUrl ? (
-                  <Link
-                    href={evalsUrl}
-                    onClick={onNavigate}
-                    className="text-dark-blue text-sm hover:underline"
-                  >
-                    Review trace-level evals
-                  </Link>
-                ) : null}
+                <div className="flex items-center gap-3">
+                  {canUseAgent && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleMigrateEvalsWithAgent}
+                    >
+                      <BotMessageSquare className="mr-1.5 h-4 w-4" />
+                      Migrate with assistant
+                    </Button>
+                  )}
+                  {evalsUrl ? (
+                    <Link
+                      href={evalsUrl}
+                      onClick={onNavigate}
+                      className="text-dark-blue text-sm hover:underline"
+                    >
+                      Review deprecated evals
+                    </Link>
+                  ) : null}
+                </div>
               </>
             ) : (
               <p className="text-muted-foreground text-sm">
-                No configured trace-level evals detected.
+                No deprecated evals detected.
               </p>
             )}
           </Section>
@@ -457,7 +488,7 @@ export function V4MigrationDetailsContent({
                 <p className="text-muted-foreground mb-2 text-sm">
                   You&apos;ve called these deprecated endpoints in the last{" "}
                   {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working{" "}
-                  <span className="text-dark-yellow">Oct 1</span>; the{" "}
+                  <span className="text-dark-yellow">soon</span>; the{" "}
                   <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
                     migration guide
                   </ExternalLink>{" "}

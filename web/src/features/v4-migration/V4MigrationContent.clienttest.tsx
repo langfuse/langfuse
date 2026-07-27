@@ -38,6 +38,14 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useProjectV4MigrationData: () => mocks.migrationData,
 }));
 
+vi.mock(
+  "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider",
+  () => ({
+    useCanUseInAppAgent: () => false,
+    useInAppAiAgent: () => ({ setOpen: vi.fn() }),
+  }),
+);
+
 vi.mock("@/src/components/ui/collapsible", () => ({
   Collapsible: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
@@ -115,6 +123,9 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("No deprecated integration exports detected."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("No deprecated evals detected."),
     ).toBeInTheDocument();
   });
 });

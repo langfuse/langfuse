@@ -590,7 +590,7 @@ export const v4TransitionRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           jobType: "EVAL",
-          targetObject: TRACE_EVAL_TARGET,
+          targetObject: { in: [TRACE_EVAL_TARGET, DATASET_EVAL_TARGET] },
           status: "ACTIVE",
           timeScope: { has: "NEW" },
         },
@@ -705,7 +705,7 @@ export const v4TransitionRouter = createTRPCRouter({
         where: {
           projectId: { in: projectIds },
           jobType: "EVAL",
-          targetObject: TRACE_EVAL_TARGET,
+          targetObject: { in: [TRACE_EVAL_TARGET, DATASET_EVAL_TARGET] },
           status: "ACTIVE",
           timeScope: { has: "NEW" },
         },
@@ -749,7 +749,9 @@ WITH selected AS (
   WHERE je.project_id = ${input.projectId}
     AND jc.project_id = ${input.projectId}
     AND jc.job_type = 'EVAL'
-    AND jc.target_object = ${TRACE_EVAL_TARGET}
+    AND jc.target_object IN (${TRACE_EVAL_TARGET}, ${DATASET_EVAL_TARGET})
+    AND jc.status = 'ACTIVE'
+    AND 'NEW' = ANY(jc.time_scope)
     AND je.status != 'CANCELLED'
     AND je.created_at >= ${input.fromTimestamp}
     AND je.created_at <= ${input.toTimestamp}

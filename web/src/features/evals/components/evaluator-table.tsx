@@ -64,34 +64,6 @@ function DeprecatedChipCell() {
     <div className="flex items-center gap-1.5">
       <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
         Deprecated
-        <Tooltip>
-          <TooltipTrigger>
-            <Info className="text-dark-yellow ml-1 h-3.5 w-3.5" />
-          </TooltipTrigger>
-          <TooltipContent className="max-w-[280px]">
-            <div className="space-y-1 text-sm">
-              <p className="font-bold">Action required</p>
-              <p className="text-muted-foreground">
-                This evaluator requires changes to benefit from new features
-                and performance improvements. Please follow{" "}
-                <Link
-                  href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-dark-blue font-bold hover:opacity-80"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                >
-                  this guide
-                </Link>{" "}
-                to upgrade to the new version. <br /> <br /> If you do not
-                upgrade, your evaluator will continue to run, but you will not
-                benefit from improvements.
-              </p>
-            </div>
-          </TooltipContent>
-        </Tooltip>
       </span>
     </div>
   );
@@ -131,15 +103,14 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     },
   );
 
-  const { evaluators, rows, totalCount } =
-    useEvaluatorTableData({
-      projectId,
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
-      filter: queryFilter.filterState,
-      orderBy: orderByState,
-      searchQuery,
-    });
+  const { evaluators, rows, totalCount } = useEvaluatorTableData({
+    projectId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+    filter: queryFilter.filterState,
+    orderBy: orderByState,
+    searchQuery,
+  });
 
   const existingEvaluator = api.evals.configById.useQuery(
     {

@@ -9,6 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { V4MigrationUpdateRequiredAssistantBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
@@ -18,7 +19,6 @@ import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
-import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
@@ -93,15 +93,7 @@ const PeekViewEvaluatorConfigDetail = ({
       </div>
 
       {evalConfig && evalConfig.targetObject && evalConfig.evalTemplate && (
-        <LegacyEvalCallout
-          projectId={projectId}
-          evalConfigId={evalConfig.id}
-          targetObject={evalConfig.targetObject}
-          status={evalConfig.status}
-          timeScope={
-            Array.isArray(evalConfig.timeScope) ? evalConfig.timeScope : []
-          }
-        />
+        <V4MigrationUpdateRequiredAssistantBadge />
       )}
 
       <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />

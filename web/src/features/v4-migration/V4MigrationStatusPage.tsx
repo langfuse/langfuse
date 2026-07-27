@@ -452,9 +452,9 @@ function V4MigrationStatusPageContent() {
         <>
           Yes, eventually. The{" "}
           <FaqLink href={SDK_UPGRADE_URL}>old SDKs</FaqLink>, trace-level evals,
-          and APIs are frozen and stop working on{" "}
-          <span className="underline">Oct 1</span>. They keep running until
-          then, but we&apos;re no longer fixing bugs in them.
+          and APIs are frozen and stop working{" "}
+          <span className="underline">soon</span>. They keep running until then,
+          but we&apos;re no longer fixing bugs in them.
         </>
       ),
     },
@@ -479,7 +479,7 @@ function V4MigrationStatusPageContent() {
       q: "What if I do nothing?",
       a: (
         <>
-          On <span className="underline">Oct 1</span>, old SDKs stop sending
+          On <span className="underline">soon</span>, old SDKs stop sending
           data, and the{" "}
           <FaqLink href={API_REFERENCE_URL}>
             deprecated evals and endpoints
