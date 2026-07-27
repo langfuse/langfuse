@@ -22,7 +22,7 @@ const renderBytes = (bytes: number) => {
 
 export type DropzoneProps = {
   accept?: DropzoneOptions["accept"];
-  disabled?: DropzoneOptions["disabled"];
+  isDisabled?: DropzoneOptions["disabled"];
   minSize?: DropzoneOptions["minSize"];
   onError?: DropzoneOptions["onError"];
   src?: File[];
@@ -63,7 +63,7 @@ export const Dropzone = ({
   minSize,
   onDrop,
   onError,
-  disabled,
+  isDisabled,
   src,
   variant,
 }: DropzoneProps) => {
@@ -73,7 +73,7 @@ export const Dropzone = ({
     maxSize,
     minSize,
     onError,
-    disabled,
+    disabled: isDisabled,
     onDrop: (acceptedFiles, fileRejections, event) => {
       if (fileRejections.length > 0) {
         const message = fileRejections.at(0)?.errors.at(0)?.message;
@@ -141,11 +141,11 @@ export const Dropzone = ({
     <button
       key={JSON.stringify(src)}
       className={dropzoneVariants({ isDragActive, variant })}
-      disabled={disabled}
+      disabled={isDisabled}
       type="button"
       {...getRootProps()}
     >
-      <input {...getInputProps()} disabled={disabled} />
+      <input {...getInputProps()} disabled={isDisabled} />
       {variant === "compact" && (
         <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
           <PaperclipIcon className="h-4 w-4" />
