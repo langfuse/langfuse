@@ -1,7 +1,8 @@
 /**
  * Storybook-only color reference (Design → Color), modeled on Carbon's color
- * docs (layering model, interaction states) and Kumo's semantic-token tables
- * (token rows grouped by role, purpose-first blurbs).
+ * docs (interaction states) and Kumo's semantic-token tables (token rows
+ * grouped by role, purpose-first blurbs). The surface layering model lives on
+ * the Layout page.
  *
  * Every value is parsed at build time from `src/styles/globals.css` (see
  * parseThemeTokens.ts), so the page cannot drift from the stylesheet. Dense
@@ -165,79 +166,6 @@ const COLLAPSED_SECTIONS: SectionDef[] = [
 function alphaColor(ctx: TokenContext, name: string, alpha: number) {
   const triplet = ctx.resolve(`var(${name})`);
   return toCssColor(triplet)?.replace(/\)$/, ` / ${alpha})`);
-}
-
-/* ------------------------------------------------------------------------- *
- * Layering model (Carbon-style): the surface ladder, both themes at once.
- * ------------------------------------------------------------------------- */
-
-const LAYERS: Array<{ token: string; label: string }> = [
-  { token: "--background", label: "app canvas" },
-  { token: "--card", label: "elevated panel" },
-  { token: "--popover", label: "menus & tooltips" },
-  { token: "--modal", label: "dialogs" },
-];
-
-function LayerStack({
-  paint,
-  layers,
-}: {
-  paint: TokenContext;
-  layers: Array<{ token: string; label: string }>;
-}) {
-  const [head, ...rest] = layers;
-  if (!head) return null;
-  return (
-    <div
-      className="flex flex-col gap-2 rounded-md border p-3"
-      style={{
-        background: paint.color(head.token),
-        borderColor: paint.color("--border"),
-      }}
-    >
-      <code
-        className="font-mono text-[10px] leading-4"
-        style={{ color: paint.color("--muted-foreground") }}
-      >
-        {head.token} · {head.label}
-      </code>
-      {rest.length > 0 && <LayerStack paint={paint} layers={rest} />}
-    </div>
-  );
-}
-
-function LayeringSection({
-  lightCtx,
-  darkCtx,
-}: {
-  lightCtx: TokenContext;
-  darkCtx: TokenContext;
-}) {
-  // Only show tiers the current stylesheet actually declares, so the demo
-  // stays truthful on branches where a surface token does not exist yet.
-  const layers = LAYERS.filter(
-    ({ token }) =>
-      lightCtx.decl(token) !== undefined || darkCtx.decl(token) !== undefined,
-  );
-  return (
-    <PageSection
-      title="Layering model"
-      blurb="Surfaces stack from the canvas outward: background, then card, then the floating tiers. Use them in order; skipping tiers flattens the depth cues. Both themes shown, independent of the toolbar switcher."
-      aside={<InlineCode>{layers.length} tiers</InlineCode>}
-    >
-      <div className="grid gap-4 lg:grid-cols-2">
-        {[
-          { label: "light", paint: lightCtx },
-          { label: "dark", paint: darkCtx },
-        ].map(({ label, paint }) => (
-          <div key={label} className="flex flex-col gap-1.5">
-            <Eyebrow>{label}</Eyebrow>
-            <LayerStack paint={paint} layers={layers} />
-          </div>
-        ))}
-      </div>
-    </PageSection>
-  );
 }
 
 /* ------------------------------------------------------------------------- *
@@ -929,7 +857,6 @@ export function Color() {
           }
           meta={<>{colorEntryCount} color tokens · light and dark</>}
         />
-        <LayeringSection lightCtx={lightCtx} darkCtx={darkCtx} />
         <InteractionStatesSection ctx={ctx} />
         {VISIBLE_SECTIONS.map(({ id, title, blurb }) => {
           const rows = renderRows(id);
