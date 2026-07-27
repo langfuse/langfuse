@@ -1,14 +1,26 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import V4MigrationStatusPage from "./V4MigrationStatusPage";
 
 const mocks = vi.hoisted(() => ({
+  capture: vi.fn(),
+  openForProject: vi.fn(),
+  routerPush: vi.fn(),
   sdk: {
-    status: "latest" as "latest" | "legacy",
+    status: "latest" as
+      | "latest"
+      | "legacy"
+      | "otel_realtime"
+      | "otel_header_required",
     sdkUsageSeries: [],
     upgradeRequiredCount: 0,
+    delayedOtelIngestionCount: 0,
   },
+}));
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({ push: mocks.routerPush }),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -46,7 +58,7 @@ vi.mock("@/src/features/support-chat/SupportDrawerProvider", () => ({
 }));
 
 vi.mock("@/src/features/v4-migration/V4MigrationPanelProvider", () => ({
-  useV4MigrationPanel: () => ({ openForProject: vi.fn() }),
+  useV4MigrationPanel: () => ({ openForProject: mocks.openForProject }),
 }));
 
 vi.mock(
@@ -61,7 +73,7 @@ vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => vi.fn(),
+  usePostHogClientCapture: () => mocks.capture,
 }));
 
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
@@ -95,10 +107,14 @@ vi.mock("@/src/utils/api", () => ({
 
 describe("V4MigrationStatusPage", () => {
   beforeEach(() => {
+    mocks.capture.mockClear();
+    mocks.openForProject.mockClear();
+    mocks.routerPush.mockClear();
     mocks.sdk = {
       status: "latest",
       sdkUsageSeries: [],
       upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
     };
   });
 
@@ -117,15 +133,82 @@ describe("V4MigrationStatusPage", () => {
     expect(screen.getByText("of 1 projects migrated")).toBeInTheDocument();
   });
 
+  it("links projects to traces and opens the migration panel", () => {
+    render(<V4MigrationStatusPage />);
+
+    const projectLink = screen.getByRole("link", { name: "Test project" });
+    expect(projectLink).toHaveAttribute("href", "/project/project-1/traces");
+
+    projectLink.addEventListener("click", (event) => event.preventDefault(), {
+      once: true,
+    });
+    fireEvent.click(projectLink);
+
+    expect(mocks.openForProject).toHaveBeenCalledWith({
+      id: "project-1",
+      name: "Test project",
+    });
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:status_row_clicked",
+    );
+  });
+
+  it("navigates row clicks to traces with the migration panel open", () => {
+    render(<V4MigrationStatusPage />);
+
+    const projectRow = screen
+      .getByRole("link", { name: "Test project" })
+      .closest("tr");
+    expect(projectRow).not.toBeNull();
+
+    fireEvent.click(projectRow!);
+
+    expect(mocks.openForProject).toHaveBeenCalledWith({
+      id: "project-1",
+      name: "Test project",
+    });
+    expect(mocks.routerPush).toHaveBeenCalledWith("/project/project-1/traces");
+  });
+
   it("shows the exact number of outdated SDK configurations", () => {
     mocks.sdk = {
       status: "legacy",
       sdkUsageSeries: [],
       upgradeRequiredCount: 2,
+      delayedOtelIngestionCount: 0,
     };
 
     render(<V4MigrationStatusPage />);
 
     expect(screen.getByText("2 outdated")).toBeInTheDocument();
+  });
+
+  it("shows the OTel ingestion header issue separately from outdated SDKs", () => {
+    mocks.sdk = {
+      status: "otel_header_required",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 2,
+    };
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("2 OTel header issues")).toBeInTheDocument();
+    expect(screen.queryByText("0 outdated")).not.toBeInTheDocument();
+  });
+
+  it("shows real-time OTel as ready without claiming an SDK version", () => {
+    mocks.sdk = {
+      status: "otel_realtime",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("OTel real-time")).toBeInTheDocument();
+    expect(screen.queryByText("Latest")).not.toBeInTheDocument();
   });
 });
