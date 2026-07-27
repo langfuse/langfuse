@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -98,6 +98,12 @@ export function EventsOutlierStrip({
   onClose: () => void;
 }) {
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
+  // Transient drag selection, shared across the sibling charts so a drag on
+  // one strip highlights the same time span on all (LF-34, Grafana-style).
+  const [dragSelection, setDragSelection] = useState<{
+    fromMs: number;
+    toMs: number;
+  } | null>(null);
   // Which metric each chart slot shows — a per-user preference.
   const [slotMetrics, setSlotMetrics] = useLocalStorage<
     OutlierStripMetricKey[]
@@ -280,6 +286,8 @@ export function EventsOutlierStrip({
                     metric={metric}
                     widthPx={chartWidth}
                     onSelectBucket={handleSelectBucket}
+                    selection={dragSelection}
+                    onSelectionChange={setDragSelection}
                   />
                 </div>
               ))}

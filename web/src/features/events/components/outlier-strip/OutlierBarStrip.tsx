@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { cn } from "@/src/utils/tailwind";
 import { Layer } from "@/src/components/ui/layer";
@@ -29,6 +29,8 @@ const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
 
 /** Minimum horizontal pixels between gridline ticks / labels. */
 const TICK_MIN_SPACING_PX = 110;
+/** Pointer travel before a press becomes a range-drag instead of a click. */
+const DRAG_THRESHOLD_PX = 5;
 
 export type OutlierBarStripProps = {
   dense: OutlierStripDenseBin[];
@@ -51,6 +53,10 @@ export type OutlierBarStripProps = {
   /** Sparse time labels under the gridline ticks. */
   showTimeLabels?: boolean;
   onSelectBucket?: (range: { fromMs: number; toMs: number }) => void;
+  /** Transient drag selection (ms range), shared across sibling charts so a
+   *  drag on one strip highlights on all (LF-34, Grafana-style). */
+  selection?: { fromMs: number; toMs: number } | null;
+  onSelectionChange?: (range: { fromMs: number; toMs: number } | null) => void;
   className?: string;
 };
 
@@ -95,10 +101,15 @@ export function OutlierBarStrip({
   showActivityTicks = true,
   showTimeLabels = true,
   onSelectBucket,
+  selection = null,
+  onSelectionChange,
   className,
 }: OutlierBarStripProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
+  // Drag gesture bookkeeping lives in a ref: pointermove during a drag only
+  // updates the SHARED selection via onSelectionChange, never local state.
+  const dragRef = useRef<{ startX: number; dragging: boolean } | null>(null);
 
   const metricSpec = OUTLIER_STRIP_METRICS[metric];
   const color = METRIC_COLOR[metric];
@@ -115,6 +126,23 @@ export function OutlierBarStrip({
   const hasActivity = dense.some((bin) => bin.count > 0);
 
   const tickStepMs = pickTickStepMs(stepMs, slotPx, TICK_MIN_SPACING_PX);
+
+  // Maps a dragged pixel span to a bucket-snapped ms range.
+  const spanToRange = (x1: number, x2: number) => {
+    const clamp = (x: number) =>
+      Math.min(Math.max(x, 0), Math.max(widthPx - 1, 0));
+    const startIdx = Math.min(
+      Math.floor(clamp(Math.min(x1, x2)) / slotPx),
+      binCount - 1,
+    );
+    const endIdx = Math.min(
+      Math.floor(clamp(Math.max(x1, x2)) / slotPx),
+      binCount - 1,
+    );
+    const startMs = dense[startIdx]?.bucketStartMs ?? 0;
+    const endMs = (dense[endIdx]?.bucketStartMs ?? 0) + stepMs;
+    return { fromMs: startMs, toMs: endMs };
+  };
 
   // The static plot (ticks, baseline, bars, labels) reconciles hundreds of
   // SVG nodes; memoized so cursor-follow tooltip renders (every mousemove)
@@ -236,8 +264,10 @@ export function OutlierBarStrip({
         role="img"
         aria-label={metricSpec.label}
         className={cn(
-          "block",
-          hoveredHasData ? "cursor-pointer" : "cursor-default",
+          // pan-y: horizontal touch drags select a range; vertical stays with
+          // the page scroll (LF-34 mobile gesture requirement).
+          "block touch-pan-y",
+          hoveredHasData || selection ? "cursor-pointer" : "cursor-default",
         )}
         onMouseLeave={() => {
           setHoverIndex(null);
@@ -251,18 +281,78 @@ export function OutlierBarStrip({
           // and positions itself with `fixed`.
           setMouse({ x: event.clientX, y: event.clientY });
         }}
-        onClick={() => {
-          // Mirror the tooltip's guard: clicking a truly empty bucket would
-          // just drill the table into a zero-row window.
-          if (hovered && hoveredHasData && onSelectBucket) {
+        onPointerDown={(event) => {
+          if (event.button !== 0 && event.pointerType === "mouse") return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          dragRef.current = {
+            startX: event.clientX - rect.left,
+            dragging: false,
+          };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          const drag = dragRef.current;
+          if (!drag) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          if (!drag.dragging && Math.abs(x - drag.startX) < DRAG_THRESHOLD_PX) {
+            return;
+          }
+          drag.dragging = true;
+          onSelectionChange?.(spanToRange(drag.startX, x));
+        }}
+        onPointerUp={(event) => {
+          const drag = dragRef.current;
+          dragRef.current = null;
+          if (!drag) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          if (drag.dragging) {
+            // Grafana-style: apply the dragged span to the global range.
+            onSelectionChange?.(null);
+            onSelectBucket?.(spanToRange(drag.startX, x));
+            return;
+          }
+          // A press without movement is a click/tap: drill into one bucket.
+          // Mirror the tooltip's guard — a truly empty bucket would just
+          // drill the table into a zero-row window.
+          const index = Math.floor(x / slotPx);
+          const bin = dense[index];
+          if (bin && (bin.count > 0 || bin.value !== null) && onSelectBucket) {
             onSelectBucket({
-              fromMs: hovered.bucketStartMs,
-              toMs: hovered.bucketStartMs + stepMs,
+              fromMs: bin.bucketStartMs,
+              toMs: bin.bucketStartMs + stepMs,
             });
           }
         }}
+        onPointerCancel={() => {
+          dragRef.current = null;
+          onSelectionChange?.(null);
+        }}
       >
         {staticLayers}
+
+        {/* Shared drag-selection overlay (LF-34) */}
+        {selection &&
+          (() => {
+            const first = dense[0]?.bucketStartMs;
+            if (first === undefined) return null;
+            const startX = ((selection.fromMs - first) / stepMs) * slotPx;
+            const endX = ((selection.toMs - first) / stepMs) * slotPx;
+            const x = Math.max(startX, 0);
+            const w = Math.min(endX, widthPx) - x;
+            if (w <= 0) return null;
+            return (
+              <rect
+                x={x}
+                y={0}
+                width={w}
+                height={plotHeight}
+                className="fill-foreground"
+                opacity={0.12}
+              />
+            );
+          })()}
 
         {/* Hover crosshair column */}
         {hoverIndex !== null && (
