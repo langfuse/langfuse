@@ -172,13 +172,29 @@ export function EventsOutlierStrip({
     [queryResult.data],
   );
 
+  // Sanitize ONCE: localStorage is user-editable and cross-tab-writable; any
+  // valid-JSON wrong shape (a bare string, wrong casing, a number) would
+  // otherwise crash OUTLIER_STRIP_METRICS lookups or the spread in
+  // setSlotMetric on every page load until hand-cleared.
+  const safeSlotMetrics = useMemo<OutlierStripMetricKey[]>(
+    () =>
+      Array.isArray(slotMetrics)
+        ? slotMetrics.map((stored, i) =>
+            typeof stored === "string" && stored in OUTLIER_STRIP_METRICS
+              ? (stored as OutlierStripMetricKey)
+              : DEFAULT_SLOT_METRICS[i % 3],
+          )
+        : DEFAULT_SLOT_METRICS,
+    [slotMetrics],
+  );
+
   const visibleMetrics = useMemo(
     () =>
       Array.from(
         { length: chartCount },
-        (_, i) => slotMetrics[i] ?? DEFAULT_SLOT_METRICS[i % 3],
+        (_, i) => safeSlotMetrics[i] ?? DEFAULT_SLOT_METRICS[i % 3],
       ),
-    [chartCount, slotMetrics],
+    [chartCount, safeSlotMetrics],
   );
 
   const series = useMemo(
@@ -200,7 +216,7 @@ export function EventsOutlierStrip({
   };
 
   const setSlotMetric = (slot: number, metric: OutlierStripMetricKey) => {
-    const base = [...slotMetrics];
+    const base = [...safeSlotMetrics];
     while (base.length < MAX_CHARTS)
       base.push(DEFAULT_SLOT_METRICS[base.length]);
     base[slot] = metric;

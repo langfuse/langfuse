@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { cn } from "@/src/utils/tailwind";
 import { Layer } from "@/src/components/ui/layer";
@@ -54,7 +54,12 @@ export type OutlierBarStripProps = {
   className?: string;
 };
 
-/** Smallest ladder step at least `minPx` wide at the current bar slot. */
+/**
+ * Smallest "nice" tick step at least `minPx` wide at the current bar slot.
+ * Ticks must be MULTIPLES of the bucket step — the grid tests
+ * `bucketStartMs % tickStepMs === 0`, and a non-multiple would place ticks
+ * irregularly (or never, for `1w` buckets whose starts aren't day-aligned).
+ */
 const pickTickStepMs = (
   stepMs: number,
   slotPx: number,
@@ -62,13 +67,12 @@ const pickTickStepMs = (
 ): number => {
   for (const step of OUTLIER_STRIP_STEP_LADDER_SECONDS) {
     const tickMs = step * 1000;
-    if (tickMs >= stepMs && (tickMs / stepMs) * slotPx >= minPx) return tickMs;
+    if (tickMs % stepMs === 0 && (tickMs / stepMs) * slotPx >= minPx) {
+      return tickMs;
+    }
   }
-  const last =
-    OUTLIER_STRIP_STEP_LADDER_SECONDS[
-      OUTLIER_STRIP_STEP_LADDER_SECONDS.length - 1
-    ] * 1000;
-  return Math.ceil((minPx / slotPx) * (stepMs / last)) * last;
+  // Every k-th bucket, k sized to the pixel budget — aligned by construction.
+  return Math.max(1, Math.ceil(minPx / slotPx)) * stepMs;
 };
 
 const formatBucketRange = (fromMs: number, stepMs: number): string => {
@@ -108,56 +112,20 @@ export function OutlierBarStrip({
   const hasActivity = dense.some((bin) => bin.count > 0);
 
   const tickStepMs = pickTickStepMs(stepMs, slotPx, TICK_MIN_SPACING_PX);
-  const tickLabel = (bucketMs: number) =>
-    format(new Date(bucketMs), tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm");
 
-  const barHeight = (value: number) => {
-    if (!hasData) return 0;
-    const fraction = value / maxValue;
-    const scaled = scale === "sqrt" ? Math.sqrt(fraction) : fraction;
-    return Math.max(1.5, scaled * heightPx);
-  };
-
-  // ?? null: a stale hoverIndex can outlive a shrinking dense array (data or
-  // granularity change mid-hover), and undefined slips past a !== null check.
-  const hovered = hoverIndex !== null ? (dense[hoverIndex] ?? null) : null;
-  const hoveredHasData =
-    hovered !== null && (hovered.count > 0 || hovered.value !== null);
-
-  return (
-    <div className={cn("relative", className)} style={{ width: widthPx }}>
-      <svg
-        width={widthPx}
-        height={heightPx + labelHeight}
-        role="img"
-        aria-label={metricSpec.label}
-        className={cn(
-          "block",
-          hoveredHasData ? "cursor-pointer" : "cursor-default",
-        )}
-        onMouseLeave={() => {
-          setHoverIndex(null);
-          setMouse(null);
-        }}
-        onMouseMove={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect();
-          const index = Math.floor((event.clientX - rect.left) / slotPx);
-          setHoverIndex(index >= 0 && index < dense.length ? index : null);
-          // Viewport coordinates: the tooltip portals to the overlay layer
-          // and positions itself with `fixed`.
-          setMouse({ x: event.clientX, y: event.clientY });
-        }}
-        onClick={() => {
-          // Mirror the tooltip's guard: clicking a truly empty bucket would
-          // just drill the table into a zero-row window.
-          if (hovered && hoveredHasData && onSelectBucket) {
-            onSelectBucket({
-              fromMs: hovered.bucketStartMs,
-              toMs: hovered.bucketStartMs + stepMs,
-            });
-          }
-        }}
-      >
+  // The static plot (ticks, baseline, bars, labels) reconciles hundreds of
+  // SVG nodes; memoized so cursor-follow tooltip renders (every mousemove)
+  // only touch the crosshair + tooltip.
+  const staticLayers = useMemo(() => {
+    const tickLabel = (bucketMs: number) =>
+      format(new Date(bucketMs), tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm");
+    const barHeight = (value: number) => {
+      const fraction = value / maxValue;
+      const scaled = scale === "sqrt" ? Math.sqrt(fraction) : fraction;
+      return Math.max(1.5, scaled * heightPx);
+    };
+    return (
+      <>
         {/* Sparse vertical gridline ticks (Firefox-devtools style) */}
         {dense.map((bin, i) => {
           if (bin.bucketStartMs % tickStepMs !== 0 || i === 0) return null;
@@ -202,7 +170,7 @@ export function OutlierBarStrip({
               />
             ) : null;
           }
-          const h = barHeight(bin.value);
+          const h = hasData ? barHeight(bin.value) : 0;
           return (
             <rect
               key={i}
@@ -212,22 +180,10 @@ export function OutlierBarStrip({
               height={h}
               rx={barWidth >= 4 ? 1 : 0}
               fill={color}
-              opacity={hoverIndex === i ? 1 : 0.75}
+              opacity={0.8}
             />
           );
         })}
-
-        {/* Hover crosshair column */}
-        {hoverIndex !== null && (
-          <rect
-            x={hoverIndex * slotPx}
-            y={0}
-            width={slotPx}
-            height={heightPx}
-            className="fill-foreground"
-            opacity={0.08}
-          />
-        )}
 
         {/* Sparse time labels on the tick grid */}
         {showTimeLabels &&
@@ -245,6 +201,76 @@ export function OutlierBarStrip({
               </text>
             );
           })}
+      </>
+    );
+  }, [
+    dense,
+    slotPx,
+    barWidth,
+    heightPx,
+    widthPx,
+    color,
+    tickStepMs,
+    maxValue,
+    scale,
+    hasData,
+    showActivityTicks,
+    showTimeLabels,
+  ]);
+
+  // ?? null: a stale hoverIndex can outlive a shrinking dense array (data or
+  // granularity change mid-hover), and undefined slips past a !== null check.
+  const hovered = hoverIndex !== null ? (dense[hoverIndex] ?? null) : null;
+  const hoveredHasData =
+    hovered !== null && (hovered.count > 0 || hovered.value !== null);
+
+  return (
+    <div className={cn("relative", className)} style={{ width: widthPx }}>
+      <svg
+        width={widthPx}
+        height={heightPx + labelHeight}
+        role="img"
+        aria-label={metricSpec.label}
+        className={cn(
+          "block",
+          hoveredHasData ? "cursor-pointer" : "cursor-default",
+        )}
+        onMouseLeave={() => {
+          setHoverIndex(null);
+          setMouse(null);
+        }}
+        onMouseMove={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const index = Math.floor((event.clientX - rect.left) / slotPx);
+          setHoverIndex(index >= 0 && index < dense.length ? index : null);
+          // Viewport coordinates: the tooltip portals to the overlay layer
+          // and positions itself with `fixed`.
+          setMouse({ x: event.clientX, y: event.clientY });
+        }}
+        onClick={() => {
+          // Mirror the tooltip's guard: clicking a truly empty bucket would
+          // just drill the table into a zero-row window.
+          if (hovered && hoveredHasData && onSelectBucket) {
+            onSelectBucket({
+              fromMs: hovered.bucketStartMs,
+              toMs: hovered.bucketStartMs + stepMs,
+            });
+          }
+        }}
+      >
+        {staticLayers}
+
+        {/* Hover crosshair column */}
+        {hoverIndex !== null && (
+          <rect
+            x={hoverIndex * slotPx}
+            y={0}
+            width={slotPx}
+            height={heightPx}
+            className="fill-foreground"
+            opacity={0.08}
+          />
+        )}
       </svg>
 
       {!hasData && (
@@ -262,11 +288,21 @@ export function OutlierBarStrip({
         <Layer name="tooltip">
           <div
             className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 font-mono text-[10px] leading-tight whitespace-nowrap shadow-sm"
-            style={{
-              left: mouse.x + 10,
-              top: mouse.y - 8,
-              transform: "translateY(-100%)",
-            }}
+            style={
+              // Top-right of the cursor; flips to top-left near the viewport's
+              // right edge so it never runs off screen.
+              mouse.x + 200 > window.innerWidth
+                ? {
+                    left: mouse.x - 10,
+                    top: mouse.y - 8,
+                    transform: "translate(-100%, -100%)",
+                  }
+                : {
+                    left: mouse.x + 10,
+                    top: mouse.y - 8,
+                    transform: "translateY(-100%)",
+                  }
+            }
           >
             <div className="text-muted-foreground">
               {formatBucketRange(hovered.bucketStartMs, stepMs)}
