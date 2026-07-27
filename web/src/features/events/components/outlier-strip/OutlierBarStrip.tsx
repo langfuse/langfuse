@@ -106,7 +106,10 @@ export function OutlierBarStrip({
   // Fractional slots: the plot always spans the full width, so empty regions
   // read as "chart with no data here" instead of trailing whitespace.
   const slotPx = widthPx / binCount;
-  const barWidth = Math.max(Math.min(slotPx - 1, slotPx * 0.8), 0.5);
+  // Exactly 1px between bars, square corners (design review 2026-07-27).
+  const barWidth = Math.max(slotPx - 1, 0.5);
+  // Bars sit ON the 1px baseline, never across it.
+  const plotHeight = heightPx - 1;
   const labelHeight = showTimeLabels ? 12 : 0;
   const hasData = maxValue > 0;
   const hasActivity = dense.some((bin) => bin.count > 0);
@@ -123,7 +126,7 @@ export function OutlierBarStrip({
       // Corrupt data (e.g. end_time < start_time) must not NaN the height.
       const fraction = Math.max(value, 0) / maxValue;
       const scaled = scale === "sqrt" ? Math.sqrt(fraction) : fraction;
-      return Math.max(1.5, scaled * heightPx);
+      return Math.max(1.5, scaled * plotHeight);
     };
     return (
       <>
@@ -136,7 +139,7 @@ export function OutlierBarStrip({
               x1={i * slotPx}
               y1={0}
               x2={i * slotPx}
-              y2={heightPx}
+              y2={plotHeight}
               className="stroke-foreground"
               strokeWidth={1}
               opacity={0.07}
@@ -163,7 +166,7 @@ export function OutlierBarStrip({
               <rect
                 key={i}
                 x={i * slotPx}
-                y={heightPx - 2}
+                y={plotHeight - 1.5}
                 width={barWidth}
                 height={1.5}
                 className="fill-muted-foreground"
@@ -175,11 +178,10 @@ export function OutlierBarStrip({
           return (
             <rect
               key={i}
-              x={i * slotPx + (slotPx - barWidth) / 2}
-              y={heightPx - h}
+              x={i * slotPx}
+              y={plotHeight - h}
               width={barWidth}
               height={h}
-              rx={barWidth >= 4 ? 1 : 0}
               fill={color}
               opacity={0.8}
             />
@@ -209,6 +211,7 @@ export function OutlierBarStrip({
     slotPx,
     barWidth,
     heightPx,
+    plotHeight,
     widthPx,
     color,
     tickStepMs,
