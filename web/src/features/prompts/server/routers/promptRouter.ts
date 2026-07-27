@@ -1528,11 +1528,20 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
+      const count = await ctx.prisma.prompt.count({
+        where: { projectId: input.projectId },
+      });
+
+      if (count > 10_000) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Project has ${count} prompt versions which exceeds the export limit of 10,000. Please contact support for bulk exports of large projects.`,
+        });
+      }
+
       const prompts = await ctx.prisma.prompt.findMany({
         where: { projectId: input.projectId },
         orderBy: [{ name: "asc" }, { version: "asc" }],
-        // Cap at 10 000 rows to avoid unbounded memory growth for very large projects
-        take: 10_000,
         select: {
           name: true,
           version: true,
@@ -1625,16 +1634,20 @@ export const promptRouter = createTRPCRouter({
               prompt: item.prompt as string,
             });
           }
-          await auditLog(
-            {
-              session: ctx.session,
-              resourceType: "prompt",
-              resourceId: createdPrompt.id,
-              action: "create",
-              after: createdPrompt,
-            },
-            ctx.prisma,
-          );
+          try {
+            await auditLog(
+              {
+                session: ctx.session,
+                resourceType: "prompt",
+                resourceId: createdPrompt.id,
+                action: "create",
+                after: createdPrompt,
+              },
+              ctx.prisma,
+            );
+          } catch {
+            // Audit failure is non-fatal — the prompt was already created
+          }
           results.push({ name: item.name, success: true });
         } catch (e) {
           results.push({

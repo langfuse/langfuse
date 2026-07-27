@@ -10,7 +10,7 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
 import PromptMetrics from "./metrics";
 import { useQueryParams, StringParam } from "use-query-params";
-import React, { useRef, useState } from "react";
+import { useState } from "react";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
 import { ImportPromptsButton } from "@/src/features/prompts/components/ImportPromptsDialog";
 import { Button } from "@/src/components/ui/button";
@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export default function PromptsWithFolder() {
   const router = useRouter();
@@ -53,45 +54,30 @@ export default function PromptsWithFolder() {
     scope: "prompts:read",
   });
   const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
-  const [exportVersions, setExportVersions] = useState<"latest" | "all" | null>(
-    null,
-  );
-  // Incremented on each export click so the effect always fires even when
-  // React Query returns the same cached data object reference.
-  const exportRequestIdRef = useRef(0);
-  const consumedRequestIdRef = useRef(0);
+  const utils = api.useUtils();
+  const [isExporting, setIsExporting] = useState(false);
+  const capture = usePostHogClientCapture();
 
-  const exportQuery = api.prompts.exportAll.useQuery(
-    {
-      projectId,
-      includeAllVersions: exportVersions === "all",
-    },
-    {
-      enabled: !!exportVersions && hasReadAccess,
-      trpc: { context: { skipBatch: true } },
-    },
-  );
-
-  React.useEffect(() => {
-    if (
-      !exportQuery.data ||
-      !exportVersions ||
-      consumedRequestIdRef.current === exportRequestIdRef.current
-    )
-      return;
-    consumedRequestIdRef.current = exportRequestIdRef.current;
-    const json = JSON.stringify(exportQuery.data, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `langfuse-prompts-${exportVersions}-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setExportVersions(null);
-    capture("prompts:bulk_export", { mode: exportVersions });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exportQuery.data, exportRequestIdRef.current]);
+  const handleExport = async (mode: "latest" | "all") => {
+    setIsExporting(true);
+    try {
+      const data = await utils.prompts.exportAll.fetch({
+        projectId,
+        includeAllVersions: mode === "all",
+      });
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `langfuse-prompts-${mode}-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      capture("prompts:bulk_export", { mode });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Check if the project has any prompts
   const { data: hasAnyPrompt, isLoading } = api.prompts.hasAny.useQuery(
@@ -143,36 +129,24 @@ export default function PromptsWithFolder() {
             {hasReadAccess && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={exportQuery.isFetching}
-                  >
+                  <Button variant="outline" size="sm" disabled={isExporting}>
                     <UploadIcon className="mr-1 h-4 w-4" />
-                    {exportQuery.isFetching ? "Exporting…" : "Export"}
+                    {isExporting ? "Exporting…" : "Export"}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => {
-                      exportRequestIdRef.current += 1;
-                      setExportVersions("latest");
-                    }}
-                  >
+                  <DropdownMenuItem onClick={() => handleExport("latest")}>
                     Latest version per prompt
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      exportRequestIdRef.current += 1;
-                      setExportVersions("all");
-                    }}
-                  >
+                  <DropdownMenuItem onClick={() => handleExport("all")}>
                     All versions
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            {projectId && <ImportPromptsButton projectId={projectId} />}
+            {projectId && hasCUDAccess && (
+              <ImportPromptsButton projectId={projectId} />
+            )}
             <ActionButton
               icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
               hasAccess={hasCUDAccess}
