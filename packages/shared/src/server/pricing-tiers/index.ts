@@ -6,3 +6,7 @@
 export type { PricingTierMatchResult, PricingTierWithPrices } from "./types";
 
 export { matchPricingTier } from "./matcher";
+export {
+  CANONICAL_USAGE_KEY_ALIASES,
+  resolveUsageKeyAlias,
+} from "./usageKeyAliases";
