@@ -21,6 +21,8 @@ import {
   UsageDetails,
   normalizeToolsForObservation,
   normalizeToolMetadataForObservation,
+  normalizeEnvironment,
+  DEFAULT_TRACE_ENVIRONMENT,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -2106,16 +2108,24 @@ export class OtelIngestionProcessor {
       "deployment.environment",
     ];
 
+    // Normalize here so the direct events_full write path stores the same
+    // value the legacy path produces after its ingestion-schema parse
+    // (LFE-14403: raw passthrough stored "PROD" in events_core while the
+    // legacy tables held "prod").
     for (const key of environmentAttributeKeys) {
       if (attributes[key]) {
-        return attributes[key] as string;
+        return normalizeEnvironment(attributes[key], {
+          isLangfuseInternal: this.isLangfuseInternal,
+        });
       }
       if (resourceAttributes[key]) {
-        return resourceAttributes[key] as string;
+        return normalizeEnvironment(resourceAttributes[key], {
+          isLangfuseInternal: this.isLangfuseInternal,
+        });
       }
     }
 
-    return "default";
+    return DEFAULT_TRACE_ENVIRONMENT;
   }
 
   private extractName(
