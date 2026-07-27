@@ -1,12 +1,10 @@
 import { cn } from "@/src/utils/tailwind";
-import Link from "next/link";
-import { VersionLabel } from "./VersionLabel";
 import { env } from "@/src/env.mjs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { PlusIcon } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 
-const LangfuseLogotypeOrCustomized = () => {
+export const LangfuseLogo = () => {
   const uiCustomization = useUiCustomization();
 
   if (uiCustomization?.logoLightModeHref && uiCustomization?.logoDarkModeHref) {
@@ -53,22 +51,6 @@ const LangfuseLogotypeOrCustomized = () => {
       />
       <div className="hidden scale-120 group-data-[collapsible=icon]:block">
         <LangfuseIcon size={28} />
-      </div>
-    </div>
-  );
-};
-
-export const LangfuseLogo = ({ version = false }: { version?: boolean }) => {
-  return (
-    <div className="-mt-2 ml-1 flex flex-wrap gap-4 lg:flex-col lg:items-start">
-      {/* Langfuse Logo */}
-      <div className="flex items-center">
-        <Link href="/" className="flex items-center">
-          <LangfuseLogotypeOrCustomized />
-        </Link>
-        {version && (
-          <VersionLabel className="ml-2 group-data-[collapsible=icon]:hidden" />
-        )}
       </div>
     </div>
   );
