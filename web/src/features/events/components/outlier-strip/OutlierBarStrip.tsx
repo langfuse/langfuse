@@ -265,8 +265,10 @@ export function OutlierBarStrip({
         aria-label={metricSpec.label}
         className={cn(
           // pan-y: horizontal touch drags select a range; vertical stays with
-          // the page scroll (LF-34 mobile gesture requirement).
-          "block touch-pan-y",
+          // the page scroll (LF-34 mobile gesture requirement). select-none +
+          // the pointerdown preventDefault keep a range-drag from ALSO
+          // starting a native text selection over the tick labels.
+          "block touch-pan-y select-none",
           hoveredHasData || selection ? "cursor-pointer" : "cursor-default",
         )}
         onMouseLeave={() => {
@@ -283,6 +285,8 @@ export function OutlierBarStrip({
         }}
         onPointerDown={(event) => {
           if (event.button !== 0 && event.pointerType === "mouse") return;
+          // A drag must not double as a native text-selection drag.
+          event.preventDefault();
           const rect = event.currentTarget.getBoundingClientRect();
           dragRef.current = {
             startX: event.clientX - rect.left,
