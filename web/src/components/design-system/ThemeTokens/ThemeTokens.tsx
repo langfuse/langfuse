@@ -17,6 +17,12 @@ import {
 
 import globalsCss from "../../../styles/globals.css?raw";
 import {
+  DocsPageHeader,
+  DocsSection,
+  ProposedBadge,
+  SpecChip,
+} from "./docsChrome";
+import {
   parseThemeTokens,
   resolveDeclaredValue,
   toCssColor,
@@ -259,14 +265,6 @@ function Swatch({ color }: { color: string | undefined }) {
   );
 }
 
-function ProposedBadge({ mode }: { mode?: "light" | "dark" }) {
-  return (
-    <span className="bg-light-yellow text-dark-yellow rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-bold whitespace-nowrap">
-      {mode ? `PROPOSED · ${mode}` : "PROPOSED"}
-    </span>
-  );
-}
-
 function TokenCard({
   name,
   entry,
@@ -299,9 +297,9 @@ function TokenCard({
     : undefined;
 
   return (
-    <div className="bg-card flex flex-col gap-2 rounded-lg border p-3">
+    <div className="bg-card flex flex-col gap-2 rounded-md border p-3">
       <div className="flex items-start justify-between gap-2">
-        <code className="text-foreground font-mono text-xs font-bold break-all">
+        <code className="text-foreground font-mono text-[11px] break-all">
           {name}
         </code>
         {proposed && <ProposedBadge />}
@@ -829,7 +827,8 @@ function TypographySection({ ctx }: { ctx: GalleryContext }) {
   return (
     <GallerySection
       title="Typography"
-      blurb="Font stacks, the two weight roles, and the text-* size tokens (each size carries its canonical weight)."
+      blurb="Font stacks, the two weight roles, and the text-* size tokens (each size carries its canonical weight). Full specimens: Design → Theme Tokens → Typography."
+      count={fontStacks.length + weightRoles.length + textSizes.length}
     >
       {fontStacks.map((token) => (
         <TokenCard
@@ -954,6 +953,12 @@ function MappingsSection({ ctx }: { ctx: GalleryContext }) {
     <GallerySection
       title="Tailwind mappings & animations"
       blurb="@theme inline: utility → token wiring, animation tokens, and the disabled built-in palettes. These emit utilities, not runtime vars."
+      count={
+        colorMappings.length +
+        spacing.length +
+        animations.length +
+        leftovers.length
+      }
     >
       <div className="col-span-full flex flex-col gap-6">
         <div className="columns-1 gap-8 md:columns-2 xl:columns-3">
@@ -977,18 +982,26 @@ function MappingsSection({ ctx }: { ctx: GalleryContext }) {
 function GallerySection({
   title,
   blurb,
+  count,
   children,
 }: {
   title: string;
   blurb: string;
+  count?: number;
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-foreground text-lg font-bold">{title}</h2>
-        <p className="text-muted-foreground text-sm">{blurb}</p>
-      </div>
+    <DocsSection
+      title={title}
+      blurb={blurb}
+      aside={
+        count !== undefined ? (
+          <SpecChip>
+            {count} token{count === 1 ? "" : "s"}
+          </SpecChip>
+        ) : undefined
+      }
+    >
       <div
         className="grid gap-3"
         style={
@@ -999,7 +1012,7 @@ function GallerySection({
       >
         {children}
       </div>
-    </section>
+    </DocsSection>
   );
 }
 
@@ -1026,71 +1039,83 @@ export function ThemeTokens() {
   const proposedStatic = parsed.fontTokens.filter((t) => t.proposed).length;
 
   return (
-    <div className="flex flex-col gap-10 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-foreground text-2xl font-bold">Theme tokens</h1>
-        <p className="text-muted-foreground max-w-3xl text-sm">
-          Parsed at build time from{" "}
-          <code className="font-mono">src/styles/globals.css</code> — the
-          gallery cannot drift from the file. Use the toolbar theme switcher to
-          re-render under light/dark; values marked <ProposedBadge /> carry a{" "}
-          <code className="font-mono">PROPOSED (review)</code> comment in the
-          stylesheet, showing old → new.
-        </p>
-        <p className="text-muted-foreground font-mono text-xs">
-          {rootEntries.length} themed tokens · {proposedLight} proposed in light
-          · {proposedDark} proposed in dark
-          {proposedStatic > 0
-            ? ` · ${proposedStatic} proposed font tokens`
-            : ""}
-        </p>
-      </header>
-      {SECTION_ORDER.map(({ id, title, blurb }) => {
-        const entries = sectionEntries.get(id) ?? [];
-        const extraCards =
-          id === "radius"
-            ? inlineRadii.map((token) => (
-                <TokenCard
-                  key={token.name}
-                  name={token.name}
-                  staticDecl={token}
-                  ctx={ctx}
-                  sample={
-                    <div
-                      className="rounded-md border px-3 py-2"
-                      style={{ background: ctx.color("--background") }}
-                    >
+    <div className="p-6 md:p-10">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-10">
+        <DocsPageHeader
+          eyebrow="Design tokens"
+          title="Theme tokens"
+          lede={
+            <>
+              Parsed at build time from{" "}
+              <code className="font-mono">src/styles/globals.css</code> — the
+              gallery cannot drift from the file. Use the toolbar theme switcher
+              to re-render under light/dark; values marked <ProposedBadge />{" "}
+              carry a <code className="font-mono">PROPOSED (review)</code>{" "}
+              comment in the stylesheet, showing old → new.
+            </>
+          }
+          meta={
+            <>
+              {rootEntries.length} themed tokens · {proposedLight} proposed in
+              light · {proposedDark} proposed in dark
+              {proposedStatic > 0
+                ? ` · ${proposedStatic} proposed font tokens`
+                : ""}
+            </>
+          }
+        />
+        {SECTION_ORDER.map(({ id, title, blurb }) => {
+          const entries = sectionEntries.get(id) ?? [];
+          const extraCards =
+            id === "radius"
+              ? inlineRadii.map((token) => (
+                  <TokenCard
+                    key={token.name}
+                    name={token.name}
+                    staticDecl={token}
+                    ctx={ctx}
+                    sample={
                       <div
-                        className="h-10 w-20 border"
-                        style={{
-                          background: ctx.color("--muted"),
-                          borderColor: ctx.color("--border-contrast"),
-                          borderRadius: ctx.resolve(token.value),
-                        }}
-                      />
-                    </div>
-                  }
+                        className="rounded-md border px-3 py-2"
+                        style={{ background: ctx.color("--background") }}
+                      >
+                        <div
+                          className="h-10 w-20 border"
+                          style={{
+                            background: ctx.color("--muted"),
+                            borderColor: ctx.color("--border-contrast"),
+                            borderRadius: ctx.resolve(token.value),
+                          }}
+                        />
+                      </div>
+                    }
+                  />
+                ))
+              : null;
+          if (entries.length === 0 && !extraCards?.length) return null;
+          return (
+            <GallerySection
+              key={id}
+              title={title}
+              blurb={blurb}
+              count={entries.length + (extraCards?.length ?? 0)}
+            >
+              {entries.map((entry) => (
+                <TokenCard
+                  key={entry.name}
+                  name={entry.name}
+                  entry={entry}
+                  ctx={ctx}
+                  sample={renderSample(id, entry.name, ctx)}
                 />
-              ))
-            : null;
-        if (entries.length === 0 && !extraCards?.length) return null;
-        return (
-          <GallerySection key={id} title={title} blurb={blurb}>
-            {entries.map((entry) => (
-              <TokenCard
-                key={entry.name}
-                name={entry.name}
-                entry={entry}
-                ctx={ctx}
-                sample={renderSample(id, entry.name, ctx)}
-              />
-            ))}
-            {extraCards}
-          </GallerySection>
-        );
-      })}
-      <TypographySection ctx={ctx} />
-      <MappingsSection ctx={ctx} />
+              ))}
+              {extraCards}
+            </GallerySection>
+          );
+        })}
+        <TypographySection ctx={ctx} />
+        <MappingsSection ctx={ctx} />
+      </div>
     </div>
   );
 }

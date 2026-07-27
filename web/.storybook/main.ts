@@ -20,9 +20,12 @@ const DESIGN_COMPONENT_STORIES = [
 // Design-system reference pages that sit directly under Design (not
 // Design/Components), e.g. the theme token gallery.
 const DESIGN_REFERENCE_STORIES = ["ThemeTokens/Theme Tokens"] as const;
+// Deep-dive reference pages nested under Design/Theme Tokens.
+const DESIGN_THEME_TOKENS_STORIES = ["ThemeTokens/Typography"] as const;
 const PLAYGROUND_EXCLUDED_STORIES = [
   ...DESIGN_COMPONENT_STORIES,
   ...DESIGN_REFERENCE_STORIES,
+  ...DESIGN_THEME_TOKENS_STORIES,
 ] as const;
 
 /**
@@ -58,6 +61,12 @@ const config: StorybookConfig = {
       directory: "../src/components/design-system",
       files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design",
+    })),
+    // Deep-dive reference pages nested under the Theme Tokens node.
+    ...DESIGN_THEME_TOKENS_STORIES.map((storyPath) => ({
+      directory: "../src/components/design-system",
+      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Design/Theme Tokens",
     })),
     // All other component stories belong to the flat Playground by default.
     {

@@ -16,8 +16,8 @@
 import { Geist_Mono, Inter } from "next/font/google";
 
 export const inter = Inter({
-  subsets: ["latin"],
   display: "swap",
+  subsets: ["latin"],
   // No `variable`: _app writes the family onto :root itself (see fonts note
   // in globals.css) so portalled content (Radix menus, tooltips) inherits it.
 });
