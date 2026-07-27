@@ -1,4 +1,8 @@
-import { createTool } from "@mastra/core/tools";
+import {
+  standardSchemaToJSONSchema,
+  toStandardSchema,
+} from "@mastra/core/schema";
+import { createTool, Tool } from "@mastra/core/tools";
 import type { InAppAgentSandbox } from "./sandbox";
 import {
   hasProjectAccessByRole,
@@ -27,7 +31,11 @@ import z from "zod";
 import { TABLE_AGGREGATION_OPTIONS } from "../../utils/dateRanges";
 import { ObservationLevelDomain, TracingSearchType } from "../../index";
 import { Role } from "../../db";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
+import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
+  IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
+} from "../constants";
 
 type InAppAgentMcpToolApproval = "auto" | "approval";
 
@@ -515,6 +523,113 @@ export function createSandboxTools(sandbox: InAppAgentSandbox) {
         sandbox.bash({ command, timeoutMs }),
     }),
   };
+}
+
+const SILENT_MCP_TOOL_PARAMETER_DESCRIPTION =
+  "Suppress the tool output from the conversation and save the full result to /workspace/tool_calls.";
+
+const SilentMcpToolInputSchema = z.looseObject({
+  silent: z
+    .boolean()
+    .optional()
+    .describe(SILENT_MCP_TOOL_PARAMETER_DESCRIPTION),
+});
+
+type SilentMcpToolOutput = {
+  type: typeof IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE;
+  output: unknown;
+};
+
+export function withOptionalSilentMcpOutput(params: {
+  tools: Record<string, unknown> | undefined;
+  sandbox?: InAppAgentSandbox;
+}): Record<string, Tool> {
+  return Object.fromEntries(
+    Object.entries(params.tools ?? {}).map(([toolName, tool]) => {
+      if (!params.sandbox) {
+        return [toolName, tool];
+      }
+
+      if (!(tool instanceof Tool)) {
+        return [toolName, tool];
+      }
+
+      const { execute, inputSchema, toModelOutput } = tool;
+      if (!execute || !inputSchema) {
+        return [toolName, tool];
+      }
+
+      if (inputSchema instanceof z.ZodObject) {
+        tool.inputSchema = inputSchema.extend({
+          silent: z
+            .boolean()
+            .optional()
+            .describe(SILENT_MCP_TOOL_PARAMETER_DESCRIPTION),
+        });
+      } else {
+        const jsonInputSchema = standardSchemaToJSONSchema(inputSchema);
+        if (jsonInputSchema.type !== "object") {
+          return [toolName, tool];
+        }
+
+        tool.inputSchema = toStandardSchema({
+          ...jsonInputSchema,
+          properties: {
+            ...jsonInputSchema.properties,
+            silent: {
+              type: "boolean",
+              description: SILENT_MCP_TOOL_PARAMETER_DESCRIPTION,
+            },
+          },
+        });
+      }
+
+      tool.execute = async (input, context) => {
+        const { silent, ...toolInput } = SilentMcpToolInputSchema.parse(input);
+
+        const result: unknown = await execute(toolInput, context);
+
+        if (!silent) {
+          return result;
+        }
+
+        // Preserve the raw result for the existing tool_calls persistence flow.
+        return {
+          type: IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
+          output: result,
+        } satisfies SilentMcpToolOutput;
+      };
+      tool.toModelOutput = (output) => {
+        if (isSilentMcpToolOutput(output)) {
+          return IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE;
+        }
+
+        return toModelOutput ? toModelOutput(output) : output;
+      };
+
+      return [toolName, tool];
+    }),
+  ) as Record<string, Tool>;
+}
+
+export function getPublicInAppAgentMcpToolResultContent(content: string) {
+  try {
+    return isSilentMcpToolOutput(JSON.parse(content) as unknown)
+      ? IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE
+      : content;
+  } catch {
+    return content;
+  }
+}
+
+function isSilentMcpToolOutput(value: unknown): value is SilentMcpToolOutput {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE &&
+    "output" in value
+  );
 }
 
 const InAppAgentRedirectDestinationSchema = z.enum([

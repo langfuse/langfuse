@@ -38,7 +38,10 @@ import { assertConversationAccess } from "./access";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
-import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./tools";
+import {
+  getPublicInAppAgentMcpToolResultContent,
+  IN_APP_AGENT_SANDBOX_TOOL_NAMES,
+} from "./tools";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.
@@ -498,6 +501,24 @@ export async function getConversationMessages(params: {
   conversationId: string;
 }) {
   return getMessagesFromPersistedEvents(await getConversationEvents(params));
+}
+
+export async function getConversationMessagesForDisplay(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+}) {
+  const messages = await getConversationMessages(params);
+  return dropEmptyAssistantMessages(
+    dropUnpairedAssistantToolCalls(messages),
+  ).map((message) =>
+    message.role === "tool"
+      ? {
+          ...message,
+          content: getPublicInAppAgentMcpToolResultContent(message.content),
+        }
+      : message,
+  );
 }
 
 export async function getConversationMessagesForReplay(params: {

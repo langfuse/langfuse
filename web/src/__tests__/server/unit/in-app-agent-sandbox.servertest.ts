@@ -1,10 +1,70 @@
 import { EventType } from "@ag-ui/core";
+import { standardSchemaToJSONSchema } from "@mastra/core/schema";
+import { Tool } from "@mastra/core/tools";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { getSandboxToolCallFiles } from "@langfuse/shared/in-app-agent/server/persistence";
+import {
+  getConversationMessagesForDisplay,
+  getSandboxToolCallFiles,
+} from "@langfuse/shared/in-app-agent/server/persistence";
 import { createInAppAgentSandbox } from "@langfuse/shared/in-app-agent/server/sandbox";
+import { withOptionalSilentMcpOutput } from "@langfuse/shared/in-app-agent/server/tools";
 
 describe("in-app agent sandbox", () => {
+  it("redacts silent MCP output from persisted conversation display", async () => {
+    const silentResult = JSON.stringify({
+      type: "silent-mcp-output",
+      output: { data: [{ id: "observation-1" }] },
+    });
+    const events = [
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-call-1",
+        toolCallName: "listObservations",
+        parentMessageId: "assistant-1",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-call-1",
+        delta: "{}",
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-call-1",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "result-1",
+        toolCallId: "tool-call-1",
+        content: silentResult,
+        role: "tool",
+      },
+    ];
+    const messages = await getConversationMessagesForDisplay({
+      prisma: {
+        inAppAgentEvent: {
+          findMany: async () =>
+            events.map((event) => ({
+              event,
+              runId: "run-1",
+              createdAt: new Date("2026-07-27T10:00:00.000Z"),
+            })),
+        },
+      } as never,
+      projectId: "project-1",
+      conversationId: "conversation-1",
+    });
+
+    expect(messages).toContainEqual(
+      expect.objectContaining({
+        role: "tool",
+        content: "Output saved to /workspace/tool_calls",
+      }),
+    );
+    expect(events[3]?.content).toBe(silentResult);
+  });
+
   it("persists sandbox session state when a turn ends", async () => {
     const sandboxSession = {
       async syncReadonlyFiles() {},
@@ -167,5 +227,143 @@ describe("in-app agent sandbox", () => {
       "tool_calls/2026-07-02T12-00-00.000Z_langfuse_getHealth_tool-call-1.json",
       "tool_calls/2026-07-02T12-00-00.000Z_langfuse_getHealth_tool-call-2.json",
     ]);
+  });
+
+  it("returns the sandbox tool-call directory for silent MCP output", async () => {
+    const execute = async (input: { query: string }) => ({
+      result: input.query,
+    });
+    const tools = withOptionalSilentMcpOutput({
+      tools: {
+        search: new Tool({
+          id: "search",
+          description: "Search",
+          inputSchema: z.object({ query: z.string() }),
+          execute,
+        }),
+      },
+      sandbox: {
+        async read() {
+          return null;
+        },
+        async write() {
+          return null;
+        },
+        async edit() {
+          return null;
+        },
+        async bash() {
+          return null;
+        },
+      },
+    });
+    const tool = tools.search;
+
+    if (!(tool.inputSchema instanceof z.ZodObject)) {
+      throw new Error("Expected a Zod object input schema");
+    }
+
+    expect(
+      tool.inputSchema.safeParse({ query: "test", silent: true }).success,
+    ).toBe(true);
+
+    const output = await tool.execute?.(
+      { query: "test", silent: true },
+      {} as never,
+    );
+
+    expect(output).toEqual({
+      type: "silent-mcp-output",
+      output: { result: "test" },
+    });
+    expect(tool.toModelOutput?.(output)).toBe(
+      "Output saved to /workspace/tool_calls",
+    );
+  });
+
+  it("advertises silent MCP output for JSON Schema tools", () => {
+    const tools = withOptionalSilentMcpOutput({
+      tools: {
+        search: new Tool({
+          id: "search",
+          description: "Search",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string" },
+            },
+            required: ["query"],
+            additionalProperties: false,
+          },
+          execute: async (input: { query: string }) => ({
+            result: input.query,
+          }),
+        }),
+      },
+      sandbox: {
+        async read() {
+          return null;
+        },
+        async write() {
+          return null;
+        },
+        async edit() {
+          return null;
+        },
+        async bash() {
+          return null;
+        },
+      },
+    });
+
+    if (!tools.search.inputSchema) {
+      throw new Error("Expected an input schema");
+    }
+
+    expect(standardSchemaToJSONSchema(tools.search.inputSchema)).toMatchObject({
+      properties: {
+        silent: {
+          type: "boolean",
+          description:
+            "Suppress the tool output from the conversation and save the full result to /workspace/tool_calls.",
+        },
+      },
+    });
+  });
+
+  it("returns normal MCP output when silent is omitted", async () => {
+    const tools = withOptionalSilentMcpOutput({
+      tools: {
+        search: new Tool({
+          id: "search",
+          description: "Search",
+          inputSchema: z.object({ query: z.string() }),
+          execute: async (input) => ({ result: input.query }),
+        }),
+      },
+    });
+
+    const output = await tools.search.execute?.({ query: "test" }, {} as never);
+
+    expect(output).toEqual({ result: "test" });
+  });
+
+  it("does not advertise silent MCP output without a sandbox", () => {
+    const tools = withOptionalSilentMcpOutput({
+      tools: {
+        search: new Tool({
+          id: "search",
+          description: "Search",
+          inputSchema: z.object({ query: z.string() }),
+          execute: async (input) => ({ result: input.query }),
+        }),
+      },
+    });
+
+    if (!(tools.search.inputSchema instanceof z.ZodObject)) {
+      throw new Error("Expected a Zod object input schema");
+    }
+
+    expect("silent" in tools.search.inputSchema.shape).toBe(false);
   });
 });

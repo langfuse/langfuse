@@ -176,7 +176,7 @@ export async function createManualToolApprovalRunInput(params: {
   input: AgUiRunAgentInput;
   executeToolCall: (
     approvalRequest: InAppAgentToolApprovalRequest,
-  ) => Promise<unknown>;
+  ) => Promise<{ result: unknown; modelResult: unknown }>;
   onApprovedToolCallExecuted?: () => void | Promise<void>;
 }): Promise<ManualToolApprovalRunInput> {
   const forwardedProps = getResumeForwardedProps(params.input);
@@ -220,18 +220,20 @@ export async function createManualToolApprovalRunInput(params: {
     };
   }
 
-  const { toolResult, toolError } = await executeApprovedToolCall({
-    approvalRequest,
-    executeToolCall: params.executeToolCall,
-  });
+  const { toolResult, modelToolResult, toolError } =
+    await executeApprovedToolCall({
+      approvalRequest,
+      executeToolCall: params.executeToolCall,
+    });
   await params.onApprovedToolCallExecuted?.();
   const toolResultContent = serializeToolResultContent(toolResult);
   const assistantMessage =
     createManualToolCallAssistantMessage(approvalRequest);
+  const modelToolResultContent = serializeToolResultContent(modelToolResult);
   const toolMessage: AgUiMessage = {
     id: createManualToolResultMessageId(approvalRequest),
     role: "tool",
-    content: toolResultContent,
+    content: modelToolResultContent,
     toolCallId: approvalRequest.toolCallId,
     ...(toolError ? { error: toolError } : {}),
   };
@@ -286,14 +288,22 @@ async function executeApprovedToolCall(params: {
   approvalRequest: InAppAgentToolApprovalRequest;
   executeToolCall: (
     approvalRequest: InAppAgentToolApprovalRequest,
-  ) => Promise<unknown>;
-}): Promise<{ toolResult: unknown; toolError?: string }> {
+  ) => Promise<{ result: unknown; modelResult: unknown }>;
+}): Promise<{
+  toolResult: unknown;
+  modelToolResult: unknown;
+  toolError?: string;
+}> {
   try {
-    return { toolResult: await params.executeToolCall(params.approvalRequest) };
+    const { result, modelResult } = await params.executeToolCall(
+      params.approvalRequest,
+    );
+
+    return { toolResult: result, modelToolResult: modelResult };
   } catch (error) {
     const toolError = formatToolExecutionError(error);
 
-    return { toolResult: toolError, toolError };
+    return { toolResult: toolError, modelToolResult: toolError, toolError };
   }
 }
 
