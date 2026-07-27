@@ -42,9 +42,11 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
 
 // The plan hook queries tRPC internally; mock it so tests need no provider.
 vi.mock("@/src/features/v4-migration/useV4UpgradeAssistantSupport", () => ({
+  V4_CODING_AGENT_PROMPT: "coding-agent-prompt",
   useEvalUpgradeAssistantPlan: () => ({
     canUseAssistant: false,
-    assistantCanUpgrade: false,
+    mode: "outside",
+    showAssistantButton: false,
     assistantPrompt: "",
   }),
 }));

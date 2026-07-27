@@ -13,6 +13,7 @@ const DESIGN_COMPONENT_STORIES = [
   "Checkbox/Checkbox",
   "Codeblock/Codeblock",
   "LangfuseIcon/LangfuseIcon",
+  "LangfuseLogo/LangfuseLogo",
   "Progress/Progress",
   "Spinner/Spinner",
   "Switch/Switch",
