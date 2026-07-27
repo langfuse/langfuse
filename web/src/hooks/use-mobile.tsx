@@ -5,9 +5,17 @@ const MOBILE_BREAKPOINT = 768;
 const MOBILE_QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
 
 function subscribe(onStoreChange: () => void) {
+  if (typeof window === "undefined" || !window.matchMedia) return () => {};
   const mql = window.matchMedia(MOBILE_QUERY);
   mql.addEventListener("change", onStoreChange);
   return () => mql.removeEventListener("change", onStoreChange);
+}
+
+// Guarded so it's safe where `matchMedia` is absent (jsdom tests, SSR, old
+// browsers) — treat those as non-mobile.
+function getSnapshot() {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia(MOBILE_QUERY).matches;
 }
 
 /**
@@ -17,9 +25,5 @@ function subscribe(onStoreChange: () => void) {
  * SSR has no viewport, so it assumes desktop and hydration corrects it.
  */
 export function useIsMobile() {
-  return useSyncExternalStore(
-    subscribe,
-    () => window.matchMedia(MOBILE_QUERY).matches,
-    () => false,
-  );
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
