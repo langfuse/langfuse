@@ -19,10 +19,11 @@ const renderBytes = (bytes: number) => {
   return `${size.toFixed(2)}${units[unitIndex]}`;
 };
 
-export type DropzoneProps = Pick<
-  DropzoneOptions,
-  "accept" | "disabled" | "minSize" | "onError"
-> & {
+export type DropzoneProps = {
+  accept?: DropzoneOptions["accept"];
+  disabled?: DropzoneOptions["disabled"];
+  minSize?: DropzoneOptions["minSize"];
+  onError?: DropzoneOptions["onError"];
   src?: File[];
   maxFiles: NonNullable<DropzoneOptions["maxFiles"]>;
   maxSize: NonNullable<DropzoneOptions["maxSize"]>;
@@ -64,7 +65,6 @@ export const Dropzone = ({
   disabled,
   src,
   variant,
-  ...props
 }: DropzoneProps) => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept,
@@ -82,7 +82,6 @@ export const Dropzone = ({
 
       onDrop?.(acceptedFiles, fileRejections, event);
     },
-    ...props,
   });
 
   const contentText = useMemo(() => {
