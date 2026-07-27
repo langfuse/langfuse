@@ -153,6 +153,38 @@ const createRedisClusterInstance = (
   return cluster;
 };
 
+/**
+ * BullMQ's Worker.waitForJob arms a watchdog that calls
+ * `bclient.disconnect(true)` when a blocking command gets no response in
+ * time. In sentinel mode the client spends whole seconds in status
+ * "connecting" with no live socket while it resolves the master through the
+ * sentinels (initial connect and every reconnect — e.g. during a failover).
+ * A disconnect landing in that window can never emit a socket "close" event,
+ * so retryStrategy is never consulted: the in-flight connect() rejects and
+ * ioredis parks the client in the terminal "end" state with all further
+ * errors silenced. Workers then stay detached from Redis until the process
+ * restarts (#13880). Suppressing exactly that call shape is safe: during
+ * master resolution no command is on the wire to unstick, and the pending
+ * resolution already retries on its own. BullMQ builds its blocking client
+ * via duplicate(), so duplicates must inherit the guard.
+ */
+const guardSentinelDisconnect = (instance: Redis): Redis => {
+  const originalDisconnect = instance.disconnect.bind(instance);
+  instance.disconnect = (reconnect = false): void => {
+    if (reconnect && instance.status === "connecting") {
+      logger.warn(
+        "Suppressed disconnect(reconnect=true) on a Redis sentinel connection during master resolution; it would park the connection in the unrecoverable 'end' state",
+      );
+      return;
+    }
+    originalDisconnect(reconnect);
+  };
+  const originalDuplicate = instance.duplicate.bind(instance);
+  instance.duplicate = (override?: Partial<RedisOptions>): Redis =>
+    guardSentinelDisconnect(originalDuplicate(override));
+  return instance;
+};
+
 const createRedisSentinelInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ): Redis | null => {
@@ -203,7 +235,7 @@ const createRedisSentinelInstance = (
     logger.error("Redis sentinel error", error);
   });
 
-  return instance;
+  return guardSentinelDisconnect(instance);
 };
 
 export const createNewRedisInstance = (
