@@ -104,6 +104,12 @@ const categoryStyles: Record<
   },
 };
 
+// preserveCase only affects rendered text, so it can only be set when the
+// text is shown.
+type StatusBadgeTextProps =
+  | { showText?: true; preserveCase?: boolean }
+  | { showText: false; preserveCase?: never };
+
 export const StatusBadge = ({
   type,
   variant = "default",
@@ -117,10 +123,8 @@ export const StatusBadge = ({
   variant?: "default" | "transparent";
   size?: "default" | "lg";
   isLive?: boolean;
-  showText?: boolean;
-  preserveCase?: boolean;
   children?: ReactNode;
-}) => {
+} & StatusBadgeTextProps) => {
   const normalizedType = type?.toLowerCase() ?? "";
 
   const category: StatusCategory =
