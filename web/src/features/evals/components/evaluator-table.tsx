@@ -153,10 +153,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       cell: (row) => {
         const status = row.getValue();
         return (
-          <StatusBadge
-            type={status.toLowerCase()}
-            className={row.getValue() === "FINISHED" ? "pl-3" : ""}
-          />
+          <div className={status === "FINISHED" ? "pl-3" : undefined}>
+            <StatusBadge type={status.toLowerCase()} />
+          </div>
         );
       },
     }),

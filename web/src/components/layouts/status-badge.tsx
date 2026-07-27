@@ -109,7 +109,6 @@ export const StatusBadge = ({
   variant = "default",
   size = "default",
   isLive = true,
-  className,
   showText = true,
   preserveCase = false,
   children,
@@ -118,7 +117,6 @@ export const StatusBadge = ({
   variant?: "default" | "transparent";
   size?: "default" | "lg";
   isLive?: boolean;
-  className?: "w-fit self-start" | "pl-3" | "ml-2" | "";
   showText?: boolean;
   preserveCase?: boolean;
   children?: ReactNode;
@@ -136,14 +134,7 @@ export const StatusBadge = ({
   const showDot = isLive && !styles.hideDot;
 
   return (
-    <div
-      className={cn(
-        statusBadgeVariants({ size }),
-        background,
-        styles.text,
-        className,
-      )}
-    >
+    <div className={cn(statusBadgeVariants({ size }), background, styles.text)}>
       {showDot && (
         <span className="relative inline-flex h-2 w-2">
           <span
