@@ -1,1 +1,18 @@
 <link rel="icon" type="image/svg+xml" href="./storybook-favicon.svg" />
+<link
+  rel="icon"
+  type="image/png"
+  sizes="64x64"
+  href="./storybook-favicon-64.png"
+/>
+<script>
+  // Storybook's template links ./favicon.ico first, and the app's LF
+  // favicon.ico shadows it via the ../public staticDir; Safari (no SVG
+  // favicon support) and often Chrome pick that ICO over the links above.
+  // Drop every icon link that is not ours so the indigo mark always wins.
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll('link[rel*="icon"]').forEach(function (link) {
+      if (!link.href.includes("storybook-favicon")) link.remove();
+    });
+  });
+</script>
