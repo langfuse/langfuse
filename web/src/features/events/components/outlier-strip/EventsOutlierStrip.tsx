@@ -79,7 +79,12 @@ const AggDropdown = <T extends string>({
         {value}
         <ChevronDown className="h-2.5 w-2.5" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
+      <DropdownMenuContent
+        align="start"
+        // Radix refocuses the trigger on close, which browsers style as
+        // keyboard focus — a mouse pick would leave the trigger outlined.
+        onCloseAutoFocus={(event) => event.preventDefault()}
+      >
         {options.map((agg) => (
           <DropdownMenuItem
             key={agg}
@@ -111,7 +116,12 @@ const ModeDropdown = ({
       {modeLabel(value)}
       <ChevronDown className="h-2.5 w-2.5" />
     </DropdownMenuTrigger>
-    <DropdownMenuContent align="start">
+    <DropdownMenuContent
+      align="start"
+      // Radix refocuses the trigger on close, which browsers style as
+      // keyboard focus — a mouse pick would leave the trigger outlined.
+      onCloseAutoFocus={(event) => event.preventDefault()}
+    >
       {options.map((mode) => (
         <DropdownMenuItem
           key={mode}
@@ -264,6 +274,7 @@ export function EventsOutlierStrip({
             bins,
             metric,
             latencyAgg,
+            costAgg,
             fromMs,
             toMs,
             stepSeconds: granularity.stepSeconds,
@@ -277,6 +288,7 @@ export function EventsOutlierStrip({
       mode,
       splitChartCount,
       latencyAgg,
+      costAgg,
     ],
   );
 
