@@ -4,7 +4,7 @@ import { expect, fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
-import { AppSidebar } from "./app-sidebar";
+import { AppSidebar } from "./AppSidebar";
 
 type AppSidebarProps = ComponentProps<typeof AppSidebar>;
 type VersionState = AppSidebarProps["versionState"];

@@ -17,7 +17,7 @@ import {
   SidebarInset,
   useSidebar,
 } from "@/src/components/ui/sidebar";
-import { AppSidebar } from "@/src/components/nav/app-sidebar";
+import { AppSidebar } from "@/src/components/nav/AppSidebar";
 import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
