@@ -72,7 +72,7 @@ const TemplatePreviewTooltipContent = ({
   if (template.type === EvalTemplateType.CODE) {
     return (
       <>
-        <p className="mb-1 font-medium">
+        <p className="mb-1 font-bold">
           {getCodeTemplateLanguageTitle(template.sourceCodeLanguage)} source
         </p>
         <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
@@ -84,7 +84,7 @@ const TemplatePreviewTooltipContent = ({
 
   return (
     <>
-      <p className="mb-1 font-medium">Evaluation prompt</p>
+      <p className="mb-1 font-bold">Evaluation prompt</p>
       <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
         {template.prompt}
       </pre>
@@ -117,47 +117,22 @@ export function EvaluatorSelector({
     shouldShowEvalTemplate(template, codeEvalCapabilities),
   );
 
-  // Group templates by name and whether they are managed by Langfuse
-  const groupedTemplates = visibleEvalTemplates.reduce(
-    (acc, template) => {
-      const group = template.projectId ? "custom" : "langfuse";
-      if (!acc[group][template.name]) {
-        acc[group][template.name] = [];
-      }
-      acc[group][template.name].push(template);
-      return acc;
-    },
-    {
-      langfuse: {} as Record<string, EvalTemplate[]>,
-      custom: {} as Record<string, EvalTemplate[]>,
-    },
-  );
-
-  // Ensure per-name arrays are sorted by createdAt ascending so last is latest
-  const sortByCreatedAt = (arr: EvalTemplate[]) =>
-    arr.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  Object.values(groupedTemplates.custom).forEach(sortByCreatedAt);
-  Object.values(groupedTemplates.langfuse).forEach(sortByCreatedAt);
-
-  // Filter templates based on search
+  // latestTemplates already returns one row per evaluator family.
+  const matchesSearch = (template: EvalTemplate) =>
+    template.name.toLowerCase().includes(search.toLowerCase());
   const filteredTemplates = {
-    langfuse: Object.entries(groupedTemplates.langfuse)
-      .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
-      .sort(([nameA, templatesA], [nameB, templatesB]) => {
-        // Get partners
-        const partnerA = templatesA[0]?.partner;
-        const partnerB = templatesB[0]?.partner;
-
+    langfuse: visibleEvalTemplates
+      .filter((template) => !template.projectId && matchesSearch(template))
+      .sort((templateA, templateB) => {
         // No partner comes before partner
-        if (!partnerA && partnerB) return -1;
-        if (partnerA && !partnerB) return 1;
+        if (!templateA.partner && templateB.partner) return -1;
+        if (templateA.partner && !templateB.partner) return 1;
 
-        // Sort by name within each group
-        return nameA.localeCompare(nameB);
+        return templateA.name.localeCompare(templateB.name);
       }),
-    custom: Object.entries(groupedTemplates.custom)
-      .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
-      .sort(([a], [b]) => a.localeCompare(b)),
+    custom: visibleEvalTemplates
+      .filter((template) => template.projectId && matchesSearch(template))
+      .sort((a, b) => a.name.localeCompare(b.name)),
   };
 
   // Check if we have results
@@ -186,35 +161,33 @@ export function EvaluatorSelector({
         {filteredTemplates.custom.length > 0 && (
           <>
             <InputCommandGroup heading="Custom evaluators">
-              {filteredTemplates.custom.map(([name, templateData]) => {
-                const latestVersion = templateData[templateData.length - 1];
-                const isInvalid = isTemplateInvalid(latestVersion);
+              {filteredTemplates.custom.map((template) => {
+                const isInvalid = isTemplateInvalid(template);
 
                 return (
                   <InputCommandItem
-                    key={`custom-${name}`}
+                    key={`custom-${template.id}`}
                     disabled={isInvalid}
                     onSelect={() => {
                       onTemplateSelect(
-                        latestVersion.id,
-                        name,
-                        latestVersion.version,
+                        template.id,
+                        template.name,
+                        template.version,
                       );
                     }}
                     className={cn(
-                      templateData.some((t) => t.id === selectedTemplateId) &&
-                        "bg-secondary",
+                      template.id === selectedTemplateId && "bg-secondary",
                     )}
                   >
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex min-w-0 items-center">
-                          <span className="truncate">{name}</span>
-                          {latestVersion.type === EvalTemplateType.CODE ? (
+                          <span className="truncate" title={template.name}>
+                            {template.name}
+                          </span>
+                          {template.type === EvalTemplateType.CODE ? (
                             <CodeTemplateLanguageIcon
-                              sourceCodeLanguage={
-                                latestVersion.sourceCodeLanguage
-                              }
+                              sourceCodeLanguage={template.sourceCodeLanguage}
                             />
                           ) : null}
                         </div>
@@ -223,9 +196,7 @@ export function EvaluatorSelector({
                         side="right"
                         className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
                       >
-                        <TemplatePreviewTooltipContent
-                          template={latestVersion}
-                        />
+                        <TemplatePreviewTooltipContent template={template} />
                       </TooltipContent>
                     </Tooltip>
                     {isInvalid && (
@@ -246,7 +217,7 @@ export function EvaluatorSelector({
                         </TooltipContent>
                       </Tooltip>
                     )}
-                    {templateData.some((t) => t.id === selectedTemplateId) && (
+                    {template.id === selectedTemplateId && (
                       <CheckIcon className="ml-auto h-4 w-4" />
                     )}
                   </InputCommandItem>
@@ -260,35 +231,33 @@ export function EvaluatorSelector({
         {filteredTemplates.langfuse.length > 0 && (
           <>
             <InputCommandGroup heading="Langfuse managed evaluators">
-              {filteredTemplates.langfuse.map(([name, templateData]) => {
-                const latestVersion = templateData[templateData.length - 1];
-                const isInvalid = isTemplateInvalid(latestVersion);
+              {filteredTemplates.langfuse.map((template) => {
+                const isInvalid = isTemplateInvalid(template);
 
                 return (
                   <InputCommandItem
-                    key={`langfuse-${name}`}
+                    key={`langfuse-${template.id}`}
                     disabled={isInvalid}
                     onSelect={() => {
                       onTemplateSelect(
-                        latestVersion.id,
-                        name,
-                        latestVersion.version,
+                        template.id,
+                        template.name,
+                        template.version,
                       );
                     }}
                     className={cn(
-                      templateData.some((t) => t.id === selectedTemplateId) &&
-                        "bg-secondary",
+                      template.id === selectedTemplateId && "bg-secondary",
                     )}
                   >
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="mr-1 flex min-w-0 items-center">
-                          <span className="truncate">{name}</span>
-                          {latestVersion.type === EvalTemplateType.CODE ? (
+                          <span className="truncate" title={template.name}>
+                            {template.name}
+                          </span>
+                          {template.type === EvalTemplateType.CODE ? (
                             <CodeTemplateLanguageIcon
-                              sourceCodeLanguage={
-                                latestVersion.sourceCodeLanguage
-                              }
+                              sourceCodeLanguage={template.sourceCodeLanguage}
                             />
                           ) : null}
                         </div>
@@ -297,14 +266,10 @@ export function EvaluatorSelector({
                         side="right"
                         className="max-h-[70dvh] w-[720px] max-w-[calc(100vw-3rem)] overflow-y-auto"
                       >
-                        <TemplatePreviewTooltipContent
-                          template={latestVersion}
-                        />
+                        <TemplatePreviewTooltipContent template={template} />
                       </TooltipContent>
                     </Tooltip>
-                    <MaintainerTooltip
-                      maintainer={getMaintainer(latestVersion)}
-                    />
+                    <MaintainerTooltip maintainer={getMaintainer(template)} />
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -323,7 +288,7 @@ export function EvaluatorSelector({
                         </TooltipContent>
                       </Tooltip>
                     )}
-                    {templateData.some((t) => t.id === selectedTemplateId) && (
+                    {template.id === selectedTemplateId && (
                       <CheckIcon className="ml-auto h-4 w-4" />
                     )}
                   </InputCommandItem>

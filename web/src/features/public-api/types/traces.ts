@@ -1,17 +1,18 @@
 import { APIObservation } from "@/src/features/public-api/types/observations";
 import {
   APIScoreSchemaV1,
+  commaSeparatedEnumArray,
+  deprecationResponseZod,
   paginationMetaResponseZod,
   orderBy,
+  optionalJsonParam,
   publicApiPaginationZod,
   singleFilter,
-  InvalidRequestError,
 } from "@langfuse/shared";
 import {
   stringDateTime,
   TraceBody,
   TRACE_FIELD_GROUPS,
-  type TraceFieldGroup,
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { useEventsTableSchema } from "@langfuse/shared/query";
@@ -80,38 +81,17 @@ export const GetTracesV1Query = z.object({
       return { column, order: order?.toUpperCase() };
     })
     .pipe(orderBy.nullable()),
-  fields: z
-    .string()
-    .nullish()
-    .transform((v) => {
-      if (!v) return null;
-      const parsed = v
-        .split(",")
-        .map((f) => f.trim())
-        .filter((f) => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
-      return parsed.length > 0 ? parsed : null;
-    })
-    .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
+  fields: commaSeparatedEnumArray(TRACE_FIELD_GROUPS, null, {
+    unknownValues: "filter",
+  }).transform((fields) => (fields && fields.length > 0 ? fields : null)),
   useEventsTable: useEventsTableSchema,
-  filter: z
-    .string()
-    .optional()
-    .transform((str) => {
-      if (!str) return undefined;
-      try {
-        const parsed = JSON.parse(str);
-        return parsed;
-      } catch (e) {
-        if (e instanceof InvalidRequestError) throw e;
-        throw new InvalidRequestError("Invalid JSON in filter parameter");
-      }
-    })
-    .pipe(z.array(singleFilter).optional()),
+  filter: optionalJsonParam(z.array(singleFilter), "filter"),
 });
 export const GetTracesV1Response = z
   .object({
     data: z.array(APIExtendedTrace),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 
@@ -122,22 +102,14 @@ export const PostTracesV1Response = z.object({ id: z.string() });
 // GET /api/public/traces/{traceId}
 export const GetTraceV1Query = z.object({
   traceId: z.string(),
-  fields: z
-    .string()
-    .nullish()
-    .transform((v) => {
-      if (!v) return null;
-      const parsed = v
-        .split(",")
-        .map((f) => f.trim())
-        .filter((f) => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
-      return parsed.length > 0 ? parsed : null;
-    })
-    .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
+  fields: commaSeparatedEnumArray(TRACE_FIELD_GROUPS, null, {
+    unknownValues: "filter",
+  }).transform((fields) => (fields && fields.length > 0 ? fields : null)),
 });
 export const GetTraceV1Response = APIExtendedTrace.extend({
   scores: z.array(APIScoreSchemaV1),
   observations: z.array(APIObservation),
+  _deprecation: deprecationResponseZod.optional(),
 }).strict();
 
 // DELETE /api/public/traces/{traceId}

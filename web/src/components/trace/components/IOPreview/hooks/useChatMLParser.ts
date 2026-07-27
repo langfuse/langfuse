@@ -20,6 +20,13 @@ export interface ToolDefinition {
   parameters?: Record<string, unknown>;
 }
 
+export interface ToolCallInvocation {
+  id?: string;
+  name: string;
+  arguments?: unknown;
+  invocationNumber: number;
+}
+
 // Result from ChatML parsing hook
 export interface ChatMLParserResult {
   canDisplayAsChat: boolean;
@@ -27,6 +34,7 @@ export interface ChatMLParserResult {
   additionalInput: Record<string, unknown> | undefined;
   allTools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
+  toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
   toolNameToDefinitionNumber: Map<string, number>;
   inputMessageCount: number;
@@ -44,6 +52,132 @@ function parseToolCallsFromMessage(
     : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
       ? message.json.tool_calls
       : [];
+}
+
+function getToolCallStringField(
+  toolCall: unknown,
+  field: string,
+): string | undefined {
+  if (!toolCall || typeof toolCall !== "object") return undefined;
+
+  const value = (toolCall as Record<string, unknown>)[field];
+
+  return typeof value === "string" ? value : undefined;
+}
+
+function getToolCallName(toolCall: unknown): string | undefined {
+  return (
+    getToolCallStringField(toolCall, "name") ??
+    getToolCallStringField(toolCall, "toolName")
+  );
+}
+
+function getToolCallArguments(toolCall: unknown): unknown {
+  if (!toolCall || typeof toolCall !== "object") return undefined;
+
+  const toolCallRecord = toolCall as Record<string, unknown>;
+
+  return (
+    toolCallRecord.arguments ?? toolCallRecord.args ?? toolCallRecord.input
+  );
+}
+
+/**
+ * Parse already-decoded I/O into the same ChatML representation used by the
+ * pretty preview. Kept pure so parent surfaces can decide whether a filtered
+ * result has any conversation representation without relying on observation
+ * types.
+ */
+function parseChatML(
+  parsedInput: unknown,
+  parsedOutput: unknown,
+  parsedMetadata: unknown,
+  observationName: string | undefined,
+): ChatMLParserResult {
+  const ctx = { metadata: parsedMetadata, observationName };
+  const inResult = normalizeInput(parsedInput, ctx);
+  const outResult = normalizeOutput(parsedOutput, ctx);
+  const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
+  const messages = combineInputOutputMessages(inResult, outResult, outputClean);
+
+  const toolsMap = new Map<string, ToolDefinition>();
+  for (const message of messages) {
+    if (message.tools && Array.isArray(message.tools)) {
+      for (const tool of message.tools) {
+        if (!toolsMap.has(tool.name)) {
+          toolsMap.set(tool.name, tool);
+        }
+      }
+    }
+  }
+
+  const inputMessageCount = inResult.success ? inResult.data.length : 0;
+  let toolCallCounter = 0;
+  const messageToToolCallNumbers = new Map<number, number[]>();
+  const toolCallCounts = new Map<string, number>();
+  const toolCallsByName = new Map<string, ToolCallInvocation[]>();
+
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
+    const isOutputMessage = i >= inputMessageCount;
+    const toolCallList = parseToolCallsFromMessage(message);
+
+    if (toolCallList.length > 0) {
+      const messageToolNumbers: number[] = [];
+
+      for (const toolCall of toolCallList) {
+        const calledToolName = getToolCallName(toolCall);
+
+        if (calledToolName && isOutputMessage) {
+          toolCallCounts.set(
+            calledToolName,
+            (toolCallCounts.get(calledToolName) || 0) + 1,
+          );
+          toolCallCounter++;
+          messageToolNumbers.push(toolCallCounter);
+
+          const toolCallsForName = toolCallsByName.get(calledToolName) ?? [];
+          toolCallsForName.push({
+            id: getToolCallStringField(toolCall, "id"),
+            name: calledToolName,
+            arguments: getToolCallArguments(toolCall),
+            invocationNumber: toolCallCounter,
+          });
+          toolCallsByName.set(calledToolName, toolCallsForName);
+        }
+      }
+
+      if (messageToolNumbers.length > 0) {
+        messageToToolCallNumbers.set(i, messageToolNumbers);
+      }
+    }
+  }
+
+  const sortedTools = Array.from(toolsMap.values()).sort((a, b) => {
+    const callCountA = toolCallCounts.get(a.name) || 0;
+    const callCountB = toolCallCounts.get(b.name) || 0;
+    if (callCountA > 0 && callCountB === 0) return -1;
+    if (callCountA === 0 && callCountB > 0) return 1;
+    return callCountB - callCountA;
+  });
+
+  const toolNameToDefinitionNumber = new Map<string, number>();
+  sortedTools.forEach((tool, index) => {
+    toolNameToDefinitionNumber.set(tool.name, index + 1);
+  });
+
+  return {
+    canDisplayAsChat:
+      (inResult.success || outResult.success) && messages.length > 0,
+    allMessages: messages as ChatMlMessage[],
+    additionalInput: extractAdditionalInput(parsedInput),
+    allTools: sortedTools,
+    toolCallCounts,
+    toolCallsByName,
+    messageToToolCallNumbers,
+    toolNameToDefinitionNumber,
+    inputMessageCount,
+  };
 }
 
 /**
@@ -67,124 +201,38 @@ export function useChatMLParser(
   preParsedInput?: unknown,
   preParsedOutput?: unknown,
   preParsedMetadata?: unknown,
+  preParsedResult?: ChatMLParserResult,
 ): ChatMLParserResult {
   // Use pre-parsed data if available (from Web Worker), otherwise parse synchronously
   // This eliminates ~100ms of duplicate parsing when data comes from useParsedObservation
-  const parsedInput =
-    preParsedInput !== undefined
+  const parsedInput = preParsedResult
+    ? undefined
+    : preParsedInput !== undefined
       ? preParsedInput
       : deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
-  const parsedOutput =
-    preParsedOutput !== undefined
+  const parsedOutput = preParsedResult
+    ? undefined
+    : preParsedOutput !== undefined
       ? preParsedOutput
       : deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
-  const parsedMetadata =
-    preParsedMetadata !== undefined
+  const parsedMetadata = preParsedResult
+    ? undefined
+    : preParsedMetadata !== undefined
       ? preParsedMetadata
       : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
 
-  return useMemo(() => {
-    // Normalize input
-    const ctx = { metadata: parsedMetadata, observationName };
-    const inResult = normalizeInput(parsedInput, ctx);
-
-    // Normalize output
-    const outResult = normalizeOutput(parsedOutput, ctx);
-
-    // Clean legacy output
-    const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
-
-    // Combine messages
-    const messages = combineInputOutputMessages(
-      inResult,
-      outResult,
-      outputClean,
-    );
-
-    // Extract all unique tools from messages (no numbering yet)
-    const toolsMap = new Map<string, ToolDefinition>();
-
-    for (const message of messages) {
-      if (message.tools && Array.isArray(message.tools)) {
-        for (const tool of message.tools) {
-          if (!toolsMap.has(tool.name)) {
-            toolsMap.set(tool.name, tool);
-          }
-        }
-      }
-    }
-
-    // Count tool call invocations
-    // Only number tool calls from OUTPUT messages (current invocation), not input (history)
-    const inputMessageCount = inResult.success ? inResult.data.length : 0;
-    let toolCallCounter = 0;
-    const messageToToolCallNumbers = new Map<number, number[]>();
-    const toolCallCounts = new Map<string, number>();
-
-    for (let i = 0; i < messages.length; i++) {
-      const message = messages[i];
-      const isOutputMessage = i >= inputMessageCount;
-
-      const toolCallList = parseToolCallsFromMessage(message);
-
-      if (toolCallList.length > 0) {
-        const messageToolNumbers: number[] = [];
-
-        for (const toolCall of toolCallList) {
-          const calledToolName =
-            toolCall.name && typeof toolCall.name === "string"
-              ? toolCall.name
-              : // AI SDK has 'toolName'
-                toolCall.toolName && typeof toolCall.toolName === "string"
-                ? toolCall.toolName
-                : undefined;
-
-          if (calledToolName) {
-            // Count tool calls from OUTPUT messages only
-            if (isOutputMessage) {
-              toolCallCounts.set(
-                calledToolName,
-                (toolCallCounts.get(calledToolName) || 0) + 1,
-              );
-              toolCallCounter++;
-              messageToolNumbers.push(toolCallCounter);
-            }
-          }
-        }
-
-        if (messageToolNumbers.length > 0) {
-          messageToToolCallNumbers.set(i, messageToolNumbers);
-        }
-      }
-    }
-
-    // Sort tools by display order (called first, then by call count)
-    const sortedTools = Array.from(toolsMap.values()).sort((a, b) => {
-      const callCountA = toolCallCounts.get(a.name) || 0;
-      const callCountB = toolCallCounts.get(b.name) || 0;
-      if (callCountA > 0 && callCountB === 0) return -1;
-      if (callCountA === 0 && callCountB > 0) return 1;
-      return callCountB - callCountA;
-    });
-
-    // Assign definition numbers based on sorted display order
-    const toolNameToDefinitionNumber = new Map<string, number>();
-    sortedTools.forEach((tool, index) => {
-      toolNameToDefinitionNumber.set(tool.name, index + 1);
-    });
-
-    return {
-      canDisplayAsChat:
-        (inResult.success || outResult.success) && messages.length > 0,
-      allMessages: messages as ChatMlMessage[],
-      additionalInput: extractAdditionalInput(parsedInput),
-      allTools: sortedTools,
-      toolCallCounts,
-      messageToToolCallNumbers,
-      toolNameToDefinitionNumber,
-      inputMessageCount,
-    };
-  }, [parsedInput, parsedOutput, parsedMetadata, observationName]);
+  return useMemo(
+    () =>
+      preParsedResult ??
+      parseChatML(parsedInput, parsedOutput, parsedMetadata, observationName),
+    [
+      preParsedResult,
+      parsedInput,
+      parsedOutput,
+      parsedMetadata,
+      observationName,
+    ],
+  );
 }
 
 // Re-export for use in ChatMessage

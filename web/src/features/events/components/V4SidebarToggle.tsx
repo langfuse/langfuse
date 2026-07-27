@@ -1,4 +1,4 @@
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import {
@@ -102,6 +102,8 @@ export function V4SidebarToggle() {
     }
   };
 
+  const fastPreviewLabel = "Fast (Preview)";
+
   return (
     <>
       <SidebarMenuButton
@@ -114,8 +116,9 @@ export function V4SidebarToggle() {
             <Label
               htmlFor="v4-beta-toggle"
               className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
+              title={fastPreviewLabel}
             >
-              Fast (Preview)
+              {fastPreviewLabel}
             </Label>
           </div>
           <Tooltip>
@@ -127,7 +130,6 @@ export function V4SidebarToggle() {
                   checked={isBetaEnabled}
                   onCheckedChange={handleToggle}
                   disabled={isLoading}
-                  className="shrink-0"
                   aria-label="Toggle Preview (fast)"
                   aria-describedby={PREVIEW_FAST_DESCRIPTION_ID}
                 />

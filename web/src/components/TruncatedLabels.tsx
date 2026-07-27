@@ -54,7 +54,7 @@ export function TruncatedLabels({
           <div
             key={label}
             className={cn(
-              "bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-semibold",
+              "bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold",
               badgeClassName,
             )}
           >
@@ -66,6 +66,7 @@ export function TruncatedLabels({
             key={label}
             className={cn("break-all sm:break-normal", badgeClassName)}
             isLive={label === PRODUCTION_LABEL}
+            preserveCase
           />
         ),
       )}
@@ -82,14 +83,14 @@ export function TruncatedLabels({
           </HoverCardTrigger>
           <HoverCardContent className="w-80 p-3" side="bottom" align="start">
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold">All Labels</h4>
+              <h4 className="text-sm font-bold">All Labels</h4>
               <div className="flex flex-wrap gap-1">
                 {sortedLabels.map((label) =>
                   showSimpleBadges ? (
                     <div
                       key={label}
                       className={cn(
-                        "bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-semibold",
+                        "bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold",
                         badgeClassName,
                       )}
                     >
@@ -104,6 +105,7 @@ export function TruncatedLabels({
                         badgeClassName,
                       )}
                       isLive={label === PRODUCTION_LABEL}
+                      preserveCase
                     />
                   ),
                 )}

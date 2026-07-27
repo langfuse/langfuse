@@ -8,8 +8,7 @@ import {
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 import { recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
-import { sendEvaluatorBlockedEmail } from "./email/evaluatorBlocked/sendEvaluatorBlockedEmail";
-import { getProjectAdminEmails } from "./getProjectAdminEmails";
+import { dispatchProjectNotification } from "../notifications/dispatchProjectNotification";
 
 export const EvaluatorBlockSource = {
   DEFAULT_EVAL_MODEL_DELETION: "default_eval_model_deletion",
@@ -201,32 +200,6 @@ export async function notifyBlockedEvaluatorConfigs({
 
   const blockMessage = getEvaluatorBlockMetadata(blockReason).message;
 
-  const emailEnv = {
-    EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
-    SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
-    NEXTAUTH_URL: env.NEXTAUTH_URL,
-    CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
-  };
-
-  if (
-    !emailEnv.EMAIL_FROM_ADDRESS ||
-    !emailEnv.SMTP_CONNECTION_URL ||
-    !emailEnv.NEXTAUTH_URL
-  ) {
-    logger.warn(
-      `[EVALUATOR BLOCK] Missing email env vars. Skipping notifications for project ${projectId}.`,
-    );
-    return;
-  }
-
-  const adminEmails = await getProjectAdminEmails(projectId);
-  if (adminEmails.length === 0) {
-    logger.warn(
-      `[EVALUATOR BLOCK] No project admins found for project ${projectId}.`,
-    );
-    return;
-  }
-
   const project = await prisma.project.findUnique({
     where: {
       id: projectId,
@@ -266,25 +239,34 @@ export async function notifyBlockedEvaluatorConfigs({
     return;
   }
 
-  const emailJobs = blockedConfigs.flatMap((config) =>
-    adminEmails.map((receiverEmail) =>
-      sendEvaluatorBlockedEmail({
-        env: emailEnv,
-        projectName: project.name,
-        evaluatorName: config.evalTemplate?.name ?? config.scoreName,
+  // Route to configured notification channels and admin emails, one
+  // notification per blocked config. The `blockedAt: null` claim upstream
+  // already deduped, so no extra throttle is needed.
+  await Promise.allSettled(
+    blockedConfigs.map((config) => {
+      const evaluatorName = config.evalTemplate?.name ?? config.scoreName;
+      const resolutionPath = getEvaluatorBlockResolutionPath({
+        projectId,
         blockReason,
-        blockMessage,
-        resolutionUrl: `${emailEnv.NEXTAUTH_URL}${getEvaluatorBlockResolutionPath(
-          {
-            projectId,
-            blockReason,
-            templateId: config.evalTemplate?.id,
-          },
-        )}`,
-        receiverEmail,
-      }),
-    ),
+        templateId: config.evalTemplate?.id,
+      });
+      return dispatchProjectNotification({
+        projectId,
+        event: {
+          eventType: "evaluator-blocked",
+          severity: "ALERT",
+          projectId,
+          resourceId: config.id,
+          resourceName: evaluatorName,
+          message: blockMessage,
+          url: env.NEXTAUTH_URL
+            ? `${env.NEXTAUTH_URL}${resolutionPath}`
+            : undefined,
+          projectName: project.name,
+          blockReason,
+          evalTemplateId: config.evalTemplate?.id,
+        },
+      });
+    }),
   );
-
-  await Promise.allSettled(emailJobs);
 }

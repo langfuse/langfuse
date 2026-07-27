@@ -164,6 +164,21 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       );
     });
 
+    it("should encode booleanObject filter", () => {
+      const filters: FilterState = [
+        {
+          column: "score_booleans",
+          type: "booleanObject",
+          operator: "=",
+          key: "flag",
+          value: true,
+        },
+      ];
+      expect(encodeFilters(filters)).toBe(
+        "score_booleans;booleanObject;flag;=;true",
+      );
+    });
+
     it("should encode stringObject filter", () => {
       const filters: FilterState = [
         {
@@ -352,6 +367,20 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           operator: ">=",
           key: "accuracy",
           value: 0.8,
+        },
+      ]);
+    });
+
+    it("should decode booleanObject filter", () => {
+      const query = "score_booleans;booleanObject;flag;=;true";
+      const decoded = decodeFilters(query);
+      expect(decoded).toEqual([
+        {
+          column: "score_booleans",
+          type: "booleanObject",
+          operator: "=",
+          key: "flag",
+          value: true,
         },
       ]);
     });

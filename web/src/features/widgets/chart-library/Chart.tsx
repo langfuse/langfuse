@@ -4,15 +4,21 @@ import {
   type MetricFormatterFunction,
   type DataPoint,
   type ChartThreshold,
+  type LegendPosition,
+  type LegendSummaryMode,
+  type LegendInteraction,
+  type MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
+import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { CardContent } from "@/src/components/ui/card";
-import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
-import AreaChartTimeSeries from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
-import VerticalBarChartTimeSeries from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
-import HorizontalBarChart from "@/src/features/widgets/chart-library/HorizontalBarChart";
-import VerticalBarChart from "@/src/features/widgets/chart-library/VerticalBarChart";
-import PieChart from "@/src/features/widgets/chart-library/PieChart";
+import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
+import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
+import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
+import { HorizontalBarChart } from "@/src/features/widgets/chart-library/HorizontalBarChart";
+import { VerticalBarChart } from "@/src/features/widgets/chart-library/VerticalBarChart";
+import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
 import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
@@ -27,7 +33,19 @@ const DEFAULT_METRIC_THEME = {
   dark: "hsl(var(--chart-1))",
 } as const;
 
-export const Chart = ({
+/**
+ * Chart types whose recharts primitive draws nothing but empty axes/grid when
+ * every point is null/zero — a blank canvas rather than guidance (manifesto
+ * principle 8). Decided once here so no time-series component re-derives the
+ * emptiness check. (LFE-14333)
+ */
+const EMPTY_STATE_CHART_TYPES = new Set<DashboardWidgetChartType>([
+  "LINE_TIME_SERIES",
+  "AREA_TIME_SERIES",
+  "BAR_TIME_SERIES",
+]);
+
+const ChartComponent = ({
   chartType,
   data,
   rowLimit,
@@ -37,9 +55,15 @@ export const Chart = ({
   onSortChange,
   isLoading = false,
   legendPosition,
+  legendSummary,
+  legendInteraction,
+  maxVisibleSeries,
+  syncId,
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
+  missingValue,
+  hideXAxisLabels,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -61,10 +85,23 @@ export const Chart = ({
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
-  legendPosition?: "above" | "none";
+  legendPosition?: LegendPosition;
+  legendSummary?: LegendSummaryMode;
+  legendInteraction?: LegendInteraction;
+  maxVisibleSeries?: number;
+  syncId?: string;
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
+  /** See {@link MissingBucketValue}; consumed by line/area time series. */
+  missingValue?: MissingBucketValue;
+  /**
+   * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
+   * stays in the hover tooltip. Off by default. Consumed by the time-series
+   * charts and forwarded to `prepareTimeAxis`. Used by the experiments /
+   * dataset-compare charts.
+   */
+  hideXAxisLabels?: boolean;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -77,38 +114,11 @@ export const Chart = ({
     [metricFormatterOverride, chartConfig?.unit],
   );
 
-  const renderedData = useMemo(() => {
-    return data.map((item) => {
-      if (!item.time_dimension) return { ...item, time_dimension: undefined };
-      const value = item.time_dimension;
-      const looksLikeIso =
-        value.includes("T") || /^\d{4}-\d{2}-\d{2}$/.test(value);
-      if (!looksLikeIso) {
-        return { ...item, time_dimension: value };
-      }
-      const parsed = new Date(value);
-      if (Number.isNaN(parsed.getTime())) return { ...item };
-      const isMidnight =
-        parsed.getUTCHours() === 0 &&
-        parsed.getUTCMinutes() === 0 &&
-        parsed.getUTCSeconds() === 0 &&
-        parsed.getUTCMilliseconds() === 0;
-      const time_dimension = isMidnight
-        ? parsed.toLocaleDateString("en-US", {
-            year: "2-digit",
-            month: "numeric",
-            day: "numeric",
-          })
-        : parsed.toLocaleTimeString("en-US", {
-            year: "2-digit",
-            month: "numeric",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-      return { ...item, time_dimension };
-    });
-  }, [data]);
+  // Time-axis formatting is NOT decided here. Raw time_dimension values flow
+  // straight to the visualiser, which formats them via the prepareTimeAxis
+  // preparer — one source of truth, so every chart formats time the same way.
+  // (LFE-10549)
+  const renderedData = data;
 
   const resolvedConfig = useMemo(() => {
     if (!config) return undefined;
@@ -131,6 +141,21 @@ export const Chart = ({
   }, [config]);
 
   const renderChart = () => {
+    // A time-series query can densify an empty range into null-filled bucket
+    // rows rather than an empty array, so recharts still gets data — it just
+    // draws blank axes with no series. Fail into guidance instead of that
+    // blank box. A real 0 is never treated as empty here (see
+    // isChartDataEmpty); skip while loading so a first paint doesn't flash
+    // "No data" before the real result arrives. (LFE-14333, manifesto
+    // principle 8)
+    if (
+      EMPTY_STATE_CHART_TYPES.has(chartType) &&
+      !isLoading &&
+      isChartDataEmpty(data)
+    ) {
+      return <NoDataOrLoading isLoading={false} />;
+    }
+
     switch (chartType) {
       case "LINE_TIME_SERIES":
         return (
@@ -139,8 +164,14 @@ export const Chart = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
-            showDataPointDots={chartConfig?.show_data_point_dots ?? true}
+            legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
+            showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
+            missingValue={missingValue}
+            hideXAxisLabels={hideXAxisLabels}
           />
         );
       case "AREA_TIME_SERIES":
@@ -150,7 +181,13 @@ export const Chart = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
+            legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
+            missingValue={missingValue}
+            hideXAxisLabels={hideXAxisLabels}
           />
         );
       case "BAR_TIME_SERIES":
@@ -159,7 +196,13 @@ export const Chart = ({
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
+            legendPosition={legendPosition}
+            legendSummary={legendSummary}
+            legendInteraction={legendInteraction}
+            maxVisibleSeries={maxVisibleSeries}
+            syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
+            hideXAxisLabels={hideXAxisLabels}
           />
         );
       case "HORIZONTAL_BAR":
@@ -241,7 +284,7 @@ export const Chart = ({
   const renderWarning = () => (
     <div className="flex flex-col items-center justify-center p-6 text-center">
       <AlertCircle className="mb-4 h-12 w-12" />
-      <h3 className="mb-2 text-lg font-semibold">Large Dataset Warning</h3>
+      <h3 className="mb-2 text-lg font-bold">Large Dataset Warning</h3>
       <p className="text-muted-foreground mb-6 text-sm">
         This chart has more than 2,000 unique data points. Rendering it may be
         slow or may crash your browser. Try to reduce the number of dimensions
@@ -251,7 +294,7 @@ export const Chart = ({
       <Button
         variant="outline"
         onClick={() => setForceRender(true)}
-        className="font-medium"
+        className="font-bold"
       >
         I understand, proceed to render the chart
       </Button>
@@ -264,3 +307,11 @@ export const Chart = ({
     </CardContent>
   );
 };
+
+/**
+ * Memoized so a parent re-render (e.g. the dashboard query scheduler bumping its
+ * version during load) doesn't reconcile the recharts subtree when the chart's
+ * inputs are unchanged. Effective only when callers pass stable `data`/`config`
+ * references — the dashboard time-series consumers memoize those. (LFE-10549)
+ */
+export const Chart = React.memo(ChartComponent);

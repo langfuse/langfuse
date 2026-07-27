@@ -17,6 +17,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
+import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 
 export function JsonValue({
   value,
@@ -49,7 +51,7 @@ export function JsonValue({
         style={{
           color: theme.punctuationColor,
           opacity: 0.4,
-          fontFamily: "monospace",
+          fontFamily: "var(--font-mono)",
           whiteSpace: "nowrap", // Never wrap preview text like "{4 keys}" or "Array(3)"
           flexShrink: 0, // Prevent compression in flex container
         }}
@@ -109,12 +111,19 @@ export function JsonValue({
       adjustedCommentRanges,
     );
 
+    // Render previewable media as a hover-to-peek chip only when the existing
+    // text highlighter found no search/comment overlays to preserve.
+    const mediaDescriptor = classifyMediaValue(str);
+    if (mediaDescriptor && segments.every((segment) => segment.type === null)) {
+      return <JsonMediaTag descriptor={mediaDescriptor} />;
+    }
+
     return (
       <span
         className={className}
         style={{
           color,
-          fontFamily: "monospace",
+          fontFamily: "var(--font-mono)",
           whiteSpace: stringWrapMode === "wrap" ? "pre-wrap" : "nowrap",
           overflowWrap: stringWrapMode === "wrap" ? "break-word" : undefined,
           wordBreak: stringWrapMode === "wrap" ? "break-word" : undefined,
@@ -188,7 +197,7 @@ export function JsonValue({
       className={className}
       style={{
         color,
-        fontFamily: "monospace",
+        fontFamily: "var(--font-mono)",
       }}
     >
       {segments.map((segment, index) => {

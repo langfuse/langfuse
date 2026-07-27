@@ -7,13 +7,15 @@ import { ViewPreferencesProvider } from "./contexts/ViewPreferencesContext";
 import { SelectionProvider } from "./contexts/SelectionContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import { JsonExpansionProvider } from "./contexts/JsonExpansionContext";
+import { PlayheadProvider } from "./contexts/PlayheadContext";
 import { TraceGraphDataProvider } from "./contexts/TraceGraphDataContext";
 import { TraceLayoutMobile } from "./components/_layout/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "./components/_layout/TraceLayoutDesktop";
 import { TracePanelNavigation } from "./components/_layout/TracePanelNavigation";
 import { TracePanelDetail } from "./components/_layout/TracePanelDetail";
 import { TracePanelNavigationLayoutDesktop } from "./components/_layout/TracePanelNavigationLayoutDesktop";
-import { TracePanelNavigationLayoutMobile } from "./components/_layout/TracePanelNavigationLayoutMobile";
+import { TraceTree } from "./components/TraceTree";
+import { TraceTimeline } from "./components/TraceTimeline";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "./api/useTraceComments";
 import { useViewPreferences } from "./contexts/ViewPreferencesContext";
@@ -74,7 +76,9 @@ export function Trace({
           <SelectionProvider>
             <SearchProvider>
               <JsonExpansionProvider>
-                <TraceContent />
+                <PlayheadProvider>
+                  <TraceContent />
+                </PlayheadProvider>
               </JsonExpansionProvider>
             </SearchProvider>
           </SelectionProvider>
@@ -144,25 +148,22 @@ function DesktopTraceContent({
  * MobileTraceContent - Mobile layout composition
  *
  * Purpose:
- * - Composes mobile-specific layout structure
- * - Vertical accordion-style panels
- * - Navigation panel (top, collapsible) + Detail panel (bottom)
+ * - Composes the mobile tab layout: Tree · Timeline · Graph · Info.
+ * - Tree/Timeline/Graph are full-height navigators; selecting an observation in
+ *   any of them jumps to the Info tab (see TraceLayoutMobile for the wiring).
+ * - Renders the navigators directly (not via TracePanelNavigation): the
+ *   tree/timeline choice is a tab here, not the desktop `?view` toggle. Search
+ *   has no mobile entry point yet — its input lives in the desktop-only
+ *   navigation header — so no TraceSearchList is wired on mobile (follow-up).
  */
 function MobileTraceContent({ shouldShowGraph }: { shouldShowGraph: boolean }) {
   return (
-    <div className="h-full w-full">
-      <TraceLayoutMobile>
-        <TraceLayoutMobile.NavigationPanel>
-          <TracePanelNavigationLayoutMobile
-            secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
-          >
-            <TracePanelNavigation />
-          </TracePanelNavigationLayoutMobile>
-        </TraceLayoutMobile.NavigationPanel>
-        <TraceLayoutMobile.DetailPanel>
-          <TracePanelDetail />
-        </TraceLayoutMobile.DetailPanel>
-      </TraceLayoutMobile>
-    </div>
+    <TraceLayoutMobile
+      showGraph={shouldShowGraph}
+      tree={<TraceTree />}
+      timeline={<TraceTimeline />}
+      graph={shouldShowGraph ? <TraceGraphView /> : null}
+      info={<TracePanelDetail />}
+    />
   );
 }

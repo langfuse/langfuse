@@ -24,7 +24,11 @@ import {
   convertEventsObservation,
   shouldSkipObservationsFinal,
   EventsQueryBuilder,
+  eventSearchCondition,
   eventsScoresAggregation,
+  eventsTracesScoresAggregation,
+  toLevelAgnosticScoreFilter,
+  scoreBooleansAggregation,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -33,7 +37,6 @@ import {
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
-import { eventSearchCondition } from "./event-stream";
 
 const DEFAULT_BATCH_SIZE = 1000;
 const REDUCED_BATCH_SIZE = 200; // Smaller batch for JSON/JSONL which hold parsed objects in memory
@@ -170,7 +173,9 @@ export const getObservationStream = async (
           groupArrayIf(
             tuple(name, string_value, data_type),
             data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
-          ) AS score_categories_tuples
+          ) AS score_categories_tuples,
+          -- boolean score existence entries for booleanObject filters (has())
+          ${scoreBooleansAggregation()} AS score_booleans
         FROM (
           SELECT
             trace_id,
@@ -274,12 +279,7 @@ export const getObservationStream = async (
       ...search.params,
     },
     clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "observation",
-      kind: "export",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   // Helper function to process a single observation row
@@ -452,20 +452,22 @@ const getObservationStreamFromEvents = async (
   };
 
   // Trace-level filters are kept: the events table carries trace fields
-  // denormalized, so they apply directly. Observation-level score filters are
-  // kept too — they map to the scores_agg CTE (s.*) joined below, matching the
-  // legacy export. Dropped are trace-level score filters (they reference a
-  // trace_scores_agg CTE this query does not join) and comment filters
-  // (comments live in Postgres and are resolved before the stream via
-  // applyCommentFilters).
+  // denormalized, so they apply directly. Observation-scoped score filters
+  // (`scores_avg` / `score_categories`, the "s." alias) are kept too — they are
+  // rewritten below into a level-agnostic union across the obs (`s.`) and trace
+  // (`ts.`) score CTEs so a trace-level score matches on export exactly as it
+  // does in the UI (LFE-10596). Dropped are the explicit trace-only score
+  // filters (the "ts." alias — the `traceScores.` escape hatch, not wired on
+  // this export path) and comment filters (comments live in Postgres and are
+  // resolved before the stream via applyCommentFilters).
   const exportableFilters = (filter ?? []).filter((f) => {
     const columnDef = eventsTableUiColumnDefinitions.find(
       (col) => col.uiTableName === f.column || col.uiTableId === f.column,
     );
     if (columnDef?.clickhouseTableName === "comments") return false;
     if (columnDef?.clickhouseTableName === "scores") {
-      // Observation-level score columns select from the "s." alias,
-      // trace-level ones from "ts.".
+      // Observation-scoped score columns select from the "s." alias,
+      // trace-only ones from "ts.".
       return columnDef.clickhouseSelect.startsWith("s.");
     }
     return true;
@@ -500,7 +502,7 @@ const getObservationStreamFromEvents = async (
       ],
       eventsTableUiColumnDefinitions,
       eventsTableCols,
-    ),
+    ).map(toLevelAgnosticScoreFilter),
   );
 
   const appliedEventsFilter = eventsFilter.apply();
@@ -518,6 +520,8 @@ const getObservationStreamFromEvents = async (
       "s.scores_avg as scores_avg",
       "s.score_categories as score_categories",
       "s.score_categories_tuples as score_categories_tuples",
+      "ts.scores_avg as trace_scores_avg",
+      "ts.score_categories_tuples as trace_score_categories_tuples",
     )
     .withCTE(
       "scores_agg",
@@ -526,6 +530,21 @@ const getObservationStreamFromEvents = async (
     .leftJoin(
       "scores_agg s",
       "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
+    )
+    // Trace-level scores are always joined and exported so the export matches
+    // the UI's unified Scores column, and so the level-agnostic score-filter
+    // union (which references `ts.*`) resolves (LFE-10596).
+    .withCTE(
+      "trace_scores_agg",
+      eventsTracesScoresAggregation({
+        projectId,
+        hasScoreAggregationFilters: true,
+        includeTupleEncoding: true,
+      }),
+    )
+    .leftJoin(
+      "trace_scores_agg AS ts",
+      "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
     )
     .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
@@ -548,18 +567,26 @@ const getObservationStreamFromEvents = async (
       | undefined;
     score_categories: string[] | undefined;
     score_categories_tuples: [string, string | null, string][] | undefined;
+    // Trace-level scores (observation_id NULL), merged into the exported
+    // scores so the export matches the UI's unified Scores column (LFE-10596).
+    trace_scores_avg:
+      | {
+          name: string;
+          value: number;
+          dataType: ScoreDataTypeType;
+          stringValue: string;
+        }[]
+      | undefined;
+    trace_score_categories_tuples:
+      | [string, string | null, string][]
+      | undefined;
   };
 
   const asyncGenerator = queryClickhouseStream<EventsObservationRow>({
     query,
     params: queryParams,
     clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "observation",
-      kind: "export",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -582,8 +609,13 @@ const getObservationStreamFromEvents = async (
     const model = await modelCache.getModel(converted.internalModelId);
     const modelData = enrichObservationWithModelData(model);
 
-    // Process numeric/boolean scores (tuples from ClickHouse)
-    const numericScores = (bufferedRow.scores_avg ?? []).map((score: any) => ({
+    // Process numeric/boolean scores (tuples from ClickHouse), merging the
+    // observation-level and trace-level aggregates so the export matches the
+    // UI's unified Scores column (LFE-10596).
+    const numericScores = [
+      ...(bufferedRow.scores_avg ?? []),
+      ...(bufferedRow.trace_scores_avg ?? []),
+    ].map((score: any) => ({
       name: score[0],
       value: score[1],
       dataType: score[2],
@@ -591,14 +623,15 @@ const getObservationStreamFromEvents = async (
     }));
 
     // Process categorical scores (tuples from ClickHouse)
-    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
-      (cat) => ({
-        name: cat[0],
-        value: null,
-        dataType: cat[2],
-        stringValue: cat[1],
-      }),
-    );
+    const categoricalScores = [
+      ...(bufferedRow.score_categories_tuples ?? []),
+      ...(bufferedRow.trace_score_categories_tuples ?? []),
+    ].map((cat) => ({
+      name: cat[0],
+      value: null,
+      dataType: cat[2],
+      stringValue: cat[1],
+    }));
 
     const outputScores: Record<string, string[] | number[]> =
       prepareScoresForOutput([...numericScores, ...categoricalScores]);

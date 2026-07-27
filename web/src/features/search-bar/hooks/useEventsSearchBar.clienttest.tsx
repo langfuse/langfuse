@@ -19,6 +19,7 @@ function setup(
   const { result } = renderHook(() =>
     useEventsSearchBar({
       projectId: "p",
+      tableName: "observations",
       enabled: true,
       filterState: [],
       searchQuery: "refund",

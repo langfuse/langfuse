@@ -125,6 +125,8 @@ export function ItemBadge({
   const label =
     String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
 
+  const displayLabel = label.replace(/_/g, " ");
+
   return (
     <Badge
       variant="outline"
@@ -136,8 +138,8 @@ export function ItemBadge({
     >
       <Icon className={iconClass} />
       {showLabel && (
-        <span className="truncate" title={label.replace(/_/g, " ")}>
-          {label.replace(/_/g, " ")}
+        <span className="truncate" title={displayLabel}>
+          {displayLabel}
         </span>
       )}
     </Badge>

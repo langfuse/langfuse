@@ -5,6 +5,10 @@ import { z } from "zod";
 export enum TriggerEventSource {
   Prompt = "prompt",
   Monitor = "monitor",
+  // ProjectNotification groups platform "something went wrong" events (e.g.
+  // failed exports, blocked evaluators). The specific event lives in the
+  // trigger's eventActions.
+  ProjectNotification = "project-notification",
 }
 
 export const EventActionSchema = z.enum(["created", "updated", "deleted"]);
@@ -14,7 +18,22 @@ export type TriggerEventAction = z.infer<typeof EventActionSchema>;
 export const TriggerEventSourceSchema = z.enum([
   TriggerEventSource.Prompt,
   TriggerEventSource.Monitor,
+  TriggerEventSource.ProjectNotification,
 ]);
+
+/**
+ * ProjectNotificationEventTypeSchema enumerates the platform "something went
+ * wrong" events routable to project notification channels. Stored as a
+ * `project-notification`-source trigger's eventActions. Client-safe so
+ * settings UI can list them. Add new event types here.
+ */
+export const ProjectNotificationEventTypeSchema = z.enum([
+  "blob-export-failed",
+  "evaluator-blocked",
+]);
+export type ProjectNotificationEventType = z.infer<
+  typeof ProjectNotificationEventTypeSchema
+>;
 
 export type TriggerDomain = Omit<
   Trigger,
@@ -43,7 +62,7 @@ export type ActionDomainWithSecrets = Omit<Action, "config"> & {
 export const ActionTypeSchema = z.enum(["WEBHOOK", "SLACK", "GITHUB_DISPATCH"]);
 
 export const AvailableWebhookApiSchema = z.partialRecord(
-  z.enum(["prompt", "monitor"]),
+  z.enum(["prompt", "monitor", "project-notification"]),
   z.enum(["v1"]),
 );
 

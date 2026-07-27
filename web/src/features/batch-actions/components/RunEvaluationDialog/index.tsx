@@ -117,6 +117,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       minStartTime: props.exampleObservation?.startTime as Date,
       maxStartTime: props.exampleObservation?.startTime as Date,
       truncated: false,
+      includeToolCalls: true,
     },
     {
       ...sendAsPostOption,

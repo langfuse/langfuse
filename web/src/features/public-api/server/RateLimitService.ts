@@ -307,6 +307,12 @@ const getPlanBasedRateLimitConfig = (
             points: 100,
             durationInSec: 86400, // 100 requests per day
           };
+        case "public-api-v2-metrics":
+          return {
+            resource,
+            points: 100,
+            durationInSec: 86400, // 100 requests per day
+          };
         case "public-api-daily-metrics-legacy":
           return {
             resource: "public-api-daily-metrics-legacy",
@@ -330,6 +336,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "in-app-agent-run",
             points: 100,
             durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;
@@ -392,6 +404,12 @@ const getPlanBasedRateLimitConfig = (
             points: 2000, // temporary: using pro limit
             durationInSec: 86400, // 2000 requests per day
           };
+        case "public-api-v2-metrics":
+          return {
+            resource,
+            points: 100,
+            durationInSec: 3600, // 100 requests per hour
+          };
         case "public-api-daily-metrics-legacy":
           return {
             resource: "public-api-daily-metrics-legacy",
@@ -416,6 +434,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "in-app-agent-run",
             points: 1000,
             durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;
@@ -473,6 +497,12 @@ const getPlanBasedRateLimitConfig = (
             points: 2000,
             durationInSec: 86400, // 2000 requests per day
           };
+        case "public-api-v2-metrics":
+          return {
+            resource,
+            points: 500,
+            durationInSec: 3600, // 500 requests per hour
+          };
         case "public-api-daily-metrics-legacy":
           return {
             resource: "public-api-daily-metrics-legacy",
@@ -496,6 +526,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "in-app-agent-run",
             points: 1000,
             durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;

@@ -127,6 +127,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           maxBarSize={28}
           className="fill-(--color-metric)"
           fillOpacity={subtleFill ? 0.3 : 1}
+          isAnimationActive={false}
         >
           {showValueLabels ? (
             <LabelList
@@ -156,5 +157,3 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
     </ChartContainer>
   );
 };
-
-export default HorizontalBarChart;

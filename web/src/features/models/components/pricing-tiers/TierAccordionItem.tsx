@@ -45,7 +45,7 @@ export function TierAccordionItem({
       <AccordionTrigger className="px-4 hover:no-underline">
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-semibold">{tier.name}</span>
+            <span className="font-bold">{tier.name}</span>
             {isDefault && <Badge variant="secondary">Default</Badge>}
             <span className="text-muted-foreground text-xs">
               Priority: {tier.priority}

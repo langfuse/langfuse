@@ -1,25 +1,13 @@
 import { Button } from "@/src/components/ui/button";
+import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
-import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Input } from "@/src/components/ui/input";
-import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
-import { Label } from "@/src/components/ui/label";
-import { cn } from "@/src/utils/tailwind";
-import { SubHeader } from "@/src/components/layouts/header";
+import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import { ApiKeyCreateDialogContent } from "@/src/features/public-api/components/ApiKeyCreateDialogContent";
 
 type ApiKeyScope = "project" | "organization";
 
@@ -55,6 +43,7 @@ export function CreateApiKeyButton(props: {
     secretKey: string;
     publicKey: string;
   } | null>(null);
+  const baseUrl = useLangfuseBaseUrl();
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -111,87 +100,26 @@ export function CreateApiKeyButton(props: {
           Create new API keys
         </Button>
       </DialogTrigger>
-      <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle>
-            {generatedKeys ? "API Keys" : "Create API Keys"}
-          </DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          {generatedKeys ? (
-            <ApiKeyRender scope={props.scope} generatedKeys={generatedKeys} />
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="note">Note (optional)</Label>
-                <Input
-                  id="note"
-                  placeholder="Production key"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      createApiKey();
-                    }
-                  }}
-                  className="mt-1.5"
-                />
-              </div>
-            </div>
-          )}
-        </DialogBody>
-        {!generatedKeys && (
-          <DialogFooter>
-            <Button
-              onClick={createApiKey}
-              loading={
-                mutCreateProjectApiKey.isPending || mutCreateOrgApiKey.isPending
-              }
-            >
-              Create API keys
-            </Button>
-          </DialogFooter>
-        )}
-      </DialogContent>
+      <ApiKeyCreateDialogContent
+        scope={props.scope}
+        {...(generatedKeys
+          ? {
+              type: "detail" as const,
+              secretKey: generatedKeys.secretKey,
+              publicKey: generatedKeys.publicKey,
+              baseUrl,
+              showMcpSection: true,
+            }
+          : {
+              type: "form" as const,
+              note,
+              onNoteChange: setNote,
+              onSubmit: createApiKey,
+              isPending:
+                mutCreateProjectApiKey.isPending ||
+                mutCreateOrgApiKey.isPending,
+            })}
+      />
     </Dialog>
   );
 }
-
-export const ApiKeyRender = ({
-  scope,
-  generatedKeys,
-  className,
-}: {
-  scope: ApiKeyScope;
-  generatedKeys?: { secretKey: string; publicKey: string };
-  className?: string;
-}) => {
-  const envCode = useLangfuseEnvCode(generatedKeys);
-
-  return (
-    <div className={cn("space-y-6", className)}>
-      <div>
-        <SubHeader title="Secret Key" />
-        <div className="text-muted-foreground text-sm">
-          This key can only be viewed once. You can always create new keys in
-          the {scope} settings.
-        </div>
-        <CodeView
-          content={generatedKeys?.secretKey ?? "Loading ..."}
-          className="mt-2"
-        />
-      </div>
-      <div>
-        <SubHeader title="Public Key" />
-        <CodeView
-          content={generatedKeys?.publicKey ?? "Loading ..."}
-          className="mt-2"
-        />
-      </div>
-      <div>
-        <SubHeader title=".env" />
-        <CodeView content={envCode} className="mt-2" />
-      </div>
-    </div>
-  );
-};

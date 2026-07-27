@@ -18,6 +18,9 @@ export type SendBlobStorageExportFailedEmailParams = {
   projectName: string;
   settingsUrl: string;
   receiverEmails: string[];
+  // When true, the export was disabled after repeated failures (needs the
+  // customer to fix config and re-enable) rather than a transient failure.
+  disabled?: boolean;
 };
 
 export const sendBlobStorageExportFailedEmail = async ({
@@ -25,6 +28,7 @@ export const sendBlobStorageExportFailedEmail = async ({
   projectName,
   settingsUrl,
   receiverEmails,
+  disabled = false,
 }: SendBlobStorageExportFailedEmailParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
@@ -40,11 +44,14 @@ export const sendBlobStorageExportFailedEmail = async ({
   try {
     const mailer = createMailTransport(env.SMTP_CONNECTION_URL);
     const safeProjectName = sanitizeEmailSubject(projectName);
-    const subject = `Blob storage export failed for "${safeProjectName}" – action required`;
+    const subject = disabled
+      ? `Blob storage export disabled for "${safeProjectName}" – action required`
+      : `Blob storage export failed for "${safeProjectName}"`;
     const html = await render(
       BlobStorageExportFailedEmailTemplate({
         projectName: safeProjectName,
         settingsUrl,
+        disabled,
       }),
     );
 

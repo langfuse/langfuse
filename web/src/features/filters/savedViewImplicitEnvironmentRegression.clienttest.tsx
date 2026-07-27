@@ -174,7 +174,13 @@ const TEST_OPTIONS = {
   name: ["checkout", "search"],
 };
 
-function SavedViewHarness() {
+function SavedViewHarness({
+  setColumnOrder = () => {},
+  setColumnVisibility = () => {},
+}: {
+  setColumnOrder?: (columnOrder: string[]) => void;
+  setColumnVisibility?: (columnVisibility: Record<string, boolean>) => void;
+} = {}) {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId: null,
@@ -183,13 +189,13 @@ function SavedViewHarness() {
     },
   });
 
-  const { isLoading } = useTableViewManager({
+  const { isLoading, appliedViewId } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId: "project-1",
     stateUpdaters: {
       setFilters: queryFilter.setFilterState,
-      setColumnOrder: () => {},
-      setColumnVisibility: () => {},
+      setColumnOrder,
+      setColumnVisibility,
     },
     validationContext: {
       columns: [],
@@ -203,6 +209,7 @@ function SavedViewHarness() {
   return (
     <div>
       <div data-testid="loading-state">{isLoading ? "loading" : "ready"}</div>
+      <div data-testid="applied-view-id">{appliedViewId ?? "null"}</div>
       <pre data-testid="explicit-state">
         {JSON.stringify(queryFilter.explicitFilterState)}
       </pre>
@@ -344,6 +351,109 @@ describe("Saved view restore with implicit environment defaults", () => {
     expect(screen.getByTestId("explicit-state").textContent).toContain(
       "checkout",
     );
+  });
+
+  it("applies explicit URL filters over the saved view when both viewId and filter are present (LFE-10486)", async () => {
+    // A shared "saved view + in-view filter edits" link carries both the
+    // viewId (provenance) and an explicit, edited filter. The edited filter
+    // must win; the saved view's stored filter must not overwrite it.
+    const explicitUrlFilters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["search"],
+      },
+    ];
+    const encodedFilters = encodeFiltersGeneric(explicitUrlFilters);
+
+    queryParamStore.set("viewId", "view-1");
+    queryParamStore.set("filter", encodedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { viewId: "view-1", filter: encodedFilters },
+    });
+
+    // The view also carries a column layout. It must NOT be applied here:
+    // column order/visibility are the visitor's own per-table localStorage, and
+    // opening a shared link is not a deliberate action — applying the view's
+    // columns would silently overwrite the visitor's saved layout.
+    const setColumnOrder = vi.fn();
+    const setColumnVisibility = vi.fn();
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "View with columns",
+        tableName: TableViewPresetTableName.Traces,
+        projectId: "project-1",
+        orderBy: null,
+        filters: OLD_SAVED_VIEW_FILTERS,
+        columnOrder: ["name", "latency"],
+        columnVisibility: { input: false },
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+
+    render(
+      <SavedViewHarness
+        setColumnOrder={setColumnOrder}
+        setColumnVisibility={setColumnVisibility}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    // The URL's filter ("search") wins over the saved view's stored filter
+    // ("checkout" from OLD_SAVED_VIEW_FILTERS).
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+    // The viewId stays in the URL as a provenance reference so the drawer can
+    // still show the view the link came from.
+    expect(queryParamStore.get("viewId")).toBe("view-1");
+    // The view is not applied over explicit URL state, so the visitor's own
+    // column layout is left untouched (no localStorage mutation on link open).
+    expect(setColumnOrder).not.toHaveBeenCalled();
+    expect(setColumnVisibility).not.toHaveBeenCalled();
+    // On a fresh shared-link visit the view is NOT recognised as applied, so
+    // "Update view" would preserve the view's stored columns (not the
+    // visitor's). Contrast with the reload-of-applied-view test below.
+    expect(screen.getByTestId("applied-view-id").textContent).toBe("null");
+  });
+
+  it("recognises a reload of an applied view as applied so Update keeps live columns (LFE-10486)", async () => {
+    // Reload after a view was applied: the URL carries the viewId AND the
+    // view's hydrated filters, and the session still remembers X as active.
+    // The explicit-URL-state short-circuit means the view is not re-applied,
+    // but it must still be recognised as the applied view — otherwise a
+    // column reorder + "Update view" would silently discard the reorder and
+    // save the stored snapshot instead.
+    const hydratedFilters = encodeFiltersGeneric(OLD_SAVED_VIEW_FILTERS);
+    queryParamStore.set("viewId", "view-1");
+    queryParamStore.set("filter", hydratedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { viewId: "view-1", filter: hydratedFilters },
+    });
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("applied-view-id").textContent).toBe("view-1");
   });
 
   it("does not apply a default saved view over explicit URL filters", async () => {

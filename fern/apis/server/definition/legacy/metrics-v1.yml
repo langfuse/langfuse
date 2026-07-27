@@ -7,6 +7,9 @@ service:
   base-path: /api/public
   endpoints:
     metrics:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. Use GET /api/public/v2/metrics?query=<urlencoded json query> instead."
       docs: |
         Get metrics from the Langfuse project using a query object.
 
@@ -24,7 +27,7 @@ service:
               JSON string containing the query parameters with the following structure:
               ```json
               {
-                "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-categorical"
+                "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-boolean", "scores-categorical"
                 "dimensions": [           // Optional. Default: []
                   {
                     "field": string       // Field to group by, e.g. "name", "userId", "sessionId"
@@ -72,3 +75,4 @@ types:
           The metrics data. Each item in the list contains the metric values and dimensions requested in the query.
           Format varies based on the query parameters.
           Histograms will return an array with [lower, upper, height] tuples.
+      _deprecation: optional<commons.Deprecation>

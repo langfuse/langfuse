@@ -19,6 +19,9 @@ const session: Session = {
         role: "OWNER",
         plan: "cloud:hobby",
         cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
         projects: [
           {
             id: projectId,
@@ -26,6 +29,9 @@ const session: Session = {
             retentionDays: 30,
             deletedAt: null,
             name: "Test Project",
+            hasTraces: true,
+            metadata: {},
+            createdAt: new Date().toISOString(),
           },
         ],
       },
@@ -33,13 +39,17 @@ const session: Session = {
     featureFlags: {
       excludeClickhouseRead: false,
       templateFlag: true,
+      v4BetaToggleVisible: false,
+      observationEvals: false,
+      experimentsV4Enabled: false,
+      searchBar: false,
     },
     admin: true,
   },
   environment: {} as any,
 };
 
-const ctx = createInnerTRPCContext({ session });
+const ctx = createInnerTRPCContext({ session, headers: {} });
 const caller = appRouter.createCaller({ ...ctx, prisma });
 
 describe("datasets.allDatasetsMetrics", () => {

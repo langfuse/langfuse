@@ -32,7 +32,7 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   forcePathStyle: z.boolean(),
   fileType: z
     .enum(BlobStorageIntegrationFileType)
-    .default(BlobStorageIntegrationFileType.JSONL),
+    .default(BlobStorageIntegrationFileType.PARQUET),
   exportMode: z
     .enum(BlobStorageExportMode)
     .default(BlobStorageExportMode.FULL_HISTORY),

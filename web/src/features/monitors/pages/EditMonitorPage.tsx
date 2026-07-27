@@ -1,23 +1,24 @@
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { ErrorPage } from "@/src/components/error-page";
 import Page from "@/src/components/layouts/page";
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
-import { api } from "@/src/utils/api";
+import { api, type APIError } from "@/src/utils/api";
+import { type Monitor } from "@langfuse/shared/monitors";
 
 /** EditMonitorPage gates the edit-monitor route and defers all data fetching to EditMonitorPageContent so blocked users never trigger the monitor query. */
 export default function EditMonitorPage() {
   return (
     <MonitorPagePermissions scope="monitors:read">
-      <EditMonitorPageContent />
+      <EditMonitorPageRouter />
     </MonitorPagePermissions>
   );
 }
 
-/** EditMonitorPageContent renders the edit form for a single monitor; runs only when the route gate has admitted the user. */
-function EditMonitorPageContent() {
+/** EditMonitorPageRouter fetches data and renders loading, error and editor pages based on the state of the query */
+function EditMonitorPageRouter() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const monitorId = router.query.monitorId as string;
@@ -27,13 +28,35 @@ function EditMonitorPageContent() {
     { enabled: Boolean(monitorId) },
   );
 
-  /** liveName mirrors the form's name so the page title updates as the user edits, without waiting for a save round-trip. */
-  const [liveName, setLiveName] = useState("");
-  useEffect(() => {
-    setLiveName(data?.name ?? "");
-  }, [data?.name]);
+  if (isPending) {
+    return <EditMonitorLoadingPage projectId={projectId} />;
+  }
 
-  if (error?.data?.code === "NOT_FOUND") {
+  if (error) {
+    return <GetMonitorErrorPage error={error} />;
+  }
+
+  return <EditMonitorFormPage monitor={data} />;
+}
+
+/** EditMonitorFormPage renders the edit monitors form */
+const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
+  const [liveName, setLiveName] = useState(monitor.name);
+
+  return (
+    <Page withPadding headerProps={getHeaderProps(monitor.projectId, liveName)}>
+      <MonitorForm
+        projectId={monitor.projectId}
+        monitor={monitor}
+        onNameChange={setLiveName}
+      />
+    </Page>
+  );
+};
+
+/** GetMonitorErrorPage renders the error message returned by the api.monitors.get method */
+const GetMonitorErrorPage = ({ error }: { error: APIError }) => {
+  if (error?.data?.code == "NOT_FOUND") {
     return (
       <ErrorPage
         title="Monitor not found"
@@ -43,22 +66,19 @@ function EditMonitorPageContent() {
   }
 
   return (
-    <Page
-      withPadding
-      headerProps={{
-        title: liveName ? `Edit Monitor - ${liveName}` : "Edit Monitor",
-        breadcrumb: [
-          { name: "Monitors", href: `/project/${projectId}/monitors` },
-        ],
-      }}
-    >
-      {isPending ? null : data ? (
-        <MonitorForm
-          projectId={projectId}
-          monitor={data}
-          onNameChange={setLiveName}
-        />
-      ) : null}
-    </Page>
+    <ErrorPage title="Monitor could not be edited" message={error.message} />
   );
-}
+};
+
+/** EditMonitorLoadingPage renders a loading page while the monitor is loading */
+const EditMonitorLoadingPage = ({ projectId }: { projectId: string }) => (
+  <Page withPadding headerProps={getHeaderProps(projectId)}>
+    <></>
+  </Page>
+);
+
+/** getHeaderProps returns the page header properties for the EditMonitors page */
+const getHeaderProps = (projectId: string, monitorName?: string) => ({
+  title: `Edit Monitor${monitorName ? " - " + monitorName : ""}`,
+  breadcrumb: [{ name: "Monitors", href: `/project/${projectId}/monitors` }],
+});

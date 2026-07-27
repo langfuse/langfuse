@@ -1,3 +1,11 @@
+import { vi } from "vitest";
+
+// requireV4Writes 404s the monitors routes under the default legacy write mode;
+// env is parsed at module load, so force a passing mode before any import.
+vi.hoisted(() => {
+  process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+});
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
@@ -38,20 +46,24 @@ const buildSession = (params: {
         plan: "cloud:hobby",
         cloudConfig: undefined,
         metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
         projects: [
           {
             id: params.projectId,
             role: params.projectRole,
             retentionDays: 30,
             deletedAt: null,
+            hasTraces: false,
             name: params.projectName,
             metadata: {},
+            createdAt: new Date().toISOString(),
           },
         ],
       },
     ],
     featureFlags: {
-      inAppAgent: false,
+      searchBar: false,
       templateFlag: false,
       excludeClickhouseRead: false,
       v4BetaToggleVisible: false,

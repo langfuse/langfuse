@@ -1,4 +1,5 @@
 import { InvalidRequestError, UnauthorizedError } from "@langfuse/shared";
+import { stringify } from "@langfuse/shared/src/server";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   buildTraceExport,
@@ -67,6 +68,10 @@ export default withMiddlewares({
       `attachment; filename="trace-export.json"; filename*=UTF-8''${encodeURIComponent(downloadFilename)}`,
     );
 
-    return res.status(200).send(JSON.stringify(payload, null, 2));
+    // Use the shared stringify helper (not the raw JSON.stringify) so that
+    // \uXXXX escapes in string fields (e.g. Japanese ingested with Python
+    // ensure_ascii=True) are decoded to real characters. Pass indent=2 to keep
+    // the download human-readable, matching the previous pretty-printed output.
+    return res.status(200).send(stringify(payload, undefined, 2));
   },
 });

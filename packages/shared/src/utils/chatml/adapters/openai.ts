@@ -340,6 +340,16 @@ function preprocessData(data: unknown): unknown {
     }
   }
 
+  if (
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    ["function_call", "tool_call", "function_call_output"].includes(
+      String((data as Record<string, unknown>).type),
+    )
+  ) {
+    return normalizeMessage(data);
+  }
+
   // Array of messages
   if (Array.isArray(data)) {
     return data.map(normalizeMessage);

@@ -16,6 +16,7 @@ import {
   ClearDefaultViewInput,
   DefaultViewAssignmentsSchema,
   TableViewPresetsNamesCreatorListSchema,
+  isSystemTableViewPresetId,
 } from "@langfuse/shared/src/server";
 import {
   LangfuseConflictError,
@@ -110,11 +111,15 @@ export const TableViewPresetsRouter = createTRPCRouter({
         scope: "TableViewPresets:CUD",
       });
 
-      // Use transaction to ensure atomicity
-      // Delete view first (validates it exists), then cleanup defaults
+      // System presets are frontend-defined and have no table_view_presets row.
+      // Treat their deletion as an idempotent no-op without clearing defaults.
+      if (isSystemTableViewPresetId(input.tableViewPresetsId)) {
+        return;
+      }
+
+      // Keep deletion idempotent so stale clients can safely repeat it.
       await ctx.prisma.$transaction(async (tx) => {
-        // Delete the view preset (will throw if not found)
-        await tx.tableViewPreset.delete({
+        await tx.tableViewPreset.deleteMany({
           where: {
             id: input.tableViewPresetsId,
             projectId: input.projectId,
@@ -123,13 +128,12 @@ export const TableViewPresetsRouter = createTRPCRouter({
 
         // Cleanup any default view references
         await tx.defaultView.deleteMany({
-          where: { viewId: input.tableViewPresetsId },
+          where: {
+            viewId: input.tableViewPresetsId,
+            projectId: input.projectId,
+          },
         });
       });
-
-      return {
-        success: true,
-      };
     }),
 
   getByTableName: protectedProjectProcedure

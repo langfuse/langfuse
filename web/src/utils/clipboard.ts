@@ -44,3 +44,20 @@ export const copyTextToClipboard = async (text: string) => {
   }
   return _unsafeNonSecureCopyToClipboard(text);
 };
+
+/**
+ * Read text from the clipboard. Returns null when the async Clipboard API is
+ * unavailable (non-secure context) or the user/browser denied the read —
+ * there is no legacy fallback for reading. Callers should treat null as
+ * "cannot know what's in the clipboard", not as "clipboard is empty".
+ */
+export const readTextFromClipboard = async (): Promise<string | null> => {
+  if (typeof navigator.clipboard?.readText !== "function") {
+    return null;
+  }
+  try {
+    return await navigator.clipboard.readText();
+  } catch {
+    return null;
+  }
+};

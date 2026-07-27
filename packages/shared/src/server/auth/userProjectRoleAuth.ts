@@ -73,6 +73,7 @@ function generateUserProjectRolesQuery({
         AND NOT EXISTS (
           SELECT 1 FROM project_memberships pm 
           WHERE pm.org_membership_id = om.id
+            AND pm.project_id = ${projectId}
         )
       ${sqlFilter}
       ${searchFilter}

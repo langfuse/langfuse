@@ -51,6 +51,10 @@ interface ProcessingNode {
   inDegree: number; // Number of unprocessed children (for topological sort)
   depth: number; // Tree depth (calculated during graph building)
   treeNode?: TreeNode; // Set when node is processed
+  // Earliest start / latest end (epoch ms) across this node and all descendants.
+  // Tracked bottom-up to derive subtreeWallClockDurationMs (mirrors cost aggregation).
+  subtreeMinStartMs?: number;
+  subtreeMaxEndMs?: number;
 }
 
 /**
@@ -73,20 +77,61 @@ export function getObservationLevels(
 }
 
 /**
+ * Collapse observations sharing the same id to a single row per id, keeping the
+ * earliest by startTime (deterministic).
+ *
+ * The tree builder assumes observation ids are unique, but real traces can
+ * contain multiple rows with the same id (colliding / reused ids in ingested
+ * data, or un-merged event rows), and those rows may each carry a DIFFERENT
+ * parentObservationId. Left un-deduped, one node gets wired under several
+ * parents, turning the parent→child graph into a dense multi-parent DAG whose
+ * root→node path count is exponential; the depth-propagation BFS then grows its
+ * queue without bound and the trace crashes the client with "RangeError:
+ * Invalid array length" / out of memory.
+ *
+ * The trace detail panel resolves the selected row from this same observation
+ * list, so tree and panel MUST agree on which duplicate wins — hence a single
+ * shared de-dup used both here (via prepareObservations) and by TraceDataContext
+ * for the array the panel searches.
+ *
+ * Generic over the row shape so ObservationReturnType and the with-metadata
+ * variant used by the UI context share one implementation. Returns the input
+ * array unchanged (same reference) when all ids are already unique — a no-op for
+ * well-formed traces that also preserves referential identity for memoization.
+ */
+export function dedupeObservationsById<
+  T extends { id: string; startTime: Date },
+>(list: T[]): T[] {
+  const byId = new Map<string, T>();
+  for (const o of list) {
+    const existing = byId.get(o.id);
+    if (!existing || o.startTime.getTime() < existing.startTime.getTime()) {
+      byId.set(o.id, o);
+    }
+  }
+  return byId.size === list.length ? list : Array.from(byId.values());
+}
+
+/**
  * Prepares observations for tree building.
- * Cleans orphaned parent references and sorts by startTime.
- * Returns flat array (nesting happens in buildDependencyGraph).
+ * De-duplicates colliding ids, cleans orphaned parent references, sorts by
+ * startTime. Returns flat array (nesting happens in buildDependencyGraph).
  */
 function prepareObservations(list: ObservationReturnType[]): {
   sortedObservations: ObservationReturnType[];
 } {
   if (list.length === 0) return { sortedObservations: [] };
 
+  // One row per id (earliest by startTime) so the parent→child graph stays a
+  // proper forest — see dedupeObservationsById for why duplicates crash the
+  // builder. No-op for well-formed traces.
+  const dedupedList = dedupeObservationsById(list);
+
   // Build a Set of all observation IDs for O(1) lookup
-  const observationIds = new Set(list.map((o) => o.id));
+  const observationIds = new Set(dedupedList.map((o) => o.id));
 
   // Remove parentObservationId if parent doesn't exist in the list
-  const mutableList = list.map((o) => {
+  const mutableList = dedupedList.map((o) => {
     if (o.parentObservationId && !observationIds.has(o.parentObservationId)) {
       return { ...o, parentObservationId: null };
     }
@@ -143,14 +188,25 @@ function buildDependencyGraph(sortedObservations: ObservationReturnType[]): {
     }
   }
 
-  // BFS to propagate depth down the tree
+  // BFS to propagate depth down the tree.
+  //
+  // Defense in depth: track visited nodes so a node is enqueued at most once.
+  // prepareObservations already dedupes by id (making the graph a proper forest),
+  // but guarding here means even a pathological multi-parent / cyclic graph can
+  // never grow the queue without bound — the failure mode that crashed the trace
+  // peek with "RangeError: Invalid array length" / OOM. For a well-formed forest
+  // each node has a single parent, so it is visited exactly once and depths are
+  // unchanged.
   const queue = [...rootIds];
+  const visited = new Set(rootIds);
   let queueIndex = 0;
   while (queueIndex < queue.length) {
     const currentId = queue[queueIndex++];
     const currentNode = nodeRegistry.get(currentId)!;
 
     for (const childId of currentNode.childrenIds) {
+      if (visited.has(childId)) continue;
+      visited.add(childId);
       const childNode = nodeRegistry.get(childId)!;
       childNode.depth = currentNode.depth + 1;
       queue.push(childId);
@@ -240,6 +296,30 @@ function buildTreeNodesBottomUp(
         ? nodeCost.plus(childrenTotalCost)
         : nodeCost || childrenTotalCost;
 
+    // Aggregate subtree wall-clock bounds bottom-up: earliest start and latest
+    // end across this node and every descendant. Children are already processed,
+    // so their bounds are available on the ProcessingNode registry.
+    // A missing endTime contributes only its start (zero-length interval).
+    let subtreeMinStartMs = obs.startTime.getTime();
+    let subtreeMaxEndMs = obs.endTime
+      ? obs.endTime.getTime()
+      : obs.startTime.getTime();
+    for (const childId of currentNode.childrenIds) {
+      const childNode = nodeRegistry.get(childId);
+      if (childNode?.subtreeMinStartMs != null) {
+        subtreeMinStartMs = Math.min(
+          subtreeMinStartMs,
+          childNode.subtreeMinStartMs,
+        );
+      }
+      if (childNode?.subtreeMaxEndMs != null) {
+        subtreeMaxEndMs = Math.max(subtreeMaxEndMs, childNode.subtreeMaxEndMs);
+      }
+    }
+    currentNode.subtreeMinStartMs = subtreeMinStartMs;
+    currentNode.subtreeMaxEndMs = subtreeMaxEndMs;
+    const subtreeWallClockDurationMs = subtreeMaxEndMs - subtreeMinStartMs;
+
     // Calculate temporal and structural properties
     const startTimeSinceTrace =
       obs.startTime.getTime() - traceStartTime.getTime();
@@ -283,6 +363,7 @@ function buildTreeNodesBottomUp(
       parentObservationId: obs.parentObservationId,
       traceId: obs.traceId,
       totalCost,
+      subtreeWallClockDurationMs,
       startTimeSinceTrace,
       startTimeSinceParentStart,
       depth,

@@ -1,7 +1,10 @@
 import {
+  commaSeparatedEnumArray,
   isJsonNumberLiteral,
+  optionalCommaSeparatedStringArray,
   paginationZod,
   parseJsonPrioritised,
+  publicApiPaginationLimitZod,
 } from "@langfuse/shared";
 import { ZodError } from "zod";
 
@@ -27,6 +30,63 @@ describe("Pagination Zod Schema", () => {
     expect(() => paginationZod.page.parse("abc")).toThrow(ZodError);
     expect(() => paginationZod.limit.parse("abc")).toThrow(ZodError);
     expect(() => paginationZod.limit.parse("0")).toThrow(ZodError);
+    expect(() => paginationZod.limit.parse("1.5")).toThrow(ZodError);
+  });
+});
+
+describe("Public API pagination limit Zod Schema", () => {
+  it("validates integer limits with public API defaults", () => {
+    expect(publicApiPaginationLimitZod.parse("20")).toBe(20);
+    expect(publicApiPaginationLimitZod.parse("")).toBe(50);
+    expect(() => publicApiPaginationLimitZod.parse("1.5")).toThrow(ZodError);
+    expect(() => publicApiPaginationLimitZod.parse("101")).toThrow(ZodError);
+  });
+});
+
+describe("Comma-separated query parameter Zod schemas", () => {
+  it("parses optional comma-separated string arrays", () => {
+    expect(optionalCommaSeparatedStringArray.parse("a, b,,c ")).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+    expect(optionalCommaSeparatedStringArray.parse("")).toBeUndefined();
+    expect(optionalCommaSeparatedStringArray.parse(undefined)).toBeUndefined();
+  });
+
+  it("parses comma-separated enum arrays with defaults", () => {
+    const schema = commaSeparatedEnumArray(["core", "metadata"] as const, [
+      "core",
+    ]);
+
+    expect(schema.parse("core, metadata")).toEqual(["core", "metadata"]);
+    expect(schema.parse(undefined)).toEqual(["core"]);
+    expect(() => schema.parse("core,invalid")).toThrow(ZodError);
+  });
+
+  it("can filter unknown comma-separated enum values", () => {
+    const schema = commaSeparatedEnumArray(
+      ["core", "metadata"] as const,
+      ["core"],
+      { unknownValues: "filter" },
+    );
+
+    expect(schema.parse("core, invalid,metadata")).toEqual([
+      "core",
+      "metadata",
+    ]);
+    expect(schema.parse("invalid")).toEqual([]);
+  });
+
+  it("supports null defaults for omitted comma-separated enum values", () => {
+    const schema = commaSeparatedEnumArray(
+      ["core", "metadata"] as const,
+      null,
+      { unknownValues: "filter" },
+    );
+
+    expect(schema.parse(undefined)).toBeNull();
+    expect(schema.parse("invalid")).toEqual([]);
   });
 });
 

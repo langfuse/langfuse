@@ -72,7 +72,7 @@ export const ExperimentCompareTable = ({
   return (
     <DataTable
       key={`experiment-items-table-${dataUpdatedAt}`}
-      tableName={"experiment-items"}
+      tableName="experiment-items"
       columns={columns}
       peekView={peekView}
       noResultsMessage={noResultsMessage}

@@ -1,7 +1,7 @@
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
@@ -20,15 +20,10 @@ export function RequestResetPasswordEmailButton({
   const [isEmailSent, setIsEmailSent] = useState(false);
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isValidEmail, setIsValidEmail] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const session = useSession();
   const capture = usePostHogClientCapture();
-
-  useEffect(() => {
-    const isValidEmail = z.email().safeParse(email).success;
-    setIsValidEmail(isValidEmail);
-  }, [email]);
+  const isValidEmail = z.email().safeParse(email).success;
 
   const handleResetPassword = async () => {
     if (!isValidEmail) return;
@@ -86,7 +81,7 @@ export function RequestResetPasswordEmailButton({
     <>
       {isEmailSent ? (
         <div>
-          <label htmlFor="otp-code" className="mb-2 block text-sm font-medium">
+          <label htmlFor="otp-code" className="mb-2 block text-sm font-bold">
             Check your inbox for the code
           </label>
           <Input

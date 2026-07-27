@@ -40,7 +40,7 @@ import {
   updateAnnotationQueueItemTool,
 } from "./tools/updateAnnotationQueueItem";
 
-export const annotationQueuesFeature: McpFeatureModule = {
+export const annotationQueuesFeature = {
   name: "annotationQueues",
   description:
     "Manage annotation queues, worklists of trace or observation items for human review and scoring, plus user assignments",
@@ -48,7 +48,6 @@ export const annotationQueuesFeature: McpFeatureModule = {
     {
       definition: listAnnotationQueuesTool,
       handler: handleListAnnotationQueues,
-      allowInAppAgentKey: true,
     },
     {
       definition: createAnnotationQueueTool,
@@ -57,17 +56,14 @@ export const annotationQueuesFeature: McpFeatureModule = {
     {
       definition: getAnnotationQueueTool,
       handler: handleGetAnnotationQueue,
-      allowInAppAgentKey: true,
     },
     {
       definition: listAnnotationQueueItemsTool,
       handler: handleListAnnotationQueueItems,
-      allowInAppAgentKey: true,
     },
     {
       definition: getAnnotationQueueItemTool,
       handler: handleGetAnnotationQueueItem,
-      allowInAppAgentKey: true,
     },
     {
       definition: createAnnotationQueueItemTool,
@@ -90,4 +86,4 @@ export const annotationQueuesFeature: McpFeatureModule = {
       handler: handleDeleteAnnotationQueueAssignment,
     },
   ],
-};
+} as const satisfies McpFeatureModule;

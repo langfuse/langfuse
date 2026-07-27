@@ -58,7 +58,8 @@ export const [
               nullable: Boolean(column.nullable),
               requiresKey:
                 column.type === "stringObject" ||
-                column.type === "numberObject",
+                column.type === "numberObject" ||
+                column.type === "booleanObject",
             },
           ];
         }),

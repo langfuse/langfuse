@@ -1,6 +1,9 @@
 import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
-import { sessionsViewCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import { sessionsEventsViewCols, sessionsViewCols } from "@langfuse/shared";
+import type {
+  Facet,
+  FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 
 export type SessionOmittableFilterColumn = "userIds";
@@ -119,6 +122,11 @@ export const sessionFilterConfig: FilterConfig = {
       label: "Numeric Scores",
     },
     {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
+    },
+    {
       type: "numeric" as const,
       column: "commentCount",
       label: "Comment Count",
@@ -133,8 +141,26 @@ export const sessionFilterConfig: FilterConfig = {
   ],
 };
 
+const sessionMetadataFacet: Facet = {
+  type: "stringKeyValue",
+  column: "metadata",
+  label: "Metadata",
+};
+
+export const sessionEventsFilterConfig: FilterConfig = {
+  ...sessionFilterConfig,
+  columnDefinitions: sessionsEventsViewCols,
+  facets: sessionFilterConfig.facets.flatMap((facet) =>
+    facet.column === "tags" ? [facet, sessionMetadataFacet] : [facet],
+  ),
+};
+
 export function getSessionFilterConfig(
   omittedFilter: SessionOmittableFilterColumn[] = [],
+  fromEvents = false,
 ): FilterConfig {
-  return omitFilterFacets(sessionFilterConfig, omittedFilter);
+  return omitFilterFacets(
+    fromEvents ? sessionEventsFilterConfig : sessionFilterConfig,
+    omittedFilter,
+  );
 }

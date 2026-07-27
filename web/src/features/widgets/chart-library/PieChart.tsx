@@ -97,6 +97,7 @@ export const PieChart: React.FC<ChartProps> = ({
           paddingAngle={2}
           strokeWidth={5}
           shape={renderSector}
+          isAnimationActive={false}
         >
           {/* Label in the center of the donut */}
           {data.length > 0 && (
@@ -136,5 +137,3 @@ export const PieChart: React.FC<ChartProps> = ({
     </ChartContainer>
   );
 };
-
-export default PieChart;

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 export default function useCommandEnter(
   isEnabled: boolean,
@@ -13,7 +14,7 @@ export default function useCommandEnter(
       if (isEnabled && hasRunAllModifier && event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
-        callback().catch((err) => console.error(err));
+        callback().catch((err) => captureUnknownError("playground.run", err));
       }
     }
 

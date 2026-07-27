@@ -28,11 +28,13 @@ import {
 import Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Single Trace",
+      deprecation: TRACES_DEPRECATION,
       rateLimitResource: "public-api-legacy",
       querySchema: GetTraceV1Query,
       responseSchema: GetTraceV1Response,
@@ -63,7 +65,6 @@ export default withMiddlewares(
         const trace = await getTraceById({
           traceId,
           projectId: auth.scope.projectId,
-          clickhouseFeatureTag: "tracing-public-api",
           preferredClickhouseService: "ReadOnly",
           excludeInputOutput: !includeIO,
           excludeMetadata: !includeIO,

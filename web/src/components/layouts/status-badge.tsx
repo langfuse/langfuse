@@ -20,12 +20,14 @@ export const StatusBadge = ({
   isLive = true,
   className,
   showText = true,
+  preserveCase = false,
   children,
 }: {
   type: Status | (string & {});
   isLive?: boolean;
   className?: string;
   showText?: boolean;
+  preserveCase?: boolean;
   children?: ReactNode;
 }) => {
   let badgeColor = "bg-muted-gray text-primary";
@@ -85,7 +87,11 @@ export const StatusBadge = ({
           ></span>
         </span>
       )}
-      {showText && type && <span>{type[0].toUpperCase() + type.slice(1)}</span>}
+      {showText && type && (
+        <span>
+          {preserveCase ? type : type[0].toUpperCase() + type.slice(1)}
+        </span>
+      )}
       {children}
     </div>
   );

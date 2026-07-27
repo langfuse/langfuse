@@ -94,13 +94,22 @@ const MainPage = ({ projectId }: { projectId: string }) => {
           ...headerProps,
           actionButtonsRight: (
             <>
-              <FilterToggleButton />
+              {/* Desktop uses the sidebar's own header toggle + collapsed
+                  rail; this toggle only remains for the mobile stacked
+                  layout. */}
+              <FilterToggleButton className="md:hidden" />
               <AutomationButton projectId={projectId} />
               <ActionButton
                 icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
                 hasAccess={hasCUDAccess}
-                limit={monitorEntitlementLimit}
-                limitValue={monitorCountQuery.data?.count}
+                usageLimit={
+                  typeof monitorEntitlementLimit === "number"
+                    ? {
+                        current: monitorCountQuery.data?.count,
+                        max: monitorEntitlementLimit,
+                      }
+                    : undefined
+                }
                 href={`/project/${projectId}/monitors/new`}
                 variant="default"
               >

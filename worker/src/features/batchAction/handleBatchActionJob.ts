@@ -7,7 +7,9 @@ import {
   QueueJobs,
   QueueName,
   TQueueJobTypes,
+  findDatasetIdsForBatchDeletion,
   traceDeletionProcessor,
+  applyCommentFilters,
 } from "@langfuse/shared/src/server";
 import {
   BatchActionType,
@@ -40,12 +42,45 @@ import {
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
+import { processDeleteDatasets } from "./processDeleteDatasets";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
   return filters.map((f: FilterCondition) =>
     f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
   );
+};
+
+const resolveObservationCommentFilters = async ({
+  projectId,
+  filter,
+}: {
+  projectId: string;
+  filter: FilterCondition[];
+}): Promise<FilterCondition[]> => {
+  // Observation comments live in Postgres, while the event and legacy
+  // observation streams query ClickHouse. Resolve comment predicates to an
+  // observation ID predicate before constructing either stream.
+  const { filterState, hasNoMatches } = await applyCommentFilters({
+    filterState: filter,
+    prisma,
+    projectId,
+    objectType: "OBSERVATION",
+  });
+
+  // applyCommentFilters removes the resolved comment predicates. If none
+  // matched, passing filterState alone could leave the stream unconstrained,
+  // so encode an explicitly empty selection and let the batch action complete.
+  return hasNoMatches
+    ? [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "id",
+          value: [],
+        },
+      ]
+    : filterState;
 };
 
 type HandleBatchActionJobDeps = {
@@ -65,6 +100,8 @@ async function processActionChunk(
   try {
     switch (actionId) {
       case "trace-delete":
+        // Legacy queue path. Durable trace-delete BatchActions are processed
+        // by TraceDeleteBatchActionRunner.
         await traceDeletionProcessor(projectId, chunkIds, { delayMs: 0 });
         break;
 
@@ -90,6 +127,10 @@ async function processActionChunk(
 
       case "score-delete":
         await processClickhouseScoreDelete(projectId, chunkIds);
+        break;
+
+      case "dataset-delete":
+        await processDeleteDatasets(projectId, chunkIds);
         break;
 
       default:
@@ -166,7 +207,8 @@ export const handleBatchActionJob = async (
     actionId === "trace-add-to-annotation-queue" ||
     actionId === "session-add-to-annotation-queue" ||
     actionId === "observation-add-to-annotation-queue" ||
-    actionId === "score-delete"
+    actionId === "score-delete" ||
+    actionId === "dataset-delete"
   ) {
     const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
       batchActionEvent;
@@ -175,30 +217,47 @@ export const handleBatchActionJob = async (
       throw new Error(`Target ID is required for create action`);
     }
 
+    const convertedFilter = convertDatesInFiltersFromStrings(
+      query.filter ?? [],
+    );
+    const filter =
+      actionId === "observation-add-to-annotation-queue"
+        ? await resolveObservationCommentFilters({
+            projectId,
+            filter: convertedFilter,
+          })
+        : convertedFilter;
+
     const streamParams = {
       projectId: projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id" as const],
     };
 
     const dbReadStream =
-      actionId === "trace-delete"
-        ? await getTraceIdentifierStream({
-            ...streamParams,
-            orderBy: query.orderBy,
+      actionId === "dataset-delete"
+        ? await findDatasetIdsForBatchDeletion({
+            projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            query,
           })
-        : tableName === BatchTableNames.Events
-          ? await getEventsStreamForAnnotationQueue(streamParams)
-          : tableName === BatchTableNames.Observations
-            ? await getObservationStream(streamParams)
-            : await getDatabaseReadStreamPaginated({
-                ...streamParams,
-                orderBy: query.orderBy,
-                tableName: tableName as BatchTableNames,
-                useEventsTable: query.useEventsTable,
-              });
+        : actionId === "trace-delete"
+          ? await getTraceIdentifierStream({
+              ...streamParams,
+              orderBy: query.orderBy,
+            })
+          : tableName === BatchTableNames.Events
+            ? await getEventsStreamForAnnotationQueue(streamParams)
+            : tableName === BatchTableNames.Observations
+              ? await getObservationStream(streamParams)
+              : await getDatabaseReadStreamPaginated({
+                  ...streamParams,
+                  orderBy: query.orderBy,
+                  tableName: tableName as BatchTableNames,
+                  useEventsTable: query.useEventsTable,
+                });
 
     // Process stream in database-sized batches
     // 1. Read all records
@@ -354,10 +413,18 @@ export const handleBatchActionJob = async (
     const parsedConfig = ObservationAddToDatasetConfigSchema.parse(config);
 
     // Get observation stream — use events table when tableName indicates it
+    const convertedFilter = convertDatesInFiltersFromStrings(
+      query.filter ?? [],
+    );
+    const filter = await resolveObservationCommentFilters({
+      projectId,
+      filter: convertedFilter,
+    });
+
     const streamParams = {
       projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id" as const],
     };
@@ -461,10 +528,15 @@ export const handleBatchActionJob = async (
       return;
     }
 
+    const filter = await resolveObservationCommentFilters({
+      projectId,
+      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+    });
+
     const dbReadStream = await getEventsStreamForEval({
       projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id", "content"],
       rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,

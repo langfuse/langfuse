@@ -34,6 +34,7 @@ import {
   StringNoHTML,
   InvalidRequestError,
   singleFilter,
+  LANGFUSE_HOME_DASHBOARD_ID,
   type FilterState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -42,6 +43,9 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 const ListDashboardsInput = z.object({
   projectId: z.string(),
   ...paginationZod,
+  // The Home-dashboard picker and clone detection fetch the whole list in one
+  // page, so allow a higher ceiling than the default table pagination.
+  limit: z.coerce.number().int().positive().lte(500).default(50),
   orderBy: orderBy,
 });
 
@@ -77,6 +81,18 @@ const CreateDashboardInput = z.object({
 const CloneDashboardInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
+  // Optional definition override so an edit attempted on a read-only
+  // dashboard (e.g. a tile moved on the curated Home) carries into the clone.
+  definition: DashboardDefinitionSchema.optional(),
+  // Set the clone as the project's home dashboard in the same gesture.
+  setAsHome: z.boolean().optional(),
+});
+
+// Set home dashboard input schema
+const SetHomeDashboardInput = z.object({
+  projectId: z.string(),
+  // null resets to the Langfuse-curated default
+  dashboardId: z.string().min(1).nullable(),
 });
 
 // Update dashboard filters input schema
@@ -85,6 +101,18 @@ const UpdateDashboardFiltersInput = z.object({
   dashboardId: z.string(),
   filters: z.array(singleFilter),
 });
+
+/**
+ * First free clone name: "ABC (Clone)", then "ABC (Clone 2)", "ABC (Clone 3)", …
+ */
+function nextCloneName(sourceName: string, existingNames: string[]): string {
+  const taken = new Set(existingNames);
+  const base = `${sourceName} (Clone)`;
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${sourceName} (Clone ${n})`)) n++;
+  return `${sourceName} (Clone ${n})`;
+}
 
 // Map camelCase legacy column names (used by scoreHistogram component)
 // to view-native field names before passing through the general mapper.
@@ -575,16 +603,104 @@ export const dashboardRouter = createTRPCRouter({
         });
       }
 
-      // Create a new dashboard with the same data but modified name
+      // Create a new dashboard with the same data but a numbered clone name
+      const existingClones = await ctx.prisma.dashboard.findMany({
+        where: {
+          projectId: input.projectId,
+          name: { startsWith: `${sourceDashboard.name} (Clone` },
+        },
+        select: { name: true },
+      });
+
       const clonedDashboard = await DashboardService.createDashboard(
         input.projectId,
-        `${sourceDashboard.name} (Clone)`,
+        nextCloneName(
+          sourceDashboard.name,
+          existingClones.map((d) => d.name),
+        ),
         sourceDashboard.description,
         ctx.session.user.id,
-        sourceDashboard.definition,
+        input.definition ?? sourceDashboard.definition,
       );
 
+      if (input.setAsHome) {
+        await ctx.prisma.project.update({
+          where: { id: input.projectId },
+          data: { homeDashboardId: clonedDashboard.id },
+        });
+      }
+
       return clonedDashboard;
+    }),
+
+  getHomeDashboard: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+
+      const project = await ctx.prisma.project.findUnique({
+        where: { id: input.projectId },
+        select: { homeDashboardId: true },
+      });
+
+      // Resolve the pointer; a missing/foreign target silently falls back to
+      // the Langfuse-curated default (like an unset pointer).
+      const pointedDashboard = project?.homeDashboardId
+        ? await DashboardService.getDashboard(
+            project.homeDashboardId,
+            input.projectId,
+          )
+        : null;
+
+      const dashboard =
+        pointedDashboard ??
+        (await DashboardService.getDashboard(
+          LANGFUSE_HOME_DASHBOARD_ID,
+          input.projectId,
+        ));
+
+      return {
+        // null only when the curated row is also absent — the client then
+        // renders from the shared constant.
+        dashboard,
+        homeDashboardId: pointedDashboard
+          ? (project?.homeDashboardId ?? null)
+          : null,
+      };
+    }),
+
+  setHomeDashboard: protectedProjectProcedure
+    .input(SetHomeDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      if (input.dashboardId) {
+        const dashboard = await DashboardService.getDashboard(
+          input.dashboardId,
+          input.projectId,
+        );
+        if (!dashboard) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Dashboard not found",
+          });
+        }
+      }
+
+      await ctx.prisma.project.update({
+        where: { id: input.projectId },
+        data: { homeDashboardId: input.dashboardId },
+      });
+
+      return { success: true };
     }),
 
   updateDashboardFilters: protectedProjectProcedure

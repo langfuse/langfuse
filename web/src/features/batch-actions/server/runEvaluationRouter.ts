@@ -8,6 +8,7 @@ import {
   BatchActionQueue,
   logger,
   QueueJobs,
+  applyCommentFilters,
   getObservationsCountFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
@@ -17,6 +18,7 @@ import {
   ActionId,
   BatchEvalSourceTable,
   getEvalTargetObjectFromSourceTable,
+  InvalidRequestError,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { CreateObservationBatchEvaluationActionSchema } from "../validation";
@@ -85,15 +87,28 @@ export const runEvaluationRouter = createTRPCRouter({
           });
         }
 
+        // Event comments live in Postgres, so resolve them for the preflight
+        // count while retaining the original query for the queued worker.
+        const commentFilterResult =
+          sourceTable === BatchEvalSourceTable.EVENTS
+            ? await applyCommentFilters({
+                filterState: query.filter ?? [],
+                prisma: ctx.prisma,
+                projectId,
+                objectType: "OBSERVATION",
+              })
+            : null;
+
         const countQueryOpts = {
           projectId,
-          filter: query.filter ?? [],
+          filter: commentFilterResult?.filterState ?? query.filter ?? [],
           searchQuery: query.searchQuery,
           searchType: query.searchType,
         };
 
-        const observationCount =
-          await getObservationsCountFromEventsTable(countQueryOpts);
+        const observationCount = commentFilterResult?.hasNoMatches
+          ? 0
+          : await getObservationsCountFromEventsTable(countQueryOpts);
 
         if (observationCount > env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT) {
           throw new TRPCError({
@@ -160,6 +175,13 @@ export const runEvaluationRouter = createTRPCRouter({
         logger.error(e);
         if (e instanceof TRPCError) {
           throw e;
+        }
+        if (e instanceof InvalidRequestError) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: e.message,
+            cause: e,
+          });
         }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",

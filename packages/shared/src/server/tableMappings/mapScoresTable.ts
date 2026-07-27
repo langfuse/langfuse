@@ -1,5 +1,11 @@
 import { UiColumnMappings } from "../../tableDefinitions";
 
+// Lowercased boolean string_value ('true'/'false', '' for non-boolean rows) —
+// matches the lowercase options offered by the scores view's Boolean Value
+// facet. Shared with mapScoresColumnsTable so the two mappings cannot drift.
+export const SCORE_BOOLEAN_VALUE_SQL =
+  "if(s.data_type = 'BOOLEAN' AND notEmpty(s.string_value), lowerUTF8(s.string_value), '')";
+
 export const scoresTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "ID",
@@ -56,6 +62,13 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "value",
     queryPrefix: "s",
+  },
+  {
+    uiTableName: "Boolean Value",
+    uiTableId: "booleanValue",
+    clickhouseTableName: "scores",
+    clickhouseSelect: SCORE_BOOLEAN_VALUE_SQL,
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Source",

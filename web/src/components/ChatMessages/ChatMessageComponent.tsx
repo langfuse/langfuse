@@ -38,6 +38,11 @@ import {
   useOptionalMessageSearchPageId,
 } from "./MessageSearch";
 
+export type MessageRowRefs = {
+  rowRef: RefObject<HTMLDivElement | null>;
+  editorRef: RefObject<ReactCodeMirrorRef | null>;
+};
+
 type ChatMessageProps = Pick<
   MessagesContext,
   | "deleteMessage"
@@ -45,7 +50,13 @@ type ChatMessageProps = Pick<
   | "availableRoles"
   | "toolCallIds"
   | "replaceMessage"
-> & { message: ChatMessageWithId; index: number };
+> & {
+  message: ChatMessageWithId;
+  index: number;
+  // Lets the parent ChatMessages track this row's DOM + editor refs so it can
+  // scroll to and focus a freshly added message (LFE-6864).
+  registerRow?: (id: string, refs: MessageRowRefs | null) => void;
+};
 
 const ROLES: ChatMessageRole[] = [
   ChatMessageRole.User,
@@ -94,6 +105,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   availableRoles,
   index: _index,
   toolCallIds,
+  registerRow,
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
   const playgroundContext = useOptionalPlaygroundContext();
@@ -243,7 +255,21 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     unregisterMessageTarget,
   ]);
 
+  // Keep the parent ChatMessages registry in sync so it can scroll to and
+  // focus this row when it is the newly added message (LFE-6864). The actual
+  // registration happens in handleEditorMount once CodeMirror has mounted and
+  // editorRef.current is populated — registering here on first render would
+  // store a null editor (CodeMirror mounts async). This effect only handles
+  // unregistering the row when it unmounts.
+  useEffect(() => {
+    return () => {
+      registerRow?.(message.id, null);
+    };
+  }, [message.id, registerRow]);
+
   const handleEditorMount = useCallback(() => {
+    registerRow?.(message.id, { rowRef, editorRef });
+
     if (!pageId || !registerMessageTarget) {
       return;
     }
@@ -252,7 +278,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       rowRef,
       editorRef,
     });
-  }, [message.id, pageId, registerMessageTarget]);
+  }, [message.id, pageId, registerMessageTarget, registerRow]);
 
   return (
     <Card
@@ -285,7 +311,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 onClick={toggleRole}
                 type="button"
                 variant="ghost"
-                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground h-6 w-full px-1 py-0 text-[10px] font-semibold"
+                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground h-6 w-full px-1 py-0 text-[10px] font-bold"
               >
                 {capitalize(message.role)}
               </Button>

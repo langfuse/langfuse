@@ -1,8 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 import type { WebhookInput } from "@langfuse/shared/src/server";
+import { env } from "../env";
 
 describe("SlackMessageBuilder", () => {
+  const originalNextAuthUrl = env.NEXTAUTH_URL;
+  const originalBasePath = env.NEXT_PUBLIC_BASE_PATH;
+
+  afterEach(() => {
+    (env as any).NEXTAUTH_URL = originalNextAuthUrl;
+    (env as any).NEXT_PUBLIC_BASE_PATH = originalBasePath;
+  });
+
   const mockPromptPayload: WebhookInput["payload"] = {
     action: "created",
     type: "prompt-version",
@@ -233,10 +242,33 @@ describe("SlackMessageBuilder", () => {
     });
 
     it("should generate correct URLs for different environments", () => {
-      let blocks =
+      const blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
       expect(blocks[4].elements[0].url).toContain(
         "http://localhost:3000/project/project-456/prompts/test-prompt?version=2",
+      );
+    });
+
+    it("should strip the auth route from prompt URLs", () => {
+      (env as any).NEXTAUTH_URL = "https://example.com/langfuse/api/auth";
+
+      const blocks =
+        SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
+
+      expect(blocks[4].elements[0].url).toBe(
+        "https://example.com/langfuse/project/project-456/prompts/test-prompt?version=2",
+      );
+    });
+
+    it("should include the configured base path in prompt URLs", () => {
+      (env as any).NEXTAUTH_URL = "https://example.com";
+      (env as any).NEXT_PUBLIC_BASE_PATH = "/langfuse";
+
+      const blocks =
+        SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
+
+      expect(blocks[4].elements[0].url).toBe(
+        "https://example.com/langfuse/project/project-456/prompts/test-prompt?version=2",
       );
     });
   });

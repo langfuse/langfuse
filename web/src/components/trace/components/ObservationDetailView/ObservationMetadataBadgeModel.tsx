@@ -30,7 +30,9 @@ export function ModelBadge({
           className="flex items-center"
           title="View model details"
         >
-          <span className="truncate">{model}</span>
+          <span className="truncate" title={model}>
+            {model}
+          </span>
           <ExternalLinkIcon className="ml-1 h-3 w-3" />
         </Link>
       </Badge>

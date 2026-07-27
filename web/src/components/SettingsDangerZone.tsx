@@ -18,7 +18,7 @@ export const SettingsDangerZone: React.FC<{
             className="flex items-center justify-between gap-4 border-b p-3 last:border-b-0"
           >
             <div>
-              <h4 className="font-semibold">{item.title}</h4>
+              <h4 className="font-bold">{item.title}</h4>
               <p className="text-sm">{item.description}</p>
             </div>
             {item.button}

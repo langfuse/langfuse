@@ -27,12 +27,11 @@ import {
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
   QueueJobs,
-  sendBlobStorageExportFailedEmail,
-  getProjectAdminEmails,
   enrichObservationWithModelData,
   createModelCache,
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
+  dispatchProjectNotification,
 } from "@langfuse/shared/src/server";
 import {
   registerInFlightBlobExport,
@@ -40,16 +39,30 @@ import {
   BLOB_TABLE_EXPORT_METRIC,
   type BlobTableExportOutcome,
 } from "./inFlightExports";
+import {
+  BlobExportAbortTracker,
+  classifyBlobExportError,
+  errorChainText,
+} from "./abortClassification";
+import { isSigtermReceived } from "../health";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
+import {
+  BLOB_INTEGRATION_DISABLED_METRIC,
+  classifyCustomerFault,
+} from "./isCustomerFaultError";
+import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BatchExportFileFormat,
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
   isEnrichedBlobExportAvailable,
   isEnrichedBlobExportSource,
+  isLegacyBlobExportSource,
+  isLegacyBlobExporter,
   resolveBlobExportTuning,
   DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES,
 } from "@langfuse/shared";
@@ -59,6 +72,18 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
+import { assertExportSourceWritable } from "../exportWriteModeGuard";
+import { recordExportVolume } from "../../services/exportVolumeMetric";
+import {
+  buildBlobExportManifest,
+  buildBlobExportManifestKey,
+  formatBlobExportTimestamp,
+  type BlobExportManifestFile,
+} from "./manifest";
+import {
+  buildBlobExportDeprecationNotice,
+  buildBlobExportDeprecationNoticeKey,
+} from "./deprecationNotice";
 
 export const BlobExportFormat = {
   JSON_RAW: "json-raw",
@@ -74,9 +99,12 @@ export const BlobExportFormat = {
 export type BlobExportFormat =
   (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
 
-const FORMAT_LOOKUP: Record<
-  BlobStorageIntegrationFileType,
-  { raw: BlobExportFormat; gzip: BlobExportFormat }
+// Text formats only; PARQUET is absent because callers branch on parquetEligible first.
+const FORMAT_LOOKUP: Partial<
+  Record<
+    BlobStorageIntegrationFileType,
+    { raw: BlobExportFormat; gzip: BlobExportFormat }
+  >
 > = {
   [BlobStorageIntegrationFileType.JSON]: {
     raw: BlobExportFormat.JSON_RAW,
@@ -97,6 +125,9 @@ function resolveBlobExportFormat(
   compressed: boolean,
 ): BlobExportFormat {
   const entry = FORMAT_LOOKUP[fileType];
+  if (!entry) {
+    throw new Error(`No text export format for file type: ${fileType}`);
+  }
   return compressed ? entry.gzip : entry.raw;
 }
 
@@ -261,50 +292,17 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
         contentType: "application/x-ndjson; charset=utf-8",
         extension: "jsonl",
       };
+    case BlobStorageIntegrationFileType.PARQUET:
+      return {
+        contentType: "application/vnd.apache.parquet",
+        extension: "parquet",
+      };
     default:
       // eslint-disable-next-line no-case-declarations
       const _exhaustiveCheck: never = fileType;
       throw new Error(`Unsupported file type: ${fileType}`);
   }
 };
-
-class ByteCounter extends Transform {
-  bytes = 0;
-  _transform(
-    chunk: Buffer,
-    _encoding: string,
-    callback: (error: Error | null, data?: Buffer) => void,
-  ) {
-    this.bytes += chunk.length;
-    callback(null, chunk);
-  }
-}
-
-// ByteCounter that also tallies inter-chunk gaps into `stats.sourceWaitMs`, so
-// the Parquet path (piped binary stream, no per-row generator) reuses the
-// standard chReadMs/uploadWaitMs derivation. Coarse: source wait conflates CH
-// delivery with S3 backpressure (same as countedStream).
-class TimedByteCounter extends ByteCounter {
-  private readonly stats: { sourceWaitMs: number };
-  // Clock starts at construction (like countedStream, before its loop) so the
-  // first gap captures time-to-first-byte — the dominant CH wait, since Parquet
-  // composes a row group before any bytes. Guarding it would drop TTFB from chReadMs.
-  private lastChunkDoneAt: number = performance.now();
-  constructor(stats: { sourceWaitMs: number }) {
-    super();
-    this.stats = stats;
-  }
-  _transform(
-    chunk: Buffer,
-    _encoding: string,
-    callback: (error: Error | null, data?: Buffer) => void,
-  ) {
-    this.stats.sourceWaitMs += performance.now() - this.lastChunkDoneAt;
-    this.bytes += chunk.length;
-    this.lastChunkDoneAt = performance.now();
-    callback(null, chunk);
-  }
-}
 
 async function* countedStream<T>(
   source: AsyncGenerator<T>,
@@ -330,45 +328,21 @@ const createRawJsonlNewlineTransform = (): Transform =>
     },
   });
 
-const processBlobStorageExport = async (config: {
-  projectId: string;
-  minTimestamp: Date;
-  maxTimestamp: Date;
+// KMS SSE is not supported for this integration.
+type BlobStorageConnectionConfig = {
   bucketName: string;
   endpoint: string | null;
   region: string;
   accessKeyId: string | undefined;
   secretAccessKey: string | undefined;
-  prefix?: string;
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
-  table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
-  fileType: BlobStorageIntegrationFileType;
-  compressed: boolean;
-  // zlib level for the gzip step; undefined => zlib default (6). Only relevant
-  // when `compressed` is true.
-  gzipLevel: number | undefined;
-  convertV4LatencyToSeconds: boolean;
-  exportFieldGroups?: ObservationFieldGroupFull[];
-  rawPassthrough: boolean;
-  // LFE-10463: when true, export via ClickHouse-native `FORMAT Parquet`,
-  // overriding `fileType` and `compressed`. Takes precedence over rawPassthrough.
-  parquet: boolean;
-  // undefined concurrency/attempts => backend keeps its native default.
-  partSizeBytes: number;
-  maxConcurrentParts: number | undefined;
-  maxPartAttempts: number | undefined;
-  skipEnrichment: boolean;
-  bullmqJobId: string | undefined;
-  bullmqAttemptsMade: number;
-}) => {
-  logger.info(
-    `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
-  );
+};
 
-  // Initialize the storage service
-  // KMS SSE is not supported for this integration.
-  const storageService: StorageService = StorageServiceFactory.getInstance({
+const createBlobStorageService = (
+  config: BlobStorageConnectionConfig,
+): StorageService =>
+  StorageServiceFactory.getInstance({
     accessKeyId: config.accessKeyId,
     secretAccessKey: config.secretAccessKey,
     bucketName: config.bucketName,
@@ -383,7 +357,37 @@ const processBlobStorageExport = async (config: {
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
 
-  await instrumentAsync(
+const processBlobStorageExport = async (config: {
+  projectId: string;
+  minTimestamp: Date;
+  maxTimestamp: Date;
+  storageService: StorageService;
+  prefix?: string;
+  type: BlobStorageIntegrationType;
+  table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
+  fileType: BlobStorageIntegrationFileType;
+  compressed: boolean;
+  // zlib level for the gzip step; undefined => zlib default (6). Only relevant
+  // when `compressed` is true.
+  gzipLevel: number | undefined;
+  convertV4LatencyToSeconds: boolean;
+  exportFieldGroups?: ObservationFieldGroupFull[];
+  rawPassthrough: boolean;
+  // undefined concurrency/attempts => backend keeps its native default.
+  partSizeBytes: number;
+  maxConcurrentParts: number | undefined;
+  maxPartAttempts: number | undefined;
+  skipEnrichment: boolean;
+  bullmqJobId: string | undefined;
+  bullmqAttemptsMade: number;
+}) => {
+  logger.info(
+    `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
+  );
+
+  const storageService = config.storageService;
+
+  return await instrumentAsync(
     {
       name: `blob-export-table`,
       spanKind: SpanKind.INTERNAL,
@@ -444,7 +448,6 @@ const processBlobStorageExport = async (config: {
       recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
         outcome: "started" satisfies BlobTableExportOutcome,
         table: config.table,
-        projectId: config.projectId,
       });
 
       // Outside the try so the catch can distinguish a real upload success from
@@ -452,15 +455,15 @@ const processBlobStorageExport = async (config: {
       let uploadSucceeded = false;
       let heartbeat: ReturnType<typeof setInterval> | undefined;
 
+      // Per-stage errors so the catch can name the originating cause instead of
+      // the bare "aborted" the pipeline teardown propagates to every stage.
+      const abortTracker = new BlobExportAbortTracker();
+
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
-        // LFE-10463: per-project opt-in spanning all tables/file types. Overrides
-        // fileType and compressed (Parquet compresses internally) and outranks
-        // rawPassthrough (enforced in resolveBlobExportTuning). It isn't a
-        // BlobStorageIntegrationFileType member, so extension/content-type are set
-        // inline below rather than via getFileTypeProperties.
-        const parquetEligible = config.parquet;
+        const parquetEligible =
+          config.fileType === BlobStorageIntegrationFileType.PARQUET;
 
         // Raw passthrough (LFE-10402) is opt-in per project and only valid for
         // JSONL output of the enriched-observation tables — the only formats
@@ -482,10 +485,7 @@ const processBlobStorageExport = async (config: {
             ? "passthrough"
             : "standard";
 
-        const timestamp = config.maxTimestamp
-          .toISOString()
-          .replace(/:/g, "-")
-          .substring(0, 19);
+        const timestamp = formatBlobExportTimestamp(config.maxTimestamp);
         // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
         const extension = parquetEligible
           ? "parquet"
@@ -510,6 +510,8 @@ const processBlobStorageExport = async (config: {
 
         const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
           if (err) {
+            // The pipeline source is the ClickHouse read.
+            abortTracker.record("ch-read", err);
             logger.error(
               "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
               err,
@@ -517,10 +519,9 @@ const processBlobStorageExport = async (config: {
           }
         };
 
-        // Tracks ClickHouse read wait. Declared before the counters so the
-        // parquet TimedByteCounter can write into it (the parquet path has no
-        // per-row generator, so countedStream does not run).
-        const sourceStats = { rows: 0, sourceWaitMs: 0 };
+        // Source read wait; backpressureMs is set only by the parquet
+        // TimedByteCounter and stays 0 on every other path.
+        const sourceStats = { rows: 0, sourceWaitMs: 0, backpressureMs: 0 };
         // When enrichment is active, chStats isolates ClickHouse read wait from
         // enrichment CPU. enrichMs = sourceStats.sourceWaitMs - chStats.sourceWaitMs.
         let chStats: { rows: number; sourceWaitMs: number } | null = null;
@@ -556,7 +557,9 @@ const processBlobStorageExport = async (config: {
           );
           recordGauge(
             "langfuse.blobstorage.export_heartbeat.serialized_bytes",
-            serializedCounter.bytes,
+            compressedCounter
+              ? compressedCounter.bytes
+              : serializedCounter.bytes,
             heartbeatTags,
           );
         }, HEARTBEAT_INTERVAL_MS);
@@ -723,7 +726,13 @@ const processBlobStorageExport = async (config: {
           }
 
           const dataStream = countedStream(rawStream, sourceStats);
-          const formatTransform = streamTransformations[config.fileType]();
+          if (config.fileType === BlobStorageIntegrationFileType.PARQUET) {
+            throw new Error(
+              `Reached the text-format export path with fileType=PARQUET for project ${config.projectId}; the parquetEligible branch should have handled it`,
+            );
+          }
+          const formatTransform =
+            streamTransformations[config.fileType as BatchExportFileFormat]();
 
           fileStream =
             compressedCounter && gzipStats
@@ -763,15 +772,22 @@ const processBlobStorageExport = async (config: {
         try {
           uploadStartMs = performance.now();
 
-          await storageService.uploadFileBuffered({
-            fileName: filePath,
-            fileType: uploadContentType,
-            data: fileStream,
-            partSizeBytes: config.partSizeBytes,
-            maxConcurrentParts: config.maxConcurrentParts,
-            maxPartAttempts: config.maxPartAttempts,
-            stats: uploadStats,
-          });
+          try {
+            await storageService.uploadFileBuffered({
+              fileName: filePath,
+              fileType: uploadContentType,
+              data: fileStream,
+              partSizeBytes: config.partSizeBytes,
+              maxConcurrentParts: config.maxConcurrentParts,
+              maxPartAttempts: config.maxPartAttempts,
+              stats: uploadStats,
+            });
+          } catch (uploadError) {
+            // Attribute to the upload stage; a CH-origin error surfacing here is
+            // still classified as ch-error by its preserved cause chain.
+            abortTracker.record("upload", uploadError);
+            throw uploadError;
+          }
           // Record at the upload boundary so a throw in the `finally` below
           // can't miscount a real success as a failure.
           uploadSucceeded = true;
@@ -779,38 +795,54 @@ const processBlobStorageExport = async (config: {
           recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
             outcome: "success" satisfies BlobTableExportOutcome,
             table: config.table,
-            projectId: config.projectId,
           });
 
           const exportFormat = parquetEligible
             ? BlobExportFormat.PARQUET
             : resolveBlobExportFormat(config.fileType, config.compressed);
-          const byteTags = {
+
+          // rowCount null on parquet: sourceStats.rows stays 0 for the binary
+          // stream and would misreport as an empty file.
+          const manifestFile: BlobExportManifestFile = {
+            key: filePath,
             table: config.table,
-            projectId: config.projectId,
-            path: exportPath,
-            source: exportFormat,
-            // Integration type (S3 / S3_COMPATIBLE / AZURE_BLOB_STORAGE) as the
-            // destination, so export volume can be split by data-transfer cost
-            // in the Datadog dashboard (native AWS S3 vs. external egress).
-            destination_type: config.type,
+            fileType: parquetEligible
+              ? BlobStorageIntegrationFileType.PARQUET
+              : config.fileType,
+            format: exportFormat,
+            compressed: parquetEligible ? false : config.compressed,
+            contentType: uploadContentType,
+            sizeBytes: compressedCounter
+              ? compressedCounter.bytes
+              : serializedCounter.bytes,
+            rowCount: parquetEligible ? null : sourceStats.rows,
           };
-          recordIncrement(
-            "langfuse.blob_export.serialized_bytes",
-            serializedCounter.bytes,
-            byteTags,
-          );
-          if (compressedCounter && gzipStats) {
-            recordIncrement(
-              "langfuse.blob_export.compressed_bytes",
-              compressedCounter.bytes,
-              { ...byteTags, gzipLevel: gzipStats.level },
-            );
-          }
+          // Unified export-volume metric: the actual uploaded volume per
+          // source (post-gzip size for compressed formats, raw/parquet size
+          // otherwise). destination_type (S3 / S3_COMPATIBLE / AZURE_*) splits
+          // the egress by data-transfer cost in the Datadog dashboard.
+          recordExportVolume({
+            integration: "blob_storage",
+            bytes: compressedCounter
+              ? compressedCounter.bytes
+              : serializedCounter.bytes,
+            projectId: config.projectId,
+            destinationType: config.type,
+            source: exportFormat,
+            table: config.table,
+            path: exportPath,
+          });
 
           const uploadDurationMs = uploadDurationMsFinal;
+          // Parquet's source counter sits at the upload boundary, so strip its
+          // backpressure to recover pure CH read (no-op elsewhere: gzip isolates
+          // CH read in chStats, and backpressureMs is 0 on every other path).
           const chReadMs = Math.round(
-            chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs,
+            Math.max(
+              0,
+              (chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs) -
+                (chStats ? 0 : sourceStats.backpressureMs),
+            ),
           );
           const enrichMs = chStats
             ? Math.max(
@@ -824,9 +856,12 @@ const processBlobStorageExport = async (config: {
                 Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
               )
             : 0;
+          // Measured backpressure (gzip / parquet boundary), else duration residual.
           const uploadWaitMs = gzipStats
             ? Math.round(gzipStats.backpressureMs)
-            : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+            : parquetEligible
+              ? Math.round(sourceStats.backpressureMs)
+              : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
@@ -846,10 +881,17 @@ const processBlobStorageExport = async (config: {
                 ? ` gzipLevel=${gzipStats.level} compressedBytes=${compressedCounter.bytes}`
                 : ""),
           );
+
+          return manifestFile;
         } finally {
           span.setAttribute("blob.rows", sourceStats.rows);
+          // Same chReadMs / uploadWaitMs derivation as the success path above.
           const finalChReadMs = Math.round(
-            chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs,
+            Math.max(
+              0,
+              (chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs) -
+                (chStats ? 0 : sourceStats.backpressureMs),
+            ),
           );
           const finalEnrichMs = chStats
             ? Math.max(
@@ -865,47 +907,54 @@ const processBlobStorageExport = async (config: {
               uploadDurationMsFinal ??
               Math.round(performance.now() - uploadStartMs);
             span.setAttribute("blob.uploadDurationMs", totalUploadMs);
-            if (uploadSucceeded) {
-              const finalGzipCpuMs = gzipStats
-                ? Math.max(
-                    0,
-                    Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
-                  )
-                : 0;
-              const finalUploadWaitMs = gzipStats
-                ? Math.round(gzipStats.backpressureMs)
+            // Emit stage timings on both success and failure. On failure the
+            // values are partial (the upload aborted mid-stream), so an
+            // `outcome` tag keeps them out of the happy-path percentiles while
+            // still capturing where a failed export spent its time.
+            const finalGzipCpuMs = gzipStats
+              ? Math.max(
+                  0,
+                  Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
+                )
+              : 0;
+            const finalUploadWaitMs = gzipStats
+              ? Math.round(gzipStats.backpressureMs)
+              : parquetEligible
+                ? Math.round(sourceStats.backpressureMs)
                 : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
-              span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
-              span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
-              const finalExportFormat = parquetEligible
-                ? BlobExportFormat.PARQUET
-                : resolveBlobExportFormat(config.fileType, config.compressed);
-              const stageTags = {
-                table: config.table,
-                path: exportPath,
-                source: finalExportFormat,
-              };
-              recordHistogram(
-                "langfuse.blob_export.ch_read_ms",
-                finalChReadMs,
-                stageTags,
-              );
-              recordHistogram(
-                "langfuse.blob_export.enrich_ms",
-                finalEnrichMs,
-                stageTags,
-              );
-              recordHistogram(
-                "langfuse.blob_export.gzip_cpu_ms",
-                finalGzipCpuMs,
-                stageTags,
-              );
-              recordHistogram(
-                "langfuse.blob_export.upload_wait_ms",
-                finalUploadWaitMs,
-                stageTags,
-              );
-            }
+            span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
+            span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
+            const finalExportFormat = parquetEligible
+              ? BlobExportFormat.PARQUET
+              : resolveBlobExportFormat(config.fileType, config.compressed);
+            const stageTags = {
+              table: config.table,
+              path: exportPath,
+              source: finalExportFormat,
+              outcome: (uploadSucceeded
+                ? "success"
+                : "failure") satisfies BlobTableExportOutcome,
+            };
+            recordHistogram(
+              "langfuse.blob_export.ch_read_ms",
+              finalChReadMs,
+              stageTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.enrich_ms",
+              finalEnrichMs,
+              stageTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.gzip_cpu_ms",
+              finalGzipCpuMs,
+              stageTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.upload_wait_ms",
+              finalUploadWaitMs,
+              stageTags,
+            );
           }
           if (producesUploadStats) {
             span.setAttribute("blob.upload.parts", uploadStats.partsUploaded);
@@ -961,17 +1010,30 @@ const processBlobStorageExport = async (config: {
           }
         }
       } catch (error) {
+        // On SIGTERM, add a concrete shutdown record. It wins origin() only when
+        // no earlier concrete fault (e.g. a real CH exception) was recorded.
+        if (isSigtermReceived()) {
+          abortTracker.record("shutdown", error);
+        }
+        // Fall back to the propagated error if no stage recorded one.
+        const origin = abortTracker.origin() ?? classifyBlobExportError(error);
+
+        span.setAttribute("blob.abortReason", origin.reason);
+        span.setAttribute("blob.abortStage", origin.stage);
+
         // Skip if `success` already fired (a later step threw post-upload).
         if (!uploadSucceeded) {
           recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
             outcome: "failure" satisfies BlobTableExportOutcome,
+            abortReason: origin.reason,
             table: config.table,
-            projectId: config.projectId,
           });
         }
         logger.error(
           `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
-            `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID})`,
+            `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
+            `abortReason=${origin.reason} abortStage=${origin.stage}` +
+            `${origin.concrete ? "" : " attribution=best-effort"}): ${origin.chain}`,
           error,
         );
         throw error;
@@ -1003,6 +1065,97 @@ const processBlobStorageExport = async (config: {
       }
     },
   );
+};
+
+// Small JSON body, so single-shot uploadFile instead of the buffered multipart
+// path the table streams use.
+const writeBlobExportManifest = async (params: {
+  storageService: StorageService;
+  prefix?: string;
+  projectId: string;
+  exportSource: string;
+  minTimestamp: Date;
+  maxTimestamp: Date;
+  files: BlobExportManifestFile[];
+}): Promise<void> => {
+  const manifest = buildBlobExportManifest({
+    projectId: params.projectId,
+    exportSource: params.exportSource,
+    minTimestamp: params.minTimestamp,
+    maxTimestamp: params.maxTimestamp,
+    createdAt: new Date(),
+    files: params.files,
+  });
+  const key = buildBlobExportManifestKey({
+    prefix: params.prefix,
+    projectId: params.projectId,
+    maxTimestamp: params.maxTimestamp,
+  });
+
+  await params.storageService.uploadFile({
+    fileName: key,
+    fileType: "application/json; charset=utf-8",
+    // Trailing newline for POSIX-friendly shell tooling.
+    data: JSON.stringify(manifest, null, 2) + "\n",
+  });
+
+  logger.info(
+    `[BLOB INTEGRATION] Wrote run manifest for project ${params.projectId}: ` +
+      `key=${key} files=${manifest.files.length} tables=${manifest.tables.join(",")}`,
+  );
+};
+
+// LFE-10896: drop a plain-text deprecation notice into the export destination
+// for legacy-source projects. Best-effort — a failure to write the notice must
+// not fail the export run, so it is called after the manifest commit point and
+// swallows its own error.
+const writeBlobExportDeprecationNotice = async (params: {
+  storageService: StorageService;
+  prefix?: string;
+  projectId: string;
+}): Promise<void> => {
+  const key = buildBlobExportDeprecationNoticeKey({
+    prefix: params.prefix,
+    projectId: params.projectId,
+  });
+  try {
+    await params.storageService.uploadFile({
+      fileName: key,
+      fileType: "text/plain; charset=utf-8",
+      data: buildBlobExportDeprecationNotice(),
+    });
+    logger.info(
+      `[BLOB INTEGRATION] Wrote legacy-source deprecation notice for project ${params.projectId}: key=${key}`,
+    );
+  } catch (error) {
+    logger.warn(
+      `[BLOB INTEGRATION] Failed to write legacy-source deprecation notice for project ${params.projectId} (key=${key}); export run is unaffected`,
+      error,
+    );
+  }
+};
+
+// Counterpart to the writer: once a project migrates off a legacy source (the
+// action the notice asks for), a notice left from an earlier run would linger
+// with now-false claims. Best-effort delete on the non-legacy path clears it.
+// Idempotent — deleting a non-existent key is a no-op — and never fails the run.
+const removeBlobExportDeprecationNotice = async (params: {
+  storageService: StorageService;
+  prefix?: string;
+  projectId: string;
+}): Promise<void> => {
+  const key = buildBlobExportDeprecationNoticeKey({
+    prefix: params.prefix,
+    projectId: params.projectId,
+  });
+  try {
+    await params.storageService.deleteFiles([key]);
+  } catch (error) {
+    logger.warn(
+      `[BLOB INTEGRATION] Failed to remove stale deprecation notice for project ${params.projectId} (key=${key}); export run is unaffected`,
+      error,
+    );
+  }
 };
 
 export const handleBlobStorageIntegrationProjectJob = async (
@@ -1107,6 +1260,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
+  // Legacy-source deprecation is a Cloud policy (see blob-export-gate.ts:
+  // isLegacyBlobExportAllowed / isLegacyBlobExporter both exempt self-hosted),
+  // so the deprecation notice below is Cloud-only too.
+  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
   try {
     // Fail loudly rather than export from unpopulated tables when an enriched
     // source survives on a deployment without the enriched path, e.g. after a
@@ -1114,15 +1272,19 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // (LFE-10296).
     if (
       isEnrichedBlobExportSource(blobStorageIntegration.exportSource) &&
-      !isEnrichedBlobExportAvailable(
-        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-        v4AllowPreviewOptIn(env),
-      )
+      !isEnrichedBlobExportAvailable(isCloud, v4AllowPreviewOptIn(env))
     ) {
       throw new Error(
         "The configured export source includes enriched observations, but enriched export is not available on this deployment. Select a different export source in the blob storage integration settings, or re-enable enriched export (V4 preview opt-in) on this deployment.",
       );
     }
+
+    // Write-mode guard, both directions (LFE-10148, LFE-11009); the catch
+    // persists lastError and notifies admins.
+    assertExportSourceWritable(
+      blobStorageIntegration.exportSource,
+      "Select the enriched export source (OBSERVATIONS_V2) in the blob storage integration settings.",
+    );
 
     // Preflight the persisted integration endpoint once per job inside the
     // export error path. StorageService connection-time validation remains the
@@ -1151,10 +1313,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    const executionConfig = {
-      projectId,
-      minTimestamp,
-      maxTimestamp,
+    // One client per run, shared by all table uploads and the manifest write.
+    const storageService = createBlobStorageService({
       bucketName: blobStorageIntegration.bucketName,
       endpoint: blobStorageIntegration.endpoint,
       region: blobStorageIntegration.region || "auto",
@@ -1162,8 +1322,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
       secretAccessKey: blobStorageIntegration.secretAccessKey
         ? decrypt(blobStorageIntegration.secretAccessKey)
         : undefined,
-      prefix: blobStorageIntegration.prefix || undefined,
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
+      type: blobStorageIntegration.type,
+    });
+
+    const executionConfig = {
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      storageService,
+      prefix: blobStorageIntegration.prefix || undefined,
       type: blobStorageIntegration.type,
       fileType: blobStorageIntegration.fileType,
       compressed: blobStorageIntegration.compressed,
@@ -1172,7 +1340,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
       rawPassthrough: exportTuning.rawPassthrough,
-      parquet: exportTuning.parquet,
       partSizeBytes: exportTuning.partSizeBytes,
       maxConcurrentParts: exportTuning.maxConcurrentParts,
       maxPartAttempts: exportTuning.maxPartAttempts,
@@ -1195,6 +1362,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // dispatch and is intentionally not warned about (avoids ~hourly log noise).
     if (
       exportTuning.rawPassthrough &&
+      blobStorageIntegration.fileType !==
+        BlobStorageIntegrationFileType.PARQUET &&
       (blobStorageIntegration.fileType !==
         BlobStorageIntegrationFileType.JSONL ||
         isTraceOnlyProject)
@@ -1206,15 +1375,18 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
+    let runFiles: BlobExportManifestFile[];
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
       logger.info(
         `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export via env var, skipping observations, scores, and events`,
       );
-      await processBlobStorageExport({ ...executionConfig, table: "traces" });
+      runFiles = [
+        await processBlobStorageExport({ ...executionConfig, table: "traces" }),
+      ];
     } else {
       // Process tables based on exportSource setting
-      const processPromises: Promise<void>[] = [];
+      const processPromises: Promise<BlobExportManifestFile>[] = [];
 
       // Always include scores
       processPromises.push(
@@ -1249,7 +1421,42 @@ export const handleBlobStorageIntegrationProjectJob = async (
         );
       }
 
-      await Promise.all(processPromises);
+      runFiles = await Promise.all(processPromises);
+    }
+
+    // The manifest is the run's commit point: written strictly after every
+    // table upload succeeded. A failure here fails the run, so lastSyncAt does
+    // not advance and the retry idempotently overwrites the table files.
+    await writeBlobExportManifest({
+      storageService,
+      prefix: blobStorageIntegration.prefix || undefined,
+      projectId,
+      exportSource: blobStorageIntegration.exportSource,
+      minTimestamp,
+      maxTimestamp,
+      files: runFiles,
+    });
+
+    // Cloud-only v3-deprecation notice; both sides best-effort (never fail the run).
+    if (isCloud) {
+      if (isLegacyBlobExportSource(blobStorageIntegration.exportSource)) {
+        await writeBlobExportDeprecationNotice({
+          storageService,
+          prefix: blobStorageIntegration.prefix || undefined,
+          projectId,
+        });
+      } else if (
+        // Gate cleanup on "old enough to have written a notice": otherwise every
+        // enriched-only export adds a needless per-run s3:DeleteObject on the
+        // destination, which is write-only for many customers.
+        isLegacyBlobExporter(blobStorageIntegration.createdAt, isCloud)
+      ) {
+        await removeBlobExportDeprecationNotice({
+          storageService,
+          prefix: blobStorageIntegration.prefix || undefined,
+          projectId,
+        });
+      }
     }
 
     // Determine if we've caught up with present-day data
@@ -1311,8 +1518,29 @@ export const handleBlobStorageIntegrationProjectJob = async (
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
 
+    // A deterministic customer-config/credential fault can't succeed until the
+    // customer fixes it. Once BullMQ exhausts its retries, disable the
+    // integration so it stops re-scheduling and spamming. attemptsMade is
+    // 0-based, so the final attempt is attempts - 1.
+    const isFinalAttempt =
+      (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
+    // The reason bucket doubles as the disable decision (defined => disable) and
+    // as the tag on the disable log + metric below.
+    const customerFaultReason = classifyCustomerFault(error);
+    const disableForCustomerFault =
+      isFinalAttempt && customerFaultReason !== undefined;
+
+    // True only for the worker that actually flips enabled true→false, so the
+    // "disabled" email (which bypasses the cooldown) is sent exactly once and
+    // never claims a state we failed to write. The atomic claim also dedups
+    // concurrent terminal failures — e.g. a scheduled run racing a manual Run
+    // Now across pods, which have distinct jobIds and so aren't queue-deduped.
+    let persistedDisable = false;
+    let disableClaimRan = false;
+    // Assume enabled when the read-back fails; worst case is today's email.
+    let enabledAfterPersist = true;
     try {
-      await prisma.blobStorageIntegration.update({
+      const updated = await prisma.blobStorageIntegration.update({
         where: { projectId },
         data: {
           lastError: errorMessage,
@@ -1320,6 +1548,26 @@ export const handleBlobStorageIntegrationProjectJob = async (
           runStartedAt: null,
         },
       });
+      enabledAfterPersist = updated.enabled;
+      if (disableForCustomerFault) {
+        const { count } = await prisma.blobStorageIntegration.updateMany({
+          where: { projectId, enabled: true },
+          data: { enabled: false },
+        });
+        disableClaimRan = true;
+        persistedDisable = count === 1;
+        if (persistedDisable) {
+          // Tag by reason so SSRF/abuse disables (ssrf_blocked_endpoint) can be
+          // separated from customer misconfig, and a mass-disable regression is
+          // visible as a spike in the non-SSRF buckets after rollout.
+          const reason = customerFaultReason ?? "unknown";
+          recordIncrement(BLOB_INTEGRATION_DISABLED_METRIC, 1, { reason });
+          logger.warn(
+            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer fault (reason=${reason}): ${errorMessage}`,
+            { blobStorageDisableReason: reason, projectId },
+          );
+        }
+      }
     } catch (persistError) {
       logger.error(
         `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
@@ -1327,9 +1575,28 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    notifyBlobStorageExportFailedInBackground(projectId);
+    // Notify only after BullMQ exhausts its retries — an email on an earlier
+    // attempt fires even when a later retry succeeds, and would double up
+    // with the "disabled" email on customer faults. Skip only when a
+    // concurrent terminal failure won the disable claim (the winner already
+    // notified); if the claim never ran because persistence threw, fall back
+    // to the informational email so the failure isn't silent.
+    const lostDisableRaceToConcurrentRun =
+      disableForCustomerFault && disableClaimRan && !persistedDisable;
+    // The informational email promises a retry at the next scheduled run,
+    // which is false once the integration is disabled (a concurrent run's
+    // customer-fault disable or a user toggle mid-run) — skip it then.
+    const disabledOutFromUnderUs =
+      !disableForCustomerFault && !enabledAfterPersist;
+    if (
+      isFinalAttempt &&
+      !lostDisableRaceToConcurrentRun &&
+      !disabledOutFromUnderUs
+    ) {
+      notifyBlobStorageExportFailedInBackground(projectId, persistedDisable);
+    }
 
-    const chain = formatErrorChain(error);
+    const chain = errorChainText(error);
     logger.error(
       `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}: ${chain}`,
       error instanceof Error ? { stack: error.stack } : {},
@@ -1344,75 +1611,87 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 };
 
-function notifyBlobStorageExportFailedInBackground(projectId: string): void {
+function notifyBlobStorageExportFailedInBackground(
+  projectId: string,
+  disabled = false,
+): void {
   (async () => {
     try {
-      const cooldownMs =
-        env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
-        60 *
-        60 *
-        1000;
+      // Called once per exhausted run. The cooldown gates across scheduled
+      // runs (the scheduler re-enqueues every frequency period, and each
+      // failing run would otherwise email again). The disable notification
+      // bypasses it: it is a one-time, terminal event — the integration
+      // won't run again until the customer re-enables it — and a cooldown
+      // claim could silently drop the one email that says it was turned off.
+      if (!disabled) {
+        const cooldownMs =
+          env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
+          60 *
+          60 *
+          1000;
 
-      // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
-      // If the email send subsequently fails, the cooldown still applies — the next failure
-      // after cooldown expiry will retry the notification.
-      const claimed = await prisma.blobStorageIntegration.updateMany({
-        where: {
-          projectId,
-          OR: [
-            { lastFailureNotificationSentAt: null },
-            {
-              lastFailureNotificationSentAt: {
-                lt: new Date(Date.now() - cooldownMs),
+        // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
+        // If the email send subsequently fails, the cooldown still applies — the next failure
+        // after cooldown expiry will retry the notification.
+        const claimed = await prisma.blobStorageIntegration.updateMany({
+          where: {
+            projectId,
+            OR: [
+              { lastFailureNotificationSentAt: null },
+              {
+                lastFailureNotificationSentAt: {
+                  lt: new Date(Date.now() - cooldownMs),
+                },
               },
-            },
-          ],
-        },
-        data: { lastFailureNotificationSentAt: new Date() },
-      });
+            ],
+          },
+          data: { lastFailureNotificationSentAt: new Date() },
+        });
 
-      if (claimed.count === 0) {
-        logger.info(
-          `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
-        );
-        return;
+        if (claimed.count === 0) {
+          logger.info(
+            `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
+          );
+          return;
+        }
       }
 
-      const emailEnv = {
-        EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
-        SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
-        NEXTAUTH_URL: env.NEXTAUTH_URL,
-        CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
-      };
-
-      if (
-        !emailEnv.EMAIL_FROM_ADDRESS ||
-        !emailEnv.SMTP_CONNECTION_URL ||
-        !emailEnv.NEXTAUTH_URL
-      ) {
-        return;
-      }
-
-      const [adminEmails, project] = await Promise.all([
-        getProjectAdminEmails(projectId),
+      const [project, integration] = await Promise.all([
         prisma.project.findUnique({
           where: { id: projectId },
           select: { name: true },
         }),
+        prisma.blobStorageIntegration.findUnique({
+          where: { projectId },
+          select: { bucketName: true },
+        }),
       ]);
-
-      if (adminEmails.length === 0) {
-        return;
-      }
-
       const projectName = project?.name ?? projectId;
-      const settingsUrl = `${emailEnv.NEXTAUTH_URL}/project/${projectId}/settings/integrations/blobstorage`;
+      const settingsPath = `/project/${projectId}/settings/integrations/blobstorage`;
 
-      await sendBlobStorageExportFailedEmail({
-        env: emailEnv,
-        projectName,
-        settingsUrl,
-        receiverEmails: adminEmails,
+      // Route to configured notification channels and admin emails. The
+      // cooldown claim above already deduped, so no extra throttle is needed.
+      // `disabled` marks the terminal "export turned off" notification, which
+      // selects the disabled email/subject variant downstream.
+      await dispatchProjectNotification({
+        projectId,
+        event: {
+          eventType: "blob-export-failed",
+          severity: "ALERT",
+          projectId,
+          projectName,
+          // The integration is keyed by projectId (1:1); the bucket name is
+          // the most useful human label for the failing export destination.
+          resourceId: projectId,
+          resourceName: integration?.bucketName ?? "Blob storage integration",
+          message: disabled
+            ? `Blob storage export disabled for project "${projectName}" after repeated failures.`
+            : `Blob storage export failed for project "${projectName}".`,
+          url: env.NEXTAUTH_URL
+            ? `${env.NEXTAUTH_URL}${settingsPath}`
+            : undefined,
+          disabled,
+        },
       });
     } catch (error) {
       logger.error(
@@ -1446,15 +1725,4 @@ function extractStorageErrorMessage(error: unknown): string {
 
   const full = details ? `${message} Details: ${details}` : message;
   return full.slice(0, 1000);
-}
-
-function formatErrorChain(error: unknown): string {
-  if (!(error instanceof Error)) return String(error);
-  const parts: string[] = [];
-  let current: unknown = error;
-  while (current instanceof Error) {
-    parts.push(current.message);
-    current = current.cause;
-  }
-  return parts.join(" caused by ");
 }

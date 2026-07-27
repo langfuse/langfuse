@@ -23,6 +23,7 @@ import {
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
 import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeCatalogue";
+import { syncOrgPlanChangeToSfdc } from "@/src/ee/features/sfdc-sync/server";
 
 /**
  * Stripe webhook handler for managing subscription events, billing alerts, and invoice notifications.
@@ -688,6 +689,17 @@ export async function handleSubscriptionChanged(
       before: parsedOrg.cloudConfig,
       after: updatedCloudConfig,
     });
+
+    await syncOrgPlanChangeToSfdc({
+      orgBeforeUpdate: parsedOrg,
+      updatedCloudConfig,
+      // On "created" the anchor was just re-persisted from this subscription;
+      // mirror that value here since parsedOrg still holds the stale one.
+      billingCycleAnchor:
+        action === "created" && subscription.billing_cycle_anchor
+          ? new Date(subscription.billing_cycle_anchor * 1000)
+          : parsedOrg.cloudBillingCycleAnchor,
+    });
   } else if (action === "deleted") {
     // When subscription is deleted, only keep customerId and remove all other subscription fields
     // Note: We omit fields entirely rather than setting to undefined, as undefined gets converted
@@ -725,6 +737,14 @@ export async function handleSubscriptionChanged(
       action: "BillingService.subscription.deleted",
       before: parsedOrg.cloudConfig,
       after: updatedCloudConfig,
+    });
+
+    // Downgrade to Hobby: convertedToPaidAt is omitted for Hobby pushes, so
+    // the (just reset) anchor value is irrelevant here.
+    await syncOrgPlanChangeToSfdc({
+      orgBeforeUpdate: parsedOrg,
+      updatedCloudConfig,
+      billingCycleAnchor: null,
     });
   }
 

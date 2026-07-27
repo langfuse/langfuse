@@ -113,6 +113,9 @@ export function tableColumnsToSqlFilter(
         // LFE-4815: Support category options in postgres
         logger.warn("Category options not supported in postgres yet");
         throw new Error("Category options not supported in postgres yet");
+      case "booleanObject":
+        logger.warn("Boolean object filters not supported in postgres yet");
+        throw new Error("Boolean object filters not supported in postgres yet");
       case "null":
         valuePrisma = Prisma.sql``;
         break;

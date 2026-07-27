@@ -2,14 +2,17 @@ import {
   ChatMessageRole,
   ChatMessageType,
   LLMApiKeySchema,
+  type LLMJSONSchema,
   type ModelConfig,
 } from "./types";
-import { fetchLLMCompletion } from "./fetchLLMCompletion";
-import z from "zod";
+import {
+  createLLMOutput,
+  generateLLMText,
+  mapLegacyLLMCompletionParams,
+} from "./llmText";
+import z, { type ZodType } from "zod";
 
-type StructuredOutputSchema = NonNullable<
-  Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
->;
+type StructuredOutputSchema = ZodType | LLMJSONSchema;
 
 export const testModelCall = async ({
   provider,
@@ -24,28 +27,31 @@ export const testModelCall = async ({
   modelConfig?: ModelConfig | null;
   structuredOutputSchema?: StructuredOutputSchema;
 }) => {
-  await fetchLLMCompletion({
-    streaming: false,
-    llmConnection: apiKey,
-    messages: [
-      {
-        role: ChatMessageRole.User,
-        content:
-          'Extract a score (1-5) and reasoning from this text: "This is a test. It worked perfectly because it matched all passing criteria."',
-        type: ChatMessageType.User,
+  const schema =
+    structuredOutputSchema ??
+    z.object({
+      score: z.string(),
+      reasoning: z.string(),
+    });
+
+  await generateLLMText({
+    ...mapLegacyLLMCompletionParams({
+      connection: apiKey,
+      messages: [
+        {
+          role: ChatMessageRole.User,
+          content:
+            'Extract a score (1-5) and reasoning from this text: "This is a test. It worked perfectly because it matched all passing criteria."',
+          type: ChatMessageType.User,
+        },
+      ],
+      modelParams: {
+        provider,
+        model,
+        adapter: apiKey.adapter,
+        ...modelConfig,
       },
-    ],
-    modelParams: {
-      provider: provider,
-      model: model,
-      adapter: apiKey.adapter,
-      ...modelConfig,
-    },
-    structuredOutputSchema:
-      structuredOutputSchema ??
-      z.object({
-        score: z.string(),
-        reasoning: z.string(),
-      }),
+    }),
+    output: createLLMOutput(schema),
   });
 };

@@ -16,6 +16,7 @@ import {
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import {
+  createIngestionAttribution,
   eventTypes,
   logger,
   traceDeletionProcessor,
@@ -31,6 +32,7 @@ import {
 } from "@/src/features/public-api/server/traces";
 import { env } from "@/src/env.mjs";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares(
   {
@@ -42,7 +44,7 @@ export default withMiddlewares(
       // Legacy POST writes a trace-create event that lands in the legacy traces
       // ClickHouse table; events_only deployments expect OTel ingestion.
       rejectInEventsOnlyMode: true,
-      fn: async ({ body, auth, res }) => {
+      fn: async ({ body, auth, req, res }) => {
         await telemetry();
         const event = {
           id: v4(),
@@ -53,7 +55,12 @@ export default withMiddlewares(
         if (!event.body.id) {
           event.body.id = v4();
         }
-        const result = await processEventBatch([event], auth);
+        const result = await processEventBatch([event], auth, {
+          attribution: createIngestionAttribution({
+            headers: req.headers,
+            authCheck: auth,
+          }),
+        });
         if (result.errors.length > 0) {
           const error = result.errors[0];
           res
@@ -74,6 +81,7 @@ export default withMiddlewares(
       rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
+      deprecation: TRACES_DEPRECATION,
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.tracesList,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {

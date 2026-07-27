@@ -6,6 +6,7 @@ import {
   getDatasetItemForApi,
   listDatasetItemsForApi,
 } from "@/src/features/datasets/server/publicDatasetService";
+import { getItemMediaUploadHeaders } from "@/src/features/datasets/server/dataset-router";
 import {
   GetDatasetV1Response,
   GetDatasetItemsV1Response,
@@ -55,9 +56,9 @@ const session: Session = {
       },
     ],
     featureFlags: {
+      searchBar: false,
       excludeClickhouseRead: false,
       templateFlag: true,
-      inAppAgent: false,
       v4BetaToggleVisible: false,
       observationEvals: false,
       experimentsV4Enabled: false,
@@ -237,6 +238,8 @@ describe("Dataset item media references (public API read path)", () => {
 });
 
 describe("Dataset item media tRPC procedures", () => {
+  const itIfAzureBlobStorage =
+    process.env.LANGFUSE_USE_AZURE_BLOB === "true" ? it : it.skip;
   const validSha256 = () =>
     crypto.createHash("sha256").update(v4()).digest("base64");
 
@@ -244,6 +247,7 @@ describe("Dataset item media tRPC procedures", () => {
     datasetId: string;
     datasetItemId?: string;
     contentLength?: number;
+    sha256Hash?: string;
   }) =>
     caller.datasets.getItemMediaUploadUrl({
       projectId,
@@ -252,19 +256,27 @@ describe("Dataset item media tRPC procedures", () => {
       field: "input",
       contentType: MediaContentType.PNG,
       contentLength: args.contentLength ?? 1234,
-      sha256Hash: validSha256(),
+      sha256Hash: args.sha256Hash ?? validSha256(),
     });
 
   it("issues an upload URL and declares a pending association", async () => {
     const dataset = await createDataset();
     const datasetItemId = v4();
+    const sha256Hash = validSha256();
     const result = await requestUploadUrl({
       datasetId: dataset.id,
       datasetItemId,
+      sha256Hash,
     });
 
     expect(result.mediaId).toBeDefined();
     expect(result.uploadUrl).toBeDefined();
+    expect(result.uploadHeaders).toEqual(
+      getItemMediaUploadHeaders({
+        sha256Hash,
+        uploadUrl: result.uploadUrl,
+      }),
+    );
     // A pending (null validFrom) association is declared for the item.
     const pending = await prisma.datasetItemMedia.findFirst({
       where: { projectId, mediaId: result.mediaId, datasetItemValidFrom: null },
@@ -277,6 +289,95 @@ describe("Dataset item media tRPC procedures", () => {
       referenceString: null,
     });
   });
+
+  it("adds the Azure block blob header when Azure blob storage is enabled", () => {
+    const sha256Hash = validSha256();
+    const uploadUrl =
+      "https://account.blob.core.windows.net/container/blob?sv=2025-01-05&sig=signature";
+
+    expect(
+      getItemMediaUploadHeaders({
+        sha256Hash,
+        uploadUrl,
+        useAzureBlob: "true",
+      }),
+    ).toEqual({
+      "x-amz-checksum-sha256": sha256Hash,
+      "x-ms-blob-type": "BlockBlob",
+      "x-ms-version": "2025-01-05",
+    });
+  });
+
+  it("does not add S3 headers for GCS or OCI media storage", () => {
+    const sha256Hash = validSha256();
+
+    expect(
+      getItemMediaUploadHeaders({
+        sha256Hash,
+        useGoogleCloudStorage: "true",
+      }),
+    ).toEqual({});
+    expect(
+      getItemMediaUploadHeaders({
+        sha256Hash,
+        useOciNativeObjectStorage: "true",
+      }),
+    ).toEqual({});
+  });
+
+  itIfAzureBlobStorage(
+    "uploads dataset item media to Azure blob storage with returned tRPC headers",
+    async () => {
+      const dataset = await createDataset();
+      const datasetItemId = v4();
+      const fileBytes = Buffer.from("azure-media");
+      const sha256Hash = crypto
+        .createHash("sha256")
+        .update(fileBytes)
+        .digest("base64");
+      const result = await requestUploadUrl({
+        datasetId: dataset.id,
+        datasetItemId,
+        contentLength: fileBytes.length,
+        sha256Hash,
+      });
+
+      expect(result.uploadUrl).toBeDefined();
+      expect(result.uploadHeaders).toMatchObject({
+        "x-amz-checksum-sha256": sha256Hash,
+        "x-ms-blob-type": "BlockBlob",
+      });
+      expect(
+        (result.uploadHeaders as { "x-ms-version"?: string })["x-ms-version"],
+      ).toBeDefined();
+
+      const uploadResponse = await fetch(result.uploadUrl!, {
+        method: "PUT",
+        body: fileBytes as BodyInit,
+        headers: {
+          "Content-Type": MediaContentType.PNG,
+          ...result.uploadHeaders,
+        } as HeadersInit,
+      });
+
+      await caller.datasets.markItemMediaUploadComplete({
+        projectId,
+        mediaId: result.mediaId,
+        uploadedAt: new Date(),
+        uploadHttpStatus: uploadResponse.status,
+        uploadHttpError: uploadResponse.ok
+          ? undefined
+          : await uploadResponse.text(),
+      });
+
+      expect(uploadResponse.status).toBe(201);
+      const media = await prisma.media.findUnique({
+        where: { projectId_id: { projectId, id: result.mediaId } },
+      });
+      expect(media?.uploadHttpStatus).toBe(201);
+      expect(media?.uploadHttpError).toBeNull();
+    },
+  );
 
   it("rejects an upload for a dataset in another project", async () => {
     // datasetId is not a dataset in this project

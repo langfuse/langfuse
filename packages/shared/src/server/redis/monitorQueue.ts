@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { QueueName, type MonitorQueueEvent } from "../queues";
+import { QueueName, type TQueueJobTypes } from "../queues";
 import {
   createNewRedisInstance,
   redisQueueRetryOptions,
@@ -8,9 +8,13 @@ import {
 import { logger } from "../logger";
 
 export class MonitorQueue {
-  private static instance: Queue | null = null;
+  private static instance: Queue<
+    TQueueJobTypes[QueueName.MonitorQueue]
+  > | null = null;
 
-  public static getInstance(): Queue | null {
+  public static getInstance(): Queue<
+    TQueueJobTypes[QueueName.MonitorQueue]
+  > | null {
     if (MonitorQueue.instance) return MonitorQueue.instance;
 
     const newRedis = createNewRedisInstance({
@@ -19,15 +23,18 @@ export class MonitorQueue {
     });
 
     MonitorQueue.instance = newRedis
-      ? new Queue<MonitorQueueEvent>(QueueName.MonitorQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.MonitorQueue),
-          defaultJobOptions: {
-            removeOnComplete: true,
-            removeOnFail: 100,
-            attempts: 1,
+      ? new Queue<TQueueJobTypes[QueueName.MonitorQueue]>(
+          QueueName.MonitorQueue,
+          {
+            connection: newRedis,
+            prefix: getQueuePrefix(QueueName.MonitorQueue),
+            defaultJobOptions: {
+              removeOnComplete: true,
+              removeOnFail: 100,
+              attempts: 1,
+            },
           },
-        })
+        )
       : null;
 
     MonitorQueue.instance?.on("error", (err) => {

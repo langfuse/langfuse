@@ -23,7 +23,7 @@ export function NoModelConfiguredAlert({
           To use the playground, you need to configure a model first. Go to{" "}
           <Link
             href={`/project/${projectId}/settings/llm-connections`}
-            className="font-medium underline underline-offset-4 hover:text-yellow-900 dark:hover:text-yellow-300"
+            className="font-bold underline underline-offset-4 hover:text-yellow-900 dark:hover:text-yellow-300"
           >
             <Settings className="inline h-3 w-3" /> LLM Connection Settings
           </Link>{" "}

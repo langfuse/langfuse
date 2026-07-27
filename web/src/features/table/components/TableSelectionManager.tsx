@@ -1,6 +1,6 @@
 import { useRef, type RefObject } from "react";
 import { TableCheckboxLoadingCell } from "@/src/components/table/loading-cells";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import {
   type TableSelectionStoreLike,
   useTableRowIsSelected,
@@ -82,7 +82,6 @@ function SelectionHeaderCheckbox<TData>({
           }
         }}
         aria-label="Select all"
-        className="opacity-60"
       />
     </div>
   );
@@ -185,7 +184,6 @@ function SelectionRowCheckbox<TData>({
           if (!value) setSelectAll(false);
         }}
         aria-label="Select row"
-        className="opacity-60"
       />
     </div>
   );

@@ -164,7 +164,7 @@ export function MultiSelectCombobox<T>({
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
               disabled={disabled}
-              className="placeholder:text-muted-foreground min-w-24 flex-1 border-none bg-transparent text-xs outline-hidden"
+              className="placeholder:text-foreground-tertiary min-w-24 flex-1 border-none bg-transparent text-xs outline-hidden"
             />
           </div>
           {searchQuery && (

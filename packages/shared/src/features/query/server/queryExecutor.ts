@@ -2,7 +2,6 @@ import {
   queryClickhouse,
   type ClickhouseQueryOpts,
 } from "../../../server/repositories/clickhouse";
-import { measureAndReturn } from "../../../server/clickhouse/measureAndReturn";
 import { type PreferredClickhouseService } from "../../../server/clickhouse/client";
 import { QueryBuilder } from "./queryBuilder";
 import { type QueryType, type ViewVersion } from "../types";
@@ -12,7 +11,7 @@ export type PreparedQuery = {
   compiledQuery: string;
   parameters: Record<string, unknown>;
   preferredClickhouseService: PreferredClickhouseService | undefined;
-  tags: Record<string, string>;
+  tags: { projectId: string };
   clickhouseSettings: Record<string, string>;
   usesTraceTable: boolean;
   fromTimestamp: string;
@@ -53,12 +52,7 @@ export async function prepareExecuteQuery(opts: {
     ? ("EventsReadOnly" as const)
     : undefined;
 
-  const tags = {
-    feature: "custom-queries",
-    type: query.view,
-    kind: "analytic",
-    projectId,
-  };
+  const tags = { projectId };
 
   const clickhouseSettings: Record<string, string> = {
     date_time_output_format: "iso",
@@ -112,25 +106,10 @@ export async function executeQuery(
     return queryClickhouse<Record<string, unknown>>(chOpts);
   }
 
-  return measureAndReturn({
-    operationName: "executeQuery",
-    projectId,
-    input: {
-      query: prepared.compiledQuery,
-      params: prepared.parameters,
-      fromTimestamp: prepared.fromTimestamp,
-      tags: {
-        ...prepared.tags,
-        operation_name: "executeQuery",
-      },
-    },
-    fn: async (input) => {
-      return queryClickhouse<Record<string, unknown>>({
-        ...chOpts,
-        query: input.query,
-        params: input.params,
-        tags: input.tags,
-      });
-    },
+  return queryClickhouse<Record<string, unknown>>({
+    ...chOpts,
+    query: prepared.compiledQuery,
+    params: prepared.parameters,
+    tags: prepared.tags,
   });
 }

@@ -41,11 +41,13 @@
   },
   "86cd4912944ddc41": {
     "input": {
-      "success": false,
-      "error": {
-        "name": "ZodError",
-        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
-      }
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
     },
     "output": {
       "success": true,

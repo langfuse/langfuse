@@ -1,10 +1,23 @@
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    generateLLMText: vi.fn(),
+  };
+});
+
 import type { Session } from "next-auth";
+import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
+import { vi } from "vitest";
 
-import type { Plan } from "@langfuse/shared";
+import { InAppAgentRunErrorCode, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  generateLLMText,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
@@ -17,12 +30,19 @@ import {
   ensureOwnedConversation,
   finishRun,
   getConversationMessagesForReplay,
+  maybeInferAndPersistConversationTitle,
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+
+vi.mock("@/src/server/auth", () => ({
+  getServerAuthSession: vi.fn(),
+}));
+
+const mockGenerateLLMText = vi.mocked(generateLLMText);
 
 describe("in-app agent persistence", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -33,6 +53,7 @@ describe("in-app agent persistence", () => {
 
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    mockGenerateLLMText.mockReset();
   });
 
   const createCaller = async (
@@ -83,7 +104,7 @@ describe("in-app agent persistence", () => {
             ],
           },
         ],
-        featureFlags: {},
+        featureFlags: {} as Flags,
         admin: false,
       },
       environment: {} as any,
@@ -426,6 +447,86 @@ describe("in-app agent persistence", () => {
     );
   });
 
+  it("does not overwrite user-renamed conversation titles", async () => {
+    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await caller.renameConversation({
+      projectId,
+      conversationId: conversation.id,
+      title: "My custom title",
+    });
+
+    try {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+
+      await maybeInferAndPersistConversationTitle({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+        userId,
+        aiTelemetryEnabled: false,
+      });
+
+      await expect(
+        prisma.inAppAgentConversation.findUniqueOrThrow({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          select: { title: true, renamedByUserAt: true },
+        }),
+      ).resolves.toEqual({
+        title: "My custom title",
+        renamedByUserAt: expect.any(Date),
+      });
+      expect(mockGenerateLLMText).not.toHaveBeenCalled();
+    } finally {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+    }
+  });
+
+  it("keeps the default title when title generation fails", async () => {
+    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const originalTitle = conversation.title;
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "failed-title-user",
+      content: "Inspect latency regressions",
+    });
+
+    try {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+      mockGenerateLLMText.mockRejectedValue(new Error("Bedrock failed"));
+
+      await expect(
+        maybeInferAndPersistConversationTitle({
+          prisma,
+          projectId,
+          conversationId: conversation.id,
+          userId,
+          aiTelemetryEnabled: false,
+        }),
+      ).resolves.toBeUndefined();
+
+      await expect(
+        prisma.inAppAgentConversation.findUniqueOrThrow({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          select: { title: true },
+        }),
+      ).resolves.toEqual({ title: originalTitle });
+    } finally {
+      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+    }
+  });
+
   it("requires feedback run ids to match persisted assistant messages", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -669,6 +770,20 @@ describe("in-app agent persistence", () => {
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
     ).resolves.toBe(9);
+
+    const persistedEventTypes = (
+      await prisma.inAppAgentEvent.findMany({
+        where: { projectId, conversationId: conversation.id, runId: run.id },
+        select: { type: true },
+      })
+    ).map((event) => event.type);
+    expect(persistedEventTypes).not.toContain(
+      EventType.REASONING_MESSAGE_START,
+    );
+    expect(persistedEventTypes).not.toContain(
+      EventType.REASONING_MESSAGE_CONTENT,
+    );
+    expect(persistedEventTypes).not.toContain(EventType.REASONING_MESSAGE_END);
   });
 
   it("stores only compact events and skips raw adapter payloads", async () => {
@@ -988,6 +1103,111 @@ describe("in-app agent persistence", () => {
     ]);
   });
 
+  it("drops assistant tool calls without results from loaded conversation history", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "user-1",
+      content: "search",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "assistant-1",
+      role: "assistant",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "paired-tool-call",
+      toolCallName: "list_traces",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "paired-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "paired-tool-call",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "unapproved-tool-call",
+      toolCallName: "get_trace",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "unapproved-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "unapproved-tool-call",
+    });
+    await process({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: "assistant-1",
+      delta: "calling tools",
+    });
+    await process({
+      type: EventType.TEXT_MESSAGE_END,
+      messageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "paired-tool-call",
+      content: "[]",
+      role: "tool",
+    });
+
+    const detail = await caller.getConversation({
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    expect(detail.messages).toEqual([
+      { id: "user-1", role: "user", content: "search" },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "calling tools",
+        runId: run.id,
+        toolCalls: [
+          {
+            id: "paired-tool-call",
+            type: "function",
+            function: { name: "list_traces", arguments: "{}" },
+          },
+        ],
+      },
+      {
+        id: "tool-result-1",
+        role: "tool",
+        content: "[]",
+        toolCallId: "paired-tool-call",
+      },
+    ]);
+  });
+
   it("drops failed redirect tool results before replay", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -1149,7 +1369,7 @@ describe("in-app agent persistence", () => {
       prisma,
       runId: orphanToolRun.id,
       projectId,
-      errorCode: "aborted",
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
       errorMessage: "Aborted before tool result",
     });
 
@@ -1207,7 +1427,7 @@ describe("in-app agent persistence", () => {
       prisma,
       runId: failedRun.id,
       projectId,
-      errorCode: "upstream_error",
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
       errorMessage: "Failed before output",
     });
 
@@ -1347,14 +1567,14 @@ describe("in-app agent persistence", () => {
       prisma,
       runId: run.id,
       projectId,
-      errorCode: "agent_error",
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
       errorMessage: "Original agent error",
     });
     await finishRun({
       prisma,
       runId: run.id,
       projectId,
-      errorCode: "cancelled",
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
       errorMessage: "Client aborted request",
     });
 
@@ -1439,6 +1659,34 @@ describe("in-app agent persistence", () => {
     ).rejects.toThrow("Assistant is already responding in this conversation");
   });
 
+  it("rethrows a replayed run id instead of reporting an active-run conflict", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    const finished = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await finishRun({ prisma, runId: finished.id, projectId });
+
+    // Replaying the id of a finished run violates the (id, project_id) primary
+    // key, not the active-run backstop index — the caller must not be told the
+    // assistant is still responding. Asserting on meta.target pins the shape
+    // the createRun catch discriminates on.
+    await expect(
+      createConversationRun({
+        projectId,
+        conversationId: conversation.id,
+        userId,
+        runId: finished.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "P2002",
+      meta: { target: ["id", "project_id"] },
+    });
+  });
+
   it("marks old unfinished runs stale before starting a new run", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -1464,10 +1712,91 @@ describe("in-app agent persistence", () => {
         where: { id_projectId: { id: staleRun.id, projectId } },
       }),
     ).resolves.toMatchObject({
+      status: "FAILED",
       errorCode: "stale",
       errorMessage: "Run was marked stale before starting a new run",
     });
     expect(newRun.finishedAt).toBeNull();
+  });
+
+  it("writes run lifecycle status on the foreground path", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    const succeeded = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    expect(succeeded.status).toBe("RUNNING");
+    await finishRun({ prisma, runId: succeeded.id, projectId });
+
+    const failed = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await finishRun({
+      prisma,
+      runId: failed.id,
+      projectId,
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
+      errorMessage: "boom",
+    });
+
+    const cancelled = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await finishRun({
+      prisma,
+      runId: cancelled.id,
+      projectId,
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
+      errorMessage: "Client aborted request",
+    });
+
+    const runs = await prisma.inAppAgentRun.findMany({
+      where: { projectId, conversationId: conversation.id },
+      select: { id: true, status: true },
+    });
+    expect(new Map(runs.map((run) => [run.id, run.status]))).toEqual(
+      new Map([
+        [succeeded.id, "SUCCEEDED"],
+        [failed.id, "FAILED"],
+        [cancelled.id, "CANCELLED"],
+      ]),
+    );
+  });
+
+  it("enforces the single-active-run backstop index at the database level", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    // Bypass createRun's conversation lock and conflict check: the partial
+    // unique index is the DB-level invariant against two unfinished runs in
+    // one conversation. Asserting on meta.target pins the shape the createRun
+    // catch discriminates on (Prisma resolves the raw-SQL index to its
+    // column names).
+    await expect(
+      prisma.inAppAgentRun.create({
+        data: {
+          id: createInAppAgentRunId(),
+          projectId,
+          conversationId: conversation.id,
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "P2002",
+      meta: { target: ["project_id", "conversation_id"] },
+    });
   });
 
   it("paginates conversation list with a stable cursor", async () => {

@@ -4,7 +4,7 @@
  */
 
 import { Button } from "@/src/components/ui/button";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import Head from "next/head";
 import Link from "next/link";
 import { type GetServerSideProps } from "next";

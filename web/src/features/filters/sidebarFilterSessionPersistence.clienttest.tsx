@@ -114,6 +114,19 @@ const FILTER_B: FilterState = [
   },
 ];
 
+// Encodes to well over MAX_URL_FILTER_QUERY_LENGTH characters (LFE-10717).
+const OVERSIZED_FILTER: FilterState = [
+  {
+    column: "name",
+    type: "stringOptions",
+    operator: "any of",
+    value: Array.from(
+      { length: 400 },
+      (_, i) => `checkout-step-${i}-abcdefghijklmnop`,
+    ),
+  },
+];
+
 function SessionPersistenceHarness(props: { contextId?: string | null }) {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
     stateLocation: "urlAndSessionStorage",
@@ -136,6 +149,12 @@ function SessionPersistenceHarness(props: { contextId?: string | null }) {
         onClick={() => queryFilter.setFilterState([])}
       >
         Clear
+      </button>
+      <button
+        data-testid="set-oversized"
+        onClick={() => queryFilter.setFilterState(OVERSIZED_FILTER)}
+      >
+        Set oversized
       </button>
     </div>
   );
@@ -387,6 +406,94 @@ describe("useSidebarFilterState session persistence", () => {
 
     await waitFor(() => {
       expect(sessionStorage.getItem(sessionKey)).toBe(encodeStoredState(""));
+    });
+  });
+});
+
+describe("oversized filter queries stay out of the URL (LFE-10717)", () => {
+  // An oversized serialized filter state must never reach the URL: the full
+  // request head (URL + cookies + headers) is capped at ~16KB by Node and
+  // most proxies, so a giant `?filter=` 431s on the refresh round-trip. The
+  // state falls back to the session-storage mirror instead — same-tab
+  // refreshes keep working; a copied link degrades to "no filter" rather
+  // than a dead page.
+  const encodedOversized = encodeFiltersGeneric(OVERSIZED_FILTER);
+  const encodedFilterB = encodeFiltersGeneric(FILTER_B);
+  const sessionKey = buildSidebarFilterQueryStorageKey({
+    tableName: TEST_FILTER_CONFIG.tableName,
+    contextId: null,
+  });
+  const encodeStoredState = (query: string) =>
+    JSON.stringify({ contextId: null, query });
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    queryParamStore.clear();
+    deferredQueryParams.clear();
+  });
+
+  const getExplicitState = () =>
+    JSON.parse(screen.getByTestId("explicit-state").textContent ?? "[]");
+
+  it("applies the filter, persists it to session storage, and keeps the URL param absent", async () => {
+    render(<SessionPersistenceHarness />);
+
+    fireEvent.click(screen.getByTestId("set-oversized"));
+
+    // State applies in the same interaction.
+    expect(getExplicitState()).toEqual(OVERSIZED_FILTER);
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem(sessionKey)).toBe(
+        encodeStoredState(encodedOversized),
+      );
+    });
+    // Give the async query-param writer a chance to (incorrectly) flush.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(queryParamStore.has("filter")).toBe(false);
+    expect(getExplicitState()).toEqual(OVERSIZED_FILTER);
+  });
+
+  it("restores the oversized filter from session storage on remount (same-tab refresh)", async () => {
+    sessionStorage.setItem(sessionKey, encodeStoredState(encodedOversized));
+
+    render(<SessionPersistenceHarness />);
+
+    await waitFor(() => {
+      expect(getExplicitState()).toEqual(OVERSIZED_FILTER);
+    });
+    // The sanitize/mirror effects must not push the oversized query into the URL.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(queryParamStore.has("filter")).toBe(false);
+  });
+
+  it("replaces an existing URL filter and resumes URL writes once the state fits again", async () => {
+    queryParamStore.set("filter", encodedFilterB);
+
+    render(<SessionPersistenceHarness />);
+
+    await waitFor(() => {
+      expect(getExplicitState()).toEqual(FILTER_B);
+    });
+
+    // Oversized write removes the stale URL param instead of replacing it.
+    fireEvent.click(screen.getByTestId("set-oversized"));
+    expect(getExplicitState()).toEqual(OVERSIZED_FILTER);
+    await waitFor(() => {
+      expect(queryParamStore.has("filter")).toBe(false);
+    });
+
+    // A later, small state goes back to normal URL persistence — the
+    // optimistic pending query must not get stuck on the oversized value.
+    fireEvent.click(screen.getByTestId("set-filter-b"));
+    await waitFor(() => {
+      expect(queryParamStore.get("filter")).toBe(encodedFilterB);
+    });
+    expect(getExplicitState()).toEqual(FILTER_B);
+    await waitFor(() => {
+      expect(sessionStorage.getItem(sessionKey)).toBe(
+        encodeStoredState(encodedFilterB),
+      );
     });
   });
 });

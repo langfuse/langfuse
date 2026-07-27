@@ -14,6 +14,12 @@ export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "s.score_categories",
   },
   {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "obs_score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.score_booleans",
+  },
+  {
     uiTableName: "Trace Scores (numeric)",
     uiTableId: "trace_scores_avg",
     clickhouseTableName: "scores",
@@ -24,6 +30,12 @@ export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "trace_score_categories",
     clickhouseTableName: "scores",
     clickhouseSelect: "ts.score_categories",
+  },
+  {
+    uiTableName: "Trace Scores (boolean)",
+    uiTableId: "trace_score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "ts.score_booleans",
   },
   {
     uiTableName: "Item Metadata",

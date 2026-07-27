@@ -9,7 +9,6 @@ import {
   ScoreDataTypeEnum,
   ZodModelConfig,
 } from "@langfuse/shared";
-import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 
 const selectedModelSchema = z.object({
   provider: z.string().min(1, "Select a provider"),
@@ -58,10 +57,6 @@ export const templateFormSchema = z
     reasoningDescription: z.string().optional(),
     categories: z.array(categoricalOptionSchema).default([]),
     shouldAllowMultipleMatches: z.boolean().default(false),
-    referencedEvaluators: z
-      .enum(EvalReferencedEvaluators)
-      .optional()
-      .default(EvalReferencedEvaluators.PERSIST),
     shouldUseDefaultModel: z.boolean().default(true),
   })
   .superRefine((value, ctx) => {

@@ -55,7 +55,7 @@ export function MultiSectionJsonViewerHeader({
           <ChevronRight size={14} />
         )}
       </span>
-      <span className="text-xs font-medium">{title}</span>
+      <span className="text-xs font-bold">{title}</span>
       <span
         style={{
           marginLeft: "8px",

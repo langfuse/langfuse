@@ -354,12 +354,7 @@ export const scoreAnalyticsRouter = createTRPCRouter({
           toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
           nBins,
         },
-        tags: {
-          feature: "scores",
-          type: "analytics",
-          kind: "comparison",
-          projectId,
-        },
+        tags: { projectId },
         clickhouseSettings: {
           // Enable short-circuit evaluation to prevent correlation errors
           // This ensures if() conditions are evaluated before function calls

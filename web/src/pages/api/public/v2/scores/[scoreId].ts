@@ -8,12 +8,14 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { logger, traceException } from "@langfuse/shared/src/server";
+import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Score",
     querySchema: GetScoreQueryV2,
     responseSchema: GetScoreResponseV2,
+    deprecation: SCORES_DEPRECATION,
     rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const scoresApiService = new ScoresApiService("v2");

@@ -2,10 +2,53 @@ import { describe, it, expect } from "vitest";
 import { extractObservationVariables } from "../../../../../../packages/shared/src/server/evals/extractObservationVariables";
 import { type ObservationForEval } from "../types";
 import {
-  availableObservationEvalVariableColumns,
+  observationEvalVariableColumns,
   ObservationEvalVariableColumn,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
+
+// Test-only superset: extends the production columns with fields that are not
+// mappable in the product today, to cover extractObservationVariables'
+// custom-columns parameter.
+const availableObservationEvalVariableColumns = [
+  ...observationEvalVariableColumns,
+  {
+    id: "toolDefinitions",
+    name: "Tool Definitions",
+    description: "Tool definitions",
+    internal: "tool_definitions",
+  },
+  {
+    id: "toolCallNames",
+    name: "Tool Call Names",
+    description: "Tool call names",
+    internal: "tool_call_names",
+  },
+  {
+    id: "providedModelName",
+    name: "Model",
+    description: "Model",
+    internal: "provided_model_name",
+  },
+  {
+    id: "modelParameters",
+    name: "Model Parameters",
+    description: "Model parameters",
+    internal: "model_parameters",
+  },
+  {
+    id: "usageDetails",
+    name: "Usage Details",
+    description: "Usage details",
+    internal: "usage_details",
+  },
+  {
+    id: "costDetails",
+    name: "Cost Details",
+    description: "Cost details",
+    internal: "cost_details",
+  },
+];
 
 describe("extractObservationVariables", () => {
   const mockObservation: ObservationForEval = {
@@ -41,7 +84,10 @@ describe("extractObservationVariables", () => {
 
     // Tool call properties
     tool_definitions: { search: '{"description": "Search the web"}' },
-    tool_calls: ['{"name": "search", "args": {"query": "test"}}'],
+    // Real storage shape: name-less JSON strings, names in the parallel array.
+    tool_calls: [
+      '{"id":"call_1","arguments":"{\\"query\\":\\"test\\"}","type":"function","index":0}',
+    ],
     tool_call_names: ["search"],
     tool_call_count: 1,
 
@@ -164,22 +210,126 @@ describe("extractObservationVariables", () => {
   });
 
   describe("tool call extraction", () => {
-    it("should extract toolCalls variable", () => {
+    it("should extract toolCalls as zipped objects with the default columns", () => {
       const variableMapping: ObservationVariableMapping[] = [
         { templateVariable: "tools", selectedColumnId: "toolCalls" },
       ];
 
-      const result = extractObservationVariables(
-        {
-          observation: mockObservation,
-          variableMapping,
-        },
-        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
-      );
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("tools");
-      expect(result[0].value).toEqual(mockObservation.tool_calls);
+      expect(result[0].value).toEqual([
+        {
+          id: "call_1",
+          name: "search",
+          arguments: { query: "test" },
+          type: "function",
+          index: 0,
+        },
+      ]);
+    });
+
+    it("passes string argument values through unchanged", () => {
+      // Zipped calls skip deepParseJson entirely (arguments are already parsed
+      // by the zip), so JSON-literal strings the model emitted ("true", "42",
+      // serialized objects) are NOT coerced. This pins the payload types
+      // evaluator code receives.
+      const args = JSON.stringify({
+        count: "42",
+        flag: "true",
+        nested: '{"a":1}',
+      });
+      const observation = {
+        ...mockObservation,
+        tool_calls: [
+          JSON.stringify({
+            id: "call_1",
+            arguments: args,
+            type: "function",
+            index: 0,
+          }),
+        ],
+        tool_call_names: ["search"],
+      };
+
+      const result = extractObservationVariables({
+        observation,
+        variableMapping: [
+          { templateVariable: "tools", selectedColumnId: "toolCalls" },
+        ],
+      });
+
+      expect(result[0].value).toEqual([
+        {
+          id: "call_1",
+          name: "search",
+          arguments: {
+            count: "42",
+            flag: "true",
+            nested: '{"a":1}',
+          },
+          type: "function",
+          index: 0,
+        },
+      ]);
+    });
+
+    it("keeps JSON-literal id/name/type strings as strings", () => {
+      // A tool named "null" (or an id/type of "true"/"false") is unusual but
+      // legal. deepParseJson would coerce these top-level fields to primitives
+      // at depth 2 — which then fails buildCodeEvalPayload's schema parse and
+      // empties the whole array, or leaks null/true into judge prompts.
+      const observation = {
+        ...mockObservation,
+        tool_calls: [
+          JSON.stringify({
+            id: "true",
+            arguments: "{}",
+            type: "false",
+            index: 0,
+          }),
+        ],
+        tool_call_names: ["null"],
+      };
+
+      const result = extractObservationVariables({
+        observation,
+        variableMapping: [
+          { templateVariable: "tools", selectedColumnId: "toolCalls" },
+        ],
+      });
+
+      expect(result[0].value).toEqual([
+        {
+          id: "true",
+          name: "null",
+          arguments: {},
+          type: "false",
+          index: 0,
+        },
+      ]);
+    });
+
+    it("should support JSONPath selectors over zipped toolCalls", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "calledTools",
+          selectedColumnId: "toolCalls",
+          jsonSelector: "$[*].name",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].value).toEqual("search");
     });
 
     it("should extract toolDefinitions variable", () => {

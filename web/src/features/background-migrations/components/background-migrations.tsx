@@ -38,18 +38,18 @@ export default function BackgroundMigrationsTable() {
       cell: (row) => {
         const failedAt = row.row.original.failedAt;
         if (failedAt) {
-          return <StatusBadge type={"failed"} className="capitalize" />;
+          return <StatusBadge type="failed" className="capitalize" />;
         }
         const finishedAt = row.row.original.finishedAt;
         if (finishedAt) {
-          return <StatusBadge type={"finished"} className="capitalize" />;
+          return <StatusBadge type="finished" className="capitalize" />;
         }
         const workerId = row.row.original.workerId;
         if (workerId) {
-          return <StatusBadge type={"active"} className="capitalize" />;
+          return <StatusBadge type="active" className="capitalize" />;
         }
 
-        return <StatusBadge type={"queued"} className="capitalize" />;
+        return <StatusBadge type="queued" className="capitalize" />;
       },
     },
     {
@@ -90,7 +90,7 @@ export default function BackgroundMigrationsTable() {
     >
       <DataTableToolbar columns={columns} />
       <DataTable
-        tableName={"backgroundMigrations"}
+        tableName="backgroundMigrations"
         columns={columns}
         data={
           backgroundMigrations.isPending

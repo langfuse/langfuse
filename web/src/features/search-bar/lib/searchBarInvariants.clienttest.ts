@@ -41,13 +41,28 @@ const eventsView: RegistryUnderTest = {
       traceNumericScoreNames: new Set(["nps"]),
       traceCategoricalScoreNames: new Set(),
     },
+    // Boolean-observed scores: boolean literals route to booleanObject while
+    // numeric shapes keep the legacy scores_avg lowering (old URLs/saved
+    // views), so both must hold the invariants under the same context.
+    {
+      numericScoreNames: new Set(),
+      categoricalScoreNames: new Set(),
+      booleanScoreNames: new Set(["accuracy"]),
+      traceNumericScoreNames: new Set(),
+      traceCategoricalScoreNames: new Set(),
+      traceBooleanScoreNames: new Set(["nps"]),
+    },
   ],
   fieldValues: ["x", "ERROR", "5", "0.8", "2026-06-01", "true", "a b", "gpt-4"],
   // Adversarial free text — the tokens the parser reserves/quotes. The bare
-  // boolean keywords and `!`-prefix here are the exact #4 regression class.
+  // boolean keywords and `!`-prefix here are the exact #4 regression class;
+  // the bare field words (`type`, `level`) are the LFE-11017 class — a lone
+  // field-name free text must serialize QUOTED so it re-parses valid.
   freeTextValues: [
     "hello",
     "refund policy",
+    "type",
+    "level",
     "or",
     "and",
     "not",

@@ -3,6 +3,7 @@ import {
   LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
+import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import {
   BaseError,
   LangfuseNotFoundError,
@@ -29,6 +30,36 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   },
   traceException: vi.fn(),
 }));
+
+describe("clickHouseRouteForRequest", () => {
+  const request = (method: string | undefined, url: string | undefined) =>
+    ({ method, url }) as NextApiRequest;
+
+  it("uses only the request pathname", () => {
+    expect(
+      clickHouseRouteForRequest(
+        request(
+          "GET",
+          "/api/public/v2/traces?projectId=project-1&secret=do-not-log",
+        ),
+      ),
+    ).toBe("GET /api/public/v2/traces");
+  });
+
+  it("removes search params from malformed urls in the fallback path", () => {
+    expect(
+      clickHouseRouteForRequest(
+        request("POST", "http://[::1?secret=do-not-log#fragment"),
+      ),
+    ).toBe("POST http://[::1");
+  });
+
+  it("falls back to UNKNOWN method for missing methods", () => {
+    expect(
+      clickHouseRouteForRequest(request(undefined, "/api/public/health")),
+    ).toBe("UNKNOWN /api/public/health");
+  });
+});
 
 describe("withMiddlewares error handling", () => {
   beforeEach(() => {
@@ -223,7 +254,11 @@ describe("withMiddlewares error handling", () => {
       const resourceError = new ClickHouseResourceError(
         "MEMORY_LIMIT",
         originalError,
-        { type: "events", kind: "publicApiRows" },
+        {
+          tag_schema_version: "1",
+          surface: "publicapi",
+          route: "GET /api/public/test",
+        },
       );
 
       const handler = withMiddlewares({
@@ -247,7 +282,11 @@ describe("withMiddlewares error handling", () => {
         "ClickHouse resource limit exceeded",
         expect.objectContaining({
           errorType: "MEMORY_LIMIT",
-          tags: { type: "events", kind: "publicApiRows" },
+          tags: {
+            tag_schema_version: "1",
+            surface: "publicapi",
+            route: "GET /api/public/test",
+          },
         }),
       );
     });

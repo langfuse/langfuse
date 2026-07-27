@@ -12,7 +12,10 @@ import {
   ScoreDataTypeEnum,
   validateEvalOutputResult,
 } from "@langfuse/shared";
-import { type ExtractedVariable } from "@langfuse/shared/src/server";
+import {
+  type EvaluatorLlmErrorClassification,
+  type ExtractedVariable,
+} from "@langfuse/shared/src/server";
 import { parseDispatchResult } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { createDeterministicEvalScoreId } from "../../../../packages/shared/src/server/evals/evalScoreIds";
 import {
@@ -22,7 +25,10 @@ import {
   getEnvironmentFromVariables,
 } from "./evalRuntime";
 import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
-import { buildEvalExecutionSpanAttributes } from "./evalSpanAttributes";
+import {
+  buildEvalExecutionSpanAttributes,
+  buildEvaluatorLlmErrorSpanAttributes,
+} from "./evalSpanAttributes";
 
 describe("evaluation helpers", () => {
   describe("compileEvalPrompt", () => {
@@ -463,6 +469,65 @@ describe("evaluation helpers", () => {
         "eval.job_configuration.filter.dimension_count": 1,
         "eval.variable.source_fields": ["input", "output"],
         "eval.variable.source_field_count": 2,
+      });
+    });
+  });
+
+  describe("buildEvaluatorLlmErrorSpanAttributes", () => {
+    it("exposes native AI SDK retry metadata without leaking the error message", () => {
+      const classification = {
+        kind: "provider",
+        message: "sensitive provider response",
+        statusCode: 429,
+        isRetryable: true,
+        error: new Error("sensitive provider response"),
+        retryError: {
+          reason: "maxRetriesExceeded",
+          errors: [new Error("attempt 1"), new Error("attempt 2")],
+        },
+        blockReason: null,
+      } as EvaluatorLlmErrorClassification;
+
+      const attributes = buildEvaluatorLlmErrorSpanAttributes(classification);
+
+      expect(attributes).toEqual({
+        "eval.llm.error.kind": "provider",
+        "eval.llm.error.retryable": true,
+        "eval.llm.error.status_code": 429,
+        "eval.llm.retry.reason": "maxRetriesExceeded",
+        "eval.llm.retry.attempt_count": 2,
+        "eval.llm.blocked": false,
+      });
+      expect(JSON.stringify(attributes)).not.toContain(
+        "sensitive provider response",
+      );
+      expect(attributes).not.toHaveProperty("http.response.status_code");
+    });
+
+    it("exposes the terminal evaluator block decision", () => {
+      const classification = {
+        kind: "validation",
+        message: "endpoint unavailable",
+        statusCode: 400,
+        isRetryable: false,
+        error: new Error("endpoint unavailable"),
+        blockReason: "LLM_CONNECTION_ENDPOINT_UNREACHABLE",
+      } as EvaluatorLlmErrorClassification;
+
+      expect(buildEvaluatorLlmErrorSpanAttributes(classification)).toEqual({
+        "eval.llm.error.kind": "validation",
+        "eval.llm.error.retryable": false,
+        "eval.llm.error.status_code": 400,
+        "eval.llm.blocked": true,
+        "eval.llm.block.reason": "LLM_CONNECTION_ENDPOINT_UNREACHABLE",
+        "eval.llm.block.source": "llm_completion_error",
+      });
+    });
+
+    it("uses a low-cardinality fallback for unknown errors", () => {
+      expect(buildEvaluatorLlmErrorSpanAttributes(null)).toEqual({
+        "eval.llm.error.kind": "unknown",
+        "eval.llm.blocked": false,
       });
     });
   });

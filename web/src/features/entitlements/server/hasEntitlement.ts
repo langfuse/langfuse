@@ -3,12 +3,12 @@ import {
   type Entitlement,
 } from "@/src/features/entitlements/constants/entitlements";
 import { TRPCError } from "@trpc/server";
-import { type User } from "next-auth";
+import { type Session } from "next-auth";
 import { type Plan } from "@langfuse/shared";
 
 type HasEntitlementParams = {
   entitlement: Entitlement;
-  sessionUser: User;
+  sessionUser: NonNullable<Session["user"]>;
 } & ({ projectId: string } | { orgId: string });
 
 /**

@@ -56,11 +56,14 @@ export function useExperimentFilterOptions({
       obs_score_categories: processScoreCategories(
         filterOptions.data?.obs_score_categories,
       ),
+      obs_score_booleans: filterOptions.data?.obs_score_booleans ?? undefined,
       // Trace-level score options
       trace_scores_avg: filterOptions.data?.trace_scores_avg ?? undefined,
       trace_score_categories: processScoreCategories(
         filterOptions.data?.trace_score_categories,
       ),
+      trace_score_booleans:
+        filterOptions.data?.trace_score_booleans ?? undefined,
     };
   }, [datasets.data, filterOptions.data]);
 

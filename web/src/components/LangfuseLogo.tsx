@@ -4,23 +4,7 @@ import { VersionLabel } from "./VersionLabel";
 import { env } from "@/src/env.mjs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { PlusIcon } from "lucide-react";
-
-export const LangfuseIcon = ({
-  size = 32,
-  className,
-}: {
-  size?: number;
-  className?: string;
-}) => (
-  // eslint-disable-next-line @next/next/no-img-element
-  <img
-    src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`}
-    width={size}
-    height={size}
-    alt="Langfuse Icon"
-    className={className}
-  />
-);
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 
 const LangfuseLogotypeOrCustomized = () => {
   const uiCustomization = useUiCustomization();
@@ -67,10 +51,9 @@ const LangfuseLogotypeOrCustomized = () => {
         src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-white.svg`}
         alt="Langfuse Logo"
       />
-      <LangfuseIcon
-        size={28}
-        className="hidden scale-120 group-data-[collapsible=icon]:block"
-      />
+      <div className="hidden scale-120 group-data-[collapsible=icon]:block">
+        <LangfuseIcon size={28} />
+      </div>
     </div>
   );
 };

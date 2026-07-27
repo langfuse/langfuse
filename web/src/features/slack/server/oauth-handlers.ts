@@ -5,11 +5,11 @@ import {
   parseSlackInstallationMetadata,
 } from "@langfuse/shared/src/server";
 import { logger } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 import { getServerAuthSession } from "@/src/server/auth";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 
 /**
  * SlackOAuthHandlers
@@ -31,10 +31,16 @@ export async function handleInstallPath(
     // 1. Generate the OAuth URL with proper state parameter
     // 2. Set session cookies for state validation
     // 3. Render the installation page with "Add to Slack" button
+    // Build an absolute redirect URI that respects a custom base path.
+    // getProductBaseUrl derives the product origin (incl. base path) from
+    // NEXTAUTH_URL and strips the /api/auth suffix.
+    const redirectUri = getProductBaseUrl();
+    redirectUri.pathname = `${redirectUri.pathname.replace(/\/$/, "")}/api/public/slack/oauth`;
+
     const installOptions = {
       scopes: [...SLACK_BOT_SCOPES],
       metadata: JSON.stringify({ projectId: projectId }),
-      redirectUri: `${env.NEXTAUTH_URL}/api/public/slack/oauth`,
+      redirectUri: redirectUri.toString(),
     };
 
     return await SlackService.getInstance()

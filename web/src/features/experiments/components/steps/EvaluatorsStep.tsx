@@ -19,16 +19,12 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
 }) => {
   const {
     evalTemplates,
-    activeEvaluators,
-    pausedEvaluators,
-    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
     handleSelectEvaluator,
     handleCloseEvaluatorForm,
     handleEvaluatorSuccess,
-    handleEvaluatorToggled,
     preprocessFormValues,
   } = evaluatorState;
   const { hasEvalReadAccess, hasEvalWriteAccess } = permissions;
@@ -48,10 +44,6 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
             evalTemplates={evalTemplates}
             onConfigureTemplate={handleConfigureEvaluator}
             onSelectEvaluator={handleSelectEvaluator}
-            onEvaluatorToggled={handleEvaluatorToggled}
-            activeTemplateIds={activeEvaluators}
-            inactiveTemplateIds={pausedEvaluators}
-            evaluatorTargetObjects={evaluatorTargetObjects}
             disabled={!hasEvalWriteAccess}
           />
         ) : (

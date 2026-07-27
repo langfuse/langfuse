@@ -9,7 +9,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import {
   DrawerTrigger,
   DrawerContent,
@@ -77,6 +77,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -138,8 +140,17 @@ interface TableViewPresetsDrawerProps {
     projectId: string;
     controllers: {
       selectedViewId: string | null;
+      /** The view whose full state was actually applied this session (null on a
+       * shared-link visit where the view is intentionally not applied). */
+      appliedViewId: string | null;
       handleSetViewId: (viewId: string | null) => void;
-      applyViewState: (viewData: TableViewPresetState) => void;
+      applyViewState: (
+        viewData: TableViewPresetState,
+        meta?: {
+          trigger: "select" | "permalink" | "default" | "system_preset";
+          viewId?: string | null;
+        },
+      ) => void;
     };
   };
   currentState: {
@@ -151,6 +162,8 @@ interface TableViewPresetsDrawerProps {
   };
   /** Page-specific system filter presets (e.g. "Last Generation in Trace") */
   systemFilterPresets?: SystemFilterPreset[];
+  /** Optional DOM id on the trigger button so other UI can open the drawer. */
+  triggerId?: string;
 }
 
 function formatOrderBy(orderBy?: OrderByState) {
@@ -173,10 +186,12 @@ export function TableViewPresetsDrawer({
   viewConfig,
   currentState,
   systemFilterPresets,
+  triggerId,
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
-  const { handleSetViewId, applyViewState, selectedViewId } = controllers;
+  const { handleSetViewId, applyViewState, selectedViewId, appliedViewId } =
+    controllers;
   const { TableViewPresetsList } = useViewData({ tableName, projectId });
   const {
     createMutation,
@@ -184,7 +199,7 @@ export function TableViewPresetsDrawer({
     updateNameMutation,
     deleteMutation,
     generatePermalinkMutation,
-  } = useViewMutations({ handleSetViewId });
+  } = useViewMutations({ handleSetViewId, applyViewState });
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -213,33 +228,35 @@ export function TableViewPresetsDrawer({
   const [isEditPopoverOpen, setIsEditPopoverOpen] = useState<boolean>(false);
   const [dropdownId, setDropdownId] = useState<string | null>(null);
 
-  const selectedViewName = useMemo(() => {
-    // Check system filter presets first
-    const systemPreset = systemFilterPresets?.find(
-      (p) => p.id === selectedViewId,
-    );
-    if (systemPreset) {
-      // Normalize both to handle missing vs undefined property mismatch
-      const normalizedCurrent = normalizeForComparison(currentState.filters);
-      const normalizedPreset = normalizeForComparison(systemPreset.filters);
-      // If filters have been modified from the preset, show the generic trigger label instead
-      if (!isEqual(normalizedCurrent, normalizedPreset)) {
-        return undefined;
-      }
-      return systemPreset.name;
-    }
-    // Then check user presets
-    return TableViewPresetsList?.find((v) => v.id === selectedViewId)?.name;
-  }, [
-    selectedViewId,
-    systemFilterPresets,
-    TableViewPresetsList,
-    currentState.filters,
-  ]);
-
   const allViewNames = useMemo(
     () => TableViewPresetsList?.map((view) => ({ value: view.name })) ?? [],
     [TableViewPresetsList],
+  );
+
+  // Categorized system presets are surfaced by the category chip row beneath
+  // the search bar, so they are excluded from the drawer list to avoid showing
+  // the same preset in two places. Name lookups and uniqueness checks above
+  // still use the full list. Two exceptions stay in the drawer:
+  // - a categorized USER view (the name-dedup lets a same-named user view
+  //   displace a system preset into the chips) — a personal view must never
+  //   vanish from "My Views", it is its only management surface (rename,
+  //   delete, defaults, permalink);
+  // - a categorized system preset that IS the current user/project default
+  //   (assignable pre-chips; the row still exists in default_views) — this
+  //   row is the only place carrying the default badge and the "Remove as
+  //   my/project default" menu, so hiding it would leave the assignment
+  //   auto-applying on every load with no UI to inspect or clear it. Once
+  //   the default is removed, the row leaves the drawer again.
+  const drawerPresetList = useMemo(
+    () =>
+      TableViewPresetsList?.filter(
+        (view) =>
+          !view.category ||
+          !view.isSystem ||
+          view.id === defaultAssignments?.userDefaultViewId ||
+          view.id === defaultAssignments?.projectDefaultViewId,
+      ),
+    [TableViewPresetsList, defaultAssignments],
   );
 
   useUniqueNameValidation({
@@ -256,7 +273,7 @@ export function TableViewPresetsDrawer({
     });
 
     handleSetViewId(view.id);
-    applyViewState(view);
+    applyViewState(view, { trigger: "select", viewId: view.id });
   };
 
   const handleSelectSystemFilterPreset = useCallback(
@@ -266,7 +283,10 @@ export function TableViewPresetsDrawer({
         presetId: preset.id,
       });
       handleSetViewId(preset.id);
-      applyViewState(buildSystemFilterPresetState(preset));
+      applyViewState(buildSystemFilterPresetState(preset), {
+        trigger: "system_preset",
+        viewId: preset.id,
+      });
     },
     [capture, tableName, handleSetViewId, applyViewState],
   );
@@ -300,6 +320,27 @@ export function TableViewPresetsDrawer({
       name: updatedView.name,
     });
 
+    // Column order/visibility are the visitor's per-table localStorage, which
+    // only reflects this view when the view was actually applied this session.
+    // On a shared-link visit the view is intentionally not applied, so
+    // `currentState`'s columns are the visitor's own unrelated layout — sending
+    // them would silently overwrite the saved view's columns. In that case keep
+    // the view's stored column layout instead (LFE-10486). Filters/sort/search
+    // always come from the live state, since updating those to what the visitor
+    // currently sees is exactly the intent.
+    const viewWasApplied = appliedViewId === selectedViewId;
+    const storedView = TableViewPresetsList?.find(
+      (view) => view.id === selectedViewId,
+    );
+    const columnOrder =
+      viewWasApplied || !storedView
+        ? currentState.columnOrder
+        : storedView.columnOrder;
+    const columnVisibility =
+      viewWasApplied || !storedView
+        ? currentState.columnVisibility
+        : storedView.columnVisibility;
+
     updateConfigMutation.mutate({
       projectId,
       name: updatedView.name,
@@ -307,8 +348,8 @@ export function TableViewPresetsDrawer({
       tableName,
       orderBy: currentState.orderBy,
       filters: currentState.filters,
-      columnOrder: currentState.columnOrder,
-      columnVisibility: currentState.columnVisibility,
+      columnOrder,
+      columnVisibility,
       searchQuery: currentState.searchQuery,
     });
   };
@@ -356,6 +397,36 @@ export function TableViewPresetsDrawer({
       viewId,
     });
 
+    // For the view that is currently active, the page URL already encodes the
+    // applied filters, sort and search — the URL is the source of truth. Share
+    // it verbatim so in-view edits travel with the link. A server-built
+    // `?viewId=…` permalink points at the saved view's stored state and would
+    // silently drop those edits, which is the recipient-gets-stale-filters bug
+    // (LFE-10486). Non-active views still get a clean link to the saved view.
+    if (
+      viewId === selectedViewId &&
+      typeof window !== "undefined" &&
+      window.location?.href
+    ) {
+      // Toast on the clipboard write's resolution: a permission failure must
+      // surface an error instead of falsely reporting success.
+      copyTextToClipboard(window.location.href)
+        .then(() =>
+          showSuccessToast({
+            title: "Permalink copied to clipboard",
+            description: "You can now share the permalink with others",
+          }),
+        )
+        .catch(() =>
+          showErrorToast(
+            "Failed to copy permalink",
+            "Could not write to the clipboard. Please copy the page URL manually.",
+            "WARNING",
+          ),
+        );
+      return;
+    }
+
     if (window.location.origin) {
       generatePermalinkMutation.mutate({
         viewId,
@@ -385,25 +456,20 @@ export function TableViewPresetsDrawer({
         }}
       >
         <DrawerTrigger asChild>
-          <Button
-            variant="outline"
-            title={selectedViewName ? `View: ${selectedViewName}` : "Views"}
-          >
-            <span>
-              {selectedViewName ? `View: ${selectedViewName}` : "Views"}
-            </span>
+          <Button variant="outline" id={triggerId} title="My Views">
+            <span>My Views</span>
             {selectedViewId ? (
               <ChevronDown className="ml-1 h-4 w-4" />
             ) : (
               <div className="bg-input ml-1 rounded-sm px-1 text-xs">
-                {TableViewPresetsList?.length ?? 0}
+                {drawerPresetList?.length ?? 0}
               </div>
             )}
           </Button>
         </DrawerTrigger>
         <DrawerContent overlayClassName="bg-primary/10">
           <div className="mx-auto w-full">
-            <DrawerHeader className="bg-background flex flex-row items-center justify-between rounded-sm px-3 py-1.5">
+            <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-1.5">
               <DrawerTitle className="flex flex-row items-center gap-1">
                 Views{" "}
                 <a
@@ -484,13 +550,12 @@ export function TableViewPresetsDrawer({
                   ))}
 
                   {/* Separator between system and user presets */}
-                  {systemFilterPresets?.length &&
-                  TableViewPresetsList?.length ? (
+                  {systemFilterPresets?.length && drawerPresetList?.length ? (
                     <Separator className="my-2" />
                   ) : null}
 
                   {/* User Presets */}
-                  {TableViewPresetsList?.map((view) => {
+                  {drawerPresetList?.map((view) => {
                     const isUserDefault =
                       defaultAssignments?.userDefaultViewId === view.id;
                     const isProjectDefault =
@@ -516,6 +581,7 @@ export function TableViewPresetsDrawer({
                                   ? "flex items-center gap-1.5"
                                   : "truncate",
                               )}
+                              title={view.name}
                             >
                               {isSystemView && <LangfuseIcon size={14} />}
                               {view.name}
@@ -639,9 +705,7 @@ export function TableViewPresetsDrawer({
                                       <PopoverContent
                                         onClick={(e) => e.stopPropagation()}
                                       >
-                                        <h2 className="mb-3 font-semibold">
-                                          Edit
-                                        </h2>
+                                        <h2 className="mb-3 font-bold">Edit</h2>
                                         <Form {...form}>
                                           <form
                                             onSubmit={form.handleSubmit(

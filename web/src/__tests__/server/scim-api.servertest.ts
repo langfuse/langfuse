@@ -173,7 +173,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/ServiceProviderConfig",
         undefined,
@@ -184,7 +184,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/ServiceProviderConfig",
         undefined,
@@ -197,7 +197,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 405 for non-GET methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "POST",
         "/api/public/scim/ServiceProviderConfig",
         {},
@@ -230,7 +230,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/Schemas",
         undefined,
@@ -241,7 +241,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/Schemas",
         undefined,
@@ -254,7 +254,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 405 for non-GET methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "POST",
         "/api/public/scim/Schemas",
         {},
@@ -288,7 +288,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/ResourceTypes",
         undefined,
@@ -299,7 +299,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/ResourceTypes",
         undefined,
@@ -312,7 +312,7 @@ describe("SCIM API", () => {
     });
 
     it("should return 405 for non-GET methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "POST",
         "/api/public/scim/ResourceTypes",
         {},
@@ -358,7 +358,7 @@ describe("SCIM API", () => {
       it("should support filtering by userName", async () => {
         // First create a test user
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
-        const createResponse = await makeAPICall(
+        const createResponse = await makeAPICall<{ id: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -397,7 +397,7 @@ describe("SCIM API", () => {
       });
 
       it("should return 401 when invalid API keys are provided", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "GET",
           "/api/public/scim/Users",
           undefined,
@@ -408,7 +408,7 @@ describe("SCIM API", () => {
       });
 
       it("should return 403 when using project API key instead of organization API key", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "GET",
           "/api/public/scim/Users",
           undefined,
@@ -421,7 +421,7 @@ describe("SCIM API", () => {
       });
 
       it("should return 405 for non-GET/POST methods", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PUT",
           "/api/public/scim/Users",
           {},
@@ -459,8 +459,8 @@ describe("SCIM API", () => {
 
         expect(response.status).toBe(201);
         expect(response.body.userName).toBe(uniqueEmail);
-        expect(response.body.name.formatted).toBe("Test User");
-        expect(response.body.emails[0].value).toBe(uniqueEmail);
+        expect(response.body.name!.formatted).toBe("Test User");
+        expect(response.body.emails![0].value).toBe(uniqueEmail);
 
         testUserId = response.body.id;
 
@@ -501,10 +501,12 @@ describe("SCIM API", () => {
 
         expect(response.status).toBe(201);
         expect(response.body.userName).toBe(uniqueEmail);
-        expect(response.body.name.formatted).toBe("Test User With Password");
-        expect(response.body.emails[0].value).toBe(uniqueEmail);
+        expect(response.body.name!.formatted).toBe("Test User With Password");
+        expect(response.body.emails![0].value).toBe(uniqueEmail);
         // Password should not be returned in the response
-        expect(response.body.password).toBeUndefined();
+        expect(
+          (response.body as unknown as { password?: string }).password,
+        ).toBeUndefined();
 
         testUserId = response.body.id;
 
@@ -521,7 +523,7 @@ describe("SCIM API", () => {
       });
 
       it("should return 400 when userName is missing", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -562,7 +564,7 @@ describe("SCIM API", () => {
 
         expect(response.status).toBe(201);
         expect(response.body.userName).toBe(uniqueEmail);
-        expect(response.body.name.formatted).toBe("Test User With Role");
+        expect(response.body.name!.formatted).toBe("Test User With Role");
 
         testUserId = response.body.id;
 
@@ -576,7 +578,7 @@ describe("SCIM API", () => {
 
       it("should write an audit log entry when creating a user", async () => {
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
-        const response = await makeAPICall(
+        const response = await makeAPICall<{ id: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -615,7 +617,7 @@ describe("SCIM API", () => {
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
 
         // First create a user
-        const createResponse = await makeAPICall(
+        const createResponse = await makeAPICall<{ id: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -630,7 +632,7 @@ describe("SCIM API", () => {
         testUserId = createResponse.body.id;
 
         // Try to create another user with the same userName
-        const duplicateResult = await makeAPICall(
+        const duplicateResult = await makeAPICall<{ detail: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -651,7 +653,7 @@ describe("SCIM API", () => {
         const lowerCaseEmail = `${localPart.toLowerCase()}@example.com`;
 
         // Create with mixed-case userName
-        const createResponse = await makeAPICall(
+        const createResponse = await makeAPICall<{ id: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -672,7 +674,7 @@ describe("SCIM API", () => {
         expect(storedUser?.email).toBe(lowerCaseEmail);
 
         // Re-POST with a case-variant userName: must be detected as duplicate
-        const duplicateResult = await makeAPICall(
+        const duplicateResult = await makeAPICall<{ detail: string }>(
           "POST",
           "/api/public/scim/Users",
           {
@@ -727,12 +729,12 @@ describe("SCIM API", () => {
 
         expect(response.status).toBe(200);
         expect(response.body.id).toBe(testUserId);
-        expect(response.body.name.formatted).toBe("Test User");
+        expect(response.body.name!.formatted).toBe("Test User");
       });
 
       it("should return 404 when user does not exist", async () => {
         const nonExistentUserId = randomUUID();
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "GET",
           `/api/public/scim/Users/${nonExistentUserId}`,
           undefined,
@@ -975,7 +977,7 @@ describe("SCIM API", () => {
       });
 
       it("should return 400 when SCIM schema is missing", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PUT",
           `/api/public/scim/Users/${testUserId}`,
           {
@@ -991,7 +993,7 @@ describe("SCIM API", () => {
 
       it("should return 404 when user does not exist", async () => {
         const nonExistentUserId = randomUUID();
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PUT",
           `/api/public/scim/Users/${nonExistentUserId}`,
           {
@@ -1128,7 +1130,7 @@ describe("SCIM API", () => {
 
       it("should return 404 when user does not exist", async () => {
         const nonExistentUserId = randomUUID();
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "DELETE",
           `/api/public/scim/Users/${nonExistentUserId}`,
           undefined,
@@ -1313,7 +1315,7 @@ describe("SCIM API", () => {
       });
 
       it("DELETE rejects removing the only remaining OWNER", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "DELETE",
           `/api/public/scim/Users/${scopedOwnerUserId}`,
           undefined,
@@ -1333,7 +1335,7 @@ describe("SCIM API", () => {
       });
 
       it("PUT active:false rejects removing the only remaining OWNER", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PUT",
           `/api/public/scim/Users/${scopedOwnerUserId}`,
           {
@@ -1358,7 +1360,7 @@ describe("SCIM API", () => {
       });
 
       it("PATCH active:false rejects removing the only remaining OWNER", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PATCH",
           `/api/public/scim/Users/${scopedOwnerUserId}`,
           {
@@ -1381,7 +1383,7 @@ describe("SCIM API", () => {
       });
 
       it("PUT active:true with a lower role rejects demoting the only remaining OWNER", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ detail: string }>(
           "PUT",
           `/api/public/scim/Users/${scopedOwnerUserId}`,
           {
@@ -1549,7 +1551,7 @@ describe("SCIM API", () => {
 
     it("POST /Users is rejected on a plan without admin-api and creates no account", async () => {
       const uniqueEmail = `scim.gate.${randomUUID().substring(0, 8)}@example.com`;
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "POST",
         "/api/public/scim/Users",
         {
@@ -1574,7 +1576,7 @@ describe("SCIM API", () => {
     });
 
     it("GET /Users is rejected on a plan without admin-api", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "GET",
         "/api/public/scim/Users",
         undefined,
@@ -1586,7 +1588,7 @@ describe("SCIM API", () => {
     });
 
     it("PUT /Users/{id} is rejected on a plan without admin-api (before user lookup)", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "PUT",
         `/api/public/scim/Users/${randomUUID()}`,
         {
@@ -1603,7 +1605,7 @@ describe("SCIM API", () => {
     });
 
     it("DELETE /Users/{id} is rejected on a plan without admin-api", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ detail: string }>(
         "DELETE",
         `/api/public/scim/Users/${randomUUID()}`,
         undefined,
@@ -1616,7 +1618,7 @@ describe("SCIM API", () => {
 
     it("POST /Users still succeeds on a plan with admin-api", async () => {
       const uniqueEmail = `scim.gate.ok.${randomUUID().substring(0, 8)}@example.com`;
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ userName: string }>(
         "POST",
         "/api/public/scim/Users",
         {

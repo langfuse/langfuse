@@ -20,6 +20,8 @@ import {
   traceException,
   compareVersions,
   ResourceSpan,
+  type IngestionAttribution,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 import {
   applyIngestionMasking,
@@ -40,9 +42,26 @@ import {
 } from "@langfuse/shared";
 import {
   fetchObservationEvalConfigs,
+  isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
 } from "../features/evaluation/observationEval";
+import {
+  createDirectOtelMediaTargets,
+  createLegacyOtelMediaTargets,
+  processOtelEventMedia,
+} from "../features/otel-media/processOtelMedia";
+
+/**
+ * Legacy media processing follows legacy persistence, independently of
+ * whether the same batch also qualifies for a direct events-table write.
+ */
+export function shouldProcessLegacyOtelMedia(params: {
+  mediaUploadEnabled: boolean;
+  writesToLegacyTables: boolean;
+}): boolean {
+  return params.mediaUploadEnabled && params.writesToLegacyTables;
+}
 
 /**
  * Check if HTTP headers from the SDK request indicate the batch is eligible
@@ -60,7 +79,7 @@ export function checkHeaderBasedDirectWrite(params: {
 }): boolean {
   const { sdkName, sdkVersion, ingestionVersion } = params;
 
-  // Check x-langfuse-ingestion-version (>= 4 means direct write eligible).
+  // Check x-langfuse-ingestion-version.
   // Values > 4 are rejected at the API route, so anything reaching here is valid.
   const parsed = ingestionVersion ? parseInt(ingestionVersion, 10) : NaN;
   if (!isNaN(parsed) && parsed >= 4) {
@@ -209,9 +228,17 @@ export const otelIngestionQueueProcessorBuilder = (
   ): Promise<void> => {
     try {
       const projectId = job.data.payload.authCheck.scope.projectId;
-      const publicKey = job.data.payload.data.publicKey;
+      const publicKey = job.data.payload.data.publicKey ?? "";
       const fileKey = job.data.payload.data.fileKey;
       const auth = job.data.payload.authCheck;
+      const isLangfuseInternal = job.data.payload.isLangfuseInternal === true;
+      const attribution: IngestionAttribution = {
+        ingestionApiKey: publicKey,
+        ingestionSdkName:
+          job.data.payload.sdkName || UNKNOWN_INGESTION_SDK_VALUE,
+        ingestionSdkVersion:
+          job.data.payload.sdkVersion || UNKNOWN_INGESTION_SDK_VALUE,
+      };
 
       const span = getCurrentSpan();
       if (span) {
@@ -300,17 +327,21 @@ export const otelIngestionQueueProcessorBuilder = (
       // Generate events via OtelIngestionProcessor
       const processor = new OtelIngestionProcessor({
         projectId,
-        publicKey,
+        publicKey: attribution.ingestionApiKey,
+        sdkName: attribution.ingestionSdkName,
+        sdkVersion: attribution.ingestionSdkVersion,
+        fileKey,
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
+
       // Here, we split the events into observations and non-observations.
       // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
       const traces = events.filter(
         (e) => getClickhouseEntityType(e.type) !== "observation",
       );
       // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
-      const ingestionSchema = createIngestionEventSchema();
+      const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
       const observations = events
         .filter((e) => getClickhouseEntityType(e.type) === "observation")
         .map((o) => ingestionSchema.safeParse(o))
@@ -417,7 +448,12 @@ export const otelIngestionQueueProcessorBuilder = (
       // validation already guarantees useDirectEventWrite is true here, so
       // observations and traces don't need the mergeAndWrite / IngestionQueue
       // detour that would otherwise populate the legacy tables.
-      const skipLegacyWrites = !v4WritesToLegacyTables(env);
+      const writesToLegacyTables = v4WritesToLegacyTables(env);
+      const skipLegacyWrites = !writesToLegacyTables;
+      const shouldProcessLegacyMedia = shouldProcessLegacyOtelMedia({
+        mediaUploadEnabled: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true",
+        writesToLegacyTables,
+      });
 
       if (skipLegacyWrites) {
         span?.setAttribute(
@@ -429,6 +465,20 @@ export const otelIngestionQueueProcessorBuilder = (
         const shouldForwardToEventsTable =
           !useDirectEventWrite && v4WritesToEventsTable(env);
 
+        if (shouldProcessLegacyMedia) {
+          // Process the exact normalized representation written by the legacy
+          // path. Targets retain body references, so replacements also reach
+          // events-table forwarding when that destination is enabled.
+          await processOtelEventMedia({
+            targets: createLegacyOtelMediaTargets(traces.concat(observations)),
+            writePath: "legacy",
+            projectId,
+            fileKey,
+            mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+            mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+          });
+        }
+
         // Running everything concurrently might be detrimental to the event loop, but has probably
         // the highest possible throughput. Therefore, we start with a Promise.all.
         // If necessary, we may use a for each instead.
@@ -436,14 +486,15 @@ export const otelIngestionQueueProcessorBuilder = (
         // Process observations via mergeAndWrite
         const observationWritePromise = Promise.all(
           observations.map((observation) =>
-            ingestionService.mergeAndWrite(
-              getClickhouseEntityType(observation.type),
-              auth.scope.projectId,
-              observation.body.id || "", // id is always defined for observations
-              new Date(), // Use the current timestamp as event time
-              [observation],
-              shouldForwardToEventsTable,
-            ),
+            ingestionService.mergeAndWrite({
+              eventType: getClickhouseEntityType(observation.type),
+              projectId: auth.scope.projectId,
+              entityId: observation.body.id || "", // id is always defined for observations
+              createdAtTimestamp: new Date(), // Use the current timestamp as event time
+              events: [observation],
+              forwardToEventsTable: shouldForwardToEventsTable,
+              attribution,
+            }),
           ),
         );
 
@@ -454,6 +505,8 @@ export const otelIngestionQueueProcessorBuilder = (
             delay: 0,
             source: "otel",
             forwardToEventsTable: shouldForwardToEventsTable,
+            attribution,
+            isLangfuseInternal,
           }),
         ]);
       }
@@ -493,6 +546,20 @@ export const otelIngestionQueueProcessorBuilder = (
         return;
       }
 
+      if (
+        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
+        shouldWriteToEventsTable
+      ) {
+        await processOtelEventMedia({
+          targets: createDirectOtelMediaTargets(eventInputs),
+          writePath: "direct",
+          projectId,
+          fileKey,
+          mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+          mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+        });
+      }
+
       // Create scheduler deps only if we have eval configs
       const evalSchedulerDeps = hasEvalConfigs
         ? createObservationEvalSchedulerDeps()
@@ -518,17 +585,22 @@ export const otelIngestionQueueProcessorBuilder = (
             return;
           }
 
-          // Step 2: Schedule observation evals (independent of event writes)
+          // Step 2: Schedule observation evals (independent of event writes).
+          // Internal langfuse-* environments are excluded to prevent
+          // eval-on-eval recursion, except experiment run-item roots; see
+          // isObservationAllowedForQueuedObservationEvals.
           if (hasEvalConfigs && evalSchedulerDeps) {
             try {
               const observation =
                 convertEventRecordToObservationForEval(eventRecord);
 
-              await scheduleObservationEvals({
-                observation,
-                configs: evalConfigs,
-                schedulerDeps: evalSchedulerDeps,
-              });
+              if (isObservationAllowedForQueuedObservationEvals(observation)) {
+                await scheduleObservationEvals({
+                  observation,
+                  configs: evalConfigs,
+                  schedulerDeps: evalSchedulerDeps,
+                });
+              }
             } catch (error) {
               traceException(error);
 

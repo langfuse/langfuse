@@ -382,7 +382,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should reject creating a connection with a localhost baseURL", async () => {
-      const response = await makeAPICall(
+      const response = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/llm-connections",
         {

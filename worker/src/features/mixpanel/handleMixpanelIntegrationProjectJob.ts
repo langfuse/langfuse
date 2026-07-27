@@ -12,13 +12,15 @@ import {
 } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
 import { MixpanelClient } from "./mixpanelClient";
+import { recordExportVolume } from "../../services/exportVolumeMetric";
 import {
   transformTraceForMixpanel,
   transformGenerationForMixpanel,
   transformScoreForMixpanel,
   transformEventForMixpanel,
 } from "./transformers";
-import { env } from "../../env";
+import { env, v4WritesToLegacyTables } from "../../env";
+import { assertExportSourceWritable } from "../exportWriteModeGuard";
 
 const sleep = (ms: number) =>
   ms > 0
@@ -130,7 +132,11 @@ const processMixpanelScores = async (
     config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
-    { useGraceHash: config.useGraceHash },
+    {
+      useGraceHash: config.useGraceHash,
+      // events_only no longer writes the traces table (LFE-11009)
+      traceAttributesSource: v4WritesToLegacyTables(env) ? "traces" : "events",
+    },
   );
 
   logger.info(
@@ -247,6 +253,13 @@ export const handleMixpanelIntegrationProjectJob = async (
   };
 
   try {
+    // Fail loudly before exporting empty data and advancing lastSyncAt
+    // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
+    assertExportSourceWritable(
+      mixpanelIntegration.exportSource,
+      "Select the enriched observations export source in the Mixpanel integration settings.",
+    );
+
     // Reuse a single client and run streams sequentially so the per-job export
     // rate stays bounded. Running the streams in parallel with one client each
     // produced an unbounded burst that overwhelmed the target (issue #12786).
@@ -283,6 +296,12 @@ export const handleMixpanelIntegrationProjectJob = async (
       data: {
         lastSyncAt: executionConfig.maxTimestamp,
       },
+    });
+    // Record gzipped on-wire export volume once the run has succeeded.
+    recordExportVolume({
+      integration: "mixpanel",
+      bytes: mixpanel.getSerializedBytes(),
+      projectId,
     });
     logger.info(
       `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,

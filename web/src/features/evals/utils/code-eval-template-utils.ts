@@ -1,4 +1,5 @@
 import {
+  CODE_EVAL_TEMPLATE_VARIABLES,
   EvalTargetObject,
   type EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
@@ -14,14 +15,6 @@ type CodeEvalCapabilities = {
   enabled: boolean;
   supportedSourceCodeLanguages: EvalTemplateSourceCodeLanguage[];
 };
-
-export const CODE_EVAL_TEMPLATE_VARIABLES = [
-  "input",
-  "output",
-  "metadata",
-  "experimentItemExpectedOutput",
-  "experimentItemMetadata",
-] as const;
 
 export const shouldShowEvalTemplate = (
   template: Partial<Pick<EvalTemplate, "type" | "sourceCodeLanguage">>,

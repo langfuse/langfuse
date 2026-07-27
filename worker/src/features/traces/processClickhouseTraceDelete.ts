@@ -179,6 +179,7 @@ export const processClickhouseTraceDelete = async (
         ? removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces({
             projectId,
             traceIds,
+            includeEventsTable: v4WritesToEventsTable(env),
           })
         : Promise.resolve(),
       deleteTraces(projectId, traceIds),

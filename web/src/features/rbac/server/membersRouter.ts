@@ -666,6 +666,19 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
+      // orgMembershipId and userId are independent client inputs, but project
+      // access is resolved via orgMembershipId (OrganizationMembership.userId),
+      // not this row's userId. A mismatched pair would grant the role to the
+      // org membership owner while recording it against a different user in both
+      // the ProjectMembership row and the audit log, so reject it.
+      if (orgMembership.userId !== input.userId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "The provided userId does not match the organization membership",
+        });
+      }
+
       // cannot edit project roles of users with higher org roles
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,

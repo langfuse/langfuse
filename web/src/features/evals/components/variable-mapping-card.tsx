@@ -43,7 +43,7 @@ import {
 } from "@/src/components/ui/form";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
@@ -212,7 +212,7 @@ export const VariableMappingCard = ({
   return (
     <Card className="max-w-full min-w-0 p-4">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-lg font-medium">Variable mapping</span>
+        <span className="text-lg font-bold">Variable mapping</span>
         <div className="flex flex-wrap items-center justify-between gap-2">
           {evalTemplate.projectId ? (
             <Button asChild variant="outline" size="sm">
@@ -272,7 +272,7 @@ export const VariableMappingCard = ({
                     />
                   ) : (
                     <div className="bg-muted/50 flex max-h-full min-h-48 w-full flex-col gap-1 lg:w-2/3">
-                      <div className="flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
+                      <div className="flex flex-row items-center justify-between py-0 text-sm font-bold capitalize">
                         <div className="flex flex-row items-center gap-2">
                           Evaluation Prompt Preview
                           <Skeleton className="h-[25px] w-[63px]" />
@@ -291,7 +291,7 @@ export const VariableMappingCard = ({
                   )
                 ) : (
                   <JSONView
-                    title={"Evaluation Prompt"}
+                    title="Evaluation Prompt"
                     json={evalTemplate.prompt ?? null}
                     className={cn(
                       "bg-muted/50 min-h-48",
@@ -326,7 +326,7 @@ export const VariableMappingCard = ({
                         <Card className="flex flex-col gap-2 p-4" key={index}>
                           <div
                             className={cn(
-                              "text-sm font-semibold",
+                              "text-sm font-bold",
                               getVariableColor(index),
                             )}
                           >
@@ -334,12 +334,8 @@ export const VariableMappingCard = ({
                             {mappingField.templateVariable}
                             {"}}"}
                             <DocPopup
-                              description={
-                                "Variable in the template to be replaced with the mapped data."
-                              }
-                              href={
-                                "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                              }
+                              description="Variable in the template to be replaced with the mapped data."
+                              href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                             />
                           </div>
                           <FormField
@@ -350,12 +346,8 @@ export const VariableMappingCard = ({
                               <div className="flex items-center gap-2">
                                 <VariableMappingDescription
                                   title="Object"
-                                  description={
-                                    "Langfuse object to retrieve the data from."
-                                  }
-                                  href={
-                                    "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                  }
+                                  description="Langfuse object to retrieve the data from."
+                                  href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                 />
                                 <FormItem className="w-2/3">
                                   <FormControl>
@@ -414,13 +406,9 @@ export const VariableMappingCard = ({
                                 return (
                                   <div className="flex items-center gap-2">
                                     <VariableMappingDescription
-                                      title={"Object Name"}
-                                      description={
-                                        "Name of the Langfuse object to retrieve the data from."
-                                      }
-                                      href={
-                                        "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                      }
+                                      title="Object Name"
+                                      description="Name of the Langfuse object to retrieve the data from."
+                                      href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                     />
                                     <FormItem className="w-2/3">
                                       <FormControl>
@@ -514,13 +502,9 @@ export const VariableMappingCard = ({
                             render={({ field }) => (
                               <div className="flex items-center gap-2">
                                 <VariableMappingDescription
-                                  title={"Object Field"}
-                                  description={
-                                    "Field on the Langfuse object to insert into the template."
-                                  }
-                                  href={
-                                    "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                  }
+                                  title="Object Field"
+                                  description="Field on the Langfuse object to insert into the template."
+                                  href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                 />
                                 <FormItem className="w-2/3">
                                   <FormControl>
@@ -582,13 +566,9 @@ export const VariableMappingCard = ({
                               render={({ field }) => (
                                 <div className="flex items-center gap-2">
                                   <VariableMappingDescription
-                                    title={"JsonPath"}
-                                    description={
-                                      "Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
-                                    }
-                                    href={
-                                      "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                    }
+                                    title="JsonPath"
+                                    description="Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
+                                    href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                   />
                                   <FormItem className="w-2/3">
                                     <FormControl>
@@ -612,7 +592,7 @@ export const VariableMappingCard = ({
                         <Card className="flex flex-col gap-2 p-4" key={index}>
                           <div
                             className={cn(
-                              "text-sm font-semibold",
+                              "text-sm font-bold",
                               getVariableColor(index),
                             )}
                           >
@@ -620,12 +600,8 @@ export const VariableMappingCard = ({
                             {mappingField.templateVariable}
                             {"}}"}
                             <DocPopup
-                              description={
-                                "Variable in the template to be replaced with the mapped data."
-                              }
-                              href={
-                                "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                              }
+                              description="Variable in the template to be replaced with the mapped data."
+                              href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                             />
                           </div>
                           {hideAdvancedSettings && (
@@ -662,13 +638,9 @@ export const VariableMappingCard = ({
                               return (
                                 <div className="flex items-center gap-2">
                                   <VariableMappingDescription
-                                    title={"Object Field"}
-                                    description={
-                                      "Observation field to insert into the template."
-                                    }
-                                    href={
-                                      "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                    }
+                                    title="Object Field"
+                                    description="Observation field to insert into the template."
+                                    href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                   />
                                   <FormItem className="w-2/3">
                                     <FormControl>
@@ -708,13 +680,9 @@ export const VariableMappingCard = ({
                               render={({ field }) => (
                                 <div className="flex items-center gap-2">
                                   <VariableMappingDescription
-                                    title={"JsonPath"}
-                                    description={
-                                      "Optional selection: Use JsonPath syntax to select from a JSON object. If not selected, we will pass the entire object into the prompt."
-                                    }
-                                    href={
-                                      "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                    }
+                                    title="JsonPath"
+                                    description="Optional selection: Use JsonPath syntax to select from a JSON object. If not selected, we will pass the entire object into the prompt."
+                                    href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                   />
                                   <FormItem className="w-2/3">
                                     <FormControl>

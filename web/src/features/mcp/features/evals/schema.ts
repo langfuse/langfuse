@@ -43,7 +43,7 @@ export const EvaluatorModelConfigBaseSchema =
 
 // Experiment mapping has the widest `source` enum, so it covers both targets.
 export const RuleMappingBaseSchema = ExperimentEvaluationRuleMapping.describe(
-  "Maps an evaluator variable to a data source. `observation` rules use `input`, `output`, `metadata`; `experiment` rules also allow `expected_output` and `experiment_item_metadata`. Required for `llm_as_judge` evaluators; omit for `code` evaluators (Langfuse manages their mapping).",
+  "Maps an evaluator variable to a data source. `observation` rules use `input`, `output`, `metadata`, `tool_calls`; `experiment` rules also allow `expected_output` and `experiment_item_metadata`. Required for `llm_as_judge` evaluators; omit for `code` evaluators (Langfuse manages their mapping).",
 );
 
 // Shared loose filter shape (the contract's per-column filter is a union the

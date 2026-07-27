@@ -16,6 +16,7 @@ const EnvSchema = z.object({
     .default(3030),
 
   NEXTAUTH_URL: z.string().optional(),
+  NEXT_PUBLIC_BASE_PATH: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
     .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
@@ -82,6 +83,9 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -132,6 +136,9 @@ const EnvSchema = z.object({
   // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports
   // and avoid overwhelming the target instance (see issue #12786).
   LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
+  // Delay (ms) after each PostHog flush. Together with 1,000-event flushes,
+  // this bounds the export rate for fast-acknowledging target instances.
+  LANGFUSE_POSTHOG_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
   LANGFUSE_DATASET_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_PROJECT_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
@@ -142,6 +149,16 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(4),
+  LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(120 * 60),
   LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -416,6 +433,16 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(100), // Chunk size for counting projects in ClickHouse
+  LANGFUSE_BATCH_DATA_RETENTION_CLEANER_QUERY_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2), // Max concurrent query pipelines per table cleaner
+  LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CANDIDATE_QUERY_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(180_000), // 3 minutes for candidate and enrichment queries
   LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS: z.coerce
     .number()
     .positive()
@@ -455,15 +482,48 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(7200), // 2 hours to handle worst-case deletions
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(10_000),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_LOCK_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(1_800),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_MAX_BATCHES_PER_RUN: z.coerce
+    .number()
+    .positive()
+    .default(5),
 
   // V4 migration flags. See LFE-9778.
+  // Defaults reflect the Langfuse v4 target state: net-new deployments write
+  // straight into the events tables. The v3 line ships these as `legacy` /
+  // `dual_write` / `false`; local dev and CI pin explicit values via
+  // .env.dev*.example, so these defaults only apply to bare deployments.
   LANGFUSE_MIGRATION_V4_WRITE_MODE: z
     .enum(["legacy", "dual", "events_only"])
-    .default("legacy"),
+    .default("events_only"),
   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
     .enum(["dual_write", "direct"])
-    .default("dual_write"),
+    .default("direct"),
   LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
+    .enum(["true", "false"])
+    .default("true"),
+
+  // Background-migration env gates. Names share the LANGFUSE_BACKGROUND_MIGRATION_
+  // prefix so the BackgroundMigrationManager can discover them by scanning env
+  // keys; each gates one or more rows in the background_migrations table via
+  // `args.envGate`. The historic backfill defaults on in v4 (it is a no-op for
+  // net-new deployments with no legacy data); the pid/tid sorting-table cleanup
+  // stays opt-in so its intermediate artifacts are only dropped once the
+  // operator confirms the backfill succeeded.
+  LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL: z
+    .enum(["true", "false"])
+    .default("true"),
+  LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES: z
     .enum(["true", "false"])
     .default("false"),
 
@@ -472,6 +532,25 @@ const EnvSchema = z.object({
     .positive()
     .int()
     .default(10),
+
+  // Health-check threshold for the event-propagation ("dual write") job. When a
+  // client opts in via /api/health?failIfEventPropagationStuck=true, the check
+  // returns 503 if the heartbeat has not been refreshed within this many minutes,
+  // letting k8s liveness probes restart a container whose global-concurrency
+  // slot is wedged. The heartbeat is refreshed at the top of every invocation and
+  // per-chunk during the experiment backfill, so the threshold only needs to
+  // exceed the longest un-heartbeated step — a single CH INSERT (request_timeout
+  // 10 min). 15 min leaves headroom.
+  //
+  // Probes using this flag MUST set initialDelaySeconds >= 60s (one cron cycle):
+  // the heartbeat is only refreshed when the minute-boundary cron next runs, so a
+  // just-restarted (or just-re-enabled) container can carry a stale value until
+  // then. A shorter delay can crash-loop the very restart this check triggers.
+  LANGFUSE_EVENT_PROPAGATION_STUCK_THRESHOLD_MINUTES: z.coerce
+    .number()
+    .positive()
+    .int()
+    .default(15),
 
   LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()

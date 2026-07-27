@@ -105,6 +105,7 @@ export function useEventsTraceData(
   const rootIOQuery = api.events.batchIO.useQuery(
     {
       projectId,
+      traceId,
       observations: primaryObservation
         ? [{ id: primaryObservation.id, traceId }]
         : [],

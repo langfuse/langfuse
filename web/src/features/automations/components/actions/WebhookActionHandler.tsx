@@ -81,7 +81,9 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
     let apiVersion: z.infer<typeof AvailableWebhookApiSchema> =
       eventSource === TriggerEventSource.Monitor
         ? { monitor: "v1" }
-        : { prompt: "v1" };
+        : eventSource === TriggerEventSource.ProjectNotification
+          ? { "project-notification": "v1" }
+          : { prompt: "v1" };
     if (
       automation?.action?.type === "WEBHOOK" &&
       automation?.action?.config &&

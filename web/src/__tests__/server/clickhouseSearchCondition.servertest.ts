@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { type TracingSearchType } from "@langfuse/shared";
+import { InvalidRequestError, type TracingSearchType } from "@langfuse/shared";
 import {
   clickhouseSearchCondition,
   createEvent,
@@ -61,17 +61,30 @@ const matchingIds = async (opts: {
     `,
     params: search.params,
     preferredClickhouseService: "EventsReadOnly",
-    tags: {
-      feature: "clickhouse-search-condition-test",
-      type: "events",
-      kind: "test",
-    },
   });
 
   return rows.map((row) => row.id);
 };
 
 describe("clickhouseSearchCondition", () => {
+  it("rejects a search query without any search types", () => {
+    expect(() =>
+      clickhouseSearchCondition({
+        query: "alpha",
+        searchType: [],
+      }),
+    ).toThrow(InvalidRequestError);
+  });
+
+  it("allows an empty search type list when there is no search query", () => {
+    expect(
+      clickhouseSearchCondition({
+        query: undefined,
+        searchType: [],
+      }),
+    ).toMatchObject({ query: "", params: {} });
+  });
+
   it.each([
     { query: undefined, searchType: ["content"], expected: false },
     { query: "alpha", searchType: undefined, expected: false },
@@ -191,11 +204,6 @@ describe("clickhouseSearchCondition", () => {
             ...search.params,
           },
           preferredClickhouseService: "EventsReadOnly",
-          tags: {
-            feature: "clickhouse-search-condition-test",
-            type: "events",
-            kind: "test",
-          },
         }),
       ).resolves.toEqual([{ count: 0 }]);
     });
@@ -284,11 +292,6 @@ describe("clickhouseSearchCondition", () => {
           escapedSpanId,
         },
         preferredClickhouseService: "EventsReadOnly",
-        tags: {
-          feature: "clickhouse-search-condition-test",
-          type: "events",
-          kind: "test",
-        },
       });
 
       expect(stored).toHaveLength(2);

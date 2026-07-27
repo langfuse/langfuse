@@ -29,6 +29,27 @@ describe("stringify", () => {
     const parsed = JSON.parse(result);
     expect(parsed.text).toBe('line1\\nline2\\t"quoted"');
   });
+
+  it("applies an explicit indent when provided", () => {
+    const data = { text: "hello" };
+    const result = stringify(data, undefined, 2);
+    expect(result).toContain("\n");
+    expect(result).toContain('  "text": "hello"');
+  });
+
+  it("decodes unicode escapes while keeping an explicit indent (trace download)", () => {
+    // Mirrors the trace-download payload shape: input is a stringified JSON
+    // blob whose Japanese characters were escaped by Python ensure_ascii=True.
+    const data = {
+      observations: [
+        { input: '{"text": "\\u3053\\u3093\\u306b\\u3061\\u306f"}' },
+      ],
+    };
+    const result = stringify(data, undefined, 2);
+    expect(result).toContain("\n"); // pretty-printed
+    expect(result).toContain("こんにちは"); // decoded, not こ...
+    expect(result).not.toContain("\\u3053");
+  });
 });
 
 describe("stringifyForCsv", () => {

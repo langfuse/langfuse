@@ -1,10 +1,4 @@
-import {
-  EvalTargetObject,
-  extractVariables,
-  InternalServerError,
-  observationVariableMappingList,
-  variableMappingList,
-} from "@langfuse/shared";
+import { extractVariables } from "@langfuse/shared";
 import {
   invalidateProjectEvalConfigCaches,
   type ApiAccessScope,
@@ -19,7 +13,7 @@ import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { deleteEvalTemplateFamily } from "@/src/features/evals/server/evalTemplateDeletion";
@@ -37,48 +31,7 @@ import {
 import { assertEvaluatorDefinitionCanRunForPublicApi } from "./validation";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import type { StoredPublicEvaluatorTemplate } from "./types";
-
-function prepareVariableMappingForEvaluatorUpgrade(params: {
-  scoreName: string;
-  targetObject: string;
-  variableMapping: unknown;
-  nextVariables: string[];
-}) {
-  const mappingSchema =
-    params.targetObject === EvalTargetObject.EVENT ||
-    params.targetObject === EvalTargetObject.EXPERIMENT
-      ? observationVariableMappingList
-      : variableMappingList;
-  const mappingParseResult = mappingSchema.safeParse(params.variableMapping);
-
-  if (!mappingParseResult.success) {
-    throw new InternalServerError("Evaluation rule mapping is corrupted");
-  }
-
-  const migratedVariableMapping = mappingParseResult.data.filter((mapping) =>
-    params.nextVariables.includes(mapping.templateVariable),
-  );
-  const mappedVariables = new Set(
-    migratedVariableMapping.map((mapping) => mapping.templateVariable),
-  );
-  const missingVariables = params.nextVariables.filter(
-    (variable) => !mappedVariables.has(variable),
-  );
-
-  if (missingVariables.length > 0) {
-    throw createUnstablePublicApiError({
-      httpCode: 409,
-      code: "conflict",
-      message: `Creating a new evaluator version would invalidate the evaluation rule "${params.scoreName}" because it is missing mappings for new evaluator variables: ${missingVariables.join(", ")}.`,
-      details: {
-        field: "mapping",
-        variables: missingVariables,
-      },
-    });
-  }
-
-  return migratedVariableMapping;
-}
+import { prepareVariableMappingForEvaluatorUpgrade } from "@/src/features/evals/server/evaluatorUpgrade";
 
 function assertCodeEvaluatorDefinitionCanRunForPublicApi(
   input: Extract<
@@ -251,15 +204,31 @@ export async function createPublicEvaluator(params: {
                 },
               })
             : [];
-        const upgradedConfigs = configsToUpgrade.map((config) => ({
-          id: config.id,
-          variableMapping: prepareVariableMappingForEvaluatorUpgrade({
-            scoreName: config.scoreName,
+        const upgradedConfigs = configsToUpgrade.map((config) => {
+          const preparedMapping = prepareVariableMappingForEvaluatorUpgrade({
+            templateType: storedEvalTemplateType,
             targetObject: config.targetObject,
             variableMapping: config.variableMapping,
             nextVariables,
-          }),
-        }));
+          });
+
+          if (preparedMapping.missingVariables.length > 0) {
+            throw createUnstablePublicApiError({
+              httpCode: 409,
+              code: "conflict",
+              message: `Creating a new evaluator version would invalidate the evaluation rule "${config.scoreName}" because it is missing mappings for new evaluator variables: ${preparedMapping.missingVariables.join(", ")}.`,
+              details: {
+                field: "mapping",
+                variables: preparedMapping.missingVariables,
+              },
+            });
+          }
+
+          return {
+            id: config.id,
+            variableMapping: preparedMapping.variableMapping,
+          };
+        });
         const latestProjectTemplate = existingProjectTemplates[0];
 
         const template = await tx.evalTemplate.create({

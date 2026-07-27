@@ -109,14 +109,25 @@ if (typeof evaluate !== "function") {
   }
 }
 
+// Structural checks instead of `instanceof Error`: evaluator errors originate
+// in the vm realm, so they fail host-realm instanceof checks.
 function formatError(error: unknown): string {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string"
-  ) {
-    return error.message;
+  if (typeof error === "object" && error !== null) {
+    const name =
+      "name" in error && typeof error.name === "string"
+        ? error.name
+        : undefined;
+    const message =
+      "message" in error && typeof error.message === "string"
+        ? error.message
+        : undefined;
+
+    if (message) {
+      // "Error" carries no signal; other names (TypeError, RangeError, custom
+      // classes) tell the evaluator author what went wrong.
+      return name && name !== "Error" ? `${name}: ${message}` : message;
+    }
+    if (name) return name;
   }
 
   return String(error);

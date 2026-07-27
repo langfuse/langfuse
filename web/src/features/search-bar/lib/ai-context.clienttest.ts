@@ -82,6 +82,28 @@ describe("buildAiContext", () => {
     expect(ctx).toContain("metadata.customer.plan");
   });
 
+  it("lists observed score names per column and level", () => {
+    const ctx =
+      buildAiContext({
+        observed: {
+          scores_avg: [{ value: "helpfulness-rating" }, { value: "accuracy" }],
+          score_categories: [{ value: "sentiment" }],
+          trace_scores_avg: [{ value: "overall-quality" }],
+          trace_score_categories: [{ value: "Hallucination Check" }],
+        },
+        sampleMetadata: [],
+        resultCount: null,
+      }) ?? "";
+    expect(ctx).toContain(
+      "scores.<name> (numeric): helpfulness-rating, accuracy",
+    );
+    expect(ctx).toContain("scores.<name> (categorical): sentiment");
+    expect(ctx).toContain("traceScores.<name> (numeric): overall-quality");
+    expect(ctx).toContain(
+      "traceScores.<name> (categorical): Hallucination Check",
+    );
+  });
+
   it("caps observed value length and total context size", () => {
     const ctx =
       buildAiContext({

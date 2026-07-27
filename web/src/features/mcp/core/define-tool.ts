@@ -20,9 +20,9 @@ export type ToolHandler<TInput> = (
 /**
  * Tool definition options
  */
-export interface DefineToolOptions<TInput> {
+export interface DefineToolOptions<TInput, TName extends string = string> {
   /** Tool name (must be unique across all tools) */
-  name: string;
+  name: TName;
 
   /** Description for LLM to understand when to use this tool */
   description: string;
@@ -49,8 +49,8 @@ export interface DefineToolOptions<TInput> {
 /**
  * MCP Tool definition
  */
-export interface ToolDefinition {
-  name: string;
+export interface ToolDefinition<TName extends string = string> {
+  name: TName;
   description: string;
   inputSchema: Record<string, unknown>;
   annotations?: {
@@ -109,9 +109,9 @@ function hasJsonSchemaUnion(value: unknown): boolean {
  *   readOnly: true,
  * });
  */
-export function defineTool<TInput>(
-  options: DefineToolOptions<TInput>,
-): [ToolDefinition, ToolHandler<TInput>] {
+export function defineTool<TInput, const TName extends string>(
+  options: DefineToolOptions<TInput, TName>,
+): [ToolDefinition<TName>, ToolHandler<TInput>] {
   const {
     name,
     description,
@@ -151,7 +151,7 @@ export function defineTool<TInput>(
   }
 
   // Build tool definition
-  const toolDefinition: ToolDefinition = {
+  const toolDefinition: ToolDefinition<TName> = {
     name,
     description,
     inputSchema: jsonSchemaObject,

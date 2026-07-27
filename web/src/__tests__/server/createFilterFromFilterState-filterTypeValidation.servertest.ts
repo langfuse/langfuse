@@ -48,6 +48,24 @@ describe("createFilterFromFilterState filter type validation", () => {
       clickhouseTableName: "scores",
       clickhouseSelect: "s.score_categories",
     },
+    scores: {
+      uiTableName: "Scores",
+      uiTableId: "scores",
+      clickhouseTableName: "scores",
+      clickhouseSelect: "s.scores_avg",
+    },
+    scores_avg: {
+      uiTableName: "Scores (numeric)",
+      uiTableId: "scores_avg",
+      clickhouseTableName: "scores",
+      clickhouseSelect: "s.scores_avg",
+    },
+    score_booleans: {
+      uiTableName: "Scores (boolean)",
+      uiTableId: "score_booleans",
+      clickhouseTableName: "scores",
+      clickhouseSelect: "s.score_booleans",
+    },
     eventInput: {
       uiTableName: "Input",
       uiTableId: "input",
@@ -122,6 +140,18 @@ describe("createFilterFromFilterState filter type validation", () => {
       type: "categoryOptions",
       internal: "s.score_categories",
       options: [],
+    },
+    {
+      name: "Scores (numeric)",
+      id: "scores_avg",
+      type: "numberObject",
+      internal: "s.scores_avg",
+    },
+    {
+      name: "Scores (boolean)",
+      id: "score_booleans",
+      type: "booleanObject",
+      internal: "s.score_booleans",
     },
     {
       name: "Input",
@@ -226,6 +256,114 @@ describe("createFilterFromFilterState filter type validation", () => {
       expect.objectContaining({
         [Object.keys(params)[0]]: ["create_ticket"],
       }),
+    );
+  });
+
+  it.each([
+    {
+      filter: {
+        type: "categoryOptions",
+        operator: "any of",
+        key: "attack_class",
+        value: ["Novel probe"],
+      },
+      expectedColumn: "s.score_categories",
+    },
+    {
+      filter: {
+        type: "numberObject",
+        operator: ">=",
+        key: "quality",
+        value: 0.5,
+      },
+      expectedColumn: "s.scores_avg",
+    },
+    {
+      filter: {
+        type: "booleanObject",
+        operator: "=",
+        key: "approved",
+        value: true,
+      },
+      expectedColumn: "s.score_booleans",
+    },
+  ] as const)(
+    "routes a legacy scores $filter.type filter to $expectedColumn",
+    ({ filter, expectedColumn }) => {
+      const [result] = createFilterFromFilterState(
+        [{ column: "scores", ...filter } as any],
+        Object.values(mappings),
+        columnDefinitions,
+      );
+
+      expect(result.apply().query).toContain(expectedColumn);
+    },
+  );
+
+  it("falls back to the legacy scores mapping when the numeric mapping is unavailable", () => {
+    const filters = [
+      {
+        column: "scores",
+        type: "numberObject",
+        operator: ">=",
+        key: "quality",
+        value: 0.5,
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(filters, [mappings.scores]);
+
+    expect(result.apply().query).toContain("s.scores_avg");
+  });
+
+  it.each([
+    {
+      type: "categoryOptions",
+      operator: "any of",
+      key: "attack_class",
+      value: ["Novel probe"],
+    },
+    {
+      type: "booleanObject",
+      operator: "=",
+      key: "approved",
+      value: true,
+    },
+  ] as const)(
+    "rejects a legacy scores $type filter when its typed mapping is unavailable",
+    (filter) => {
+      expect(() =>
+        createFilterFromFilterState(
+          [{ column: "scores", ...filter } as any],
+          [mappings.scores],
+          columnDefinitions,
+        ),
+      ).toThrow(InvalidRequestError);
+    },
+  );
+
+  it.each([
+    {
+      type: "stringOptions",
+      operator: "any of",
+      value: ["quality:good"],
+    },
+    {
+      type: "null",
+      operator: "is null",
+      value: "",
+    },
+  ] as const)("rejects an unsupported legacy scores $type filter", (filter) => {
+    expect(() =>
+      createFilterFromFilterState(
+        [{ column: "scores", ...filter } as any],
+        Object.values(mappings),
+        columnDefinitions,
+      ),
+    ).toThrow(
+      new InvalidRequestError(
+        `Invalid filter type '${filter.type}' for legacy score column 'scores'. Expected one of 'categoryOptions', 'numberObject', or 'booleanObject'.`,
+      ),
     );
   });
 

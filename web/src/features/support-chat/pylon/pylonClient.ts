@@ -1,7 +1,7 @@
 import { logger } from "@langfuse/shared/src/server";
 import {
-  isHighTierSupportPlan,
-  canRaiseSeverity2,
+  isEnterpriseSupportPlan,
+  isPlanWithoutCaseSeverity,
   SEVERITY_1,
   SEVERITY_2,
 } from "../formConstants";
@@ -180,7 +180,7 @@ export async function updatePylonAccountCustomFields(
  * consistent.
  */
 export function mapCaseSeverityToPylonPriority(
-  caseSeverity: "Sev-1" | "Sev-2" | "Sev-3",
+  caseSeverity: "Sev-1" | "Sev-2" | "Sev-3" | undefined,
 ): "urgent" | "high" | "low" {
   switch (caseSeverity) {
     case "Sev-1":
@@ -266,25 +266,28 @@ export function mapMessageTypeToPylonQuestionType(messageType: string): string {
  * Maps the user-selected severity level to the Pylon `case_severity` value,
  * capped by what the plan is eligible for.
  *
- * Severity 1 requires a high-tier plan (Team/Enterprise); Severity 2 requires
- * Pro tier or above. These options are disabled in the UI for ineligible plans,
- * but we also enforce it here as a server-side safeguard: a selection above the
- * plan's eligibility is downgraded to the highest level it can raise (a
- * Hobby/Core request therefore never exceeds Sev-3).
+ * Severity 1 and Severity 2 require an Enterprise plan. These options are
+ * disabled in the UI for ineligible plans, but we also enforce it here as a
+ * server-side safeguard: a selection above the plan's eligibility is
+ * downgraded to Sev-3 (a non-Enterprise request therefore never exceeds
+ * Sev-3).
+ *
+ * Hobby/Core requests carry no case severity at all: this returns undefined
+ * and the `case_severity` field is omitted from the Pylon issue.
  */
 export function mapToPylonCaseSeverity(params: {
   severity: string;
   plan?: string;
-}): "Sev-1" | "Sev-2" | "Sev-3" {
+}): "Sev-1" | "Sev-2" | "Sev-3" | undefined {
   const { severity, plan } = params;
 
-  if (severity === SEVERITY_1 && isHighTierSupportPlan(plan)) {
+  if (isPlanWithoutCaseSeverity(plan)) {
+    return undefined;
+  }
+  if (severity === SEVERITY_1 && isEnterpriseSupportPlan(plan)) {
     return "Sev-1";
   }
-  if (
-    (severity === SEVERITY_1 || severity === SEVERITY_2) &&
-    canRaiseSeverity2(plan)
-  ) {
+  if (severity === SEVERITY_2 && isEnterpriseSupportPlan(plan)) {
     return "Sev-2";
   }
   return "Sev-3";

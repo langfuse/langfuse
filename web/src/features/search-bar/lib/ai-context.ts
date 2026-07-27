@@ -23,9 +23,18 @@ const VALUE_COLUMNS: Array<{ col: string; label: string }> = [
   { col: "promptName", label: "promptName" },
   { col: "scores_avg", label: "scores.<name> (numeric)" },
   { col: "score_categories", label: "scores.<name> (categorical)" },
+  { col: "score_booleans", label: "scores.<name> (boolean)" },
   { col: "trace_scores_avg", label: "traceScores.<name> (numeric)" },
   { col: "trace_score_categories", label: "traceScores.<name> (categorical)" },
+  { col: "trace_score_booleans", label: "traceScores.<name> (boolean)" },
 ];
+
+// Filter-options columns the AI prompt grounds on (lazy mode: requested when
+// Ask AI opens so the model sees real values). Excludes high-cardinality ids by
+// construction — `VALUE_COLUMNS` already omits userId/sessionId/id.
+export const AI_GROUNDING_COLUMNS: readonly string[] = VALUE_COLUMNS.map(
+  (c) => c.col,
+);
 
 const MAX_VALUES_PER_COL = 25;
 const MAX_METADATA_KEYS = 30;

@@ -7,6 +7,7 @@
 import { memo } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import { type JSONTableViewRowProps } from "./json-table-view-types";
 
@@ -67,20 +68,29 @@ function JSONTableViewRowInner<T>({
         )}
 
         {/* Column cells */}
-        {columns.map((column) => (
-          <div
-            key={column.key}
-            className={cn(
-              "shrink-0 text-sm",
-              column.width ?? "min-w-0 flex-1",
-              column.align === "right" && "text-right",
-              // Truncate flex-1 columns
-              column.width === "flex-1" && "truncate",
-            )}
-          >
-            {column.render(item, index)}
-          </div>
-        ))}
+        {columns.map((column) => {
+          const renderedCell = column.render(item, index);
+
+          return (
+            <div
+              key={column.key}
+              className={cn(
+                "shrink-0 text-sm",
+                column.width ?? "min-w-0 flex-1",
+                column.align === "right" && "text-right",
+                // Truncate flex-1 columns
+                column.width === "flex-1" && "truncate",
+              )}
+              title={
+                column.width === "flex-1"
+                  ? getPlainTextFromReactNode(renderedCell)
+                  : undefined
+              }
+            >
+              {renderedCell}
+            </div>
+          );
+        })}
       </div>
 
       {/* Expanded content */}

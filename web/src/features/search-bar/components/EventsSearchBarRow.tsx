@@ -18,33 +18,71 @@ import * as React from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
+import { cn } from "@/src/utils/tailwind";
+import type {
+  ObservedOptions,
+  ObservedScoreNames,
+} from "@/src/features/search-bar/lib/observed-options";
+import { AI_GROUNDING_COLUMNS } from "@/src/features/search-bar/lib/ai-context";
+import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
+import type { SearchCommitTrigger } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 
 export function EventsSearchBarRow({
   projectId,
+  tableName,
   store,
   commit,
   observed,
+  erroredColumns,
+  fieldReason,
+  freeTextReason,
   onApplyFilters,
+  onRequestColumns,
   aiDataContext,
+  aiScoreNames,
+  className,
 }: {
   projectId: string;
+  /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
+  tableName: string;
   store: SearchBarStore;
-  commit: () => string | null;
+  commit: (trigger?: SearchCommitTrigger) => string | null;
   observed: ObservedOptions | undefined;
+  /** Columns whose lazy fetch terminally errored — value-stage loading settles to
+   *  empty (per column) instead of pinning, matching the sidebar's settled-error
+   *  state, without blocking other columns. */
+  erroredColumns?: ReadonlySet<string>;
+  /** Given a filter token's field, the reason it is not applied on the current
+   *  surface (e.g. the chart view can't filter on it) — dims the pill + hover.
+   *  Undefined leaves all filters active. */
+  fieldReason?: (field: string) => string | null;
+  /** Reason free-text tokens are not applied on the current surface, or null. */
+  freeTextReason?: string | null;
   /**
    * Applies AI-generated filters (apply-immediately); the bar re-derives them.
    * Preserves filters the grammar can't represent (no-silent-drop contract) —
    * comes from `useEventsSearchBar.applyFilters`, not a raw `setFilterState`.
    */
   onApplyFilters: (filters: FilterState) => void;
+  /**
+   * Lazy filter-options: widen the requested column set on demand. Threaded to
+   * the composer (request a field's values when typed) and fired on Ask AI open
+   * (request the grounding columns so the prompt sees real values).
+   */
+  onRequestColumns?: (columns: readonly string[]) => void;
   /** Project data context (observed values + metadata keys + result count) for
    *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
   aiDataContext?: string;
+  /** Observed score names by column type, for the server's score-name
+   *  validation of the generated filters (undefined sets are not enforced). */
+  aiScoreNames?: ObservedScoreNames;
+  /** Overrides the wrapper spacing. The default (`px-2 pt-2 pb-1`) aligns the
+   *  bar with the desktop toolbar row; the mobile Filters sheet passes flush
+   *  padding so the bar lines up with the sheet's other sections. */
+  className?: string;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -54,24 +92,35 @@ export function EventsSearchBarRow({
   const aiAvailable =
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
 
-  const activateAi = React.useCallback(() => setAiOpen(true), []);
+  const activateAi = React.useCallback(() => {
+    // Ground the model on real project values: lazily request the AI columns so
+    // they are loaded by the time the user submits a prompt.
+    onRequestColumns?.(AI_GROUNDING_COLUMNS);
+    setAiOpen(true);
+  }, [onRequestColumns]);
 
   return (
-    <div className="min-w-0 px-2 pt-2 pb-1">
+    <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>
       {aiOpen && aiAvailable ? (
         <SearchBarAiPrompt
           projectId={projectId}
+          tableName={tableName}
           store={store}
           dataContext={aiDataContext}
+          scoreNames={aiScoreNames}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}
         />
       ) : (
         <SearchBarStoreProvider store={store} commit={commit}>
-          <SearchComposer
+          <ComposerWithPreview
             projectId={projectId}
             observed={observed}
+            erroredColumns={erroredColumns}
+            fieldReason={fieldReason}
+            freeTextReason={freeTextReason}
             onActivateAi={aiAvailable ? activateAi : undefined}
+            onRequestColumns={onRequestColumns}
           />
         </SearchBarStoreProvider>
       )}

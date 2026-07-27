@@ -64,6 +64,16 @@ export const scoresTableCols: ColumnDefinition[] = [
   },
   { name: "Value", id: "value", type: "number", internal: 's."value"' },
   {
+    name: "Boolean Value",
+    id: "booleanValue",
+    type: "stringOptions",
+    // ClickHouse-only column: the SQL lives in the ClickHouse mappings
+    // (SCORE_BOOLEAN_VALUE_SQL in mapScoresTable) — `internal` is Postgres
+    // syntax and must not carry a ClickHouse expression.
+    internal: "",
+    options: [{ value: "true" }, { value: "false" }],
+  },
+  {
     name: "String Value",
     id: "stringValue",
     type: "stringOptions",

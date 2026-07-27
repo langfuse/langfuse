@@ -1,5 +1,5 @@
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useJsonBetaToggle } from "@/src/components/trace/hooks/useJsonBetaToggle";
 
 export type ViewMode = "pretty" | "json" | "json-beta";

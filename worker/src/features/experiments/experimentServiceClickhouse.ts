@@ -7,15 +7,19 @@ import {
 import {
   ChatMessage,
   convertDateToClickhouseDateTime,
+  createLLMOutput,
+  createLLMToolSet,
+  createUnknownSdkIngestionAttribution,
   createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
-  fetchLLMCompletion,
+  generateLLMText,
   getDatasetItems,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
   logger,
+  mapLegacyLLMCompletionParams,
   processEventBatch,
   queryClickhouse,
   QueueJobs,
@@ -59,12 +63,7 @@ async function getExistingRunItemDatasetItemIds(
       runId,
       datasetId,
     },
-    tags: {
-      feature: "dataset-run-item",
-      type: "read",
-      kind: "list",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   return new Set(rows.map((row) => row.id));
@@ -97,19 +96,18 @@ async function processItem(
     },
   };
 
-  const ingestionResult = await processEventBatch(
-    [event],
-    {
-      validKey: true,
-      scope: {
-        projectId: config.projectId,
-        accessLevel: "project" as const,
-      },
+  const auth = {
+    validKey: true as const,
+    scope: {
+      projectId: config.projectId,
+      accessLevel: "project" as const,
     },
-    {
-      isLangfuseInternal: true,
-    },
-  );
+  };
+
+  const ingestionResult = await processEventBatch([event], auth, {
+    isLangfuseInternal: true,
+    attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+  });
 
   if (ingestionResult.errors.length > 0) {
     const error = ingestionResult.errors[0];
@@ -211,10 +209,8 @@ async function processLLMCall(
     }),
   };
 
-  await fetchLLMCompletion({
-    streaming: false,
-    llmConnection: config.validatedApiKey,
-    maxRetries: 1,
+  const llmParams = mapLegacyLLMCompletionParams({
+    connection: config.validatedApiKey,
     messages,
     modelParams: {
       provider: config.provider,
@@ -222,9 +218,19 @@ async function processLLMCall(
       adapter: config.validatedApiKey.adapter,
       ...config.model_params,
     },
-    structuredOutputSchema: config.structuredOutputSchema,
-    traceSinkParams,
-  }).catch(); // catch errors and do not retry
+  });
+
+  await generateLLMText({
+    ...llmParams,
+    maxRetries: 1,
+    // Setup rejects the unsupported tools + structured-output combination.
+    ...(config.structuredOutputSchema
+      ? { output: createLLMOutput(config.structuredOutputSchema) }
+      : config.tools.length > 0
+        ? { tools: createLLMToolSet(config.tools) }
+        : {}),
+    trace: traceSinkParams,
+  }).catch(() => undefined); // catch errors and do not retry
 
   return { success: true };
 }
@@ -464,16 +470,17 @@ async function createAllDatasetRunItemsWithConfigError(
       `Creating ${events.length / 3} dataset run items with config error`,
     );
 
-    await processEventBatch(
-      events,
-      {
-        validKey: true,
-        scope: {
-          projectId,
-          accessLevel: "project" as const,
-        },
+    const auth = {
+      validKey: true as const,
+      scope: {
+        projectId,
+        accessLevel: "project" as const,
       },
-      { isLangfuseInternal: true },
-    );
+    };
+
+    await processEventBatch(events, auth, {
+      isLangfuseInternal: true,
+      attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+    });
   }
 }

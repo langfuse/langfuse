@@ -4,8 +4,10 @@ import {
   ObservationEvalExecutionEventSchema,
   extractObservationVariables,
   logger,
+  recordIncrement,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
+import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
   observationForEvalSchema,
   observationVariableMappingList,
@@ -203,6 +205,34 @@ export async function processObservationEval(
   logger.debug(
     `Downloaded observation data for job ${job.id}: span_id=${observationData.span_id}`,
   );
+
+  // Final fail-closed loop safeguard: never execute an eval whose target
+  // lives in an internal Langfuse environment, regardless of which scheduling
+  // path created the job. See isEvalTargetEnvironmentAllowed.
+  if (!isEvalTargetEnvironmentAllowed(observationData.environment)) {
+    logger.warn(
+      "Cancelling eval job targeting an internal Langfuse environment",
+      {
+        jobExecutionId: event.jobExecutionId,
+        projectId: event.projectId,
+        environment: observationData.environment,
+        observationId: observationData.span_id,
+      },
+    );
+    recordIncrement(
+      "langfuse.evaluation-execution.internal_target_blocked",
+      1,
+      {
+        source: "observation-eval",
+      },
+    );
+    await prisma.jobExecution.update({
+      where: { id: job.id, projectId: event.projectId },
+      data: { status: JobExecutionStatus.CANCELLED, endTime: new Date() },
+    });
+
+    return;
+  }
 
   // Extract variables from observation
   const parsedVariableMapping = observationVariableMappingList.parse(

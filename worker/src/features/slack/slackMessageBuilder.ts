@@ -12,6 +12,31 @@ type PromptVersionPayload = Extract<
   { type: "prompt-version" }
 >;
 
+const getProductBaseUrl = () => {
+  if (!env.NEXTAUTH_URL) return undefined;
+
+  const baseUrl = new URL(env.NEXTAUTH_URL);
+
+  baseUrl.pathname = baseUrl.pathname.replace(/\/api\/auth\/?$/, "/");
+  baseUrl.search = "";
+  baseUrl.hash = "";
+
+  const basePath = env.NEXT_PUBLIC_BASE_PATH?.replace(/\/$/, "");
+  if (
+    basePath &&
+    baseUrl.pathname !== basePath &&
+    !baseUrl.pathname.startsWith(`${basePath}/`)
+  ) {
+    baseUrl.pathname = `${basePath}${baseUrl.pathname}`;
+  }
+
+  if (!baseUrl.pathname.endsWith("/")) {
+    baseUrl.pathname = `${baseUrl.pathname}/`;
+  }
+
+  return baseUrl;
+};
+
 /**
  * Builds Slack Block Kit messages for different Langfuse event types
  */
@@ -24,6 +49,7 @@ export class SlackMessageBuilder {
 
     // Determine action emoji and color
     const actionConfig = this.getActionConfig(action);
+    const promptUrl = this.buildPromptUrl(prompt);
 
     // Build the main message blocks
     const blocks = [
@@ -83,7 +109,7 @@ export class SlackMessageBuilder {
           ]
         : []),
       // Action buttons
-      ...(env.NEXTAUTH_URL
+      ...(promptUrl
         ? [
             {
               type: "actions",
@@ -95,7 +121,7 @@ export class SlackMessageBuilder {
                     text: "View Prompt",
                     emoji: true,
                   },
-                  url: `${env.NEXTAUTH_URL}/project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}?version=${prompt.version}`,
+                  url: promptUrl,
                   style: "primary",
                 },
               ],
@@ -143,6 +169,19 @@ export class SlackMessageBuilder {
       default:
         return { emoji: "📋" };
     }
+  }
+
+  private static buildPromptUrl(prompt: PromptVersionPayload["prompt"]) {
+    const baseUrl = getProductBaseUrl();
+    if (!baseUrl) return undefined;
+
+    const url = new URL(
+      `project/${prompt.projectId}/prompts/${encodeURIComponent(prompt.name)}`,
+      baseUrl,
+    );
+    url.searchParams.set("version", String(prompt.version));
+
+    return url.toString();
   }
 
   /**

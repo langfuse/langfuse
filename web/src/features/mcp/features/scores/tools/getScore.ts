@@ -1,55 +1,42 @@
-import {
-  GetScoreQueryV2,
-  GetScoreResponseV2,
-  InternalServerError,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
-import { logger, traceException } from "@langfuse/shared/src/server";
+import { LangfuseNotFoundError, SCORE_FIELD_GROUPS_V3 } from "@langfuse/shared";
+import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
-import { buildScoreTargetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
+import { buildScoreSubjectUrl } from "@/src/utils/product-url";
+
+const GetScoreInputSchema = z.object({ scoreId: z.string() }).strict();
 
 export const [getScoreTool, handleGetScore] = defineTool({
   name: "getScore",
   description: [
     "Fetch one score by ID from the current Langfuse project.",
+    "The score carries a polymorphic value matching its dataType (number, boolean, or string) and a subject describing what it scores: { kind: trace | observation | session | experiment, id }.",
     "Score reads are eventually consistent: a score created with createScore may not be returned by getScore immediately. If a newly created score is not found, wait briefly and retry.",
   ].join("\n"),
-  baseSchema: GetScoreQueryV2,
-  inputSchema: GetScoreQueryV2,
+  baseSchema: GetScoreInputSchema,
+  inputSchema: GetScoreInputSchema,
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.scores.get",
       context,
       attributes: { "mcp.score_id": input.scoreId },
       fn: async () => {
-        const scoresApiService = new ScoresApiService("v2");
-        const score = await scoresApiService.getScoreById({
+        // v3 has no by-id route; a v3 list with an id filter is the lookup path.
+        const result = await listScoresV3ForPublicApi({
           projectId: context.projectId,
-          scoreId: input.scoreId,
+          limit: 1,
+          fields: [...SCORE_FIELD_GROUPS_V3],
+          id: [input.scoreId],
         });
 
+        const score = result.data[0];
         if (!score) {
           throw new LangfuseNotFoundError("Score not found");
         }
 
-        const parsedScore = GetScoreResponseV2.safeParse(score);
-        if (!parsedScore.success) {
-          traceException(parsedScore.error);
-          logger.error(`Incorrect score return type ${parsedScore.error}`);
-          throw new InternalServerError("Requested score is corrupted");
-        }
-
-        const { traceId, observationId, sessionId } = parsedScore.data;
-        const url = buildScoreTargetUrl({
-          projectId: context.projectId,
-          traceId,
-          observationId,
-          sessionId,
-        });
-
-        return url ? { ...parsedScore.data, url } : parsedScore.data;
+        const url = buildScoreSubjectUrl(context.projectId, score.subject);
+        return url ? { ...score, url } : score;
       },
     });
   },

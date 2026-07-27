@@ -1,5 +1,6 @@
 import { FilterCondition, FilterState } from "../../types";
 import { logger } from "../logger";
+import { encodeBooleanScoreEntry } from "../queries/clickhouse-sql/clickhouse-filter";
 
 export class InMemoryFilterService {
   /**
@@ -97,6 +98,13 @@ export class InMemoryFilterService {
         );
       case "numberObject":
         return this.evaluateNumberObjectFilter(
+          fieldValue,
+          condition.key,
+          condition.value,
+          operator,
+        );
+      case "booleanObject":
+        return this.evaluateBooleanObjectFilter(
           fieldValue,
           condition.key,
           condition.value,
@@ -362,6 +370,36 @@ export class InMemoryFilterService {
           operator,
           filterValue,
           fieldValue: numValue,
+          key,
+        });
+        return false;
+    }
+  }
+
+  private static evaluateBooleanObjectFilter(
+    fieldValue: unknown,
+    key: string,
+    filterValue: boolean,
+    operator: string,
+  ): boolean {
+    // Same encoding as the score_booleans ClickHouse aggregation — callers
+    // must supply pre-lowercased `name:true|false` entries via their field
+    // mapper (raw score string_value is "True"/"False" and would not match).
+    const target = encodeBooleanScoreEntry(key, filterValue);
+    const hasValue = Array.isArray(fieldValue)
+      ? fieldValue.map(String).includes(target)
+      : false;
+
+    switch (operator) {
+      case "=":
+        return hasValue;
+      case "<>":
+        return !hasValue;
+      default:
+        logger.error("Unsupported booleanObject filter operator", {
+          operator,
+          filterValue,
+          fieldValue,
           key,
         });
         return false;

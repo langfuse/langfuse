@@ -41,6 +41,8 @@ import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
+import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 export default function Dataset() {
   const router = useRouter();
@@ -76,7 +78,7 @@ export default function Dataset() {
     projectId,
     scope: "promptExperiments:CUD",
   });
-  const { isExperimentsBetaActive } = useExperimentAccess();
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
 
   const handleExperimentSuccess = async (data?: {
     success: boolean;
@@ -100,7 +102,9 @@ export default function Dataset() {
       description: "Waiting for experiment to complete...",
       link: {
         text: "View experiment",
-        href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
+        href: isExperimentsBetaActive
+          ? singleRunToExperimentsUrl(projectId, data.runId)
+          : `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
   };
@@ -115,7 +119,7 @@ export default function Dataset() {
     scope: "evalJob:CUD",
   });
 
-  const evalTemplates = api.evals.allTemplates.useQuery({
+  const evalTemplates = api.evals.latestTemplates.useQuery({
     projectId,
   });
 
@@ -129,9 +133,6 @@ export default function Dataset() {
   const { createDefaultEvaluator } = useEvaluatorDefaults();
 
   const {
-    activeEvaluators,
-    pausedEvaluators,
-    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -150,7 +151,15 @@ export default function Dataset() {
   // For experiment evaluators, we only run on new data (not historic)
   const preprocessFormValues = useCallback((values: any) => values, []);
 
-  const breadcrumb = getDatasetBreadcrumb(projectId, dataset.data?.name);
+  const breadcrumb = getDatasetBreadcrumb(
+    projectId,
+    datasetId,
+    dataset.data?.name,
+  );
+
+  if (isInitializing) {
+    return <Skeleton className="h-full w-full" />;
+  }
 
   if (isExperimentsBetaActive) {
     return (
@@ -200,9 +209,6 @@ export default function Dataset() {
                     evalTemplates={evalTemplates.data?.templates ?? []}
                     onConfigureTemplate={handleConfigureEvaluator}
                     onSelectEvaluator={handleSelectEvaluator}
-                    activeTemplateIds={activeEvaluators}
-                    inactiveTemplateIds={pausedEvaluators}
-                    evaluatorTargetObjects={evaluatorTargetObjects}
                     disabled={!hasEvalWriteAccess}
                   />
                 </div>
@@ -222,6 +228,7 @@ export default function Dataset() {
             },
           ]}
           sessionFilterContextId={`dataset-${datasetId}`}
+          showControlsInPageHeader
         />
       </Page>
     );
@@ -279,9 +286,6 @@ export default function Dataset() {
                   evalTemplates={evalTemplates.data?.templates ?? []}
                   onConfigureTemplate={handleConfigureEvaluator}
                   onSelectEvaluator={handleSelectEvaluator}
-                  activeTemplateIds={activeEvaluators}
-                  inactiveTemplateIds={pausedEvaluators}
-                  evaluatorTargetObjects={evaluatorTargetObjects}
                   disabled={!hasEvalWriteAccess}
                 />
               </div>

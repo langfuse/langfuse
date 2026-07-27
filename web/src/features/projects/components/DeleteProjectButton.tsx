@@ -80,7 +80,7 @@ export function DeleteProjectButton() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">
+          <DialogTitle className="text-lg font-bold">
             Delete Project
           </DialogTitle>
           <DialogDescription className=" ">

@@ -1,9 +1,9 @@
 import { env } from "@/src/env.mjs";
+import { getBaseUrl } from "@/src/utils/base-url";
 import { ForbiddenError } from "@langfuse/shared";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 const LOCALHOST_HOSTNAMES = ["localhost", "127.0.0.1", "[::1]"] as const;
-const LOCALHOST_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i;
 
 function parseAllowedMcpHostEntry(
   entry: string,
@@ -39,12 +39,7 @@ function parseAllowedMcpHostEntry(
 }
 
 function getAllowedMcpOriginsAndHostnames() {
-  const rawBaseUrl = env.NEXTAUTH_URL;
-  const baseUrl = new URL(
-    /^https?:\/\//i.test(rawBaseUrl)
-      ? rawBaseUrl
-      : `${LOCALHOST_HOST_PATTERN.test(rawBaseUrl) ? "http" : "https"}://${rawBaseUrl}`,
-  );
+  const baseUrl = getBaseUrl();
   const allowedHostnames = new Set([baseUrl.hostname.toLowerCase()]);
   const allowedOrigins = new Set([baseUrl.origin.toLowerCase()]);
 

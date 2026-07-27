@@ -3,8 +3,27 @@ import {
   checkHeaderBasedDirectWrite,
   checkSdkVersionRequirements,
   getSdkInfoFromResourceSpans,
+  shouldProcessLegacyOtelMedia,
   type SdkInfo,
 } from "../otelIngestionQueue";
+
+describe("shouldProcessLegacyOtelMedia", () => {
+  it("processes media whenever legacy tables are written", () => {
+    expect(
+      shouldProcessLegacyOtelMedia({
+        mediaUploadEnabled: true,
+        writesToLegacyTables: true,
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    { mediaUploadEnabled: false, writesToLegacyTables: true },
+    { mediaUploadEnabled: true, writesToLegacyTables: false },
+  ])("skips media when legacy processing is disabled", (params) => {
+    expect(shouldProcessLegacyOtelMedia(params)).toBe(false);
+  });
+});
 
 describe("checkHeaderBasedDirectWrite", () => {
   it.each<{

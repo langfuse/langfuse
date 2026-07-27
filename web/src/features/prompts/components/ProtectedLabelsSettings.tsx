@@ -122,6 +122,7 @@ export default function ProtectedLabelsSettings({
               key={label}
               className="break-all sm:break-normal"
               isLive={label === PRODUCTION_LABEL}
+              preserveCase
             >
               {hasAccess && hasEntitlement && (
                 <Button

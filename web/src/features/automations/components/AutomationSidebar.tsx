@@ -16,9 +16,14 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
   onAutomationSelect,
 }) => {
   const { data: automations, isLoading } =
-    api.automations.getAutomations.useQuery({
-      projectId,
-    });
+    api.automations.getAutomations.useQuery(
+      {
+        projectId,
+      },
+      {
+        enabled: !!projectId,
+      },
+    );
 
   const sidebarWidth = "w-40 sm:w-64";
 
@@ -81,13 +86,16 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                     <div className="space-y-2">
                       {/* Top row: Name and Active badge */}
                       <div className="flex items-center justify-between gap-2">
-                        <h4 className="truncate text-sm leading-tight font-medium">
+                        <h4
+                          className="truncate text-sm leading-tight font-bold"
+                          title={automation.name}
+                        >
                           {automation.name}
                         </h4>
                         {automation.trigger.status === JobConfigState.ACTIVE ? (
-                          <StatusBadge type={"active"} />
+                          <StatusBadge type="active" />
                         ) : (
-                          <StatusBadge type={"inactive"} />
+                          <StatusBadge type="inactive" />
                         )}
                       </div>
 

@@ -45,6 +45,7 @@ import { upsertDataset } from "./actions/createDataset";
 import {
   addToDeleteDatasetQueue,
   createDatasetItemFilterState,
+  createUnknownSdkIngestionAttribution,
   deleteDatasetItem,
   eventTypes,
   getDatasetItemById,
@@ -639,7 +640,7 @@ export const createDatasetItemForApi = async ({
       sourceObservationId: input.sourceObservationId ?? undefined,
       status: input.status ?? undefined,
       normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: !!input.id ? false : true },
+      validateOpts: { normalizeUndefinedToNull: !input.id },
     });
 
     if (auditScope) {
@@ -811,6 +812,7 @@ export const createDatasetRunItemForApi = async ({
 
   // Note: currently we do not accept user defined ids for dataset run items.
   const ingestionResult = await processEventBatch([event], auth, {
+    attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
     isLangfuseInternal: true,
   });
 
