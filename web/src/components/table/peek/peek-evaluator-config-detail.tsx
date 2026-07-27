@@ -12,6 +12,7 @@ import {
 import { V4MigrationUpdateRequiredAssistantBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -108,6 +109,19 @@ const PeekViewEvaluatorConfigDetail = ({
                 title:
                   "Deprecated evaluators are only available in read-only mode",
               })}
+          />
+          <DeleteEvalConfigButton
+            aria-label="delete"
+            itemId={evalConfig.id}
+            projectId={projectId}
+            deleteConfirmation={evalConfig.scoreName}
+            // The peek only exists on the evals list page; redirecting there
+            // drops the peek query params and closes it after deletion.
+            redirectUrl={`/project/${projectId}/evals`}
+            icon
+            variant="ghost"
+            size="icon-xs"
+            title="Delete"
           />
         </div>
       </div>
