@@ -26,7 +26,7 @@ const statusCategories = {
   completed: ["completed", "done", "finished"],
   error: ["error", "failed"],
   partial: ["partial"],
-};
+} as const;
 
 export type Status =
   (typeof statusCategories)[keyof typeof statusCategories][number];
@@ -129,7 +129,8 @@ export const StatusBadge = ({
 
   const category: StatusCategory =
     (Object.keys(statusCategories) as (keyof typeof statusCategories)[]).find(
-      (key) => statusCategories[key].includes(normalizedType),
+      (key) =>
+        (statusCategories[key] as readonly string[]).includes(normalizedType),
     ) ?? "unknown";
 
   const styles = categoryStyles[category];

@@ -5,7 +5,7 @@ import { cn } from "@/src/utils/tailwind";
 
 type HeaderProps = {
   title: string;
-  status?: Status;
+  status?: Status | (string & {});
   label?: {
     text: string;
     href: string;
