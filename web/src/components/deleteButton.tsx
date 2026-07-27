@@ -17,7 +17,6 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { cn } from "@/src/utils/tailwind";
 
 export type DeleteButtonProps = {
   itemId: string;
@@ -33,7 +32,6 @@ export type DeleteButtonProps = {
   size?: ButtonProps["size"];
   alignment?: ButtonProps["alignment"];
   title?: string;
-  className?: "text-foreground/40 group-hover/monitor-row:text-foreground/70 hover:text-foreground transition-[color,transform] hover:scale-110";
   // forwarded explicitly because the base component does not spread unknown
   // props onto the rendered button
   "aria-label"?: string;
@@ -75,7 +73,6 @@ export function DeleteButton({
   title,
   size,
   alignment,
-  className,
   captureDeleteOpen,
   captureDeleteSuccess,
   entityToDeleteName,
@@ -127,7 +124,7 @@ export function DeleteButton({
         // Icon-only: a compact button with a built-in tooltip; the popover is
         // opened from onClick since the tooltip wrapper can't be a trigger.
         <PopoverAnchor asChild>
-          <span className={cn("inline-flex", className)}>
+          <span className="inline-flex">
             <IconOnlyButton
               icon={<TrashIcon className="h-4 w-4" />}
               label={title ?? "Delete"}
@@ -160,7 +157,6 @@ export function DeleteButton({
             alignment={alignment}
             title={title}
             aria-label={ariaLabel}
-            className={className}
             disabled={!hasAccess || !enabled}
             onClick={(e) => {
               e.stopPropagation();
@@ -223,9 +219,7 @@ export function DeleteButton({
   );
 }
 
-type DeleteTraceButtonProps = Omit<DeleteButtonProps, "className">;
-
-export function DeleteTraceButton(props: DeleteTraceButtonProps) {
+export function DeleteTraceButton(props: DeleteButtonProps) {
   const utils = api.useUtils();
   const {
     itemId,
@@ -359,10 +353,8 @@ export function DeleteDashboardButton(props: DeleteButtonProps) {
   );
 }
 
-type DeleteMonitorButtonProps = Omit<DeleteButtonProps, "className">;
-
 /** DeleteMonitorButton deletes a monitor through the shared confirm-then-delete pattern. */
-export function DeleteMonitorButton(props: DeleteMonitorButtonProps) {
+export function DeleteMonitorButton(props: DeleteButtonProps) {
   const utils = api.useUtils();
   const {
     itemId,
