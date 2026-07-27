@@ -595,53 +595,58 @@ export function SupportFormSection({
 
                 <FormMessage />
 
-                <Dropzone
-                  className="mt-1"
-                  maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
-                  maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
-                  onDrop={(accepted) =>
-                    setFiles((prev) => {
-                      const existing = prev ?? [];
-                      const merged = [...existing, ...accepted];
-                      const maxFiles = FILE_UPLOAD_CONSTRAINTS.maxFiles;
-                      return merged.slice(0, maxFiles);
-                    })
-                  }
-                  onError={(error) => {
-                    const userMessage = formatFileError(error);
-                    showErrorToast("File Upload Error", userMessage, "WARNING");
-                  }}
-                  src={files}
-                  variant="compact"
-                >
-                  {/* Small, single-line trigger */}
-                  <DropzoneEmptyState>
-                    <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-                      <Paperclip className="h-4 w-4" />
-                      <span
-                        className="truncate"
-                        title={
-                          hasFiles
+                <div className="mt-1">
+                  <Dropzone
+                    maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
+                    maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
+                    onDrop={(accepted) =>
+                      setFiles((prev) => {
+                        const existing = prev ?? [];
+                        const merged = [...existing, ...accepted];
+                        const maxFiles = FILE_UPLOAD_CONSTRAINTS.maxFiles;
+                        return merged.slice(0, maxFiles);
+                      })
+                    }
+                    onError={(error) => {
+                      const userMessage = formatFileError(error);
+                      showErrorToast(
+                        "File Upload Error",
+                        userMessage,
+                        "WARNING",
+                      );
+                    }}
+                    src={files}
+                    variant="compact"
+                  >
+                    {/* Small, single-line trigger */}
+                    <DropzoneEmptyState>
+                      <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
+                        <Paperclip className="h-4 w-4" />
+                        <span
+                          className="truncate"
+                          title={
+                            hasFiles
+                              ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
+                              : "Attach files"
+                          }
+                        >
+                          {hasFiles
                             ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
-                            : "Attach files"
-                        }
-                      >
-                        {hasFiles
-                          ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
-                          : "Attach files"}
-                      </span>
-                    </div>
-                  </DropzoneEmptyState>
-                  {/* Keep content area minimal; we still allow preview slot if needed */}
-                  <DropzoneContent>
-                    <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-                      <Paperclip className="h-4 w-4" />
-                      <span className="truncate" title="Attach files">
-                        Attach files
-                      </span>
-                    </div>
-                  </DropzoneContent>
-                </Dropzone>
+                            : "Attach files"}
+                        </span>
+                      </div>
+                    </DropzoneEmptyState>
+                    {/* Keep content area minimal; we still allow preview slot if needed */}
+                    <DropzoneContent>
+                      <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
+                        <Paperclip className="h-4 w-4" />
+                        <span className="truncate" title="Attach files">
+                          Attach files
+                        </span>
+                      </div>
+                    </DropzoneContent>
+                  </Dropzone>
+                </div>
 
                 {files && files.length > 0 && (
                   <div className="p-0 text-left text-sm font-bold">

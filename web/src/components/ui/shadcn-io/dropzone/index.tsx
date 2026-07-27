@@ -34,7 +34,6 @@ const DropzoneContext = createContext<DropzoneContextType | undefined>(
 
 export type DropzoneProps = Omit<DropzoneOptions, "onDrop"> & {
   src?: File[];
-  className?: "mt-1";
   maxFiles: NonNullable<DropzoneOptions["maxFiles"]>;
   maxSize: NonNullable<DropzoneOptions["maxSize"]>;
   onDrop: (
@@ -62,7 +61,6 @@ export const Dropzone = ({
   onError,
   disabled,
   src,
-  className,
   children,
   variant,
   ...props
@@ -96,7 +94,6 @@ export const Dropzone = ({
           "ring-offset-background focus-visible:ring-ring relative inline-flex h-auto w-full flex-col items-center justify-center overflow-hidden rounded-md text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
           variantClasses[variant],
           isDragActive && "ring-ring ring-1 outline-hidden",
-          className,
         )}
         disabled={disabled}
         type="button"
