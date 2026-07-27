@@ -3,7 +3,6 @@
 import { cva } from "class-variance-authority";
 import { PaperclipIcon, UploadIcon } from "lucide-react";
 import { useMemo } from "react";
-import type { DropEvent, DropzoneOptions, FileRejection } from "react-dropzone";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/src/utils/tailwind";
 
@@ -21,18 +20,14 @@ const renderBytes = (bytes: number) => {
 };
 
 export type DropzoneProps = {
-  accept?: DropzoneOptions["accept"];
-  isDisabled?: DropzoneOptions["disabled"];
-  minSize?: DropzoneOptions["minSize"];
-  onError?: DropzoneOptions["onError"];
-  src?: File[];
-  maxFiles: NonNullable<DropzoneOptions["maxFiles"]>;
-  maxSize: NonNullable<DropzoneOptions["maxSize"]>;
-  onDrop: (
-    acceptedFiles: File[],
-    fileRejections: FileRejection[],
-    event: DropEvent,
-  ) => void;
+  accept: Record<string, string[]> | undefined;
+  isDisabled: boolean;
+  minSize: number | undefined;
+  onError: ((error: Error) => void) | undefined;
+  src: File[] | undefined;
+  maxFiles: number;
+  maxSize: number;
+  onDrop: (acceptedFiles: File[]) => void;
   variant: "compact" | "panel";
 };
 
@@ -74,14 +69,14 @@ export const Dropzone = ({
     minSize,
     onError,
     disabled: isDisabled,
-    onDrop: (acceptedFiles, fileRejections, event) => {
+    onDrop: (acceptedFiles, fileRejections) => {
       if (fileRejections.length > 0) {
         const message = fileRejections.at(0)?.errors.at(0)?.message;
         onError?.(new Error(message));
         return;
       }
 
-      onDrop?.(acceptedFiles, fileRejections, event);
+      onDrop(acceptedFiles);
     },
   });
 

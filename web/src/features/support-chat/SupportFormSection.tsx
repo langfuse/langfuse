@@ -585,8 +585,11 @@ export function SupportFormSection({
 
                 <div className="mt-1">
                   <Dropzone
+                    accept={undefined}
+                    isDisabled={false}
                     maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
                     maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
+                    minSize={undefined}
                     onDrop={(accepted) =>
                       setFiles((prev) => {
                         const existing = prev ?? [];

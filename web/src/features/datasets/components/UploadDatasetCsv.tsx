@@ -77,8 +77,12 @@ export const UploadDatasetCsv = ({
           <Dropzone
             onDrop={handleFiles}
             accept={{ "text/csv": [".csv"] }}
+            isDisabled={false}
             maxFiles={1}
             maxSize={MAX_FILE_SIZE_BYTES}
+            minSize={undefined}
+            onError={undefined}
+            src={undefined}
             variant="panel"
           />
         </CardContent>
