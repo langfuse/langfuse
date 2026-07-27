@@ -68,6 +68,7 @@ class TestRunner extends PeriodicRunner {
   public callCount = 0;
   public shouldThrow = false;
   public returnInterval: number | undefined = undefined;
+  public initialDelayMsForTest = 0;
 
   constructor() {
     super("test_runner");
@@ -79,6 +80,10 @@ class TestRunner extends PeriodicRunner {
 
   protected get defaultIntervalMs(): number {
     return 1000;
+  }
+
+  protected get initialDelayMs(): number {
+    return this.initialDelayMsForTest;
   }
 
   protected async execute(): Promise<number | void> {
@@ -95,6 +100,7 @@ class TestExclusiveRunner extends PeriodicExclusiveRunner {
   public callCount = 0;
   public failNext = false;
   public lockAcquired = true;
+  public lockNotAcquiredCount = 0;
   public readonly operationError = new Error("Caught operation error");
 
   constructor(lockMode: "stub" | "unavailable" | "release_failure" = "stub") {
@@ -120,13 +126,19 @@ class TestExclusiveRunner extends PeriodicExclusiveRunner {
   }
 
   protected async execute(): Promise<void> {
-    await this.withLock(async () => {
-      this.callCount++;
-      if (this.failNext) {
-        this.failNext = false;
-        throw this.operationError;
-      }
-    });
+    await this.withLock(
+      async () => {
+        this.callCount++;
+        if (this.failNext) {
+          this.failNext = false;
+          throw this.operationError;
+        }
+      },
+      undefined,
+      () => {
+        this.lockNotAcquiredCount++;
+      },
+    );
   }
 }
 
@@ -168,6 +180,19 @@ describe("PeriodicRunner", () => {
       Date.now() / 1000,
       { runner: "test_runner", unit: "seconds" },
     );
+    runner.stop();
+  });
+
+  it("should delay the initial execution when configured", async () => {
+    const runner = new TestRunner();
+    runner.initialDelayMsForTest = 250;
+
+    runner.start();
+    await vi.advanceTimersByTimeAsync(249);
+    expect(runner.callCount).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(runner.callCount).toBe(1);
     runner.stop();
   });
 
@@ -277,6 +302,7 @@ describe("PeriodicRunner", () => {
     });
     expect(telemetry.traceException).not.toHaveBeenCalled();
     expect(telemetry.recordGauge).not.toHaveBeenCalled();
+    expect(runner.lockNotAcquiredCount).toBe(1);
     runner.stop();
   });
 

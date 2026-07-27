@@ -26,6 +26,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { randomBytes } from "crypto";
 import { z } from "zod";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -35,6 +36,10 @@ import {
 import { buildFilterContextMessage } from "./buildFilterPrompt";
 import { resolveFilterSystemPrompt } from "./resolveFilterPrompt";
 import { parseGeneratedFilters } from "./parseFilterCompletion";
+import {
+  deriveParseOutcomeScores,
+  recordParseOutcomeScores,
+} from "./parseOutcomeScoring";
 import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
@@ -139,6 +144,16 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
+        // Pre-generated (rather than left to `getLangfuseAITraceSinkParams`'s
+        // own default) so this handler OWNS the id: the parse-outcome scores
+        // attached below must land on the exact same trace as the
+        // generation, and a future satisfaction signal needs a stable id to
+        // key off too. Same format the default would have produced (a 32-hex
+        // W3C trace id) — only needed when we're actually tracing.
+        const traceId = aiTelemetryEnabled
+          ? randomBytes(16).toString("hex")
+          : undefined;
+
         // Prefer the MANAGED `search-bar-filter` Langfuse prompt (dogfooding
         // — same AI-features project/client the v3 natural-language-filter
         // path uses); falls back to the code-built skeleton whenever the
@@ -190,6 +205,7 @@ export const searchBarRouter = createTRPCRouter({
           maxTokens: 2048,
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
+                traceId,
                 environment:
                   LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
                 feature: "search-bar-filter",
@@ -244,6 +260,43 @@ export const searchBarRouter = createTRPCRouter({
               unknownScoreNames,
             },
           );
+        }
+
+        // Turn the parse outcome into queryable scores on the generation's
+        // trace, so production traffic self-harvests quality signal (e.g.
+        // the model wrapping its answer in ```markdown fences despite the
+        // prompt saying not to) instead of only ever hitting the warn log
+        // above. Gated exactly like the trace write itself (telemetry
+        // consent + AI-features keys present) — this writes into the same
+        // AI-features project under the same consent surface. Fire-and-forget
+        // and fully isolated in its own try/catch: a slow or failing score
+        // write must never break or slow this response.
+        if (
+          aiTelemetryEnabled &&
+          traceId &&
+          env.LANGFUSE_AI_FEATURES_PUBLIC_KEY &&
+          env.LANGFUSE_AI_FEATURES_SECRET_KEY
+        ) {
+          try {
+            recordParseOutcomeScores({
+              traceId,
+              scores: deriveParseOutcomeScores(llmCompletion, {
+                filters,
+                queryText,
+                droppedCount,
+                unknownScoreNames,
+              }),
+              publicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+              secretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+              baseUrl: env.LANGFUSE_AI_FEATURES_HOST,
+            });
+          } catch (error) {
+            logger.warn("Failed to record Ask AI parse-outcome scores", {
+              projectId: input.projectId,
+              traceId,
+              error,
+            });
+          }
         }
 
         return { filters, queryText, unknownScoreNames };

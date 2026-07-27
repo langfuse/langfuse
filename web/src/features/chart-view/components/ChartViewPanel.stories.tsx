@@ -46,17 +46,12 @@ const meta = preview.meta({
     config: DEFAULT_CONFIG,
     data: DATA,
     onConfigChange: fn(),
+    // In production the panel fills a bounded-height flex ancestor (`flex-1`
+    // inside `EventsChartView`); standalone it needs an explicit height. Give it
+    // one through the component's own `className` prop rather than a layout
+    // decorator (Storybook guide: render the component as it is).
+    className: "h-[420px]",
   },
-  decorators: [
-    // `ChartViewPanel`'s root relies on a bounded-height flex ancestor
-    // (`flex-1`/`min-h-0`) — same as its production host (`EventsChartView`
-    // inside the events table) — so give it one here.
-    (Story) => (
-      <div className="flex h-[420px] flex-col">
-        <Story />
-      </div>
-    ),
-  ],
 });
 
 export const Default = meta.story({});

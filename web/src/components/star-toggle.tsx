@@ -237,11 +237,14 @@ export function StarSessionToggle({
   sessionId,
   value,
   size = "icon",
+  showLabel = false,
 }: {
   projectId: string;
   sessionId: string;
   value: boolean;
   size?: "icon" | "icon-xs";
+  /** Render as a full-width labeled menu item (label tracks the state). */
+  showLabel?: boolean;
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({
@@ -259,6 +262,7 @@ export function StarSessionToggle({
     <StarToggle
       value={value}
       size={size}
+      showLabel={showLabel}
       isLoading={mutBookmarkSession.isPending}
       disabled={!hasAccess}
       onClick={(value) => {
