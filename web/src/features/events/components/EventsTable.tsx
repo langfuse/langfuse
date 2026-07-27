@@ -131,8 +131,6 @@ import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
-import { OutlierStripToggle } from "@/src/features/events/components/outlier-strip/OutlierStripToggle";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   chartFilterExclusionReason,
   chartSearchFieldReason,
@@ -509,11 +507,6 @@ export default function ObservationsEventsTable({
     [dateRange],
   );
 
-  // Outlier strip (LFE-14451): hidden by default, per-project persisted.
-  const [outlierStripVisible, setOutlierStripVisible] = useLocalStorage(
-    `events-outlier-strip-visible-${projectId}`,
-    false,
-  );
   // Drill-in writes the clicked bucket as an absolute range. URL-only
   // (pushIn → browser Back restores the outer window) and deliberately NOT
   // persisted as the project's default range — a transient zoom must not
@@ -2081,22 +2074,10 @@ export default function ObservationsEventsTable({
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               viewModeToggle={
                 chartEnabled ? (
-                  <>
-                    <ViewModeToggle
-                      mode={chartViewMode}
-                      onModeChange={setChartViewMode}
-                    />
-                    {/* Outlier strip is desktop-only until the touch/swipe
-                        slice (LFE-14451 P5); hidden in full chart mode. */}
-                    {outlierStripEnabled &&
-                      !isMobile &&
-                      chartViewMode !== "chart" && (
-                        <OutlierStripToggle
-                          pressed={outlierStripVisible}
-                          onPressedChange={setOutlierStripVisible}
-                        />
-                      )}
-                  </>
+                  <ViewModeToggle
+                    mode={chartViewMode}
+                    onModeChange={setChartViewMode}
+                  />
                 ) : undefined
               }
               refreshConfig={
@@ -2198,6 +2179,19 @@ export default function ObservationsEventsTable({
           </div>
         )}
 
+        {/* Outlier strip (LFE-14451): always-on band under the search bar,
+            spanning the full view (facet sidebar included, unlike the table).
+            Collapses to a slim bar; hidden in full chart mode. */}
+        {outlierStripEnabled && chartViewMode !== "chart" && (
+          <EventsOutlierStrip
+            projectId={projectId}
+            filterState={filterState}
+            fromTimestamp={chartTimeWindow.from}
+            toTimestamp={chartTimeWindow.to}
+            onSelectRange={setTimeRangeTransient}
+          />
+        )}
+
         {/* Content area with sidebar and table. The facet sidebar stays in
             search-bar mode and syncs bidirectionally with the bar. */}
         <ResizableFilterLayout>
@@ -2222,18 +2216,6 @@ export default function ObservationsEventsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            {outlierStripEnabled &&
-              chartViewMode !== "chart" &&
-              outlierStripVisible &&
-              !isMobile && (
-                <EventsOutlierStrip
-                  projectId={projectId}
-                  filterState={filterState}
-                  fromTimestamp={chartTimeWindow.from}
-                  toTimestamp={chartTimeWindow.to}
-                  onSelectRange={setTimeRangeTransient}
-                />
-              )}
             {chartEnabled && chartViewMode === "chart" ? (
               <EventsChartView
                 projectId={projectId}

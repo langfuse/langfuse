@@ -4,17 +4,14 @@ import { OutlierBarStrip } from "./OutlierBarStrip";
 import { makeFixtureSeries } from "./lib/fixtures";
 
 /**
- * Design decision surface for the outlier strip above the trace table
- * (LFE-14451). Every bar is the WORST single event in its time bucket (max
- * cost / latency / tokens) — the strip exists to click/drag into spikes, so
- * the visual must read at a glance: compact, Firefox-devtools-inspired,
- * minimal text, values on hover only.
+ * Design surface for the outlier strip above the trace table (LFE-14451).
+ * Every bar is the WORST single event in its time bucket (max cost / latency
+ * / tokens) — the strip exists to click into spikes, so the visual must read
+ * at a glance: compact, Firefox-devtools-inspired, values on hover only,
+ * sparse gridline ticks, a baseline that keeps the plot boundary visible
+ * where data is absent.
  *
- * Open visual picks (the knobs on these stories):
- *  • bar slot width: 3px (densest) / 5px / 8px
- *  • scan bands: alternating time bands vs value gridbands vs none
- *  • labels: sparse time labels + tiny max label — keep or drop
- *  • strip height: 40 / 56 / 72px
+ * Locked defaults (design review 2026-07-27): sqrt scale, 40px height.
  */
 
 const spikyCost = makeFixtureSeries({
@@ -35,34 +32,13 @@ export const Default = meta.story({
   args: {
     ...spikyCost,
     metric: "cost",
+    widthPx: 720,
   },
 });
 
-export const VariantMatrix = meta.story({
-  render: () => (
-    <div className="flex flex-col gap-5 p-2">
-      {([3, 5, 8] as const).map((slot) =>
-        (["time", "value", "none"] as const).map((bands) => (
-          <div key={`${slot}-${bands}`}>
-            <div className="text-muted-foreground mb-1 font-mono text-[10px]">
-              slot {slot}px · bands: {bands}
-            </div>
-            <OutlierBarStrip
-              {...spikyCost}
-              metric="cost"
-              barSlotPx={slot}
-              bands={bands}
-            />
-          </div>
-        )),
-      )}
-    </div>
-  ),
-});
-
 /** Real outliers are 10–40x the base load: linear scale crushes the base into
- * a barely-visible baseline; sqrt keeps the base readable while spikes still
- * dominate. Pick one — it becomes the locked preparer decision. */
+ * a barely-visible baseline; sqrt (the locked default) keeps the base
+ * readable while spikes still dominate. */
 export const ScaleMatrix = meta.story({
   render: () => (
     <div className="flex flex-col gap-5 p-2">
@@ -71,7 +47,12 @@ export const ScaleMatrix = meta.story({
           <div className="text-muted-foreground mb-1 font-mono text-[10px]">
             scale: {scale}
           </div>
-          <OutlierBarStrip {...spikyCost} metric="cost" scale={scale} />
+          <OutlierBarStrip
+            {...spikyCost}
+            metric="cost"
+            widthPx={720}
+            scale={scale}
+          />
         </div>
       ))}
     </div>
@@ -86,41 +67,44 @@ export const HeightMatrix = meta.story({
           <div className="text-muted-foreground mb-1 font-mono text-[10px]">
             height {height}px
           </div>
-          <OutlierBarStrip {...spikyCost} metric="cost" heightPx={height} />
+          <OutlierBarStrip
+            {...spikyCost}
+            metric="cost"
+            widthPx={720}
+            heightPx={height}
+          />
         </div>
       ))}
     </div>
   ),
 });
 
-export const TwoUp = meta.story({
+/** The ≥1200px layout: three 400px charts side by side. */
+export const ThreeUp = meta.story({
   render: () => {
-    const latency = makeFixtureSeries({
-      rangeMs: 24 * 3600 * 1000,
-      stepSeconds: 1200,
-      profile: "spiky",
-      metric: "latency",
-    });
     const cost = makeFixtureSeries({
       rangeMs: 24 * 3600 * 1000,
-      stepSeconds: 1200,
+      stepSeconds: 1800,
       profile: "spiky",
       metric: "cost",
     });
+    const latency = makeFixtureSeries({
+      rangeMs: 24 * 3600 * 1000,
+      stepSeconds: 1800,
+      profile: "spiky",
+      metric: "latency",
+    });
+    const tokens = makeFixtureSeries({
+      rangeMs: 24 * 3600 * 1000,
+      stepSeconds: 1800,
+      profile: "spiky",
+      metric: "tokens",
+    });
     return (
       <div className="flex gap-6 p-2">
-        <div>
-          <div className="text-muted-foreground mb-1 font-mono text-[10px]">
-            Cost
-          </div>
-          <OutlierBarStrip {...cost} metric="cost" />
-        </div>
-        <div>
-          <div className="text-muted-foreground mb-1 font-mono text-[10px]">
-            Latency
-          </div>
-          <OutlierBarStrip {...latency} metric="latency" />
-        </div>
+        <OutlierBarStrip {...cost} metric="cost" widthPx={400} />
+        <OutlierBarStrip {...latency} metric="latency" widthPx={400} />
+        <OutlierBarStrip {...tokens} metric="tokens" widthPx={400} />
       </div>
     );
   },
@@ -135,6 +119,7 @@ export const BurstyWeek = meta.story({
       metric: "latency",
     }),
     metric: "latency",
+    widthPx: 900,
   },
 });
 
@@ -147,6 +132,7 @@ export const SparseData = meta.story({
       metric: "tokens",
     }),
     metric: "tokens",
+    widthPx: 720,
   },
 });
 
@@ -161,6 +147,7 @@ export const NoMetricData = meta.story({
       metric: "cost",
     }),
     metric: "cost",
+    widthPx: 720,
   },
 });
 
@@ -168,9 +155,7 @@ export const MinimalNoLabels = meta.story({
   args: {
     ...spikyCost,
     metric: "cost",
-    showMaxLabel: false,
+    widthPx: 720,
     showTimeLabels: false,
-    bands: "none",
-    heightPx: 40,
   },
 });

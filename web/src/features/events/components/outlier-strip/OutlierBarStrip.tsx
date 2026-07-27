@@ -15,8 +15,9 @@ import {
  * time bucket; clicking a bar reports the bucket's range so the caller can
  * narrow the table's time window.
  *
- * Defaults reflect the picked design (sqrt scale, 5px slot, no bands, 40px);
- * the variant knobs remain for the Storybook matrices and future polish.
+ * The strip always spans the full `widthPx` (fractional bar slots), with a
+ * baseline and sparse vertical gridline ticks so the chart's boundaries stay
+ * visible even where the range holds no data.
  */
 
 const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
@@ -25,18 +26,19 @@ const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
   tokens: "hsl(var(--chart-4))",
 };
 
+/** Minimum horizontal pixels between gridline ticks / labels. */
+const TICK_MIN_SPACING_PX = 110;
+
 export type OutlierBarStripProps = {
   dense: OutlierStripDenseBin[];
   /** Max metric value across buckets (0 = no data anywhere). */
   maxValue: number;
   stepMs: number;
   metric: OutlierStripMetricKey;
+  /** Full plot width; bars stretch/shrink to span it exactly. */
+  widthPx: number;
   /** Height of the bar canvas, labels excluded. */
   heightPx?: number;
-  /** Horizontal pixels one bar occupies, 1px gap included. */
-  barSlotPx?: number;
-  /** Scanability treatment: alternating time bands or value gridbands. */
-  bands?: "none" | "time" | "value";
   /**
    * Bar-height scale. Real cost/latency outliers are 10–40x the base load —
    * linear renders the base nearly invisible; sqrt (default) keeps it
@@ -45,24 +47,27 @@ export type OutlierBarStripProps = {
   scale?: "linear" | "sqrt";
   /** 1px baseline tick where events exist but carry no metric data. */
   showActivityTicks?: boolean;
-  /** Tiny max-value label in the top-left corner. */
-  showMaxLabel?: boolean;
-  /** Sparse time labels under the strip. */
+  /** Sparse time labels under the gridline ticks. */
   showTimeLabels?: boolean;
   onSelectBucket?: (range: { fromMs: number; toMs: number }) => void;
   className?: string;
 };
 
-/** Smallest ladder step spanning at least `minBars` bars — the band/label grid. */
-const pickSuperStepMs = (stepMs: number, minBars: number): number => {
+/** Smallest ladder step at least `minPx` wide at the current bar slot. */
+const pickTickStepMs = (
+  stepMs: number,
+  slotPx: number,
+  minPx: number,
+): number => {
   for (const step of OUTLIER_STRIP_STEP_LADDER_SECONDS) {
-    if (step * 1000 >= stepMs * minBars) return step * 1000;
+    const tickMs = step * 1000;
+    if (tickMs >= stepMs && (tickMs / stepMs) * slotPx >= minPx) return tickMs;
   }
   const last =
     OUTLIER_STRIP_STEP_LADDER_SECONDS[
       OUTLIER_STRIP_STEP_LADDER_SECONDS.length - 1
     ] * 1000;
-  return Math.ceil((stepMs * minBars) / last) * last;
+  return Math.ceil((minPx / slotPx) * (stepMs / last)) * last;
 };
 
 const formatBucketRange = (fromMs: number, stepMs: number): string => {
@@ -77,32 +82,33 @@ export function OutlierBarStrip({
   maxValue,
   stepMs,
   metric,
+  widthPx,
   // Defaults locked by design review 2026-07-27: sqrt scale keeps the base
-  // load readable under 10-40x outliers; 40px + no bands is the compact pick.
+  // load readable under 10-40x outliers; 40px is the compact pick.
   heightPx = 40,
-  barSlotPx = 5,
-  bands = "none",
   scale = "sqrt",
   showActivityTicks = true,
-  showMaxLabel = true,
   showTimeLabels = true,
   onSelectBucket,
   className,
 }: OutlierBarStripProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
 
   const metricSpec = OUTLIER_STRIP_METRICS[metric];
   const color = METRIC_COLOR[metric];
-  const width = dense.length * barSlotPx;
-  const barWidth = Math.max(1, barSlotPx - 1);
-  const labelHeight = showTimeLabels ? 14 : 0;
+  const binCount = Math.max(dense.length, 1);
+  // Fractional slots: the plot always spans the full width, so empty regions
+  // read as "chart with no data here" instead of trailing whitespace.
+  const slotPx = widthPx / binCount;
+  const barWidth = Math.max(Math.min(slotPx - 1, slotPx * 0.8), 0.5);
+  const labelHeight = showTimeLabels ? 12 : 0;
   const hasData = maxValue > 0;
   const hasActivity = dense.some((bin) => bin.count > 0);
 
-  const superStepMs = pickSuperStepMs(stepMs, 8);
-  const superIndex = (bucketMs: number) => Math.floor(bucketMs / superStepMs);
-  const superLabel = (bucketMs: number) =>
-    format(new Date(bucketMs), superStepMs >= 86_400_000 ? "MMM d" : "HH:mm");
+  const tickStepMs = pickTickStepMs(stepMs, slotPx, TICK_MIN_SPACING_PX);
+  const tickLabel = (bucketMs: number) =>
+    format(new Date(bucketMs), tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm");
 
   const barHeight = (value: number) => {
     if (!hasData) return 0;
@@ -111,36 +117,40 @@ export function OutlierBarStrip({
     return Math.max(1.5, scaled * heightPx);
   };
 
-  const hovered = hoverIndex !== null ? dense[hoverIndex] : null;
+  // ?? null: a stale hoverIndex can outlive a shrinking dense array (data or
+  // granularity change mid-hover), and undefined slips past a !== null check.
+  const hovered = hoverIndex !== null ? (dense[hoverIndex] ?? null) : null;
+  const hoveredHasData =
+    hovered !== null && (hovered.count > 0 || hovered.value !== null);
 
   return (
-    <div className={cn("relative", className)} style={{ width }}>
-      {showMaxLabel && hasData && (
-        <span className="text-muted-foreground pointer-events-none absolute top-0 left-0.5 z-[1] font-mono text-[9px] leading-none">
-          {metricSpec.format(maxValue)}
-        </span>
-      )}
-
+    <div className={cn("relative", className)} style={{ width: widthPx }}>
       <svg
-        width={width}
+        width={widthPx}
         height={heightPx + labelHeight}
         role="img"
         aria-label={metricSpec.label}
-        className="block cursor-crosshair"
-        onMouseLeave={() => setHoverIndex(null)}
+        className={cn(
+          "block",
+          hoveredHasData ? "cursor-pointer" : "cursor-default",
+        )}
+        onMouseLeave={() => {
+          setHoverIndex(null);
+          setMouse(null);
+        }}
         onMouseMove={(event) => {
           const rect = event.currentTarget.getBoundingClientRect();
-          const index = Math.floor((event.clientX - rect.left) / barSlotPx);
+          const index = Math.floor((event.clientX - rect.left) / slotPx);
           setHoverIndex(index >= 0 && index < dense.length ? index : null);
+          setMouse({
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+          });
         }}
         onClick={() => {
           // Mirror the tooltip's guard: clicking a truly empty bucket would
           // just drill the table into a zero-row window.
-          if (
-            hovered &&
-            (hovered.count > 0 || hovered.value !== null) &&
-            onSelectBucket
-          ) {
+          if (hovered && hoveredHasData && onSelectBucket) {
             onSelectBucket({
               fromMs: hovered.bucketStartMs,
               toMs: hovered.bucketStartMs + stepMs,
@@ -148,33 +158,32 @@ export function OutlierBarStrip({
           }
         }}
       >
-        {/* Scan bands */}
-        {bands === "time" &&
-          dense.map((bin, i) =>
-            superIndex(bin.bucketStartMs) % 2 === 1 ? (
-              <rect
-                key={`band-${i}`}
-                x={i * barSlotPx}
-                y={0}
-                width={barSlotPx}
-                height={heightPx}
-                className="fill-muted"
-                opacity={0.5}
-              />
-            ) : null,
-          )}
-        {bands === "value" &&
-          [0.25, 0.75].map((fraction) => (
-            <rect
-              key={fraction}
-              x={0}
-              y={heightPx * (1 - fraction - 0.25)}
-              width={width}
-              height={heightPx * 0.25}
-              className="fill-muted"
-              opacity={0.4}
+        {/* Sparse vertical gridline ticks (Firefox-devtools style) */}
+        {dense.map((bin, i) => {
+          if (bin.bucketStartMs % tickStepMs !== 0 || i === 0) return null;
+          return (
+            <line
+              key={`tick-${i}`}
+              x1={i * slotPx}
+              y1={0}
+              x2={i * slotPx}
+              y2={heightPx}
+              className="stroke-foreground"
+              strokeWidth={1}
+              opacity={0.07}
             />
-          ))}
+          );
+        })}
+
+        {/* Plot baseline: the chart's boundary stays visible without data */}
+        <line
+          x1={0}
+          y1={heightPx - 0.5}
+          x2={widthPx}
+          y2={heightPx - 0.5}
+          className="stroke-border"
+          strokeWidth={1}
+        />
 
         {/* Bars */}
         {dense.map((bin, i) => {
@@ -184,10 +193,10 @@ export function OutlierBarStrip({
             return showActivityTicks && bin.count > 0 ? (
               <rect
                 key={i}
-                x={i * barSlotPx}
-                y={heightPx - 1}
+                x={i * slotPx}
+                y={heightPx - 2}
                 width={barWidth}
-                height={1}
+                height={1.5}
                 className="fill-muted-foreground"
                 opacity={0.6}
               />
@@ -197,11 +206,11 @@ export function OutlierBarStrip({
           return (
             <rect
               key={i}
-              x={i * barSlotPx}
+              x={i * slotPx + (slotPx - barWidth) / 2}
               y={heightPx - h}
               width={barWidth}
               height={h}
-              rx={barSlotPx >= 5 ? 1 : 0}
+              rx={barWidth >= 4 ? 1 : 0}
               fill={color}
               opacity={hoverIndex === i ? 1 : 0.75}
             />
@@ -211,28 +220,28 @@ export function OutlierBarStrip({
         {/* Hover crosshair column */}
         {hoverIndex !== null && (
           <rect
-            x={hoverIndex * barSlotPx}
+            x={hoverIndex * slotPx}
             y={0}
-            width={barSlotPx}
+            width={slotPx}
             height={heightPx}
             className="fill-foreground"
             opacity={0.08}
           />
         )}
 
-        {/* Sparse time labels on the super-step grid */}
+        {/* Sparse time labels on the tick grid */}
         {showTimeLabels &&
           dense.map((bin, i) => {
-            if (bin.bucketStartMs % superStepMs !== 0 || i === 0) return null;
+            if (bin.bucketStartMs % tickStepMs !== 0 || i === 0) return null;
             return (
               <text
                 key={`label-${i}`}
-                x={i * barSlotPx + 1}
-                y={heightPx + 10}
-                className="fill-muted-foreground font-mono"
+                x={i * slotPx + 3}
+                y={heightPx + 9}
+                className="fill-muted-foreground/80 font-mono"
                 fontSize={8}
               >
-                {superLabel(bin.bucketStartMs)}
+                {tickLabel(bin.bucketStartMs)}
               </text>
             );
           })}
@@ -247,15 +256,13 @@ export function OutlierBarStrip({
       )}
 
       {/* Tooltip */}
-      {hovered && (hovered.count > 0 || hovered.value !== null) && (
+      {hovered && hoveredHasData && mouse && (
         <div
-          className="bg-popover text-popover-foreground pointer-events-none absolute z-10 rounded border px-1.5 py-1 font-mono text-[10px] leading-tight shadow-sm"
+          className="bg-popover text-popover-foreground pointer-events-none absolute z-10 rounded border px-1.5 py-1 font-mono text-[10px] leading-tight whitespace-nowrap shadow-sm"
           style={{
-            left: Math.min(
-              (hoverIndex ?? 0) * barSlotPx + barSlotPx + 4,
-              Math.max(0, width - 150),
-            ),
-            top: 0,
+            left: mouse.x + 10,
+            top: mouse.y - 8,
+            transform: "translateY(-100%)",
           }}
         >
           <div className="text-muted-foreground">
