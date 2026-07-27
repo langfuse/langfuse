@@ -63,6 +63,7 @@ import {
 } from "@/src/components/ui/card";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
+import { assertUnreachable } from "@/src/utils/types";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -149,7 +150,7 @@ type SidebarVersionState =
         | { status: "current" }
         | {
             status: "update-available";
-            updateType: string;
+            updateType: "major" | "minor" | "patch";
             latestRelease: string;
           };
       migration: { status: "idle" } | { status: "in-progress"; phase: string };
@@ -644,12 +645,13 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
   const versionText = `${VERSION}${
     selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
   }`;
-  const color =
-    update?.updateType === "major"
-      ? "text-dark-red"
-      : update?.updateType === "minor"
-        ? "text-dark-yellow"
-        : undefined;
+  const color = React.useMemo(() => {
+    if (!update) return undefined;
+    if (update.updateType === "major") return "text-dark-red";
+    if (update.updateType === "minor") return "text-dark-yellow";
+    if (update.updateType === "patch") return undefined;
+    return assertUnreachable(update.updateType);
+  }, [update]);
 
   return (
     <DropdownMenu>
