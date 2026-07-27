@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { createContext, useContext } from "react";
 import type { DropEvent, DropzoneOptions, FileRejection } from "react-dropzone";
 import { useDropzone } from "react-dropzone";
-import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 
 type DropzoneContextType = {
@@ -35,7 +34,7 @@ const DropzoneContext = createContext<DropzoneContextType | undefined>(
 
 export type DropzoneProps = Omit<DropzoneOptions, "onDrop"> & {
   src?: File[];
-  className: "mt-1 border-none p-0 text-left" | "bg-secondary/50 border-dashed";
+  className?: "mt-1";
   maxFiles: NonNullable<DropzoneOptions["maxFiles"]>;
   maxSize: NonNullable<DropzoneOptions["maxSize"]>;
   onDrop: (
@@ -44,7 +43,15 @@ export type DropzoneProps = Omit<DropzoneOptions, "onDrop"> & {
     event: DropEvent,
   ) => void;
   children: ReactNode;
+  variant: "compact" | "panel";
 };
+
+const variantClasses = {
+  compact:
+    "border-border-contrast border border-none bg-background p-0 text-left hover:bg-accent hover:text-accent-foreground",
+  panel:
+    "border-border-contrast bg-secondary/50 border border-dashed p-8 hover:bg-accent hover:text-accent-foreground",
+} as const;
 
 export const Dropzone = ({
   accept,
@@ -57,6 +64,7 @@ export const Dropzone = ({
   src,
   className,
   children,
+  variant,
   ...props
 }: DropzoneProps) => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -83,20 +91,20 @@ export const Dropzone = ({
       key={JSON.stringify(src)}
       value={{ src, accept, maxSize, minSize, maxFiles }}
     >
-      <Button
+      <button
         className={cn(
-          "relative h-auto w-full flex-col overflow-hidden p-8",
+          "ring-offset-background focus-visible:ring-ring relative inline-flex h-auto w-full flex-col items-center justify-center overflow-hidden rounded-md text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+          variantClasses[variant],
           isDragActive && "ring-ring ring-1 outline-hidden",
           className,
         )}
         disabled={disabled}
         type="button"
-        variant="outline"
         {...getRootProps()}
       >
         <input {...getInputProps()} disabled={disabled} />
         {children}
-      </Button>
+      </button>
     </DropzoneContext.Provider>
   );
 };

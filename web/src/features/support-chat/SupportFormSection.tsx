@@ -596,7 +596,7 @@ export function SupportFormSection({
                 <FormMessage />
 
                 <Dropzone
-                  className="mt-1 border-none p-0 text-left"
+                  className="mt-1"
                   maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
                   maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
                   onDrop={(accepted) =>
@@ -612,6 +612,7 @@ export function SupportFormSection({
                     showErrorToast("File Upload Error", userMessage, "WARNING");
                   }}
                   src={files}
+                  variant="compact"
                 >
                   {/* Small, single-line trigger */}
                   <DropzoneEmptyState>
