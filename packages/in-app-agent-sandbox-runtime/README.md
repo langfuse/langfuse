@@ -2,7 +2,7 @@
 
 Minimal HTTP control server for the in-app agent sandbox runtime.
 
-See `web/src/ee/features/in-app-agent/README.md` for how this package fits into the in-app agent sandbox architecture.
+See `web/src/features/in-app-agent/README.md` for how this package fits into the in-app agent sandbox architecture.
 
 ## Privileges
 

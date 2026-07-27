@@ -112,7 +112,7 @@ export default [
   {
     ...reactYouMightNotNeedAnEffect.configs.recommended,
     name: "langfuse/web/in-app-agent",
-    files: ["src/ee/features/in-app-agent/**/*.{ts,tsx}"],
+    files: ["src/features/in-app-agent/**/*.{ts,tsx}"],
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
       "@typescript-eslint/consistent-type-definitions": ["warn", "type"],
