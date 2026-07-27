@@ -75,9 +75,7 @@ export function BatchActionsTable(props: { projectId: string }) {
       size: 110,
       cell: ({ row }) => {
         const status = row.getValue("status") as string;
-        return (
-          <StatusBadge type={status.toLowerCase()} className="capitalize" />
-        );
+        return <StatusBadge type={status.toLowerCase()} />;
       },
     },
     {

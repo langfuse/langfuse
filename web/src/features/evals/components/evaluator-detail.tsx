@@ -120,11 +120,7 @@ export const EvaluatorDetail = () => {
                 />
               </div>
             )}
-            <StatusBadge
-              type={displayStatus.toLowerCase()}
-              isLive
-              className="max-h-8"
-            />
+            <StatusBadge type={displayStatus.toLowerCase()} isLive />
 
             {evaluator.data && (
               <DetailPageNav

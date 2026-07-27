@@ -26,8 +26,6 @@ export const StatusBadge = ({
   type: Status | (string & {});
   isLive?: boolean;
   className?:
-    | "capitalize"
-    | "max-h-8"
     | "w-fit self-start"
     | "pl-3"
     | "ml-2"

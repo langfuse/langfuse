@@ -310,13 +310,7 @@ export function AnnotationQueueItemsTable({
       size: 60,
       cell: ({ row }) => {
         const status: QueueItemRowData["status"] = row.getValue("status");
-        return (
-          <StatusBadge
-            className="capitalize"
-            type={status.toLowerCase()}
-            isLive={false}
-          />
-        );
+        return <StatusBadge type={status.toLowerCase()} isLive={false} />;
       },
     },
     {

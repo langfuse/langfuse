@@ -94,9 +94,7 @@ export function BatchExportsTable(props: { projectId: string }) {
       size: 90,
       cell: (row) => {
         const status = row.getValue() as string;
-        return (
-          <StatusBadge type={status.toLowerCase()} className="capitalize" />
-        );
+        return <StatusBadge type={status.toLowerCase()} />;
       },
     },
     {

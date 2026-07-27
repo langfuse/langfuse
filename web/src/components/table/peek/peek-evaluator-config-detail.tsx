@@ -71,11 +71,7 @@ const PeekViewEvaluatorConfigDetail = ({
         <div className="flex flex-row items-center gap-2">
           <span className="max-h-fit text-lg font-bold">Configuration</span>
           <div className="flex items-center gap-2">
-            <StatusBadge
-              type={displayStatus.toLowerCase()}
-              isLive
-              className="max-h-8"
-            />
+            <StatusBadge type={displayStatus.toLowerCase()} isLive />
             {/* Quick-deactivate is a migration aid: only shown where legacy
                 evals can no longer be set up (cloud), consistent with the
                 read-only edit gate. */}

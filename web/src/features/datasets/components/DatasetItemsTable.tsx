@@ -195,13 +195,7 @@ export function DatasetItemsTable({
       size: 80,
       cell: ({ row }) => {
         const status: DatasetStatus = row.getValue("status");
-        return (
-          <StatusBadge
-            className="capitalize"
-            type={status.toLowerCase()}
-            isLive={false}
-          />
-        );
+        return <StatusBadge type={status.toLowerCase()} isLive={false} />;
       },
     },
     {
