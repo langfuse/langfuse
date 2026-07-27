@@ -597,6 +597,143 @@ describe("llmApiKey.all RPC", () => {
     expect(connection.extraHeaders).toBeUndefined();
   });
 
+  it("should reject updating the base URL without a new secret key", async () => {
+    const existingExtraHeaders = {
+      Authorization: "Bearer stored-token",
+    };
+
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: existingExtraHeaders,
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai",
+      },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        baseURL: "https://example.net/v1",
+      }),
+    ).rejects.toThrow("Secret key is required when changing the base URL");
+
+    const unchangedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: {
+        id: existingKey.id,
+        projectId,
+      },
+    });
+
+    expect(unchangedKey.baseURL).toBe("https://api.openai.com/v1");
+    expect(decrypt(unchangedKey.secretKey)).toBe("sk-original");
+    expect(JSON.parse(decrypt(unchangedKey.extraHeaders as string))).toEqual(
+      existingExtraHeaders,
+    );
+  });
+
+  it("should not reuse stored extra headers when updating the base URL", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: {
+        Authorization: "Bearer stored-token",
+        "X-Custom-Header": "stored-value",
+      },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai",
+      },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-rotated",
+      baseURL: "https://example.net/v1",
+      extraHeaders: {
+        Authorization: "",
+        "X-Custom-Header": "",
+      },
+    });
+
+    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: {
+        id: existingKey.id,
+        projectId,
+      },
+    });
+
+    expect(updatedKey.baseURL).toBe("https://example.net/v1");
+    expect(decrypt(updatedKey.secretKey)).toBe("sk-rotated");
+    expect(updatedKey.extraHeaders).toBeNull();
+    expect(updatedKey.extraHeaderKeys).toEqual([]);
+  });
+
+  it("should allow new extra headers when updating the base URL", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-original",
+      baseURL: "https://api.openai.com/v1",
+      extraHeaders: {
+        Authorization: "Bearer stored-token",
+        "X-Old-Header": "stored-value",
+      },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai",
+      },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-rotated",
+      baseURL: "https://example.net/v1",
+      extraHeaders: {
+        Authorization: "Bearer rotated-token",
+        "X-Old-Header": "",
+      },
+    });
+
+    const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: {
+        id: existingKey.id,
+        projectId,
+      },
+    });
+
+    expect(JSON.parse(decrypt(updatedKey.extraHeaders as string))).toEqual({
+      Authorization: "Bearer rotated-token",
+    });
+    expect(updatedKey.extraHeaderKeys).toEqual(["Authorization"]);
+  });
+
   it("should create and update an llm api key", async () => {
     const secret = "test-secret";
     const provider = "openai";

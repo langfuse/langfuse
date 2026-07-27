@@ -380,10 +380,6 @@ export const createAuthedProjectAPIRoute = <
 
     logger.debug(
       `Request to route ${routeConfig.name} projectId ${auth.scope.projectId}`,
-      {
-        query: req.query,
-        body: req.body,
-      },
     );
 
     let query: z.infer<TQuery>;
