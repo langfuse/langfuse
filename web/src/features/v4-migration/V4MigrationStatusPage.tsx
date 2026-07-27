@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { ArrowRight, Copy } from "lucide-react";
 import ContainerPage from "@/src/components/layouts/container-page";
@@ -140,6 +141,7 @@ function OrgStatusSection({
   org: V4MigrationOrganization;
   statusByProjectId: Map<string, ProjectMigrationStatus>;
 }) {
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { data: lastTraceTimes } =
@@ -148,9 +150,14 @@ function OrgStatusSection({
       { enabled: org.projects.length > 0 },
     );
 
-  const handleRowClick = (row: { id: string; name: string }) => {
+  const openProjectMigration = (row: { id: string; name: string }) => {
     capture("v4_migration:status_row_clicked");
     openMigrationPanel({ id: row.id, name: row.name });
+  };
+
+  const handleRowClick = (row: { id: string; name: string }) => {
+    openProjectMigration(row);
+    router.push(`/project/${row.id}/traces`);
   };
 
   const [orderBy, setOrderBy] = useState<OrderBy>(null);
@@ -202,14 +209,18 @@ function OrgStatusSection({
           : 0;
       case "sdk":
         return row.status?.sdk.status === "latest"
-          ? 4
-          : row.status?.sdk.status === "legacy"
-            ? 3
-            : row.status?.sdk.status === "unknown"
-              ? 2
-              : row.status?.sdk.status === "checking"
-                ? 1
-                : 0;
+          ? 5
+          : row.status?.sdk.status === "otel_realtime"
+            ? 5
+            : row.status?.sdk.status === "legacy"
+              ? 4
+              : row.status?.sdk.status === "otel_header_required"
+                ? 3
+                : row.status?.sdk.status === "unknown"
+                  ? 2
+                  : row.status?.sdk.status === "checking"
+                    ? 1
+                    : 0;
       case "evals":
         return row.status?.evals.count ?? 0;
       case "apis":
@@ -302,10 +313,13 @@ function OrgStatusSection({
                   >
                     <TableCell density="comfortable" className="max-w-48">
                       <Link
-                        href={`/project/${row.id}`}
+                        href={`/project/${row.id}/traces`}
                         className="block truncate font-bold hover:underline"
                         title={row.name}
-                        onClick={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openProjectMigration(row);
+                        }}
                       >
                         {row.name}
                       </Link>
@@ -319,6 +333,10 @@ function OrgStatusSection({
                     <TableCell density="comfortable">
                       {row.status.sdk.status === "latest" ? (
                         <span className="text-foreground-tertiary">Latest</span>
+                      ) : row.status.sdk.status === "otel_realtime" ? (
+                        <span className="text-foreground-tertiary">
+                          OTel real-time
+                        </span>
                       ) : row.status.sdk.status === "checking" ? (
                         <span className="text-foreground-tertiary">
                           Checking…
@@ -326,6 +344,13 @@ function OrgStatusSection({
                       ) : row.status.sdk.status === "unknown" ? (
                         <span className="text-foreground-tertiary">
                           Unknown
+                        </span>
+                      ) : row.status.sdk.status === "otel_header_required" ? (
+                        <span>
+                          {row.status.sdk.delayedOtelIngestionCount} OTel header{" "}
+                          {row.status.sdk.delayedOtelIngestionCount === 1
+                            ? "required"
+                            : "issues"}
                         </span>
                       ) : row.status.sdk.status === "error" ? (
                         <span className="text-foreground-tertiary">
@@ -427,9 +452,9 @@ function V4MigrationStatusPageContent() {
         <>
           Yes, eventually. The{" "}
           <FaqLink href={SDK_UPGRADE_URL}>old SDKs</FaqLink>, trace-level evals,
-          and APIs are frozen and stop working on{" "}
-          <span className="underline">Oct 1</span>. They keep running until
-          then, but we&apos;re no longer fixing bugs in them.
+          and APIs are frozen and stop working{" "}
+          <span className="underline">soon</span>. They keep running until then,
+          but we&apos;re no longer fixing bugs in them.
         </>
       ),
     },
@@ -454,8 +479,8 @@ function V4MigrationStatusPageContent() {
       q: "What if I do nothing?",
       a: (
         <>
-          On <span className="underline">Oct 1</span>, old SDKs stop sending
-          data, and the{" "}
+          <span className="underline">Soon</span>, old SDKs stop sending data,
+          and the{" "}
           <FaqLink href={API_REFERENCE_URL}>
             deprecated evals and endpoints
           </FaqLink>{" "}

@@ -312,6 +312,8 @@ export const events = {
     "contact_book_call_clicked",
     "contact_support_clicked",
     "status_row_clicked",
+    "update_required_badge_clicked",
+    "migrate_evals_with_agent_clicked",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only

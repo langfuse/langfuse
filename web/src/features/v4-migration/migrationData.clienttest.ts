@@ -15,6 +15,7 @@ const migrationStatus = (
     status: "latest",
     sdkUsageSeries: [],
     upgradeRequiredCount: 0,
+    delayedOtelIngestionCount: 0,
   },
   evals: loaded(0),
   apis: loaded(0),
@@ -52,6 +53,16 @@ describe("v4 migration data", () => {
   it("only marks a fully loaded project without affected items as ready", () => {
     expect(getProjectMigrationReadiness(migrationStatus())).toBe("ready");
     expect(
+      getProjectMigrationReadiness(
+        migrationStatus({
+          sdk: {
+            ...migrationStatus().sdk,
+            status: "otel_realtime",
+          },
+        }),
+      ),
+    ).toBe("ready");
+    expect(
       getProjectMigrationReadiness(migrationStatus({ evals: loaded(1) })),
     ).toBe("action-needed");
     expect(
@@ -66,6 +77,7 @@ describe("v4 migration data", () => {
             status: "error",
             sdkUsageSeries: [],
             upgradeRequiredCount: 0,
+            delayedOtelIngestionCount: 0,
           },
         }),
       ),

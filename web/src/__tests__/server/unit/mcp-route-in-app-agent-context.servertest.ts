@@ -1,8 +1,8 @@
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/features/in-app-agent/constants";
 import {
   createInAppAgentMcpRunOverride,
   InAppAgentMcpRunOverrideSchema,
-} from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+} from "@/src/features/in-app-agent/server/human-in-the-loop";
 import { getInAppAgentContext } from "@/src/pages/api/public/mcp";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";

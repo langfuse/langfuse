@@ -9,6 +9,7 @@ type SdkMetadata = {
 export type SdkVersionInfo = {
   language: string | null;
   version: string | null;
+  isOtel?: boolean;
 };
 
 const SDK_VERSION_RECHECK_MS = 30 * 86_400_000;
@@ -16,6 +17,7 @@ const SDK_VERSION_RECHECK_MS = 30 * 86_400_000;
 export const sdkVersionStorageKeys = (projectId: string) => ({
   language: `events-sdk-language:${projectId}`,
   version: `events-sdk-version:${projectId}`,
+  isOtel: `events-sdk-is-otel:${projectId}`,
   checkedAt: `events-sdk-checkedAt:${projectId}`,
 });
 
@@ -39,6 +41,7 @@ export const toSdkVersionInfo = (
     ? {
         language: sdk.isOtel ? normalizeIngestionSdkName(sdk.name) : null,
         version: sdk.isOtel ? (sdk.version?.trim() ?? null) : null,
+        isOtel: sdk.isOtel,
       }
     : undefined;
 
@@ -80,6 +83,16 @@ export const getSdkVersionCapabilityStatus = (
   }
 
   return "supported";
+};
+
+export const getSdkVersionCapabilityMinimum = (
+  sdkName: SdkVersionInfo["language"],
+  capability: SdkVersionCapability,
+): string | null => {
+  const normalizedSdkName = normalizeIngestionSdkName(sdkName);
+  return normalizedSdkName
+    ? SDK_VERSION_CAPABILITIES[capability][normalizedSdkName].join(".")
+    : null;
 };
 
 export const getSdkVersionCapability = (
