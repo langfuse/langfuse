@@ -207,11 +207,7 @@ export const EvalTemplateDetail = () => {
                             # {template.version}
                           </Badge>
                           {index === 0 && (
-                            <StatusBadge
-                              type="active"
-                              key="active"
-                              className="break-all sm:break-normal"
-                            />
+                            <StatusBadge type="active" key="active" />
                           )}
                         </div>
                         <span className="text-muted-foreground text-xs">

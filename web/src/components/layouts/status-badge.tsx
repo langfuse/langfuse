@@ -27,7 +27,6 @@ export const StatusBadge = ({
   isLive?: boolean;
   className?:
     | "capitalize"
-    | "break-all sm:break-normal"
     | "max-h-8"
     | "w-fit self-start"
     | "pl-3"
@@ -75,7 +74,7 @@ export const StatusBadge = ({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs",
+        "inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs break-all sm:break-normal",
         badgeColor,
         className,
       )}

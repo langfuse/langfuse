@@ -59,7 +59,6 @@ export function TruncatedLabels({
           <StatusBadge
             type={label}
             key={label}
-            className="break-all sm:break-normal"
             isLive={label === PRODUCTION_LABEL}
             preserveCase
           />
@@ -92,7 +91,6 @@ export function TruncatedLabels({
                     <StatusBadge
                       type={label}
                       key={label}
-                      className="break-all sm:break-normal"
                       isLive={label === PRODUCTION_LABEL}
                       preserveCase
                     />
