@@ -4,7 +4,12 @@
  * Used for all main application pages when user is authenticated
  */
 
-import { useEffect, useState, type PropsWithChildren } from "react";
+import {
+  useEffect,
+  useState,
+  type ComponentProps,
+  type PropsWithChildren,
+} from "react";
 import Head from "next/head";
 import { useRouter, type NextRouter } from "next/router";
 import {
@@ -12,11 +17,7 @@ import {
   SidebarInset,
   useSidebar,
 } from "@/src/components/ui/sidebar";
-import {
-  AppSidebar,
-  type SidebarVersionState,
-} from "@/src/components/nav/app-sidebar";
-import { type UserNavigationProps } from "@/src/components/nav/nav-user";
+import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { MobileNavSwitcher } from "@/src/components/nav/mobile-nav-switcher";
 import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
 import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
@@ -133,42 +134,40 @@ export function AuthenticatedLayout({
   const hasFeaturePreviews = isLangfuseCloud || user.v4BetaEnabled === true;
 
   // User navigation items for sidebar dropdown
-  const userNavProps = {
-    user: {
-      name: user.name ?? "",
-      email: user.email ?? "",
-      avatar: user.image ?? "",
-    },
-    items: [
-      { name: "Account Settings", href: "/account/settings" },
-      { name: "Theme", onClick: () => {}, content: <ThemeToggle /> },
-      ...(hasFeaturePreviews
-        ? [
-            {
-              name: "Feature Preview",
-              onClick: () => setFeaturePreviewOpen(true),
-            },
-          ]
-        : []),
-      ...(isLangfuseCloud
-        ? [
-            {
-              name: "Regions",
-              subItems: regionMenuItems,
-              content: (
-                <>
-                  Regions
-                  <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
-                    Current: {currentRegion}
-                  </div>
-                </>
-              ),
-            },
-          ]
-        : []),
-      { name: "Sign out", onClick: onSignOut },
-    ],
+  const sidebarUser = {
+    name: user.name ?? "",
+    email: user.email ?? "",
+    avatar: user.image ?? "",
   };
+  const userMenuItems = [
+    { name: "Account Settings", href: "/account/settings" },
+    { name: "Theme", onClick: () => {}, content: <ThemeToggle /> },
+    ...(hasFeaturePreviews
+      ? [
+          {
+            name: "Feature Preview",
+            onClick: () => setFeaturePreviewOpen(true),
+          },
+        ]
+      : []),
+    ...(isLangfuseCloud
+      ? [
+          {
+            name: "Regions",
+            subItems: regionMenuItems,
+            content: (
+              <>
+                Regions
+                <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
+                  Current: {currentRegion}
+                </div>
+              </>
+            ),
+          },
+        ]
+      : []),
+    { name: "Sign out", onClick: onSignOut },
+  ];
 
   return (
     <>
@@ -194,7 +193,8 @@ export function AuthenticatedLayout({
                 <ConnectedAppSidebar
                   navItems={navigation.mainNavigation}
                   secondaryNavItems={navigation.secondaryNavigation}
-                  userNavProps={userNavProps}
+                  user={sidebarUser}
+                  userMenuItems={userMenuItems}
                   isLangfuseCloud={isLangfuseCloud}
                   routerProjectId={
                     typeof router.query.projectId === "string"
@@ -238,13 +238,15 @@ export function AuthenticatedLayout({
 function ConnectedAppSidebar({
   navItems,
   secondaryNavItems,
-  userNavProps,
+  user,
+  userMenuItems,
   isLangfuseCloud,
   routerProjectId,
 }: {
   navItems: GroupedNavigation;
   secondaryNavItems: GroupedNavigation;
-  userNavProps: UserNavigationProps;
+  user: ComponentProps<typeof AppSidebar>["user"];
+  userMenuItems: ComponentProps<typeof AppSidebar>["userMenuItems"];
   isLangfuseCloud: boolean;
   routerProjectId?: string;
 }) {
@@ -277,33 +279,35 @@ function ConnectedAppSidebar({
       ? plan
       : "oss";
 
-  const versionState: SidebarVersionState = isLangfuseCloud
-    ? { deployment: "cloud" }
-    : {
-        deployment: "self-hosted",
-        plan: selfHostedPlan,
-        release: checkUpdate.data?.updateType
-          ? {
-              status: "update-available",
-              updateType: checkUpdate.data.updateType,
-              latestRelease: checkUpdate.data.latestRelease,
-            }
-          : { status: "current" },
-        migration:
-          backgroundMigrationStatus.data &&
-          backgroundMigrationStatus.data.status !== "FINISHED"
+  const versionState: ComponentProps<typeof AppSidebar>["versionState"] =
+    isLangfuseCloud
+      ? { deployment: "cloud" }
+      : {
+          deployment: "self-hosted",
+          plan: selfHostedPlan,
+          release: checkUpdate.data?.updateType
             ? {
-                status: "in-progress",
-                phase: backgroundMigrationStatus.data.status.toLowerCase(),
+                status: "update-available",
+                updateType: checkUpdate.data.updateType,
+                latestRelease: checkUpdate.data.latestRelease,
               }
-            : { status: "idle" },
-      };
+            : { status: "current" },
+          migration:
+            backgroundMigrationStatus.data &&
+            backgroundMigrationStatus.data.status !== "FINISHED"
+              ? {
+                  status: "in-progress",
+                  phase: backgroundMigrationStatus.data.status.toLowerCase(),
+                }
+              : { status: "idle" },
+        };
 
   return (
     <AppSidebar
       navItems={navItems}
       secondaryNavItems={secondaryNavItems}
-      userNavProps={userNavProps}
+      user={user}
+      userMenuItems={userMenuItems}
       isMobile={isMobile}
       logoLightModeHref={uiCustomization?.logoLightModeHref}
       logoDarkModeHref={uiCustomization?.logoDarkModeHref}

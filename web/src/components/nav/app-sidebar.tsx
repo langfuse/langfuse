@@ -3,10 +3,6 @@
 import * as React from "react";
 import { NavMain, type NavMainItem } from "@/src/components/nav/nav-main";
 import {
-  NavUser,
-  type UserNavigationProps,
-} from "@/src/components/nav/nav-user";
-import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -26,6 +22,7 @@ import {
   ArrowUp,
   ArrowUp10,
   BadgeCheck,
+  ChevronsUpDown,
   ExternalLink,
   Grid2X2,
   HardDriveDownload,
@@ -38,18 +35,27 @@ import { VERSION } from "@/src/constants";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { planLabels, type Plan } from "@langfuse/shared";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/src/components/ui/avatar";
 
 type SelfHostedPlan = Extract<Plan, "oss" | `self-hosted:${string}`>;
 
-export type SidebarVersionState =
+type SidebarVersionState =
   | { deployment: "cloud" }
   | {
       deployment: "self-hosted";
@@ -76,6 +82,20 @@ const selfHostedPlanLabels = {
   },
 } satisfies Record<SelfHostedPlan, { short: string; long: string }>;
 
+type UserNavigationItem = {
+  name: string;
+  onClick?: () => void;
+  content?: React.ReactNode;
+  href?: string;
+  subItems?: UserNavigationItem[];
+};
+
+type SidebarUser = {
+  name: string;
+  email: string;
+  avatar: string;
+};
+
 type AppSidebarProps = {
   navItems: {
     grouped: Partial<Record<RouteGroup, NavMainItem[]>> | null;
@@ -85,7 +105,8 @@ type AppSidebarProps = {
     grouped: Partial<Record<RouteGroup, NavMainItem[]>> | null;
     ungrouped: NavMainItem[];
   };
-  userNavProps: UserNavigationProps;
+  user: SidebarUser;
+  userMenuItems: UserNavigationItem[];
   isMobile: boolean;
   logoLightModeHref?: string;
   logoDarkModeHref?: string;
@@ -98,7 +119,8 @@ type AppSidebarProps = {
 export function AppSidebar({
   navItems,
   secondaryNavItems,
-  userNavProps,
+  user,
+  userMenuItems,
   isMobile,
   logoLightModeHref,
   logoDarkModeHref,
@@ -139,10 +161,114 @@ export function AppSidebar({
         <NavMain items={secondaryNavItems} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser {...userNavProps} isMobile={isMobile} />
+        <NavUser user={user} items={userMenuItems} isMobile={isMobile} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function NavUser({
+  user,
+  items,
+  isMobile,
+}: {
+  user: SidebarUser;
+  items: UserNavigationItem[];
+  isMobile: boolean;
+}) {
+  const initials = user.name
+    .split(" ")
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+
+  const renderMenuItem = (item: UserNavigationItem) => {
+    if (item.subItems?.length) {
+      return (
+        <DropdownMenuSub key={item.name}>
+          <DropdownMenuSubTrigger>
+            {item.content ?? item.name}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {item.subItems.map(renderMenuItem)}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      );
+    }
+
+    if (item.href) {
+      return (
+        <DropdownMenuItem key={item.name} asChild>
+          <Link href={item.href}>{item.content ?? item.name}</Link>
+        </DropdownMenuItem>
+      );
+    }
+
+    return (
+      <DropdownMenuItem key={item.name} onClick={item.onClick}>
+        {item.content ?? item.name}
+      </DropdownMenuItem>
+    );
+  };
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuButton
+              size="lg"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            >
+              <Avatar className="h-8 w-8 rounded-lg">
+                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarFallback className="rounded-lg">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-bold" title={user.name}>
+                  {user.name}
+                </span>
+                <span className="truncate text-xs" title={user.email}>
+                  {user.email}
+                </span>
+              </div>
+              <ChevronsUpDown className="ml-auto size-4" />
+            </SidebarMenuButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+            side={isMobile ? "bottom" : "right"}
+            align="end"
+            sideOffset={4}
+          >
+            <DropdownMenuLabel className="p-0 font-normal">
+              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                <Avatar className="h-8 w-8 rounded-lg">
+                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarFallback className="rounded-lg">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-bold" title={user.name}>
+                    {user.name}
+                  </span>
+                  <span className="truncate text-xs" title={user.email}>
+                    {user.email}
+                  </span>
+                </div>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>{items.map(renderMenuItem)}</DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 

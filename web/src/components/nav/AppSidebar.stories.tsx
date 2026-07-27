@@ -4,7 +4,7 @@ import { fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
-import { AppSidebar, type SidebarVersionState } from "./app-sidebar";
+import { AppSidebar } from "./app-sidebar";
 
 const meta = preview.meta({
   component: AppSidebar,
@@ -21,21 +21,19 @@ const meta = preview.meta({
       ungrouped: [{ title: "Settings", url: "/settings", icon: Settings }],
       grouped: null,
     },
-    userNavProps: {
-      user: {
-        name: "Ada Lovelace",
-        email: "ada@example.com",
-        avatar: "",
-      },
-      items: [
-        { name: "Account Settings", href: "/account/settings" },
-        { name: "Sign out", onClick: fn() },
-      ],
+    user: {
+      name: "Ada Lovelace",
+      email: "ada@example.com",
+      avatar: "",
     },
+    userMenuItems: [
+      { name: "Account Settings", href: "/account/settings" },
+      { name: "Sign out", onClick: fn() },
+    ],
     isMobile: false,
     versionState: {
       deployment: "cloud",
-    } satisfies SidebarVersionState,
+    } satisfies ComponentProps<typeof AppSidebar>["versionState"],
     showDemoBadge: false,
   },
 });
