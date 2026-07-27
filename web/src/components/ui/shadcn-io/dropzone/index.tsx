@@ -32,7 +32,10 @@ const DropzoneContext = createContext<DropzoneContextType | undefined>(
   undefined,
 );
 
-export type DropzoneProps = Omit<DropzoneOptions, "onDrop"> & {
+export type DropzoneProps = Pick<
+  DropzoneOptions,
+  "accept" | "disabled" | "minSize" | "onError"
+> & {
   src?: File[];
   maxFiles: NonNullable<DropzoneOptions["maxFiles"]>;
   maxSize: NonNullable<DropzoneOptions["maxSize"]>;
