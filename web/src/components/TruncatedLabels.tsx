@@ -13,7 +13,6 @@ interface TruncatedLabelsProps {
   labels: string[];
   maxVisibleLabels?: number;
   className?: string;
-  badgeClassName?: string;
   showSimpleBadges?: boolean;
 }
 
@@ -21,7 +20,6 @@ export function TruncatedLabels({
   labels,
   maxVisibleLabels = 5,
   className,
-  badgeClassName,
   showSimpleBadges = false,
 }: TruncatedLabelsProps) {
   // Enhanced sorting: prioritize latest and production labels
@@ -53,10 +51,7 @@ export function TruncatedLabels({
         showSimpleBadges ? (
           <div
             key={label}
-            className={cn(
-              "bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold",
-              badgeClassName,
-            )}
+            className="bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold"
           >
             {label}
           </div>
@@ -64,7 +59,7 @@ export function TruncatedLabels({
           <StatusBadge
             type={label}
             key={label}
-            className={cn("break-all sm:break-normal", badgeClassName)}
+            className="break-all sm:break-normal"
             isLive={label === PRODUCTION_LABEL}
             preserveCase
           />
@@ -89,10 +84,7 @@ export function TruncatedLabels({
                   showSimpleBadges ? (
                     <div
                       key={label}
-                      className={cn(
-                        "bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold",
-                        badgeClassName,
-                      )}
+                      className="bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold"
                     >
                       {label}
                     </div>
@@ -100,10 +92,7 @@ export function TruncatedLabels({
                     <StatusBadge
                       type={label}
                       key={label}
-                      className={cn(
-                        "break-all sm:break-normal",
-                        badgeClassName,
-                      )}
+                      className="break-all sm:break-normal"
                       isLive={label === PRODUCTION_LABEL}
                       preserveCase
                     />
