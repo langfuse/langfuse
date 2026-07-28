@@ -66,10 +66,18 @@ const config: StorybookConfig = {
     // basename like Charts.stories.tsx elsewhere still reaches the Playground;
     // inside design-system the curated names are negated by basename, which is
     // safe there because those files are exactly the curated ones. Disjoint
-    // globs because !(...) matches a single path segment. Caveat: picomatch
+    // globs because !(...) matches a single path segment — which also means
+    // `!(dir)/**` requires at least one leading segment, so files sitting
+    // directly in the entry's directory need their own `*.stories` entry
+    // (hence the depth-one entries below). Caveat: picomatch
     // treats !(Name) as a prefix negation here, so a design-system story whose
     // basename merely starts with a curated name (e.g. ColorPicker) would be
     // skipped too; give such a story a non-colliding basename or its own entry.
+    {
+      directory: "../src",
+      files: `*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
     {
       directory: "../src",
       files: `!(components)/**/*.stories.${STORY_EXTENSIONS}`,
