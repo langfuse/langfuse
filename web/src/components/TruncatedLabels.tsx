@@ -5,7 +5,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { PRODUCTION_LABEL, LATEST_PROMPT_LABEL } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 

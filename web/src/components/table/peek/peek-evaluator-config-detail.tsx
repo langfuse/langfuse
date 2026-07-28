@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { V4MigrationUpdateRequiredAssistantBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { UserCircle2Icon } from "lucide-react";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
 import { Switch } from "@/src/components/design-system/Switch/Switch";

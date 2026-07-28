@@ -1,7 +1,10 @@
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Badge } from "@/src/components/ui/badge";
-import { type Status, StatusBadge } from "./status-badge";
+import {
+  type Status,
+  StatusBadge,
+} from "@/src/components/ui/StatusBadge/StatusBadge";
 import { cn } from "@/src/utils/tailwind";
 
 type HeaderProps = {

@@ -1,6 +1,6 @@
 import React from "react";
-import preview from "../../../.storybook/preview";
-import { StatusBadge, type Status } from "./status-badge";
+import preview from "../../../../.storybook/preview";
+import { StatusBadge, type Status } from "./StatusBadge";
 
 const meta = preview.meta({
   component: StatusBadge,

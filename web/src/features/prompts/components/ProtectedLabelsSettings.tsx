@@ -31,7 +31,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import {
   LATEST_PROMPT_LABEL,
   PRODUCTION_LABEL,

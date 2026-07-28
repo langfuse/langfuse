@@ -17,7 +17,7 @@ import Page from "@/src/components/layouts/page";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Command } from "@/src/components/ui/command";
 import { Badge } from "@/src/components/ui/badge";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import {
   SidePanel,
   SidePanelContent,

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { InfoIcon } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 
 export interface ValueProposition {
   title: string;

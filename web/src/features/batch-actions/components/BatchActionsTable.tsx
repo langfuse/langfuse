@@ -2,7 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { InfoIcon } from "lucide-react";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";

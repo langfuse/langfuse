@@ -4,7 +4,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { type BackgroundMigration } from "@langfuse/shared";
 import { RetryBackgroundMigration } from "@/src/features/background-migrations/components/retry-background-migration";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import Page from "@/src/components/layouts/page";
 
 export default function BackgroundMigrationsTable() {

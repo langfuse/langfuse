@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   DropdownMenuItem,

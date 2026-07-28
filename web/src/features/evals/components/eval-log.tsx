@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   type CustomHeights,
