@@ -202,9 +202,13 @@ export const batchExportRouter = createTRPCRouter({
           bucketName,
         );
         if (fileKey) {
+          // asAttachment must be explicit: S3 defaults it to true, but GCS
+          // and Azure don't — and the client navigates to this URL in the
+          // same tab, so without a Content-Disposition header the browser
+          // would render the export instead of downloading it.
           const url = await getBatchExportStorageServiceClient(
             bucketName,
-          ).getSignedUrl(fileKey, FRESH_DOWNLOAD_URL_TTL_SECONDS);
+          ).getSignedUrl(fileKey, FRESH_DOWNLOAD_URL_TTL_SECONDS, true);
           return { url };
         }
         logger.warn(
