@@ -413,9 +413,8 @@ export function V4MigrationDetailsContent({
           <V4PreviewToggleRow projectId={projectId} />
         </div>
         <p className="text-muted-foreground text-sm">
-          You can switch between V3 and V4 while you review. This toggle goes
-          away soon: everything defaults to v4, even without the upgrade, so
-          projects still on the old setup can lose functionality.
+          Switch between V3 and V4 while you review. The toggle goes away soon,
+          when v4 becomes the default for every project.
         </p>
       </div>
 
@@ -435,8 +434,7 @@ export function V4MigrationDetailsContent({
           </ExternalLink>
         </div>
         <p className="text-muted-foreground text-sm">
-          Some features will stop working{" "}
-          <span className="text-dark-yellow">soon</span>.
+          Some features will stop working soon.
         </p>
         <div>
           <V4MigrationSdkSection sdk={migrationData.sdk} />
@@ -529,8 +527,7 @@ export function V4MigrationDetailsContent({
               <>
                 <p className="text-muted-foreground mb-2 text-sm">
                   You&apos;ve called these deprecated endpoints in the last{" "}
-                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working{" "}
-                  <span className="text-dark-yellow">soon</span>; the{" "}
+                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working soon; the{" "}
                   <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
                     migration guide
                   </ExternalLink>{" "}
