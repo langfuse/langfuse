@@ -3,7 +3,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
 import { PromptTable } from "@/src/features/prompts/components/prompts-table";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { UploadIcon, PlusIcon } from "lucide-react";
+import { Download, UploadIcon, PlusIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
@@ -12,7 +12,7 @@ import PromptMetrics from "./metrics";
 import { useQueryParams, StringParam } from "use-query-params";
 import { useState } from "react";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
-import { ImportPromptsButton } from "@/src/features/prompts/components/ImportPromptsDialog";
+import { ImportPromptsButtonDialogController } from "@/src/features/prompts/components/ImportPromptsButtonDialogController";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
@@ -144,8 +144,20 @@ export default function PromptsWithFolder() {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            {projectId && hasCUDAccess && (
-              <ImportPromptsButton projectId={projectId} />
+            {projectId && (
+              <ImportPromptsButtonDialogController projectId={projectId}>
+                {({ disabled, openDialog }) => (
+                  <Button
+                    variant="outline"
+                    disabled={Boolean(disabled)}
+                    title={disabled?.reason}
+                    onClick={openDialog}
+                  >
+                    <Download className="mr-1 h-4 w-4" />
+                    Import
+                  </Button>
+                )}
+              </ImportPromptsButtonDialogController>
             )}
             <ActionButton
               icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}

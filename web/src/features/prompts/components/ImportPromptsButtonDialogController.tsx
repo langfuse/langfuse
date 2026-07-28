@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Download, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -9,10 +9,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { z } from "zod";
 
 const importItemSchema = z.object({
@@ -201,19 +201,35 @@ const ImportPromptsDialogContent: React.FC<{
   );
 };
 
-export const ImportPromptsButton: React.FC<{ projectId: string }> = ({
+export function ImportPromptsButtonDialogController({
   projectId,
-}) => {
+  children,
+}: {
+  projectId: string;
+  children: (control: {
+    disabled: { reason: string } | undefined;
+    openDialog: () => void;
+  }) => ReactNode;
+}) {
   const [open, setOpen] = useState(false);
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "prompts:CUD",
+  });
+
+  const disabled = hasAccess
+    ? undefined
+    : { reason: "You don't have permission to import prompts." };
+
+  const openDialog = () => {
+    if (!hasAccess) return;
+
+    setOpen(true);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">
-          <Download className="mr-1 h-4 w-4" />
-          Import
-        </Button>
-      </DialogTrigger>
+    <Dialog open={hasAccess && open} onOpenChange={setOpen}>
+      {children({ disabled, openDialog })}
       <DialogContent className="max-h-[90vh] min-h-0 sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Import prompts</DialogTitle>
@@ -225,4 +241,4 @@ export const ImportPromptsButton: React.FC<{ projectId: string }> = ({
       </DialogContent>
     </Dialog>
   );
-};
+}
