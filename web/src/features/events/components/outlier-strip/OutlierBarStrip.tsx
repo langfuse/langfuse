@@ -26,7 +26,6 @@ import {
 const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
   cost: "hsl(var(--chart-1))",
   latency: "hsl(var(--chart-2))",
-  tokens: "hsl(var(--chart-4))",
 };
 
 /** Pointer travel before a press becomes a range-drag instead of a click. */
@@ -266,7 +265,7 @@ export function OutlierBarStrip({
         width={widthPx}
         height={heightPx + labelHeight}
         role="img"
-        aria-label={`${metricSpec.shortLabel} (max / bucket)`}
+        aria-label={`${metricSpec.shortLabel} per bucket`}
         className={cn(
           // pan-y: horizontal touch drags select a range; vertical stays with
           // the page scroll (LF-34 mobile gesture requirement). select-none +

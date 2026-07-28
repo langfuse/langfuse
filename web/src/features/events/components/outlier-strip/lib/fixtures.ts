@@ -69,12 +69,9 @@ export function makeFixtureBins(params: {
       bucketStart: new Date(t),
       count,
       values: {
-        max_totalCost: noData ? null : 0.02 * base * outlier,
         sum_totalCost: noData ? null : 0.02 * base * outlier * 5,
-        max_latency: noData ? null : 2000 * base * outlier,
         p95_latency: noData ? null : 2000 * base * outlier * 0.6,
         avg_latency: noData ? null : 2000 * base * outlier * 0.35,
-        max_totalTokens: noData ? null : Math.round(1500 * base * outlier),
       },
     });
   }

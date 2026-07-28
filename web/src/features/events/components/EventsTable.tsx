@@ -65,7 +65,7 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
-import { ChartNoAxesColumn, InfoIcon, LightbulbIcon } from "lucide-react";
+import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
@@ -131,8 +131,6 @@ import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
-import useLocalStorage from "@/src/components/useLocalStorage";
-import { Button } from "@/src/components/ui/button";
 import {
   chartFilterExclusionReason,
   chartSearchFieldReason,
@@ -482,13 +480,6 @@ export default function ObservationsEventsTable({
     [dateRange],
   );
 
-  // Pulse strip open/closed — per-user persisted; null = no explicit choice
-  // yet (open on desktop, closed on mobile — resolved below once isMobile is
-  // known).
-  const [pulseClosedStored, setPulseClosed] = useLocalStorage<boolean | null>(
-    "events-outlier-strip-closed",
-    null,
-  );
   // Drill-in writes the clicked bucket as an absolute range. URL-only
   // (pushIn → browser Back restores the outer window) and deliberately NOT
   // persisted as the project's default range — a transient zoom must not
@@ -1092,22 +1083,6 @@ export default function ObservationsEventsTable({
   // checkboxes would do nothing. Omit the select column on mobile until a
   // dedicated mobile action affordance exists.
   const isMobile = useIsMobile();
-  const pulseClosed = pulseClosedStored ?? isMobile;
-  // One reopen affordance for both surfaces: the desktop toolbar slot (left of
-  // Columns) and the mobile header band — mobile defaults to closed, so
-  // without this the strip would be unreachable there.
-  const pulseReopenButton =
-    outlierStripEnabled && chartViewMode !== "chart" && pulseClosed ? (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setPulseClosed(false)}
-        className="h-8 gap-1.5 text-xs"
-      >
-        <ChartNoAxesColumn className="h-3.5 w-3.5" />
-        Pulse
-      </Button>
-    ) : null;
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
@@ -2011,7 +1986,6 @@ export default function ObservationsEventsTable({
                 onModeChange={setChartViewMode}
               />
             )}
-            {pulseReopenButton}
           </div>
         )}
         {!hideControls && !isMobile && (
@@ -2094,7 +2068,6 @@ export default function ObservationsEventsTable({
               setRowHeight={setRowHeight}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-              preColumnsSlot={pulseReopenButton ?? undefined}
               viewModeToggle={
                 chartEnabled ? (
                   <ViewModeToggle
@@ -2228,19 +2201,16 @@ export default function ObservationsEventsTable({
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Pulse strip (LFE-14451): table-width, so the facet sidebar keeps
                 its full height (design feedback); hidden in full chart mode. */}
-            {outlierStripEnabled &&
-              chartViewMode !== "chart" &&
-              !pulseClosed && (
-                <EventsOutlierStrip
-                  projectId={projectId}
-                  filterState={filterState}
-                  fromTimestamp={chartTimeWindow.from}
-                  toTimestamp={chartTimeWindow.to}
-                  searchIgnored={Boolean(searchQuery)}
-                  onSelectRange={setTimeRangeTransient}
-                  onClose={() => setPulseClosed(true)}
-                />
-              )}
+            {outlierStripEnabled && chartViewMode !== "chart" && (
+              <EventsOutlierStrip
+                projectId={projectId}
+                filterState={filterState}
+                fromTimestamp={chartTimeWindow.from}
+                toTimestamp={chartTimeWindow.to}
+                searchIgnored={Boolean(searchQuery)}
+                onSelectRange={setTimeRangeTransient}
+              />
+            )}
             {chartEnabled && chartViewMode === "chart" ? (
               <EventsChartView
                 projectId={projectId}

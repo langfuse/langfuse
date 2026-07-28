@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -10,7 +10,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { Button } from "@/src/components/ui/button";
 import {
   chartFilterExclusionReason,
   toChartFilters,
@@ -33,8 +32,7 @@ import {
 
 /**
  * Production container for the outlier strip ("Pulse") above the events table
- * (LFE-14451). Open by default; the X hands control back to the caller, which
- * re-opens it via a toolbar "Pulse" button. One `dashboard.executeQuery` call
+ * (LFE-14451). Always visible. One `dashboard.executeQuery` call
  * fetches count + every registered aggregate per time bucket (see the metric
  * registry in lib/binning.ts), so switching metrics, aggregations, or the
  * multi-chart layout never refetches. Bucket width adapts to the measured
@@ -50,11 +48,11 @@ import {
 
 /** Target horizontal pixels per bar for granularity picking. */
 const BAR_SLOT_TARGET_PX = 5;
-/** Each chart needs this much width for Split (all three) to be offered. */
+/** Each chart needs this much width for Split (both charts) to be offered. */
 const CHART_MIN_WIDTH_PX = 400;
 const CHART_GAP_PX = 24;
 
-const SPLIT_METRICS: OutlierStripMetricKey[] = ["cost", "latency", "tokens"];
+const SPLIT_METRICS: OutlierStripMetricKey[] = ["cost", "latency"];
 
 type StripMode = OutlierStripSettings["mode"];
 
@@ -100,13 +98,11 @@ const AggDropdown = ({
     <span className="flex items-baseline gap-1">
       {/* The separator dot stays outside the trigger so hover styling
           (underline) applies to the value only. */}
-      <span className="text-muted-foreground font-mono text-[11px] leading-none">
-        ·
-      </span>
+      <span className="text-muted-foreground text-[11px] leading-none">·</span>
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${metricLabel} aggregation: ${value}`}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 font-mono text-[11px] leading-none underline-offset-2 hover:underline"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-[11px] leading-none underline-offset-2 hover:underline"
         >
           {value}
           <ChevronDown className="h-2.5 w-2.5" />
@@ -122,7 +118,7 @@ const AggDropdown = ({
                 focusGuard.markPointerSelection(event);
                 onChange(agg);
               }}
-              className="font-mono text-xs"
+              className="text-xs"
             >
               {agg}
             </DropdownMenuItem>
@@ -147,7 +143,7 @@ const ModeDropdown = ({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`Chart mode: ${modeLabel(value)}`}
-        className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 font-mono text-[11px] leading-none font-bold"
+        className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[11px] leading-none font-bold"
       >
         {modeLabel(value)}
         <ChevronDown className="h-2.5 w-2.5" />
@@ -163,7 +159,7 @@ const ModeDropdown = ({
               focusGuard.markPointerSelection(event);
               onChange(mode);
             }}
-            className="font-mono text-xs"
+            className="text-xs"
           >
             {modeLabel(mode)}
           </DropdownMenuItem>
@@ -194,7 +190,6 @@ export function EventsOutlierStrip({
   toTimestamp,
   searchIgnored = false,
   onSelectRange,
-  onClose,
 }: {
   projectId: string;
   filterState: FilterState;
@@ -203,7 +198,6 @@ export function EventsOutlierStrip({
   /** The table has an active free-text search the strip cannot apply. */
   searchIgnored?: boolean;
   onSelectRange: (range: { from: Date; to: Date }) => void;
-  onClose: () => void;
 }) {
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
   // Transient drag selection, shared across the sibling charts so a drag on
@@ -223,9 +217,9 @@ export function EventsOutlierStrip({
   // getBoundingClientRect includes the wrapper's px-2 padding (border-box).
   const width = Math.max((size?.width ?? 0) - 16, 0);
 
-  // Split adapts: 3 charts when they fit, 2 (Cost + Latency) on smaller
-  // widths, and only below the 2-chart threshold does Split leave the menu.
-  // A stored Split preference degrades to Cost WITHOUT being overwritten.
+  // Split renders Cost + Latency side by side when both fit; below the
+  // 2-chart threshold Split leaves the menu. A stored Split preference
+  // degrades to Cost WITHOUT being overwritten.
   const splitChartCount = Math.min(
     SPLIT_METRICS.length,
     Math.floor((width + CHART_GAP_PX) / (CHART_MIN_WIDTH_PX + CHART_GAP_PX)),
@@ -292,11 +286,7 @@ export function EventsOutlierStrip({
   );
 
   const aggregationFor = (metric: OutlierStripMetricKey): OutlierStripAggKey =>
-    metric === "latency"
-      ? settings.latencyAgg
-      : metric === "cost"
-        ? settings.costAgg
-        : "max";
+    metric === "latency" ? settings.latencyAgg : settings.costAgg;
 
   const series = useMemo(
     () =>
@@ -306,11 +296,7 @@ export function EventsOutlierStrip({
             bins,
             metric,
             aggregation:
-              metric === "latency"
-                ? settings.latencyAgg
-                : metric === "cost"
-                  ? settings.costAgg
-                  : "max",
+              metric === "latency" ? settings.latencyAgg : settings.costAgg,
             fromMs,
             toMs,
             stepSeconds: granularity.stepSeconds,
@@ -376,20 +362,11 @@ export function EventsOutlierStrip({
     <div ref={wrapperRef} className="shrink-0 border-b">
       {size === undefined ? null : (
         <div className="relative px-2 pt-1 pb-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Close Pulse chart"
-            onClick={onClose}
-            className="text-muted-foreground absolute top-0.5 right-1 z-[1] h-6 w-6"
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
           {isLoading || width === 0 ? (
             <div className="bg-muted h-[76px] animate-pulse rounded" />
           ) : queryResult.isError ? (
             <div className="text-muted-foreground flex h-[76px] items-center justify-center text-[11px]">
-              Could not load the outlier chart for the current view.
+              No Data
             </div>
           ) : (
             <div
@@ -417,36 +394,33 @@ export function EventsOutlierStrip({
                             onChange={(next) => update({ mode: next })}
                           />
                           {mode === "split" && (
-                            <span className="text-muted-foreground font-mono text-[11px] leading-none">
+                            <span className="text-muted-foreground text-[11px] leading-none">
                               {def.shortLabel}
                             </span>
                           )}
                         </>
                       ) : (
-                        <span className="text-muted-foreground font-mono text-[11px] leading-none">
+                        <span className="text-muted-foreground text-[11px] leading-none">
                           {def.shortLabel}
                         </span>
                       )}
-                      {/* The bar's aggregate must be legible (max vs p95, …);
-                          single-option metrics render it statically. */}
-                      {aggOptions.length > 1 ? (
+                      {/* The bar's aggregate must be legible where there is a
+                          choice (p95 vs avg); single-option metrics are
+                          unambiguous and render no aggregation label. */}
+                      {aggOptions.length > 1 && (
                         <AggDropdown
                           metricLabel={def.shortLabel}
                           value={aggregationFor(metric)}
                           options={aggOptions}
                           onChange={(agg) => setAggregation(metric, agg)}
                         />
-                      ) : (
-                        <span className="text-muted-foreground/70 font-mono text-[11px] leading-none">
-                          · {aggOptions[0]}
-                        </span>
                       )}
                       {/* Unlike full chart mode (which dims sidebar facets),
                           the TABLE still honors these filters — only the strip
                           can't express them, so the disclosure lives here. */}
                       {slot === 0 && ignoredFilterCount > 0 && (
                         <span
-                          className="text-muted-foreground/70 font-mono text-[11px] leading-none"
+                          className="text-muted-foreground/70 text-[11px] leading-none"
                           title="Some active filters (measures, scores, comments, metadata, free-text search) cannot be applied to this chart's aggregate query. The table still honors them; the chart shows the unfiltered distribution for those."
                         >
                           · {ignoredFilterCount} filter

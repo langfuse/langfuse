@@ -1,9 +1,5 @@
 import { format } from "date-fns";
-import {
-  compactNumberFormatter,
-  latencyFormatter,
-  usdFormatter,
-} from "@/src/utils/numbers";
+import { latencyFormatter, usdFormatter } from "@/src/utils/numbers";
 import { parseChartTimestamp } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 
 /**
@@ -108,21 +104,21 @@ export function pickChartGranularity(params: {
 // Metric registry
 // ---------------------------------------------------------------------------
 
-export type OutlierStripMetricKey = "cost" | "latency" | "tokens";
-export type OutlierStripLatencyAgg = "max" | "p95" | "avg";
-export type OutlierStripCostAgg = "max" | "sum";
+export type OutlierStripMetricKey = "cost" | "latency";
+export type OutlierStripLatencyAgg = "p95" | "avg";
+export type OutlierStripCostAgg = "sum";
 export type OutlierStripAggKey = OutlierStripLatencyAgg | OutlierStripCostAgg;
 
 type AggregationDef = {
   /** The user-facing option key (currently 1:1 with the query aggregation). */
   key: OutlierStripAggKey;
   /** The executeQuery aggregation this option lowers to. */
-  queryAggregation: "max" | "sum" | "p95" | "avg";
+  queryAggregation: "sum" | "p95" | "avg";
 };
 
 export type OutlierStripMetricDef = {
   shortLabel: string;
-  /** First entry is the default (the outlier semantics: max). */
+  /** First entry is the default. */
   aggregations: readonly AggregationDef[];
   /** The executeQuery measure name on the v2 observations view. */
   measure: string;
@@ -138,10 +134,7 @@ export const OUTLIER_STRIP_METRICS: Record<
   cost: {
     shortLabel: "Cost",
     measure: "totalCost",
-    aggregations: [
-      { key: "max", queryAggregation: "max" },
-      { key: "sum", queryAggregation: "sum" },
-    ],
+    aggregations: [{ key: "sum", queryAggregation: "sum" }],
     fromRaw: (raw) => raw,
     format: (value) =>
       usdFormatter(value, 2, value < 0.001 ? 6 : value < 0.1 ? 4 : 2),
@@ -150,19 +143,11 @@ export const OUTLIER_STRIP_METRICS: Record<
     shortLabel: "Latency",
     measure: "latency",
     aggregations: [
-      { key: "max", queryAggregation: "max" },
       { key: "p95", queryAggregation: "p95" },
       { key: "avg", queryAggregation: "avg" },
     ],
     fromRaw: (raw) => raw / 1000, // executeQuery latency is in ms
     format: (value) => latencyFormatter(value * 1000),
-  },
-  tokens: {
-    shortLabel: "Tokens",
-    measure: "totalTokens",
-    aggregations: [{ key: "max", queryAggregation: "max" }],
-    fromRaw: (raw) => raw,
-    format: (value) => compactNumberFormatter(value),
   },
 };
 
