@@ -137,6 +137,7 @@ const EVENT_FILTER_OPTION_COLUMNS = [
   "sessionId",
   "level",
   "environment",
+  "ingestionApiKey",
   "experimentDatasetId",
   "experimentId",
   "experimentName",

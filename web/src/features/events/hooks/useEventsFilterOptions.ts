@@ -37,6 +37,7 @@ const ALL_EVENT_FILTER_OPTION_COLUMNS = [
   "sessionId",
   "level",
   "environment",
+  "ingestionApiKey",
   "experimentDatasetId",
   "experimentId",
   "experimentName",
@@ -315,6 +316,7 @@ export function useEventsFilterOptions({
 
     return {
       environment: rawData.environment ?? undefined,
+      ingestionApiKey: rawData.ingestionApiKey ?? undefined,
       name: rawData.name ?? undefined,
       type: rawData.type ?? undefined,
       level: rawData.level ?? undefined,

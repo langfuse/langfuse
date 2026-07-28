@@ -15,7 +15,11 @@ import {
   chartFilterExclusionReason,
   toChartFilters,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
-import { OutlierBarStrip } from "./OutlierBarStrip";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  OutlierBarStrip,
+  type OutlierStripDrillTrigger,
+} from "./OutlierBarStrip";
 import {
   OUTLIER_STRIP_METRICS,
   outlierStripQueryMetrics,
@@ -205,6 +209,7 @@ export function EventsOutlierStrip({
   onSelectRange: (range: { from: Date; to: Date }) => void;
   onClose: () => void;
 }) {
+  const capture = usePostHogClientCapture();
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
   // Transient drag selection, shared across the sibling charts so a drag on
   // one strip highlights the same time span on all (LFE-14532, Grafana-style).
@@ -330,14 +335,58 @@ export function EventsOutlierStrip({
     ],
   );
 
-  const handleSelectBucket = (range: { fromMs: number; toMs: number }) => {
+  // Analytics props are metadata only (enums, counts, the granularity step) —
+  // never bucket values or range contents. `isV4` per the filters:* taxonomy
+  // convention: the strip only exists on the v4 events table (LFE-10781).
+  const handleSelectBucket = (
+    range: { fromMs: number; toMs: number },
+    meta: { trigger: OutlierStripDrillTrigger },
+    metric: OutlierStripMetricKey,
+  ) => {
+    capture("pulse:drill_in", {
+      trigger: meta.trigger,
+      metric,
+      aggregation: aggregationFor(metric),
+      mode,
+      stepSeconds: granularity.stepSeconds,
+      spanBuckets: Math.max(
+        1,
+        Math.round(
+          (range.toMs - range.fromMs) / (granularity.stepSeconds * 1000),
+        ),
+      ),
+      isV4: true,
+    });
     onSelectRange({ from: new Date(range.fromMs), to: new Date(range.toMs) });
+  };
+
+  const handleModeChange = (next: StripMode) => {
+    // Event only when the DISPLAYED mode changes; persistence whenever the
+    // STORED preference differs. The two diverge while a stored Split is
+    // width-degraded to Cost: an explicit Cost pick there displays nothing
+    // new (no event) but must stick — otherwise the strip silently snaps
+    // back to Split once the window widens again.
+    if (next !== mode) {
+      capture("pulse:mode_switch", {
+        mode: next,
+        previousMode: mode,
+        isV4: true,
+      });
+    }
+    if (next !== settings.mode) update({ mode: next });
   };
 
   const setAggregation = (
     metric: OutlierStripMetricKey,
     agg: OutlierStripAggKey,
   ) => {
+    if (agg === aggregationFor(metric)) return;
+    capture("pulse:aggregation_switch", {
+      metric,
+      aggregation: agg,
+      previousAggregation: aggregationFor(metric),
+      isV4: true,
+    });
     if (metric === "latency") {
       update({ latencyAgg: agg as OutlierStripSettings["latencyAgg"] });
     } else if (metric === "cost") {
@@ -380,7 +429,10 @@ export function EventsOutlierStrip({
             variant="ghost"
             size="icon"
             aria-label="Close Pulse chart"
-            onClick={onClose}
+            onClick={() => {
+              capture("pulse:closed", { mode, isV4: true });
+              onClose();
+            }}
             className="text-muted-foreground absolute top-0.5 right-1 z-[1] h-6 w-6"
           >
             <X className="h-3.5 w-3.5" />
@@ -414,7 +466,7 @@ export function EventsOutlierStrip({
                           <ModeDropdown
                             value={mode}
                             options={modeOptions}
-                            onChange={(next) => update({ mode: next })}
+                            onChange={handleModeChange}
                           />
                           {mode === "split" && (
                             <span className="text-muted-foreground font-mono text-[11px] leading-none">
@@ -462,7 +514,16 @@ export function EventsOutlierStrip({
                       stepMs={stepMs}
                       metric={metric}
                       widthPx={chartWidth}
-                      onSelectBucket={handleSelectBucket}
+                      onSelectBucket={(range, meta) =>
+                        handleSelectBucket(range, meta, metric)
+                      }
+                      onPreviewPinned={(trigger) =>
+                        capture("pulse:preview_pinned", {
+                          trigger,
+                          metric,
+                          isV4: true,
+                        })
+                      }
                       selection={activeSelection}
                       onSelectionChange={handleSelectionChange}
                     />

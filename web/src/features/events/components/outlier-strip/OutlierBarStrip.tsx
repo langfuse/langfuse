@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -32,6 +32,12 @@ const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
 /** Pointer travel before a press becomes a range-drag instead of a click. */
 const DRAG_THRESHOLD_PX = 5;
 
+/** Which gesture drove a drill-in — carried to the caller for analytics. */
+export type OutlierStripDrillTrigger =
+  | "bucket_click"
+  | "drag_span"
+  | "touch_explore";
+
 export type OutlierBarStripProps = {
   dense: OutlierStripDenseBin[];
   /** Max metric value across buckets (0 = no data anywhere). */
@@ -54,7 +60,13 @@ export type OutlierBarStripProps = {
   showActivityTicks?: boolean;
   /** Sparse time labels under the gridline ticks. */
   showTimeLabels?: boolean;
-  onSelectBucket?: (range: { fromMs: number; toMs: number }) => void;
+  onSelectBucket?: (
+    range: { fromMs: number; toMs: number },
+    meta: { trigger: OutlierStripDrillTrigger },
+  ) => void;
+  /** Touch preview pinned (tap or drag release) — the analytics seam for the
+   *  preview → explore funnel; never fired for mouse interactions. */
+  onPreviewPinned?: (trigger: "tap" | "drag") => void;
   /** Transient drag selection (ms range), shared across sibling charts so a
    *  drag on one strip highlights on all (LF-34, Grafana-style). */
   selection?: { fromMs: number; toMs: number } | null;
@@ -76,6 +88,7 @@ export function OutlierBarStrip({
   showActivityTicks = true,
   showTimeLabels = true,
   onSelectBucket,
+  onPreviewPinned,
   selection = null,
   onSelectionChange,
   className,
@@ -99,6 +112,38 @@ export function OutlierBarStrip({
   // Drag gesture bookkeeping lives in a ref: pointermove during a drag only
   // updates the SHARED selection via onSelectionChange, never local state.
   const dragRef = useRef<{ startX: number; dragging: boolean } | null>(null);
+  // The pinned preview centers on its anchor, so keeping it on-screen needs
+  // the rendered size. A callback ref measures in the commit phase (before
+  // paint — no mispositioned flash) and attaches a ResizeObserver so content
+  // changes while pinned (a live refetch growing the count, the Explore
+  // button toggling) re-clamp instead of drifting on a stale size.
+  const [previewSize, setPreviewSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const previewResizeObserverRef = useRef<ResizeObserver | null>(null);
+  const measurePreview = useCallback((el: HTMLDivElement | null) => {
+    previewResizeObserverRef.current?.disconnect();
+    previewResizeObserverRef.current = null;
+    if (!el) {
+      setPreviewSize(null);
+      return;
+    }
+    const measure = () =>
+      setPreviewSize((prev) => {
+        const width = el.offsetWidth;
+        const height = el.offsetHeight;
+        return prev && prev.width === width && prev.height === height
+          ? prev
+          : { width, height };
+      });
+    measure();
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(measure);
+      observer.observe(el);
+      previewResizeObserverRef.current = observer;
+    }
+  }, []);
 
   const metricSpec = OUTLIER_STRIP_METRICS[metric];
   const color = METRIC_COLOR[metric];
@@ -259,6 +304,11 @@ export function OutlierBarStrip({
   const previewHasData =
     previewStats !== null &&
     (previewStats.count > 0 || previewStats.value !== null);
+  // First render (pre-measure) treats the box as zero-width; the commit-phase
+  // measurement re-renders with the real clamp before the browser paints.
+  const previewHalfWidth = (previewSize?.width ?? 0) / 2;
+  const viewportWidth =
+    typeof window !== "undefined" ? window.innerWidth : Number.MAX_SAFE_INTEGER;
 
   return (
     <div className={cn("relative", className)} style={{ width: widthPx }}>
@@ -327,12 +377,13 @@ export function OutlierBarStrip({
                 anchorY: rect.top,
                 windowKey,
               });
+              onPreviewPinned?.("drag");
               return;
             }
             // Mouse, Grafana-style: apply the dragged span to the range.
             onSelectionChange?.(null);
             setTouchPreview(null);
-            onSelectBucket?.(range);
+            onSelectBucket?.(range, { trigger: "drag_span" });
             return;
           }
           const index = Math.floor(x / slotPx);
@@ -353,16 +404,20 @@ export function OutlierBarStrip({
             });
             setHoverIndex(index);
             setMouse(null);
+            onPreviewPinned?.("tap");
             return;
           }
           // Mouse click without movement drills into the bucket. Mirror the
           // tooltip's guard — a truly empty bucket would just drill the table
           // into a zero-row window.
           if ((bin.count > 0 || bin.value !== null) && onSelectBucket) {
-            onSelectBucket({
-              fromMs: bin.bucketStartMs,
-              toMs: bin.bucketStartMs + stepMs,
-            });
+            onSelectBucket(
+              {
+                fromMs: bin.bucketStartMs,
+                toMs: bin.bucketStartMs + stepMs,
+              },
+              { trigger: "bucket_click" },
+            );
           }
         }}
         onPointerCancel={() => {
@@ -461,15 +516,23 @@ export function OutlierBarStrip({
       {activePreview && previewStats && (
         <Layer name="tooltip">
           <div
-            className="bg-popover text-popover-foreground fixed rounded border px-2 py-1.5 font-mono text-[11px] leading-tight whitespace-nowrap shadow-md"
+            key={`${activePreview.fromMs}:${activePreview.toMs}`}
+            ref={measurePreview}
+            className="bg-popover text-popover-foreground fixed max-w-[calc(100vw-16px)] rounded border px-2 py-1.5 font-mono text-[11px] leading-tight whitespace-nowrap shadow-md"
             style={{
+              // Clamp the center so the measured box stays fully on-screen —
+              // edge-of-viewport taps would otherwise clip half the tooltip.
               left: Math.min(
-                Math.max(activePreview.anchorX, 90),
-                typeof window !== "undefined"
-                  ? window.innerWidth - 90
-                  : activePreview.anchorX,
+                Math.max(activePreview.anchorX, 8 + previewHalfWidth),
+                Math.max(
+                  viewportWidth - 8 - previewHalfWidth,
+                  8 + previewHalfWidth,
+                ),
               ),
-              top: activePreview.anchorY - 6,
+              top: Math.max(
+                activePreview.anchorY - 6,
+                (previewSize?.height ?? 0) + 8,
+              ),
               transform: "translate(-50%, -100%)",
             }}
           >
@@ -517,7 +580,7 @@ export function OutlierBarStrip({
                   setTouchPreview(null);
                   setHoverIndex(null);
                   onSelectionChange?.(null);
-                  onSelectBucket?.(range);
+                  onSelectBucket?.(range, { trigger: "touch_explore" });
                 }}
               >
                 Explore this window
