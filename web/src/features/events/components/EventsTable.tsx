@@ -438,6 +438,11 @@ export default function ObservationsEventsTable({
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
+      // The footer "Total ≈ X" rides events.filterOptions, so invalidate it on
+      // the auto tick too — otherwise the count goes stale while the rows
+      // refresh (matters for a fixed absolute range). This does re-anchor the
+      // facet options as a side effect; accepted so the count stays fresh.
+      utils.events.filterOptions.invalidate(),
       utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
@@ -523,6 +528,7 @@ export default function ObservationsEventsTable({
     isFilterOptionsPending,
     approxTotalCount,
     isApproxTotalCountLoading,
+    approxTotalCountIsPartialScope,
     erroredColumns,
     loadingColumns,
     requestColumns,
@@ -536,6 +542,14 @@ export default function ObservationsEventsTable({
     countFilter: limitRows ? undefined : oldFilterState,
     lazy: true,
   });
+
+  // The approximate footer count is partial-scope (over-counts) when the server
+  // dropped non-native filters OR a full-text search is active (search is not
+  // part of the count query), so the footer marks it and drops the accuracy
+  // claim.
+  const approxTotalCountIsPartial =
+    approxTotalCountIsPartialScope ||
+    Boolean(searchQuery && searchQuery.trim().length > 0);
 
   const appRootDefault = useAppRootDefault({
     enabled: enableAppRootDefault,
@@ -2250,9 +2264,13 @@ export default function ObservationsEventsTable({
                         canJumpPages: false,
                         // Approximate observation count ("Total ≈ X"),
                         // filter + time-range aware. Rides the filter-options
-                        // scan (no extra query), so it resolves async.
+                        // scan (no extra query), so it resolves async. Only
+                        // shown for multi-page results; a single page shows the
+                        // exact total from the loaded rows.
                         approxTotalCount,
                         isApproxTotalCountLoading,
+                        approxTotalCountIsPartialScope:
+                          approxTotalCountIsPartial,
                         onChange: (updater) => {
                           const newState =
                             typeof updater === "function"

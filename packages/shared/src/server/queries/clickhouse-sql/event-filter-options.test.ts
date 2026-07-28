@@ -57,5 +57,39 @@ describe("buildEventsFilterOptionsForColumnsQuery — approximate total count", 
     // The ERROR value is bound as a parameter, and the predicate targets level.
     expect(query).toContain("e.level");
     expect(Object.values(built!.params)).toContain("ERROR");
+    // Native-only filter → NOT flagged partial (sentinel value stays empty).
+    expect(query).not.toContain(
+      `'${EVENTS_APPROX_TOTAL_COUNT_MARKER}', 'partial'`,
+    );
+  });
+
+  it("flags partial scope + drops a comment filter it cannot inline", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      ...base,
+      countFilter: [
+        { column: "commentCount", operator: ">", type: "number", value: 0 },
+      ],
+    });
+    const query = built!.query;
+    // Comment filters need a Postgres join — they can't ride this scan, so the
+    // predicate falls back to counting everything and the sentinel is "partial".
+    expect(query).toContain(`'${EVENTS_APPROX_TOTAL_COUNT_MARKER}', 'partial'`);
+    expect(query).toContain("uniq(e.span_id) AS approx_total_count");
+    expect(query).not.toContain("comment");
+  });
+
+  it("flags partial scope + drops an input filter that needs events_full", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      ...base,
+      countFilter: [
+        { column: "input", operator: "contains", type: "string", value: "hi" },
+      ],
+    });
+    const query = built!.query;
+    // input/output live truncated in events_core, so they're dropped from the
+    // predicate and the count is flagged partial.
+    expect(query).toContain(`'${EVENTS_APPROX_TOTAL_COUNT_MARKER}', 'partial'`);
+    expect(query).toContain("uniq(e.span_id) AS approx_total_count");
+    expect(Object.values(built!.params)).not.toContain("hi");
   });
 });

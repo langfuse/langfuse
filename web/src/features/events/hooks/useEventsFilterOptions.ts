@@ -208,9 +208,12 @@ export function useEventsFilterOptions({
   // and react-query memoizes the result so identity is stable between changes.
   const combineLazy = useCallback(
     (results: readonly LazyFilterOptionResult[]) => {
-      // approxTotalCount is read from the eager query only; lazy responses carry
-      // null (no countFilter) and this accumulator never surfaces it.
-      const data: FilterOptionsData = { approxTotalCount: null };
+      // approxTotalCount / partial-scope are read from the eager query only;
+      // lazy responses carry defaults and this accumulator never surfaces them.
+      const data: FilterOptionsData = {
+        approxTotalCount: null,
+        approxTotalCountIsPartial: false,
+      };
       const pendingColumns: string[] = [];
       const erroredColumns: string[] = [];
       results.forEach((r, i) => {
@@ -366,6 +369,11 @@ export function useEventsFilterOptions({
     countFilter !== undefined &&
     approxTotalCount === null &&
     eagerQuery.isFetching;
+  // The count dropped non-native (score/comment/input/output) filters and so
+  // over-counts. Full-text search isn't part of this query — callers OR in
+  // their own searchQuery signal.
+  const approxTotalCountIsPartialScope =
+    eagerQuery.data?.approxTotalCountIsPartial ?? false;
 
   return {
     filterOptions: newFilterOptions,
@@ -374,6 +382,9 @@ export function useEventsFilterOptions({
     approxTotalCount,
     /** True while the first approximate-count value is still loading. */
     isApproxTotalCountLoading,
+    /** True when the count dropped non-native filters (score/comment/io) and
+     *  therefore over-counts. Does NOT include full-text search. */
+    approxTotalCountIsPartialScope,
     /** Columns whose fetch terminally errored (per column). Consumers settle these
      *  to the empty state; other columns keep loading normally. */
     erroredColumns,

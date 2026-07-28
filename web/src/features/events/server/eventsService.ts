@@ -747,6 +747,11 @@ export async function getEventFilterOptions(
   const approxTotalCount = approxTotalCountRow
     ? Number(approxTotalCountRow.count)
     : null;
+  // "partial" scope: the count dropped non-native (score/comment/input/output)
+  // filters, so it over-counts vs the visible rows — the UI marks it and drops
+  // the "within a few percent" claim. (Full-text search isn't part of this
+  // query, so the client ORs in its own searchQuery signal.)
+  const approxTotalCountIsPartial = approxTotalCountRow?.value === "partial";
 
   // name → the level(s) the name actually exists at, SPLIT PER DATA-TYPE
   // class: a name can be reused across types at different levels (a NUMERIC
@@ -788,6 +793,7 @@ export async function getEventFilterOptions(
     // Approximate total observation count for the footer "Total ≈ X" (null
     // unless countFilter was requested — i.e. the eager bulk query).
     approxTotalCount,
+    approxTotalCountIsPartial,
     ...(shouldLoadScoresAvg
       ? { scores_avg: numericScoreNames.map((score) => score.name) }
       : {}),

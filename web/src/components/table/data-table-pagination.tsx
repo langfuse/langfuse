@@ -33,12 +33,17 @@ interface DataTablePaginationProps<TData> {
   hideTotalCount?: boolean;
   canJumpPages?: boolean; // if we need a cursor (last_item_id), we can't jump pages
   /**
-   * Approximate count matching the active filters, rendered as "Total ≈ X" left
-   * of the pagination controls. `null`/`undefined` = not shown; loading state
-   * renders a subtle spinner.
+   * Approximate count matching the active filters. Enables the "Total …" footer
+   * (pass a value — `number` or `null` — to opt in; `undefined` = no footer).
+   * Only used when the result spans more than one page; a single/last page
+   * shows the EXACT total derived from the loaded rows instead.
    */
   approxTotalCount?: number | null;
   isApproxTotalCountLoading?: boolean;
+  /** The estimate over-counts (non-native filters dropped) — mark it partial. */
+  approxTotalCountIsPartialScope?: boolean;
+  /** Cursor pagination: whether another page exists after the current one. */
+  hasNextPage?: boolean;
 }
 
 export function DataTablePagination<TData>({
@@ -49,8 +54,28 @@ export function DataTablePagination<TData>({
   canJumpPages = true,
   approxTotalCount,
   isApproxTotalCountLoading = false,
+  approxTotalCountIsPartialScope = false,
+  hasNextPage,
 }: DataTablePaginationProps<TData>) {
   const capture = usePostHogClientCapture();
+
+  // "Total" footer: opt-in by passing approxTotalCount (number|null). When the
+  // result fits on the last loaded page (no next page), show the EXACT total
+  // from the loaded rows; only a genuinely multi-page result shows "Total ≈ X".
+  const totalFooterEnabled =
+    approxTotalCount !== undefined || isApproxTotalCountLoading;
+  const paginationState = table.getState().pagination;
+  const loadedRowCount = table.getRowModel().rows.length;
+  const isInitialTotalLoading = isLoading && loadedRowCount === 0;
+  // hasNextPage prop is authoritative for cursor tables; fall back to the
+  // table's own signal when it isn't provided.
+  const morePagesExist =
+    (hasNextPage ?? table.getCanNextPage()) && !isInitialTotalLoading;
+  const exactTotal =
+    paginationState.pageIndex * paginationState.pageSize + loadedRowCount;
+  const showApproxTotal = totalFooterEnabled && morePagesExist;
+  const showExactTotal =
+    totalFooterEnabled && !morePagesExist && !isInitialTotalLoading;
 
   const currentPage = table.getState().pagination.pageIndex + 1;
   const [inputState, setInputState] = useState<number | string>(currentPage);
@@ -97,7 +122,12 @@ export function DataTablePagination<TData>({
         {table.getFilteredRowModel().rows.length} row(s) selected. */}
       </div>
       <div className="flex flex-wrap items-center space-x-6 lg:space-x-8">
-        {(approxTotalCount != null || isApproxTotalCountLoading) && (
+        {showExactTotal ? (
+          // Result fits on the loaded page(s) — the total is exact, no estimate.
+          <span className="text-muted-foreground hidden text-sm font-normal whitespace-nowrap md:inline-flex md:items-center">
+            Total&nbsp;{compactNumberFormatter(exactTotal)}
+          </span>
+        ) : showApproxTotal ? (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -110,16 +140,35 @@ export function DataTablePagination<TData>({
                       <Spinner size="xxs" variant="muted" display="inline" />
                     </span>
                   )}
+                  {approxTotalCountIsPartialScope &&
+                    approxTotalCount != null && (
+                      // Intentional marker: the estimate ignores some active
+                      // filters, so it can exceed the visible row count.
+                      <span className="text-muted-foreground/70 ml-0.5 align-super text-[0.65rem] leading-none">
+                        *
+                      </span>
+                    )}
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs font-normal">
-                Approximate number of matching rows for the active filters and
-                time range, estimated with ClickHouse&apos;s HyperLogLog
-                (typically within a few percent of the true count).
+                {approxTotalCountIsPartialScope ? (
+                  <>
+                    Approximate count over the active column filters and time
+                    range only. It excludes full-text search, score, and comment
+                    filters, so it can be noticeably higher than the number of
+                    matching rows.
+                  </>
+                ) : (
+                  <>
+                    Approximate number of matching rows for the active filters
+                    and time range, estimated with ClickHouse&apos;s HyperLogLog
+                    (typically within a few percent of the true count).
+                  </>
+                )}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        )}
+        ) : null}
         <div className="flex items-center space-x-2">
           <p className="text-sm font-bold whitespace-nowrap md:hidden">Rows</p>
           <p className="hidden text-sm font-bold whitespace-nowrap md:block">
