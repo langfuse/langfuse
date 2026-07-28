@@ -69,9 +69,9 @@ export function OutlierBarStrip({
   metric,
   widthPx,
   ticks,
-  // Defaults locked by design review 2026-07-27: sqrt scale keeps the base
-  // load readable under 10-40x outliers; 40px is the compact pick.
-  heightPx = 40,
+  // Defaults locked by design review: sqrt scale keeps the base load
+  // readable under 10-40x outliers; 50px height tuned 2026-07-28.
+  heightPx = 50,
   scale = "sqrt",
   showActivityTicks = true,
   showTimeLabels = true,
@@ -104,7 +104,7 @@ export function OutlierBarStrip({
   const barWidth = Math.max(slotPx - 1, 0.5);
   // Bars sit ON the 1px baseline, never across it.
   const plotHeight = heightPx - 1;
-  const labelHeight = showTimeLabels ? 12 : 0;
+  const labelHeight = showTimeLabels ? 13 : 0;
   const hasData = maxValue > 0;
   const hasActivity = dense.some((bin) => bin.count > 0);
 
@@ -200,7 +200,7 @@ export function OutlierBarStrip({
               x={tick.index * slotPx + 3}
               y={heightPx + 9}
               className="fill-muted-foreground/80 font-mono"
-              fontSize={8}
+              fontSize={9}
             >
               {tick.label}
             </text>
@@ -376,7 +376,7 @@ export function OutlierBarStrip({
       {hovered && mouse && !touchPreview && (
         <Layer name="tooltip">
           <div
-            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 font-mono text-[10px] leading-tight whitespace-nowrap shadow-sm"
+            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 font-mono text-[11px] leading-tight whitespace-nowrap shadow-sm"
             style={
               // Top-right of the cursor; flips to top-left near the viewport's
               // right edge so it never runs off screen.
@@ -415,7 +415,7 @@ export function OutlierBarStrip({
       {touchPreview && previewed && (
         <Layer name="tooltip">
           <div
-            className="bg-popover text-popover-foreground fixed rounded border px-2 py-1.5 font-mono text-[10px] leading-tight whitespace-nowrap shadow-md"
+            className="bg-popover text-popover-foreground fixed rounded border px-2 py-1.5 font-mono text-[11px] leading-tight whitespace-nowrap shadow-md"
             style={{
               left: Math.min(
                 Math.max(touchPreview.anchorX, 90),

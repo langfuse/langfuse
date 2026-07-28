@@ -100,13 +100,13 @@ const AggDropdown = ({
     <span className="flex items-baseline gap-1">
       {/* The separator dot stays outside the trigger so hover styling
           (underline) applies to the value only. */}
-      <span className="text-muted-foreground font-mono text-[10px] leading-none">
+      <span className="text-muted-foreground font-mono text-[11px] leading-none">
         ·
       </span>
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${metricLabel} aggregation: ${value}`}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 font-mono text-[10px] leading-none underline-offset-2 hover:underline"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 font-mono text-[11px] leading-none underline-offset-2 hover:underline"
         >
           {value}
           <ChevronDown className="h-2.5 w-2.5" />
@@ -147,7 +147,7 @@ const ModeDropdown = ({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`Chart mode: ${modeLabel(value)}`}
-        className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 font-mono text-[10px] leading-none font-bold"
+        className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 font-mono text-[11px] leading-none font-bold"
       >
         {modeLabel(value)}
         <ChevronDown className="h-2.5 w-2.5" />
@@ -372,9 +372,9 @@ export function EventsOutlierStrip({
             <X className="h-3.5 w-3.5" />
           </Button>
           {isLoading || width === 0 ? (
-            <div className="bg-muted h-[66px] animate-pulse rounded" />
+            <div className="bg-muted h-[76px] animate-pulse rounded" />
           ) : queryResult.isError ? (
-            <div className="text-muted-foreground flex h-[66px] items-center justify-center text-[10px]">
+            <div className="text-muted-foreground flex h-[76px] items-center justify-center text-[11px]">
               Could not load the outlier chart for the current view.
             </div>
           ) : (
@@ -403,13 +403,13 @@ export function EventsOutlierStrip({
                             onChange={(next) => update({ mode: next })}
                           />
                           {mode === "split" && (
-                            <span className="text-muted-foreground font-mono text-[10px] leading-none">
+                            <span className="text-muted-foreground font-mono text-[11px] leading-none">
                               {def.shortLabel}
                             </span>
                           )}
                         </>
                       ) : (
-                        <span className="text-muted-foreground font-mono text-[10px] leading-none">
+                        <span className="text-muted-foreground font-mono text-[11px] leading-none">
                           {def.shortLabel}
                         </span>
                       )}
@@ -423,7 +423,7 @@ export function EventsOutlierStrip({
                           onChange={(agg) => setAggregation(metric, agg)}
                         />
                       ) : (
-                        <span className="text-muted-foreground/70 font-mono text-[10px] leading-none">
+                        <span className="text-muted-foreground/70 font-mono text-[11px] leading-none">
                           · {aggOptions[0]}
                         </span>
                       )}
@@ -432,7 +432,7 @@ export function EventsOutlierStrip({
                           can't express them, so the disclosure lives here. */}
                       {slot === 0 && ignoredFilterCount > 0 && (
                         <span
-                          className="text-muted-foreground/70 font-mono text-[10px] leading-none"
+                          className="text-muted-foreground/70 font-mono text-[11px] leading-none"
                           title="Some active filters (measures, scores, comments, metadata, free-text search) cannot be applied to this chart's aggregate query. The table still honors them; the chart shows the unfiltered distribution for those."
                         >
                           · {ignoredFilterCount} filter
