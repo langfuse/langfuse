@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  canReuseOutlierPlaceholder,
   OUTLIER_STRIP_METRICS,
   outlierStripQueryMetrics,
   outlierStripResultColumn,
@@ -237,5 +238,26 @@ describe("outlierStripResultColumn", () => {
   it("matches executeQuery's `${aggregation}_${measure}` naming", () => {
     expect(outlierStripResultColumn("totalCost", "sum")).toBe("sum_totalCost");
     expect(outlierStripResultColumn("latency", "p95")).toBe("p95_latency");
+  });
+});
+
+describe("canReuseOutlierPlaceholder (LFE-14575)", () => {
+  // The bucket grid is epoch-aligned, so same-granularity bins are
+  // positionally correct on ANY window slide — granularity equality is the
+  // whole rule. A ratio-based overlap gate regressed short-window +
+  // long-interval auto-refresh (30m preset sliding 15m = 50% overlap).
+  it("keeps held-over bins across any same-granularity slide, however large", () => {
+    expect(
+      canReuseOutlierPlaceholder({ granularity: "5m" }, { granularity: "5m" }),
+    ).toBe(true);
+  });
+
+  it("rejects a granularity change (drill-in / Back / preset hop)", () => {
+    expect(
+      canReuseOutlierPlaceholder(
+        { granularity: "1d" },
+        { granularity: "hour" },
+      ),
+    ).toBe(false);
   });
 });

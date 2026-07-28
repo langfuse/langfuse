@@ -362,3 +362,19 @@ export function prepareOutlierSeries(params: {
 
   return { dense, maxValue, ticks };
 }
+
+/**
+ * Whether bins fetched for a previous query window may stand in for the next
+ * one while it loads (LFE-14575). The bucket grid is epoch-aligned, so bins
+ * from the SAME granularity land at correct positions on any slid or shifted
+ * window — reuse is always honest there (an auto-refresh tick of any interval
+ * against any preset dims the held-over bars instead of flashing a skeleton).
+ * A granularity change (drill-in, browser Back, preset hop) is the case where
+ * stale bins render as misplaced bars; those show the loading skeleton. A
+ * same-granularity hop to a disjoint window degrades to the all-zero
+ * placeholder backstop in the container.
+ */
+export const canReuseOutlierPlaceholder = (
+  prev: { granularity: string },
+  next: { granularity: string },
+): boolean => prev.granularity === next.granularity;
