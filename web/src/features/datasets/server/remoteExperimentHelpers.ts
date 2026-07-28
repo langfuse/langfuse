@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import {
-  RequestHeaderSchema,
-  WebhookProtectedHeaders,
-} from "@langfuse/shared";
+import { RequestHeaderSchema, WebhookProtectedHeaders } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   decrypt,
@@ -229,9 +226,7 @@ export function buildRemoteExperimentRequest({
   const { headers, sensitiveHeaderNames } = buildWebhookRequestHeaders({
     customHeaders,
     body,
-    signingSecret: encryptedSecretKey
-      ? decrypt(encryptedSecretKey)
-      : undefined,
+    signingSecret: encryptedSecretKey ? decrypt(encryptedSecretKey) : undefined,
   });
 
   return { body, headers, sensitiveHeaderNames };

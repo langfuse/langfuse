@@ -2,7 +2,6 @@ import {
   InternalServerError,
   PromptWebhookOutboundSchema,
   WebhookDefaultHeaders,
-  WebhookSignatureHeader,
   ActionExecutionStatus,
   LangfuseNotFoundError,
   JobConfigState,

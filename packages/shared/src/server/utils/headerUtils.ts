@@ -5,10 +5,7 @@ import {
   WebhookSignatureHeader,
 } from "../../domain/webhooks";
 
-export type RequestHeaders = Record<
-  string,
-  { secret: boolean; value: string }
->;
+export type RequestHeaders = Record<string, { secret: boolean; value: string }>;
 
 /**
  * Builds the headers shared by webhook-compatible outbound requests.
