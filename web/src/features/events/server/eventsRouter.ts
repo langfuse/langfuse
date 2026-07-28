@@ -21,7 +21,6 @@ import { EventsTableOptions } from "./types";
 import {
   getEventList,
   getEventCount,
-  getApproxEventTraceCount,
   getEventFilterOptions,
   getEventBatchIO,
   EVENT_FILTER_OPTIONS_COLUMNS,
@@ -65,6 +64,10 @@ const GetEventFilterOptionsInput = zodSchema.object({
   columns: zodSchema
     .array(zodSchema.enum(EVENT_FILTER_OPTIONS_COLUMNS))
     .optional(),
+  // Row query's active filters + time range. When present, the response also
+  // carries the approximate total observation count ("Total ≈ X"), computed on
+  // the same facet scan. Sent only on the eager bulk request.
+  countFilter: zodSchema.array(singleFilter).optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -165,44 +168,6 @@ export const eventsRouter = createTRPCRouter({
         },
       );
     }),
-  // Always-on, lightweight approximate distinct-trace count for the traces-table
-  // footer ("Total ≈ X"). Separate from countAll (which computes the exact
-  // count only on select-all): a single cheap uniq() so it can run on every
-  // table load without blocking the row query.
-  approxCount: protectedProjectProcedure
-    .input(EventsTableOptions)
-    .query(async ({ input, ctx }) => {
-      const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
-        prisma: ctx.prisma,
-        projectId: ctx.session.projectId,
-        objectType: "OBSERVATION",
-      });
-
-      if (hasNoMatches) {
-        return { approxTraceCount: 0 };
-      }
-
-      return instrumentAsync(
-        {
-          name: "get-event-approx-count-trpc",
-        },
-        async (span) => {
-          const normalizedOrderBy = normalizeOrderByForTable({
-            orderBy: input.orderBy,
-            expectedTimeColumn: "startTime",
-          });
-          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
-          return getApproxEventTraceCount({
-            projectId: ctx.session.projectId,
-            filter: filterState,
-            searchQuery: input.searchQuery ?? undefined,
-            searchType: input.searchType,
-            orderBy: normalizedOrderBy,
-          });
-        },
-      );
-    }),
   filterOptions: protectedProjectProcedure
     .input(GetEventFilterOptionsInput)
     .query(async ({ input }) => {
@@ -223,6 +188,7 @@ export const eventsRouter = createTRPCRouter({
                 ? !input.hasParentObservation
                 : undefined), // backward compat for legacy hasParentObservation filterOption
             columns: input.columns,
+            countFilter: input.countFilter,
           });
         },
       );

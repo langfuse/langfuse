@@ -438,7 +438,6 @@ export default function ObservationsEventsTable({
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
-      utils.events.approxCount.invalidate(),
       utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
@@ -451,7 +450,6 @@ export default function ObservationsEventsTable({
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
-      utils.events.approxCount.invalidate(),
       utils.events.filterOptions.invalidate(),
       utils.dashboard.executeQuery.invalidate(),
     ]);
@@ -523,12 +521,19 @@ export default function ObservationsEventsTable({
   const {
     filterOptions,
     isFilterOptionsPending,
+    approxTotalCount,
+    isApproxTotalCountLoading,
     erroredColumns,
     loadingColumns,
     requestColumns,
   } = useEventsFilterOptions({
     projectId,
     oldFilterState,
+    // Approximate total ("Total ≈ X") for the footer — rides this facet scan.
+    // oldFilterState is the facet query's own filter source (URL-persisted
+    // active filters + time range), so the count tracks what the table shows.
+    // Skip for embedded/preview tables that render no pagination footer.
+    countFilter: limitRows ? undefined : oldFilterState,
     lazy: true,
   });
 
@@ -780,8 +785,6 @@ export default function ObservationsEventsTable({
     uniqueTraceCount,
     isTotalCountLoading,
     isTotalCountError,
-    approxTraceCount,
-    isApproxCountLoading,
     hasMore,
     handleAddToAnnotationQueue,
     dataUpdatedAt,
@@ -804,10 +807,6 @@ export default function ObservationsEventsTable({
     // In chart mode the table is hidden and the chart runs its own aggregate
     // query — don't also run the expensive row + batched-I/O fetches.
     rowsEnabled: !chartActive,
-    // The "Total ≈ X" footer only renders when the pagination footer does
-    // (i.e. not for `limitRows` embedded/preview tables) — don't fire the
-    // approximate-count query for a value that is never shown.
-    approxCountEnabled: !limitRows,
   });
 
   useApplyAppRootFallback({
@@ -917,7 +916,9 @@ export default function ObservationsEventsTable({
     onSettled: () => {
       utils.events.all.invalidate();
       utils.events.countAll.invalidate();
-      utils.events.approxCount.invalidate();
+      // The footer "Total ≈ X" rides filterOptions — refresh it (and the facet
+      // counts) after a delete changes what matches.
+      utils.events.filterOptions.invalidate();
       utils.traces.all.invalidate();
     },
   });
@@ -2247,10 +2248,11 @@ export default function ObservationsEventsTable({
                         hasNextPage: hasMore,
                         hideTotalCount: true,
                         canJumpPages: false,
-                        // Approximate distinct-trace count ("Total ≈ X"),
-                        // filter + time-range aware, fetched async.
-                        approxTotalCount: approxTraceCount,
-                        isApproxTotalCountLoading: isApproxCountLoading,
+                        // Approximate observation count ("Total ≈ X"),
+                        // filter + time-range aware. Rides the filter-options
+                        // scan (no extra query), so it resolves async.
+                        approxTotalCount,
+                        isApproxTotalCountLoading,
                         onChange: (updater) => {
                           const newState =
                             typeof updater === "function"

@@ -104,6 +104,13 @@ type LazyFilterOptionResult = {
 type UseEventsFilterOptionsParams = {
   projectId: string;
   oldFilterState: FilterState;
+  /**
+   * The row query's active filters + time range. When provided, the eager bulk
+   * query also returns `approxTotalCount` — the approximate observation count
+   * matching it (for the traces-table footer "Total ≈ X"), riding the same
+   * facet scan. Omit to skip the count.
+   */
+  countFilter?: FilterState;
   isRootObservation?: boolean;
   /**
    * Explicit column subset to request (non-lazy). Ignored when `lazy` is set.
@@ -124,6 +131,7 @@ type UseEventsFilterOptionsParams = {
 export function useEventsFilterOptions({
   projectId,
   oldFilterState,
+  countFilter,
   isRootObservation,
   columns,
   lazy = false,
@@ -186,7 +194,9 @@ export function useEventsFilterOptions({
   // mode) — or the explicit/all columns in non-lazy mode (unchanged behavior).
   const eagerColumns = lazy ? [...EAGER_EVENT_FILTER_OPTION_COLUMNS] : columns;
   const eagerQuery = api.events.filterOptions.useQuery(
-    { ...baseInput, columns: eagerColumns },
+    // Only the eager bulk query carries countFilter, so the approximate total
+    // ("Total ≈ X") is computed once here, not per lazy per-column facet.
+    { ...baseInput, columns: eagerColumns, countFilter },
     {
       trpc: { context: { skipBatch: true } },
       ...FILTER_OPTION_QUERY_OPTIONS,
@@ -198,7 +208,9 @@ export function useEventsFilterOptions({
   // and react-query memoizes the result so identity is stable between changes.
   const combineLazy = useCallback(
     (results: readonly LazyFilterOptionResult[]) => {
-      const data: FilterOptionsData = {};
+      // approxTotalCount is read from the eager query only; lazy responses carry
+      // null (no countFilter) and this accumulator never surfaces it.
+      const data: FilterOptionsData = { approxTotalCount: null };
       const pendingColumns: string[] = [];
       const erroredColumns: string[] = [];
       results.forEach((r, i) => {
@@ -346,9 +358,22 @@ export function useEventsFilterOptions({
     return errored;
   }, [lazyErroredColumns, isEagerError]);
 
+  // Approximate total observation count ("Total ≈ X"). Read from the eager
+  // query only — lazy per-column responses carry `null` (no countFilter) and
+  // must not clobber it. `null` until the first bulk response resolves.
+  const approxTotalCount = eagerQuery.data?.approxTotalCount ?? null;
+  const isApproxTotalCountLoading =
+    countFilter !== undefined &&
+    approxTotalCount === null &&
+    eagerQuery.isFetching;
+
   return {
     filterOptions: newFilterOptions,
     isFilterOptionsPending: eagerQuery.isPending,
+    /** Approximate total observation count matching countFilter, or null. */
+    approxTotalCount,
+    /** True while the first approximate-count value is still loading. */
+    isApproxTotalCountLoading,
     /** Columns whose fetch terminally errored (per column). Consumers settle these
      *  to the empty state; other columns keep loading normally. */
     erroredColumns,

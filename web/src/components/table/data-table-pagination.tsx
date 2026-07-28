@@ -113,7 +113,7 @@ export function DataTablePagination<TData>({
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs font-normal">
-                Approximate number of matching traces for the active filters and
+                Approximate number of matching rows for the active filters and
                 time range, estimated with ClickHouse&apos;s HyperLogLog
                 (typically within a few percent of the true count).
               </TooltipContent>

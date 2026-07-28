@@ -43,13 +43,6 @@ type UseEventsTableDataParams = {
    * fetches don't run alongside the chart's aggregate query.
    */
   rowsEnabled?: boolean;
-  /**
-   * Gate the approximate distinct-trace count query. Defaults to true; the
-   * events table passes `false` for embedded/preview instances that suppress
-   * the pagination footer (via `limitRows`), so the `uniq()` query never runs
-   * for a "Total ≈ X" that is never rendered.
-   */
-  approxCountEnabled?: boolean;
 };
 
 export function useEventsTableData({
@@ -64,7 +57,6 @@ export function useEventsTableData({
   setSelectedRows,
   appRootFallbackEnabled = false,
   rowsEnabled = true,
-  approxCountEnabled = true,
 }: UseEventsTableDataParams) {
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -227,24 +219,6 @@ export function useEventsTableData({
     refetchOnWindowFocus: true,
   });
 
-  // Always-on approximate distinct-trace count for the "Total ≈ X" footer.
-  // Deliberately a separate lightweight query (single ClickHouse uniq()): it
-  // shares the row query's filters + time range + search, runs async, and never
-  // blocks the table render. keepPreviousData avoids a flash back to the loading
-  // state on every filter tweak.
-  const approxCountEnabledEffective = rowsEnabled && approxCountEnabled;
-  const approxCountQuery = api.events.approxCount.useQuery(getCountPayload, {
-    enabled: approxCountEnabledEffective,
-    refetchOnWindowFocus: true,
-    placeholderData: (prev) => prev,
-  });
-  const approxTraceCount = approxCountQuery.data?.approxTraceCount ?? null;
-  // Loading only until the first value resolves; refetches keep the prior number.
-  const isApproxCountLoading =
-    approxCountEnabledEffective &&
-    approxTraceCount === null &&
-    approxCountQuery.isFetching;
-
   const totalCount = selectAll
     ? (totalCountQuery.data?.totalCount ?? null)
     : null;
@@ -315,8 +289,6 @@ export function useEventsTableData({
     uniqueTraceCount,
     isTotalCountLoading,
     isTotalCountError,
-    approxTraceCount,
-    isApproxCountLoading,
     hasMore,
     addToQueueMutation,
     handleAddToAnnotationQueue,

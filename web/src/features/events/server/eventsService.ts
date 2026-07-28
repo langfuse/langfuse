@@ -7,7 +7,6 @@ import {
 } from "@langfuse/shared";
 import {
   getObservationsCountsFromEventsTable,
-  getApproxUniqueTraceCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getCategoricalScoresGroupedByName,
   getEventsFilterOptionsForColumns,
@@ -21,6 +20,7 @@ import {
   getScoresForTraces,
   logger,
   traceException,
+  EVENTS_APPROX_TOTAL_COUNT_MARKER,
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
@@ -107,6 +107,15 @@ interface GetEventFilterOptionsParams extends GetObservationsFilterOptionsParams
    * that scan for filter options is prohibitively expensive.
    */
   filter?: FilterState;
+  /**
+   * The row query's active filters + time range. When provided, the bulk
+   * facet query also returns the approximate total observation count matching
+   * it (`uniqIf` over the same facet scan) for the traces-table footer
+   * "Total ≈ X". Only native `e.*` filters are honored (score/comment filters
+   * are dropped — the "≈" marker covers that). Omit for lazy per-column
+   * facet requests so the count is computed once, on the eager bulk query.
+   */
+  countFilter?: FilterState;
 }
 
 type EventFilterValueOption = {
@@ -380,28 +389,6 @@ export async function getEventCount(params: GetObservationsCountParams) {
     await getObservationsCountsFromEventsTable(queryOpts);
 
   return { totalCount, uniqueTraceCount };
-}
-
-/**
- * Approximate number of distinct traces matching the filters + time range, via
- * a single cheap ClickHouse `uniq()` (HLL). Backs the always-on traces-table
- * footer "Total ≈ X" — deliberately lightweight (no precise count()) so it can
- * run on every table load without blocking the row query.
- */
-export async function getApproxEventTraceCount(
-  params: GetObservationsCountParams,
-) {
-  const approxTraceCount = await getApproxUniqueTraceCountFromEventsTable({
-    projectId: params.projectId,
-    filter: params.filter,
-    searchQuery: params.searchQuery,
-    searchType: params.searchType,
-    orderBy: params.orderBy,
-    limit: 1,
-    offset: 0,
-  });
-
-  return { approxTraceCount };
 }
 
 type EventFilterOptionRow = Awaited<
@@ -729,6 +716,9 @@ export async function getEventFilterOptions(
           projectId,
           filter: refinedEventsFilter,
           columns: eventColumns,
+          // Only the eager bulk request carries countFilter, so the approximate
+          // total is computed once (riding this scan), not per lazy facet.
+          countFilter: scopedParams.countFilter,
         })
       : Promise.resolve([]),
   ]);
@@ -747,6 +737,16 @@ export async function getEventFilterOptions(
     eventColumns,
     omitCounts,
   );
+
+  // Approximate total observation count for the footer "Total ≈ X": the bulk
+  // facet query returns it as a sentinel row (only when countFilter was
+  // provided — i.e. the eager request). `null` when not requested.
+  const approxTotalCountRow = eventFilterOptions.find(
+    (row) => (row.column as string) === EVENTS_APPROX_TOTAL_COUNT_MARKER,
+  );
+  const approxTotalCount = approxTotalCountRow
+    ? Number(approxTotalCountRow.count)
+    : null;
 
   // name → the level(s) the name actually exists at, SPLIT PER DATA-TYPE
   // class: a name can be reused across types at different levels (a NUMERIC
@@ -785,6 +785,9 @@ export async function getEventFilterOptions(
   // column only offers names its filter can match (LFE-10596).
   return {
     ...eventFilterOptionsByColumn,
+    // Approximate total observation count for the footer "Total ≈ X" (null
+    // unless countFilter was requested — i.e. the eager bulk query).
+    approxTotalCount,
     ...(shouldLoadScoresAvg
       ? { scores_avg: numericScoreNames.map((score) => score.name) }
       : {}),

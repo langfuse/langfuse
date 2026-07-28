@@ -8,10 +8,18 @@ import type { FilterState } from "../../../types";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import { FilterList } from "./clickhouse-filter";
 import { EventsAggQueryBuilder } from "./event-query-builder";
-import { buildEventsObservationRowSelection } from "./events-observation-row-selection";
+import {
+  buildEventsObservationRowSelection,
+  groupEventsObservationFilters,
+} from "./events-observation-row-selection";
 import { createFilterFromFilterState } from "./factory";
 
 export const EVENTS_FILTER_OPTION_TOP_N = 1000;
+
+// Sentinel "column" under which the bulk filter-options query returns the
+// approximate total observation count (its `count` field). Rides the facet
+// scan so the traces-table footer "Total ≈ X" needs no extra ClickHouse scan.
+export const EVENTS_APPROX_TOTAL_COUNT_MARKER = "__approxTotalCount__";
 const EVENTS_FILTER_OPTION_TOP_K_MAX_N = 65_536;
 
 type EventFilterOptionSort = "countDesc" | "alpha" | "booleanAsc";
@@ -352,6 +360,19 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   columns: readonly EventFilterOptionColumn[];
   limit: number;
   scope?: EventFilterOptionScope;
+  /**
+   * When provided, the query also returns the approximate total observation
+   * count matching this filter (the row query's active filters + time range),
+   * as a single `uniqIf(span_id, …)` riding the SAME facet scan — no extra
+   * ClickHouse scan. Surfaced as a sentinel row (see
+   * `EVENTS_APPROX_TOTAL_COUNT_MARKER`). Only native `e.*`-column filters are
+   * inlined into the predicate (score/comment filters need joins/Postgres and
+   * are dropped — the "≈" marker covers that). The facet scan's WHERE is by
+   * construction a relaxation (superset) of this predicate — self-exclusion
+   * only ever DROPS predicates — so `uniqIf` here equals `uniq` over the full
+   * native filter regardless of what the scan's WHERE omits.
+   */
+  countFilter?: FilterState;
 }): { query: string; params: Record<string, unknown> } | null => {
   const columns = uniqueEventFilterOptionColumns(params.columns);
   if (columns.length === 0 || params.limit <= 0) {
@@ -365,8 +386,25 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
       filter: params.filter,
     });
 
+  const includeApproxTotal = params.countFilter !== undefined;
+  // Predicate over native (`e.*`) columns only — score/comment groups need
+  // joins/Postgres, so they're dropped (the "≈" marker covers the imprecision).
+  const countPredicate = includeApproxTotal
+    ? new FilterList(
+        createFilterFromFilterState(
+          groupEventsObservationFilters(params.countFilter ?? []).events,
+          eventsTableUiColumnDefinitions,
+          eventsTableCols,
+        ),
+      ).apply()
+    : { query: "", params: {} as Record<string, unknown> };
+  const approxTotalCountSelect = countPredicate.query
+    ? `uniqIf(e.span_id, (${countPredicate.query})) AS approx_total_count`
+    : `uniq(e.span_id) AS approx_total_count`;
+
   aggregatedOptionsBuilder.selectRaw(
     ...columns.map(optionTopKSelectExpression),
+    ...(includeApproxTotal ? [approxTotalCountSelect] : []),
   );
 
   if (params.scope) {
@@ -378,6 +416,12 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   const { query: aggregatedOptionsQuery, params: aggregatedOptionsParams } =
     aggregatedOptionsBuilder.buildWithParams();
 
+  // The approximate total is emitted as one extra sentinel row, so the result
+  // shape stays `{column, value, count}` and callers pick it out by column.
+  const approxTotalCountRow = includeApproxTotal
+    ? `,\n      [tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0))]`
+    : "";
+
   const query = `
 WITH aggregated_options AS (
 ${aggregatedOptionsQuery}
@@ -385,7 +429,7 @@ ${aggregatedOptionsQuery}
 option_rows AS (
   SELECT
     arrayJoin(arrayConcat(
-      ${columns.map(optionRowsArrayExpression).join(",\n      ")}
+      ${columns.map(optionRowsArrayExpression).join(",\n      ")}${approxTotalCountRow}
     )) AS option
   FROM aggregated_options
 )
@@ -401,6 +445,7 @@ ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
     query,
     params: {
       ...aggregatedOptionsParams,
+      ...(includeApproxTotal ? countPredicate.params : {}),
       optionLimit,
     },
   };

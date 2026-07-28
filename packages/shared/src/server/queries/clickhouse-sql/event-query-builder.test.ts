@@ -21,21 +21,6 @@ describe("EventsAggregationQueryBuilder", () => {
   });
 });
 
-describe("EventsQueryBuilder uniqueTraces field set", () => {
-  it("selects a single approximate uniq(trace_id) with no precise count()", () => {
-    const { query } = new EventsQueryBuilder({ projectId: "test-project" })
-      .selectFieldSet("uniqueTraces")
-      .buildWithParams();
-
-    // HLL estimate over trace_id — the "Total ≈ X" footer count.
-    expect(query).toContain('uniq(e.trace_id) as "unique_trace_count"');
-    // Deliberately cheap: no precise count() over the scan (that would be the
-    // expensive count the v4 traces table dropped).
-    expect(query).not.toContain("count(*)");
-    expect(query).not.toContain("uniqExact");
-  });
-});
-
 describe("EventsSessionAggregationQueryBuilder", () => {
   it("selects metadata arrays from the same deterministic latest observation", () => {
     const { query } = new EventsSessionAggregationQueryBuilder({
