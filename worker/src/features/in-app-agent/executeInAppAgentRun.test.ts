@@ -176,6 +176,45 @@ const getRun = (projectId: string, runId: string) =>
 const getInAppAgentApiKeys = (projectId: string) =>
   prisma.apiKey.findMany({ where: { projectId, isInAppAgentKey: true } });
 
+/** A run resuming an approved tool call whose interrupt event is persisted on a parked parent run. */
+async function seedApprovedContinuation() {
+  const seeded = await seedBackgroundRun();
+  const { projectId, conversation, run, user } = seeded;
+  const parentRun = await prisma.inAppAgentRun.create({
+    data: {
+      id: createInAppAgentRunId(),
+      projectId,
+      conversationId: conversation.id,
+      triggeredByUserId: user.id,
+      status: "SUCCEEDED",
+      finishedAt: new Date(),
+    },
+  });
+  await prisma.inAppAgentEvent.create({
+    data: {
+      projectId,
+      conversationId: conversation.id,
+      runId: parentRun.id,
+      sequenceNumber: 1,
+      type: "CUSTOM",
+      event: interruptEvent(parentRun.id) as never,
+    },
+  });
+  await prisma.inAppAgentRun.update({
+    where: { id_projectId: { id: run.id, projectId } },
+    data: {
+      request: {
+        kind: "approvalDecision",
+        parentRunId: parentRun.id,
+        toolCallId: "tc-1",
+        approved: true,
+      },
+    },
+  });
+
+  return seeded;
+}
+
 describe("executeInAppAgentRun", () => {
   it("executes a queued run to SUCCEEDED with persisted events and full MCP-key lifecycle", async () => {
     const { projectId, conversation, run } = await seedBackgroundRun();
@@ -346,38 +385,7 @@ describe("executeInAppAgentRun", () => {
   });
 
   it("finishes an approved continuation without a persisted tool result as FAILED (outcome_unknown)", async () => {
-    const { projectId, conversation, run, user } = await seedBackgroundRun();
-    const parentRun = await prisma.inAppAgentRun.create({
-      data: {
-        id: createInAppAgentRunId(),
-        projectId,
-        conversationId: conversation.id,
-        triggeredByUserId: user.id,
-        status: "SUCCEEDED",
-        finishedAt: new Date(),
-      },
-    });
-    await prisma.inAppAgentEvent.create({
-      data: {
-        projectId,
-        conversationId: conversation.id,
-        runId: parentRun.id,
-        sequenceNumber: 1,
-        type: "CUSTOM",
-        event: interruptEvent(parentRun.id) as never,
-      },
-    });
-    await prisma.inAppAgentRun.update({
-      where: { id_projectId: { id: run.id, projectId } },
-      data: {
-        request: {
-          kind: "approvalDecision",
-          parentRunId: parentRun.id,
-          toolCallId: "tc-1",
-          approved: true,
-        },
-      },
-    });
+    const { projectId, run } = await seedApprovedContinuation();
 
     scenarioRef.current = async ({ input, options }) => {
       // Zero-trust resume: args come from the persisted interrupt event.
@@ -397,6 +405,31 @@ describe("executeInAppAgentRun", () => {
     const failed = await getRun(projectId, run.id);
     expect(failed.status).toBe("FAILED");
     expect(failed.errorCode).toBe("outcome_unknown");
+  });
+
+  it("records outcome_unknown, not CANCELLED, when a cancel interrupts an approved mutation before its result persists", async () => {
+    const { projectId, run } = await seedApprovedContinuation();
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: run.id, projectId } },
+      data: { cancelRequestedAt: new Date() },
+    });
+
+    scenarioRef.current = async ({ signal, options }) => {
+      // The approved tool is "in flight": no TOOL_CALL_RESULT is persisted
+      // before the heartbeat-picked-up cancel aborts the loop.
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) return resolve();
+        signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+      await options.onAbort();
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    const finished = await getRun(projectId, run.id);
+    expect(finished.status).toBe("FAILED");
+    expect(finished.errorCode).toBe("outcome_unknown");
   });
 
   it("fails revalidation at claim as FAILED (init_failed) when AI features are disabled", async () => {

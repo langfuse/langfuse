@@ -448,11 +448,20 @@ export async function executeInAppAgentRun(params: {
           }
 
           if (reason === "cancelled") {
-            await finishWith({
-              status: InAppAgentRunStatus.CANCELLED,
-              errorCode: InAppAgentRunErrorCode.CANCELLED,
-              errorMessage: "Run cancelled by user request",
-            });
+            // The unrecorded-outcome window is cause-agnostic: a cancel can
+            // interrupt an approved mutation mid-flight just like a deploy,
+            // and recording plain CANCELLED would read as "nothing happened".
+            const unknownOutcome = failureCode();
+
+            await finishWith(
+              unknownOutcome
+                ? { status: InAppAgentRunStatus.FAILED, ...unknownOutcome }
+                : {
+                    status: InAppAgentRunStatus.CANCELLED,
+                    errorCode: InAppAgentRunErrorCode.CANCELLED,
+                    errorMessage: "Run cancelled by user request",
+                  },
+            );
             return;
           }
 
