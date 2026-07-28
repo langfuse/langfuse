@@ -34,11 +34,10 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
-import { type Prisma } from "@langfuse/shared";
+import { type Prisma, WebhookProtectedHeaders } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import { REMOTE_EXPERIMENT_PROTECTED_HEADERS } from "@/src/features/datasets/remoteExperimentConstants";
 
 const RemoteExperimentSetupSchema = z.object({
   url: z.url(),
@@ -181,7 +180,7 @@ export const RemoteExperimentUpsertForm = ({
     for (const [index, header] of data.headers.entries()) {
       const name = header.name.trim();
       if (!name) continue;
-      if (REMOTE_EXPERIMENT_PROTECTED_HEADERS.includes(name.toLowerCase())) {
+      if (WebhookProtectedHeaders.includes(name.toLowerCase())) {
         form.setError(`headers.${index}.name`, {
           message: `"${name}" is set by Langfuse and cannot be overridden`,
         });

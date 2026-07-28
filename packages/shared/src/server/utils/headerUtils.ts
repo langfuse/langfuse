@@ -1,4 +1,57 @@
-import { encrypt, decrypt } from "../../encryption";
+import { encrypt, decrypt, createSignatureHeader } from "../../encryption";
+import {
+  WebhookDefaultHeaders,
+  WebhookProtectedHeaders,
+  WebhookSignatureHeader,
+} from "../../domain/webhooks";
+
+export type RequestHeaders = Record<
+  string,
+  { secret: boolean; value: string }
+>;
+
+/**
+ * Builds the headers shared by webhook-compatible outbound requests.
+ * Custom secret values must already be decrypted by the caller and are only
+ * kept in memory for the duration of the request.
+ */
+export function buildWebhookRequestHeaders({
+  customHeaders = {},
+  body,
+  signingSecret,
+}: {
+  customHeaders?: RequestHeaders;
+  body: string;
+  signingSecret?: string;
+}): {
+  headers: Record<string, string>;
+  sensitiveHeaderNames: string[];
+} {
+  const headers: Record<string, string> = {};
+  const sensitiveHeaderNames: string[] = [];
+
+  for (const [key, headerObj] of Object.entries(customHeaders)) {
+    if (WebhookProtectedHeaders.includes(key.toLowerCase())) {
+      continue;
+    }
+
+    headers[key] = headerObj.value;
+    if (headerObj.secret) {
+      sensitiveHeaderNames.push(key);
+    }
+  }
+
+  Object.assign(headers, WebhookDefaultHeaders);
+
+  if (signingSecret) {
+    headers[WebhookSignatureHeader] = createSignatureHeader(
+      body,
+      signingSecret,
+    );
+  }
+
+  return { headers, sensitiveHeaderNames };
+}
 
 export function mergeHeaders(
   legacyHeaders: Record<string, string> = {},

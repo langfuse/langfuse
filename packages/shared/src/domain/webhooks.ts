@@ -12,6 +12,12 @@ export const WebhookDefaultHeaders = {
   [WebhookUserAgentHeader]: LangfuseUserAgent,
 };
 
+// Headers controlled by Langfuse cannot be overridden by custom headers.
+export const WebhookProtectedHeaders = [
+  ...Object.keys(WebhookDefaultHeaders),
+  WebhookSignatureHeader,
+];
+
 export const WebhookOutboundBaseSchema = z.object({
   id: z.string(),
   timestamp: z.coerce.date(),

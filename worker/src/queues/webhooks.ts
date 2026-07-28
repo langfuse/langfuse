@@ -19,6 +19,7 @@ import {
   whitelistFromEnv,
   fetchWithSecureRedirects,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
+  buildWebhookRequestHeaders,
 } from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
@@ -529,29 +530,16 @@ async function executeWebhookAction({
     webhookPayload = JSON.stringify(validated);
   }
 
-  // Prepare headers with signature if secret exists
-  const requestHeaders: Record<string, string> = {};
-  const additionalSensitiveHeaders: string[] = [];
-
-  // Add webhook config headers first
-  if (webhookConfig.requestHeaders) {
-    for (const [key, value] of Object.entries(webhookConfig.requestHeaders)) {
-      requestHeaders[key] = value.value;
-      if (value.secret) {
-        additionalSensitiveHeaders.push(key);
-      }
-    }
-  }
-
-  // Add default headers with precedence
-  for (const [key, value] of Object.entries(WebhookDefaultHeaders)) {
-    requestHeaders[key] = value;
-  }
-
+  let requestHeaders: Record<string, string>;
+  let additionalSensitiveHeaders: string[];
   try {
-    const decryptedSecret = decrypt(webhookConfig.secretKey);
-    const signature = createSignatureHeader(webhookPayload, decryptedSecret);
-    requestHeaders[WebhookSignatureHeader] = signature;
+    const builtRequestHeaders = buildWebhookRequestHeaders({
+      customHeaders: webhookConfig.requestHeaders,
+      body: webhookPayload,
+      signingSecret: decrypt(webhookConfig.secretKey),
+    });
+    requestHeaders = builtRequestHeaders.headers;
+    additionalSensitiveHeaders = builtRequestHeaders.sensitiveHeaderNames;
   } catch (error) {
     logger.error(
       "Failed to decrypt webhook secret or generate signature",

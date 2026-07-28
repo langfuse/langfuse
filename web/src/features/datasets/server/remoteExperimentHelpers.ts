@@ -2,23 +2,20 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
   RequestHeaderSchema,
-  WebhookDefaultHeaders,
-  WebhookSignatureHeader,
+  WebhookProtectedHeaders,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   decrypt,
   encrypt,
-  createSignatureHeader,
   generateWebhookSecret,
 } from "@langfuse/shared/encryption";
 import {
+  buildWebhookRequestHeaders,
   createDisplayHeaders,
   decryptSecretHeaders,
   encryptSecretHeaders,
 } from "@langfuse/shared/src/server";
-
-import { REMOTE_EXPERIMENT_PROTECTED_HEADERS } from "@/src/features/datasets/remoteExperimentConstants";
 
 export const RemoteExperimentHeadersSchema = z.record(
   z.string(),
@@ -134,7 +131,7 @@ export function processRemoteExperimentHeaders(
     }
     seenKeys.add(key);
 
-    if (REMOTE_EXPERIMENT_PROTECTED_HEADERS.includes(key)) {
+    if (WebhookProtectedHeaders.includes(key)) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: `Header "${rawKey}" is set by Langfuse and cannot be overridden`,
@@ -225,30 +222,17 @@ export function buildRemoteExperimentRequest({
   sensitiveHeaderNames: string[];
 } {
   const body = JSON.stringify(bodyObject);
-  const headers: Record<string, string> = {};
-  const sensitiveHeaderNames: string[] = [];
-
   const customHeaders = decryptSecretHeaders(
     parseStoredRemoteExperimentHeaders(storedHeaders),
   );
-  for (const [key, headerObj] of Object.entries(customHeaders)) {
-    if (REMOTE_EXPERIMENT_PROTECTED_HEADERS.includes(key.toLowerCase())) {
-      continue;
-    }
-    headers[key] = headerObj.value;
-    if (headerObj.secret) {
-      sensitiveHeaderNames.push(key);
-    }
-  }
 
-  Object.assign(headers, WebhookDefaultHeaders);
-
-  if (encryptedSecretKey) {
-    headers[WebhookSignatureHeader] = createSignatureHeader(
-      body,
-      decrypt(encryptedSecretKey),
-    );
-  }
+  const { headers, sensitiveHeaderNames } = buildWebhookRequestHeaders({
+    customHeaders,
+    body,
+    signingSecret: encryptedSecretKey
+      ? decrypt(encryptedSecretKey)
+      : undefined,
+  });
 
   return { body, headers, sensitiveHeaderNames };
 }
