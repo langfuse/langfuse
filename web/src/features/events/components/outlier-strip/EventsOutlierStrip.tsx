@@ -294,12 +294,8 @@ export function EventsOutlierStrip({
         )?.input?.query;
         if (!prev || !prevInput?.timeDimension) return undefined;
         return canReuseOutlierPlaceholder(
-          {
-            granularity: prevInput.timeDimension.granularity,
-            fromMs: Date.parse(prevInput.fromTimestamp),
-            toMs: Date.parse(prevInput.toTimestamp),
-          },
-          { granularity: granularity.granularity, fromMs, toMs },
+          { granularity: prevInput.timeDimension.granularity },
+          { granularity: granularity.granularity },
         )
           ? prev
           : undefined;

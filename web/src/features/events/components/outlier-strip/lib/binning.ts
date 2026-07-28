@@ -380,20 +380,16 @@ export function prepareOutlierSeries(params: {
 
 /**
  * Whether bins fetched for a previous query window may stand in for the next
- * one while it loads (LFE-14575). Held-over data is only honest on the SAME
- * bucket grid with a near-identical window — the auto-refresh slide of a
- * relative range. A drill-in, browser Back, or preset hop changes the grid
- * (or most of the window), where stale bins render as misplaced bars; those
- * must show the loading skeleton instead.
+ * one while it loads (LFE-14575). The bucket grid is epoch-aligned, so bins
+ * from the SAME granularity land at correct positions on any slid or shifted
+ * window — reuse is always honest there (an auto-refresh tick of any interval
+ * against any preset dims the held-over bars instead of flashing a skeleton).
+ * A granularity change (drill-in, browser Back, preset hop) is the case where
+ * stale bins render as misplaced bars; those show the loading skeleton. A
+ * same-granularity hop to a disjoint window degrades to the all-zero
+ * placeholder backstop in the container.
  */
 export const canReuseOutlierPlaceholder = (
-  prev: { granularity: string; fromMs: number; toMs: number },
-  next: { granularity: string; fromMs: number; toMs: number },
-): boolean => {
-  if (prev.granularity !== next.granularity) return false;
-  const span = next.toMs - next.fromMs;
-  if (!(span > 0)) return false;
-  const overlap =
-    Math.min(prev.toMs, next.toMs) - Math.max(prev.fromMs, next.fromMs);
-  return overlap / span >= 0.9;
-};
+  prev: { granularity: string },
+  next: { granularity: string },
+): boolean => prev.granularity === next.granularity;

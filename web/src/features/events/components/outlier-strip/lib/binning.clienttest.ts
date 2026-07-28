@@ -253,47 +253,22 @@ describe("outlierStripResultColumn", () => {
 });
 
 describe("canReuseOutlierPlaceholder (LFE-14575)", () => {
-  const DAY = 86_400_000;
-  const t0 = Date.UTC(2026, 6, 1);
-  const window90d = { granularity: "1d", fromMs: t0, toMs: t0 + 90 * DAY };
-
-  it("keeps held-over bins across an auto-refresh slide (same grid, ~full overlap)", () => {
+  // The bucket grid is epoch-aligned, so same-granularity bins are
+  // positionally correct on ANY window slide — granularity equality is the
+  // whole rule. A ratio-based overlap gate regressed short-window +
+  // long-interval auto-refresh (30m preset sliding 15m = 50% overlap).
+  it("keeps held-over bins across any same-granularity slide, however large", () => {
     expect(
-      canReuseOutlierPlaceholder(window90d, {
-        granularity: "1d",
-        fromMs: t0 + 30_000,
-        toMs: t0 + 90 * DAY + 30_000,
-      }),
+      canReuseOutlierPlaceholder({ granularity: "5m" }, { granularity: "5m" }),
     ).toBe(true);
   });
 
-  it("rejects a granularity change (drill-in / Back)", () => {
+  it("rejects a granularity change (drill-in / Back / preset hop)", () => {
     expect(
-      canReuseOutlierPlaceholder(window90d, {
-        granularity: "hour",
-        fromMs: t0,
-        toMs: t0 + DAY,
-      }),
-    ).toBe(false);
-  });
-
-  it("rejects a same-granularity window hop with little overlap", () => {
-    expect(
-      canReuseOutlierPlaceholder(window90d, {
-        granularity: "1d",
-        fromMs: t0 + 80 * DAY,
-        toMs: t0 + 260 * DAY, // stale window covers only ~6% of the new one
-      }),
-    ).toBe(false);
-  });
-
-  it("rejects an empty or inverted next window", () => {
-    expect(
-      canReuseOutlierPlaceholder(window90d, {
-        granularity: "1d",
-        fromMs: t0,
-        toMs: t0,
-      }),
+      canReuseOutlierPlaceholder(
+        { granularity: "1d" },
+        { granularity: "hour" },
+      ),
     ).toBe(false);
   });
 });
