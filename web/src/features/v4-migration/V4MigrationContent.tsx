@@ -415,8 +415,7 @@ export function V4MigrationDetailsContent({
         <p className="text-muted-foreground text-sm">
           You can switch between V3 and V4 while you review. This toggle goes
           away soon: everything defaults to v4, even without the upgrade, so
-          projects still on the old setup can lose functionality. We strongly
-          recommend upgrading all of your projects.
+          projects still on the old setup can lose functionality.
         </p>
       </div>
 
