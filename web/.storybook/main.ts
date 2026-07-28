@@ -161,6 +161,14 @@ const config: StorybookConfig = {
         find: /^@langfuse\/shared\/query$/,
         replacement: `${sharedSrc}/features/query`,
       },
+      // Client-safe entry of the in-app-agent module (imported by the agent
+      // window components and their stories). Deliberately no rule for the
+      // `/server` subpaths: a story that pulls server code should fail the
+      // build, not silently resolve.
+      {
+        find: /^@langfuse\/shared\/in-app-agent$/,
+        replacement: `${sharedSrc}/in-app-agent`,
+      },
       {
         find: /^\.prisma\/client\/index-browser$/,
         replacement: prismaBrowserStub,

@@ -47,7 +47,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { planLabels, type Plan } from "@langfuse/shared";
 import {
   Avatar,
@@ -605,7 +605,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             <StatusBadge
               type={backgroundMigrationStatus}
               showText={false}
-              className="bg-transparent"
+              variant="transparent"
             />
           )}
           {update && !backgroundMigrationStatus && (
@@ -654,7 +654,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
                 <StatusBadge
                   type={backgroundMigrationStatus}
                   showText={false}
-                  className="bg-transparent"
+                  variant="transparent"
                 />
               )}
             </Link>
