@@ -180,9 +180,9 @@ export function V4SidebarToggle() {
 }
 
 // Panel-row variant of the toggle, rendered inside the v4-migration panel's
-// "Want to review first?" section. Enabling jumps straight to the project's
-// traces page (the panel stays open across the navigation) so users see the
-// v4 experience immediately.
+// "Want to review first?" section. Toggling in either direction jumps to the
+// project's traces page (the panel stays open across the navigation) so users
+// see the switched experience immediately.
 export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
   const router = useRouter();
   const {
@@ -201,7 +201,7 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
 
   const handlePanelToggle = (enabled: boolean) => {
     handleToggle(enabled);
-    if (enabled && projectId) {
+    if (projectId) {
       router.push(`/project/${projectId}/traces`);
     }
   };
