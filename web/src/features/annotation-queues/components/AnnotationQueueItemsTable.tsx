@@ -35,7 +35,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import TableIdOrName from "@/src/components/table/table-id";
 
 const QueueItemTableMultiSelectAction = ({
@@ -310,13 +310,7 @@ export function AnnotationQueueItemsTable({
       size: 60,
       cell: ({ row }) => {
         const status: QueueItemRowData["status"] = row.getValue("status");
-        return (
-          <StatusBadge
-            className="capitalize"
-            type={status.toLowerCase()}
-            isLive={false}
-          />
-        );
+        return <StatusBadge type={status.toLowerCase()} isLive={false} />;
       },
     },
     {

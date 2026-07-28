@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   DropdownMenuItem,
@@ -188,11 +188,12 @@ export const CreateNewAnnotationQueueItem = ({
             >
               {queue.name}
               {queue.status && (
-                <StatusBadge
-                  type={queue.status.toLowerCase()}
-                  isLive={false}
-                  className="ml-2"
-                />
+                <span className="ml-2">
+                  <StatusBadge
+                    type={queue.status.toLowerCase()}
+                    isLive={false}
+                  />
+                </span>
               )}
             </DropdownMenuCheckboxItem>
           ))
