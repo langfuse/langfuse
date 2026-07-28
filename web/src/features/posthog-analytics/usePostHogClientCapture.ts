@@ -317,6 +317,7 @@ export const events = {
   ],
   v4_migration: [
     "in_app_agent_opened",
+    "coding_agent_prompt_viewed",
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
     "project_chip_clicked",

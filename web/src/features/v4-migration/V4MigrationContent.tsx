@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import {
@@ -35,6 +35,7 @@ import {
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useProject } from "@/src/features/projects/hooks";
+import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,
@@ -277,13 +278,22 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
   );
 }
 
-// Title, description, and the primary agent CTA.
+// Title, description, and the primary agent CTA. The CTA is two-step: the
+// first click reveals the prompt so users can see what they hand to their
+// agent, the second click copies it.
 export function V4MigrationHeaderContent({
   projectName,
 }: {
   projectName?: string;
 }) {
+  const capture = usePostHogClientCapture();
   const handleCopyPrompt = useCopyMigrationPrompt();
+  const [promptVisible, setPromptVisible] = useState(false);
+
+  const handleShowPrompt = () => {
+    capture("v4_migration:coding_agent_prompt_viewed");
+    setPromptVisible(true);
+  };
 
   return (
     <>
@@ -308,12 +318,30 @@ export function V4MigrationHeaderContent({
         Updating takes a few code changes. The fastest way is to hand them to a
         coding agent:
       </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <RainbowButton className="w-full" onClick={handleCopyPrompt}>
-          <Copy className="mr-1.5 h-4 w-4 shrink-0" />
-          <span className="min-w-0 truncate" title="Update SDK with agents">
-            Update SDK with agents
-          </span>
+      <div className="flex flex-col gap-2">
+        {promptVisible && (
+          <div className="bg-muted/50 max-h-44 overflow-y-auto rounded-md border p-3">
+            <code className="text-muted-foreground font-mono text-xs leading-5 break-words whitespace-pre-wrap">
+              {V4_CODING_AGENT_PROMPT}
+            </code>
+          </div>
+        )}
+        <RainbowButton
+          className="w-full"
+          onClick={promptVisible ? handleCopyPrompt : handleShowPrompt}
+        >
+          {promptVisible ? (
+            <>
+              <Copy className="mr-1.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate" title="Copy prompt">
+                Copy prompt
+              </span>
+            </>
+          ) : (
+            <span className="min-w-0 truncate" title="Update SDK with agents">
+              Update SDK with agents
+            </span>
+          )}
         </RainbowButton>
       </div>
     </>
@@ -395,6 +423,7 @@ export function V4MigrationDetailsContent({
             </Link>
           </Button>
         </div>
+        <V4PreviewToggleRow />
       </div>
 
       <Separator />
