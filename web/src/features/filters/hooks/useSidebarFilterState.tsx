@@ -470,22 +470,17 @@ const DEFAULT_HOOK_OPTIONS: UseSidebarFilterStateOptions = {
 const toUrlFilterQuery = (encoded: string): string =>
   encoded.length > MAX_URL_FILTER_QUERY_LENGTH ? "" : encoded;
 
-export function useSidebarFilterState(
+/**
+ * State half of the sidebar filters: owns the applied FilterState
+ * (URL/session/memory/peek decode + defaults + managed-env policy) and its
+ * writer. Independent of the filter-OPTIONS payload, so a view can read its
+ * applied filters BEFORE fetching options (events facet counts, LFE-14489).
+ */
+export function useSidebarFilterStateCore(
   config: FilterConfig,
-  options: Record<
-    string,
-    (string | SingleValueOption)[] | Record<string, string[]> | undefined
-  >,
   hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
-  const {
-    loading,
-    loadingColumns,
-    implicitDefaultConfig,
-    onExplicitFilterStateChange,
-  } = hookOptions;
-  const isV4Surface = hookOptions.isV4 ?? false;
-  const capture = usePostHogClientCapture();
+  const { implicitDefaultConfig, onExplicitFilterStateChange } = hookOptions;
   const stateLocationType = hookOptions.stateLocation;
   const peekContext =
     stateLocationType === "peekContext" ? hookOptions.context : undefined;
@@ -703,29 +698,6 @@ export function useSidebarFilterState(
   const managedEnvironmentColumn =
     managedEnvironmentPolicyConfig.managedEnvironmentColumn;
 
-  // Context the pure facet-action functions (lib/sidebar-filter-actions)
-  // read: facet/column metadata, the option lists, and — only while the
-  // managed-environment policy is active — the managed column, which gates
-  // its explicit enable-all-environments override.
-  const actionContext: SidebarFilterActionContext = useMemo(
-    () => ({
-      facets: config.facets,
-      columnDefinitions: config.columnDefinitions,
-      options,
-      managedEnvironmentColumn:
-        managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0
-          ? managedEnvironmentColumn
-          : undefined,
-    }),
-    [
-      config.facets,
-      config.columnDefinitions,
-      options,
-      managedEnvironmentColumn,
-      managedEnvironmentPolicyConfig.hiddenEnvironments,
-    ],
-  );
-
   const effectiveEnvironmentFilterState: FilterState = useMemo(
     () =>
       buildEffectiveEnvironmentFilter({
@@ -918,6 +890,76 @@ export function useSidebarFilterState(
     storedFiltersQuery,
     setStoredFiltersQuery,
   ]);
+
+  return {
+    /** Effective applied filters: explicit + defaults + managed-env policy. */
+    filterState,
+    explicitFilterState,
+    setFilterState,
+    expandedState,
+    onExpandedChange,
+    managedEnvironmentColumn,
+    managedEnvironmentPolicyConfig,
+  };
+}
+
+export type SidebarFilterStateCore = ReturnType<
+  typeof useSidebarFilterStateCore
+>;
+
+export type SidebarFilterPresentationOptions = Pick<
+  BaseUseSidebarFilterStateOptions,
+  "loading" | "loadingColumns" | "isV4"
+>;
+
+/**
+ * Presentation half over a core instance: option-aware facet actions,
+ * analytics, and the UIFilter list.
+ */
+export function useSidebarFilterPresentation(
+  core: SidebarFilterStateCore,
+  config: FilterConfig,
+  options: Record<
+    string,
+    (string | SingleValueOption)[] | Record<string, string[]> | undefined
+  >,
+  presentationOptions: SidebarFilterPresentationOptions = {},
+) {
+  const { loading, loadingColumns } = presentationOptions;
+  const isV4Surface = presentationOptions.isV4 ?? false;
+  const capture = usePostHogClientCapture();
+  const {
+    filterState,
+    explicitFilterState,
+    setFilterState,
+    expandedState,
+    onExpandedChange,
+    managedEnvironmentColumn,
+    managedEnvironmentPolicyConfig,
+  } = core;
+
+  // Context the pure facet-action functions (lib/sidebar-filter-actions)
+  // read: facet/column metadata, the option lists, and — only while the
+  // managed-environment policy is active — the managed column, which gates
+  // its explicit enable-all-environments override.
+  const actionContext: SidebarFilterActionContext = useMemo(
+    () => ({
+      facets: config.facets,
+      columnDefinitions: config.columnDefinitions,
+      options,
+      managedEnvironmentColumn:
+        managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0
+          ? managedEnvironmentColumn
+          : undefined,
+    }),
+    [
+      config.facets,
+      config.columnDefinitions,
+      options,
+      managedEnvironmentColumn,
+      managedEnvironmentPolicyConfig.hiddenEnvironments,
+    ],
+  );
 
   // When true, the applied-filter capture inside `updateFilter` is suppressed —
   // set by `updateOperator`, which funnels through `updateFilter` but must emit
@@ -1862,4 +1904,20 @@ export function useSidebarFilterState(
     // v3-vs-v4 dimension as the hook's own events.
     isV4: isV4Surface,
   };
+}
+
+/**
+ * Core + presentation in one call. Views that need the applied filter state
+ * before fetching options compose the two hooks directly (see EventsTable).
+ */
+export function useSidebarFilterState(
+  config: FilterConfig,
+  options: Record<
+    string,
+    (string | SingleValueOption)[] | Record<string, string[]> | undefined
+  >,
+  hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
+) {
+  const core = useSidebarFilterStateCore(config, hookOptions);
+  return useSidebarFilterPresentation(core, config, options, hookOptions);
 }
