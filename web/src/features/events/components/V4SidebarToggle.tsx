@@ -85,21 +85,22 @@ function useV4PreviewToggle() {
     }
   };
 
-  const handleToggle = (enabled: boolean) => {
+  // afterToggle, when given, replaces the default same-page URL translation
+  // and runs only after the toggle actually committed (mutation + session
+  // update done, intro dialog confirmed rather than dismissed).
+  const handleToggle = (enabled: boolean, afterToggle?: () => void) => {
+    const onSuccess = () => {
+      capture("sidebar:v4_beta_toggled", { enabled });
+      if (afterToggle) {
+        afterToggle();
+      } else {
+        redirectAfterToggle(enabled);
+      }
+    };
     if (enabled) {
-      enableWithIntro({
-        onSuccess: () => {
-          capture("sidebar:v4_beta_toggled", { enabled: true });
-          redirectAfterToggle(true);
-        },
-      });
+      enableWithIntro({ onSuccess });
     } else {
-      setBetaEnabled(false, {
-        onSuccess: () => {
-          capture("sidebar:v4_beta_toggled", { enabled: false });
-          redirectAfterToggle(false);
-        },
-      });
+      setBetaEnabled(false, { onSuccess });
     }
   };
 
@@ -205,10 +206,10 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
   }
 
   const handlePanelToggle = (enabled: boolean) => {
-    handleToggle(enabled);
-    if (projectId) {
-      router.push(`/project/${projectId}/traces`);
-    }
+    handleToggle(
+      enabled,
+      projectId ? () => router.push(`/project/${projectId}/traces`) : undefined,
+    );
   };
 
   return (
