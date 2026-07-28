@@ -23,10 +23,41 @@ interface GeneratedView {
 
 // ONE view per project, applied to every observation the user opens — the
 // generated component is a reusable view definition, not a per-observation
-// artifact. Survives tab switches (Radix unmounts inactive tab content) within
-// the session. Spike-grade persistence — a saved/shareable view definition is
-// an explicit post-demo fork.
-const generatedViewCache = new Map<string, GeneratedView>();
+// artifact. Persisted in localStorage so it survives tab switches and page
+// refreshes. Spike-grade persistence — a saved/shareable/server-side view
+// definition is an explicit post-demo fork.
+const STORAGE_KEY_PREFIX = "langfuse-custom-data-view:";
+
+function loadStoredView(projectId: string): GeneratedView | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY_PREFIX + projectId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<GeneratedView> | null;
+    return typeof parsed?.code === "string" &&
+      typeof parsed?.instruction === "string"
+      ? { code: parsed.code, instruction: parsed.instruction }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeView(projectId: string, view: GeneratedView | null) {
+  try {
+    if (view) {
+      window.localStorage.setItem(
+        STORAGE_KEY_PREFIX + projectId,
+        JSON.stringify(view),
+      );
+    } else {
+      window.localStorage.removeItem(STORAGE_KEY_PREFIX + projectId);
+    }
+  } catch {
+    // Quota exceeded / private mode — session-only persistence is acceptable
+    // for the spike.
+  }
+}
 
 const EXAMPLE_PROMPTS = [
   {
@@ -91,10 +122,10 @@ export function CustomDataViewTab({
   isIOLoading,
 }: CustomDataViewTabProps) {
   const [instruction, setInstruction] = useState(
-    () => generatedViewCache.get(projectId)?.instruction ?? "",
+    () => loadStoredView(projectId)?.instruction ?? "",
   );
-  const [generated, setGenerated] = useState<GeneratedView | null>(
-    () => generatedViewCache.get(projectId) ?? null,
+  const [generated, setGenerated] = useState<GeneratedView | null>(() =>
+    loadStoredView(projectId),
   );
   const [frameReady, setFrameReady] = useState(false);
   const [sandboxError, setSandboxError] = useState<string | null>(null);
@@ -142,7 +173,7 @@ export function CustomDataViewTab({
         code: result.code,
         instruction: variables.instruction,
       };
-      generatedViewCache.set(projectId, next);
+      storeView(projectId, next);
       setGenerated(next);
       setSandboxError(null);
     },
@@ -164,7 +195,7 @@ export function CustomDataViewTab({
   );
 
   const resetView = () => {
-    generatedViewCache.delete(projectId);
+    storeView(projectId, null);
     setGenerated(null);
     setSandboxError(null);
     setShowCode(false);
