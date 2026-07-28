@@ -71,7 +71,7 @@ export function makeFixtureBins(params: {
       values: {
         sum_totalCost: noData ? null : 0.02 * base * outlier * 5,
         p95_latency: noData ? null : 2000 * base * outlier * 0.6,
-        avg_latency: noData ? null : 2000 * base * outlier * 0.35,
+        p50_latency: noData ? null : 2000 * base * outlier * 0.35,
       },
     });
   }

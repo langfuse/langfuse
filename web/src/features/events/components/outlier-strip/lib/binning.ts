@@ -105,7 +105,7 @@ export function pickChartGranularity(params: {
 // ---------------------------------------------------------------------------
 
 export type OutlierStripMetricKey = "cost" | "latency";
-export type OutlierStripLatencyAgg = "p95" | "avg";
+export type OutlierStripLatencyAgg = "p95" | "p50";
 export type OutlierStripCostAgg = "sum";
 export type OutlierStripAggKey = OutlierStripLatencyAgg | OutlierStripCostAgg;
 
@@ -113,7 +113,7 @@ type AggregationDef = {
   /** The user-facing option key (currently 1:1 with the query aggregation). */
   key: OutlierStripAggKey;
   /** The executeQuery aggregation this option lowers to. */
-  queryAggregation: "sum" | "p95" | "avg";
+  queryAggregation: "sum" | "p95" | "p50";
 };
 
 export type OutlierStripMetricDef = {
@@ -144,7 +144,7 @@ export const OUTLIER_STRIP_METRICS: Record<
     measure: "latency",
     aggregations: [
       { key: "p95", queryAggregation: "p95" },
-      { key: "avg", queryAggregation: "avg" },
+      { key: "p50", queryAggregation: "p50" },
     ],
     fromRaw: (raw) => raw / 1000, // executeQuery latency is in ms
     format: (value) => latencyFormatter(value * 1000),

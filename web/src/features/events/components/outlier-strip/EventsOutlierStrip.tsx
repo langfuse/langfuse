@@ -93,13 +93,10 @@ const AggDropdown = ({
   const focusGuard = usePointerSelectionFocusGuard();
   return (
     <span className="flex items-baseline gap-1">
-      {/* The separator dot stays outside the trigger so hover styling
-          (underline) applies to the value only. */}
-      <span className="text-muted-foreground text-[11px] leading-none">·</span>
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${metricLabel} aggregation: ${value}`}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-[11px] leading-none underline-offset-2 hover:underline"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-[13px] leading-none underline-offset-2 hover:underline"
         >
           {value}
           <ChevronDown className="h-2.5 w-2.5" />
@@ -140,7 +137,7 @@ const ModeDropdown = ({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`Chart mode: ${modeLabel(value)}`}
-        className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[11px] leading-none font-bold"
+        className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[13px] leading-none font-bold"
       >
         {modeLabel(value)}
         <ChevronDown className="h-2.5 w-2.5" />
@@ -387,7 +384,7 @@ export function EventsOutlierStrip({
                 )}
               </div>
               <OutlierBarStrip
-                className="mt-1"
+                className="mt-2"
                 dense={series.dense}
                 maxValue={series.maxValue}
                 ticks={series.ticks}

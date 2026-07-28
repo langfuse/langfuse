@@ -80,7 +80,7 @@ describe("rowsToOutlierBins", () => {
         count_count: "2",
         sum_totalCost: "2.5",
         p95_latency: "1000",
-        avg_latency: "800",
+        p50_latency: "800",
       },
       // ClickHouse WITH FILL filler: count 0, nullable measures null, and the
       // non-nullable count fills with its type default 0.
@@ -97,7 +97,7 @@ describe("rowsToOutlierBins", () => {
     expect(bins[0].values).toEqual({
       sum_totalCost: 2.5,
       p95_latency: 1000,
-      avg_latency: 800,
+      p50_latency: 800,
     });
   });
 });
@@ -113,7 +113,7 @@ describe("prepareOutlierSeries", () => {
     values: {
       sum_totalCost: value,
       p95_latency: value === null ? null : value * 500,
-      avg_latency: value === null ? null : value * 250,
+      p50_latency: value === null ? null : value * 250,
     },
   });
 
@@ -182,7 +182,7 @@ describe("prepareOutlierSeries", () => {
       }).dense[0].value;
 
     expect(run("latency", "p95")).toBe(4); // 4000ms → 4s
-    expect(run("latency", "avg")).toBe(2); // 2000ms → 2s
+    expect(run("latency", "p50")).toBe(2); // 2000ms → 2s
     expect(run("cost", "sum")).toBe(8);
     // Unknown/legacy options fall back to the metric's default (first
     // registry entry) — a stored legacy value can never plot the wrong column.

@@ -381,15 +381,37 @@ export function OutlierBarStrip({
             const x = Math.max(startX, 0);
             const w = Math.min(endX, widthPx) - x;
             if (w <= 0) return null;
+            // Fill alone reads faint over sparse bars; crisp 1px edge lines
+            // carry most of the band's perceived contrast (Grafana-style).
             return (
-              <rect
-                x={x}
-                y={0}
-                width={w}
-                height={plotHeight}
-                className="fill-foreground"
-                opacity={0.12}
-              />
+              <g>
+                <rect
+                  x={x}
+                  y={0}
+                  width={w}
+                  height={plotHeight}
+                  className="fill-foreground"
+                  opacity={0.18}
+                />
+                <line
+                  x1={x + 0.5}
+                  y1={0}
+                  x2={x + 0.5}
+                  y2={plotHeight}
+                  className="stroke-foreground"
+                  strokeWidth={1}
+                  opacity={0.55}
+                />
+                <line
+                  x1={x + w - 0.5}
+                  y1={0}
+                  x2={x + w - 0.5}
+                  y2={plotHeight}
+                  className="stroke-foreground"
+                  strokeWidth={1}
+                  opacity={0.55}
+                />
+              </g>
             );
           })()}
 
