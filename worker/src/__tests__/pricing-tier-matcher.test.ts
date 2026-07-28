@@ -9,6 +9,9 @@ import {
 import { DefaultModelPriceSchema } from "../scripts/upsertDefaultModelPrices";
 import defaultModelPrices from "../constants/default-model-prices.json";
 
+const compilePostgresRegex = (pattern: string) =>
+  new RegExp(pattern.replace(/^\(\?i\)/, ""), "i");
+
 describe("default-model-prices.json", () => {
   it("should parse successfully with Zod schema (same validation as upsertDefaultModelPrices)", () => {
     expect(() =>
@@ -208,6 +211,34 @@ describe("default-model-prices.json", () => {
           ).not.toThrow();
         }
       }
+    }
+  });
+
+  it("should match AWS geographic inference profiles for Claude Haiku 4.5", () => {
+    const claudeModel = defaultModelPrices.find(
+      (model) => model.modelName === "claude-haiku-4-5-20251001",
+    );
+    expect(claudeModel).toBeDefined();
+
+    const regex = compilePostgresRegex(claudeModel!.matchPattern);
+    expect(regex.test("jp.anthropic.claude-haiku-4-5-20251001-v1:0")).toBe(
+      true,
+    );
+    expect(regex.test("au.anthropic.claude-haiku-4-5-20251001-v1:0")).toBe(
+      true,
+    );
+  });
+
+  it("should consistently support JP and AU prefixes for Anthropic Bedrock models", () => {
+    const bedrockModels = defaultModelPrices.filter((model) =>
+      model.matchPattern.includes("anthropic\\.claude"),
+    );
+    expect(bedrockModels.length).toBeGreaterThan(0);
+
+    for (const model of bedrockModels) {
+      expect(model.matchPattern, model.modelName).toContain(
+        "(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude",
+      );
     }
   });
 
