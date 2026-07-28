@@ -129,7 +129,7 @@ export default function PromptsWithFolder() {
             {hasReadAccess && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" disabled={isExporting}>
+                  <Button variant="outline" disabled={isExporting}>
                     <UploadIcon className="mr-1 h-4 w-4" />
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
