@@ -75,8 +75,10 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Tokens per second",
     uiTableId: "tokensPerSecond",
     clickhouseTableName: "events_proto",
+    // Align with Metrics `outputTokensPerSecond`: output tokens over the
+    // generation window (completion_start_time → end_time), excluding TTFT.
     clickhouseSelect:
-      "(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details))) / (date_diff('millisecond', start_time, end_time) / 1000))",
+      "(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details))) / nullIf(date_diff('millisecond', e.completion_start_time, e.end_time) / 1000, 0))",
   },
   {
     uiTableName: "Input Cost ($)",
