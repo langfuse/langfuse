@@ -1634,20 +1634,16 @@ export const promptRouter = createTRPCRouter({
               prompt: item.prompt as string,
             });
           }
-          try {
-            await auditLog(
-              {
-                session: ctx.session,
-                resourceType: "prompt",
-                resourceId: createdPrompt.id,
-                action: "create",
-                after: createdPrompt,
-              },
-              ctx.prisma,
-            );
-          } catch {
-            // Audit failure is non-fatal — the prompt was already created
-          }
+          await auditLog(
+            {
+              session: ctx.session,
+              resourceType: "prompt",
+              resourceId: createdPrompt.id,
+              action: "create",
+              after: createdPrompt,
+            },
+            ctx.prisma,
+          );
           results.push({ name: item.name, success: true });
         } catch (e) {
           results.push({

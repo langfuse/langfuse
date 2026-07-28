@@ -132,6 +132,33 @@ describe("prompts trpc", () => {
     );
   });
 
+  describe("prompts.importBulk", () => {
+    it("reports an item as failed when audit logging fails", async () => {
+      const { project, caller } = await prepare();
+      const promptName = `audit-failure-${v4()}`;
+      const auditLogCreateSpy = vi
+        .spyOn(prisma.auditLog, "create")
+        .mockRejectedValueOnce(new Error("audit log unavailable"));
+
+      try {
+        const result = await caller.prompts.importBulk({
+          projectId: project.id,
+          prompts: [{ name: promptName, prompt: "Hello world" }],
+        });
+
+        expect(result.results).toEqual([
+          {
+            name: promptName,
+            success: false,
+            error: "audit log unavailable",
+          },
+        ]);
+      } finally {
+        auditLogCreateSpy.mockRestore();
+      }
+    });
+  });
+
   describe("prompts.allVersions", () => {
     it("returns comment counts for the requested prompt version page only", async () => {
       const { project, caller } = await prepare();
