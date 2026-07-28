@@ -21,9 +21,11 @@ interface GeneratedView {
   instruction: string;
 }
 
-// Survives tab switches (Radix unmounts inactive tab content) and observation
-// switches within the session. Spike-grade persistence — a saved/shareable
-// view definition is an explicit post-demo fork.
+// ONE view per project, applied to every observation the user opens — the
+// generated component is a reusable view definition, not a per-observation
+// artifact. Survives tab switches (Radix unmounts inactive tab content) within
+// the session. Spike-grade persistence — a saved/shareable view definition is
+// an explicit post-demo fork.
 const generatedViewCache = new Map<string, GeneratedView>();
 
 const EXAMPLE_PROMPTS = [
@@ -89,10 +91,10 @@ export function CustomDataViewTab({
   isIOLoading,
 }: CustomDataViewTabProps) {
   const [instruction, setInstruction] = useState(
-    () => generatedViewCache.get(observation.id)?.instruction ?? "",
+    () => generatedViewCache.get(projectId)?.instruction ?? "",
   );
   const [generated, setGenerated] = useState<GeneratedView | null>(
-    () => generatedViewCache.get(observation.id) ?? null,
+    () => generatedViewCache.get(projectId) ?? null,
   );
   const [frameReady, setFrameReady] = useState(false);
   const [sandboxError, setSandboxError] = useState<string | null>(null);
@@ -140,7 +142,7 @@ export function CustomDataViewTab({
         code: result.code,
         instruction: variables.instruction,
       };
-      generatedViewCache.set(observation.id, next);
+      generatedViewCache.set(projectId, next);
       setGenerated(next);
       setSandboxError(null);
     },
@@ -162,7 +164,7 @@ export function CustomDataViewTab({
   );
 
   const resetView = () => {
-    generatedViewCache.delete(observation.id);
+    generatedViewCache.delete(projectId);
     setGenerated(null);
     setSandboxError(null);
     setShowCode(false);
@@ -287,7 +289,8 @@ export function CustomDataViewTab({
         <>
           <div className="flex shrink-0 items-center gap-2">
             <span className="text-muted-foreground text-xs">
-              Rendered in a sandboxed iframe on the real observation data.
+              Applies to every observation — rendered in a sandboxed iframe on
+              the real data of the one selected.
             </span>
             <div className="ml-auto flex gap-1">
               <Button

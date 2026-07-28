@@ -574,8 +574,10 @@ export function ObservationDetailView({
             value="custom"
             className="mt-0 flex max-h-full min-h-0 w-full flex-1 overflow-hidden"
           >
+            {/* Deliberately NOT keyed by observation id: the generated view is
+                a project-wide definition — switching observations re-renders
+                the SAME view on the new observation's data. */}
             <CustomDataViewTab
-              key={observation.id}
               observation={observation}
               projectId={projectId}
               input={parsedInput ?? observationWithIO?.input}
