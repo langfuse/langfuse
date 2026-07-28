@@ -394,9 +394,7 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
 
   aggregatedOptionsBuilder.selectRaw(
     ...columns.map(optionTopKSelectExpression),
-    ...(includeApproxTotal
-      ? ["uniq(e.span_id) AS approx_total_count"]
-      : []),
+    ...(includeApproxTotal ? ["uniq(e.span_id) AS approx_total_count"] : []),
   );
 
   if (params.scope) {

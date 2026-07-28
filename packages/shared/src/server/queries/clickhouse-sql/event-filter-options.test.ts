@@ -43,7 +43,9 @@ describe("buildEventsFilterOptionsForColumnsQuery — approximate total count", 
   it("is filter-aware through the shared scan WHERE (not a separate predicate)", () => {
     const built = buildEventsFilterOptionsForColumnsQuery({
       ...base,
-      filter: [{ column: "level", operator: "=", type: "string", value: "ERROR" }],
+      filter: [
+        { column: "level", operator: "=", type: "string", value: "ERROR" },
+      ],
       includeApproxCount: true,
     });
     const query = built!.query;
