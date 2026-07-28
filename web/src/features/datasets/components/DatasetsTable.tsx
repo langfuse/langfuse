@@ -3,8 +3,8 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DeleteDatasetDialogController } from "@/src/features/datasets/components/DeleteDatasetDialogController";
-import { UpdateDatasetIconButton } from "@/src/features/datasets/components/UpdateDatasetIconButton";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
+import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
@@ -44,7 +44,7 @@ import {
 } from "@langfuse/shared";
 import { type TableAction } from "@/src/features/table/types";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { Trash } from "lucide-react";
+import { Pen, Trash } from "lucide-react";
 
 type DatasetTableRow = {
   id: string;
@@ -457,7 +457,7 @@ export function DatasetsTable(props: { projectId: string }) {
 
         return (
           <div className="flex items-center gap-1">
-            <UpdateDatasetIconButton
+            <UpdateDatasetDialogController
               projectId={props.projectId}
               datasetId={key.id}
               datasetName={row.original.folderPath}
@@ -468,9 +468,22 @@ export function DatasetsTable(props: { projectId: string }) {
                 row.original.expectedOutputSchema ?? undefined
               }
               source="table-single-row"
-              variant="ghost"
-              size="icon-xs"
-            />
+            >
+              {({ disabled, openDialog }) => (
+                <IconOnlyButton
+                  icon={<Pen className="h-4 w-4" />}
+                  label="Edit"
+                  aria-label="edit"
+                  disabledReason={disabled?.reason}
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openDialog();
+                  }}
+                />
+              )}
+            </UpdateDatasetDialogController>
             <DeleteDatasetDialogController
               projectId={props.projectId}
               datasetId={key.id}
