@@ -10,12 +10,16 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 const mocks = vi.hoisted(() => ({
   updateRule: vi.fn(),
+  attachEvaluatorToRule: vi.fn(),
+  detachEvaluatorFromRule: vi.fn(),
   evalsInvalidate: vi.fn(),
   evalsV2Invalidate: vi.fn(),
   showSuccessToast: vi.fn(),
 }));
 
 vi.mock("@/src/features/evals/v2/components/EvaluationRuleSection", () => ({
+  EXAMPLE_FILTERS: [],
+  mergeExampleFilters: vi.fn(),
   RuleFilterSearchBar: ({
     setFilterState,
   }: {
@@ -68,7 +72,9 @@ vi.mock(
 );
 
 vi.mock("@/src/components/ui/slider", () => ({
-  Slider: () => <div>Sampling slider</div>,
+  Slider: ({ disabled }: { disabled?: boolean }) => (
+    <div data-disabled={disabled}>Sampling slider</div>
+  ),
 }));
 
 vi.mock("@/src/features/notifications/showSuccessToast", () => ({
@@ -94,11 +100,19 @@ vi.mock("@/src/utils/api", () => ({
           isPending: false,
         }),
       },
-      setRulesEnabled: {
+      attachEvaluatorToRule: {
         useMutation: () => ({
-          mutate: vi.fn(),
+          mutateAsync: mocks.attachEvaluatorToRule,
+        }),
+      },
+      detachEvaluatorFromRule: {
+        useMutation: () => ({
+          mutateAsync: mocks.detachEvaluatorFromRule,
           isPending: false,
         }),
+      },
+      evaluatorOptions: {
+        useQuery: () => ({ data: [] }),
       },
     },
   },
@@ -119,6 +133,8 @@ describe("EvaluationRuleEditView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.updateRule.mockResolvedValue({ id: rule.id });
+    mocks.attachEvaluatorToRule.mockResolvedValue(undefined);
+    mocks.detachEvaluatorFromRule.mockResolvedValue(undefined);
     mocks.evalsInvalidate.mockResolvedValue(undefined);
     mocks.evalsV2Invalidate.mockResolvedValue(undefined);
   });
@@ -140,10 +156,35 @@ describe("EvaluationRuleEditView", () => {
     const saveButton = screen.getByRole("button", { name: "Save changes" });
     expect(saveButton).toBeDisabled();
 
+    fireEvent.click(screen.getByRole("button", { name: "Step 4: Name rule" }));
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Production traces" },
     });
     expect(saveButton).toBeEnabled();
+  });
+
+  it("uses the edit form as a read-only rule view", () => {
+    render(
+      <TooltipProvider>
+        <EvaluationRuleEditView
+          projectId="project-1"
+          evaluationRule={rule}
+          timeRange={null}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+          onOpenTrace={vi.fn()}
+          readOnly
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Step 4: Name rule" }));
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(screen.getByText("Sampling slider")).toHaveAttribute(
+      "data-disabled",
+      "true",
+    );
   });
 
   it("confirms before saving changes to a connected evaluation rule", async () => {
@@ -161,6 +202,7 @@ describe("EvaluationRuleEditView", () => {
       </TooltipProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Step 4: Name rule" }));
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Production traces" },
     });

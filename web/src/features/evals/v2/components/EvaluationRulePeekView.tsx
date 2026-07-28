@@ -1,61 +1,21 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import {
-  ArrowLeft,
-  ChevronDown,
-  ChevronRight,
-  ExternalLink,
-  Link2,
-} from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { TablePeekView } from "@/src/components/table/peek";
+import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
   TraceDetailBody,
   traceDetailTitle,
 } from "@/src/components/trace/TraceDetailBody";
-import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/src/components/ui/command";
-import { Label } from "@/src/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DeleteEvaluationRuleButton } from "@/src/features/evals/v2/components/DeleteEvaluationRuleButton";
-import { EvaluationRuleExecutionHistoryChart } from "@/src/features/evals/v2/components/EvaluationRuleExecutionStatusHistory";
 import { EvaluationRuleEditView } from "@/src/features/evals/v2/components/EvaluationRuleEditView";
-import { EvaluationRuleEvaluatorConnections } from "@/src/features/evals/v2/components/EvaluationRuleEvaluatorConnections";
-import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationAlert";
-import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
-import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
-import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
-import { ruleTimeRangeFilter } from "@/src/features/evals/v2/lib/useRuleMatchCount";
-import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
-import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { api } from "@/src/utils/api";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { usdFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
-import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 export function TablePeekViewEvaluationRuleDetail({
   projectId,
@@ -64,10 +24,7 @@ export function TablePeekViewEvaluationRuleDetail({
   projectId: string;
 }) {
   const router = useRouter();
-  const utils = api.useUtils();
   const ruleId = router.query.peek as string | undefined;
-  const [evaluatorPickerOpen, setEvaluatorPickerOpen] = useState(false);
-  const [statusDetailsOpen, setStatusDetailsOpen] = useState(false);
   const [inspectedTraceId, setInspectedTraceId] = useState<string | null>(null);
   const [formResetKey, setFormResetKey] = useState(0);
   const hasWriteAccess = useHasProjectAccess({
@@ -82,51 +39,11 @@ export function TablePeekViewEvaluationRuleDetail({
     projectId,
     traceId: inspectedTraceId ?? undefined,
   });
-  const ruleCosts = api.evalsV2.ruleCosts.useQuery(
-    { projectId, ruleIds: ruleId ? [ruleId] : [] },
-    { enabled: Boolean(projectId && ruleId) },
-  );
-  const evaluatorOptions = api.evalsV2.evaluatorOptions.useQuery(
-    { projectId },
-    {
-      enabled: Boolean(projectId) && evaluatorPickerOpen && hasWriteAccess,
-    },
-  );
-  const attachment = useValidatedRuleAttachment({
-    projectId,
-    entryPoint: "evaluation_rule_detail",
-  });
-  const setEnabled = api.evalsV2.setRulesEnabled.useMutation({
-    onError: (error) => trpcErrorToast(error),
-    onSuccess: async (_data, variables) => {
-      showSuccessToast({
-        title: variables.enabled ? "Rule enabled" : "Rule disabled",
-        description: "The evaluation rule was updated.",
-      });
-      await Promise.all([utils.evals.invalidate(), utils.evalsV2.invalidate()]);
-    },
-  });
   const { timeRange } = useTableDateRange(projectId);
   const absoluteTimeRange = useMemo(
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],
   );
-
-  const attachedEvaluatorIds = new Set(
-    evaluationRule.data?.evaluators.map((evaluator) => evaluator.id) ?? [],
-  );
-  const availableEvaluators = (evaluatorOptions.data ?? []).filter(
-    (evaluator) =>
-      evaluator.targetObject === evaluationRule.data?.targetObject &&
-      !attachedEvaluatorIds.has(evaluator.id),
-  );
-  const totalCost = evaluationRule.data
-    ? ruleCosts.data?.[evaluationRule.data.id]
-    : undefined;
-  const createdBy =
-    evaluationRule.data?.createdByUser?.name ??
-    evaluationRule.data?.createdByUser?.email ??
-    "Unknown";
 
   const ruleActions =
     hasWriteAccess && evaluationRule.data ? (
@@ -153,7 +70,6 @@ export function TablePeekViewEvaluationRuleDetail({
       <ArrowLeft className="h-4 w-4" />
     </Button>
   ) : undefined;
-
   const ruleActionsMenu =
     hasWriteAccess && evaluationRule.data ? (
       <div className="flex w-full flex-col gap-0.5">
@@ -185,9 +101,6 @@ export function TablePeekViewEvaluationRuleDetail({
       actions={inspectedTraceId ? inspectedTraceActions : ruleActions}
       actionsMenu={inspectedTraceId ? undefined : ruleActionsMenu}
     >
-      <EvaluationRuleAttachmentValidationDialog
-        open={attachment.pendingKey !== null}
-      />
       {inspectedTraceId ? (
         <TraceDetailBody trace={inspectedTrace.data} context="peek" />
       ) : evaluationRule.isError ? (
@@ -199,7 +112,7 @@ export function TablePeekViewEvaluationRuleDetail({
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-52 w-full" />
         </div>
-      ) : hasWriteAccess ? (
+      ) : (
         <EvaluationRuleEditView
           key={`${evaluationRule.data.id}-${formResetKey}`}
           projectId={projectId}
@@ -208,253 +121,8 @@ export function TablePeekViewEvaluationRuleDetail({
           onCancel={peekProps.closePeek}
           onSaved={() => setFormResetKey((key) => key + 1)}
           onOpenTrace={setInspectedTraceId}
+          readOnly={!hasWriteAccess}
         />
-      ) : (
-        <div className="flex min-w-0 flex-col gap-6 p-4">
-          <Collapsible
-            open={statusDetailsOpen}
-            onOpenChange={setStatusDetailsOpen}
-            className={cn(
-              "bg-muted/30 relative rounded-md border p-3",
-              statusDetailsOpen
-                ? "grid w-full gap-4 sm:grid-cols-2"
-                : "flex w-fit items-center gap-3 pr-10",
-            )}
-          >
-            <div
-              className={cn(
-                "flex",
-                statusDetailsOpen ? "flex-col gap-2" : "items-center gap-3",
-              )}
-            >
-              <Label htmlFor="evaluation-rule-enabled">Enabled</Label>
-              <Switch
-                id="evaluation-rule-enabled"
-                checked={evaluationRule.data.enabled}
-                disabled={!hasWriteAccess || setEnabled.isPending}
-                onCheckedChange={(enabled) =>
-                  setEnabled.mutate({
-                    projectId,
-                    ruleIds: [evaluationRule.data.id],
-                    enabled,
-                  })
-                }
-                aria-label={`${evaluationRule.data.enabled ? "Disable" : "Enable"} ${evaluationRule.data.name}`}
-                color="green"
-              />
-            </div>
-
-            <CollapsibleContent
-              className={statusDetailsOpen ? "contents" : undefined}
-            >
-              <div className="flex flex-col gap-1 pr-8">
-                <Label>Created by</Label>
-                <span className="text-sm">{createdBy}</span>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <Label>Last updated</Label>
-                <span className="text-sm tabular-nums">
-                  {evaluationRule.data.updatedAt.toLocaleString()}
-                </span>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <Label>Total cost (7d)</Label>
-                <span className="text-sm tabular-nums">
-                  {ruleCosts.isPending ? (
-                    <Skeleton className="h-4 w-16" />
-                  ) : totalCost == null ? (
-                    "–"
-                  ) : (
-                    usdFormatter(totalCost, 2, 4)
-                  )}
-                </span>
-              </div>
-            </CollapsibleContent>
-
-            <CollapsibleTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className="absolute top-2 right-2"
-                aria-label={
-                  statusDetailsOpen
-                    ? "Collapse rule details"
-                    : "Expand rule details"
-                }
-              >
-                {statusDetailsOpen ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </Button>
-            </CollapsibleTrigger>
-          </Collapsible>
-
-          <div className="flex flex-col gap-6">
-            <section className="flex min-w-0 flex-col gap-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label>Filters</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    router
-                      .push({
-                        pathname: `/project/${projectId}/traces`,
-                        query: {
-                          filter: encodeFiltersGeneric([
-                            ...evaluationRule.data.filter,
-                            ...ruleTimeRangeFilter(absoluteTimeRange),
-                          ]),
-                        },
-                      })
-                      .catch(() => undefined)
-                  }
-                >
-                  View matches
-                  <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                <div className="min-w-0 flex-1">
-                  {evaluationRule.data.filter.length > 0 ? (
-                    <InlineFilterState
-                      filterState={evaluationRule.data.filter}
-                      className="max-w-full first:ml-0"
-                    />
-                  ) : (
-                    <span className="text-muted-foreground">
-                      All observations
-                    </span>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <section className="flex flex-col gap-2">
-              <Label>Sampling</Label>
-              <div className="w-fit rounded-md border px-3 py-2 text-sm tabular-nums">
-                {Math.round(evaluationRule.data.sampling * 100)}%
-              </div>
-            </section>
-          </div>
-
-          <section className="flex min-w-0 flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Label>Attached evaluators</Label>
-                <Badge variant="secondary" size="sm">
-                  {evaluationRule.data.evaluators.length}
-                </Badge>
-              </div>
-              <Popover
-                open={evaluatorPickerOpen}
-                onOpenChange={setEvaluatorPickerOpen}
-              >
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    loading={attachment.pendingKey !== null}
-                    disabled={!hasWriteAccess || attachment.pendingKey !== null}
-                  >
-                    Attach evaluator
-                    <Link2 className="ml-1.5 h-3.5 w-3.5" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-80 p-0">
-                  <Command>
-                    <CommandInput placeholder="Find an evaluator..." />
-                    <CommandList>
-                      <CommandEmpty>
-                        No unattached evaluator found.
-                      </CommandEmpty>
-                      <CommandGroup heading="Available evaluators">
-                        {availableEvaluators.map((evaluator) => (
-                          <CommandItem
-                            key={evaluator.id}
-                            value={`${evaluator.scoreName} ${evaluator.id}`}
-                            onSelect={() => {
-                              if (!ruleId) return;
-                              setEvaluatorPickerOpen(false);
-                              attachment
-                                .attach({
-                                  evaluatorId: evaluator.id,
-                                  ruleId,
-                                  evaluatorName: evaluator.scoreName,
-                                  evaluationRuleName: evaluationRule.data.name,
-                                })
-                                .catch(() => undefined);
-                            }}
-                          >
-                            <span
-                              className="min-w-0 flex-1 truncate"
-                              title={evaluator.scoreName}
-                            >
-                              {evaluator.scoreName}
-                            </span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            {attachment.issue ? (
-              <EvaluationRuleAttachmentValidationAlert
-                projectId={projectId}
-                evaluatorId={attachment.issue.evaluatorId}
-                ruleId={attachment.issue.ruleId}
-                issue={attachment.issue}
-                onDismiss={attachment.dismissIssue}
-                onAttachAnyway={() => {
-                  attachment.attachAnyway().catch(() => undefined);
-                }}
-                attaching={attachment.pendingKey !== null}
-              />
-            ) : null}
-            <EvaluationRuleEvaluatorConnections
-              projectId={projectId}
-              ruleId={evaluationRule.data.id}
-              evaluators={evaluationRule.data.evaluators}
-              hasWriteAccess={hasWriteAccess}
-            />
-          </section>
-
-          <section className="flex min-w-0 flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <Label>Execution history</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  router
-                    .push(
-                      getEvaluationRuleTracesHref({
-                        projectId,
-                        ruleId: evaluationRule.data.id,
-                      }),
-                    )
-                    .catch(() => undefined)
-                }
-              >
-                View executions
-                <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <EvaluationRuleExecutionHistoryChart
-              history={evaluationRule.data.executionHistory}
-            />
-          </section>
-        </div>
       )}
     </TablePeekView>
   );

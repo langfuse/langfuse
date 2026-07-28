@@ -64,14 +64,24 @@ describe("useValidatedRuleAttachment", () => {
     mocks.attachMutation.mockResolvedValue(undefined);
     mocks.configByIdInvalidate.mockResolvedValue(undefined);
     mocks.evalsV2Invalidate.mockResolvedValue(undefined);
-    mocks.validateAndAttachRule.mockResolvedValue({
-      attached: false,
-      outcome: "failed",
-      message: "The evaluator test failed.",
-    });
+    mocks.validateAndAttachRule.mockImplementation(
+      async (
+        _projectId: string,
+        dependencies: { attach: () => Promise<unknown> },
+      ) => {
+        await dependencies.attach();
+        return {
+          attached: true,
+          issue: {
+            outcome: "failed",
+            message: "The evaluator test failed.",
+          },
+        };
+      },
+    );
   });
 
-  it("attaches after a failed validation when the user chooses to continue", async () => {
+  it("attaches immediately and exposes a dismissible validation warning", async () => {
     const { result } = renderHook(() =>
       useValidatedRuleAttachment({
         projectId: "project-1",
@@ -88,12 +98,6 @@ describe("useValidatedRuleAttachment", () => {
       outcome: "failed",
       message: "The evaluator test failed.",
     });
-    expect(mocks.attachMutation).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await result.current.attachAnyway();
-    });
-
     expect(mocks.attachMutation).toHaveBeenCalledWith({
       projectId: "project-1",
       evaluatorId: "evaluator-1",
@@ -107,10 +111,9 @@ describe("useValidatedRuleAttachment", () => {
       title: "Evaluator attached",
       description: "“Quality” is now attached to “Production”.",
     });
-    expect(result.current.issue).toBeNull();
   });
 
-  it("dismisses a validation failure without attaching", async () => {
+  it("dismisses a validation warning without undoing the attachment", async () => {
     const { result } = renderHook(() =>
       useValidatedRuleAttachment({
         projectId: "project-1",
@@ -124,6 +127,6 @@ describe("useValidatedRuleAttachment", () => {
     act(() => result.current.dismissIssue());
 
     expect(result.current.issue).toBeNull();
-    expect(mocks.attachMutation).not.toHaveBeenCalled();
+    expect(mocks.attachMutation).toHaveBeenCalledOnce();
   });
 });

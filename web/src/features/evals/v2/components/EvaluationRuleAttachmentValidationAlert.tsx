@@ -2,80 +2,47 @@ import Link from "next/link";
 import { AlertTriangle, X } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { Button } from "@/src/components/ui/button";
 import { type EvaluationRuleAttachmentValidationIssue } from "@/src/features/evals/v2/actions/validateAndAttachRule";
 
 export function EvaluationRuleAttachmentValidationAlert({
-  projectId,
-  evaluatorId,
-  ruleId,
   issue,
-  onReview,
   onDismiss,
-  onAttachAnyway,
-  attachAnywayLabel = "Attach anyway",
-  attaching = false,
+  title = "Review evaluator variable mapping",
+  reviewHref,
+  onReview,
 }: {
-  projectId: string;
-  evaluatorId: string;
-  ruleId?: string;
   issue: EvaluationRuleAttachmentValidationIssue;
-  onReview?: () => void;
   onDismiss?: () => void;
-  onAttachAnyway?: () => void;
-  attachAnywayLabel?: string;
-  attaching?: boolean;
+  title?: string;
+  reviewHref?: string;
+  onReview?: () => void;
 }) {
-  const query = new URLSearchParams({ edit: "1" });
-  if (ruleId) query.set("ruleId", ruleId);
-
   return (
-    <Alert
-      variant={issue.outcome === "failed" ? "destructive" : "default"}
-      className={onDismiss ? "pr-10" : undefined}
-    >
-      <AlertTriangle className="h-4 w-4" />
+    <Alert className="border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow pr-10">
       {onDismiss ? (
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="absolute top-2 right-2"
+          className="absolute top-2.5 right-2.5 z-10 grid size-7 cursor-pointer place-items-center rounded-sm border-none bg-transparent !p-0"
+          style={{ color: "var(--dark-yellow)" }}
           aria-label="Dismiss validation warning"
           onClick={onDismiss}
         >
-          <X className="h-4 w-4" />
-        </Button>
+          <X className="size-4 stroke-current" aria-hidden="true" />
+        </button>
       ) : null}
-      <AlertTitle className="pr-4">
-        {issue.outcome === "failed"
-          ? "Evaluator test failed"
-          : "Evaluator could not be tested"}
-      </AlertTitle>
-      <AlertDescription className="flex flex-col items-start gap-2">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle className="pr-4">{title}</AlertTitle>
+      <AlertDescription className="flex flex-col items-start gap-1">
         <p>{issue.message}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" asChild>
-            <Link
-              href={`/project/${projectId}/evals/v2/${encodeURIComponent(evaluatorId)}?${query.toString()}`}
-              onClick={onReview}
-            >
-              Review and test evaluator
-            </Link>
-          </Button>
-          {onAttachAnyway ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              loading={attaching}
-              disabled={attaching}
-              onClick={onAttachAnyway}
-            >
-              {attachAnywayLabel}
-            </Button>
-          ) : null}
-        </div>
+        {reviewHref ? (
+          <Link
+            href={reviewHref}
+            className="font-bold underline underline-offset-2"
+            onClick={onReview}
+          >
+            Review how the evaluator maps data to variables
+          </Link>
+        ) : null}
       </AlertDescription>
     </Alert>
   );

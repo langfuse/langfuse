@@ -171,12 +171,9 @@ export function CreateEvaluationRuleDialog({
     return true;
   };
 
-  const create = async ({ skipValidation = false } = {}) => {
+  const create = async () => {
     if (selectedEvaluatorIds.length === 0) return;
-    if (!skipValidation) {
-      const valid = await validateSelectedEvaluators();
-      if (!valid) return;
-    }
+    await validateSelectedEvaluators();
     try {
       await createRule.mutateAsync({
         projectId,
@@ -254,6 +251,7 @@ export function CreateEvaluationRuleDialog({
             <SetupStep
               number={1}
               title="Choose observations"
+              description="Filter incoming observations and preview what this rule will evaluate."
               open={observationsOpen}
               onOpenChange={setObservationsOpen}
             >
@@ -305,6 +303,7 @@ export function CreateEvaluationRuleDialog({
             <SetupStep
               number={2}
               title="Set sampling rate"
+              description="Choose the share of matching observations to evaluate."
               open={samplingOpen}
               onOpenChange={setSamplingOpen}
             >
@@ -330,6 +329,7 @@ export function CreateEvaluationRuleDialog({
             <SetupStep
               number={3}
               title="Attach evaluator"
+              description="Choose which evaluators should run on matching observations."
               open={evaluatorOpen}
               onOpenChange={setEvaluatorOpen}
             >
@@ -417,15 +417,9 @@ export function CreateEvaluationRuleDialog({
                 )}
                 {validation.issue ? (
                   <EvaluationRuleAttachmentValidationAlert
-                    projectId={projectId}
-                    evaluatorId={validation.issue.evaluatorId}
                     issue={validation.issue}
                     onDismiss={validation.resetIssue}
-                    onAttachAnyway={() => {
-                      create({ skipValidation: true }).catch(() => undefined);
-                    }}
-                    attachAnywayLabel="Create rule anyway"
-                    attaching={createRule.isPending}
+                    reviewHref={`/project/${projectId}/evals/v2/${encodeURIComponent(validation.issue.evaluatorId)}?edit=1`}
                   />
                 ) : null}
                 {selectedEvaluators.map((evaluator) => (
@@ -453,6 +447,7 @@ export function CreateEvaluationRuleDialog({
             <SetupStep
               number={4}
               title="Name rule"
+              description="Give this rule a clear name so it is easy to recognize."
               open={nameOpen}
               isLast
               onOpenChange={setNameOpen}

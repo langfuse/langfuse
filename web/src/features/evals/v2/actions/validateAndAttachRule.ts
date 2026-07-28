@@ -41,9 +41,10 @@ export type EvaluationRuleAttachmentValidationIssue = {
   message: string;
 };
 
-export type ValidateAndAttachEvaluationRuleResult =
-  | { attached: true }
-  | ({ attached: false } & EvaluationRuleAttachmentValidationIssue);
+export type ValidateAndAttachEvaluationRuleResult = {
+  attached: true;
+  issue?: EvaluationRuleAttachmentValidationIssue;
+};
 
 export type ValidateEvaluationRuleAttachmentResult =
   | { valid: true }
@@ -171,7 +172,7 @@ export async function validateRuleAttachment(
       dependencies,
       evaluatorType,
       "unavailable",
-      "The evaluator definition could not be loaded. The evaluator was not attached to the evaluation rule.",
+      "The evaluator definition could not be loaded.",
     );
   }
   if (evaluator.targetObject !== evaluationRule.targetObject) {
@@ -179,7 +180,7 @@ export async function validateRuleAttachment(
       dependencies,
       evaluatorType,
       "failed",
-      "The evaluator and evaluation rule use different data types. The evaluator was not attached to the evaluation rule.",
+      "The evaluator and evaluation rule use different data types.",
     );
   }
   if (evaluationRule.targetObject !== "event") {
@@ -187,7 +188,7 @@ export async function validateRuleAttachment(
       dependencies,
       evaluatorType,
       "unavailable",
-      "Automatic validation is currently available for observation rules only. The evaluator was not attached to the evaluation rule.",
+      "Automatic validation is currently available for observation rules only.",
     );
   }
 
@@ -199,7 +200,7 @@ export async function validateRuleAttachment(
       dependencies,
       evaluatorType,
       "failed",
-      "The evaluator has invalid variable mappings. The evaluator was not attached to the evaluation rule.",
+      "The evaluator has invalid variable mappings.",
     );
   }
 
@@ -212,7 +213,7 @@ export async function validateRuleAttachment(
         dependencies,
         evaluatorType,
         "failed",
-        "Please complete all prompt variable mappings before attaching this evaluator to the evaluation rule.",
+        "Please complete all prompt variable mappings.",
       );
     }
   }
@@ -225,7 +226,7 @@ export async function validateRuleAttachment(
       dependencies,
       evaluatorType,
       "unavailable",
-      `The evaluator test could not load a matching observation: ${errorMessage(error)} The evaluator was not attached to the evaluation rule.`,
+      `The evaluator test could not load a matching observation: ${errorMessage(error)}`,
     );
   }
   if (!sample?.traceId) {
@@ -244,7 +245,7 @@ export async function validateRuleAttachment(
         dependencies,
         evaluatorType,
         "failed",
-        "The evaluator's prompt variables could not all be filled from an observation matched by this evaluation rule. The evaluator was not attached to the evaluation rule.",
+        "The evaluator's prompt variables could not all be filled from an observation matched by this evaluation rule.",
       );
     }
 
@@ -263,7 +264,7 @@ export async function validateRuleAttachment(
           dependencies,
           evaluatorType,
           "failed",
-          "The code evaluator definition is incomplete. The evaluator was not attached to the evaluation rule.",
+          "The code evaluator definition is incomplete.",
         );
       }
       testResult = await dependencies.runCodeTest({
@@ -281,7 +282,7 @@ export async function validateRuleAttachment(
         dependencies,
         evaluatorType,
         "failed",
-        "The evaluator definition is incomplete. The evaluator was not attached to the evaluation rule.",
+        "The evaluator definition is incomplete.",
       );
     }
   } catch (error) {
@@ -289,7 +290,7 @@ export async function validateRuleAttachment(
       dependencies,
       evaluatorType,
       "unavailable",
-      `The evaluator test could not be completed: ${errorMessage(error)} The evaluator was not attached to the evaluation rule.`,
+      `The evaluator test could not be completed: ${errorMessage(error)}`,
     );
   }
 
@@ -299,8 +300,8 @@ export async function validateRuleAttachment(
       evaluatorType,
       "failed",
       testResult.error
-        ? `${testResult.error} The evaluator was not attached to the evaluation rule.`
-        : "The evaluator failed against an observation matched by this evaluation rule. The evaluator was not attached to the evaluation rule.",
+        ? testResult.error
+        : "The evaluator failed against an observation matched by this evaluation rule.",
     );
   }
 
@@ -312,15 +313,28 @@ export async function validateAndAttachRule(
   projectId: string,
   dependencies: Dependencies,
 ): Promise<ValidateAndAttachEvaluationRuleResult> {
-  const result = await validateRuleAttachment(projectId, dependencies);
+  await dependencies.attach();
+  let result: ValidateEvaluationRuleAttachmentResult;
+  try {
+    result = await validateRuleAttachment(projectId, dependencies);
+  } catch (error) {
+    return {
+      attached: true,
+      issue: {
+        outcome: "unavailable",
+        message: `The evaluator was attached, but its variable mapping could not be validated: ${errorMessage(error)}`,
+      },
+    };
+  }
   if (!result.valid) {
     return {
-      attached: false,
-      outcome: result.outcome,
-      message: result.message,
+      attached: true,
+      issue: {
+        outcome: result.outcome,
+        message: result.message,
+      },
     };
   }
 
-  await dependencies.attach();
   return { attached: true };
 }

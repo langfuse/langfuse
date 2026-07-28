@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 const mocks = vi.hoisted(() => ({
   detachMutate: vi.fn(),
   attach: vi.fn(),
-  attachAnyway: vi.fn(),
   dismissIssue: vi.fn(),
   attachmentHook: vi.fn(),
 }));
@@ -72,10 +71,8 @@ describe("EvaluatorRuleAssignments", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.attach.mockResolvedValue(true);
-    mocks.attachAnyway.mockResolvedValue(true);
     mocks.attachmentHook.mockReturnValue({
       attach: mocks.attach,
-      attachAnyway: mocks.attachAnyway,
       dismissIssue: mocks.dismissIssue,
       pendingKey: null,
       issue: null,
@@ -167,11 +164,10 @@ describe("EvaluatorRuleAssignments", () => {
     expect(onView).toHaveBeenCalledTimes(2);
   });
 
-  it("lets users review, override, or dismiss a failed validation", () => {
+  it("shows a dismissible warning after attaching an incompatible rule", () => {
     const onReviewEvaluator = vi.fn();
     mocks.attachmentHook.mockReturnValue({
       attach: mocks.attach,
-      attachAnyway: mocks.attachAnyway,
       dismissIssue: mocks.dismissIssue,
       pendingKey: null,
       issue: {
@@ -197,23 +193,23 @@ describe("EvaluatorRuleAssignments", () => {
       { wrapper: TooltipProvider },
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "The mapping did not match the sample.",
-    );
-    expect(
-      screen.getByRole("link", { name: "Review and test evaluator" }),
-    ).toHaveAttribute(
+    const warning = screen.getByRole("alert");
+    expect(warning).toHaveClass("bg-light-yellow");
+    expect(warning).toHaveTextContent("Review evaluator variable mapping");
+    expect(warning).toHaveTextContent("The mapping did not match the sample.");
+    const reviewLink = screen.getByRole("link", {
+      name: "Review how the evaluator maps data to variables",
+    });
+    expect(reviewLink).toHaveAttribute(
       "href",
       "/project/project-1/evals/v2/evaluator-1?edit=1&ruleId=rule-2",
     );
-    const reviewLink = screen.getByRole("link", {
-      name: "Review and test evaluator",
-    });
     reviewLink.addEventListener("click", (event) => event.preventDefault());
     fireEvent.click(reviewLink);
     expect(onReviewEvaluator).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Attach anyway" }));
-    expect(mocks.attachAnyway).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("button", { name: "Attach anyway" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Dismiss validation warning" }),
@@ -224,7 +220,6 @@ describe("EvaluatorRuleAssignments", () => {
   it("blocks the screen while validation is running", () => {
     mocks.attachmentHook.mockReturnValue({
       attach: mocks.attach,
-      attachAnyway: mocks.attachAnyway,
       dismissIssue: mocks.dismissIssue,
       pendingKey: "evaluator-1:rule-2",
       issue: null,

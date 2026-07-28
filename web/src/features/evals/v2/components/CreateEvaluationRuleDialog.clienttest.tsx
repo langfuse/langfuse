@@ -272,6 +272,16 @@ describe("CreateEvaluationRuleDialog", () => {
     expect(evaluatorStep).toBeEnabled();
     expect(nameStep).toBeEnabled();
     expect(
+      screen.getByText(
+        "Filter incoming observations and preview what this rule will evaluate.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Choose which evaluators should run on matching observations.",
+      ),
+    ).toBeInTheDocument();
+    expect(
       screen.queryByText("Available after evaluator validation"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
@@ -281,7 +291,18 @@ describe("CreateEvaluationRuleDialog", () => {
       screen.getByRole("button", { name: "Attach evaluator" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Evaluators").tagName).toBe("LABEL");
+    fireEvent.click(samplingStep);
+    expect(
+      screen.getByText(
+        "Choose the share of matching observations to evaluate.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(nameStep);
+    expect(
+      screen.getByText(
+        "Give this rule a clear name so it is easy to recognize.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
   });
 
@@ -475,7 +496,7 @@ describe("CreateEvaluationRuleDialog", () => {
     await waitFor(() => expect(mocks.getEvaluator).toHaveBeenCalledOnce());
   });
 
-  it("can create the rule after evaluator validation fails", async () => {
+  it("creates the rule and shows a dismissible warning when evaluator validation fails", async () => {
     mocks.getSample.mockResolvedValue({
       observations: [
         {
@@ -505,13 +526,6 @@ describe("CreateEvaluationRuleDialog", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(
-      await screen.findByRole("button", { name: "Create rule anyway" }),
-    ).toBeInTheDocument();
-    expect(mocks.createRule).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Create rule anyway" }));
-
     await waitFor(() =>
       expect(mocks.createRule).toHaveBeenCalledWith({
         projectId: "project-1",
@@ -523,6 +537,24 @@ describe("CreateEvaluationRuleDialog", () => {
         evaluatorIds: ["evaluator-1"],
       }),
     );
+    const warning = screen.getByRole("alert");
+    expect(warning).toHaveClass("bg-light-yellow");
+    expect(warning).toHaveTextContent("Review evaluator variable mapping");
+    expect(
+      screen.getByRole("link", {
+        name: "Review how the evaluator maps data to variables",
+      }),
+    ).toHaveAttribute("href", "/project/project-1/evals/v2/evaluator-1?edit=1");
+    expect(
+      screen.queryByRole("button", { name: "Create rule anyway" }),
+    ).not.toBeInTheDocument();
+    const dismissButton = screen.getByRole("button", {
+      name: "Dismiss validation warning",
+    });
+    expect(warning.firstElementChild).toBe(dismissButton);
+    expect(dismissButton).toHaveStyle({ color: "var(--dark-yellow)" });
+    fireEvent.click(dismissButton);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("opens a matching observation's trace without discarding the rule draft", () => {

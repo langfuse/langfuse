@@ -88,8 +88,10 @@ export function useValidatedRuleAttachment({
             ...input,
             projectId,
           }),
-        attach: () =>
-          attachMutation.mutateAsync({ projectId, evaluatorId, ruleId }),
+        attach: async () => {
+          await attachMutation.mutateAsync({ projectId, evaluatorId, ruleId });
+          await handleAttached(input);
+        },
         captureValidation: ({ outcome, evaluatorType }) =>
           capture("eval_config:run_scope_attachment_validated", {
             outcome,
@@ -102,36 +104,14 @@ export function useValidatedRuleAttachment({
           }),
       });
 
-      if (!result.attached) {
+      if (result.issue) {
         setIssue({
-          outcome: result.outcome,
-          message: result.message,
+          ...result.issue,
           ...input,
         });
-        return false;
       }
 
-      await handleAttached(input);
-      return true;
-    } catch (error) {
-      trpcErrorToast(error);
-      return false;
-    } finally {
-      setPendingKey(null);
-    }
-  };
-
-  const attachAnyway = async () => {
-    if (!issue) return false;
-    const attachmentKey = `${issue.evaluatorId}:${issue.ruleId}`;
-    setPendingKey(attachmentKey);
-    try {
-      await attachMutation.mutateAsync({
-        projectId,
-        evaluatorId: issue.evaluatorId,
-        ruleId: issue.ruleId,
-      });
-      await handleAttached(issue);
+      if (!result.issue) setIssue(null);
       return true;
     } catch (error) {
       trpcErrorToast(error);
@@ -143,7 +123,6 @@ export function useValidatedRuleAttachment({
 
   return {
     attach,
-    attachAnyway,
     dismissIssue: () => setIssue(null),
     pendingKey,
     issue,

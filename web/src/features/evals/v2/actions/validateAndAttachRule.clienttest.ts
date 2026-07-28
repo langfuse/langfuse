@@ -43,6 +43,16 @@ function dependencies() {
 }
 
 describe("validateAndAttachRule", () => {
+  it("persists the attachment before compatibility validation starts", async () => {
+    const deps = dependencies();
+    deps.getEvaluator.mockImplementation(async () => {
+      expect(deps.attach).toHaveBeenCalledOnce();
+      return evaluator;
+    });
+
+    await validateAndAttachRule("project-1", deps);
+  });
+
   it("validates LLM mappings without running the evaluator", async () => {
     const deps = dependencies();
 
@@ -60,7 +70,7 @@ describe("validateAndAttachRule", () => {
     });
   });
 
-  it("keeps an LLM evaluator detached when a mapped variable is empty", async () => {
+  it("attaches an LLM evaluator and returns a warning when a mapped variable is empty", async () => {
     const deps = dependencies();
     deps.getSample.mockResolvedValue({
       id: "observation-1",
@@ -70,14 +80,16 @@ describe("validateAndAttachRule", () => {
     });
 
     await expect(validateAndAttachRule("project-1", deps)).resolves.toEqual({
-      attached: false,
-      outcome: "failed",
-      message:
-        "The evaluator's prompt variables could not all be filled from an observation matched by this evaluation rule. The evaluator was not attached to the evaluation rule.",
+      attached: true,
+      issue: {
+        outcome: "failed",
+        message:
+          "The evaluator's prompt variables could not all be filled from an observation matched by this evaluation rule.",
+      },
     });
 
     expect(deps.runLlmTest).not.toHaveBeenCalled();
-    expect(deps.attach).not.toHaveBeenCalled();
+    expect(deps.attach).toHaveBeenCalledOnce();
   });
 
   it("does not let analytics failures block a validated attachment", async () => {
@@ -92,7 +104,22 @@ describe("validateAndAttachRule", () => {
     expect(deps.attach).toHaveBeenCalledOnce();
   });
 
-  it("keeps an LLM evaluator detached when a prompt variable is unmapped", async () => {
+  it("keeps the attachment and returns a warning when validation cannot load its inputs", async () => {
+    const deps = dependencies();
+    deps.getEvaluator.mockRejectedValue(new Error("Evaluator unavailable"));
+
+    await expect(validateAndAttachRule("project-1", deps)).resolves.toEqual({
+      attached: true,
+      issue: {
+        outcome: "unavailable",
+        message:
+          "The evaluator was attached, but its variable mapping could not be validated: Evaluator unavailable",
+      },
+    });
+    expect(deps.attach).toHaveBeenCalledOnce();
+  });
+
+  it("attaches an LLM evaluator and returns a warning when a prompt variable is unmapped", async () => {
     const deps = dependencies();
     deps.getEvaluator.mockResolvedValue({
       ...evaluator,
@@ -100,13 +127,14 @@ describe("validateAndAttachRule", () => {
     });
 
     await expect(validateAndAttachRule("project-1", deps)).resolves.toEqual({
-      attached: false,
-      outcome: "failed",
-      message:
-        "Please complete all prompt variable mappings before attaching this evaluator to the evaluation rule.",
+      attached: true,
+      issue: {
+        outcome: "failed",
+        message: "Please complete all prompt variable mappings.",
+      },
     });
 
-    expect(deps.attach).not.toHaveBeenCalled();
+    expect(deps.attach).toHaveBeenCalledOnce();
     expect(deps.captureValidation).toHaveBeenCalledWith({
       outcome: "failed",
       evaluatorType: "LLM_AS_JUDGE",
@@ -128,7 +156,7 @@ describe("validateAndAttachRule", () => {
     });
   });
 
-  it("leaves unsupported rule rules detached for manual review", async () => {
+  it("attaches unsupported rules and returns a manual-review warning", async () => {
     const deps = dependencies();
     deps.getEvaluator.mockResolvedValue({
       ...evaluator,
@@ -140,13 +168,15 @@ describe("validateAndAttachRule", () => {
     });
 
     await expect(validateAndAttachRule("project-1", deps)).resolves.toEqual({
-      attached: false,
-      outcome: "unavailable",
-      message:
-        "Automatic validation is currently available for observation rules only. The evaluator was not attached to the evaluation rule.",
+      attached: true,
+      issue: {
+        outcome: "unavailable",
+        message:
+          "Automatic validation is currently available for observation rules only.",
+      },
     });
     expect(deps.getSample).not.toHaveBeenCalled();
-    expect(deps.attach).not.toHaveBeenCalled();
+    expect(deps.attach).toHaveBeenCalledOnce();
   });
 
   it("uses the saved code evaluator definition for validation", async () => {

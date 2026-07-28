@@ -1313,26 +1313,30 @@ export function EvaluatorSetupForm({
               open={metadataStepOpen}
               onOpenChange={setMetadataStepOpen}
             >
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="evaluator-name">Name</Label>
-                <Input
-                  id="evaluator-name"
-                  value={scoreName}
-                  placeholder="e.g. response-quality"
-                  onChange={(event) => onScoreNameChange(event.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="evaluator-description">
-                  Description{" "}
-                  <span className="text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  id="evaluator-description"
-                  value={description}
-                  placeholder="Describe what this evaluator measures"
-                  onChange={(event) => onDescriptionChange(event.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="evaluator-name">Name</Label>
+                  <Input
+                    id="evaluator-name"
+                    value={scoreName}
+                    placeholder="e.g. response-quality"
+                    onChange={(event) => onScoreNameChange(event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="evaluator-description">
+                    Description{" "}
+                    <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="evaluator-description"
+                    value={description}
+                    placeholder="Describe what this evaluator measures"
+                    onChange={(event) =>
+                      onDescriptionChange(event.target.value)
+                    }
+                  />
+                </div>
               </div>
             </SetupStep>
           </div>

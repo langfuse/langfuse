@@ -222,16 +222,10 @@ export function EvaluatorRuleAssignments({
 
       {attachment.issue ? (
         <EvaluationRuleAttachmentValidationAlert
-          projectId={projectId}
-          evaluatorId={attachment.issue.evaluatorId}
-          ruleId={attachment.issue.ruleId}
           issue={attachment.issue}
-          onReview={onReviewEvaluator}
           onDismiss={attachment.dismissIssue}
-          onAttachAnyway={() => {
-            attachment.attachAnyway().catch(() => undefined);
-          }}
-          attaching={attachment.pendingKey !== null}
+          reviewHref={`/project/${projectId}/evals/v2/${encodeURIComponent(evaluatorId)}?edit=1&ruleId=${encodeURIComponent(attachment.issue.ruleId)}`}
+          onReview={onReviewEvaluator}
         />
       ) : null}
 
