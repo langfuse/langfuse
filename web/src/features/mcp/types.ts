@@ -1,3 +1,4 @@
+import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import type { McpToolName } from "./server/bootstrap";
 
 /**
@@ -50,6 +51,12 @@ export interface ServerContext {
 
   /** Public key used for authentication */
   publicKey: string;
+
+  /** Billing plan of the organization, for plan-based rate limiting */
+  plan: ApiAccessScope["plan"];
+
+  /** Org-level rate limit overrides from the cloud config */
+  rateLimitOverrides: ApiAccessScope["rateLimitOverrides"];
 
   /** User agent from the MCP client's HTTP request */
   userAgent?: string;

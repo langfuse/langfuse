@@ -5,7 +5,9 @@ import { useSidebar } from "@/src/components/ui/sidebar";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
 import { TopbarAccount } from "@/src/components/nav/topbar-account";
-import { EnvLabel } from "@/src/components/EnvLabel";
+import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
+import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
+import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 
 /**
  * Slim mobile top chrome for the minimal-chrome shell: hamburger · centered
@@ -26,6 +28,7 @@ export const MobileTopBar = ({
 }) => {
   const { toggleSidebar } = useSidebar();
   const hasAppSidebar = useHasAppSidebar();
+  const envLabel = useEnvLabel();
   const showHamburger = showSidebarTrigger && hasAppSidebar;
 
   return (
@@ -45,16 +48,19 @@ export const MobileTopBar = ({
         ) : (
           leadingControl
         )}
-        {/* EnvLabel defaults to self-stretch (to fill the desktop header row);
-            keep it centered here so it doesn't span the full bar height. */}
-        <EnvLabel className="self-center" />
+        {envLabel.visible && (
+          <EnvLabelBadge region={envLabel.region} onClick={envLabel.dismiss} />
+        )}
       </div>
 
       {/* Center: the Langfuse wordmark. */}
       <TopbarBrand variant="wordmark" />
 
-      {/* Right: account. Balances the left slot so the brand stays centered. */}
-      <div className="flex min-w-0 flex-1 items-center justify-end">
+      {/* Right: the assistant launcher (prominent, gradient-bordered so it
+          reads as a real entry point here) + account. Balances the left slot
+          so the brand stays centered. */}
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
+        <InAppAiAgentButton prominent />
         <TopbarAccount />
       </div>
     </div>

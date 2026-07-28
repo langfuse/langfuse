@@ -12,7 +12,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type AnnotationQueueObjectType } from "@langfuse/shared";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink, ListPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useState, useCallback } from "react";
@@ -23,13 +23,21 @@ export const CreateNewAnnotationQueueItem = ({
   objectType,
   variant = "secondary",
   size = "default",
+  layout = "toolbar",
 }: {
   projectId: string;
   objectId: string;
   objectType: AnnotationQueueObjectType;
   variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
+  /**
+   * "toolbar" (default) is the inline split-button chevron; "menu" renders the
+   * same dropdown trigger as a full-width labeled row ("Add to queue") for the
+   * mobile header overflow popover.
+   */
+  layout?: "toolbar" | "menu";
 }) => {
+  const isMenu = layout === "menu";
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const session = useSession();
   const hasAccess = useHasProjectAccess({
@@ -93,14 +101,25 @@ export const CreateNewAnnotationQueueItem = ({
   if (session.status !== "authenticated" || queues.isLoading) {
     return (
       <Button
-        variant={variant}
-        size={size}
+        variant={isMenu ? "ghost" : variant}
+        size={isMenu ? "sm" : size}
         disabled={session.status !== "authenticated"}
-        className="rounded-l-none rounded-r-md border-l-2"
+        className={
+          isMenu
+            ? "w-full justify-start gap-2 font-normal"
+            : "rounded-l-none rounded-r-md border-l-2"
+        }
       >
-        <span className="relative mr-1 text-xs">
-          <ChevronDown className="h-3 w-3" />
-        </span>
+        {isMenu ? (
+          <>
+            <ListPlus className="h-4 w-4" />
+            <span className="text-sm">Add to queue</span>
+          </>
+        ) : (
+          <span className="relative mr-1 text-xs">
+            <ChevronDown className="h-3 w-3" />
+          </span>
+        )}
       </Button>
     );
   }
@@ -117,12 +136,26 @@ export const CreateNewAnnotationQueueItem = ({
     >
       <DropdownMenuTrigger asChild>
         <Button
-          variant={variant}
-          size={size}
+          variant={isMenu ? "ghost" : variant}
+          size={isMenu ? "sm" : size}
           disabled={!hasAccess}
-          className="rounded-l-none rounded-r-md border-l-2"
+          className={
+            isMenu
+              ? "w-full justify-start gap-2 font-normal"
+              : "rounded-l-none rounded-r-md border-l-2"
+          }
         >
-          {queues.data?.totalCount ? (
+          {isMenu ? (
+            <>
+              <ListPlus className="h-4 w-4" />
+              <span className="text-sm">Add to queue</span>
+              {!!queues.data?.totalCount && (
+                <span className="bg-primary/50 text-primary-foreground ml-auto flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
+                  {queues.data.totalCount > 99 ? "99+" : queues.data.totalCount}
+                </span>
+              )}
+            </>
+          ) : queues.data?.totalCount ? (
             <span className="relative mr-1 text-xs">
               <ChevronDown className="text-secondary-foreground h-3 w-3" />
               <span className="bg-primary text-primary-foreground absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm px-0.5 text-[8px] font-bold shadow-xs">

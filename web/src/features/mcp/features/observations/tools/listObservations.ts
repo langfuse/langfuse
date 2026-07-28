@@ -14,7 +14,10 @@ import {
   timeFilter,
   type ColumnDefinition,
 } from "@langfuse/shared";
-import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
+import {
+  getObservationsV2FromEventsTableForPublicApi,
+  buildObservationUrl,
+} from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
   EncodedObservationsCursorV2,
@@ -22,7 +25,6 @@ import {
   encodeCursor,
 } from "@/src/features/public-api/types/observations";
 import { defineTool } from "../../../core/define-tool";
-import { buildObservationUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   ExpandMetadataKeysSchema,

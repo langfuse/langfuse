@@ -68,6 +68,12 @@ type JumpToPlaygroundButtonProps = (
   variant?: ButtonProps["variant"];
   className?: string;
   size?: ButtonProps["size"];
+  /**
+   * "toolbar" (default) is the inline button; "menu" renders the same dropdown
+   * trigger as a full-width labeled row ("Test in playground") for the mobile
+   * header overflow popover.
+   */
+  layout?: "toolbar" | "menu";
 };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
@@ -189,26 +195,42 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     ? "Test in LLM playground"
     : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
 
+  const isMenu = props.layout === "menu";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant={props.variant ?? "secondary"}
-          size={props.size ?? "default"}
+          variant={isMenu ? "ghost" : (props.variant ?? "secondary")}
+          size={isMenu ? "sm" : (props.size ?? "default")}
           disabled={!isAvailable}
           title={tooltipMessage}
           className={cn(
-            "flex items-center gap-1",
+            isMenu
+              ? "w-full justify-start gap-2 font-normal"
+              : "flex items-center gap-1",
             !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer",
           )}
         >
           <Terminal
-            className={props.size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+            className={
+              isMenu
+                ? "h-4 w-4"
+                : props.size === "sm"
+                  ? "h-3.5 w-3.5"
+                  : "h-4 w-4"
+            }
           />
-          <span className={cn("hidden md:inline", props.className)}>
-            Playground
-          </span>
-          <ChevronDown className="h-3 w-3" />
+          {isMenu ? (
+            <span className="text-sm">Test in playground</span>
+          ) : (
+            <>
+              <span className={cn("hidden md:inline", props.className)}>
+                Playground
+              </span>
+              <ChevronDown className="h-3 w-3" />
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
