@@ -21,6 +21,7 @@ import { EventsTableOptions } from "./types";
 import {
   getEventList,
   getEventCount,
+  getApproxEventTraceCount,
   getEventFilterOptions,
   getEventBatchIO,
   EVENT_FILTER_OPTIONS_COLUMNS,
@@ -155,6 +156,44 @@ export const eventsRouter = createTRPCRouter({
           });
           addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
           return getEventCount({
+            projectId: ctx.session.projectId,
+            filter: filterState,
+            searchQuery: input.searchQuery ?? undefined,
+            searchType: input.searchType,
+            orderBy: normalizedOrderBy,
+          });
+        },
+      );
+    }),
+  // Always-on, lightweight approximate distinct-trace count for the traces-table
+  // footer ("Total ≈ X"). Separate from countAll (which computes the exact
+  // count only on select-all): a single cheap uniq() so it can run on every
+  // table load without blocking the row query.
+  approxCount: protectedProjectProcedure
+    .input(EventsTableOptions)
+    .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return { approxTraceCount: 0 };
+      }
+
+      return instrumentAsync(
+        {
+          name: "get-event-approx-count-trpc",
+        },
+        async (span) => {
+          const normalizedOrderBy = normalizeOrderByForTable({
+            orderBy: input.orderBy,
+            expectedTimeColumn: "startTime",
+          });
+          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
+          return getApproxEventTraceCount({
             projectId: ctx.session.projectId,
             filter: filterState,
             searchQuery: input.searchQuery ?? undefined,

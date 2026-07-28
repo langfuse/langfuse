@@ -7,6 +7,7 @@ import {
 } from "@langfuse/shared";
 import {
   getObservationsCountsFromEventsTable,
+  getApproxUniqueTraceCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getCategoricalScoresGroupedByName,
   getEventsFilterOptionsForColumns,
@@ -379,6 +380,28 @@ export async function getEventCount(params: GetObservationsCountParams) {
     await getObservationsCountsFromEventsTable(queryOpts);
 
   return { totalCount, uniqueTraceCount };
+}
+
+/**
+ * Approximate number of distinct traces matching the filters + time range, via
+ * a single cheap ClickHouse `uniq()` (HLL). Backs the always-on traces-table
+ * footer "Total ≈ X" — deliberately lightweight (no precise count()) so it can
+ * run on every table load without blocking the row query.
+ */
+export async function getApproxEventTraceCount(
+  params: GetObservationsCountParams,
+) {
+  const approxTraceCount = await getApproxUniqueTraceCountFromEventsTable({
+    projectId: params.projectId,
+    filter: params.filter,
+    searchQuery: params.searchQuery,
+    searchType: params.searchType,
+    orderBy: params.orderBy,
+    limit: 1,
+    offset: 0,
+  });
+
+  return { approxTraceCount };
 }
 
 type EventFilterOptionRow = Awaited<

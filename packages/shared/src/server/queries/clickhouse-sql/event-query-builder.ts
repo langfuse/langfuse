@@ -208,6 +208,10 @@ const FIELD_SETS = {
   // Aggregates
   count: ["count"],
   countWithUniqueTraces: ["count", "uniqueTraceCount"],
+  // Approximate distinct-trace count only (HLL) — a single cheap `uniq()` with
+  // no precise `count()` over the scan. Powers the traces-table footer
+  // "Total ≈ X".
+  uniqueTraces: ["uniqueTraceCount"],
 
   // List query field sets (for getObservationsWithModelDataFromEventsTable)
   base: [

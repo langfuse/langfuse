@@ -219,6 +219,21 @@ export function useEventsTableData({
     refetchOnWindowFocus: true,
   });
 
+  // Always-on approximate distinct-trace count for the "Total ≈ X" footer.
+  // Deliberately a separate lightweight query (single ClickHouse uniq()): it
+  // shares the row query's filters + time range + search, runs async, and never
+  // blocks the table render. keepPreviousData avoids a flash back to the loading
+  // state on every filter tweak.
+  const approxCountQuery = api.events.approxCount.useQuery(getCountPayload, {
+    enabled: rowsEnabled,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+  });
+  const approxTraceCount = approxCountQuery.data?.approxTraceCount ?? null;
+  // Loading only until the first value resolves; refetches keep the prior number.
+  const isApproxCountLoading =
+    rowsEnabled && approxTraceCount === null && approxCountQuery.isFetching;
+
   const totalCount = selectAll
     ? (totalCountQuery.data?.totalCount ?? null)
     : null;
@@ -289,6 +304,8 @@ export function useEventsTableData({
     uniqueTraceCount,
     isTotalCountLoading,
     isTotalCountError,
+    approxTraceCount,
+    isApproxCountLoading,
     hasMore,
     addToQueueMutation,
     handleAddToAnnotationQueue,

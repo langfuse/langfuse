@@ -778,6 +778,8 @@ export default function ObservationsEventsTable({
     uniqueTraceCount,
     isTotalCountLoading,
     isTotalCountError,
+    approxTraceCount,
+    isApproxCountLoading,
     hasMore,
     handleAddToAnnotationQueue,
     dataUpdatedAt,
@@ -2238,6 +2240,10 @@ export default function ObservationsEventsTable({
                         hasNextPage: hasMore,
                         hideTotalCount: true,
                         canJumpPages: false,
+                        // Approximate distinct-trace count ("Total ≈ X"),
+                        // filter + time-range aware, fetched async.
+                        approxTotalCount: approxTraceCount,
+                        isApproxTotalCountLoading: isApproxCountLoading,
                         onChange: (updater) => {
                           const newState =
                             typeof updater === "function"

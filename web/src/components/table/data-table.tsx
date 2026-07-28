@@ -68,6 +68,14 @@ interface DataTableProps<TData, TValue> {
     options?: number[];
     hideTotalCount?: boolean;
     canJumpPages?: boolean;
+    /**
+     * Approximate row/entity count matching the active filters, rendered near
+     * the pagination controls as "Total ≈ X". Distinct from `totalCount` (which
+     * drives page-count math): this is a cheap estimate shown for context only.
+     * `null` while loading or unknown.
+     */
+    approxTotalCount?: number | null;
+    isApproxTotalCountLoading?: boolean;
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
@@ -585,6 +593,8 @@ export function DataTable<TData extends object, TValue>({
             paginationOptions={pagination.options}
             hideTotalCount={pagination.hideTotalCount}
             canJumpPages={pagination.canJumpPages}
+            approxTotalCount={pagination.approxTotalCount}
+            isApproxTotalCountLoading={pagination.isApproxTotalCountLoading}
           />
         </div>
       ) : null}

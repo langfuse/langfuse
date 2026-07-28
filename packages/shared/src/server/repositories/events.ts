@@ -507,6 +507,24 @@ export const getObservationsCountsFromEventsTable = async (
   };
 };
 
+/**
+ * Approximate distinct-trace count over the filtered set, via a single cheap
+ * ClickHouse `uniq()` (HLL — bounded memory, ~1-5% error) with no precise
+ * `count()` over the scan. Powers the traces-table footer "Total ≈ X".
+ */
+export const getApproxUniqueTraceCountFromEventsTable = async (
+  opts: ObservationTableQuery,
+): Promise<number> => {
+  const rows = await getObservationsFromEventsTableInternal<{
+    unique_trace_count: string;
+  }>({
+    ...opts,
+    select: "unique-trace-count",
+  });
+
+  return Number(rows[0].unique_trace_count);
+};
+
 export async function getObservationsWithModelDataFromEventsTable(
   opts: ObservationTableQuery & {
     ioSizeCap: NonNullable<ObservationTableQuery["ioSizeCap"]>;
@@ -735,6 +753,7 @@ async function getObservationsFromEventsTableInternal<T>(
     select:
       | "count"
       | "count-with-unique-traces"
+      | "unique-trace-count"
       | "rows"
       | "trace-delete-cursor";
     selectToolData?: boolean;
@@ -779,6 +798,8 @@ async function getObservationsFromEventsTableInternal<T>(
     queryBuilder.selectFieldSet("count");
   } else if (opts.select === "count-with-unique-traces") {
     queryBuilder.selectFieldSet("countWithUniqueTraces");
+  } else if (opts.select === "unique-trace-count") {
+    queryBuilder.selectFieldSet("uniqueTraces");
   } else if (opts.select === "trace-delete-cursor") {
     queryBuilder.selectRaw(
       "e.span_id AS id",
