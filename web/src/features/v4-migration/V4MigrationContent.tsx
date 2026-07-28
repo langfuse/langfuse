@@ -300,23 +300,17 @@ export function V4MigrationHeaderContent({
       <p className="mb-1.5 text-lg font-bold">
         {projectName ? (
           <>
-            Review v4 migration for{" "}
-            <span className="underline">{projectName}</span>
+            Migrate <span className="underline">{projectName}</span> to v4
           </>
         ) : (
-          "Review v4 migration"
+          "Migrate to v4"
         )}
       </p>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
-        <ExternalLink href={V4_DOCS_URL}>Langfuse v4</ExternalLink> is the new
-        version of the Langfuse SDKs and APIs, built on OpenTelemetry. The
-        previous setup delays new traces by{" "}
-        <span className="text-dark-yellow">15 minutes</span>, and parts of it
-        stop working <span className="text-dark-yellow">soon</span>.
-      </p>
-      <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
-        Updating takes a few code changes. The fastest way is to hand them to a
-        coding agent:
+        <ExternalLink href={V4_DOCS_URL}>Langfuse v4</ExternalLink> is here:
+        real-time, up to 165× faster, plus new dashboards, alerting, sessions,
+        and trace view. This project still uses the previous setup, which stops
+        working soon.
       </p>
       <div className="flex flex-col gap-2">
         {promptVisible && (
@@ -404,8 +398,11 @@ export function V4MigrationDetailsContent({
   return (
     <>
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-base font-bold">
-          <LibraryBig className="h-4 w-4" /> Want to review first?
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-base font-bold">
+            <LibraryBig className="h-4 w-4" /> Want to review first?
+          </div>
+          <V4PreviewToggleRow />
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild className="min-w-0 flex-1">
@@ -423,7 +420,6 @@ export function V4MigrationDetailsContent({
             </Link>
           </Button>
         </div>
-        <V4PreviewToggleRow />
       </div>
 
       <Separator />

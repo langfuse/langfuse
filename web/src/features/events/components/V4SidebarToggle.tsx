@@ -198,17 +198,14 @@ export function V4PreviewToggleRow() {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <ZapIcon className="h-4 w-4 shrink-0" />
-          <Label
-            htmlFor="v4-preview-panel-toggle"
-            className="block min-w-0 cursor-pointer truncate text-sm font-normal"
-            title={V4_PREVIEW_LABEL}
-          >
-            {V4_PREVIEW_LABEL}
-          </Label>
-        </div>
+      <div className="flex items-center gap-2">
+        <Label
+          htmlFor="v4-preview-panel-toggle"
+          className="block min-w-0 cursor-pointer truncate text-sm font-normal"
+          title={V4_PREVIEW_LABEL}
+        >
+          {V4_PREVIEW_LABEL}
+        </Label>
         <Switch
           id="v4-preview-panel-toggle"
           size="sm"
