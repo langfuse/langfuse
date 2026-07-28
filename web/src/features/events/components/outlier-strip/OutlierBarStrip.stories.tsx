@@ -5,8 +5,8 @@ import { makeFixtureSeries } from "./lib/fixtures";
 
 /**
  * Design surface for the outlier strip above the trace table (LFE-14451).
- * Every bar is the WORST single event in its time bucket (max cost / latency
- * / tokens) — the strip exists to click into spikes, so the visual must read
+ * Each bar aggregates its time bucket (summed cost, p95/avg latency, event
+ * count) — the strip exists to click into spikes, so the visual must read
  * at a glance: compact, Firefox-devtools-inspired, values on hover only,
  * sparse gridline ticks, a baseline that keeps the plot boundary visible
  * where data is absent.
@@ -69,27 +69,6 @@ export const HeightMatrix = meta.story({
   ),
 });
 
-/** The ≥1200px layout: three 400px charts side by side. */
-export const ThreeUp = meta.story({
-  render: () => {
-    const fixture = (metric: "cost" | "latency" | "tokens") =>
-      makeFixtureSeries({
-        rangeMs: 24 * 3600 * 1000,
-        stepSeconds: 1800,
-        profile: "spiky",
-        metric,
-        widthPx: 400,
-      });
-    return (
-      <div className="flex gap-6 p-2">
-        <OutlierBarStrip {...fixture("cost")} metric="cost" />
-        <OutlierBarStrip {...fixture("latency")} metric="latency" />
-        <OutlierBarStrip {...fixture("tokens")} metric="tokens" />
-      </div>
-    );
-  },
-});
-
 export const BurstyWeek = meta.story({
   args: {
     ...makeFixtureSeries({
@@ -109,10 +88,10 @@ export const SparseData = meta.story({
       rangeMs: 24 * 3600 * 1000,
       stepSeconds: 600,
       profile: "sparse",
-      metric: "tokens",
+      metric: "latency",
       widthPx: 720,
     }),
-    metric: "tokens",
+    metric: "latency",
   },
 });
 

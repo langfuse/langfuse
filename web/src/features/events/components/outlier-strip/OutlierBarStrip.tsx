@@ -26,7 +26,6 @@ import {
 const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
   cost: "hsl(var(--chart-1))",
   latency: "hsl(var(--chart-2))",
-  tokens: "hsl(var(--chart-4))",
 };
 
 /** Pointer travel before a press becomes a range-drag instead of a click. */
@@ -277,8 +276,6 @@ export function OutlierBarStrip({
   // ?? null: a stale hoverIndex can outlive a shrinking dense array (data or
   // granularity change mid-hover), and undefined slips past a !== null check.
   const hovered = hoverIndex !== null ? (dense[hoverIndex] ?? null) : null;
-  const hoveredHasData =
-    hovered !== null && (hovered.count > 0 || hovered.value !== null);
   const windowKey = `${stepMs}:${dense[0]?.bucketStartMs ?? 0}:${dense.length}`;
   const activePreview =
     touchPreview && touchPreview.windowKey === windowKey ? touchPreview : null;
@@ -316,15 +313,15 @@ export function OutlierBarStrip({
         width={widthPx}
         height={heightPx + labelHeight}
         role="img"
-        aria-label={`${metricSpec.shortLabel} (max / bucket)`}
-        className={cn(
-          // pan-y: horizontal touch drags select a range; vertical stays with
-          // the page scroll (LF-34 mobile gesture requirement). select-none +
-          // the pointerdown preventDefault keep a range-drag from ALSO
-          // starting a native text selection over the tick labels.
-          "block touch-pan-y select-none",
-          hoveredHasData || selection ? "cursor-pointer" : "cursor-default",
-        )}
+        aria-label={`${metricSpec.shortLabel} per bucket`}
+        // pan-y: horizontal touch drags select a range; vertical stays with
+        // the page scroll (LF-34 mobile gesture requirement). select-none +
+        // the pointerdown preventDefault keep a range-drag from ALSO
+        // starting a native text selection over the tick labels.
+        // Crosshair over the whole plot: the standard "this surface supports
+        // range selection" affordance (Grafana/Datadog) — it makes the
+        // drag-to-zoom brush discoverable where a pointer only said "click".
+        className="block cursor-crosshair touch-pan-y select-none"
         onPointerLeave={(event) => {
           if (event.pointerType !== "mouse") return;
           setHoverIndex(null);
@@ -437,15 +434,37 @@ export function OutlierBarStrip({
             const x = Math.max(startX, 0);
             const w = Math.min(endX, widthPx) - x;
             if (w <= 0) return null;
+            // Fill alone reads faint over sparse bars; crisp 1px edge lines
+            // carry most of the band's perceived contrast (Grafana-style).
             return (
-              <rect
-                x={x}
-                y={0}
-                width={w}
-                height={plotHeight}
-                className="fill-foreground"
-                opacity={0.12}
-              />
+              <g>
+                <rect
+                  x={x}
+                  y={0}
+                  width={w}
+                  height={plotHeight}
+                  className="fill-foreground"
+                  opacity={0.18}
+                />
+                <line
+                  x1={x + 0.5}
+                  y1={0}
+                  x2={x + 0.5}
+                  y2={plotHeight}
+                  className="stroke-foreground"
+                  strokeWidth={1}
+                  opacity={0.55}
+                />
+                <line
+                  x1={x + w - 0.5}
+                  y1={0}
+                  x2={x + w - 0.5}
+                  y2={plotHeight}
+                  className="stroke-foreground"
+                  strokeWidth={1}
+                  opacity={0.55}
+                />
+              </g>
             );
           })()}
 
@@ -476,7 +495,7 @@ export function OutlierBarStrip({
       {hovered && mouse && !activePreview && (
         <Layer name="tooltip">
           <div
-            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 font-mono text-[11px] leading-tight whitespace-nowrap shadow-sm"
+            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 text-[11px] leading-tight whitespace-nowrap shadow-sm"
             style={
               // Top-right of the cursor; flips to top-left near the viewport's
               // right edge so it never runs off screen.
@@ -518,7 +537,7 @@ export function OutlierBarStrip({
           <div
             key={`${activePreview.fromMs}:${activePreview.toMs}`}
             ref={measurePreview}
-            className="bg-popover text-popover-foreground fixed max-w-[calc(100vw-16px)] rounded border px-2 py-1.5 font-mono text-[11px] leading-tight whitespace-nowrap shadow-md"
+            className="bg-popover text-popover-foreground fixed max-w-[calc(100vw-16px)] rounded border px-2 py-1.5 text-[11px] leading-tight whitespace-nowrap shadow-md"
             style={{
               // Clamp the center so the measured box stays fully on-screen —
               // edge-of-viewport taps would otherwise clip half the tooltip.

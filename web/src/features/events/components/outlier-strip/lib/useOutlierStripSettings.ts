@@ -11,11 +11,11 @@ import useLocalStorage from "@/src/components/useLocalStorage";
  */
 const outlierStripSettingsSchema = z
   .object({
-    mode: z.enum(["cost", "latency", "tokens", "split"]).catch("cost"),
-    latencyAgg: z.enum(["max", "p95", "avg"]).catch("max"),
-    costAgg: z.enum(["max", "sum"]).catch("max"),
+    mode: z.enum(["cost", "latency"]).catch("cost"),
+    latencyAgg: z.enum(["p95", "p50"]).catch("p95"),
+    costAgg: z.enum(["sum"]).catch("sum"),
   })
-  .catch({ mode: "cost", latencyAgg: "max", costAgg: "max" });
+  .catch({ mode: "cost", latencyAgg: "p95", costAgg: "sum" });
 
 export type OutlierStripSettings = z.infer<typeof outlierStripSettingsSchema>;
 

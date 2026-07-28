@@ -67,8 +67,8 @@ describe("metric registry", () => {
         });
       }
     }
-    // count + 2 cost + 3 latency + 1 tokens
-    expect(metrics).toHaveLength(7);
+    // count + 1 cost + 2 latency
+    expect(metrics).toHaveLength(4);
   });
 });
 
@@ -78,33 +78,26 @@ describe("rowsToOutlierBins", () => {
       {
         time_dimension: "2025-03-10 10:00:00",
         count_count: "2",
-        max_totalCost: "0.5",
         sum_totalCost: "2.5",
-        max_latency: "1500",
         p95_latency: "1000",
-        avg_latency: "800",
-        max_totalTokens: "300",
+        p50_latency: "800",
       },
-      // ClickHouse WITH FILL filler: count 0, nullable measures null, but the
-      // non-nullable tokens measure fills with its type default 0.
+      // ClickHouse WITH FILL filler: count 0, nullable measures null, and the
+      // non-nullable count fills with its type default 0.
       {
         time_dimension: "2025-03-10 10:01:00",
         count_count: "0",
-        max_totalCost: null,
-        max_latency: null,
-        max_totalTokens: "0",
+        sum_totalCost: null,
+        p95_latency: null,
       },
     ]);
 
     expect(bins).toHaveLength(1);
     expect(bins[0].count).toBe(2);
     expect(bins[0].values).toEqual({
-      max_totalCost: 0.5,
       sum_totalCost: 2.5,
-      max_latency: 1500,
       p95_latency: 1000,
-      avg_latency: 800,
-      max_totalTokens: 300,
+      p50_latency: 800,
     });
   });
 });
@@ -118,12 +111,9 @@ describe("prepareOutlierSeries", () => {
     bucketStart: new Date(bucketStartMs),
     count: value === null ? 0 : 1,
     values: {
-      max_totalCost: value,
-      sum_totalCost: value === null ? null : value * 10,
-      max_latency: value === null ? null : value * 1000,
+      sum_totalCost: value,
       p95_latency: value === null ? null : value * 500,
-      avg_latency: value === null ? null : value * 250,
-      max_totalTokens: value,
+      p50_latency: value === null ? null : value * 250,
     },
   });
 
@@ -191,14 +181,13 @@ describe("prepareOutlierSeries", () => {
         stepSeconds: step,
       }).dense[0].value;
 
-    expect(run("latency", "max")).toBe(8); // 8000ms → 8s
     expect(run("latency", "p95")).toBe(4); // 4000ms → 4s
-    expect(run("latency", "avg")).toBe(2); // 2000ms → 2s
-    expect(run("cost", "max")).toBe(8);
-    expect(run("cost", "sum")).toBe(80); // sum = 10 × max in the helper
-    // Unknown option falls back to the metric's default (max) — a stored
-    // legacy value can never plot the wrong column.
+    expect(run("latency", "p50")).toBe(2); // 2000ms → 2s
+    expect(run("cost", "sum")).toBe(8);
+    // Unknown/legacy options fall back to the metric's default (first
+    // registry entry) — a stored legacy value can never plot the wrong column.
     expect(run("cost", "median")).toBe(8);
+    expect(run("latency", "max")).toBe(4); // legacy "max" → default p95
   });
 
   it("places phase-aware ticks with presentation-ready labels", () => {
