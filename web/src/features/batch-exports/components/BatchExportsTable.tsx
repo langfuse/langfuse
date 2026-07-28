@@ -37,7 +37,9 @@ export function BatchExportsTable(props: { projectId: string }) {
   });
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [selectedExportId, setSelectedExportId] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  // Per-row pending downloads: a shared mutation with a single scalar id
+  // would cross-wire spinners when two rows are clicked in quick succession.
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
 
   const batchExports = api.batchExport.all.useQuery({
     projectId: props.projectId,
@@ -136,9 +138,9 @@ export function BatchExportsTable(props: { projectId: string }) {
             <ActionButton
               icon={<DownloadIcon size={16} />}
               size="sm"
-              loading={downloadBatchExport.isPending && downloadingId === id}
+              loading={downloadingIds.has(id)}
               onClick={() => {
-                setDownloadingId(id);
+                setDownloadingIds((prev) => new Set(prev).add(id));
                 downloadBatchExport.mutate(
                   { projectId: props.projectId, batchExportId: id },
                   {
@@ -147,7 +149,12 @@ export function BatchExportsTable(props: { projectId: string }) {
                     onSuccess: (data) => {
                       window.location.href = data.url;
                     },
-                    onSettled: () => setDownloadingId(null),
+                    onSettled: () =>
+                      setDownloadingIds((prev) => {
+                        const next = new Set(prev);
+                        next.delete(id);
+                        return next;
+                      }),
                   },
                 );
               }}
