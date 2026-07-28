@@ -1584,22 +1584,43 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:CUD",
       });
 
+      const importItems = input.prompts.map((item) => ({
+        item,
+        labels: item.labels.filter(
+          (label) => label !== "latest" && label !== "production",
+        ),
+      }));
+
+      const { hasProtectedLabels, protectedLabels } =
+        await checkHasProtectedLabels({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          labelsToCheck: importItems.flatMap(({ labels }) => labels),
+        });
+
+      if (hasProtectedLabels) {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "promptProtectedLabels:CUD",
+          forbiddenErrorMessage: `You don't have permission to import prompts with protected labels. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
+        });
+      }
+
       const results: Array<{
         name: string;
         success: boolean;
         error?: string;
       }> = [];
 
-      for (const item of input.prompts) {
+      for (const { item, labels } of importItems) {
         try {
           const sharedParams = {
             projectId: input.projectId,
             name: item.name,
             config: item.config ?? {},
             tags: item.tags ?? [],
-            labels: (item.labels ?? []).filter(
-              (l) => l !== "latest" && l !== "production",
-            ),
+            labels,
             commitMessage: item.commitMessage ?? null,
             createdBy: ctx.session.user.id,
             prisma: ctx.prisma,

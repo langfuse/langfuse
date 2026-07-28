@@ -13,12 +13,14 @@ function createCaller({
   projectName = "Test project",
   orgName = "Test organization",
   admin = true,
+  projectRole = "ADMIN",
 }: {
   projectId: string;
   orgId: string;
   projectName?: string;
   orgName?: string;
   admin?: boolean;
+  projectRole?: "ADMIN" | "MEMBER";
 }) {
   const session: Session = {
     expires: "1",
@@ -39,7 +41,7 @@ function createCaller({
           projects: [
             {
               id: projectId,
-              role: "ADMIN",
+              role: projectRole,
               retentionDays: 30,
               deletedAt: null,
               hasTraces: false,
@@ -133,6 +135,35 @@ describe("prompts trpc", () => {
   });
 
   describe("prompts.importBulk", () => {
+    it("rejects protected labels without protected-label access", async () => {
+      const { project, org } = await createOrgProjectAndApiKey();
+      const protectedLabel = `protected-${v4().slice(0, 8)}`;
+      await prisma.promptProtectedLabels.create({
+        data: { projectId: project.id, label: protectedLabel },
+      });
+      const { caller } = createCaller({
+        projectId: project.id,
+        orgId: org.id,
+        projectName: project.name,
+        orgName: org.name,
+        admin: false,
+        projectRole: "MEMBER",
+      });
+
+      await expect(
+        caller.prompts.importBulk({
+          projectId: project.id,
+          prompts: [
+            {
+              name: `protected-label-import-${v4()}`,
+              prompt: "Hello world",
+              labels: [protectedLabel],
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
     it.each([
       {
         caseName: "array content without a chat type",
