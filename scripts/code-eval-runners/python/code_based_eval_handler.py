@@ -139,6 +139,21 @@ def normalize_result(result):
             "Evaluator must return an object shaped like { scores: [...] }",
         )
 
+    for score in normalized["scores"]:
+        if not isinstance(score, dict):
+            continue
+
+        # Plain dictionaries bypass the Score dataclass field translation.
+        # Retry known Python aliases at the score boundary without rewriting
+        # arbitrary user metadata. Explicit wire-format keys take precedence.
+        for alias, key in _DATACLASS_FIELD_NAME_OVERRIDES.items():
+            if alias not in score:
+                continue
+
+            alias_value = score.pop(alias)
+            if key not in score:
+                score[key] = alias_value
+
     return normalized
 
 
