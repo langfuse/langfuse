@@ -361,13 +361,19 @@ export function EventsOutlierStrip({
   };
 
   const handleModeChange = (next: StripMode) => {
-    if (next === mode) return;
-    capture("pulse:mode_switch", {
-      mode: next,
-      previousMode: mode,
-      isV4: true,
-    });
-    update({ mode: next });
+    // Event only when the DISPLAYED mode changes; persistence whenever the
+    // STORED preference differs. The two diverge while a stored Split is
+    // width-degraded to Cost: an explicit Cost pick there displays nothing
+    // new (no event) but must stick — otherwise the strip silently snaps
+    // back to Split once the window widens again.
+    if (next !== mode) {
+      capture("pulse:mode_switch", {
+        mode: next,
+        previousMode: mode,
+        isV4: true,
+      });
+    }
+    if (next !== settings.mode) update({ mode: next });
   };
 
   const setAggregation = (
