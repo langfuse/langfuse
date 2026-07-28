@@ -11,6 +11,7 @@ import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { ZapIcon } from "lucide-react";
+import { useId } from "react";
 import { useRouter } from "next/router";
 import {
   singleRunToExperimentsUrl,
@@ -185,6 +186,10 @@ export function V4SidebarToggle() {
 // see the switched experience immediately.
 export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
   const router = useRouter();
+  // Panel and modal can render this row at the same time, so ids must be
+  // instance-scoped for the label/description associations to hold.
+  const toggleId = useId();
+  const descriptionId = useId();
   const {
     isBetaEnabled,
     canToggleV4,
@@ -211,22 +216,22 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
       <div className="flex items-center gap-2">
         <span className="shrink-0 text-sm">V3</span>
         <Switch
-          id="v4-preview-panel-toggle"
+          id={toggleId}
           size="sm"
           checked={isBetaEnabled}
           onCheckedChange={handlePanelToggle}
           disabled={isLoading}
           aria-label="Toggle V4 Preview"
-          aria-describedby="v4-preview-panel-description"
+          aria-describedby={descriptionId}
         />
         <Label
-          htmlFor="v4-preview-panel-toggle"
+          htmlFor={toggleId}
           className="block min-w-0 cursor-pointer truncate text-sm font-normal"
           title={V4_PREVIEW_LABEL}
         >
           {V4_PREVIEW_LABEL}
         </Label>
-        <span id="v4-preview-panel-description" className="sr-only">
+        <span id={descriptionId} className="sr-only">
           {V4_PREVIEW_DESCRIPTION}
         </span>
       </div>

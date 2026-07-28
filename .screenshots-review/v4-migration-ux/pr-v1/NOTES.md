@@ -9,7 +9,7 @@ Pairs:
   (Check status + Docs, dismissible 7d).
 - 02-panel-header: old "Review v4 migration" header + button row →
   "Migrate X to v4" title with Migration Status link, intro copy explaining
-  v4, V3/V4 Preview toggle row with FAQ-linked description, Documentation
+  v4, V3/V4 Preview toggle row with data-model-linked description, Documentation
   link on the details header.
 - 03-panel-cta-step2 (after only): two-step CTA, prompt revealed with
   "Copy prompt" button. Before had a single-click "Copy prompt for agents"

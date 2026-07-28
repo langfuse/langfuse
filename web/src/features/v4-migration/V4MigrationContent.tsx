@@ -308,7 +308,10 @@ export function V4MigrationHeaderContent({
         </p>
         <Link
           href="/v4-migration"
-          onClick={onNavigate}
+          onClick={() => {
+            capture("v4_migration:panel_status_link_clicked");
+            onNavigate?.();
+          }}
           className="shrink-0 text-sm underline"
         >
           Migration Status
@@ -434,12 +437,15 @@ export function V4MigrationDetailsContent({
             <TriangleAlert className="h-4 w-4" /> What happens if I don&apos;t
             update?
           </div>
-          <ExternalLink
+          <a
             href={V4_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => capture("v4_migration:panel_docs_link_clicked")}
             className="text-foreground shrink-0 text-sm underline"
           >
             Documentation
-          </ExternalLink>
+          </a>
         </div>
         <p className="text-muted-foreground text-sm">
           Some features will stop working soon.

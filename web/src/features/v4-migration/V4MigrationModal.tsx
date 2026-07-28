@@ -56,7 +56,7 @@ function V4MigrationModalContent({
         closeOnInteractionOutside
       >
         <DialogTitle className="sr-only">
-          {`Review v4 migration for ${project.name}`}
+          {`Migrate ${project.name} to v4`}
         </DialogTitle>
         <DialogBody className="gap-0 p-4">
           <V4MigrationHeaderContent

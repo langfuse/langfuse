@@ -233,6 +233,7 @@ export const ROUTES: Route[] = [
     title: "V4 Preview",
     pathname: "",
     section: RouteSection.Secondary,
+    featureFlag: "v4BetaToggleVisible",
     menuNode: <V4SidebarToggle />,
   },
   {
