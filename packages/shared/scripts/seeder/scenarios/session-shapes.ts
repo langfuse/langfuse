@@ -228,7 +228,7 @@ const buildChatTrace = (
       environment: ctx.environment,
       type: "GENERATION",
       parent_observation_id: `${traceId}-o0`,
-      name: "gpt-4o-completion",
+      name: "gpt-5.4-completion",
       start_time: genStart,
       end_time: genEnd,
       completion_start_time: genStart + rng.int(90, 320),
@@ -238,7 +238,7 @@ const buildChatTrace = (
       input: buildChatMessages(turnIdx),
       output: turn.assistant,
       metadata: { scenario: "session-shapes", shape: "chat" },
-      provided_model_name: "gpt-4o",
+      provided_model_name: "gpt-5.4",
       internal_model_id: null,
       model_parameters: JSON.stringify({ temperature: 0.4 }),
       provided_usage_details: {

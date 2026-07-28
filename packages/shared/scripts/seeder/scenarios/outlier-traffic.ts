@@ -49,7 +49,12 @@ const TRACE_NAMES = [
   "classify-ticket",
 ];
 
-const MODELS = ["gpt-4o", "gpt-4o-mini", "claude-sonnet-4", "gemini-2.5-flash"];
+const MODELS = [
+  "gpt-5.4-mini",
+  "claude-haiku-4-5",
+  "gemini-3.5-flash-lite",
+  "gpt-5.6-sol",
+];
 
 const INCIDENT_HOURS = [14, 9, 19];
 
@@ -197,7 +202,7 @@ const run = async (
         (200 + jitter(ctx.seed, g * 17 + 3, 5000)) * usageScale;
       const usageOutput =
         (100 + jitter(ctx.seed, g * 19 + 4, 2200)) * usageScale;
-      const model = costOutlier || megaCost ? "gpt-4o" : MODELS[g % 4];
+      const model = costOutlier || megaCost ? "gpt-5.4" : MODELS[g % 4];
       const hasError = isIncident && g % 3 === 0;
 
       const genStart = timestamp + 40 + jitter(ctx.seed, g * 23 + 5, 200);
