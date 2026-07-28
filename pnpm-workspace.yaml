@@ -71,12 +71,18 @@ overrides:
   glob: ^10.5.0
   qs: 6.15.2
   path-to-regexp@0.1.12: 0.1.13
+  # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
+  path-to-regexp@8.3.0: 8.4.0
   ip-address@10.1.0: 10.2.0
-  "@ai-sdk/provider-utils@<=4.0.26": 4.0.27
-  "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.27"
+  # SSRF + throttling fixes land in 4.0.29/4.0.33. @mastra/core pins its
+  # provider-utils-v6 alias to exactly 4.0.27, which the range key can't
+  # catch — aliased deps need alias-name overrides (same reason -v5 exists).
+  "@ai-sdk/provider-utils@<=4.0.32": 4.0.33
+  "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.33"
+  "@ai-sdk/provider-utils-v6": "npm:@ai-sdk/provider-utils@4.0.33"
   # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
   # evaluation needs exports (validatorSymbol) that only exist in its own
-  # provider-utils 2.x line — exempt it from the blanket 4.0.27 lift above.
+  # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
   "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
   # Keep Anthropic's Vertex client on an SDK version that emits Vertex rawPredict URLs.
   # Remove once @langchain/anthropic allows the same SDK range.
