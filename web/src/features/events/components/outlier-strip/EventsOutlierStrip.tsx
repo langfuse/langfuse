@@ -208,9 +208,12 @@ export function EventsOutlierStrip({
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
   // Transient drag selection, shared across the sibling charts so a drag on
   // one strip highlights the same time span on all (LFE-14532, Grafana-style).
+  // Window-keyed: a range/granularity change (drill, browser back/forward)
+  // invalidates a lingering band by derivation.
   const [dragSelection, setDragSelection] = useState<{
     fromMs: number;
     toMs: number;
+    windowKey: string;
   } | null>(null);
   const { settings, update } = useOutlierStripSettings();
 
@@ -343,6 +346,17 @@ export function EventsOutlierStrip({
   };
 
   const stepMs = granularity.stepSeconds * 1000;
+  const selectionWindowKey = `${fromMs}:${toMs}:${stepMs}`;
+  const activeSelection =
+    dragSelection && dragSelection.windowKey === selectionWindowKey
+      ? dragSelection
+      : null;
+  const handleSelectionChange = (
+    range: { fromMs: number; toMs: number } | null,
+  ) =>
+    setDragSelection(
+      range ? { ...range, windowKey: selectionWindowKey } : null,
+    );
   // Held-over bins from a different window can miss the new grid entirely;
   // that must render as "loading", never as a false "No events in range".
   const placeholderMissesGrid =
@@ -449,8 +463,8 @@ export function EventsOutlierStrip({
                       metric={metric}
                       widthPx={chartWidth}
                       onSelectBucket={handleSelectBucket}
-                      selection={dragSelection}
-                      onSelectionChange={setDragSelection}
+                      selection={activeSelection}
+                      onSelectionChange={handleSelectionChange}
                     />
                   </div>
                 );
