@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueueName } from "@langfuse/shared/src/server";
 
 import {
-  evaluateQueueConsumptionStuck,
   getQueueConsumptionHealth,
   markQueueJobActivity,
   markQueueWorkerRegistered,
@@ -51,110 +50,28 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-describe("evaluateQueueConsumptionStuck", () => {
-  const nowMs = 1_700_000_000_000;
-  const thresholdSeconds = 60 * 60;
-
-  it("is not stuck when a job was processed recently", () => {
-    const result = evaluateQueueConsumptionStuck({
-      nowMs,
-      registeredWorkerCount: 5,
-      trackingSinceMs: nowMs - 2 * 60 * 60_000,
-      lastActivityMs: nowMs - 60_000, // 1 min ago
-      thresholdSeconds,
-    });
-
-    expect(result.stuck).toBe(false);
-    expect(result.secondsSinceLastActivity).toBe(60);
-    expect(result.lastActivityAt).toBe(new Date(nowMs - 60_000).toISOString());
-  });
-
-  it("is stuck when the last job activity exceeds the threshold", () => {
-    const result = evaluateQueueConsumptionStuck({
-      nowMs,
-      registeredWorkerCount: 5,
-      trackingSinceMs: nowMs - 3 * 60 * 60_000,
-      lastActivityMs: nowMs - 2 * 60 * 60_000, // 2h ago > 1h
-      thresholdSeconds,
-    });
-
-    expect(result.stuck).toBe(true);
-    expect(result.secondsSinceLastActivity).toBe(2 * 60 * 60);
-  });
-
-  it("is not stuck exactly at the threshold (strictly greater than)", () => {
-    const result = evaluateQueueConsumptionStuck({
-      nowMs,
-      registeredWorkerCount: 5,
-      trackingSinceMs: nowMs - 2 * 60 * 60_000,
-      lastActivityMs: nowMs - thresholdSeconds * 1000,
-      thresholdSeconds,
-    });
-
-    expect(result.secondsSinceLastActivity).toBe(thresholdSeconds);
-    expect(result.stuck).toBe(false);
-  });
-
-  it("measures from registration when no job has been processed yet", () => {
-    // A worker that boots already wedged never processes a job. The baseline
-    // is the first registration, so the probe still catches it after one full
-    // threshold of grace.
-    const freshBoot = evaluateQueueConsumptionStuck({
-      nowMs,
-      registeredWorkerCount: 5,
-      trackingSinceMs: nowMs - 30 * 60_000, // 30 min ago
-      lastActivityMs: null,
-      thresholdSeconds,
-    });
-    expect(freshBoot.stuck).toBe(false);
-    expect(freshBoot.secondsSinceLastActivity).toBe(30 * 60);
-
-    const bootedWedged = evaluateQueueConsumptionStuck({
-      nowMs,
-      registeredWorkerCount: 5,
-      trackingSinceMs: nowMs - 2 * 60 * 60_000, // 2h ago
-      lastActivityMs: null,
-      thresholdSeconds,
-    });
-    expect(bootedWedged.stuck).toBe(true);
-    expect(bootedWedged.lastActivityAt).toBeNull();
-  });
-
-  it("is never stuck without registered workers (API-only container)", () => {
-    const result = evaluateQueueConsumptionStuck({
-      nowMs,
-      registeredWorkerCount: 0,
-      trackingSinceMs: null,
-      lastActivityMs: null,
-      thresholdSeconds,
-    });
-
-    expect(result.enabled).toBe(false);
-    expect(result.stuck).toBe(false);
-    expect(result.secondsSinceLastActivity).toBeNull();
-  });
+beforeEach(() => {
+  resetQueueConsumptionStateForTest();
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
 });
 
-describe("queue consumption tracker", () => {
-  beforeEach(() => {
-    resetQueueConsumptionStateForTest();
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
-  });
+afterEach(() => {
+  vi.useRealTimers();
+});
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
+describe("queue consumption liveness", () => {
   it("flips stuck after the (default 60 min) threshold and recovers on activity", () => {
     markQueueWorkerRegistered();
 
     expect(getQueueConsumptionHealth().enabled).toBe(true);
     expect(getQueueConsumptionHealth().stuck).toBe(false);
 
+    // Boot grace: measured from registration while no job has run yet.
     vi.setSystemTime(new Date("2026-01-01T00:59:00Z"));
     expect(getQueueConsumptionHealth().stuck).toBe(false);
 
+    // A worker that never processes anything (e.g. booted wedged) is caught.
     vi.setSystemTime(new Date("2026-01-01T01:01:00Z"));
     expect(getQueueConsumptionHealth().stuck).toBe(true);
 
@@ -162,36 +79,37 @@ describe("queue consumption tracker", () => {
     expect(getQueueConsumptionHealth().stuck).toBe(false);
   });
 
-  it("counts registered workers", () => {
-    markQueueWorkerRegistered();
-    markQueueWorkerRegistered();
+  it("is never stuck without registered workers (API-only container)", () => {
+    vi.setSystemTime(new Date("2026-01-02T00:00:00Z")); // far past any threshold
 
-    expect(getQueueConsumptionHealth().registeredWorkerCount).toBe(2);
+    const health = getQueueConsumptionHealth();
+    expect(health.enabled).toBe(false);
+    expect(health.stuck).toBe(false);
   });
 });
 
 describe("WorkerManager liveness wiring", () => {
-  beforeEach(() => {
-    resetQueueConsumptionStateForTest();
-  });
-
   const getEmitter = (queueName: QueueName): EventEmitter =>
     WorkerManager.getWorker(queueName) as unknown as EventEmitter;
 
   it("marks registration and stamps activity on job pickup and completion", () => {
     WorkerManager.register(QueueName.NotificationQueue, async () => {});
 
-    const health = getQueueConsumptionHealth();
-    expect(health.enabled).toBe(true);
-    expect(health.registeredWorkerCount).toBe(1);
-    expect(health.lastActivityAt).toBeNull();
+    expect(getQueueConsumptionHealth().enabled).toBe(true);
+    expect(getQueueConsumptionHealth().lastActivityAt).toBeNull();
 
     getEmitter(QueueName.NotificationQueue).emit("active");
-    const afterActive = getQueueConsumptionHealth();
-    expect(afterActive.lastActivityAt).not.toBeNull();
+    expect(getQueueConsumptionHealth().lastActivityAt).toBe(
+      "2026-01-01T00:00:00.000Z",
+    );
 
+    // "completed" must stamp on its own: the timestamp advances past the
+    // pickup stamp, so a long-running job refreshes liveness when it settles.
+    vi.setSystemTime(new Date("2026-01-01T00:05:00Z"));
     getEmitter(QueueName.NotificationQueue).emit("completed");
-    expect(getQueueConsumptionHealth().lastActivityAt).not.toBeNull();
+    expect(getQueueConsumptionHealth().lastActivityAt).toBe(
+      "2026-01-01T00:05:00.000Z",
+    );
   });
 
   it("does not stamp activity on failed events (stalled-checker emits those)", () => {
