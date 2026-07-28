@@ -43,6 +43,20 @@ Use this skill for backend and API work across `web/`, `worker/`, and
 - Add unit or integration tests in `__tests__/`.
 - Access config via `env.mjs`.
 
+### Existing Endpoint: Additive Field or Filter
+
+Before coding, classify the change as a new endpoint, an additive field/filter
+on an existing endpoint, or a semantic replacement/breaking change.
+
+For an additive field/filter:
+
+- Reuse the canonical predicate and existing field-group/projection path.
+- Default to the normal optional partial-row schema and converter path.
+- Do not create API-version-specific field sets, casts, or "must be selected"
+  runtime assertions unless compatibility requires them.
+- Extend examples and contracts; do not replace an existing filter example.
+- Write one test per unique boundary, not one test per file touched.
+
 ### SDKs: New Public API Endpoint
 
 - Create the route in `pages/api/public/`.

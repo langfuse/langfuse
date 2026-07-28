@@ -11,8 +11,11 @@ evaluating, and debugging AI applications.
   wire form initial values from loaded data — read
   `.agents/skills/frontend-large-feature-architecture/SKILL.md` first. Most
   such effects should not exist.
-- For bug fixes, write the failing test first, confirm it fails, then fix the
-  bug. If the bug depends on a data shape, pause and ask: can
+- For bug fixes, first write the smallest failing test that proves the reported
+  behavior. Add another test only when it exercises a distinct adapter,
+  contract, or execution path. Extend the closest existing test suite; do not
+  create a standalone constant test when an existing feature suite owns the
+  behavior. If the bug depends on a data shape, pause and ask: can
   `pnpm run seed` prefill that shape locally? If not, consider extending a
   seeder scenario so the bug stays cheaply reproducible
   (`packages/shared/scripts/seeder/AGENTS.md`), or note why a seed cannot
