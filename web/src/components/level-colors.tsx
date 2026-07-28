@@ -9,6 +9,24 @@ export const LevelColors = {
   ERROR: { text: "text-dark-red", bg: "bg-light-red" },
 };
 
+export type LevelColor = { text: string; bg: string };
+
+const NEUTRAL_LEVEL_COLOR: LevelColor = { text: "", bg: "" };
+
+/**
+ * Total color lookup for a level value. A level is user-/OTel-controlled data
+ * (an open string — e.g. an OTel severity like "INFO", lowercase "info", or a
+ * custom SDK level — not a closed enum), so `LevelColors[level]` may be
+ * `undefined`. Dereferencing `.bg`/`.text` on that undefined crashed the
+ * trace/observations tables (LFE-14567). Every color lookup must therefore be
+ * total: unknown or absent levels get a neutral (no color chip) fallback.
+ */
+export function getLevelColors(level: string | null | undefined): LevelColor {
+  return level != null && level in LevelColors
+    ? LevelColors[level as keyof typeof LevelColors]
+    : NEUTRAL_LEVEL_COLOR;
+}
+
 // Colored bar per level value for the Status filter facet (LFE-10883):
 // red = error, yellow = warning, green = the ok/default path, muted = debug.
 const levelBarColors: Record<string, string> = {
