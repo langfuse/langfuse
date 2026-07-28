@@ -69,26 +69,6 @@ export const HeightMatrix = meta.story({
   ),
 });
 
-/** The wide split layout: two 400px charts side by side. */
-export const SplitPair = meta.story({
-  render: () => {
-    const fixture = (metric: "cost" | "latency") =>
-      makeFixtureSeries({
-        rangeMs: 24 * 3600 * 1000,
-        stepSeconds: 1800,
-        profile: "spiky",
-        metric,
-        widthPx: 400,
-      });
-    return (
-      <div className="flex gap-6 p-2">
-        <OutlierBarStrip {...fixture("cost")} metric="cost" />
-        <OutlierBarStrip {...fixture("latency")} metric="latency" />
-      </div>
-    );
-  },
-});
-
 export const BurstyWeek = meta.story({
   args: {
     ...makeFixtureSeries({

@@ -11,7 +11,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
  */
 const outlierStripSettingsSchema = z
   .object({
-    mode: z.enum(["cost", "latency", "split"]).catch("cost"),
+    mode: z.enum(["cost", "latency"]).catch("cost"),
     latencyAgg: z.enum(["p95", "avg"]).catch("p95"),
     costAgg: z.enum(["sum"]).catch("sum"),
   })

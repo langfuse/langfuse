@@ -34,8 +34,8 @@ import {
  * Production container for the outlier strip ("Pulse") above the events table
  * (LFE-14451). Always visible. One `dashboard.executeQuery` call
  * fetches count + every registered aggregate per time bucket (see the metric
- * registry in lib/binning.ts), so switching metrics, aggregations, or the
- * multi-chart layout never refetches. Bucket width adapts to the measured
+ * registry in lib/binning.ts), so switching metrics or aggregations never
+ * refetches. Bucket width adapts to the measured
  * width (space calculator → granularity preset). Clicking a bar narrows the
  * table's time range to that bucket; the browser Back button restores the
  * outer view.
@@ -48,16 +48,13 @@ import {
 
 /** Target horizontal pixels per bar for granularity picking. */
 const BAR_SLOT_TARGET_PX = 5;
-/** Each chart needs this much width for Split (both charts) to be offered. */
-const CHART_MIN_WIDTH_PX = 400;
-const CHART_GAP_PX = 24;
-
-const SPLIT_METRICS: OutlierStripMetricKey[] = ["cost", "latency"];
 
 type StripMode = OutlierStripSettings["mode"];
 
+const MODE_OPTIONS: StripMode[] = ["cost", "latency"];
+
 const modeLabel = (mode: StripMode): string =>
-  mode === "split" ? "Split" : OUTLIER_STRIP_METRICS[mode].shortLabel;
+  OUTLIER_STRIP_METRICS[mode].shortLabel;
 
 /**
  * Prevent Radix's close-refocus ONLY after a pointer-driven selection — the
@@ -200,10 +197,9 @@ export function EventsOutlierStrip({
   onSelectRange: (range: { from: Date; to: Date }) => void;
 }) {
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
-  // Transient drag selection, shared across the sibling charts so a drag on
-  // one strip highlights the same time span on all (LFE-14532, Grafana-style).
-  // Window-keyed: a range/granularity change (drill, browser back/forward)
-  // invalidates a lingering band by derivation.
+  // Transient drag selection (LFE-14532, Grafana-style). Window-keyed: a
+  // range/granularity change (drill, browser back/forward) invalidates a
+  // lingering band by derivation.
   const [dragSelection, setDragSelection] = useState<{
     fromMs: number;
     toMs: number;
@@ -217,24 +213,10 @@ export function EventsOutlierStrip({
   // getBoundingClientRect includes the wrapper's px-2 padding (border-box).
   const width = Math.max((size?.width ?? 0) - 16, 0);
 
-  // Split renders Cost + Latency side by side when both fit; below the
-  // 2-chart threshold Split leaves the menu. A stored Split preference
-  // degrades to Cost WITHOUT being overwritten.
-  const splitChartCount = Math.min(
-    SPLIT_METRICS.length,
-    Math.floor((width + CHART_GAP_PX) / (CHART_MIN_WIDTH_PX + CHART_GAP_PX)),
-  );
-  const splitFits = splitChartCount >= 2;
-  const mode: StripMode =
-    settings.mode === "split" && !splitFits ? "cost" : settings.mode;
-  const modeOptions: StripMode[] = splitFits
-    ? [...SPLIT_METRICS, "split"]
-    : [...SPLIT_METRICS];
-
-  const visibleMetrics: OutlierStripMetricKey[] =
-    mode === "split" ? SPLIT_METRICS.slice(0, splitChartCount) : [mode];
-  const chartCount = visibleMetrics.length;
-  const chartWidth = (width - CHART_GAP_PX * (chartCount - 1)) / chartCount;
+  const mode: StripMode = settings.mode;
+  const chartWidth = width;
+  const def = OUTLIER_STRIP_METRICS[mode];
+  const aggOptions = def.aggregations.map((agg) => agg.key);
 
   const granularity = pickChartGranularity({
     rangeMs: toMs - fromMs,
@@ -290,26 +272,22 @@ export function EventsOutlierStrip({
 
   const series = useMemo(
     () =>
-      (mode === "split" ? SPLIT_METRICS.slice(0, splitChartCount) : [mode]).map(
-        (metric) =>
-          prepareOutlierSeries({
-            bins,
-            metric,
-            aggregation:
-              metric === "latency" ? settings.latencyAgg : settings.costAgg,
-            fromMs,
-            toMs,
-            stepSeconds: granularity.stepSeconds,
-            widthPx: chartWidth,
-          }),
-      ),
+      prepareOutlierSeries({
+        bins,
+        metric: mode,
+        aggregation:
+          mode === "latency" ? settings.latencyAgg : settings.costAgg,
+        fromMs,
+        toMs,
+        stepSeconds: granularity.stepSeconds,
+        widthPx: chartWidth,
+      }),
     [
       bins,
       fromMs,
       toMs,
       granularity.stepSeconds,
       mode,
-      splitChartCount,
       settings.latencyAgg,
       settings.costAgg,
       chartWidth,
@@ -347,9 +325,8 @@ export function EventsOutlierStrip({
   // that must render as "loading", never as a false "No events in range".
   const placeholderMissesGrid =
     queryResult.isPlaceholderData &&
-    series.every(
-      (s) => s.maxValue === 0 && s.dense.every((bin) => bin.count === 0),
-    );
+    series.maxValue === 0 &&
+    series.dense.every((bin) => bin.count === 0);
   const isLoading =
     validRange &&
     width > 0 &&
@@ -373,76 +350,54 @@ export function EventsOutlierStrip({
               // Dim held-over bins during a refetch (filter change, saved-view
               // switch, drill-in) — stale data must not read as current.
               className={cn(
-                "flex transition-opacity",
+                "min-w-0 transition-opacity",
                 queryResult.isPlaceholderData &&
                   queryResult.isFetching &&
                   "opacity-60",
               )}
-              style={{ gap: CHART_GAP_PX }}
             >
-              {visibleMetrics.map((metric, slot) => {
-                const def = OUTLIER_STRIP_METRICS[metric];
-                const aggOptions = def.aggregations.map((agg) => agg.key);
-                return (
-                  <div key={slot} className="min-w-0">
-                    <div className="flex items-baseline gap-1.5">
-                      {slot === 0 ? (
-                        <>
-                          <ModeDropdown
-                            value={mode}
-                            options={modeOptions}
-                            onChange={(next) => update({ mode: next })}
-                          />
-                          {mode === "split" && (
-                            <span className="text-muted-foreground text-[11px] leading-none">
-                              {def.shortLabel}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground text-[11px] leading-none">
-                          {def.shortLabel}
-                        </span>
-                      )}
-                      {/* The bar's aggregate must be legible where there is a
-                          choice (p95 vs avg); single-option metrics are
-                          unambiguous and render no aggregation label. */}
-                      {aggOptions.length > 1 && (
-                        <AggDropdown
-                          metricLabel={def.shortLabel}
-                          value={aggregationFor(metric)}
-                          options={aggOptions}
-                          onChange={(agg) => setAggregation(metric, agg)}
-                        />
-                      )}
-                      {/* Unlike full chart mode (which dims sidebar facets),
-                          the TABLE still honors these filters — only the strip
-                          can't express them, so the disclosure lives here. */}
-                      {slot === 0 && ignoredFilterCount > 0 && (
-                        <span
-                          className="text-muted-foreground/70 text-[11px] leading-none"
-                          title="Some active filters (measures, scores, comments, metadata, free-text search) cannot be applied to this chart's aggregate query. The table still honors them; the chart shows the unfiltered distribution for those."
-                        >
-                          · {ignoredFilterCount} filter
-                          {ignoredFilterCount > 1 ? "s" : ""} not applied
-                        </span>
-                      )}
-                    </div>
-                    <OutlierBarStrip
-                      className="mt-1"
-                      dense={series[slot].dense}
-                      maxValue={series[slot].maxValue}
-                      ticks={series[slot].ticks}
-                      stepMs={stepMs}
-                      metric={metric}
-                      widthPx={chartWidth}
-                      onSelectBucket={handleSelectBucket}
-                      selection={activeSelection}
-                      onSelectionChange={handleSelectionChange}
-                    />
-                  </div>
-                );
-              })}
+              <div className="flex items-baseline gap-1.5">
+                <ModeDropdown
+                  value={mode}
+                  options={MODE_OPTIONS}
+                  onChange={(next) => update({ mode: next })}
+                />
+                {/* The bar's aggregate must be legible where there is a
+                    choice (p95 vs avg); single-option metrics are
+                    unambiguous and render no aggregation label. */}
+                {aggOptions.length > 1 && (
+                  <AggDropdown
+                    metricLabel={def.shortLabel}
+                    value={aggregationFor(mode)}
+                    options={aggOptions}
+                    onChange={(agg) => setAggregation(mode, agg)}
+                  />
+                )}
+                {/* Unlike full chart mode (which dims sidebar facets),
+                    the TABLE still honors these filters — only the strip
+                    can't express them, so the disclosure lives here. */}
+                {ignoredFilterCount > 0 && (
+                  <span
+                    className="text-muted-foreground/70 text-[11px] leading-none"
+                    title="Some active filters (measures, scores, comments, metadata, free-text search) cannot be applied to this chart's aggregate query. The table still honors them; the chart shows the unfiltered distribution for those."
+                  >
+                    · {ignoredFilterCount} filter
+                    {ignoredFilterCount > 1 ? "s" : ""} not applied
+                  </span>
+                )}
+              </div>
+              <OutlierBarStrip
+                className="mt-1"
+                dense={series.dense}
+                maxValue={series.maxValue}
+                ticks={series.ticks}
+                stepMs={stepMs}
+                metric={mode}
+                widthPx={chartWidth}
+                onSelectBucket={handleSelectBucket}
+                selection={activeSelection}
+                onSelectionChange={handleSelectionChange}
+              />
             </div>
           )}
         </div>
