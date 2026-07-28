@@ -290,6 +290,7 @@ type DropdownMenuItemAction = {
 );
 
 type DropdownMenuItemWithSecondaryActionProps = {
+  disabled?: { reason: string };
   icon?: LucideIcon;
   title: string;
   secondaryAction?: DropdownMenuItemAction & {
@@ -312,6 +313,7 @@ const DropdownMenuItemWithSecondaryAction = (
   const secondaryAction = props.secondaryAction;
   const PrimaryActionIcon = props.icon;
   const SecondaryActionIcon = secondaryAction?.icon;
+  const isDisabled = props.disabled !== undefined;
   const primaryActionRef = React.useRef<HTMLAnchorElement | HTMLButtonElement>(
     null,
   );
@@ -322,7 +324,7 @@ const DropdownMenuItemWithSecondaryAction = (
       )}
       <span
         className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
-        title={props.title}
+        title={props.disabled?.reason ?? props.title}
       >
         {props.title}
       </span>
@@ -338,13 +340,23 @@ const DropdownMenuItemWithSecondaryAction = (
         <Link
           href={secondaryAction.href}
           aria-label={secondaryAction.ariaLabel}
+          aria-disabled={isDisabled}
+          tabIndex={isDisabled ? -1 : undefined}
           className={dropdownMenuItemSecondaryActionVariants()}
           onClick={(event) => {
             event.stopPropagation();
+            if (isDisabled) {
+              event.preventDefault();
+              return;
+            }
             secondaryAction.onBeforeAction?.();
           }}
           onAuxClick={(event) => {
             event.stopPropagation();
+            if (isDisabled) {
+              event.preventDefault();
+              return;
+            }
             if (event.button === 1) {
               secondaryAction.onBeforeAction?.();
             }
@@ -358,6 +370,7 @@ const DropdownMenuItemWithSecondaryAction = (
         <button
           type="button"
           aria-label={secondaryAction.ariaLabel}
+          disabled={isDisabled}
           className={dropdownMenuItemSecondaryActionVariants()}
           onClick={(event) => {
             event.stopPropagation();
@@ -374,7 +387,10 @@ const DropdownMenuItemWithSecondaryAction = (
   return (
     <DropdownMenuItem
       className="h-8 p-0"
+      disabled={isDisabled}
+      title={props.disabled?.reason}
       onClick={(event) => {
+        if (isDisabled) return;
         if (event.target !== event.currentTarget) return;
 
         event.preventDefault();
@@ -387,11 +403,21 @@ const DropdownMenuItemWithSecondaryAction = (
             primaryActionRef.current = element;
           }}
           href={props.href}
+          aria-disabled={isDisabled}
+          tabIndex={isDisabled ? -1 : undefined}
           className={dropdownMenuItemPrimaryActionVariants()}
-          onClick={() => {
+          onClick={(event) => {
+            if (isDisabled) {
+              event.preventDefault();
+              return;
+            }
             props.onBeforeAction?.();
           }}
           onAuxClick={(event) => {
+            if (isDisabled) {
+              event.preventDefault();
+              return;
+            }
             if (event.button === 1) {
               props.onBeforeAction?.();
             }
@@ -405,6 +431,7 @@ const DropdownMenuItemWithSecondaryAction = (
             primaryActionRef.current = element;
           }}
           type="button"
+          disabled={isDisabled}
           className={dropdownMenuItemPrimaryActionVariants()}
           onClick={() => {
             props.onBeforeAction?.();
