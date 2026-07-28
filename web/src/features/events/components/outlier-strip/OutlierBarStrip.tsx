@@ -442,7 +442,7 @@ export function OutlierBarStrip({
       {hovered && mouse && !activePreview && (
         <Layer name="tooltip">
           <div
-            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 font-mono text-[11px] leading-tight whitespace-nowrap shadow-sm"
+            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 text-[11px] leading-tight whitespace-nowrap shadow-sm"
             style={
               // Top-right of the cursor; flips to top-left near the viewport's
               // right edge so it never runs off screen.
@@ -482,7 +482,7 @@ export function OutlierBarStrip({
       {activePreview && previewStats && (
         <Layer name="tooltip">
           <div
-            className="bg-popover text-popover-foreground fixed rounded border px-2 py-1.5 font-mono text-[11px] leading-tight whitespace-nowrap shadow-md"
+            className="bg-popover text-popover-foreground fixed rounded border px-2 py-1.5 text-[11px] leading-tight whitespace-nowrap shadow-md"
             style={{
               left: Math.min(
                 Math.max(activePreview.anchorX, 90),
