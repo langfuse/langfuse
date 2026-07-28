@@ -19,6 +19,7 @@ const spikyCost = makeFixtureSeries({
   stepSeconds: 600,
   profile: "spiky",
   metric: "cost",
+  widthPx: 720,
 });
 
 const meta = preview.meta({
@@ -32,7 +33,6 @@ export const Default = meta.story({
   args: {
     ...spikyCost,
     metric: "cost",
-    widthPx: 720,
   },
 });
 
@@ -47,12 +47,7 @@ export const ScaleMatrix = meta.story({
           <div className="text-muted-foreground mb-1 font-mono text-[10px]">
             scale: {scale}
           </div>
-          <OutlierBarStrip
-            {...spikyCost}
-            metric="cost"
-            widthPx={720}
-            scale={scale}
-          />
+          <OutlierBarStrip {...spikyCost} metric="cost" scale={scale} />
         </div>
       ))}
     </div>
@@ -67,12 +62,7 @@ export const HeightMatrix = meta.story({
           <div className="text-muted-foreground mb-1 font-mono text-[10px]">
             height {height}px
           </div>
-          <OutlierBarStrip
-            {...spikyCost}
-            metric="cost"
-            widthPx={720}
-            heightPx={height}
-          />
+          <OutlierBarStrip {...spikyCost} metric="cost" heightPx={height} />
         </div>
       ))}
     </div>
@@ -82,29 +72,19 @@ export const HeightMatrix = meta.story({
 /** The ≥1200px layout: three 400px charts side by side. */
 export const ThreeUp = meta.story({
   render: () => {
-    const cost = makeFixtureSeries({
-      rangeMs: 24 * 3600 * 1000,
-      stepSeconds: 1800,
-      profile: "spiky",
-      metric: "cost",
-    });
-    const latency = makeFixtureSeries({
-      rangeMs: 24 * 3600 * 1000,
-      stepSeconds: 1800,
-      profile: "spiky",
-      metric: "latency",
-    });
-    const tokens = makeFixtureSeries({
-      rangeMs: 24 * 3600 * 1000,
-      stepSeconds: 1800,
-      profile: "spiky",
-      metric: "tokens",
-    });
+    const fixture = (metric: "cost" | "latency" | "tokens") =>
+      makeFixtureSeries({
+        rangeMs: 24 * 3600 * 1000,
+        stepSeconds: 1800,
+        profile: "spiky",
+        metric,
+        widthPx: 400,
+      });
     return (
       <div className="flex gap-6 p-2">
-        <OutlierBarStrip {...cost} metric="cost" widthPx={400} />
-        <OutlierBarStrip {...latency} metric="latency" widthPx={400} />
-        <OutlierBarStrip {...tokens} metric="tokens" widthPx={400} />
+        <OutlierBarStrip {...fixture("cost")} metric="cost" />
+        <OutlierBarStrip {...fixture("latency")} metric="latency" />
+        <OutlierBarStrip {...fixture("tokens")} metric="tokens" />
       </div>
     );
   },
@@ -117,9 +97,9 @@ export const BurstyWeek = meta.story({
       stepSeconds: 3600,
       profile: "bursty",
       metric: "latency",
+      widthPx: 900,
     }),
     metric: "latency",
-    widthPx: 900,
   },
 });
 
@@ -130,9 +110,9 @@ export const SparseData = meta.story({
       stepSeconds: 600,
       profile: "sparse",
       metric: "tokens",
+      widthPx: 720,
     }),
     metric: "tokens",
-    widthPx: 720,
   },
 });
 
@@ -145,9 +125,9 @@ export const NoMetricData = meta.story({
       stepSeconds: 600,
       profile: "noMetricData",
       metric: "cost",
+      widthPx: 720,
     }),
     metric: "cost",
-    widthPx: 720,
   },
 });
 
@@ -155,7 +135,6 @@ export const MinimalNoLabels = meta.story({
   args: {
     ...spikyCost,
     metric: "cost",
-    widthPx: 720,
     showTimeLabels: false,
   },
 });

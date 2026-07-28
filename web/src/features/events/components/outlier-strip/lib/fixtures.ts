@@ -63,23 +63,19 @@ export function makeFixtureBins(params: {
     const base = 0.5 + rand() * 0.8;
     const count = Math.max(1, Math.round(rand() * 40 * (daytime ? 1 : 0.3)));
 
+    const noData = params.profile === "noMetricData";
+    // Raw query units: latency in ms (the registry's fromRaw divides by 1000).
     bins.push({
       bucketStart: new Date(t),
       count,
-      maxTotalCost:
-        params.profile === "noMetricData" ? null : 0.02 * base * outlier,
-      sumTotalCost:
-        params.profile === "noMetricData" ? null : 0.02 * base * outlier * 5,
-      maxLatencySeconds:
-        params.profile === "noMetricData" ? null : 2 * base * outlier,
-      p95LatencySeconds:
-        params.profile === "noMetricData" ? null : 2 * base * outlier * 0.6,
-      avgLatencySeconds:
-        params.profile === "noMetricData" ? null : 2 * base * outlier * 0.35,
-      maxTotalTokens:
-        params.profile === "noMetricData"
-          ? null
-          : Math.round(1500 * base * outlier),
+      values: {
+        max_totalCost: noData ? null : 0.02 * base * outlier,
+        sum_totalCost: noData ? null : 0.02 * base * outlier * 5,
+        max_latency: noData ? null : 2000 * base * outlier,
+        p95_latency: noData ? null : 2000 * base * outlier * 0.6,
+        avg_latency: noData ? null : 2000 * base * outlier * 0.35,
+        max_totalTokens: noData ? null : Math.round(1500 * base * outlier),
+      },
     });
   }
 
@@ -91,6 +87,7 @@ export function makeFixtureSeries(params: {
   stepSeconds: number;
   profile: FixtureProfile;
   metric: OutlierStripMetricKey;
+  widthPx: number;
   seed?: number;
 }) {
   const { bins, fromMs, toMs } = makeFixtureBins(params);
@@ -101,7 +98,9 @@ export function makeFixtureSeries(params: {
       fromMs,
       toMs,
       stepSeconds: params.stepSeconds,
+      widthPx: params.widthPx,
     }),
     stepMs: params.stepSeconds * 1000,
+    widthPx: params.widthPx,
   };
 }

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  OUTLIER_STRIP_METRICS,
+  outlierStripQueryMetrics,
+  outlierStripResultColumn,
   pickChartGranularity,
   prepareOutlierSeries,
   rowsToOutlierBins,
@@ -50,6 +53,25 @@ describe("pickChartGranularity", () => {
   });
 });
 
+describe("metric registry", () => {
+  it("derives the query metrics from every registered aggregation", () => {
+    const metrics = outlierStripQueryMetrics();
+    expect(metrics).toContainEqual({ measure: "count", aggregation: "count" });
+    // Every registry option maps to exactly one query metric — a new
+    // aggregation option cannot exist without being fetched.
+    for (const def of Object.values(OUTLIER_STRIP_METRICS)) {
+      for (const agg of def.aggregations) {
+        expect(metrics).toContainEqual({
+          measure: def.measure,
+          aggregation: agg.queryAggregation,
+        });
+      }
+    }
+    // count + 2 cost + 3 latency + 1 tokens
+    expect(metrics).toHaveLength(7);
+  });
+});
+
 describe("rowsToOutlierBins", () => {
   it("drops WITH FILL rows so non-nullable zero-fills never become phantom bars", () => {
     const bins = rowsToOutlierBins([
@@ -75,32 +97,34 @@ describe("rowsToOutlierBins", () => {
     ]);
 
     expect(bins).toHaveLength(1);
-    expect(bins[0]).toEqual({
-      bucketStart: expect.any(Date),
-      count: 2,
-      maxTotalCost: 0.5,
-      sumTotalCost: 2.5,
-      maxLatencySeconds: 1.5, // ms → s
-      p95LatencySeconds: 1,
-      avgLatencySeconds: 0.8,
-      maxTotalTokens: 300,
+    expect(bins[0].count).toBe(2);
+    expect(bins[0].values).toEqual({
+      max_totalCost: 0.5,
+      sum_totalCost: 2.5,
+      max_latency: 1500,
+      p95_latency: 1000,
+      avg_latency: 800,
+      max_totalTokens: 300,
     });
   });
 });
 
 describe("prepareOutlierSeries", () => {
+  // Raw query units (latency in ms); derived values scale off `value`.
   const bin = (
     bucketStartMs: number,
     value: number | null,
   ): OutlierStripBin => ({
     bucketStart: new Date(bucketStartMs),
     count: value === null ? 0 : 1,
-    maxTotalCost: value,
-    sumTotalCost: value === null ? null : value * 10,
-    maxLatencySeconds: value,
-    p95LatencySeconds: value === null ? null : value * 0.5,
-    avgLatencySeconds: value === null ? null : value * 0.25,
-    maxTotalTokens: value,
+    values: {
+      max_totalCost: value,
+      sum_totalCost: value === null ? null : value * 10,
+      max_latency: value === null ? null : value * 1000,
+      p95_latency: value === null ? null : value * 500,
+      avg_latency: value === null ? null : value * 250,
+      max_totalTokens: value,
+    },
   });
 
   it("densifies onto the epoch grid with nulls for empty buckets", () => {
@@ -154,39 +178,53 @@ describe("prepareOutlierSeries", () => {
     expect(dense).toHaveLength(2);
   });
 
-  it("plots the p95 latency series when latencyAgg is p95", () => {
+  it("selects the aggregation's result column via the registry", () => {
     const step = 60;
     const t0 = Math.floor(Date.UTC(2025, 2, 10, 10, 0, 0) / 60000) * 60000;
-    const { dense } = prepareOutlierSeries({
-      bins: [bin(t0, 8)], // helper sets p95 = 0.5 × max
-      metric: "latency",
-      latencyAgg: "p95",
-      fromMs: t0,
-      toMs: t0 + 60_000,
-      stepSeconds: step,
-    });
+    const run = (metric: "cost" | "latency", aggregation: string) =>
+      prepareOutlierSeries({
+        bins: [bin(t0, 8)],
+        metric,
+        aggregation,
+        fromMs: t0,
+        toMs: t0 + 60_000,
+        stepSeconds: step,
+      }).dense[0].value;
 
-    expect(dense[0].value).toBe(4);
+    expect(run("latency", "max")).toBe(8); // 8000ms → 8s
+    expect(run("latency", "p95")).toBe(4); // 4000ms → 4s
+    expect(run("latency", "avg")).toBe(2); // 2000ms → 2s
+    expect(run("cost", "max")).toBe(8);
+    expect(run("cost", "sum")).toBe(80); // sum = 10 × max in the helper
+    // Unknown option falls back to the metric's default (max) — a stored
+    // legacy value can never plot the wrong column.
+    expect(run("cost", "median")).toBe(8);
+  });
 
-    const avg = prepareOutlierSeries({
-      bins: [bin(t0, 8)], // helper sets avg = 0.25 × max
-      metric: "latency",
-      latencyAgg: "avg",
-      fromMs: t0,
-      toMs: t0 + 60_000,
-      stepSeconds: step,
-    });
-    expect(avg.dense[0].value).toBe(2);
-
-    const total = prepareOutlierSeries({
-      bins: [bin(t0, 8)], // helper sets sum = 10 × max
+  it("places phase-aware ticks with presentation-ready labels", () => {
+    const step = 86400;
+    const utcMidnight = Date.UTC(2025, 2, 10);
+    const offset = 2 * 3600 * 1000; // +02:00 server: phase-shifted buckets
+    const bins = Array.from({ length: 30 }, (_, i) =>
+      bin(utcMidnight - offset + i * 86400_000, 1 + i),
+    );
+    const { dense, ticks } = prepareOutlierSeries({
+      bins,
       metric: "cost",
-      costAgg: "total",
-      fromMs: t0,
-      toMs: t0 + 60_000,
+      fromMs: utcMidnight,
+      toMs: utcMidnight + 30 * 86400_000,
       stepSeconds: step,
+      widthPx: 600, // 20px slots → ticks every ≥110px
     });
-    expect(total.dense[0].value).toBe(80);
+
+    expect(dense.length).toBeGreaterThan(0);
+    // The old epoch-modulo predicate produced ZERO ticks on shifted grids.
+    expect(ticks.length).toBeGreaterThan(1);
+    for (const tick of ticks) {
+      expect(tick.index).toBeGreaterThan(0);
+      expect(tick.index).toBeLessThan(dense.length);
+      expect(tick.label).toMatch(/^[A-Z][a-z]{2} \d{1,2}$/); // "MMM d"
+    }
   });
 
   it("aligns the grid to the epoch, not to `from`", () => {
@@ -203,5 +241,12 @@ describe("prepareOutlierSeries", () => {
     // First grid bucket is the epoch-aligned one containing `from`.
     expect(dense[0].bucketStartMs).toBe(t0);
     expect(dense[0].value).toBe(5);
+  });
+});
+
+describe("outlierStripResultColumn", () => {
+  it("matches executeQuery's `${aggregation}_${measure}` naming", () => {
+    expect(outlierStripResultColumn("totalCost", "sum")).toBe("sum_totalCost");
+    expect(outlierStripResultColumn("latency", "p95")).toBe("p95_latency");
   });
 });
