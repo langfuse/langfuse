@@ -97,6 +97,12 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     includeWhen: "e.environment IS NOT NULL AND length(e.environment) > 0",
     sort: "countDesc",
   },
+  ingestionApiKey: {
+    kind: "scalar",
+    expression: "e.ingestion_api_key",
+    includeWhen: "length(e.ingestion_api_key) > 0",
+    sort: "countDesc",
+  },
   promptName: {
     kind: "scalar",
     expression: "e.prompt_name",

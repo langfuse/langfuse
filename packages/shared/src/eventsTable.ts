@@ -67,6 +67,13 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "API Key",
+    id: "ingestionApiKey",
+    type: "stringOptions",
+    internal: "e.ingestion_api_key",
+    options: [], // to be added at runtime
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",

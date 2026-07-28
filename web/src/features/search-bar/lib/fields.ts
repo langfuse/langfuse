@@ -51,6 +51,7 @@ export const FIELDS: FieldDef[] = [
   { id: "traceName", aliases: ["tracename", "trace_name"], kind: "text", syncMode: "exactOption", description: "Trace name", nullable: true },
   { id: "type", aliases: [], kind: "text", syncMode: "exactOption", description: "Observation type" },
   { id: "environment", aliases: ["env"], kind: "text", syncMode: "exactOption", description: "Environment", nullable: true },
+  { id: "ingestionApiKey", aliases: ["ingestionapikey", "ingestion_api_key", "apikey", "api_key", "publickey", "public_key"], kind: "text", syncMode: "exactOption", description: "Public ingestion API key" },
   { id: "userId", aliases: ["userid", "user_id", "user"], kind: "text", syncMode: "exactOption", description: "Trace user id", nullable: true },
   { id: "sessionId", aliases: ["sessionid", "session_id", "session"], kind: "text", syncMode: "exactOption", description: "Trace session id", nullable: true },
   { id: "level", aliases: [], kind: "text", syncMode: "exactOption", description: "Observation level" },
