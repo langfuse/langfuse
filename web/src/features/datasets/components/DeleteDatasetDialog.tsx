@@ -3,15 +3,17 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 
-interface DeleteDatasetDialogProps {
+export interface DeleteDatasetDialogDataProps {
   projectId: string;
   datasetId: string;
   datasetName: string;
+}
+
+interface DeleteDatasetDialogProps extends DeleteDatasetDialogDataProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  trigger: { type: "external" } | { type: "dialog"; element: ReactNode };
 }
 
 export function DeleteDatasetDialog({
@@ -20,7 +22,6 @@ export function DeleteDatasetDialog({
   datasetName,
   open,
   onOpenChange,
-  trigger,
 }: DeleteDatasetDialogProps) {
   const capture = usePostHogClientCapture();
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
@@ -47,7 +48,6 @@ export function DeleteDatasetDialog({
         onOpenChange(isOpen);
         if (!isOpen) setDeleteConfirmationInput("");
       }}
-      trigger={trigger.type === "dialog" ? trigger.element : undefined}
       size="lg"
       title="Please confirm"
       description="This action cannot be undone and removes all the data associated with this dataset."

@@ -473,6 +473,7 @@ export function DatasetsTable(props: { projectId: string }) {
               projectId={props.projectId}
               datasetId={key.id}
               datasetName={row.original.folderPath}
+              source="table-single-row"
               variant="ghost"
               size="icon-xs"
             />
