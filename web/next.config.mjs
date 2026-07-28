@@ -103,6 +103,10 @@ const nextConfig = {
     },
   },
   turbopack: {
+    // Pin the workspace root: in a nested git worktree Next.js infers the
+    // OUTER checkout's root (outermost lockfile wins), which breaks the
+    // relative resolveAlias below.
+    root: new URL("..", import.meta.url).pathname,
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
     },
