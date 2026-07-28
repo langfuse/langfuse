@@ -340,7 +340,10 @@ export function OutlierBarStrip({
           if (!bin) return;
           if (event.pointerType !== "mouse") {
             // Touch tap = PREVIEW: pin the tooltip over the bucket; the
-            // tooltip's Explore action performs the navigation.
+            // tooltip's Explore action performs the navigation. A leftover
+            // drag band from a previous span preview clears — one preview,
+            // one highlight.
+            onSelectionChange?.(null);
             setTouchPreview({
               fromMs: bin.bucketStartMs,
               toMs: bin.bucketStartMs + stepMs,
