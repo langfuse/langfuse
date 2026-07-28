@@ -231,8 +231,6 @@ export function OutlierBarStrip({
   // ?? null: a stale hoverIndex can outlive a shrinking dense array (data or
   // granularity change mid-hover), and undefined slips past a !== null check.
   const hovered = hoverIndex !== null ? (dense[hoverIndex] ?? null) : null;
-  const hoveredHasData =
-    hovered !== null && (hovered.count > 0 || hovered.value !== null);
   const windowKey = `${stepMs}:${dense[0]?.bucketStartMs ?? 0}:${dense.length}`;
   const activePreview =
     touchPreview && touchPreview.windowKey === windowKey ? touchPreview : null;
@@ -266,14 +264,14 @@ export function OutlierBarStrip({
         height={heightPx + labelHeight}
         role="img"
         aria-label={`${metricSpec.shortLabel} per bucket`}
-        className={cn(
-          // pan-y: horizontal touch drags select a range; vertical stays with
-          // the page scroll (LF-34 mobile gesture requirement). select-none +
-          // the pointerdown preventDefault keep a range-drag from ALSO
-          // starting a native text selection over the tick labels.
-          "block touch-pan-y select-none",
-          hoveredHasData || selection ? "cursor-pointer" : "cursor-default",
-        )}
+        // pan-y: horizontal touch drags select a range; vertical stays with
+        // the page scroll (LF-34 mobile gesture requirement). select-none +
+        // the pointerdown preventDefault keep a range-drag from ALSO
+        // starting a native text selection over the tick labels.
+        // Crosshair over the whole plot: the standard "this surface supports
+        // range selection" affordance (Grafana/Datadog) — it makes the
+        // drag-to-zoom brush discoverable where a pointer only said "click".
+        className="block cursor-crosshair touch-pan-y select-none"
         onPointerLeave={(event) => {
           if (event.pointerType !== "mouse") return;
           setHoverIndex(null);
