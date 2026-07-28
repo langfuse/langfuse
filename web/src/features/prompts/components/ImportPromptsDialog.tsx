@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
-import { Download, Upload, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Download, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -56,8 +57,8 @@ type ImportResult = {
 
 type ImportState =
   | { step: "idle" }
-  | { step: "parsed"; fileName: string; items: ImportItem[] }
-  | { step: "error"; fileName: string; error: string }
+  | { step: "parsed"; file: File; items: ImportItem[] }
+  | { step: "error"; file?: File; error: string }
   | { step: "done"; results: ImportResult[] };
 
 const ImportPromptsDialogContent: React.FC<{
@@ -65,7 +66,6 @@ const ImportPromptsDialogContent: React.FC<{
   onClose: () => void;
 }> = ({ projectId, onClose }) => {
   const capture = usePostHogClientCapture();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<ImportState>({ step: "idle" });
 
   const utils = api.useUtils();
@@ -76,8 +76,8 @@ const ImportPromptsDialogContent: React.FC<{
     },
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFiles = (files: File[]) => {
+    const file = files[0];
     if (!file) return;
 
     setState({ step: "idle" });
@@ -89,18 +89,16 @@ const ImportPromptsDialogContent: React.FC<{
         if (typeof text !== "string") throw new Error("Failed to read file.");
         const raw = JSON.parse(text) as unknown;
         const items = validateImportPayload(raw);
-        setState({ step: "parsed", fileName: file.name, items });
+        setState({ step: "parsed", file, items });
       } catch (err) {
         setState({
           step: "error",
-          fileName: file.name,
+          file,
           error: err instanceof Error ? err.message : "Failed to parse file.",
         });
       }
     };
     reader.readAsText(file);
-    // Reset input so the same file can be re-selected after clearing
-    e.target.value = "";
   };
 
   const handleImport = () => {
@@ -149,12 +147,8 @@ const ImportPromptsDialogContent: React.FC<{
     );
   }
 
-  const fileName =
-    state.step === "parsed"
-      ? state.fileName
-      : state.step === "error"
-        ? state.fileName
-        : null;
+  const selectedFile =
+    state.step === "parsed" || state.step === "error" ? state.file : undefined;
   const parsedItems = state.step === "parsed" ? state.items : null;
   const parseError = state.step === "error" ? state.error : null;
 
@@ -165,20 +159,17 @@ const ImportPromptsDialogContent: React.FC<{
           Upload a JSON file exported from Langfuse. Each prompt will be created
           as a new version if the name already exists.
         </p>
-        <div
-          className="border-border text-muted-foreground hover:border-primary hover:text-primary flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed p-8 text-sm transition-colors"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Upload className="h-8 w-8" />
-          <span>{fileName ? fileName : "Click to select a JSON file"}</span>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-        </div>
+        <Dropzone
+          accept={{ "application/json": [".json"] }}
+          isDisabled={importMutation.isPending}
+          maxFiles={1}
+          maxSize={undefined}
+          minSize={undefined}
+          onDrop={handleFiles}
+          onError={(error) => setState({ step: "error", error: error.message })}
+          src={selectedFile ? [selectedFile] : undefined}
+          variant="panel"
+        />
 
         {parseError && <p className="text-destructive text-sm">{parseError}</p>}
 
