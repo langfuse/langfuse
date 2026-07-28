@@ -101,16 +101,34 @@ export function BatchExportsTable(props: { projectId: string }) {
       id: "status",
       header: "Status",
       size: 90,
-      cell: (row) => {
-        const status = row.getValue() as string;
-        return <StatusBadge type={status.toLowerCase()} />;
+      cell: ({ row }) => {
+        const { status, log } = row.original;
+        const badge = <StatusBadge type={status.toLowerCase()} />;
+        // The log only exists on failed exports (worker-written, user-facing
+        // error message); surface it on the badge instead of a dedicated
+        // column that is empty for every successful row.
+        if (!log) {
+          return badge;
+        }
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>{badge}</TooltipTrigger>
+              <TooltipContent className="max-w-md whitespace-pre-wrap">
+                {log}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
       },
     },
     {
       accessorKey: "isDownloadable",
-      id: "download",
-      header: "Download",
+      id: "action",
+      header: "Action",
       size: 130,
+      // One state-dependent action per row: Cancel while queued/processing,
+      // Download (or Expired) once completed — the states never coexist.
       cell: ({ row }) => {
         const { id, status, isExpired, isDownloadable } = row.original;
         if (isDownloadable) {
@@ -140,6 +158,54 @@ export function BatchExportsTable(props: { projectId: string }) {
         }
         if (status === "COMPLETED" && isExpired) {
           return <span className="text-muted-foreground">Expired</span>;
+        }
+        if (status === "QUEUED" || status === "PROCESSING") {
+          return (
+            <AlertDialog
+              open={cancelDialogOpen && selectedExportId === id}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setCancelDialogOpen(false);
+                  setSelectedExportId(null);
+                }
+              }}
+            >
+              <AlertDialogTrigger asChild>
+                <ActionButton
+                  hasAccess={hasAccess}
+                  size="sm"
+                  onClick={() => {
+                    setSelectedExportId(id);
+                    setCancelDialogOpen(true);
+                  }}
+                >
+                  Cancel
+                </ActionButton>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel batch export?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to cancel this batch export? This
+                    action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>No, keep it</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      cancelBatchExport.mutate({
+                        projectId: props.projectId,
+                        batchExportId: id,
+                      });
+                    }}
+                  >
+                    Yes, cancel export
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          );
         }
         return null;
       },
@@ -190,78 +256,6 @@ export function BatchExportsTable(props: { projectId: string }) {
             </Avatar>
             <span>{user?.name ?? "Unknown"}</span>
           </div>
-        );
-      },
-    },
-    {
-      accessorKey: "log",
-      id: "log",
-      header: "Log",
-      size: 300,
-      cell: (row) => {
-        const log = row.getValue() as string | null;
-        return log ?? null;
-      },
-    },
-    {
-      accessorKey: "actions",
-      id: "actions",
-      header: "Actions",
-      size: 100,
-      cell: ({ row }) => {
-        const id = row.original.id;
-        const status = row.getValue("status") as string;
-
-        // Only show cancel button for queued or processing exports
-        if (status !== "QUEUED" && status !== "PROCESSING") {
-          return null;
-        }
-
-        return (
-          <AlertDialog
-            open={cancelDialogOpen && selectedExportId === id}
-            onOpenChange={(open) => {
-              if (!open) {
-                setCancelDialogOpen(false);
-                setSelectedExportId(null);
-              }
-            }}
-          >
-            <AlertDialogTrigger asChild>
-              <ActionButton
-                hasAccess={hasAccess}
-                size="sm"
-                onClick={() => {
-                  setSelectedExportId(id);
-                  setCancelDialogOpen(true);
-                }}
-              >
-                Cancel
-              </ActionButton>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Cancel batch export?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to cancel this batch export? This action
-                  cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>No, keep it</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    cancelBatchExport.mutate({
-                      projectId: props.projectId,
-                      batchExportId: id,
-                    });
-                  }}
-                >
-                  Yes, cancel export
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         );
       },
     },
