@@ -415,6 +415,8 @@ export default function ObservationsEventsTable({
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
+      // Invalidate filterOptions too so the "Total ≈ X" count refreshes on the auto tick (re-anchors facets as a side effect).
+      utils.events.filterOptions.invalidate(),
       utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
@@ -432,8 +434,7 @@ export default function ObservationsEventsTable({
     ]);
   }, [utils]);
 
-  // Auto-refresh runs the tick-safe set (rows + chart), NOT the facet
-  // re-anchor — otherwise every tick re-issues facet queries for open columns.
+  // Auto-refresh runs handleAutoRefresh (rows + chart + the "Total ≈ X" filter-options scan).
   useEffect(() => {
     if (!refreshInterval) return;
     const id = setInterval(() => {
@@ -615,6 +616,9 @@ export default function ObservationsEventsTable({
   const {
     filterOptions,
     isFilterOptionsPending,
+    approxTotalCount,
+    isApproxTotalCountLoading,
+    approxTotalCountIsPartialScope,
     erroredColumns,
     loadingColumns,
     requestColumns,
@@ -622,8 +626,15 @@ export default function ObservationsEventsTable({
     projectId,
     startTimeFilter: facetStartTimeFilter,
     refiningFilter: facetRefiningFilter,
+    // "Total ≈ X" rides the facet scan (uniq(span_id) over facetRefiningFilter); skip for embedded/preview tables.
+    includeApproxCount: !limitRows,
     lazy: true,
   });
+
+  // Partial scope (over-counts) when the server dropped filters (input/output/comment) or a full-text search is active.
+  const approxTotalCountIsPartial =
+    approxTotalCountIsPartialScope ||
+    Boolean(searchQuery && searchQuery.trim().length > 0);
 
   const queryFilter = useSidebarFilterPresentation(
     filterCore,
@@ -770,15 +781,7 @@ export default function ObservationsEventsTable({
   // rest as "not applied" (see chartFilterExclusions below).
   const chartEnabled = !hideControls && !userId && !sessionId;
 
-  // The outlier strip additionally hides on prompt-version-scoped tables:
-  // `promptVersion` is a page-scope prop the aggregate query cannot express
-  // (number filter, not a forwardable dimension), and unlike sidebar facets it
-  // has no "not applied" affordance — the strip would silently aggregate
-  // across ALL versions while the table shows one. (`promptName` forwards.)
-  // External state pins also disqualify it: the strip's drill-in writes the
-  // URL range, which a table on externalDateRange would ignore — chart and
-  // table would silently diverge. (No current surface combines these with
-  // chartEnabled; this encodes the invariant for future mounts.)
+  // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =
     chartEnabled &&
     promptVersion === undefined &&
@@ -932,6 +935,8 @@ export default function ObservationsEventsTable({
     onSettled: () => {
       utils.events.all.invalidate();
       utils.events.countAll.invalidate();
+      // Refresh filterOptions so the "Total ≈ X" count updates after a delete.
+      utils.events.filterOptions.invalidate();
       utils.traces.all.invalidate();
     },
   });
@@ -2298,6 +2303,11 @@ export default function ObservationsEventsTable({
                         hasNextPage: hasMore,
                         hideTotalCount: true,
                         canJumpPages: false,
+                        // Approx observation count ("Total ≈ X"), rides the filter-options scan (async).
+                        approxTotalCount,
+                        isApproxTotalCountLoading,
+                        approxTotalCountIsPartialScope:
+                          approxTotalCountIsPartial,
                         onChange: (updater) => {
                           const newState =
                             typeof updater === "function"

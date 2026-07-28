@@ -117,6 +117,13 @@ type UseEventsFilterOptionsParams = {
    *  that scopes the row query; each facet self-excludes its own column via the
    *  query plan. Start-time conditions are re-routed into `startTimeFilter`. */
   refiningFilter?: FilterState;
+  /**
+   * When true, the eager bulk query also returns `approxTotalCount` — the
+   * approximate observation count matching the refined filter, via `uniq(span_id)`
+   * riding the SAME bulk facet scan (its WHERE already applies `refiningFilter`
+   * post-LFE-14489). Set only on the count-bearing table, not per-column.
+   */
+  includeApproxCount?: boolean;
   isRootObservation?: boolean;
   /** Explicit column subset (non-lazy; ignored when `lazy`). Omit to request
    *  all — request-all cannot self-exclude, so only valid unfiltered. */
@@ -136,6 +143,7 @@ export function useEventsFilterOptions({
   projectId,
   startTimeFilter,
   refiningFilter = EMPTY_FILTER_STATE,
+  includeApproxCount = false,
   isRootObservation,
   columns,
   lazy = false,
@@ -212,12 +220,15 @@ export function useEventsFilterOptions({
     [splitFilter.refiningFilter, lazy, columns, lazyColumns],
   );
 
-  // Eager bulk query: one ClickHouse scan for the plan's shared columns.
+  // Eager bulk query: one ClickHouse scan for the plan's shared columns. Only
+  // this query carries includeApproxCount, so the approximate total ("Total ≈
+  // X") is computed once here (riding this scan), not per lazy per-column facet.
   const eagerQuery = api.events.filterOptions.useQuery(
     {
       ...baseInput,
       filter: plan.bulk.filter,
       columns: plan.bulk.columns,
+      includeApproxCount,
     },
     {
       trpc: { context: { skipBatch: true } },
@@ -232,7 +243,12 @@ export function useEventsFilterOptions({
   const perColumnPlan = plan.perColumn;
   const combineLazy = useCallback(
     (results: readonly LazyFilterOptionResult[]) => {
-      const data: FilterOptionsData = {};
+      // approxTotalCount / partial-scope are read from the eager query only;
+      // lazy responses carry defaults and this accumulator never surfaces them.
+      const data: FilterOptionsData = {
+        approxTotalCount: null,
+        approxTotalCountIsPartial: false,
+      };
       const pendingColumns: string[] = [];
       const erroredColumns: string[] = [];
       results.forEach((r, i) => {
@@ -384,9 +400,29 @@ export function useEventsFilterOptions({
     return errored;
   }, [lazyErroredColumns, isEagerError, bulkColumns]);
 
+  // Approximate total observation count ("Total ≈ X"). Read from the eager
+  // query only — lazy per-column responses omit the count and must not clobber
+  // it. `null` until the first bulk response resolves.
+  const approxTotalCount = eagerQuery.data?.approxTotalCount ?? null;
+  const isApproxTotalCountLoading =
+    includeApproxCount && approxTotalCount === null && eagerQuery.isFetching;
+  // The bulk scan honours the refining filter (incl. scores) but the server
+  // omits input/output/comment filters, so the count over-counts when one is
+  // active. Full-text search isn't part of this query — callers OR in their
+  // own searchQuery signal.
+  const approxTotalCountIsPartialScope =
+    eagerQuery.data?.approxTotalCountIsPartial ?? false;
+
   return {
     filterOptions: newFilterOptions,
     isFilterOptionsPending: eagerQuery.isPending,
+    /** Approximate total observation count matching the refined filter, or null. */
+    approxTotalCount,
+    /** True while the first approximate-count value is still loading. */
+    isApproxTotalCountLoading,
+    /** True when the count omitted input/output/comment filters and therefore
+     *  over-counts. Does NOT include full-text search. */
+    approxTotalCountIsPartialScope,
     /** Columns whose fetch terminally errored (per column). Consumers settle these
      *  to the empty state; other columns keep loading normally. */
     erroredColumns,

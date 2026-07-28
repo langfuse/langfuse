@@ -20,6 +20,7 @@ import {
   getScoresForTraces,
   logger,
   traceException,
+  EVENTS_APPROX_TOTAL_COUNT_MARKER,
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
@@ -106,6 +107,15 @@ interface GetEventFilterOptionsParams extends GetObservationsFilterOptionsParams
    * that scan for filter options is prohibitively expensive.
    */
   filter?: FilterState;
+  /**
+   * When true, the bulk facet query also returns the approximate total
+   * observation count matching `filter` (`uniq(span_id)` over the same facet
+   * scan) for the traces-table footer "Total ≈ X". The scan honors `filter`
+   * (incl. score filters) but not input/output/comment (dropped upstream, so
+   * `omitCounts` → the count is flagged partial) nor full-text search. Set only
+   * on the eager bulk request so the count is computed once.
+   */
+  includeApproxCount?: boolean;
 }
 
 type EventFilterValueOption = {
@@ -707,6 +717,10 @@ export async function getEventFilterOptions(
           projectId,
           filter: refinedEventsFilter,
           columns: eventColumns,
+          // Only the eager bulk request sets includeApproxCount, so the
+          // approximate total is computed once (riding this scan), not per lazy
+          // facet. uniq(span_id) over this scan already honors refinedEventsFilter.
+          includeApproxCount: scopedParams.includeApproxCount,
         })
       : Promise.resolve([]),
   ]);
@@ -725,6 +739,22 @@ export async function getEventFilterOptions(
     eventColumns,
     omitCounts,
   );
+
+  // Approximate total observation count for the footer "Total ≈ X": the bulk
+  // facet query returns it as a sentinel row (only when includeApproxCount was
+  // set — i.e. the eager request). `null` when not requested.
+  const approxTotalCountRow = eventFilterOptions.find(
+    (row) => (row.column as string) === EVENTS_APPROX_TOTAL_COUNT_MARKER,
+  );
+  const approxTotalCount = approxTotalCountRow
+    ? Number(approxTotalCountRow.count)
+    : null;
+  // Partial scope: the facet scan omits input/output/comment filters
+  // (`omitCounts`), so the count over-counts vs the visible rows — the UI marks
+  // it and drops the "within a few percent" claim. Score filters ARE honored
+  // by the scan. (Full-text search isn't part of this query, so the client ORs
+  // in its own searchQuery signal.)
+  const approxTotalCountIsPartial = approxTotalCount !== null && omitCounts;
 
   // name → the level(s) the name actually exists at, SPLIT PER DATA-TYPE
   // class: a name can be reused across types at different levels (a NUMERIC
@@ -763,6 +793,13 @@ export async function getEventFilterOptions(
   // column only offers names its filter can match (LFE-10596).
   return {
     ...eventFilterOptionsByColumn,
+    // Approximate total observation count for the footer "Total ≈ X". Included
+    // ONLY when requested (the eager bulk query), so callers that didn't ask —
+    // lazy per-column facet requests, the sidebar/search-bar option loaders —
+    // don't carry stray count keys (mirrors the conditional score keys below).
+    ...(scopedParams.includeApproxCount
+      ? { approxTotalCount, approxTotalCountIsPartial }
+      : {}),
     ...(shouldLoadScoresAvg
       ? { scores_avg: numericScoreNames.map((score) => score.name) }
       : {}),

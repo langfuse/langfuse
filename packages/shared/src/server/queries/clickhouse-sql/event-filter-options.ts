@@ -12,6 +12,10 @@ import { buildEventsObservationRowSelection } from "./events-observation-row-sel
 import { createFilterFromFilterState } from "./factory";
 
 export const EVENTS_FILTER_OPTION_TOP_N = 1000;
+
+// Sentinel "column" carrying the approx total observation count in the facet result.
+export const EVENTS_APPROX_TOTAL_COUNT_MARKER = "__approxTotalCount__";
+
 const EVENTS_FILTER_OPTION_TOP_K_MAX_N = 65_536;
 
 type EventFilterOptionSort = "countDesc" | "alpha" | "booleanAsc";
@@ -358,6 +362,8 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   columns: readonly EventFilterOptionColumn[];
   limit: number;
   scope?: EventFilterOptionScope;
+  // approx total = uniq(span_id) over the bulk scan's full-filter WHERE; re-verify if the scan ever drops predicates
+  includeApproxCount?: boolean;
 }): { query: string; params: Record<string, unknown> } | null => {
   const columns = uniqueEventFilterOptionColumns(params.columns);
   if (columns.length === 0 || params.limit <= 0) {
@@ -371,8 +377,11 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
       filter: params.filter,
     });
 
+  const includeApproxTotal = params.includeApproxCount === true;
+
   aggregatedOptionsBuilder.selectRaw(
     ...columns.map(optionTopKSelectExpression),
+    ...(includeApproxTotal ? ["uniq(e.span_id) AS approx_total_count"] : []),
   );
 
   if (params.scope) {
@@ -384,6 +393,11 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   const { query: aggregatedOptionsQuery, params: aggregatedOptionsParams } =
     aggregatedOptionsBuilder.buildWithParams();
 
+  // Approx total rides one extra sentinel row so the result shape stays {column, value, count}.
+  const approxTotalCountRow = includeApproxTotal
+    ? `,\n      [tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0))]`
+    : "";
+
   const query = `
 WITH aggregated_options AS (
 ${aggregatedOptionsQuery}
@@ -391,7 +405,7 @@ ${aggregatedOptionsQuery}
 option_rows AS (
   SELECT
     arrayJoin(arrayConcat(
-      ${columns.map(optionRowsArrayExpression).join(",\n      ")}
+      ${columns.map(optionRowsArrayExpression).join(",\n      ")}${approxTotalCountRow}
     )) AS option
   FROM aggregated_options
 )
