@@ -1,5 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   DataTableControlsProvider,
   DataTableControls,
@@ -489,6 +490,7 @@ export default function ObservationsEventsTable({
     "events-outlier-strip-closed",
     null,
   );
+  const capture = usePostHogClientCapture();
   // Drill-in writes the clicked bucket as an absolute range. URL-only
   // (pushIn → browser Back restores the outer window) and deliberately NOT
   // persisted as the project's default range — a transient zoom must not
@@ -1095,13 +1097,17 @@ export default function ObservationsEventsTable({
   const pulseClosed = pulseClosedStored ?? isMobile;
   // One reopen affordance for both surfaces: the desktop toolbar slot (left of
   // Columns) and the mobile header band — mobile defaults to closed, so
-  // without this the strip would be unreachable there.
-  const pulseReopenButton =
+  // without this the strip would be unreachable there. `surface` feeds
+  // analytics only.
+  const pulseReopenButton = (surface: "toolbar" | "mobile_header") =>
     outlierStripEnabled && chartViewMode !== "chart" && pulseClosed ? (
       <Button
         variant="outline"
         size="sm"
-        onClick={() => setPulseClosed(false)}
+        onClick={() => {
+          capture("pulse:reopened", { surface, isV4: true });
+          setPulseClosed(false);
+        }}
         className="h-8 gap-1.5 text-xs"
       >
         <ChartNoAxesColumn className="h-3.5 w-3.5" />
@@ -2011,7 +2017,7 @@ export default function ObservationsEventsTable({
                 onModeChange={setChartViewMode}
               />
             )}
-            {pulseReopenButton}
+            {pulseReopenButton("mobile_header")}
           </div>
         )}
         {!hideControls && !isMobile && (
@@ -2094,7 +2100,7 @@ export default function ObservationsEventsTable({
               setRowHeight={setRowHeight}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-              preColumnsSlot={pulseReopenButton ?? undefined}
+              preColumnsSlot={pulseReopenButton("toolbar") ?? undefined}
               viewModeToggle={
                 chartEnabled ? (
                   <ViewModeToggle

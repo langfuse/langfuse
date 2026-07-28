@@ -32,6 +32,12 @@ const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
 /** Pointer travel before a press becomes a range-drag instead of a click. */
 const DRAG_THRESHOLD_PX = 5;
 
+/** Which gesture drove a drill-in — carried to the caller for analytics. */
+export type OutlierStripDrillTrigger =
+  | "bucket_click"
+  | "drag_span"
+  | "touch_explore";
+
 export type OutlierBarStripProps = {
   dense: OutlierStripDenseBin[];
   /** Max metric value across buckets (0 = no data anywhere). */
@@ -54,7 +60,13 @@ export type OutlierBarStripProps = {
   showActivityTicks?: boolean;
   /** Sparse time labels under the gridline ticks. */
   showTimeLabels?: boolean;
-  onSelectBucket?: (range: { fromMs: number; toMs: number }) => void;
+  onSelectBucket?: (
+    range: { fromMs: number; toMs: number },
+    meta: { trigger: OutlierStripDrillTrigger },
+  ) => void;
+  /** Touch preview pinned (tap or drag release) — the analytics seam for the
+   *  preview → explore funnel; never fired for mouse interactions. */
+  onPreviewPinned?: (trigger: "tap" | "drag") => void;
   /** Transient drag selection (ms range), shared across sibling charts so a
    *  drag on one strip highlights on all (LF-34, Grafana-style). */
   selection?: { fromMs: number; toMs: number } | null;
@@ -76,6 +88,7 @@ export function OutlierBarStrip({
   showActivityTicks = true,
   showTimeLabels = true,
   onSelectBucket,
+  onPreviewPinned,
   selection = null,
   onSelectionChange,
   className,
@@ -364,12 +377,13 @@ export function OutlierBarStrip({
                 anchorY: rect.top,
                 windowKey,
               });
+              onPreviewPinned?.("drag");
               return;
             }
             // Mouse, Grafana-style: apply the dragged span to the range.
             onSelectionChange?.(null);
             setTouchPreview(null);
-            onSelectBucket?.(range);
+            onSelectBucket?.(range, { trigger: "drag_span" });
             return;
           }
           const index = Math.floor(x / slotPx);
@@ -390,16 +404,20 @@ export function OutlierBarStrip({
             });
             setHoverIndex(index);
             setMouse(null);
+            onPreviewPinned?.("tap");
             return;
           }
           // Mouse click without movement drills into the bucket. Mirror the
           // tooltip's guard — a truly empty bucket would just drill the table
           // into a zero-row window.
           if ((bin.count > 0 || bin.value !== null) && onSelectBucket) {
-            onSelectBucket({
-              fromMs: bin.bucketStartMs,
-              toMs: bin.bucketStartMs + stepMs,
-            });
+            onSelectBucket(
+              {
+                fromMs: bin.bucketStartMs,
+                toMs: bin.bucketStartMs + stepMs,
+              },
+              { trigger: "bucket_click" },
+            );
           }
         }}
         onPointerCancel={() => {
@@ -562,7 +580,7 @@ export function OutlierBarStrip({
                   setTouchPreview(null);
                   setHoverIndex(null);
                   onSelectionChange?.(null);
-                  onSelectBucket?.(range);
+                  onSelectBucket?.(range, { trigger: "touch_explore" });
                 }}
               >
                 Explore this window
