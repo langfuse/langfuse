@@ -413,8 +413,9 @@ export function V4MigrationDetailsContent({
           <V4PreviewToggleRow projectId={projectId} />
         </div>
         <p className="text-muted-foreground text-sm">
-          Switch between V3 and V4 while you review. The toggle goes away soon,
-          when v4 becomes the default for every project.
+          The latest SDK no longer sets trace input and output; v4 infers them
+          from observations. Use this toggle to compare both views while you
+          upgrade.
         </p>
       </div>
 
