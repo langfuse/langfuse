@@ -51,6 +51,8 @@ const OTEL_V4_MIGRATION_URL =
   "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4";
 const DEPRECATED_API_MIGRATION_URL =
   "https://langfuse.com/faq/all/deprecated-api-migration";
+const OBSERVATIONS_FAQ_URL =
+  "https://langfuse.com/faq/all/explore-observations-in-v4";
 const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
   PostHog:
     "https://langfuse.com/integrations/analytics/posthog#migrate-export-source",
@@ -413,9 +415,14 @@ export function V4MigrationDetailsContent({
           <V4PreviewToggleRow projectId={projectId} />
         </div>
         <p className="text-muted-foreground text-sm">
-          The latest SDK no longer sets trace input and output; v4 infers them
-          from observations. Use this toggle to compare both views while you
-          upgrade.
+          The latest SDK no longer sets trace input and output; v4{" "}
+          <ExternalLink
+            href={OBSERVATIONS_FAQ_URL}
+            className="text-inherit underline"
+          >
+            infers them from observations
+          </ExternalLink>
+          . Use this toggle to compare both views while you upgrade.
         </p>
       </div>
 
