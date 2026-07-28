@@ -1,11 +1,8 @@
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
+import { DeleteDatasetDialog } from "@/src/features/datasets/components/DeleteDatasetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
 import { LockIcon, Trash } from "lucide-react";
 import { forwardRef, useState } from "react";
 
@@ -25,13 +22,10 @@ export const DeleteDatasetButton = forwardRef<
 >((props, ref) => {
   const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
-  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
   });
-  const utils = api.useUtils();
-  const deleteMutation = api.datasets.deleteDataset.useMutation();
 
   const actionButton = props.icon ? (
     <IconOnlyButton
@@ -79,50 +73,21 @@ export const DeleteDatasetButton = forwardRef<
     </Button>
   );
 
-  const handleDelete = async () => {
-    capture("datasets:delete_form_submit");
-    try {
-      await deleteMutation.mutateAsync({
-        projectId: props.projectId,
-        datasetId: props.datasetId,
-      });
-      utils.datasets.invalidate();
-      setDeleteConfirmationInput("");
-      setOpen(false);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
   return (
     <>
       {props.icon ? actionButton : null}
-      <ConfirmDialog
+      <DeleteDatasetDialog
+        projectId={props.projectId}
+        datasetId={props.datasetId}
+        datasetName={props.datasetName}
         open={hasAccess && open}
-        onOpenChange={(isOpen) => {
-          setOpen(isOpen);
-          if (!isOpen) setDeleteConfirmationInput("");
-        }}
-        trigger={props.icon ? undefined : actionButton}
-        size="lg"
-        title="Please confirm"
-        description="This action cannot be undone and removes all the data associated with this dataset."
-        confirmLabel="Delete dataset"
-        confirmDisabled={deleteConfirmationInput !== props.datasetName}
-        loading={deleteMutation.isPending}
-        onConfirm={handleDelete}
-      >
-        <div className="grid w-full gap-1.5">
-          <Label htmlFor="delete-confirmation">
-            Type &quot;{props.datasetName}&quot; to confirm deletion
-          </Label>
-          <Input
-            id="delete-confirmation"
-            value={deleteConfirmationInput}
-            onChange={(event) => setDeleteConfirmationInput(event.target.value)}
-          />
-        </div>
-      </ConfirmDialog>
+        onOpenChange={setOpen}
+        trigger={
+          props.icon
+            ? { type: "external" }
+            : { type: "dialog", element: actionButton }
+        }
+      />
     </>
   );
 });
