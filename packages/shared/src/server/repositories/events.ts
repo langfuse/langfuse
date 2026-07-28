@@ -2029,7 +2029,7 @@ const queryEventsFilterOptionsForColumns = async (params: {
   columns: readonly EventFilterOptionColumn[];
   limit: number;
   scope?: EventFilterOptionScope;
-  countFilter?: FilterState;
+  includeApproxCount?: boolean;
 }) => {
   const queryWithParams = buildEventsFilterOptionsForColumnsQuery({
     projectId: params.projectId,
@@ -2037,7 +2037,7 @@ const queryEventsFilterOptionsForColumns = async (params: {
     columns: params.columns,
     limit: params.limit,
     scope: params.scope,
-    countFilter: params.countFilter,
+    includeApproxCount: params.includeApproxCount,
   });
 
   if (!queryWithParams) {
@@ -2077,7 +2077,7 @@ export const getEventsFilterOptionsForColumns = async (params: {
   columns: readonly EventFilterOptionColumn[];
   topN?: number;
   scope?: EventFilterOptionScope;
-  countFilter?: FilterState;
+  includeApproxCount?: boolean;
 }) =>
   queryEventsFilterOptionsForColumns({
     ...params,

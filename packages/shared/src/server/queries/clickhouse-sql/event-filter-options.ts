@@ -8,10 +8,7 @@ import type { FilterState } from "../../../types";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import { FilterList } from "./clickhouse-filter";
 import { EventsAggQueryBuilder } from "./event-query-builder";
-import {
-  buildEventsObservationRowSelection,
-  groupEventsObservationFilters,
-} from "./events-observation-row-selection";
+import { buildEventsObservationRowSelection } from "./events-observation-row-selection";
 import { createFilterFromFilterState } from "./factory";
 
 export const EVENTS_FILTER_OPTION_TOP_N = 1000;
@@ -21,15 +18,6 @@ export const EVENTS_FILTER_OPTION_TOP_N = 1000;
 // scan so the traces-table footer "Total ≈ X" needs no extra ClickHouse scan.
 export const EVENTS_APPROX_TOTAL_COUNT_MARKER = "__approxTotalCount__";
 
-// Native (`e.*`) filter columns that still can't be inlined into the approx-
-// count predicate: events_core stores input/output truncated, so filtering on
-// them requires events_full. Dropping them flags the count "partial".
-const NON_INLINEABLE_EVENT_FILTER_COLUMNS = new Set<string>([
-  "input",
-  "output",
-  "Input",
-  "Output",
-]);
 const EVENTS_FILTER_OPTION_TOP_K_MAX_N = 65_536;
 
 type EventFilterOptionSort = "countDesc" | "alpha" | "booleanAsc";
@@ -371,33 +359,24 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   limit: number;
   scope?: EventFilterOptionScope;
   /**
-   * When provided, the query also returns the approximate total observation
-   * count matching this filter (the row query's active filters + time range),
-   * as a single `uniqIf(span_id, …)` riding the SAME facet scan — no extra
-   * ClickHouse scan. Surfaced as a sentinel row (see
-   * `EVENTS_APPROX_TOTAL_COUNT_MARKER`); its `value` is `"partial"` when
-   * non-native filters were dropped (see below), else `""`.
+   * When true, the query also returns the approximate total observation count
+   * matching `filter`, as a single `uniq(span_id)` riding the SAME bulk facet
+   * scan — no extra ClickHouse scan. Surfaced as a sentinel row (see
+   * `EVENTS_APPROX_TOTAL_COUNT_MARKER`).
    *
-   * Only native `e.*`-column filters are inlined into the `uniqIf` predicate.
-   * Score and comment filters need joins/Postgres, and input/output filters
-   * need `events_full`, so they are dropped from the predicate — the count
-   * then over-counts vs the row query (flagged `"partial"` so the UI can label
-   * it and drop the "within a few percent" claim).
-   *
-   * Correctness of the `uniqIf` count depends on the facet scan's WHERE being a
-   * superset of the count predicate. TODAY that holds trivially: the caller
-   * passes no column `filter`, so the scan's WHERE is project + time range only
-   * (see the caller in eventsService — the FE sends `startTimeFilter`, not
-   * `filter`). Every native count predicate is therefore a narrowing of that
-   * scan, so `uniqIf` equals `uniq` over the native filter.
-   *
-   * WARNING: if a future change (e.g. the in-flight facet self-refinement,
-   * LFE-14489 / #15466) makes this scan apply active COLUMN filters to its
-   * WHERE, the superset invariant must be re-verified. It still holds if the
-   * scan only ever self-excludes (drops) predicates; but if it adds a predicate
-   * the count does not, `uniqIf` can UNDERCOUNT — re-check before relying on it.
+   * Correctness: `uniq(span_id)` counts exactly the rows the bulk scan matches,
+   * i.e. the scan's own WHERE = `filter`. Post-LFE-14489 (#15466) the caller
+   * passes the row query's refining filter here (previously it passed none, so
+   * the scan was project + time only), and per-facet self-exclusion drops
+   * columns from the bulk COLUMN LIST — never predicates from the WHERE (see
+   * `planEventFacetQueries`: `bulk.filter` is the full refiningFilter). So the
+   * count reflects the full refined filter, with no predicate/scan divergence
+   * to under- or over-count. `filter` here excludes input/output/comment
+   * (dropped upstream in `partitionEventFilterOptionsFilter`) and full-text
+   * search, so the count over-counts when those are active — the service flags
+   * that (`omitCounts`) and the UI labels it + drops the accuracy claim.
    */
-  countFilter?: FilterState;
+  includeApproxCount?: boolean;
 }): { query: string; params: Record<string, unknown> } | null => {
   const columns = uniqueEventFilterOptionColumns(params.columns);
   if (columns.length === 0 || params.limit <= 0) {
@@ -411,37 +390,13 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
       filter: params.filter,
     });
 
-  const includeApproxTotal = params.countFilter !== undefined;
-  // Split the count filter: only native `e.*` columns can be inlined into the
-  // predicate. Score/comment filters (their own groups) plus input/output
-  // (events_core stores those truncated — they need events_full) are dropped;
-  // when anything is dropped, the count over-counts and is flagged "partial".
-  const countGroups = groupEventsObservationFilters(params.countFilter ?? []);
-  const inlineableCountFilters = countGroups.events.filter(
-    (f) => !NON_INLINEABLE_EVENT_FILTER_COLUMNS.has(f.column),
-  );
-  const droppedNonNativeCount =
-    countGroups.comments.length +
-    countGroups.observationScores.length +
-    countGroups.traceScores.length +
-    (countGroups.events.length - inlineableCountFilters.length);
-  const countScopeIsPartial = includeApproxTotal && droppedNonNativeCount > 0;
-  const countPredicate = includeApproxTotal
-    ? new FilterList(
-        createFilterFromFilterState(
-          inlineableCountFilters,
-          eventsTableUiColumnDefinitions,
-          eventsTableCols,
-        ),
-      ).apply()
-    : { query: "", params: {} as Record<string, unknown> };
-  const approxTotalCountSelect = countPredicate.query
-    ? `uniqIf(e.span_id, (${countPredicate.query})) AS approx_total_count`
-    : `uniq(e.span_id) AS approx_total_count`;
+  const includeApproxTotal = params.includeApproxCount === true;
 
   aggregatedOptionsBuilder.selectRaw(
     ...columns.map(optionTopKSelectExpression),
-    ...(includeApproxTotal ? [approxTotalCountSelect] : []),
+    ...(includeApproxTotal
+      ? ["uniq(e.span_id) AS approx_total_count"]
+      : []),
   );
 
   if (params.scope) {
@@ -455,10 +410,9 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
 
   // The approximate total is emitted as one extra sentinel row, so the result
   // shape stays `{column, value, count}` and callers pick it out by column.
-  // `value` carries the partial-scope flag ("partial" when non-native filters
-  // were dropped from the predicate, else "").
+  // (Partial-scope is derived by the service from `omitCounts`, not here.)
   const approxTotalCountRow = includeApproxTotal
-    ? `,\n      [tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '${countScopeIsPartial ? "partial" : ""}', toUInt64(approx_total_count), toInt64(0))]`
+    ? `,\n      [tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0))]`
     : "";
 
   const query = `
@@ -484,7 +438,6 @@ ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
     query,
     params: {
       ...aggregatedOptionsParams,
-      ...(includeApproxTotal ? countPredicate.params : {}),
       optionLimit,
     },
   };
