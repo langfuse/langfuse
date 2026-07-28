@@ -180,6 +180,10 @@ export const events = {
     "widget_json_downloaded",
     "widget_copied_to_clipboard",
     "widget_view_as_table",
+    // A breakdown chart's Y-axis category label tooltip (LFE-10962):
+    // following its "View filtered table" link. Copying is unaided plain-text
+    // selection now, not a tracked action.
+    "widget_breakdown_label_view_as_table",
     "widget_pasted",
     "widget_paste_rejected",
     "widget_duplicated",

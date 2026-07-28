@@ -4,6 +4,7 @@ import {
   tracesTableCols,
 } from "@langfuse/shared";
 import {
+  buildCategoryTableHrefs,
   buildTableFilterHref,
   buildViewAsTableHint,
 } from "./buildTableFilterHref";
@@ -202,6 +203,211 @@ describe("buildTableFilterHref", () => {
     // the small, high-value filter is retained
     const decoded = decodeHrefFilters(href);
     expect(decoded.map((f) => f.column)).toEqual(["userId"]);
+  });
+
+  describe("categoryFilter (breakdown-label drill-in)", () => {
+    it("pins a string-column category (e.g. userId) with an exact-match filter", () => {
+      const { href, categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        [],
+        DATE_RANGE,
+        { column: "userId", value: "u-42" },
+      );
+
+      expect(categoryFilterApplied).toBe(true);
+      const decoded = decodeHrefFilters(href);
+      expect(decoded).toEqual([
+        { column: "userId", type: "string", operator: "=", value: "u-42" },
+      ]);
+    });
+
+    it("pins a stringOptions-column category (e.g. model) with an 'any of' filter", () => {
+      const { href, categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "observations",
+        [],
+        DATE_RANGE,
+        { column: "providedModelName", value: "gpt-4" },
+      );
+
+      expect(categoryFilterApplied).toBe(true);
+      const decoded = decodeHrefFilters(href);
+      expect(decoded).toEqual([
+        {
+          column: "model",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["gpt-4"],
+        },
+      ]);
+    });
+
+    it("pins an arrayOptions-column category (e.g. tags) with an array-membership filter", () => {
+      const { href, categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        [],
+        DATE_RANGE,
+        { column: "tags", value: "prod" },
+      );
+
+      expect(categoryFilterApplied).toBe(true);
+      const decoded = decodeHrefFilters(href);
+      expect(decoded).toEqual([
+        {
+          column: "traceTags",
+          type: "arrayOptions",
+          operator: "any of",
+          value: ["prod"],
+        },
+      ]);
+    });
+
+    it("adds the category filter alongside the widget's own filters", () => {
+      const uiFilters: FilterState = [
+        { column: "user", type: "string", operator: "=", value: "u-1" },
+      ];
+      const { href } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        uiFilters,
+        DATE_RANGE,
+        { column: "environment", value: "production" },
+      );
+
+      const decoded = decodeHrefFilters(href);
+      expect(decoded.map((f) => f.column)).toEqual(["userId", "environment"]);
+      expect(decoded[1]).toMatchObject({
+        column: "environment",
+        operator: "any of",
+        value: ["production"],
+      });
+    });
+
+    it("reports categoryFilterApplied=false and omits the filter for a column type it can't express (e.g. metadata)", () => {
+      const { href, categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        [],
+        DATE_RANGE,
+        { column: "metadata", value: "some-key-value" },
+      );
+
+      expect(categoryFilterApplied).toBe(false);
+      const decoded = decodeHrefFilters(href);
+      expect(decoded).toHaveLength(0);
+    });
+
+    it("reports categoryFilterApplied=true and is a no-op when no categoryFilter is passed", () => {
+      const { categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        [],
+        DATE_RANGE,
+      );
+      expect(categoryFilterApplied).toBe(true);
+    });
+
+    it("reports categoryFilterApplied=false when the dimension is unknown on the view", () => {
+      const { href, categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        [],
+        DATE_RANGE,
+        { column: "totallyMadeUpDimension", value: "x" },
+      );
+
+      expect(categoryFilterApplied).toBe(false);
+      expect(decodeHrefFilters(href)).toHaveLength(0);
+    });
+  });
+});
+
+describe("buildCategoryTableHrefs", () => {
+  // Regression (LFE-10962 review fix): the null/empty breakdown bucket is
+  // rendered as the sentinel string "n/a" (DashboardWidget's
+  // MISSING_DIMENSION_LABEL) — it must never get a drill-in href, or a
+  // by-user-ID breakdown's null bucket (often the largest bar) would link to
+  // a table filtered on the literal string "n/a" instead of the real rows.
+  it("omits the excludeValues sentinel bucket while a real value still gets an href", () => {
+    const hrefs = buildCategoryTableHrefs(
+      "proj-1",
+      "traces",
+      [],
+      DATE_RANGE,
+      "userId",
+      ["u-42", "n/a", "u-42", undefined],
+      new Set(["n/a"]),
+    );
+
+    expect(hrefs.has("n/a")).toBe(false);
+    expect(hrefs.has("u-42")).toBe(true);
+    expect(hrefs.get("u-42")).toMatch(/^\/project\/proj-1\/traces\?/);
+    // deduped: one entry per unique real value
+    expect(hrefs.size).toBe(1);
+  });
+
+  it("still links a value equal to the sentinel string when no excludeValues is passed", () => {
+    const hrefs = buildCategoryTableHrefs(
+      "proj-1",
+      "traces",
+      [],
+      DATE_RANGE,
+      "userId",
+      ["n/a"],
+    );
+
+    expect(hrefs.has("n/a")).toBe(true);
+  });
+
+  // Regression (LFE-10962 review fix): a multi-value ARRAY dimension with no
+  // `explodeArray` (e.g. traces `tags`) groups by the WHOLE array. The chart
+  // label joins it into one display string ("prod, urgent"), but no trace's
+  // tags column literally equals that joined string — an "any of" filter on
+  // it would silently resolve to zero rows. A single-value/exploded bucket
+  // (plain string, not in excludeValues) still gets its href.
+  it("omits an array-joined bucket passed via excludeValues while a plain-string bucket still gets an href", () => {
+    const hrefs = buildCategoryTableHrefs(
+      "proj-1",
+      "traces",
+      [],
+      DATE_RANGE,
+      "tags",
+      ["prod, urgent", "prod"],
+      new Set(["prod, urgent"]),
+    );
+
+    expect(hrefs.has("prod, urgent")).toBe(false);
+    expect(hrefs.has("prod")).toBe(true);
+    expect(hrefs.get("prod")).toMatch(/^\/project\/proj-1\/traces\?/);
+  });
+
+  it("omits a value whose column type can't be expressed as a table filter", () => {
+    const hrefs = buildCategoryTableHrefs(
+      "proj-1",
+      "traces",
+      [],
+      DATE_RANGE,
+      "metadata",
+      ["some-key-value"],
+    );
+
+    expect(hrefs.size).toBe(0);
+  });
+
+  it("skips non-string dimension values", () => {
+    const hrefs = buildCategoryTableHrefs(
+      "proj-1",
+      "traces",
+      [],
+      DATE_RANGE,
+      "userId",
+      [null, undefined, 42, "u-1"],
+    );
+
+    expect(hrefs.size).toBe(1);
+    expect(hrefs.has("u-1")).toBe(true);
   });
 });
 
