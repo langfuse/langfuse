@@ -180,8 +180,11 @@ export function V4SidebarToggle() {
 }
 
 // Panel-row variant of the toggle, rendered inside the v4-migration panel's
-// "Want to review first?" section.
-export function V4PreviewToggleRow() {
+// "Want to review first?" section. Enabling jumps straight to the project's
+// traces page (the panel stays open across the navigation) so users see the
+// v4 experience immediately.
+export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
+  const router = useRouter();
   const {
     isBetaEnabled,
     canToggleV4,
@@ -196,9 +199,26 @@ export function V4PreviewToggleRow() {
     return null;
   }
 
+  const handlePanelToggle = (enabled: boolean) => {
+    handleToggle(enabled);
+    if (enabled && projectId) {
+      router.push(`/project/${projectId}/traces`);
+    }
+  };
+
   return (
     <>
       <div className="flex items-center gap-2">
+        <span className="shrink-0 text-sm">V3</span>
+        <Switch
+          id="v4-preview-panel-toggle"
+          size="sm"
+          checked={isBetaEnabled}
+          onCheckedChange={handlePanelToggle}
+          disabled={isLoading}
+          aria-label="Toggle V4 Preview"
+          aria-describedby="v4-preview-panel-description"
+        />
         <Label
           htmlFor="v4-preview-panel-toggle"
           className="block min-w-0 cursor-pointer truncate text-sm font-normal"
@@ -206,15 +226,6 @@ export function V4PreviewToggleRow() {
         >
           {V4_PREVIEW_LABEL}
         </Label>
-        <Switch
-          id="v4-preview-panel-toggle"
-          size="sm"
-          checked={isBetaEnabled}
-          onCheckedChange={handleToggle}
-          disabled={isLoading}
-          aria-label="Toggle V4 Preview"
-          aria-describedby="v4-preview-panel-description"
-        />
         <span id="v4-preview-panel-description" className="sr-only">
           {V4_PREVIEW_DESCRIPTION}
         </span>

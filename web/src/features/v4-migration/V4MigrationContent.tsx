@@ -283,8 +283,11 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
 // agent, the second click copies it.
 export function V4MigrationHeaderContent({
   projectName,
+  onNavigate,
 }: {
   projectName?: string;
+  /** Fires when an internal link is followed so the surface can close. */
+  onNavigate?: () => void;
 }) {
   const capture = usePostHogClientCapture();
   const handleCopyPrompt = useCopyMigrationPrompt();
@@ -297,20 +300,25 @@ export function V4MigrationHeaderContent({
 
   return (
     <>
-      <p className="mb-1.5 text-lg font-bold">
-        {projectName ? (
-          <>
-            Migrate <span className="underline">{projectName}</span> to v4
-          </>
-        ) : (
-          "Migrate to v4"
-        )}
-      </p>
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <p className="min-w-0 text-lg font-bold">
+          {projectName ? <>Migrate {projectName} to v4</> : "Migrate to v4"}
+        </p>
+        <Link
+          href="/v4-migration"
+          onClick={onNavigate}
+          className="shrink-0 text-sm underline"
+        >
+          Migration Status
+        </Link>
+      </div>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
-        <ExternalLink href={V4_DOCS_URL}>Langfuse v4</ExternalLink> is here:
-        real-time, up to 165× faster, plus new dashboards, alerting, sessions,
-        and trace view. This project still uses the previous setup, which stops
-        working soon.
+        <ExternalLink href={V4_DOCS_URL} className="text-inherit underline">
+          Langfuse v4
+        </ExternalLink>{" "}
+        is here: real-time, up to 165× faster, plus new dashboards, alerting,
+        sessions, and trace view. This project still uses the previous setup,
+        which stops working soon.
       </p>
       <div className="flex flex-col gap-2">
         {promptVisible && (
@@ -402,32 +410,30 @@ export function V4MigrationDetailsContent({
           <div className="flex items-center gap-2 text-base font-bold">
             <LibraryBig className="h-4 w-4" /> Want to review first?
           </div>
-          <V4PreviewToggleRow />
+          <V4PreviewToggleRow projectId={projectId} />
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" asChild className="min-w-0 flex-1">
-            <a href={V4_DOCS_URL} target="_blank" rel="noopener noreferrer">
-              <span className="min-w-0 truncate" title="Documentation">
-                Documentation
-              </span>
-            </a>
-          </Button>
-          <Button variant="outline" asChild className="min-w-0 flex-1">
-            <Link href="/v4-migration" onClick={onNavigate}>
-              <span className="min-w-0 truncate" title="Check migration status">
-                Check migration status
-              </span>
-            </Link>
-          </Button>
-        </div>
+        <p className="text-muted-foreground text-sm">
+          You can switch between V3 and V4 while you review. This toggle goes
+          away soon: everything defaults to v4, even without the upgrade, so
+          projects still on the old setup can lose functionality. We strongly
+          recommend upgrading all of your projects.
+        </p>
       </div>
 
       <Separator />
 
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-base font-bold">
-          <TriangleAlert className="h-4 w-4" /> What happens if I don&apos;t
-          update?
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-base font-bold">
+            <TriangleAlert className="h-4 w-4" /> What happens if I don&apos;t
+            update?
+          </div>
+          <ExternalLink
+            href={V4_DOCS_URL}
+            className="text-foreground shrink-0 text-sm underline"
+          >
+            Documentation
+          </ExternalLink>
         </div>
         <p className="text-muted-foreground text-sm">
           Some features will stop working{" "}

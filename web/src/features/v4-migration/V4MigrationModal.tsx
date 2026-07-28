@@ -59,7 +59,10 @@ function V4MigrationModalContent({
           {`Review v4 migration for ${project.name}`}
         </DialogTitle>
         <DialogBody className="gap-0 p-4">
-          <V4MigrationHeaderContent projectName={project.name} />
+          <V4MigrationHeaderContent
+            projectName={project.name}
+            onNavigate={() => setOpen(false)}
+          />
           <Separator className="my-6" />
           <div className="flex flex-col gap-6">
             <V4MigrationDetailsContent
