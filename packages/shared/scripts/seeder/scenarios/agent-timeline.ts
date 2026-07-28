@@ -260,7 +260,7 @@ const run = async (
         ? buildPayload("text", rng.int(150, 700), rng)
         : null,
       metadata,
-      provided_model_name: p.isGeneration ? "gpt-4o" : null,
+      provided_model_name: p.isGeneration ? "gpt-5.4-mini" : null,
       internal_model_id: null,
       model_parameters: p.isGeneration
         ? JSON.stringify({ temperature: 0.2, max_tokens: 1024 })
