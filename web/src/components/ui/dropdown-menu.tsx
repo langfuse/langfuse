@@ -257,13 +257,15 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 const DropdownMenuItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
+    allowPointerEventsWhenDisabled?: boolean;
     inset?: boolean;
   }
->(({ className, inset, ...props }, ref) => (
+>(({ allowPointerEventsWhenDisabled, className, inset, ...props }, ref) => (
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden transition-colors select-none data-disabled:pointer-events-none data-disabled:opacity-50",
+      "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden transition-colors select-none data-disabled:opacity-50",
+      !allowPointerEventsWhenDisabled && "data-disabled:pointer-events-none",
       inset && "pl-8",
       className,
     )}
@@ -386,7 +388,8 @@ const DropdownMenuItemWithSecondaryAction = (
 
   return (
     <DropdownMenuItem
-      className="h-8 p-0"
+      allowPointerEventsWhenDisabled
+      className="h-8 p-0 data-disabled:cursor-not-allowed"
       disabled={isDisabled}
       title={props.disabled?.reason}
       onClick={(event) => {
