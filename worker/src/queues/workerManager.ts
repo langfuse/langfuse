@@ -13,6 +13,10 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
+import {
+  markQueueJobActivity,
+  markQueueWorkerRegistered,
+} from "../features/health/queueConsumption";
 import { WORKER_HOST_ID } from "../utils/hostId";
 import {
   resolveQueueInstance,
@@ -199,7 +203,15 @@ export class WorkerManager {
       },
     );
     WorkerManager.workers[queueName] = worker;
+    markQueueWorkerRegistered();
     logger.info(`${queueName} executor started: ${worker.isRunning()}`);
+
+    // Liveness signal for the ?failIfQueueConsumptionStuck=true health check.
+    // "active" and "completed" prove this container's consumption loop is
+    // alive; "failed" is excluded because the stalled-checker emits it for
+    // jobs this container never picked up.
+    worker.on("active", markQueueJobActivity);
+    worker.on("completed", markQueueJobActivity);
 
     const oldMetric = convertQueueNameToMetricName(queueName);
     const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);

@@ -7,6 +7,7 @@ import {
   getLastProcessedPartition,
   getLastRunStartedAt,
 } from "../eventPropagation/handleEventPropagationJob";
+import { getQueueConsumptionHealth } from "./queueConsumption";
 
 export type EventPropagationHealth = {
   /** Whether the dual-write / event-propagation job runs in this deployment. */
@@ -133,6 +134,14 @@ type ContainerHealthOptions = {
    * pays the extra Redis lookups and only that probe forces a restart.
    */
   failIfEventPropagationStuck?: boolean;
+  /**
+   * Also fail (503) when this container's BullMQ workers have not processed a
+   * single job within LANGFUSE_QUEUE_CONSUMPTION_STUCK_THRESHOLD_MINUTES —
+   * the silent full-worker wedge after Redis lock loss (#15509). Opt-in via
+   * the ?failIfQueueConsumptionStuck=true query parameter so only a probe that
+   * should force restarts evaluates it.
+   */
+  failIfQueueConsumptionStuck?: boolean;
 };
 
 /**
@@ -142,7 +151,11 @@ export const checkContainerHealth = async (
   res: Response,
   options: ContainerHealthOptions,
 ) => {
-  const { failOnSigterm, failIfEventPropagationStuck = false } = options;
+  const {
+    failOnSigterm,
+    failIfEventPropagationStuck = false,
+    failIfQueueConsumptionStuck = false,
+  } = options;
 
   if (failOnSigterm && isSigtermReceived()) {
     logger.info(
@@ -170,25 +183,41 @@ export const checkContainerHealth = async (
     ),
   ]);
 
+  const failures: string[] = [];
+  const details: Record<string, unknown> = {};
+
   if (failIfEventPropagationStuck) {
     const eventPropagation = await getEventPropagationHealth();
+    details.eventPropagation = eventPropagation;
     if (eventPropagation.stuck) {
       logger.warn(
         `Health check failed: event propagation stuck (last run ${eventPropagation.secondsSinceLastRun}s ago, threshold ${eventPropagation.thresholdSeconds}s)`,
       );
-      return res.status(503).json({
-        status: "Event propagation stuck",
-        eventPropagation,
-      });
+      failures.push("Event propagation stuck");
     }
-    return res.json({
-      status: "ok",
-      eventPropagation,
+  }
+
+  if (failIfQueueConsumptionStuck) {
+    const queueConsumption = getQueueConsumptionHealth();
+    details.queueConsumption = queueConsumption;
+    if (queueConsumption.stuck) {
+      logger.warn(
+        `Health check failed: queue consumption stuck (last job activity ${queueConsumption.secondsSinceLastActivity}s ago across ${queueConsumption.registeredWorkerCount} workers, threshold ${queueConsumption.thresholdSeconds}s)`,
+      );
+      failures.push("Queue consumption stuck");
+    }
+  }
+
+  if (failures.length > 0) {
+    return res.status(503).json({
+      status: failures.join("; "),
+      ...details,
     });
   }
 
   res.json({
     status: "ok",
+    ...details,
   });
 };
 
