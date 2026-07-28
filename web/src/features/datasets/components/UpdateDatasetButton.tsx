@@ -1,57 +1,22 @@
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
-import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
+  UpdateDatasetDialogContent,
+  type UpdateDatasetDialogContentProps,
+} from "@/src/features/datasets/components/UpdateDatasetDialogContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type Prisma } from "@langfuse/shared";
 import { Edit, LockIcon, Pen } from "lucide-react";
 import { forwardRef, useState } from "react";
 
-interface UpdateDatasetDialogProps {
-  projectId: string;
-  datasetId: string;
-  datasetName: string;
-  datasetDescription?: string;
-  datasetMetadata?: Prisma.JsonValue;
-  datasetInputSchema?: Prisma.JsonValue;
-  datasetExpectedOutputSchema?: Prisma.JsonValue;
-}
-
-interface UpdateDatasetButtonProps extends UpdateDatasetDialogProps {
+interface UpdateDatasetButtonProps extends Omit<
+  UpdateDatasetDialogContentProps,
+  "onFormSuccess"
+> {
   className?: string;
   size?: ButtonProps["size"];
   variant?: ButtonProps["variant"];
-}
-
-function UpdateDatasetDialogContent({
-  onFormSuccess,
-  ...props
-}: UpdateDatasetDialogProps & { onFormSuccess: () => void }) {
-  return (
-    <DialogContent className="max-h-[90vh] sm:max-w-2xl md:max-w-3xl">
-      <DialogHeader>
-        <DialogTitle>Update dataset</DialogTitle>
-      </DialogHeader>
-      <DatasetForm
-        mode="update"
-        projectId={props.projectId}
-        onFormSuccess={onFormSuccess}
-        datasetId={props.datasetId}
-        datasetName={props.datasetName}
-        datasetDescription={props.datasetDescription}
-        datasetMetadata={props.datasetMetadata}
-        datasetInputSchema={props.datasetInputSchema}
-        datasetExpectedOutputSchema={props.datasetExpectedOutputSchema}
-      />
-    </DialogContent>
-  );
 }
 
 export const UpdateDatasetButton = forwardRef<

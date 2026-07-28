@@ -1,12 +1,6 @@
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
-import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
+import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
+import { CreateDatasetDialogContent } from "@/src/features/datasets/components/CreateDatasetDialogContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { LockIcon, PlusIcon } from "lucide-react";
@@ -18,28 +12,6 @@ interface CreateDatasetButtonProps {
   className?: string;
   size?: ButtonProps["size"];
   variant?: ButtonProps["variant"];
-}
-
-function CreateDatasetDialogContent({
-  projectId,
-  folderPrefix,
-  onFormSuccess,
-}: Pick<CreateDatasetButtonProps, "projectId" | "folderPrefix"> & {
-  onFormSuccess: () => void;
-}) {
-  return (
-    <DialogContent className="max-h-[90vh] sm:max-w-2xl md:max-w-3xl">
-      <DialogHeader>
-        <DialogTitle>Create new dataset</DialogTitle>
-      </DialogHeader>
-      <DatasetForm
-        mode="create"
-        projectId={projectId}
-        onFormSuccess={onFormSuccess}
-        folderPrefix={folderPrefix}
-      />
-    </DialogContent>
-  );
 }
 
 export const CreateDatasetButton = forwardRef<
