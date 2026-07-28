@@ -113,6 +113,7 @@ import {
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 // Lazy load tables
 const TracesTable = lazy(
@@ -155,13 +156,16 @@ const TracesPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            <TracesTable
-              projectId={projectId}
-              hideControls
-              externalFilterState={filterState}
-              externalDateRange={dateRange}
-              limitRows={10}
-            />
+            {/* Match peek tables: preview state stays local and never touches the URL. */}
+            <PeekTableStateProvider>
+              <TracesTable
+                projectId={projectId}
+                hideControls
+                externalFilterState={filterState}
+                externalDateRange={dateRange}
+                limitRows={10}
+              />
+            </PeekTableStateProvider>
           </Suspense>
         </div>
       </>
@@ -232,22 +236,27 @@ const ObservationsPreview = memo(
                   </span>
                 </div>
               </div>
-            ) : isBetaEnabled ? (
-              <EventsTable
-                projectId={projectId}
-                hideControls
-                externalFilterState={filterState}
-                externalDateRange={dateRange}
-                limitRows={10}
-              />
             ) : (
-              <ObservationsTable
-                projectId={projectId}
-                hideControls
-                externalFilterState={filterState}
-                externalDateRange={dateRange}
-                limitRows={10}
-              />
+              // Keep the evaluator preview isolated from the parent route's table state.
+              <PeekTableStateProvider>
+                {isBetaEnabled ? (
+                  <EventsTable
+                    projectId={projectId}
+                    hideControls
+                    externalFilterState={filterState}
+                    externalDateRange={dateRange}
+                    limitRows={10}
+                  />
+                ) : (
+                  <ObservationsTable
+                    projectId={projectId}
+                    hideControls
+                    externalFilterState={filterState}
+                    externalDateRange={dateRange}
+                    limitRows={10}
+                  />
+                )}
+              </PeekTableStateProvider>
             )}
           </Suspense>
         </div>
