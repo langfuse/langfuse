@@ -67,13 +67,44 @@ function getAllowedMcpOriginsAndHostnames() {
   return { allowedHostnames, allowedOrigins };
 }
 
+/**
+ * Resolves the host header to validate against the allowlist.
+ *
+ * Reverse proxies (ALB, Cloudflare, Traefik, nginx, k8s ingresses) commonly
+ * rewrite `Host` to the internal upstream name and relay the original client
+ * host in `X-Forwarded-Host`. We only honor `X-Forwarded-Host` when the
+ * operator has opted in via LANGFUSE_MCP_TRUST_FORWARDED_HEADERS, because the
+ * header is client-settable and blindly trusting it would let attackers
+ * bypass the Host allowlist (DNS-rebinding protection). Mirrors the
+ * first-comma-value convention of getRequestOrigin in server/utils/cookies.
+ */
+function getEffectiveHostHeader(req: NextApiRequest): {
+  headerName: "Host" | "X-Forwarded-Host";
+  value: string | undefined;
+} {
+  if (env.LANGFUSE_MCP_TRUST_FORWARDED_HEADERS === "true") {
+    const rawForwardedHost = Array.isArray(req.headers["x-forwarded-host"])
+      ? req.headers["x-forwarded-host"][0]
+      : req.headers["x-forwarded-host"];
+    const forwardedHost = rawForwardedHost?.split(",")[0]?.trim();
+    if (forwardedHost) {
+      return { headerName: "X-Forwarded-Host", value: forwardedHost };
+    }
+  }
+
+  return {
+    headerName: "Host",
+    value: Array.isArray(req.headers.host)
+      ? req.headers.host[0]
+      : req.headers.host,
+  };
+}
+
 export function validateMcpRequestSecurity(req: NextApiRequest): string | null {
   const { allowedHostnames, allowedOrigins } =
     getAllowedMcpOriginsAndHostnames();
 
-  const hostHeader = Array.isArray(req.headers.host)
-    ? req.headers.host[0]
-    : req.headers.host;
+  const { headerName, value: hostHeader } = getEffectiveHostHeader(req);
   if (!hostHeader) {
     throw new ForbiddenError("Missing Host header");
   }
@@ -82,11 +113,11 @@ export function validateMcpRequestSecurity(req: NextApiRequest): string | null {
   try {
     hostname = new URL(`http://${hostHeader}`).hostname.toLowerCase();
   } catch {
-    throw new ForbiddenError(`Invalid Host header: ${hostHeader}`);
+    throw new ForbiddenError(`Invalid ${headerName} header: ${hostHeader}`);
   }
 
   if (!allowedHostnames.has(hostname)) {
-    throw new ForbiddenError(`Invalid Host header: ${hostHeader}`);
+    throw new ForbiddenError(`Invalid ${headerName} header: ${hostHeader}`);
   }
 
   const originHeader = Array.isArray(req.headers.origin)

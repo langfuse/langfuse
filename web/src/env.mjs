@@ -72,6 +72,10 @@ export const env = createEnv({
               .filter(Boolean)
           : [],
       ),
+    // Only enable when Langfuse runs behind a trusted reverse proxy that
+    // overwrites the X-Forwarded-Host header; otherwise clients can spoof it
+    // and bypass the MCP Host allowlist (DNS-rebinding protection).
+    LANGFUSE_MCP_TRUST_FORWARDED_HEADERS: z.enum(["true", "false"]).optional(),
     NEXTAUTH_COOKIE_DOMAIN: z.string().optional(),
     // Optional suffix appended to the auth cookie NAMES (e.g. ".pr-1234" ->
     // "__Secure-next-auth.session-token.pr-1234"). Lets multiple Langfuse
@@ -566,6 +570,8 @@ export const env = createEnv({
     NEXTAUTH_COOKIE_NAME_SUFFIX: process.env.NEXTAUTH_COOKIE_NAME_SUFFIX,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     LANGFUSE_MCP_ALLOWED_HOSTS: process.env.LANGFUSE_MCP_ALLOWED_HOSTS,
+    LANGFUSE_MCP_TRUST_FORWARDED_HEADERS:
+      process.env.LANGFUSE_MCP_TRUST_FORWARDED_HEADERS,
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
       process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF:
