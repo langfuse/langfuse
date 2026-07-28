@@ -64,6 +64,8 @@ import {
   getDescendantIds,
 } from "@/src/components/trace/lib/trace-aggregation";
 import TagList from "@/src/features/tag/components/TagList";
+import { Sparkles } from "lucide-react";
+import { CustomDataViewTab } from "@/src/features/custom-data-view/components/CustomDataViewTab";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -103,9 +105,11 @@ export function ObservationDetailView({
   const showLogViewTab =
     isV4Enabled && observations.length > 0 && !isAnnotationMode;
   const showScoresTab = !isAnnotationMode;
+  // LFE-14544 demo spike: AI-generated custom view of this observation's data
+  const showCustomTab = !isAnnotationMode;
 
   // Hide entire tabs bar when only Preview tab remains (cleaner annotation mode UI)
-  const showTabsBar = showLogViewTab || showScoresTab;
+  const showTabsBar = showLogViewTab || showScoresTab || showCustomTab;
 
   // for v4:
   // is this observation topmost in tree? we don't check for root observation here as this is not necessarily given.
@@ -135,8 +139,10 @@ export function ObservationDetailView({
   const selectedTab = useMemo(() => {
     if (globalSelectedTab === "scores") return "scores" as const;
     if (globalSelectedTab === "log" && showLogViewTab) return "log" as const;
+    if (globalSelectedTab === "custom" && showCustomTab)
+      return "custom" as const;
     return "preview" as const;
-  }, [globalSelectedTab, showLogViewTab]);
+  }, [globalSelectedTab, showLogViewTab, showCustomTab]);
 
   const refreshTraceScores = useCallback(() => {
     utils.traces.byIdWithObservationsAndScores.invalidate({
@@ -149,7 +155,7 @@ export function ObservationDetailView({
     });
   }, [projectId, traceId, utils]);
 
-  const setSelectedTab = (tab: "preview" | "log" | "scores") => {
+  const setSelectedTab = (tab: "preview" | "log" | "scores" | "custom") => {
     if (tab === "scores") {
       refreshTraceScores();
     }
@@ -307,7 +313,7 @@ export function ObservationDetailView({
         value={selectedTab}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
         onValueChange={(value) =>
-          setSelectedTab(value as "preview" | "log" | "scores")
+          setSelectedTab(value as "preview" | "log" | "scores" | "custom")
         }
       >
         {/* Hide entire tabs bar when only Preview tab remains (annotation mode) */}
@@ -328,6 +334,22 @@ export function ObservationDetailView({
                       {isLogViewVirtualized
                         ? `Shows all ${observations.length} observations with virtualization enabled.`
                         : "Shows all observations concatenated. Great for quickly scanning through them."}
+                    </TooltipContent>
+                  </Tooltip>
+                </TabsBarTrigger>
+              )}
+              {showCustomTab && (
+                <TabsBarTrigger value="custom">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Custom
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs">
+                      Experimental: describe the view you want and AI renders
+                      this observation&apos;s data that way.
                     </TooltipContent>
                   </Tooltip>
                 </TabsBarTrigger>
@@ -543,6 +565,24 @@ export function ObservationDetailView({
                 disableUrlPersistence={isPeekMode || isAnnotationMode}
               />
             </div>
+          </TabsBarContent>
+        )}
+
+        {/* Custom AI-generated view tab content (LFE-14544 demo spike) */}
+        {showCustomTab && (
+          <TabsBarContent
+            value="custom"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1 overflow-hidden"
+          >
+            <CustomDataViewTab
+              key={observation.id}
+              observation={observation}
+              projectId={projectId}
+              input={parsedInput ?? observationWithIO?.input}
+              output={parsedOutput ?? observationWithIO?.output}
+              metadata={parsedMetadata ?? observationWithIO?.metadata}
+              isIOLoading={isLoadingObservation || isWaitingForParsing}
+            />
           </TabsBarContent>
         )}
 
