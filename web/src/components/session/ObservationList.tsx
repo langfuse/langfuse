@@ -33,6 +33,7 @@ import {
   computeTurnLatencyPercentiles,
   type TurnLatencyPercentile,
 } from "@/src/components/session/sessionPercentiles";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -427,6 +428,7 @@ export function ObservationList({
   isOpen: boolean;
   onToggleOpen: () => void;
 }) {
+  const capture = usePostHogClientCapture();
   const listRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
@@ -469,13 +471,18 @@ export function ObservationList({
       return next;
     });
 
-  const toggleType = (type: string) =>
+  const toggleType = (type: string) => {
+    capture("session_detail:observation_type_filter_toggled", {
+      observationType: type,
+      isEnabled: !typeFilter.has(type),
+    });
     setTypeFilter((current) => {
       const next = new Set(current);
       if (next.has(type)) next.delete(type);
       else next.add(type);
       return next;
     });
+  };
 
   const virtualizer = useVirtualizer({
     count: traces.length,

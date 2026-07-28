@@ -18,6 +18,7 @@ import {
 } from "@/src/components/session/SessionDetailStoreProvider";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 
 const MODERN_SESSION_OVERSCAN = 5;
@@ -93,6 +94,7 @@ export function ModernSession({
     [virtualizer],
   );
 
+  const capture = usePostHogClientCapture();
   const storeApi = useSessionDetailStoreApi();
   const selectTrace = useCallback(
     (index: number) => {
@@ -171,10 +173,18 @@ export function ModernSession({
         filterState={filterState}
         activeTraceId={activeTraceId}
         selectedTraceId={selectedTraceId}
-        onSelect={selectTrace}
+        onSelect={(index) => {
+          capture("session_detail:turn_selected", { source: "rail" });
+          selectTrace(index);
+        }}
         onOpenPeek={(trace) => openPeek(trace.id, trace)}
         isOpen={isSpanListOpen}
-        onToggleOpen={() => setIsSpanListOpen((current) => !current)}
+        onToggleOpen={() => {
+          capture("session_detail:span_list_toggled", {
+            isOpen: !isSpanListOpen,
+          });
+          setIsSpanListOpen((current) => !current);
+        }}
       />
       {/* Conversation — a full-bleed plane split off by one hairline
           (mock: plane-conv white / #121210 with border-left only). */}
@@ -222,7 +232,12 @@ export function ModernSession({
                     showSystemPrompt={showSystemPrompt}
                     isActive={trace.id === activeTraceId}
                     idleGapSeconds={idleGapSeconds[virtualItem.index]}
-                    onSelectTurnIndex={selectTrace}
+                    onSelectTurnIndex={(index) => {
+                      capture("session_detail:turn_selected", {
+                        source: "transcript",
+                      });
+                      selectTrace(index);
+                    }}
                   />
                 </SessionVirtualizedRow>
               );

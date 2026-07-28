@@ -131,6 +131,9 @@ export const events = {
     "inline_tools_toggled",
     "system_prompt_toggled",
     "observation_inspector_open",
+    "turn_selected",
+    "span_list_toggled",
+    "observation_type_filter_toggled",
   ],
   eval_config: [
     "new_form_submit",
