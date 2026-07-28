@@ -16,6 +16,9 @@ export const EVENTS_FILTER_OPTION_TOP_N = 1000;
 // Sentinel "column" carrying the approx total observation count in the facet result.
 export const EVENTS_APPROX_TOTAL_COUNT_MARKER = "__approxTotalCount__";
 
+// Facet tuple format: (option name, option value, value-occurrence count, sort order).
+const EVENTS_APPROX_TOTAL_COUNT_TUPLE = `tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0))`;
+
 const EVENTS_FILTER_OPTION_TOP_K_MAX_N = 65_536;
 
 type EventFilterOptionSort = "countDesc" | "alpha" | "booleanAsc";
@@ -395,7 +398,7 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
 
   // Approx total rides one extra sentinel row so the result shape stays {column, value, count}.
   const approxTotalCountRow = includeApproxTotal
-    ? `,\n      [tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0))]`
+    ? `,\n      [${EVENTS_APPROX_TOTAL_COUNT_TUPLE}]`
     : "";
 
   const query = `
