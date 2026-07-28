@@ -22,7 +22,11 @@ const NEUTRAL_LEVEL_COLOR: LevelColor = { text: "", bg: "" };
  * total: unknown or absent levels get a neutral (no color chip) fallback.
  */
 export function getLevelColors(level: string | null | undefined): LevelColor {
-  return level != null && level in LevelColors
+  // Own-property check (NOT `in`): `in` walks the prototype chain, so a level
+  // literally named "toString"/"constructor"/"valueOf" would otherwise match
+  // and return an inherited `Object.prototype` function instead of a
+  // `{ text, bg }` — breaking the "total" contract for that sliver of inputs.
+  return level != null && Object.hasOwn(LevelColors, level)
     ? LevelColors[level as keyof typeof LevelColors]
     : NEUTRAL_LEVEL_COLOR;
 }

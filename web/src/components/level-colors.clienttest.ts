@@ -15,6 +15,12 @@ describe("getLevelColors", () => {
     ["lowercase info", "info"],
     ["empty string", ""],
     ["a made-up custom level", "SUPER_CRITICAL"],
+    // Object.prototype member names must NOT match (guard uses Object.hasOwn,
+    // not `in`, which would walk the prototype chain and return a Function).
+    ["toString", "toString"],
+    ["constructor", "constructor"],
+    ["valueOf", "valueOf"],
+    ["hasOwnProperty", "hasOwnProperty"],
   ])(
     "returns the neutral fallback for %s without throwing",
     (_label, level) => {
