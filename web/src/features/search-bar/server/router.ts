@@ -24,6 +24,9 @@ import {
   ChatMessageType,
   LangfuseInternalTraceEnvironment,
   logger,
+  generateLangfuseAIText,
+  getLangfuseAITraceSinkParams,
+  isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { randomBytes } from "crypto";
@@ -40,11 +43,6 @@ import {
   deriveParseOutcomeScores,
   recordParseOutcomeScores,
 } from "./parseOutcomeScoring";
-import {
-  generateLangfuseAIText,
-  getLangfuseAITraceSinkParams,
-  isLangfuseAITracingConfigured,
-} from "@/src/features/ai-features/server/bedrockCompletion";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),

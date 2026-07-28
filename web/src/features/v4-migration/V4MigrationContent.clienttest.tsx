@@ -36,6 +36,24 @@ vi.mock("@/src/features/projects/hooks", () => ({
 
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useProjectV4MigrationData: () => mocks.migrationData,
+  useProjectV4SdkData: () => mocks.migrationData.sdk,
+  useProjectV4EvalData: () => mocks.migrationData.evals,
+}));
+
+// The plan hook queries tRPC internally; mock it so tests need no provider.
+vi.mock("@/src/features/v4-migration/useV4UpgradeAssistantSupport", () => ({
+  V4_CODING_AGENT_PROMPT: "coding-agent-prompt",
+  useEvalUpgradeAssistantPlan: () => ({
+    canUseAssistant: false,
+    mode: "outside",
+    showAssistantButton: false,
+    assistantPrompt: "",
+  }),
+}));
+
+vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
+  useCanUseInAppAgent: () => false,
+  useInAppAiAgent: () => ({ setOpen: vi.fn(), submit: vi.fn() }),
 }));
 
 vi.mock("@/src/components/ui/collapsible", () => ({
@@ -115,6 +133,9 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("No deprecated integration exports detected."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("No deprecated evals detected."),
     ).toBeInTheDocument();
   });
 });

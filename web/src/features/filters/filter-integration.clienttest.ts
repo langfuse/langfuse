@@ -9,12 +9,11 @@ import {
   type ColumnDefinition,
   tracesTableCols,
   observationsTableCols,
-} from "@langfuse/shared";
-import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
   computeSelectedValues,
-} from "./lib/filter-query-encoding";
+  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
+} from "@langfuse/shared";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
 import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
@@ -38,7 +37,6 @@ import {
   buildEffectiveEnvironmentFilter,
   stripImplicitEnvironmentFilterFromExplicitState,
 } from "./lib/managedEnvironmentPolicy";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {

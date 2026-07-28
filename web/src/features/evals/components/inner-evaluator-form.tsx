@@ -113,6 +113,7 @@ import {
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 // Lazy load tables
 const TracesTable = lazy(
@@ -155,13 +156,16 @@ const TracesPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            <TracesTable
-              projectId={projectId}
-              hideControls
-              externalFilterState={filterState}
-              externalDateRange={dateRange}
-              limitRows={10}
-            />
+            {/* Match peek tables: preview state stays local and never touches the URL. */}
+            <PeekTableStateProvider>
+              <TracesTable
+                projectId={projectId}
+                hideControls
+                externalFilterState={filterState}
+                externalDateRange={dateRange}
+                limitRows={10}
+              />
+            </PeekTableStateProvider>
           </Suspense>
         </div>
       </>
@@ -232,22 +236,27 @@ const ObservationsPreview = memo(
                   </span>
                 </div>
               </div>
-            ) : isBetaEnabled ? (
-              <EventsTable
-                projectId={projectId}
-                hideControls
-                externalFilterState={filterState}
-                externalDateRange={dateRange}
-                limitRows={10}
-              />
             ) : (
-              <ObservationsTable
-                projectId={projectId}
-                hideControls
-                externalFilterState={filterState}
-                externalDateRange={dateRange}
-                limitRows={10}
-              />
+              // Keep the evaluator preview isolated from the parent route's table state.
+              <PeekTableStateProvider>
+                {isBetaEnabled ? (
+                  <EventsTable
+                    projectId={projectId}
+                    hideControls
+                    externalFilterState={filterState}
+                    externalDateRange={dateRange}
+                    limitRows={10}
+                  />
+                ) : (
+                  <ObservationsTable
+                    projectId={projectId}
+                    hideControls
+                    externalFilterState={filterState}
+                    externalDateRange={dateRange}
+                    limitRows={10}
+                  />
+                )}
+              </PeekTableStateProvider>
             )}
           </Suspense>
         </div>
@@ -341,6 +350,13 @@ export const InnerEvaluatorForm = (props: {
 
   // Destructure eval capabilities passed from parent
   const { allowLegacy } = props.evalCapabilities;
+
+  // Existing legacy evaluators must keep rendering their (read-only) legacy
+  // target UI in edit mode even when new legacy setups are not allowed.
+  const showLegacyTargetOptions =
+    allowLegacy ||
+    (props.mode === "edit" &&
+      isLegacyEvalTarget(props.existingEvaluator?.targetObject ?? ""));
 
   // Custom hooks for managing evaluator state
   const {
@@ -852,7 +868,7 @@ export const InnerEvaluatorForm = (props: {
                             <CircleDot className="h-3.5 w-3.5" />
                             Observations
                           </TabsTrigger>
-                          {allowLegacy && (
+                          {showLegacyTargetOptions && (
                             <TabsTrigger
                               value="trace"
                               disabled={props.disabled || props.mode === "edit"}
@@ -889,7 +905,7 @@ export const InnerEvaluatorForm = (props: {
             {/* Second tab bar for experiment data source selection */}
             {!props.hideTargetSelection &&
               userFacingTarget === "offline-experiment" &&
-              props.evalCapabilities.allowLegacy && (
+              showLegacyTargetOptions && (
                 <div className="flex flex-col gap-2">
                   <FormLabel className="text-sm">Experiment Method</FormLabel>
                   <Tabs

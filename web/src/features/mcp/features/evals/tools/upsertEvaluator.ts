@@ -11,7 +11,7 @@ import {
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { createPublicEvaluator } from "@/src/features/evals/server/unstable-public-api";
 import { defineTool } from "../../../core/define-tool";
-import { buildEvaluatorUrl } from "@/src/utils/product-url";
+import { buildEvaluatorUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   EvaluatorModelConfigBaseSchema,

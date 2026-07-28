@@ -117,19 +117,6 @@ export class QueueMetricsRunner extends PeriodicRunner {
           .then((depths) => {
             if (depths) {
               emitDepth(metricBase, depths);
-              // Old-style metrics for backward compatibility.
-              // These duplicate what workerManager.metricWrapper emits on job
-              // completion. Both sources coexist during migration — once dashboards
-              // switch to the new .depth metrics, remove all but .depth
-              recordGauge(metricBase + ".length", depths.waiting, {
-                unit: "records",
-              });
-              recordGauge(metricBase + ".dlq_length", depths.failed, {
-                unit: "records",
-              });
-              recordGauge(metricBase + ".active", depths.active, {
-                unit: "records",
-              });
             }
           })
           .catch((err) => {
