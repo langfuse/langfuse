@@ -32,8 +32,8 @@ import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 // Foreign level vocabularies observed from OTel senders (OTel severity
-// names, python logging, loguru, console) mapped onto the Langfuse enum
-// (LFE-14547). The classic ingestion API keeps its strict enum; only the
+// names, python logging, loguru, console) mapped onto the Langfuse enum.
+//  The classic ingestion API keeps its strict enum; only the
 // OTel adapter translates. Unknown values return undefined so the caller's
 // status-derived fallback applies instead of masking it with DEFAULT.
 const OBSERVATION_LEVEL_ALIASES: Record<string, ObservationLevelType> = {
