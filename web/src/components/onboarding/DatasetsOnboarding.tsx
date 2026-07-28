@@ -3,8 +3,10 @@ import {
   SplashScreen,
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
-import { Database, Beaker, Zap, Code } from "lucide-react";
-import { CreateDatasetButton } from "@/src/features/datasets/components/CreateDatasetButton";
+import { Button } from "@/src/components/ui/button";
+import { DialogTrigger } from "@/src/components/ui/dialog";
+import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
+import { Database, Beaker, Zap, Code, LockIcon, PlusIcon } from "lucide-react";
 
 export function DatasetsOnboarding({ projectId }: { projectId: string }) {
   const valuePropositions: ValueProposition[] = [
@@ -41,11 +43,34 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
       primaryAction={{
         label: "Create Dataset",
         component: (
-          <CreateDatasetButton
+          <CreateDatasetDialogController
             projectId={projectId}
-            size="lg"
             target={{ type: "root" }}
-          />
+          >
+            {({ disabled, openDialog }) => (
+              <DialogTrigger asChild>
+                <Button
+                  size="lg"
+                  disabled={disabled !== undefined}
+                  onClick={openDialog}
+                  variant="default"
+                >
+                  {disabled === undefined ? (
+                    <PlusIcon
+                      className="mr-1.5 -ml-0.5 h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <LockIcon
+                      className="mr-1.5 -ml-0.5 h-3 w-3"
+                      aria-hidden="true"
+                    />
+                  )}
+                  New dataset
+                </Button>
+              </DialogTrigger>
+            )}
+          </CreateDatasetDialogController>
         ),
       }}
       secondaryAction={{
