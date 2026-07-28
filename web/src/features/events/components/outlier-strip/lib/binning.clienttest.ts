@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  canReuseOutlierPlaceholder,
   OUTLIER_STRIP_METRICS,
   outlierStripQueryMetrics,
   outlierStripResultColumn,
@@ -248,5 +249,51 @@ describe("outlierStripResultColumn", () => {
   it("matches executeQuery's `${aggregation}_${measure}` naming", () => {
     expect(outlierStripResultColumn("totalCost", "sum")).toBe("sum_totalCost");
     expect(outlierStripResultColumn("latency", "p95")).toBe("p95_latency");
+  });
+});
+
+describe("canReuseOutlierPlaceholder (LFE-14575)", () => {
+  const DAY = 86_400_000;
+  const t0 = Date.UTC(2026, 6, 1);
+  const window90d = { granularity: "1d", fromMs: t0, toMs: t0 + 90 * DAY };
+
+  it("keeps held-over bins across an auto-refresh slide (same grid, ~full overlap)", () => {
+    expect(
+      canReuseOutlierPlaceholder(window90d, {
+        granularity: "1d",
+        fromMs: t0 + 30_000,
+        toMs: t0 + 90 * DAY + 30_000,
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects a granularity change (drill-in / Back)", () => {
+    expect(
+      canReuseOutlierPlaceholder(window90d, {
+        granularity: "hour",
+        fromMs: t0,
+        toMs: t0 + DAY,
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects a same-granularity window hop with little overlap", () => {
+    expect(
+      canReuseOutlierPlaceholder(window90d, {
+        granularity: "1d",
+        fromMs: t0 + 80 * DAY,
+        toMs: t0 + 260 * DAY, // stale window covers only ~6% of the new one
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects an empty or inverted next window", () => {
+    expect(
+      canReuseOutlierPlaceholder(window90d, {
+        granularity: "1d",
+        fromMs: t0,
+        toMs: t0,
+      }),
+    ).toBe(false);
   });
 });

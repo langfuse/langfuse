@@ -21,6 +21,7 @@ import {
   type OutlierStripDrillTrigger,
 } from "./OutlierBarStrip";
 import {
+  canReuseOutlierPlaceholder,
   OUTLIER_STRIP_METRICS,
   outlierStripQueryMetrics,
   pickChartGranularity,
@@ -279,10 +280,30 @@ export function EventsOutlierStrip({
     {
       // Wait for the first width measurement — it decides the bucket size.
       enabled: validRange && width > 0,
-      // Keep the previous bins on refetch (auto-refresh ticks re-key the query
-      // via the re-evaluated relative window) — a persistent band must not
-      // flash to a skeleton every interval.
-      placeholderData: (prev) => prev,
+      // Keep the previous bins ONLY across same-grid refetches (auto-refresh
+      // ticks re-key the query via the re-evaluated relative window) — a
+      // persistent band must not flash to a skeleton every interval. A grid
+      // change (drill-in, Back, preset hop) rendered stale bins as misplaced
+      // bars for the whole fetch on slow projects (LFE-14575) — those show
+      // the skeleton instead.
+      placeholderData: (prev, prevQuery) => {
+        const prevInput = (
+          prevQuery?.queryKey?.[1] as
+            | { input?: { query?: QueryType } }
+            | undefined
+        )?.input?.query;
+        if (!prev || !prevInput?.timeDimension) return undefined;
+        return canReuseOutlierPlaceholder(
+          {
+            granularity: prevInput.timeDimension.granularity,
+            fromMs: Date.parse(prevInput.fromTimestamp),
+            toMs: Date.parse(prevInput.toTimestamp),
+          },
+          { granularity: granularity.granularity, fromMs, toMs },
+        )
+          ? prev
+          : undefined;
+      },
       meta: { silentHttpCodes: [422] },
       trpc: { context: { skipBatch: true } },
     },

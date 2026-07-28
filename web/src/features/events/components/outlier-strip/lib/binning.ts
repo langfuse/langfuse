@@ -377,3 +377,23 @@ export function prepareOutlierSeries(params: {
 
   return { dense, maxValue, ticks };
 }
+
+/**
+ * Whether bins fetched for a previous query window may stand in for the next
+ * one while it loads (LFE-14575). Held-over data is only honest on the SAME
+ * bucket grid with a near-identical window — the auto-refresh slide of a
+ * relative range. A drill-in, browser Back, or preset hop changes the grid
+ * (or most of the window), where stale bins render as misplaced bars; those
+ * must show the loading skeleton instead.
+ */
+export const canReuseOutlierPlaceholder = (
+  prev: { granularity: string; fromMs: number; toMs: number },
+  next: { granularity: string; fromMs: number; toMs: number },
+): boolean => {
+  if (prev.granularity !== next.granularity) return false;
+  const span = next.toMs - next.fromMs;
+  if (!(span > 0)) return false;
+  const overlap =
+    Math.min(prev.toMs, next.toMs) - Math.max(prev.fromMs, next.fromMs);
+  return overlap / span >= 0.9;
+};
