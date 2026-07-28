@@ -2,7 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DeleteDatasetIconButton } from "@/src/features/datasets/components/DeleteDatasetIconButton";
-import { UpdateDatasetIconButton } from "@/src/features/datasets/components/UpdateDatasetButton";
+import { UpdateDatasetIconButton } from "@/src/features/datasets/components/UpdateDatasetIconButton";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
