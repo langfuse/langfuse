@@ -159,6 +159,10 @@ const ImportPromptsDialogContent: React.FC<{
           Upload a JSON file exported from Langfuse. Each prompt will be created
           as a new version if the name already exists.
         </p>
+        <p className="text-muted-foreground text-sm">
+          The production label is not imported. The newest imported version is
+          automatically labeled latest.
+        </p>
         <Dropzone
           accept={{ "application/json": [".json"] }}
           isDisabled={importMutation.isPending}
