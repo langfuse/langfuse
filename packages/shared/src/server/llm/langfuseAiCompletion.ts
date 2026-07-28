@@ -1,15 +1,9 @@
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
-import {
-  type ChatMessage,
-  generateLLMText,
-  LLMAdapter,
-  mapLegacyLLMCompletionParams,
-  type TraceSinkParams,
-} from "@langfuse/shared/src/server";
+import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../interfaces/customLLMProviderConfigSchemas";
+import { encrypt } from "../../encryption";
+import { env } from "../../env";
+import { type ChatMessage, LLMAdapter, type TraceSinkParams } from "./types";
+import { generateLLMText, mapLegacyLLMCompletionParams } from "./llmText";
 import { randomBytes } from "crypto";
-
-import { env } from "@/src/env.mjs";
 
 export function isLangfuseAITracingConfigured() {
   return Boolean(env.LANGFUSE_AI_FEATURES_PROJECT_ID);

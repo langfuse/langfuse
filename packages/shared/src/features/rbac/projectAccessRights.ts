@@ -1,4 +1,4 @@
-import { type Role } from "@langfuse/shared/src/db";
+import { type Role } from "../../db";
 
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
 // (used for type extraction via typeof, which is a legitimate pattern)
@@ -273,3 +273,17 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
 
 export const projectNoneRoleComment =
   "Do not override the organization role for this project.";
+
+/**
+ * Pure role-based access check (no session), for callers that already
+ * resolved the caller's project role — e.g. the in-app agent runtime.
+ * Mirrors the role branch of web's `hasProjectAccess`.
+ */
+export function hasProjectAccessByRole(p: {
+  role: Role;
+  scope: ProjectScope;
+  admin?: boolean;
+}): boolean {
+  if (p.admin) return true;
+  return projectRoleAccessRights[p.role].includes(p.scope);
+}

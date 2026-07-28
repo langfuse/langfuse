@@ -1,14 +1,12 @@
-import {
-  TableViewPresetTableName,
-  type APIScoreV3,
-  type FilterState,
-} from "@langfuse/shared";
-import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
-import { getProductBaseUrl } from "@/src/utils/base-url";
+import { TableViewPresetTableName } from "../../domain/table-view-presets";
+import { type APIScoreV3 } from "../../features/scores/interfaces/api/v3/schemas";
+import { type FilterState } from "../../types";
+import { encodeFiltersGeneric } from "../../features/filters/filterQueryEncoding";
+import { getProductBaseUrl } from "./baseUrl";
 import {
   rangeToString,
   type TABLE_AGGREGATION_OPTIONS,
-} from "@/src/utils/date-range-utils";
+} from "../../utils/dateRanges";
 
 type ProductPathQuery = Record<string, string | string[] | null | undefined>;
 

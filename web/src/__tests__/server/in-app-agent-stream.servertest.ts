@@ -18,8 +18,10 @@ import {
   type SandboxSession,
 } from "@/src/features/in-app-agent/server/sandbox";
 import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@/src/features/in-app-agent/server/tools";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
-import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import {
+  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
+  decodeFiltersGeneric,
+} from "@langfuse/shared";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import type { MastraAgent } from "@ag-ui/mastra";

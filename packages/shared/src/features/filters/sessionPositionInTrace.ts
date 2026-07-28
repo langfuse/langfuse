@@ -1,4 +1,4 @@
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState } from "../../types";
 
 type PositionInTraceFilter = Extract<
   FilterState[number],
