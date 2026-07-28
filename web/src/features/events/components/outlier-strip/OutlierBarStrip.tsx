@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
+import { X } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
 import { Layer } from "@/src/components/ui/layer";
 import {
   formatBucketRange,
@@ -80,6 +82,14 @@ export function OutlierBarStrip({
 }: OutlierBarStripProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
+  // Touch model: a tap PREVIEWS a bucket (pinned tooltip with an explicit
+  // Explore action) instead of navigating — accidental touches must never
+  // change the table's range. Anchor is captured in viewport coords at tap.
+  const [touchPreview, setTouchPreview] = useState<{
+    index: number;
+    anchorX: number;
+    anchorY: number;
+  } | null>(null);
   // Drag gesture bookkeeping lives in a ref: pointermove during a drag only
   // updates the SHARED selection via onSelectionChange, never local state.
   const dragRef = useRef<{ startX: number; dragging: boolean } | null>(null);
@@ -218,6 +228,9 @@ export function OutlierBarStrip({
   const hovered = hoverIndex !== null ? (dense[hoverIndex] ?? null) : null;
   const hoveredHasData =
     hovered !== null && (hovered.count > 0 || hovered.value !== null);
+  const previewed = touchPreview ? (dense[touchPreview.index] ?? null) : null;
+  const previewedHasData =
+    previewed !== null && (previewed.count > 0 || previewed.value !== null);
 
   return (
     <div className={cn("relative", className)} style={{ width: widthPx }}>
@@ -234,17 +247,10 @@ export function OutlierBarStrip({
           "block touch-pan-y select-none",
           hoveredHasData || selection ? "cursor-pointer" : "cursor-default",
         )}
-        onMouseLeave={() => {
+        onPointerLeave={(event) => {
+          if (event.pointerType !== "mouse") return;
           setHoverIndex(null);
           setMouse(null);
-        }}
-        onMouseMove={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect();
-          const index = Math.floor((event.clientX - rect.left) / slotPx);
-          setHoverIndex(index >= 0 && index < dense.length ? index : null);
-          // Viewport coordinates: the tooltip portals to the overlay layer
-          // and positions itself with `fixed`.
-          setMouse({ x: event.clientX, y: event.clientY });
         }}
         onPointerDown={(event) => {
           if (event.button !== 0 && event.pointerType === "mouse") return;
@@ -258,13 +264,21 @@ export function OutlierBarStrip({
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={(event) => {
-          const drag = dragRef.current;
-          if (!drag) return;
           const rect = event.currentTarget.getBoundingClientRect();
           const x = event.clientX - rect.left;
+          if (event.pointerType === "mouse") {
+            // Cursor hover: crosshair + follow-tooltip (touch never hovers —
+            // its compat mouse events would pin a stale tooltip after taps).
+            const index = Math.floor(x / slotPx);
+            setHoverIndex(index >= 0 && index < dense.length ? index : null);
+            setMouse({ x: event.clientX, y: event.clientY });
+          }
+          const drag = dragRef.current;
+          if (!drag) return;
           if (!drag.dragging && Math.abs(x - drag.startX) < DRAG_THRESHOLD_PX) {
             return;
           }
+          if (!drag.dragging) setTouchPreview(null);
           drag.dragging = true;
           onSelectionChange?.(spanToRange(drag.startX, x));
         }}
@@ -277,15 +291,29 @@ export function OutlierBarStrip({
           if (drag.dragging) {
             // Grafana-style: apply the dragged span to the global range.
             onSelectionChange?.(null);
+            setTouchPreview(null);
             onSelectBucket?.(spanToRange(drag.startX, x));
             return;
           }
-          // A press without movement is a click/tap: drill into one bucket.
-          // Mirror the tooltip's guard — a truly empty bucket would just
-          // drill the table into a zero-row window.
           const index = Math.floor(x / slotPx);
           const bin = dense[index];
-          if (bin && (bin.count > 0 || bin.value !== null) && onSelectBucket) {
+          if (!bin) return;
+          if (event.pointerType !== "mouse") {
+            // Touch tap = PREVIEW: pin the tooltip over the bucket; the
+            // tooltip's Explore action performs the navigation.
+            setTouchPreview({
+              index,
+              anchorX: rect.left + (index + 0.5) * slotPx,
+              anchorY: rect.top,
+            });
+            setHoverIndex(index);
+            setMouse(null);
+            return;
+          }
+          // Mouse click without movement drills into the bucket. Mirror the
+          // tooltip's guard — a truly empty bucket would just drill the table
+          // into a zero-row window.
+          if ((bin.count > 0 || bin.value !== null) && onSelectBucket) {
             onSelectBucket({
               fromMs: bin.bucketStartMs,
               toMs: bin.bucketStartMs + stepMs,
@@ -345,7 +373,7 @@ export function OutlierBarStrip({
       {/* Tooltip — portals to the overlay tooltip layer so it can escape the
           band's ancestors (overflow clipping, sticky-toolbar stacking) and
           float freely at the cursor's top-right. */}
-      {hovered && mouse && (
+      {hovered && mouse && !touchPreview && (
         <Layer name="tooltip">
           <div
             className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 font-mono text-[10px] leading-tight whitespace-nowrap shadow-sm"
@@ -378,6 +406,71 @@ export function OutlierBarStrip({
                 · {hovered.count} events
               </span>
             </div>
+          </div>
+        </Layer>
+      )}
+
+      {/* Touch preview — pinned above the tapped bucket, with an explicit
+          Explore action so an accidental touch never changes the range. */}
+      {touchPreview && previewed && (
+        <Layer name="tooltip">
+          <div
+            className="bg-popover text-popover-foreground fixed rounded border px-2 py-1.5 font-mono text-[10px] leading-tight whitespace-nowrap shadow-md"
+            style={{
+              left: Math.min(
+                Math.max(touchPreview.anchorX, 90),
+                typeof window !== "undefined"
+                  ? window.innerWidth - 90
+                  : touchPreview.anchorX,
+              ),
+              top: touchPreview.anchorY - 6,
+              transform: "translate(-50%, -100%)",
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-muted-foreground">
+                  {formatBucketRange(previewed.bucketStartMs, stepMs)}
+                </div>
+                <div className="font-bold">
+                  {previewed.value !== null
+                    ? metricSpec.format(previewed.value)
+                    : previewed.count > 0
+                      ? "no data"
+                      : metricSpec.format(0)}
+                  <span className="text-muted-foreground ml-1.5 font-normal">
+                    · {previewed.count} events
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Dismiss preview"
+                className="text-muted-foreground -mt-0.5 -mr-0.5 p-0.5"
+                onClick={() => {
+                  setTouchPreview(null);
+                  setHoverIndex(null);
+                }}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+            {previewedHasData && (
+              <Button
+                size="sm"
+                className="mt-1.5 h-6 w-full text-[10px]"
+                onClick={() => {
+                  setTouchPreview(null);
+                  setHoverIndex(null);
+                  onSelectBucket?.({
+                    fromMs: previewed.bucketStartMs,
+                    toMs: previewed.bucketStartMs + stepMs,
+                  });
+                }}
+              >
+                Explore this window
+              </Button>
+            )}
           </div>
         </Layer>
       )}
