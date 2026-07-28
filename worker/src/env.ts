@@ -580,11 +580,6 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
-  LANGFUSE_QUEUE_METRICS_SAMPLE_RATE: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0.3), // Probability for recording sharded queue depth metrics
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
 });

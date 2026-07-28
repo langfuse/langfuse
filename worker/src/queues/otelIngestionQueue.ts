@@ -331,6 +331,7 @@ export const otelIngestionQueueProcessorBuilder = (
         sdkName: attribution.ingestionSdkName,
         sdkVersion: attribution.ingestionSdkVersion,
         fileKey,
+        isLangfuseInternal,
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
