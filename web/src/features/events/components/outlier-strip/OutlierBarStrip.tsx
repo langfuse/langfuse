@@ -3,12 +3,10 @@ import { cn } from "@/src/utils/tailwind";
 import { Layer } from "@/src/components/ui/layer";
 import {
   formatBucketRange,
-  formatTickLabel,
-  gridPhaseMs,
   OUTLIER_STRIP_METRICS,
-  OUTLIER_STRIP_STEP_LADDER_SECONDS,
   type OutlierStripDenseBin,
   type OutlierStripMetricKey,
+  type OutlierStripTick,
 } from "./lib/binning";
 
 /**
@@ -29,8 +27,6 @@ const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
   tokens: "hsl(var(--chart-4))",
 };
 
-/** Minimum horizontal pixels between gridline ticks / labels. */
-const TICK_MIN_SPACING_PX = 110;
 /** Pointer travel before a press becomes a range-drag instead of a click. */
 const DRAG_THRESHOLD_PX = 5;
 
@@ -42,6 +38,8 @@ export type OutlierBarStripProps = {
   metric: OutlierStripMetricKey;
   /** Full plot width; bars stretch/shrink to span it exactly. */
   widthPx: number;
+  /** Prepared gridline ticks ({@link prepareOutlierSeries}). */
+  ticks: OutlierStripTick[];
   /** Height of the bar canvas, labels excluded. */
   heightPx?: number;
   /**
@@ -62,33 +60,13 @@ export type OutlierBarStripProps = {
   className?: string;
 };
 
-/**
- * Smallest "nice" tick step at least `minPx` wide at the current bar slot.
- * Ticks must be MULTIPLES of the bucket step — the grid tests
- * `bucketStartMs % tickStepMs === 0`, and a non-multiple would place ticks
- * irregularly (or never, for `1w` buckets whose starts aren't day-aligned).
- */
-const pickTickStepMs = (
-  stepMs: number,
-  slotPx: number,
-  minPx: number,
-): number => {
-  for (const step of OUTLIER_STRIP_STEP_LADDER_SECONDS) {
-    const tickMs = step * 1000;
-    if (tickMs % stepMs === 0 && (tickMs / stepMs) * slotPx >= minPx) {
-      return tickMs;
-    }
-  }
-  // Every k-th bucket, k sized to the pixel budget — aligned by construction.
-  return Math.max(1, Math.ceil(minPx / slotPx)) * stepMs;
-};
-
 export function OutlierBarStrip({
   dense,
   maxValue,
   stepMs,
   metric,
   widthPx,
+  ticks,
   // Defaults locked by design review 2026-07-27: sqrt scale keeps the base
   // load readable under 10-40x outliers; 40px is the compact pick.
   heightPx = 40,
@@ -120,10 +98,6 @@ export function OutlierBarStrip({
   const hasData = maxValue > 0;
   const hasActivity = dense.some((bin) => bin.count > 0);
 
-  const tickStepMs = pickTickStepMs(stepMs, slotPx, TICK_MIN_SPACING_PX);
-  // Non-zero when the server's buckets are timezone-shifted off the epoch.
-  const phaseMs = gridPhaseMs(dense, stepMs);
-
   // Maps a dragged pixel span to a bucket-snapped ms range.
   const spanToRange = (x1: number, x2: number) => {
     const clamp = (x: number) =>
@@ -145,8 +119,6 @@ export function OutlierBarStrip({
   // SVG nodes; memoized so cursor-follow tooltip renders (every mousemove)
   // only touch the crosshair + tooltip.
   const staticLayers = useMemo(() => {
-    const isTick = (bucketStartMs: number) =>
-      (bucketStartMs - phaseMs) % tickStepMs === 0;
     const barHeight = (value: number) => {
       // Corrupt data (e.g. end_time < start_time) must not NaN the height.
       const fraction = Math.max(value, 0) / maxValue;
@@ -156,21 +128,18 @@ export function OutlierBarStrip({
     return (
       <>
         {/* Sparse vertical gridline ticks (Firefox-devtools style) */}
-        {dense.map((bin, i) => {
-          if (!isTick(bin.bucketStartMs) || i === 0) return null;
-          return (
-            <line
-              key={`tick-${i}`}
-              x1={i * slotPx}
-              y1={0}
-              x2={i * slotPx}
-              y2={plotHeight}
-              className="stroke-foreground"
-              strokeWidth={1}
-              opacity={0.07}
-            />
-          );
-        })}
+        {ticks.map((tick) => (
+          <line
+            key={`tick-${tick.index}`}
+            x1={tick.index * slotPx}
+            y1={0}
+            x2={tick.index * slotPx}
+            y2={plotHeight}
+            className="stroke-foreground"
+            strokeWidth={1}
+            opacity={0.07}
+          />
+        ))}
 
         {/* Plot baseline: the chart's boundary stays visible without data */}
         <line
@@ -215,20 +184,17 @@ export function OutlierBarStrip({
 
         {/* Sparse time labels on the tick grid */}
         {showTimeLabels &&
-          dense.map((bin, i) => {
-            if (!isTick(bin.bucketStartMs) || i === 0) return null;
-            return (
-              <text
-                key={`label-${i}`}
-                x={i * slotPx + 3}
-                y={heightPx + 9}
-                className="fill-muted-foreground/80 font-mono"
-                fontSize={8}
-              >
-                {formatTickLabel(bin.bucketStartMs, tickStepMs)}
-              </text>
-            );
-          })}
+          ticks.map((tick) => (
+            <text
+              key={`label-${tick.index}`}
+              x={tick.index * slotPx + 3}
+              y={heightPx + 9}
+              className="fill-muted-foreground/80 font-mono"
+              fontSize={8}
+            >
+              {tick.label}
+            </text>
+          ))}
       </>
     );
   }, [
@@ -239,8 +205,7 @@ export function OutlierBarStrip({
     plotHeight,
     widthPx,
     color,
-    tickStepMs,
-    phaseMs,
+    ticks,
     maxValue,
     scale,
     hasData,
@@ -260,7 +225,7 @@ export function OutlierBarStrip({
         width={widthPx}
         height={heightPx + labelHeight}
         role="img"
-        aria-label={metricSpec.label}
+        aria-label={`${metricSpec.shortLabel} (max / bucket)`}
         className={cn(
           // pan-y: horizontal touch drags select a range; vertical stays with
           // the page scroll (LF-34 mobile gesture requirement). select-none +

@@ -9,14 +9,20 @@ import { parseChartTimestamp } from "@/src/features/widgets/chart-library/prepar
 /**
  * Preparer layer for the outlier strip (LFE-14451), following the charts
  * manifesto: every decision (step choice, densification, metric extraction,
- * formatting, scale) happens here in pure functions; the SVG visualiser only
- * renders the prepared model.
+ * tick placement, formatting, scale inputs) happens here in pure functions;
+ * the SVG visualiser only renders the prepared model.
+ *
+ * The METRIC REGISTRY is the single source of truth for what the strip can
+ * plot: each aggregation option declares its executeQuery aggregation once,
+ * and the query metrics, result-column extraction, dropdown options, and
+ * labels are all DERIVED from it — a new option is one line, and cannot be
+ * half-wired (the class of bug where a switch changed the label but not the
+ * data).
  */
 
 /**
- * Grid steps for the strip's scan bands / sparse time labels, in seconds.
- * Purely presentational; the data granularity comes from
- * {@link pickChartGranularity}.
+ * Grid steps for the strip's sparse gridline ticks, in seconds. Purely
+ * presentational; the data granularity comes from {@link pickChartGranularity}.
  */
 export const OUTLIER_STRIP_STEP_LADDER_SECONDS = [
   1,
@@ -70,6 +76,8 @@ const MAX_STRIP_BUCKETS = 2000;
 /** Densification guard: even the coarsest preset on an URL-injected absurd
  * custom range must not build an unbounded client-side array. */
 const MAX_DENSE_BINS = 4000;
+/** Minimum horizontal pixels between gridline ticks / labels. */
+const TICK_MIN_SPACING_PX = 110;
 
 /**
  * Picks the finest granularity preset that fits the range into the available
@@ -96,112 +104,167 @@ export function pickChartGranularity(params: {
   return OUTLIER_STRIP_GRANULARITIES[OUTLIER_STRIP_GRANULARITIES.length - 1];
 }
 
-/**
- * One bucket of max-per-bucket aggregates, mapped from
- * `dashboard.executeQuery` rows (metrics: max totalCost/latency/totalTokens +
- * count over the v2 observations view).
- */
-export type OutlierStripBin = {
-  bucketStart: Date;
-  count: number;
-  maxTotalCost: number | null;
-  sumTotalCost: number | null;
-  maxLatencySeconds: number | null;
-  p95LatencySeconds: number | null;
-  avgLatencySeconds: number | null;
-  maxTotalTokens: number | null;
-};
-
-/** One bucket on the dense epoch grid; `bin` is null for empty buckets. */
-export type OutlierStripDenseBin = {
-  bucketStartMs: number;
-  count: number;
-  /** Selected metric's max, null = no data in this bucket. */
-  value: number | null;
-};
+// ---------------------------------------------------------------------------
+// Metric registry
+// ---------------------------------------------------------------------------
 
 export type OutlierStripMetricKey = "cost" | "latency" | "tokens";
-
-/** Which per-bucket latency aggregate the chart plots (tokens are max). */
 export type OutlierStripLatencyAgg = "max" | "p95" | "avg";
-/** Which per-bucket cost aggregate: worst single event, or total spend. */
 export type OutlierStripCostAgg = "max" | "total";
+export type OutlierStripAggKey = OutlierStripLatencyAgg | OutlierStripCostAgg;
+
+type AggregationDef = {
+  /** The user-facing option key ("total" reads better than "sum"). */
+  key: OutlierStripAggKey;
+  /** The executeQuery aggregation this option lowers to. */
+  queryAggregation: "max" | "sum" | "p95" | "avg";
+};
+
+export type OutlierStripMetricDef = {
+  shortLabel: string;
+  /** First entry is the default (the outlier semantics: max). */
+  aggregations: readonly AggregationDef[];
+  /** The executeQuery measure name on the v2 observations view. */
+  measure: string;
+  /** Raw result value → plotted unit (e.g. latency ms → s). */
+  fromRaw: (raw: number) => number;
+  format: (value: number) => string;
+};
 
 export const OUTLIER_STRIP_METRICS: Record<
   OutlierStripMetricKey,
-  {
-    label: string;
-    shortLabel: string;
-    valueOf: (bin: OutlierStripBin) => number | null;
-    format: (value: number) => string;
-  }
+  OutlierStripMetricDef
 > = {
   cost: {
-    label: "Cost (max / bucket)",
     shortLabel: "Cost",
-    valueOf: (bin) => bin.maxTotalCost,
+    measure: "totalCost",
+    aggregations: [
+      { key: "max", queryAggregation: "max" },
+      { key: "total", queryAggregation: "sum" },
+    ],
+    fromRaw: (raw) => raw,
     format: (value) =>
       usdFormatter(value, 2, value < 0.001 ? 6 : value < 0.1 ? 4 : 2),
   },
   latency: {
-    label: "Latency (max / bucket)",
     shortLabel: "Latency",
-    valueOf: (bin) => bin.maxLatencySeconds,
+    measure: "latency",
+    aggregations: [
+      { key: "max", queryAggregation: "max" },
+      { key: "p95", queryAggregation: "p95" },
+      { key: "avg", queryAggregation: "avg" },
+    ],
+    fromRaw: (raw) => raw / 1000, // executeQuery latency is in ms
     format: (value) => latencyFormatter(value * 1000),
   },
   tokens: {
-    label: "Tokens (max / bucket)",
     shortLabel: "Tokens",
-    valueOf: (bin) => bin.maxTotalTokens,
+    measure: "totalTokens",
+    aggregations: [{ key: "max", queryAggregation: "max" }],
+    fromRaw: (raw) => raw,
     format: (value) => compactNumberFormatter(value),
   },
 };
 
-/** executeQuery result column names: `${aggregation}_${measure}`. */
-export type OutlierQueryRow = {
+/** executeQuery result column for a (measure, aggregation) pair. */
+export const outlierStripResultColumn = (
+  measure: string,
+  queryAggregation: string,
+): string => `${queryAggregation}_${measure}`;
+
+/**
+ * The executeQuery `metrics` array — derived from the registry so every
+ * registered aggregation option is fetched in the one shared scan.
+ */
+export const outlierStripQueryMetrics = (): {
+  measure: string;
+  aggregation: "count" | AggregationDef["queryAggregation"];
+}[] => [
+  { measure: "count", aggregation: "count" },
+  ...Object.values(OUTLIER_STRIP_METRICS).flatMap((def) =>
+    def.aggregations.map((agg) => ({
+      measure: def.measure,
+      aggregation: agg.queryAggregation,
+    })),
+  ),
+];
+
+/** Resolves an aggregation option, falling back to the metric's default. */
+export const resolveAggregation = (
+  metric: OutlierStripMetricKey,
+  aggregation: string | undefined,
+): AggregationDef => {
+  const def = OUTLIER_STRIP_METRICS[metric];
+  return (
+    def.aggregations.find((agg) => agg.key === aggregation) ??
+    def.aggregations[0]
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Row → bin mapping
+// ---------------------------------------------------------------------------
+
+/** One executeQuery row; metric columns are looked up via the registry. */
+export type OutlierQueryRow = Record<string, unknown> & {
   time_dimension?: string;
   count_count?: unknown;
-  max_totalCost?: unknown;
-  sum_totalCost?: unknown;
-  max_latency?: unknown;
-  p95_latency?: unknown;
-  avg_latency?: unknown;
-  max_totalTokens?: unknown;
+};
+
+/**
+ * One bucket of aggregates. `values` is keyed by result column
+ * ({@link outlierStripResultColumn}), holding RAW query values (unit mapping
+ * happens at extraction via the registry's `fromRaw`).
+ */
+export type OutlierStripBin = {
+  bucketStart: Date;
+  count: number;
+  values: Record<string, number | null>;
 };
 
 const toNumberOrNull = (raw: unknown): number | null =>
   raw === null || raw === undefined ? null : Number(raw);
 
 /**
- * Maps executeQuery rows to strip bins; latency arrives in ms, bins carry s.
+ * Maps executeQuery rows to strip bins.
  *
  * WITH FILL rows (count 0) are dropped rather than mapped: ClickHouse fills
- * non-nullable measures with type DEFAULTS, so a filled bucket reports
- * `max_totalTokens: 0` (UInt64) while cost/latency fill as null — mapping
- * those rows would draw a phantom 0-token baseline across every empty bucket.
- * The client densifies empty buckets to honest nulls anyway.
+ * non-nullable measures with type DEFAULTS (e.g. tokens UInt64 → 0) while
+ * nullable ones fill as null — mapping those rows would draw a phantom
+ * baseline across every empty bucket. The client densifies empty buckets to
+ * honest nulls anyway.
  */
 export const rowsToOutlierBins = (rows: OutlierQueryRow[]): OutlierStripBin[] =>
   rows.flatMap((row) => {
     const bucketStart = parseChartTimestamp(row.time_dimension);
     const count = Number(row.count_count ?? 0);
     if (!bucketStart || count === 0) return [];
-    const latencyMs = toNumberOrNull(row.max_latency);
-    const p95Ms = toNumberOrNull(row.p95_latency);
-    const avgMs = toNumberOrNull(row.avg_latency);
-    return [
-      {
-        bucketStart,
-        count,
-        maxTotalCost: toNumberOrNull(row.max_totalCost),
-        sumTotalCost: toNumberOrNull(row.sum_totalCost),
-        maxLatencySeconds: latencyMs === null ? null : latencyMs / 1000,
-        p95LatencySeconds: p95Ms === null ? null : p95Ms / 1000,
-        avgLatencySeconds: avgMs === null ? null : avgMs / 1000,
-        maxTotalTokens: toNumberOrNull(row.max_totalTokens),
-      },
-    ];
+    const values: Record<string, number | null> = {};
+    for (const def of Object.values(OUTLIER_STRIP_METRICS)) {
+      for (const agg of def.aggregations) {
+        const column = outlierStripResultColumn(
+          def.measure,
+          agg.queryAggregation,
+        );
+        values[column] = toNumberOrNull(row[column]);
+      }
+    }
+    return [{ bucketStart, count, values }];
   });
+
+// ---------------------------------------------------------------------------
+// Series preparation (densify + ticks)
+// ---------------------------------------------------------------------------
+
+/** One bucket on the dense grid; `value` null = no data in this bucket. */
+export type OutlierStripDenseBin = {
+  bucketStartMs: number;
+  count: number;
+  value: number | null;
+};
+
+/** A prepared gridline tick: dense-bin index + presentation-ready label. */
+export type OutlierStripTick = { index: number; label: string };
 
 /** A bucket's tooltip time range, day-scale buckets without the time part. */
 export const formatBucketRange = (fromMs: number, stepMs: number): string => {
@@ -211,63 +274,62 @@ export const formatBucketRange = (fromMs: number, stepMs: number): string => {
   return `${format(from, dayPattern)} – ${format(to, stepMs >= 86_400_000 ? "MMM d" : "HH:mm:ss")}`;
 };
 
-/** A gridline tick's label, sized to the tick step's magnitude. */
-export const formatTickLabel = (bucketMs: number, tickStepMs: number): string =>
-  format(new Date(bucketMs), tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm");
-
 /**
- * The dense grid's phase offset from the epoch: 0 on UTC ClickHouse, non-zero
- * when a self-hosted server timezone shifts day+ buckets. Tick placement must
- * subtract it, or `bucketStartMs % tickStepMs` never hits 0 on shifted grids.
+ * Smallest "nice" tick step at least `minPx` wide at the current bar slot.
+ * Ticks must be MULTIPLES of the bucket step — placement subtracts the grid
+ * phase and tests a modulo, and a non-multiple would place ticks irregularly.
  */
-export const gridPhaseMs = (
-  dense: OutlierStripDenseBin[],
+const pickTickStepMs = (
   stepMs: number,
-): number =>
-  dense.length > 0 ? ((dense[0].bucketStartMs % stepMs) + stepMs) % stepMs : 0;
+  slotPx: number,
+  minPx: number,
+): number => {
+  for (const step of OUTLIER_STRIP_STEP_LADDER_SECONDS) {
+    const tickMs = step * 1000;
+    if (tickMs % stepMs === 0 && (tickMs / stepMs) * slotPx >= minPx) {
+      return tickMs;
+    }
+  }
+  // Every k-th bucket, k sized to the pixel budget — aligned by construction.
+  return Math.max(1, Math.ceil(minPx / slotPx)) * stepMs;
+};
 
 /**
- * Densifies server buckets onto the epoch grid covering [fromMs, toMs] and
- * extracts one metric. Uses the same epoch math as ClickHouse's
- * toStartOfInterval (floor(t / step) * step) — never date-library
- * startOfDay/week, which are timezone/Monday-based and would not join the
- * server's buckets.
+ * Densifies server buckets onto the bucket grid covering [fromMs, toMs),
+ * extracts one metric/aggregation via the registry, and places gridline
+ * ticks. Grid math uses the same epoch arithmetic as ClickHouse's
+ * toStartOfInterval — never date-library startOfDay/week — and snaps its
+ * PHASE to the server's returned buckets, so a self-hosted non-UTC ClickHouse
+ * yields a shifted-but-correct chart instead of a blank one.
  */
 export function prepareOutlierSeries(params: {
   bins: OutlierStripBin[];
   metric: OutlierStripMetricKey;
-  /** Latency-only aggregate choice; ignored by cost/tokens. Default "max". */
-  latencyAgg?: OutlierStripLatencyAgg;
-  /** Cost-only aggregate choice. Default "max" (the outlier semantics). */
-  costAgg?: OutlierStripCostAgg;
+  /** Aggregation option key; invalid values fall back to the metric default. */
+  aggregation?: string;
   fromMs: number;
   toMs: number;
   stepSeconds: number;
+  /** Plot width; drives tick spacing. 0/absent = no ticks (tests). */
+  widthPx?: number;
 }): {
   dense: OutlierStripDenseBin[];
   /** Max metric value across buckets; 0 when the range has no data. */
   maxValue: number;
+  ticks: OutlierStripTick[];
 } {
   const stepMs = params.stepSeconds * 1000;
-  const metric = OUTLIER_STRIP_METRICS[params.metric];
-  const valueOf = (bin: OutlierStripBin): number | null => {
-    if (params.metric === "latency" && params.latencyAgg === "p95")
-      return bin.p95LatencySeconds;
-    if (params.metric === "latency" && params.latencyAgg === "avg")
-      return bin.avgLatencySeconds;
-    if (params.metric === "cost" && params.costAgg === "total")
-      return bin.sumTotalCost;
-    return metric.valueOf(bin);
-  };
+  const def = OUTLIER_STRIP_METRICS[params.metric];
+  const agg = resolveAggregation(params.metric, params.aggregation);
+  const column = outlierStripResultColumn(def.measure, agg.queryAggregation);
 
   const byBucketMs = new Map<number, OutlierStripBin>();
   for (const bin of params.bins) {
     byBucketMs.set(bin.bucketStart.getTime(), bin);
   }
 
-  // Snap the grid's phase to the server's buckets: a self-hosted non-UTC
-  // ClickHouse aligns day+ buckets to its own timezone, and a phase-0 epoch
-  // grid would then miss every bucket and blank the chart.
+  // Snap the grid's phase to the server's buckets (non-UTC ClickHouse aligns
+  // day+ buckets to its own timezone; a phase-0 grid would miss every bucket).
   const phase =
     params.bins.length > 0
       ? ((params.bins[0].bucketStart.getTime() % stepMs) + stepMs) % stepMs
@@ -285,7 +347,8 @@ export function prepareOutlierSeries(params: {
     bucketMs += stepMs
   ) {
     const bin = byBucketMs.get(bucketMs);
-    const value = bin ? valueOf(bin) : null;
+    const raw = bin ? (bin.values[column] ?? null) : null;
+    const value = raw === null ? null : def.fromRaw(raw);
     if (value !== null && value > maxValue) maxValue = value;
     dense.push({
       bucketStartMs: bucketMs,
@@ -294,5 +357,23 @@ export function prepareOutlierSeries(params: {
     });
   }
 
-  return { dense, maxValue };
+  // Gridline ticks — phase-aware, presentation-ready labels.
+  const ticks: OutlierStripTick[] = [];
+  if (params.widthPx && params.widthPx > 0 && dense.length > 0) {
+    const slotPx = params.widthPx / dense.length;
+    const tickStepMs = pickTickStepMs(stepMs, slotPx, TICK_MIN_SPACING_PX);
+    for (let i = 1; i < dense.length; i++) {
+      if ((dense[i].bucketStartMs - phase) % tickStepMs === 0) {
+        ticks.push({
+          index: i,
+          label: format(
+            new Date(dense[i].bucketStartMs),
+            tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm",
+          ),
+        });
+      }
+    }
+  }
+
+  return { dense, maxValue, ticks };
 }
