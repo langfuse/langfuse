@@ -9,15 +9,20 @@ export type CreateDatasetTarget =
   | { type: "root" }
   | { type: "folder"; prefix: string };
 
+export interface CreateDatasetDialogProps {
+  projectId: string;
+  target: CreateDatasetTarget;
+}
+
+interface CreateDatasetDialogContentProps extends CreateDatasetDialogProps {
+  onFormSuccess: () => void;
+}
+
 export function CreateDatasetDialogContent({
   projectId,
   target,
   onFormSuccess,
-}: {
-  projectId: string;
-  target: CreateDatasetTarget;
-  onFormSuccess: () => void;
-}) {
+}: CreateDatasetDialogContentProps) {
   return (
     <DialogContent className="max-h-[90vh] sm:max-w-2xl md:max-w-3xl">
       <DialogHeader>

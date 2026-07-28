@@ -1,17 +1,11 @@
 import { Button } from "@/src/components/ui/button";
-import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
-import {
-  CreateDatasetDialogContent,
-  type CreateDatasetTarget,
-} from "@/src/features/datasets/components/CreateDatasetDialogContent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { DialogTrigger } from "@/src/components/ui/dialog";
+import { type CreateDatasetDialogProps } from "@/src/features/datasets/components/CreateDatasetDialogContent";
+import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
 import { LockIcon, PlusIcon } from "lucide-react";
-import { forwardRef, useState } from "react";
+import { forwardRef } from "react";
 
-interface CreateDatasetButtonProps {
-  projectId: string;
-  target: CreateDatasetTarget;
+interface CreateDatasetButtonProps extends CreateDatasetDialogProps {
   size: "default" | "lg";
 }
 
@@ -19,37 +13,27 @@ export const CreateDatasetButton = forwardRef<
   HTMLButtonElement,
   CreateDatasetButtonProps
 >(({ projectId, target, size }, ref) => {
-  const capture = usePostHogClientCapture();
-  const [open, setOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "datasets:CUD",
-  });
-
   return (
-    <Dialog open={hasAccess && open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          ref={ref}
-          size={size}
-          disabled={!hasAccess}
-          onClick={() => capture("datasets:new_form_open")}
-          variant="default"
-        >
-          {hasAccess ? (
-            <PlusIcon className="mr-1.5 -ml-0.5 h-4 w-4" aria-hidden="true" />
-          ) : (
-            <LockIcon className="mr-1.5 -ml-0.5 h-3 w-3" aria-hidden="true" />
-          )}
-          New dataset
-        </Button>
-      </DialogTrigger>
-      <CreateDatasetDialogContent
-        projectId={projectId}
-        target={target}
-        onFormSuccess={() => setOpen(false)}
-      />
-    </Dialog>
+    <CreateDatasetDialogController projectId={projectId} target={target}>
+      {({ disabled, openDialog }) => (
+        <DialogTrigger asChild>
+          <Button
+            ref={ref}
+            size={size}
+            disabled={disabled !== undefined}
+            onClick={openDialog}
+            variant="default"
+          >
+            {disabled === undefined ? (
+              <PlusIcon className="mr-1.5 -ml-0.5 h-4 w-4" aria-hidden="true" />
+            ) : (
+              <LockIcon className="mr-1.5 -ml-0.5 h-3 w-3" aria-hidden="true" />
+            )}
+            New dataset
+          </Button>
+        </DialogTrigger>
+      )}
+    </CreateDatasetDialogController>
   );
 });
 
