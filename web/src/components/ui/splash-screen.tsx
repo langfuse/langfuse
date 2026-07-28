@@ -4,7 +4,7 @@ import Image from "next/image";
 import { InfoIcon } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 
 export interface ValueProposition {
   title: string;
@@ -109,13 +109,11 @@ export function SplashScreen({
     <div className="mx-auto flex max-w-4xl flex-col items-center p-8">
       <div className="mb-6 text-center">
         {waitingFor && (
-          <StatusBadge
-            type="waiting"
-            showText={false}
-            className="mb-3 px-3 py-1 text-sm"
-          >
-            {waitingFor}
-          </StatusBadge>
+          <div className="mb-3">
+            <StatusBadge type="waiting" showText={false} size="lg">
+              {waitingFor}
+            </StatusBadge>
+          </div>
         )}
         <h2 className="mb-2 text-2xl font-bold">{title}</h2>
         {/* text-base: without a size token this fell through to the 16px

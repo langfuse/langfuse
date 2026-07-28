@@ -31,7 +31,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import {
   LATEST_PROMPT_LABEL,
   PRODUCTION_LABEL,
@@ -120,7 +120,6 @@ export default function ProtectedLabelsSettings({
             <StatusBadge
               type={label}
               key={label}
-              className="break-all sm:break-normal"
               isLive={label === PRODUCTION_LABEL}
               preserveCase
             >
