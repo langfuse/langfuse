@@ -2108,10 +2108,6 @@ export class OtelIngestionProcessor {
       "deployment.environment",
     ];
 
-    // Normalize here so the direct events_full write path stores the same
-    // value the legacy path produces after its ingestion-schema parse
-    // (LFE-14403: raw passthrough stored "PROD" in events_core while the
-    // legacy tables held "prod").
     for (const key of environmentAttributeKeys) {
       if (attributes[key]) {
         return normalizeEnvironment(attributes[key], {
