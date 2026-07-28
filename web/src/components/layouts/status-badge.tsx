@@ -1,4 +1,4 @@
-import { cva } from "class-variance-authority";
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
 
@@ -121,10 +121,10 @@ export const StatusBadge = ({
 }: {
   type: Status | (string & {});
   variant?: "default" | "transparent";
-  size?: "default" | "lg";
   isLive?: boolean;
   children?: ReactNode;
-} & StatusBadgeTextProps) => {
+} & VariantProps<typeof statusBadgeVariants> &
+  StatusBadgeTextProps) => {
   const normalizedType = type?.toLowerCase() ?? "";
 
   const category: StatusCategory =
