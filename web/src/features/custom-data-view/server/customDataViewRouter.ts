@@ -19,11 +19,11 @@ import {
   type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
+  generateLangfuseAIText,
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { z } from "zod";
-import { generateLangfuseAIText } from "@/src/features/ai-features/server/bedrockCompletion";
 
 export const CUSTOM_VIEW_SYSTEM_PROMPT = `You are an expert React engineer inside Langfuse, an LLM engineering platform. The user is looking at one observation (a span / generation event) of an LLM application trace and wants a custom view of its data. You generate that view as a React component.
 
