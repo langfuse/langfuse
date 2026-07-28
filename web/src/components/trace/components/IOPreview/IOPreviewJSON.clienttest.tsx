@@ -11,6 +11,11 @@
  */
 import { render, screen } from "@testing-library/react";
 
+const multiSectionViewerProps = vi.hoisted(() => ({
+  searchQuery: undefined as string | undefined,
+  currentMatchIndex: undefined as number | undefined,
+}));
+
 // Mock MultiSectionJsonViewer: expose each section's key, whether it carries
 // data (hideData=false) vs. is gated (hideData=true, tree never built), and
 // render its footer so the fallback is observable.
@@ -23,20 +28,26 @@ vi.mock(
         hideData?: boolean;
         renderFooter?: (ctx: unknown) => React.ReactNode;
       }[];
-    }) => (
-      <div data-testid="multi-section-viewer">
-        {props.sections.map((s) => (
-          <div
-            key={s.key}
-            data-testid={`section-${s.key}`}
-            data-hide-data={String(!!s.hideData)}
-          >
-            {!s.hideData && <span data-testid={`data-${s.key}`}>data</span>}
-            {s.renderFooter ? s.renderFooter({}) : null}
-          </div>
-        ))}
-      </div>
-    ),
+      searchQuery?: string;
+      currentMatchIndex?: number;
+    }) => {
+      multiSectionViewerProps.searchQuery = props.searchQuery;
+      multiSectionViewerProps.currentMatchIndex = props.currentMatchIndex;
+      return (
+        <div data-testid="multi-section-viewer">
+          {props.sections.map((s) => (
+            <div
+              key={s.key}
+              data-testid={`section-${s.key}`}
+              data-hide-data={String(!!s.hideData)}
+            >
+              {!s.hideData && <span data-testid={`data-${s.key}`}>data</span>}
+              {s.renderFooter ? s.renderFooter({}) : null}
+            </div>
+          ))}
+        </div>
+      );
+    },
   }),
 );
 
@@ -128,6 +139,26 @@ const manyRows = () =>
 const deadZoneRows = () => Array.from({ length: 5_000 }, (_, i) => i);
 
 describe("IOPreviewJSON node-count gating", () => {
+  it("drives the JSON viewer from the session search query and match index", () => {
+    render(
+      <IOPreviewJSON
+        input={{ answer: "needle" }}
+        hideOutput
+        hideIfNull
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+        externalSearchQuery="needle"
+        externalMatchIndex={2}
+      />,
+    );
+
+    expect(multiSectionViewerProps).toEqual({
+      searchQuery: "needle",
+      currentMatchIndex: 2,
+    });
+  });
+
   it("routes a dead-zone field (thousands of rows) to the lazy viewer, not the eager tree", () => {
     render(
       <IOPreviewJSON

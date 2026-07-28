@@ -2,7 +2,7 @@
 
 // Page-scoped search controller shared by the compact session feed and toolbar.
 
-import { EditorState } from "@codemirror/state";
+import { Text as CodeMirrorText } from "@codemirror/state";
 import { SearchQuery } from "@codemirror/search";
 import { deepParseJson } from "@langfuse/shared";
 import isEqual from "lodash/isEqual";
@@ -107,8 +107,8 @@ export type SessionSearchDocument = {
   traceId: string;
   traceIndex: number;
   observationId: string;
-  field: "input" | "output";
-  label: "Input" | "Output";
+  field: "input" | "output" | "metadata";
+  label: "Input" | "Output" | "Metadata";
   text: string;
 };
 
@@ -119,20 +119,70 @@ export type SessionSearchMatch = SessionSearchDocument & {
   targetMatchIndex: number;
 };
 
-export type SessionSearchLoadProgress = {
-  completedTraceCount: number;
-  totalTraceCount: number;
+export type SessionSearchRemoteResult = {
+  key: string;
+  traceId: string;
+  traceIndex: number;
+  observationId: string;
+  observationName: string | null;
+  traceName: string | null;
+  startTime: Date;
 };
 
-export type SessionSearchLoadResult = {
-  documents: SessionSearchDocument[];
-  failedTraceCount: number;
+export type SessionSearchRemoteLoadResult = {
+  results: SessionSearchRemoteResult[];
+  hasMore: boolean;
 };
 
-export type SessionSearchDocumentLoader = (options: {
-  signal: AbortSignal;
-  onProgress: (progress: SessionSearchLoadProgress) => void;
-}) => Promise<SessionSearchLoadResult>;
+type SessionSearchRemotePageResult = Omit<
+  SessionSearchRemoteResult,
+  "key" | "traceIndex"
+>;
+
+export async function loadSessionSearchRemoteResults({
+  limit,
+  localObservationIds,
+  traceIndexById,
+  loadPage,
+}: {
+  limit: number;
+  localObservationIds: ReadonlySet<string>;
+  traceIndexById: ReadonlyMap<string, number>;
+  loadPage: (pagination: { limit: number; offset: number }) => Promise<{
+    results: SessionSearchRemotePageResult[];
+    hasMore: boolean;
+  }>;
+}): Promise<SessionSearchRemoteLoadResult> {
+  const results: SessionSearchRemoteResult[] = [];
+  const resultKeys = new Set<string>();
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore && results.length <= limit) {
+    const page = await loadPage({ limit, offset });
+    offset += page.results.length;
+    hasMore = page.hasMore;
+
+    for (const result of page.results) {
+      if (localObservationIds.has(result.observationId)) continue;
+      const traceIndex = traceIndexById.get(result.traceId);
+      if (traceIndex === undefined) continue;
+      const key = `${result.traceId}:${result.observationId}`;
+      if (resultKeys.has(key)) continue;
+      resultKeys.add(key);
+      results.push({ ...result, key, traceIndex });
+    }
+
+    if (page.results.length === 0) {
+      hasMore = false;
+    }
+  }
+
+  return {
+    results: results.slice(0, limit),
+    hasMore: results.length > limit || hasMore,
+  };
+}
 
 export type SessionMessageSearchSnapshot = {
   isOpen: boolean;
@@ -142,22 +192,39 @@ export type SessionMessageSearchSnapshot = {
   matches: SessionSearchMatch[];
   activeMatch: SessionSearchMatch | null;
   activeMatchIndex: number;
-  isLoading: boolean;
-  completedTraceCount: number;
-  totalTraceCount: number;
-  failedTraceCount: number;
-  loadFailed: boolean;
+  isRemoteLoading: boolean;
+  remoteResults: SessionSearchRemoteResult[];
+  remoteHasMore: boolean;
+  remoteLoadFailed: boolean;
+};
+
+export type SessionMessageSearchTargetSnapshot = {
+  query: string;
+  activeMatchIndex: number;
 };
 
 type SessionSearchTarget = {
   root: HTMLElement;
   observer: MutationObserver | null;
   ranges: Range[];
+  textSnapshot: SessionSearchTextSnapshot | null;
+};
+
+type SessionSearchTextNode = {
+  node: Text;
+  start: number;
+  end: number;
+};
+
+type SessionSearchTextSnapshot = {
+  text: string;
+  nodes: SessionSearchTextNode[];
 };
 
 export type SessionMessageSearchController = {
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => SessionMessageSearchSnapshot;
+  getTargetSnapshot: (targetId: string) => SessionMessageSearchTargetSnapshot;
   dispose: () => void;
   openSearch: () => void;
   closeSearch: () => void;
@@ -169,6 +236,10 @@ export type SessionMessageSearchController = {
   setTraceNavigator: (
     navigateToTrace: ((traceIndex: number) => void) | null,
   ) => void;
+  setRemoteNavigator: (
+    navigateToResult: ((result: SessionSearchRemoteResult) => void) | null,
+  ) => void;
+  openRemoteResult: (result: SessionSearchRemoteResult) => void;
   registerTarget: (targetId: string, root: HTMLElement) => void;
   unregisterTarget: (targetId: string) => void;
 };
@@ -267,12 +338,14 @@ export function buildSessionSearchDocuments({
   observations,
   contentMode,
   showSystemPrompt,
+  includeMetadata = false,
 }: {
   traceId: string;
   traceIndex: number;
   observations: SessionTraceObservation[];
   contentMode: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  includeMetadata?: boolean;
 }): SessionSearchDocument[] {
   const { visibleObservations } = selectVisibleSessionObservations({
     traceId,
@@ -282,7 +355,7 @@ export function buildSessionSearchDocuments({
 
   const addDocument = (
     observation: SessionTraceObservation,
-    field: "input" | "output",
+    field: "input" | "output" | "metadata",
     text: string,
     segmentId?: string,
   ) => {
@@ -294,7 +367,12 @@ export function buildSessionSearchDocuments({
       traceIndex,
       observationId: observation.id,
       field,
-      label: field === "input" ? "Input" : "Output",
+      label:
+        field === "input"
+          ? "Input"
+          : field === "output"
+            ? "Output"
+            : "Metadata",
       text,
     });
   };
@@ -321,6 +399,16 @@ export function buildSessionSearchDocuments({
           SESSION_SEARCH_PREVIEW_DISPLAY_CHARS,
         ),
       );
+      if (includeMetadata) {
+        addDocument(
+          observation,
+          "metadata",
+          formatSearchValue(observation.metadata).slice(
+            0,
+            SESSION_SEARCH_PREVIEW_DISPLAY_CHARS,
+          ),
+        );
+      }
       continue;
     }
 
@@ -383,6 +471,9 @@ export function buildSessionSearchDocuments({
 
     addDocument(observation, "input", formatSearchValue(parsed.input));
     addDocument(observation, "output", formatSearchValue(parsed.output));
+    if (includeMetadata) {
+      addDocument(observation, "metadata", formatSearchValue(parsed.metadata));
+    }
   }
 
   return documents;
@@ -404,7 +495,7 @@ function buildMatches(
 
   for (const document of documents) {
     const cursor = searchQuery.getCursor(
-      EditorState.create({ doc: document.text }),
+      CodeMirrorText.of(document.text.split("\n")),
     );
     let match = cursor.next();
 
@@ -426,37 +517,37 @@ function buildMatches(
   return matches;
 }
 
-function getTextSearchRanges(root: HTMLElement, query: string): Range[] {
-  if (!query || typeof document === "undefined") return [];
-
+function getTextSearchSnapshot(root: HTMLElement): SessionSearchTextSnapshot {
   const visibilityCache = new WeakMap<Element, boolean>();
-  const isVisible = (element: Element) => {
+  const isVisible = (element: Element): boolean => {
     const cached = visibilityCache.get(element);
     if (cached !== undefined) return cached;
 
-    let current: Element | null = element;
-    while (current && root.contains(current)) {
-      if (
-        current.hasAttribute("hidden") ||
-        current.getAttribute("aria-hidden") === "true"
-      ) {
-        visibilityCache.set(element, false);
-        return false;
-      }
-      const style = window.getComputedStyle(current);
-      if (style.display === "none" || style.visibility === "hidden") {
-        visibilityCache.set(element, false);
-        return false;
-      }
-      if (current === root) break;
-      current = current.parentElement;
+    if (
+      element.hasAttribute("hidden") ||
+      element.getAttribute("aria-hidden") === "true"
+    ) {
+      visibilityCache.set(element, false);
+      return false;
     }
 
-    visibilityCache.set(element, true);
-    return true;
+    const style = window.getComputedStyle(element);
+    if (style.display === "none" || style.visibility === "hidden") {
+      visibilityCache.set(element, false);
+      return false;
+    }
+
+    const parent = element.parentElement;
+    const visible =
+      element === root ||
+      !parent ||
+      !root.contains(parent) ||
+      isVisible(parent);
+    visibilityCache.set(element, visible);
+    return visible;
   };
 
-  const nodes: Array<{ node: Text; start: number; end: number }> = [];
+  const nodes: SessionSearchTextNode[] = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const parent = node.parentElement;
@@ -464,7 +555,7 @@ function getTextSearchRanges(root: HTMLElement, query: string): Range[] {
         !parent ||
         !node.textContent ||
         parent.closest(
-          "button, input, textarea, select, script, style, [data-session-search-ignore]",
+          "button, input, textarea, select, script, style, .io-message-header, [data-session-search-ignore]",
         ) ||
         !isVisible(parent)
       ) {
@@ -484,27 +575,47 @@ function getTextSearchRanges(root: HTMLElement, query: string): Range[] {
     current = walker.nextNode();
   }
 
-  if (!text) return [];
+  return { text, nodes };
+}
+
+function getTextSearchRanges(
+  snapshot: SessionSearchTextSnapshot,
+  query: string,
+): Range[] {
+  if (!query || !snapshot.text || typeof document === "undefined") return [];
 
   const searchQuery = new SearchQuery({
     search: query,
     caseSensitive: false,
     literal: true,
   });
-  const cursor = searchQuery.getCursor(EditorState.create({ doc: text }));
+  const cursor = searchQuery.getCursor(
+    CodeMirrorText.of(snapshot.text.split("\n")),
+  );
   const ranges: Range[] = [];
   let match = cursor.next();
+  let startNodeIndex = 0;
+  let endNodeIndex = 0;
 
   while (!match.done) {
     const { from, to } = match.value;
-    const startNode = nodes.find(
-      (entry) => from >= entry.start && from < entry.end,
-    );
-    const endNode = [...nodes]
-      .reverse()
-      .find((entry) => to > entry.start && to <= entry.end);
+    while (
+      startNodeIndex < snapshot.nodes.length &&
+      from >= (snapshot.nodes[startNodeIndex]?.end ?? 0)
+    ) {
+      startNodeIndex++;
+    }
+    endNodeIndex = Math.max(endNodeIndex, startNodeIndex);
+    while (
+      endNodeIndex < snapshot.nodes.length &&
+      to > (snapshot.nodes[endNodeIndex]?.end ?? 0)
+    ) {
+      endNodeIndex++;
+    }
+    const startNode = snapshot.nodes[startNodeIndex];
+    const endNode = snapshot.nodes[endNodeIndex];
 
-    if (startNode && endNode) {
+    if (startNode && endNode && from >= startNode.start && to > endNode.start) {
       const range = document.createRange();
       range.setStart(startNode.node, from - startNode.start);
       range.setEnd(endNode.node, to - endNode.start);
@@ -536,9 +647,14 @@ function getHighlightApi() {
 }
 
 export function createSessionMessageSearchController({
-  loadDocuments,
+  getLocalDocuments,
+  searchRemote,
 }: {
-  loadDocuments: SessionSearchDocumentLoader;
+  getLocalDocuments: () => SessionSearchDocument[];
+  searchRemote: (
+    query: string,
+    localObservationIds: ReadonlySet<string>,
+  ) => Promise<SessionSearchRemoteLoadResult>;
 }): SessionMessageSearchController {
   const state = {
     isOpen: false,
@@ -547,22 +663,25 @@ export function createSessionMessageSearchController({
     query: "",
     matches: [] as SessionSearchMatch[],
     activeMatchKey: null as string | null,
-    documents: null as SessionSearchDocument[] | null,
-    isLoading: false,
-    completedTraceCount: 0,
-    totalTraceCount: 0,
-    failedTraceCount: 0,
-    loadFailed: false,
+    documents: [] as SessionSearchDocument[],
+    isRemoteLoading: false,
+    remoteResults: [] as SessionSearchRemoteResult[],
+    remoteHasMore: false,
+    remoteLoadFailed: false,
     scope: "",
+    documentsDirty: true,
   };
   const listeners = new Set<() => void>();
   const targets = new Map<string, SessionSearchTarget>();
   const dirtyTargetIds = new Set<string>();
-  let pendingQueryTimeout: number | null = null;
+  const targetSnapshots = new Map<string, SessionMessageSearchTargetSnapshot>();
+  let pendingRemoteTimeout: number | null = null;
   let pendingTargetFrameId: number | null = null;
-  let loadGeneration = 0;
-  let loadAbortController: AbortController | null = null;
+  let remoteGeneration = 0;
   let navigateToTrace: ((traceIndex: number) => void) | null = null;
+  let navigateToRemoteResult:
+    | ((result: SessionSearchRemoteResult) => void)
+    | null = null;
   let cachedSnapshot: SessionMessageSearchSnapshot;
 
   const getActiveMatchIndex = () =>
@@ -573,6 +692,27 @@ export function createSessionMessageSearchController({
     const index = getActiveMatchIndex();
     return index >= 0 ? (state.matches[index] ?? null) : null;
   };
+  const getTargetSnapshot = (
+    targetId: string,
+  ): SessionMessageSearchTargetSnapshot => {
+    const activeMatch = getActiveMatch();
+    const nextSnapshot = {
+      query: state.matches.some((match) => match.targetId === targetId)
+        ? state.query
+        : "",
+      activeMatchIndex:
+        activeMatch?.targetId === targetId ? activeMatch.targetMatchIndex : -1,
+    };
+    const cached = targetSnapshots.get(targetId);
+    if (
+      cached?.query === nextSnapshot.query &&
+      cached.activeMatchIndex === nextSnapshot.activeMatchIndex
+    ) {
+      return cached;
+    }
+    targetSnapshots.set(targetId, nextSnapshot);
+    return nextSnapshot;
+  };
   const refreshSnapshot = () => {
     cachedSnapshot = {
       isOpen: state.isOpen,
@@ -582,21 +722,20 @@ export function createSessionMessageSearchController({
       matches: state.matches,
       activeMatch: getActiveMatch(),
       activeMatchIndex: getActiveMatchIndex(),
-      isLoading: state.isLoading,
-      completedTraceCount: state.completedTraceCount,
-      totalTraceCount: state.totalTraceCount,
-      failedTraceCount: state.failedTraceCount,
-      loadFailed: state.loadFailed,
+      isRemoteLoading: state.isRemoteLoading,
+      remoteResults: state.remoteResults,
+      remoteHasMore: state.remoteHasMore,
+      remoteLoadFailed: state.remoteLoadFailed,
     };
   };
   const emit = () => {
     refreshSnapshot();
     listeners.forEach((listener) => listener());
   };
-  const clearPendingQueryTimeout = () => {
-    if (pendingQueryTimeout === null) return;
-    window.clearTimeout(pendingQueryTimeout);
-    pendingQueryTimeout = null;
+  const clearPendingRemoteTimeout = () => {
+    if (pendingRemoteTimeout === null) return;
+    window.clearTimeout(pendingRemoteTimeout);
+    pendingRemoteTimeout = null;
   };
   const rebuildHighlightRegistry = () => {
     targets.forEach((target) =>
@@ -635,22 +774,20 @@ export function createSessionMessageSearchController({
   const refreshTarget = (targetId: string) => {
     const target = targets.get(targetId);
     if (!target) return;
-    target.ranges = getTextSearchRanges(target.root, state.query);
-  };
-  const scheduleTargetRefresh = (targetId: string) => {
-    dirtyTargetIds.add(targetId);
-    if (pendingTargetFrameId !== null) return;
-
-    pendingTargetFrameId = requestAnimationFrame(() => {
-      pendingTargetFrameId = null;
-      const activeTargetId = getActiveMatch()?.targetId;
-      const activeTargetWasRefreshed =
-        activeTargetId !== undefined && dirtyTargetIds.has(activeTargetId);
-      dirtyTargetIds.forEach(refreshTarget);
-      dirtyTargetIds.clear();
-      rebuildHighlightRegistry();
-      if (activeTargetWasRefreshed) scrollToActiveRange();
-    });
+    target.textSnapshot ??= getTextSearchSnapshot(target.root);
+    const expectedRangeCount = state.matches.filter(
+      (match) => match.targetId === targetId,
+    ).length;
+    if (expectedRangeCount === 0) {
+      target.ranges = [];
+      return;
+    }
+    const ranges = getTextSearchRanges(target.textSnapshot, state.query);
+    // The corpus is segmented by rendered field/message, while the DOM is a
+    // flattened tree. Never index into a differently sized range list: JSON
+    // virtualization, collapsed content, and renderer-only labels would make
+    // next/previous land on the wrong occurrence.
+    target.ranges = ranges.length === expectedRangeCount ? ranges : [];
   };
   const scrollToActiveRange = () => {
     const activeMatch = getActiveMatch();
@@ -668,6 +805,25 @@ export function createSessionMessageSearchController({
       inline: "nearest",
     });
   };
+  const scheduleTargetRefresh = (targetId: string) => {
+    dirtyTargetIds.add(targetId);
+    if (pendingTargetFrameId !== null) return;
+
+    pendingTargetFrameId = requestAnimationFrame(() => {
+      pendingTargetFrameId = null;
+      const activeTargetId = getActiveMatch()?.targetId;
+      const activeTargetWasRefreshed =
+        activeTargetId !== undefined && dirtyTargetIds.has(activeTargetId);
+      dirtyTargetIds.forEach(refreshTarget);
+      dirtyTargetIds.clear();
+      if (state.documentsDirty) {
+        state.documents = getLocalDocuments();
+        state.documentsDirty = false;
+      }
+      rebuildHighlightRegistry();
+      if (activeTargetWasRefreshed) scrollToActiveRange();
+    });
+  };
   const syncActiveMatch = () => {
     const activeMatch = getActiveMatch();
     if (!activeMatch) {
@@ -680,9 +836,7 @@ export function createSessionMessageSearchController({
   };
   const recomputeMatches = () => {
     const previousKey = state.activeMatchKey;
-    state.matches = state.documents
-      ? buildMatches(state.documents, state.query)
-      : [];
+    state.matches = buildMatches(state.documents, state.query);
     if (state.matches.length === 0) {
       state.activeMatchKey = null;
     } else if (
@@ -691,71 +845,74 @@ export function createSessionMessageSearchController({
     ) {
       state.activeMatchKey = state.matches[0]?.key ?? null;
     }
-    targets.forEach((target) => {
-      target.ranges = getTextSearchRanges(target.root, state.query);
-    });
+    const localObservationIds = new Set(
+      state.matches.map((match) => match.observationId),
+    );
+    state.remoteResults = state.remoteResults.filter(
+      (result) => !localObservationIds.has(result.observationId),
+    );
+    targets.forEach((_target, targetId) => refreshTarget(targetId));
     syncActiveMatch();
   };
-  const startLoading = () => {
-    const hasCompleteCorpus =
-      state.documents !== null &&
-      state.failedTraceCount === 0 &&
-      !state.loadFailed;
-    if (hasCompleteCorpus || state.isLoading || !state.query) return;
-    const generation = ++loadGeneration;
-    loadAbortController?.abort();
-    loadAbortController = new AbortController();
-    state.isLoading = true;
-    state.loadFailed = false;
-    state.failedTraceCount = 0;
-    state.completedTraceCount = 0;
-    state.totalTraceCount = 0;
-    emit();
-
-    loadDocuments({
-      signal: loadAbortController.signal,
-      onProgress(progress) {
-        if (generation !== loadGeneration) return;
-        state.completedTraceCount = progress.completedTraceCount;
-        state.totalTraceCount = progress.totalTraceCount;
-        emit();
-      },
-    }).then(
-      (result) => {
-        if (generation !== loadGeneration) return;
-        state.documents = result.documents;
-        state.failedTraceCount = result.failedTraceCount;
-        state.isLoading = false;
-        recomputeMatches();
-        emit();
-      },
-      () => {
-        if (generation !== loadGeneration) return;
-        state.isLoading = false;
-        state.loadFailed = true;
-        recomputeMatches();
-        emit();
-      },
-    );
-  };
-  const commitQuery = (query: string) => {
-    if (state.query === query) return;
-    state.query = query;
+  const refreshLocalDocuments = () => {
+    state.documents = getLocalDocuments();
+    state.documentsDirty = false;
     recomputeMatches();
-    if (query) startLoading();
   };
-  const flushPendingQuery = () => {
-    if (pendingQueryTimeout === null) return false;
-    clearPendingQueryTimeout();
-    commitQuery(state.queryInput);
-    return true;
-  };
-  const moveActiveMatch = (direction: 1 | -1) => {
-    const didFlushQuery = flushPendingQuery();
-    if (state.matches.length === 0) {
-      if (didFlushQuery) emit();
+  const scheduleRemoteSearch = () => {
+    clearPendingRemoteTimeout();
+    const generation = ++remoteGeneration;
+    state.remoteResults = [];
+    state.remoteHasMore = false;
+    state.remoteLoadFailed = false;
+
+    const remoteQuery = state.query.trim();
+    if (!remoteQuery) {
+      state.isRemoteLoading = false;
       return;
     }
+
+    state.isRemoteLoading = true;
+    const query = state.query;
+    const localObservationIds = new Set(
+      state.matches.map((match) => match.observationId),
+    );
+    pendingRemoteTimeout = window.setTimeout(() => {
+      pendingRemoteTimeout = null;
+      searchRemote(remoteQuery, localObservationIds).then(
+        (result) => {
+          if (generation !== remoteGeneration || query !== state.query) return;
+          const localObservationIds = new Set(
+            state.matches.map((match) => match.observationId),
+          );
+          state.remoteResults = result.results.filter(
+            (remoteResult) =>
+              !localObservationIds.has(remoteResult.observationId),
+          );
+          state.remoteHasMore = result.hasMore;
+          state.isRemoteLoading = false;
+          emit();
+        },
+        () => {
+          if (generation !== remoteGeneration || query !== state.query) return;
+          state.isRemoteLoading = false;
+          state.remoteLoadFailed = true;
+          emit();
+        },
+      );
+    }, SEARCH_INPUT_DEBOUNCE_MS);
+  };
+  const commitQuery = (query: string) => {
+    state.query = query;
+    if (query && state.documentsDirty) {
+      refreshLocalDocuments();
+    } else {
+      recomputeMatches();
+    }
+    scheduleRemoteSearch();
+  };
+  const moveActiveMatch = (direction: 1 | -1) => {
+    if (state.matches.length === 0) return;
     const currentIndex = getActiveMatchIndex();
     const fallback = direction > 0 ? 0 : state.matches.length - 1;
     const nextIndex =
@@ -778,15 +935,16 @@ export function createSessionMessageSearchController({
     getSnapshot() {
       return cachedSnapshot;
     },
+    getTargetSnapshot,
     dispose() {
-      clearPendingQueryTimeout();
-      loadAbortController?.abort();
-      loadGeneration++;
+      clearPendingRemoteTimeout();
+      remoteGeneration++;
       targets.forEach((target) => target.observer?.disconnect());
       if (pendingTargetFrameId !== null)
         cancelAnimationFrame(pendingTargetFrameId);
       dirtyTargetIds.clear();
       targets.clear();
+      targetSnapshots.clear();
       const api = getHighlightApi();
       api?.registry.delete(MATCH_HIGHLIGHT_NAME);
       api?.registry.delete(ACTIVE_MATCH_HIGHLIGHT_NAME);
@@ -798,12 +956,17 @@ export function createSessionMessageSearchController({
       emit();
     },
     closeSearch() {
-      clearPendingQueryTimeout();
+      clearPendingRemoteTimeout();
+      remoteGeneration++;
       state.isOpen = false;
       state.queryInput = "";
       state.query = "";
       state.matches = [];
       state.activeMatchKey = null;
+      state.isRemoteLoading = false;
+      state.remoteResults = [];
+      state.remoteHasMore = false;
+      state.remoteLoadFailed = false;
       targets.forEach((target) => {
         target.ranges = [];
       });
@@ -813,23 +976,11 @@ export function createSessionMessageSearchController({
     setQueryInput(value) {
       if (state.queryInput === value) return;
       state.queryInput = value;
-      clearPendingQueryTimeout();
-      if (value === "") {
-        commitQuery("");
-        emit();
-        return;
-      }
+      commitQuery(value);
       emit();
-      if (value === state.query) return;
-      pendingQueryTimeout = window.setTimeout(() => {
-        pendingQueryTimeout = null;
-        commitQuery(value);
-        emit();
-      }, SEARCH_INPUT_DEBOUNCE_MS);
     },
     blurQueryInput() {
       if (state.queryInput.trim() !== "") return;
-      clearPendingQueryTimeout();
       state.queryInput = "";
       commitQuery("");
       emit();
@@ -843,18 +994,18 @@ export function createSessionMessageSearchController({
     setScope(scope) {
       if (state.scope === scope) return;
       state.scope = scope;
-      loadAbortController?.abort();
-      loadGeneration++;
-      state.documents = null;
-      state.isLoading = false;
-      state.failedTraceCount = 0;
-      state.loadFailed = false;
-      recomputeMatches();
-      if (state.query) startLoading();
+      state.documentsDirty = true;
+      commitQuery(state.query);
       emit();
     },
     setTraceNavigator(nextNavigateToTrace) {
       navigateToTrace = nextNavigateToTrace;
+    },
+    setRemoteNavigator(nextNavigateToResult) {
+      navigateToRemoteResult = nextNavigateToResult;
+    },
+    openRemoteResult(result) {
+      navigateToRemoteResult?.(result);
     },
     registerTarget(targetId, root) {
       const existing = targets.get(targetId);
@@ -864,19 +1015,25 @@ export function createSessionMessageSearchController({
         root,
         observer: null,
         ranges: [],
+        textSnapshot: null,
       };
       target.observer =
         typeof MutationObserver === "undefined"
           ? null
-          : new MutationObserver(() => scheduleTargetRefresh(targetId));
+          : new MutationObserver(() => {
+              const currentTarget = targets.get(targetId);
+              if (currentTarget) currentTarget.textSnapshot = null;
+              scheduleTargetRefresh(targetId);
+            });
       target.observer?.observe(root, {
         attributes: true,
         childList: true,
         characterData: true,
         subtree: true,
-        attributeFilter: ["class", "hidden", "style"],
+        attributeFilter: ["aria-hidden", "class", "hidden", "style"],
       });
       targets.set(targetId, target);
+      state.documentsDirty = true;
       scheduleTargetRefresh(targetId);
     },
     unregisterTarget(targetId) {
@@ -884,6 +1041,7 @@ export function createSessionMessageSearchController({
       target?.observer?.disconnect();
       dirtyTargetIds.delete(targetId);
       targets.delete(targetId);
+      targetSnapshots.delete(targetId);
       rebuildHighlightRegistry();
     },
   };

@@ -2,9 +2,11 @@ import { type SessionTraceObservation } from "./SessionObservationIO";
 import {
   buildSessionSearchDocuments,
   createSessionMessageSearchController,
+  loadSessionSearchRemoteResults,
   selectVisibleSessionObservations,
   type SessionSearchDocument,
 } from "./sessionMessageSearchController";
+import { isSessionSearchShortcutInScope } from "./SessionMessageSearch";
 
 const observation = (
   overrides: Partial<SessionTraceObservation> = {},
@@ -123,6 +125,28 @@ describe("session message search corpus", () => {
     const text = documents.map((document) => document.text).join("\n");
     expect(text).toContain('"needleKey"');
     expect(text).toContain('"needle value"');
+  });
+
+  it("searches metadata only when the JSON view shows it", () => {
+    const buildDocuments = (includeMetadata: boolean) =>
+      buildSessionSearchDocuments({
+        traceId: "trace-1",
+        traceIndex: 0,
+        observations: [
+          observation({
+            input: JSON.stringify({ prompt: "hello" }),
+            metadata: JSON.stringify({ tenant: "metadata needle" }),
+          }),
+        ],
+        contentMode: "all",
+        showSystemPrompt: false,
+        includeMetadata,
+      })
+        .map((document) => document.text)
+        .join("\n");
+
+    expect(buildDocuments(false)).not.toContain("metadata needle");
+    expect(buildDocuments(true)).toContain("metadata needle");
   });
 
   it("searches the formatted chat model in all-content mode", () => {
@@ -291,34 +315,116 @@ describe("session message search controller", () => {
     controller.setQueryInput(query);
     await vi.advanceTimersByTimeAsync(150);
     await vi.waitFor(() =>
-      expect(controller.getSnapshot().isLoading).toBe(false),
+      expect(controller.getSnapshot().isRemoteLoading).toBe(false),
     );
   };
 
-  it("loads once, normalizes matches, and navigates across virtual traces", async () => {
-    const loadDocuments = vi.fn().mockResolvedValue({
-      documents: [
-        searchDocument(),
-        searchDocument({
-          id: "trace-2:observation-2:output",
-          targetId: "trace-2:observation-2",
-          traceId: "trace-2",
-          traceIndex: 1,
-          observationId: "observation-2",
-          field: "output",
-          label: "Output",
-          text: "Langfuse",
-        }),
-      ],
-      failedTraceCount: 0,
+  it("pages past remote results that are already in the local corpus", async () => {
+    const startTime = new Date("2026-07-24T08:00:00Z");
+    const loadPage = vi
+      .fn()
+      .mockResolvedValueOnce({
+        results: [
+          {
+            traceId: "trace-1",
+            observationId: "observation-1",
+            observationName: "local",
+            traceName: "trace 1",
+            startTime,
+          },
+        ],
+        hasMore: true,
+      })
+      .mockResolvedValueOnce({
+        results: [
+          {
+            traceId: "trace-2",
+            observationId: "observation-2",
+            observationName: "remote",
+            traceName: "trace 2",
+            startTime,
+          },
+        ],
+        hasMore: false,
+      });
+
+    const result = await loadSessionSearchRemoteResults({
+      limit: 1,
+      localObservationIds: new Set(["observation-1"]),
+      traceIndexById: new Map([
+        ["trace-1", 0],
+        ["trace-2", 1],
+      ]),
+      loadPage,
     });
+
+    expect(loadPage).toHaveBeenNthCalledWith(1, { limit: 1, offset: 0 });
+    expect(loadPage).toHaveBeenNthCalledWith(2, { limit: 1, offset: 1 });
+    expect(result.results.map(({ observationId }) => observationId)).toEqual([
+      "observation-2",
+    ]);
+    expect(result.hasMore).toBe(false);
+  });
+
+  it("searches cached documents immediately while remote results load", async () => {
+    let resolveRemote:
+      | ((value: { results: never[]; hasMore: false }) => void)
+      | undefined;
+    const searchRemote = vi.fn(
+      () =>
+        new Promise<{ results: never[]; hasMore: false }>((resolve) => {
+          resolveRemote = resolve;
+        }),
+    );
+    const controller = createSessionMessageSearchController({
+      getLocalDocuments: () => [searchDocument()],
+      searchRemote,
+    });
+
+    controller.setQueryInput("langfuse");
+
+    expect(controller.getSnapshot().matches).toHaveLength(2);
+    expect(controller.getSnapshot().isRemoteLoading).toBe(true);
+    expect(searchRemote).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(150);
+    expect(searchRemote).toHaveBeenCalledWith(
+      "langfuse",
+      new Set(["observation-1"]),
+    );
+    resolveRemote?.({ results: [], hasMore: false });
+    await vi.waitFor(() =>
+      expect(controller.getSnapshot().isRemoteLoading).toBe(false),
+    );
+  });
+
+  it("normalizes local matches and navigates across virtual traces", async () => {
+    const getLocalDocuments = vi.fn(() => [
+      searchDocument(),
+      searchDocument({
+        id: "trace-2:observation-2:output",
+        targetId: "trace-2:observation-2",
+        traceId: "trace-2",
+        traceIndex: 1,
+        observationId: "observation-2",
+        field: "output",
+        label: "Output",
+        text: "Langfuse",
+      }),
+    ]);
     const navigateToTrace = vi.fn();
-    const controller = createSessionMessageSearchController({ loadDocuments });
+    const controller = createSessionMessageSearchController({
+      getLocalDocuments,
+      searchRemote: vi.fn().mockResolvedValue({
+        results: [],
+        hasMore: false,
+      }),
+    });
     controller.setTraceNavigator(navigateToTrace);
 
     await commitQuery(controller, "langfuse");
 
-    expect(loadDocuments).toHaveBeenCalledTimes(1);
+    expect(getLocalDocuments).toHaveBeenCalledTimes(1);
     expect(controller.getSnapshot().matches).toHaveLength(3);
     expect(navigateToTrace).toHaveBeenLastCalledWith(0);
 
@@ -329,77 +435,179 @@ describe("session message search controller", () => {
     expect(navigateToTrace).toHaveBeenLastCalledWith(1);
 
     await commitQuery(controller, "and");
-    expect(loadDocuments).toHaveBeenCalledTimes(1);
+    expect(getLocalDocuments).toHaveBeenCalledTimes(1);
     expect(controller.getSnapshot().matches).toHaveLength(1);
   });
 
-  it("invalidates the cached corpus when the rendered search scope changes", async () => {
-    const loadDocuments = vi.fn().mockResolvedValue({
-      documents: [searchDocument()],
-      failedTraceCount: 0,
-    });
-    const controller = createSessionMessageSearchController({ loadDocuments });
-
-    await commitQuery(controller, "Langfuse");
-    controller.setScope("next-filter");
-    await vi.waitFor(() => expect(loadDocuments).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() =>
-      expect(controller.getSnapshot().isLoading).toBe(false),
+  it("keeps the active result sequence stable when virtual targets mount", async () => {
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn(() => 1),
     );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    let documents = [
+      searchDocument({ text: "needle alpha" }),
+      searchDocument({
+        id: "trace-2:observation-2:input",
+        targetId: "trace-2:observation-2",
+        traceId: "trace-2",
+        traceIndex: 1,
+        observationId: "observation-2",
+        text: "needle alpha",
+      }),
+    ];
+    const getLocalDocuments = vi.fn(() => documents);
+    const controller = createSessionMessageSearchController({
+      getLocalDocuments,
+      searchRemote: vi.fn().mockResolvedValue({
+        results: [],
+        hasMore: false,
+      }),
+    });
+
+    await commitQuery(controller, "needle");
+    controller.previousMatch();
+    const activeMatchKey = controller.getSnapshot().activeMatch?.key;
+
+    documents = [
+      ...documents,
+      searchDocument({
+        id: "trace-3:observation-3:input",
+        targetId: "trace-3:observation-3",
+        traceId: "trace-3",
+        traceIndex: 2,
+        observationId: "observation-3",
+        text: "needle beta",
+      }),
+    ];
+    const root = document.createElement("div");
+    root.scrollIntoView = vi.fn();
+    controller.registerTarget("trace-3:observation-3", root);
 
     expect(controller.getSnapshot().matches).toHaveLength(2);
-  });
+    expect(controller.getSnapshot().activeMatch?.key).toBe(activeMatchKey);
+    expect(getLocalDocuments).toHaveBeenCalledTimes(1);
 
-  it("retries a partial corpus on the next committed query", async () => {
-    const loadDocuments = vi
-      .fn()
-      .mockResolvedValueOnce({
-        documents: [searchDocument()],
-        failedTraceCount: 1,
-      })
-      .mockResolvedValueOnce({
-        documents: [
-          searchDocument(),
-          searchDocument({
-            id: "trace-2:observation-2:output",
-            targetId: "trace-2:observation-2",
-            traceId: "trace-2",
-            traceIndex: 1,
-            observationId: "observation-2",
-            field: "output",
-            label: "Output",
-            text: "second complete result",
-          }),
-        ],
-        failedTraceCount: 0,
-      });
-    const controller = createSessionMessageSearchController({ loadDocuments });
-
-    await commitQuery(controller, "Langfuse");
-    expect(controller.getSnapshot().failedTraceCount).toBe(1);
-
-    await commitQuery(controller, "result");
-
-    expect(loadDocuments).toHaveBeenCalledTimes(2);
-    expect(controller.getSnapshot().failedTraceCount).toBe(0);
+    await commitQuery(controller, "beta");
+    expect(getLocalDocuments).toHaveBeenCalledTimes(2);
     expect(controller.getSnapshot().matches).toHaveLength(1);
+    expect(controller.getSnapshot().activeMatch?.traceId).toBe("trace-3");
   });
 
-  it("emits a flushed zero-match query before navigation returns", async () => {
+  it("keeps unmatched target snapshots stable across query updates", async () => {
     const controller = createSessionMessageSearchController({
-      loadDocuments: vi.fn().mockResolvedValue({
-        documents: [searchDocument()],
-        failedTraceCount: 0,
+      getLocalDocuments: () => [searchDocument()],
+      searchRemote: vi.fn().mockResolvedValue({
+        results: [],
+        hasMore: false,
       }),
     });
 
     await commitQuery(controller, "Langfuse");
+    expect(controller.getTargetSnapshot("trace-1:observation-1")).toMatchObject(
+      {
+        query: "Langfuse",
+        activeMatchIndex: 0,
+      },
+    );
+    const unmatchedSnapshot = controller.getTargetSnapshot(
+      "trace-2:observation-2",
+    );
+
+    await commitQuery(controller, "missing");
+
+    expect(controller.getTargetSnapshot("trace-2:observation-2")).toBe(
+      unmatchedSnapshot,
+    );
+    expect(unmatchedSnapshot).toEqual({
+      query: "",
+      activeMatchIndex: -1,
+    });
+  });
+
+  it("refreshes the local corpus and remote search when scope changes", async () => {
+    const getLocalDocuments = vi.fn(() => [searchDocument()]);
+    const searchRemote = vi.fn().mockResolvedValue({
+      results: [],
+      hasMore: false,
+    });
+    const controller = createSessionMessageSearchController({
+      getLocalDocuments,
+      searchRemote,
+    });
+
+    await commitQuery(controller, "Langfuse");
+    controller.setScope("next-filter");
+    await vi.advanceTimersByTimeAsync(150);
+
+    expect(getLocalDocuments).toHaveBeenCalledTimes(2);
+    expect(searchRemote).toHaveBeenCalledTimes(2);
+    expect(controller.getSnapshot().matches).toHaveLength(2);
+  });
+
+  it("keeps remote candidates separate and omits locally matched observations", async () => {
+    const searchRemote = vi.fn().mockResolvedValue({
+      results: [
+        {
+          key: "trace-1:observation-1",
+          traceId: "trace-1",
+          traceIndex: 0,
+          observationId: "observation-1",
+          observationName: "loaded",
+          traceName: "trace 1",
+          startTime: new Date("2026-07-24T08:00:00Z"),
+        },
+        {
+          key: "trace-2:observation-2",
+          traceId: "trace-2",
+          traceIndex: 1,
+          observationId: "observation-2",
+          observationName: "not loaded",
+          traceName: "trace 2",
+          startTime: new Date("2026-07-24T09:00:00Z"),
+        },
+      ],
+      hasMore: true,
+    });
+    const controller = createSessionMessageSearchController({
+      getLocalDocuments: () => [searchDocument()],
+      searchRemote,
+    });
+    const navigateToRemoteResult = vi.fn();
+    controller.setRemoteNavigator(navigateToRemoteResult);
+
+    await commitQuery(controller, "Langfuse");
+
+    expect(controller.getSnapshot().remoteResults).toHaveLength(1);
+    expect(controller.getSnapshot().remoteResults[0]?.observationId).toBe(
+      "observation-2",
+    );
+    expect(controller.getSnapshot().remoteHasMore).toBe(true);
+    controller.openRemoteResult(controller.getSnapshot().remoteResults[0]!);
+    expect(navigateToRemoteResult).toHaveBeenCalledWith(
+      expect.objectContaining({ observationId: "observation-2" }),
+    );
+  });
+
+  it("commits and emits a zero-match query before navigation returns", () => {
+    const controller = createSessionMessageSearchController({
+      getLocalDocuments: () => [searchDocument()],
+      searchRemote: vi.fn().mockResolvedValue({
+        results: [],
+        hasMore: false,
+      }),
+    });
+    const listener = vi.fn();
+    controller.subscribe(listener);
+
+    controller.setQueryInput("Langfuse");
     controller.setQueryInput("missing");
     controller.nextMatch();
 
     expect(controller.getSnapshot().query).toBe("missing");
     expect(controller.getSnapshot().matches).toHaveLength(0);
     expect(controller.getSnapshot().activeMatchIndex).toBe(-1);
+    expect(listener).toHaveBeenCalled();
   });
 
   it("marks and scrolls to the containing target for a hidden match", async () => {
@@ -414,9 +622,10 @@ describe("session message search controller", () => {
     root.scrollIntoView = scrollIntoView;
     document.body.appendChild(root);
     const controller = createSessionMessageSearchController({
-      loadDocuments: vi.fn().mockResolvedValue({
-        documents: [searchDocument({ text: "hidden needle" })],
-        failedTraceCount: 0,
+      getLocalDocuments: () => [searchDocument({ text: "hidden needle" })],
+      searchRemote: vi.fn().mockResolvedValue({
+        results: [],
+        hasMore: false,
       }),
     });
     controller.registerTarget("trace-1:observation-1", root);
@@ -460,9 +669,10 @@ describe("session message search controller", () => {
     if (paragraph) paragraph.scrollIntoView = vi.fn();
     document.body.appendChild(root);
     const controller = createSessionMessageSearchController({
-      loadDocuments: vi.fn().mockResolvedValue({
-        documents: [searchDocument({ text: "formatted message" })],
-        failedTraceCount: 0,
+      getLocalDocuments: () => [searchDocument({ text: "formatted message" })],
+      searchRemote: vi.fn().mockResolvedValue({
+        results: [],
+        hasMore: false,
       }),
     });
     controller.registerTarget("trace-1:observation-1", root);
@@ -474,5 +684,57 @@ describe("session message search controller", () => {
     expect(matchRanges?.[0]?.toString()).toBe("formatted message");
 
     controller.dispose();
+  });
+
+  it("does not turn an unindexed role header into a phantom DOM match", async () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<div class="io-message-header">assistant</div><p>answer</p>';
+    root.scrollIntoView = vi.fn();
+    document.body.appendChild(root);
+    const controller = createSessionMessageSearchController({
+      getLocalDocuments: () => [searchDocument({ text: "assistant" })],
+      searchRemote: vi.fn().mockResolvedValue({
+        results: [],
+        hasMore: false,
+      }),
+    });
+    controller.registerTarget("trace-1:observation-1", root);
+
+    await commitQuery(controller, "assistant");
+
+    expect(root).toHaveAttribute("data-session-search-hidden-match");
+    controller.dispose();
+  });
+});
+
+describe("session message search shortcut scope", () => {
+  it("uses session search for page focus but ignores focused overlays", () => {
+    const root = document.createElement("div");
+    const inside = document.createElement("button");
+    const outside = document.createElement("button");
+    const headerSearch = document.createElement("input");
+    headerSearch.setAttribute("data-session-message-search-control", "");
+    root.appendChild(inside);
+    document.body.append(root, outside, headerSearch);
+
+    expect(
+      isSessionSearchShortcutInScope(root, document.body, document.body),
+    ).toBe(true);
+    expect(isSessionSearchShortcutInScope(root, document, document.body)).toBe(
+      true,
+    );
+    expect(isSessionSearchShortcutInScope(root, outside, outside)).toBe(false);
+    expect(
+      isSessionSearchShortcutInScope(root, headerSearch, headerSearch),
+    ).toBe(true);
+    expect(isSessionSearchShortcutInScope(root, inside, outside)).toBe(true);
+    expect(isSessionSearchShortcutInScope(root, document, inside)).toBe(true);
   });
 });

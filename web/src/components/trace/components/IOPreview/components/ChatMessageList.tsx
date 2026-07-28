@@ -134,7 +134,8 @@ export function ChatMessageList({
                 contentMode={contentMode}
               />
               {/* Show collapse/expand button after first message */}
-              {isCollapsed !== null &&
+              {!searchQuery &&
+                isCollapsed !== null &&
                 originalIndex === messagesToRender[0]?.originalIndex && (
                   <Button
                     variant="ghost"

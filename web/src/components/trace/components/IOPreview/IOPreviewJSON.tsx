@@ -88,6 +88,8 @@ export interface IOPreviewJSONProps {
   expansionState?: ExpansionState;
   onExpansionChange?: (expansion: Record<string, boolean>) => void;
   showCorrections?: boolean;
+  externalSearchQuery?: string;
+  externalMatchIndex?: number;
 }
 
 /**
@@ -126,6 +128,8 @@ function IOPreviewJSONInner({
   expansionState,
   onExpansionChange,
   showCorrections = true,
+  externalSearchQuery,
+  externalMatchIndex = -1,
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
 
@@ -298,6 +302,13 @@ function IOPreviewJSONInner({
   const [searchMatchCount, setSearchMatchCount] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<MultiSectionJsonViewerHandle>(null);
+  const hasExternalSearch = Boolean(externalSearchQuery);
+  const effectiveSearchQuery = hasExternalSearch
+    ? externalSearchQuery
+    : debouncedSearchQuery;
+  const effectiveMatchIndex = hasExternalSearch
+    ? externalMatchIndex
+    : currentMatchIndex;
 
   // Debounce search query
   useEffect(() => {
@@ -600,8 +611,8 @@ function IOPreviewJSONInner({
       enableCopy={true}
       stringWrapMode={stringWrapMode}
       truncateStringsAt={stringWrapMode === "truncate" ? 100 : null}
-      searchQuery={debouncedSearchQuery}
-      currentMatchIndex={currentMatchIndex}
+      searchQuery={effectiveSearchQuery}
+      currentMatchIndex={effectiveMatchIndex}
       onSearchResults={setSearchMatchCount}
       scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
       media={media}

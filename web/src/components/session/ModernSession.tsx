@@ -268,10 +268,28 @@ export function ModernSession({
 
   const restoreScrollSpy = () => setSelectedTraceId(undefined);
 
+  const openRemoteSearchResult = useCallback(
+    (result: Parameters<typeof messageSearch.openRemoteResult>[0]) => {
+      const trace = traces[result.traceIndex];
+      if (!trace) return;
+      setSelectedTraceId(trace.id);
+      scrollToTrace(result.traceIndex);
+      openPeek(trace.id, {
+        ...trace,
+        observationId: result.observationId,
+      });
+    },
+    [messageSearch, openPeek, scrollToTrace, traces],
+  );
+
   useEffect(() => {
     messageSearch.setTraceNavigator(selectTrace);
-    return () => messageSearch.setTraceNavigator(null);
-  }, [messageSearch, selectTrace]);
+    messageSearch.setRemoteNavigator(openRemoteSearchResult);
+    return () => {
+      messageSearch.setTraceNavigator(null);
+      messageSearch.setRemoteNavigator(null);
+    };
+  }, [messageSearch, openRemoteSearchResult, selectTrace]);
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-1">

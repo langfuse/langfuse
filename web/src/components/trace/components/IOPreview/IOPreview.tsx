@@ -71,6 +71,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
   searchQuery?: string;
+  searchMatchIndex?: number;
   setIsPrettyViewAvailable?: (value: boolean) => void;
   // Inline comment props (JSON Beta view only)
   enableInlineComments?: boolean;
@@ -122,6 +123,7 @@ export function IOPreview({
   contentMode = "all",
   showSystemPrompt,
   searchQuery,
+  searchMatchIndex,
   inputExpansionState,
   outputExpansionState,
   metadataExpansionState,
@@ -263,6 +265,8 @@ export function IOPreview({
           traceId={traceId}
           environment={environment}
           showCorrections={showCorrections}
+          externalSearchQuery={searchQuery}
+          externalMatchIndex={searchMatchIndex}
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple

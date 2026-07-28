@@ -179,6 +179,39 @@ maybe("sessions observations bounded I/O (events)", () => {
     expect(large?.output).toBe("small");
   });
 
+  it("searches full session I/O beyond the card preview", async () => {
+    const query = "remoteSearchNeedle";
+    const bigInput = `${"a".repeat(INLINE_LIMIT + 100)} ${query}`;
+    const { sessionId, traceId } = await seedObservations([
+      { input: bigInput, output: "small" },
+    ]);
+
+    const cardObservations =
+      await caller.sessions.observationsForTraceFromEvents({
+        projectId,
+        sessionId,
+        traceId,
+        filter: [],
+      });
+    expect(String(cardObservations[0]?.input)).not.toContain(query);
+
+    const result = await caller.sessions.searchMessages({
+      projectId,
+      sessionId,
+      query,
+      filter: [],
+      limit: 20,
+    });
+
+    expect(result.hasMore).toBe(false);
+    expect(result.results).toEqual([
+      expect.objectContaining({
+        traceId,
+        observationId: `${traceId}-o0`,
+      }),
+    ]);
+  });
+
   it("caps metadata values and flags metadataTruncated", async () => {
     const bigValue = "m".repeat(INLINE_LIMIT + 50);
     const { sessionId, traceId } = await seedObservations([

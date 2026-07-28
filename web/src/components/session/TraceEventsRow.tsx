@@ -15,7 +15,7 @@ import { type IOPreviewContentMode } from "@/src/components/trace/components/IOP
 import { useChatMLParser } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
 import {
   SessionMessageSearchTarget,
-  useSessionMessageSearchQuery,
+  useSessionMessageSearchTargetState,
 } from "@/src/components/session/SessionMessageSearch";
 import {
   isModernSessionConversation,
@@ -27,6 +27,8 @@ export type TraceEventsSurface = "card" | "modern";
 
 type SessionObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
+
+const MemoizedSessionObservationIO = React.memo(SessionObservationIO);
 
 const ModernSessionObservation = ({
   observation,
@@ -49,7 +51,10 @@ const ModernSessionObservation = ({
   showSystemPrompt?: boolean;
   onOpenInTraceView: (observationId: string) => void;
 }) => {
-  const searchQuery = useSessionMessageSearchQuery();
+  const searchTargetId = `${traceId}:${observation.id}`;
+  const { query: immediateSearchQuery, activeMatchIndex: searchMatchIndex } =
+    useSessionMessageSearchTargetState(searchTargetId);
+  const searchQuery = React.useDeferredValue(immediateSearchQuery);
   const parsed = React.useMemo(
     () => ({
       input: deepParseJson(observation.input, {
@@ -91,8 +96,8 @@ const ModernSessionObservation = ({
       }
     >
       {!isConversation ? <ObservationHeader observation={observation} /> : null}
-      <SessionMessageSearchTarget targetId={`${traceId}:${observation.id}`}>
-        <SessionObservationIO
+      <SessionMessageSearchTarget targetId={searchTargetId}>
+        <MemoizedSessionObservationIO
           observation={observation}
           projectId={projectId}
           sessionId={sessionId}
@@ -108,6 +113,7 @@ const ModernSessionObservation = ({
           parsedMetadata={parsed.metadata}
           chatMLParserResult={chatMLParserResult}
           searchQuery={searchQuery}
+          searchMatchIndex={searchMatchIndex}
         />
       </SessionMessageSearchTarget>
     </div>

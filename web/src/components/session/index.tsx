@@ -1186,6 +1186,7 @@ const LoadedSessionEventsPage: React.FC<{
     () => JSON.stringify(visibleFilterState),
     [visibleFilterState],
   );
+  const messageSearchCaptureRootRef = React.useRef<HTMLDivElement>(null);
   const messageSearch = useSessionMessageSearchController({
     enabled: isModernSessionEnabled,
     traces: traces ?? [],
@@ -1195,6 +1196,7 @@ const LoadedSessionEventsPage: React.FC<{
     scopeKey: `${sessionId}:${traces?.length ?? 0}:${traces?.[0]?.id ?? ""}:${traces?.at(-1)?.id ?? ""}:${visibleFilterMeasurementKey}:${showInlineToolCalls}:${showSystemPrompt}`,
     showInlineToolCalls,
     showSystemPrompt,
+    captureRootRef: messageSearchCaptureRootRef,
   });
 
   // Stub state for Saved Views (no actual table columns in this view)
@@ -1412,6 +1414,12 @@ const LoadedSessionEventsPage: React.FC<{
                 sessionId={sessionId}
               />
               {isModernSessionEnabled ? (
+                <SessionMessageSearchToolbar
+                  controller={messageSearch}
+                  className="h-8 max-w-[28rem]"
+                />
+              ) : null}
+              {isModernSessionEnabled ? (
                 <>
                   <div className="hidden items-center gap-3 pr-2 min-[1900px]:flex">
                     <span className="text-muted-foreground text-xs">Show:</span>
@@ -1607,6 +1615,7 @@ const LoadedSessionEventsPage: React.FC<{
         }}
       >
         <div
+          ref={messageSearchCaptureRootRef}
           className={
             isModernSessionEnabled
               ? "flex h-full min-h-0 flex-col overflow-hidden"
@@ -1743,7 +1752,7 @@ const LoadedSessionEventsPage: React.FC<{
             {isModernSessionEnabled ? (
               <SessionMessageSearchToolbar
                 controller={messageSearch}
-                className="ml-auto max-w-[28rem]"
+                className="ml-auto max-w-[28rem] md:hidden"
               />
             ) : null}
           </SessionControlsBar>

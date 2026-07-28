@@ -86,6 +86,7 @@ export const SessionObservationIO = ({
   parsedMetadata,
   chatMLParserResult,
   searchQuery,
+  searchMatchIndex,
 }: {
   observation: SessionTraceObservation;
   projectId: string;
@@ -102,6 +103,7 @@ export const SessionObservationIO = ({
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
   searchQuery?: string;
+  searchMatchIndex?: number;
 }) => {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -172,6 +174,7 @@ export const SessionObservationIO = ({
       parsedMetadata={parsedMetadata}
       chatMLParserResult={chatMLParserResult}
       searchQuery={searchQuery}
+      searchMatchIndex={searchMatchIndex}
     />
   );
 
