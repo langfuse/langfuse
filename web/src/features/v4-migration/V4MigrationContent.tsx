@@ -51,8 +51,8 @@ const OTEL_V4_MIGRATION_URL =
   "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4";
 const DEPRECATED_API_MIGRATION_URL =
   "https://langfuse.com/faq/all/deprecated-api-migration";
-const OBSERVATIONS_FAQ_URL =
-  "https://langfuse.com/faq/all/explore-observations-in-v4";
+const OBSERVATIONS_DATA_MODEL_URL =
+  "https://langfuse.com/docs/observability/data-model#observations-and-traces";
 const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
   PostHog:
     "https://langfuse.com/integrations/analytics/posthog#migrate-export-source",
@@ -417,7 +417,7 @@ export function V4MigrationDetailsContent({
         <p className="text-muted-foreground text-sm">
           The latest SDK no longer sets trace input and output; v4{" "}
           <ExternalLink
-            href={OBSERVATIONS_FAQ_URL}
+            href={OBSERVATIONS_DATA_MODEL_URL}
             className="text-inherit underline"
           >
             infers them from observations
