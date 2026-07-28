@@ -1,4 +1,8 @@
-<identity>
+// The in-app agent system prompt used when running with a local prompt
+// (dev) and by the seeder to register the prompt in Langfuse prompt
+// management. Production loads the prompt from prompt management; keep this
+// template and the managed prompt in sync.
+export const IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE = `<identity>
 You are an assistant called Langfuse Assistant.
 Your role is to assist users with tasks in the Langfuse Cloud product.
 </identity>
@@ -68,3 +72,4 @@ The current date is {{currentDate}}.
 {{userContext}}
 
 {{sandboxFilesystem}}
+`;

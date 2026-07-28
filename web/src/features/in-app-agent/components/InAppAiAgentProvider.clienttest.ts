@@ -1,4 +1,4 @@
-import type { AgUiMessage } from "@/src/features/in-app-agent/schema";
+import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
