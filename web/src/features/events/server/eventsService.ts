@@ -792,10 +792,13 @@ export async function getEventFilterOptions(
   // column only offers names its filter can match (LFE-10596).
   return {
     ...eventFilterOptionsByColumn,
-    // Approximate total observation count for the footer "Total ≈ X" (null
-    // unless includeApproxCount was set — i.e. the eager bulk query).
-    approxTotalCount,
-    approxTotalCountIsPartial,
+    // Approximate total observation count for the footer "Total ≈ X". Included
+    // ONLY when requested (the eager bulk query), so callers that didn't ask —
+    // lazy per-column facet requests, the sidebar/search-bar option loaders —
+    // don't carry stray count keys (mirrors the conditional score keys below).
+    ...(scopedParams.includeApproxCount
+      ? { approxTotalCount, approxTotalCountIsPartial }
+      : {}),
     ...(shouldLoadScoresAvg
       ? { scores_avg: numericScoreNames.map((score) => score.name) }
       : {}),
