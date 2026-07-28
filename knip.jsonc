@@ -50,6 +50,11 @@
     },
     "packages/config-eslint": {
       "project": ["*.js"],
+      // eslint-plugin-import loads these from the resolver names in next.js settings.
+      "ignoreDependencies": [
+        "eslint-import-resolver-node",
+        "eslint-import-resolver-typescript",
+      ],
     },
     "packages/eslint-plugin": {
       "project": ["src/**/*.ts"],
