@@ -61,12 +61,9 @@ vi.mock("@/src/features/v4-migration/V4MigrationPanelProvider", () => ({
   useV4MigrationPanel: () => ({ openForProject: mocks.openForProject }),
 }));
 
-vi.mock(
-  "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider",
-  () => ({
-    useInAppAiAgent: () => ({ setOpen: vi.fn() }),
-  }),
-);
+vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
+  useInAppAiAgent: () => ({ setOpen: vi.fn() }),
+}));
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   useCopyMigrationPrompt: () => vi.fn(),

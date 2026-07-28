@@ -1,11 +1,11 @@
 name: AWS preview stale cleanup
 
 # Reap stale PR preview environments by removing the `preview` label from open
-# PRs with no activity for STALE_DAYS. Label removal is the ONLY action: the
-# Argo CD ApplicationSet in the infrastructure repo polls labeled open PRs, so
-# dropping the label makes it stop generating the Application, and its
-# resources-finalizer cascade-deletes the namespace, PVCs, and DNS. Re-adding
-# the label redeploys.
+# PRs with no activity for STALE_DAYS. Label removal drives the real teardown:
+# the Argo CD ApplicationSet in the infrastructure repo polls labeled open PRs,
+# so dropping the label makes it stop generating the Application, and its
+# resources-finalizer cascade-deletes the namespace, PVCs, and DNS. The PR's
+# native GitHub deployment records are retired separately in this workflow.
 #
 # "Activity" = GitHub's PR updated_at (commits, comments, reviews, label edits).
 # The auto-labeler applies `preview` on open, which bumps updated_at, so a
@@ -46,9 +46,8 @@ jobs:
       # (NOT issues), even though they go through the issues REST endpoints —
       # same pattern as preview-autolabel / preview-build. Also covers pulls.list.
       pull-requests: write
-      # Mark the reaped preview's GitHub deployments (environment pr-<n>,
-      # recorded by preview-build) inactive alongside the label removal, so the
-      # PR stops advertising an "Active" environment whose URL is gone.
+      # Retire and delete the reaped PR's records from the shared GitHub
+      # `PR Preview` environment.
       deployments: write
     steps:
       - name: Reap stale previews
@@ -112,23 +111,37 @@ jobs:
                       + `(last update ${pr.updated_at}). Re-add the \`${label}\` label to redeploy.`,
                   });
 
-                  // Retire the PR's GitHub deployments along with the preview
-                  // itself, so the PR stops showing an "Active" environment.
-                  // Re-adding the label redeploys, and the next build records a
-                  // fresh deployment.
-                  const deployments = await github.paginate(github.rest.repos.listDeployments, {
-                    owner,
-                    repo,
-                    environment: `pr-${pr.number}`,
-                    per_page: 100,
-                  });
+                  // Environment + task must stay byte-identical to
+                  // preview-build.yml and preview-deactivate.yml, or
+                  // listDeployments matches nothing and dead records pile up.
+                  const task = `preview-pr-${pr.number}`;
+                  const deployments = await github.paginate(
+                    github.rest.repos.listDeployments,
+                    { owner, repo, environment: "PR Preview", task, per_page: 100 },
+                  );
+                  // Isolate per deployment, like the sibling loops in
+                  // preview-build.yml / preview-deactivate.yml: one transient
+                  // 5xx must not skip this PR's remaining records. Not counted
+                  // as a reap failure — the label removal above is the teardown,
+                  // and it already succeeded.
                   for (const deployment of deployments) {
-                    await github.rest.repos.createDeploymentStatus({
-                      owner,
-                      repo,
-                      deployment_id: deployment.id,
-                      state: "inactive",
-                    });
+                    try {
+                      await github.rest.repos.createDeploymentStatus({
+                        owner,
+                        repo,
+                        deployment_id: deployment.id,
+                        state: "inactive",
+                      });
+                      await github.rest.repos.deleteDeployment({
+                        owner,
+                        repo,
+                        deployment_id: deployment.id,
+                      });
+                    } catch (e) {
+                      core.warning(
+                        `PR #${pr.number} deployment ${deployment.id}: ${e.message} — continuing`,
+                      );
+                    }
                   }
                 }
               } catch (e) {
