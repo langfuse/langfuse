@@ -27,6 +27,7 @@ import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
 import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
+import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
@@ -220,8 +221,6 @@ export const ROUTES: Route[] = [
     pathname: "",
     menuNode: <CloudStatusMenu />,
   },
-  // The Preview (fast) toggle is temporarily hidden while the v4-migration
-  // entry point is trialled; restore by re-adding menuNode: <V4SidebarToggle />.
   {
     title: "Update",
     pathname: "",
@@ -229,6 +228,12 @@ export const ROUTES: Route[] = [
     featureFlag: "v4UpgradeUi",
     show: ({ projectId }) => projectId !== undefined,
     menuNode: <V4MigrationNavItem />,
+  },
+  {
+    title: "V4 Preview",
+    pathname: "",
+    section: RouteSection.Secondary,
+    menuNode: <V4SidebarToggle />,
   },
   {
     title: "Settings",

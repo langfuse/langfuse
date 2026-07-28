@@ -222,21 +222,27 @@ export function V4MigrationHeaderContent({
         )}
       </p>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
-        Some of your setup is outdated.
+        <ExternalLink href={V4_DOCS_URL}>Langfuse v4</ExternalLink> is the new
+        version of the Langfuse SDKs and APIs, built on OpenTelemetry. This
+        project still uses the previous setup
         {DEMO_SDK_CASE !== 3 && (
           <>
-            {" "}
-            Live data is currently{" "}
-            <span className="text-dark-yellow">15 minutes behind</span>.
+            , which delays new traces by{" "}
+            <span className="text-dark-yellow">15 minutes</span>
           </>
-        )}{" "}
-        Update for faster performance.
+        )}
+        . Parts of it stop working after{" "}
+        <span className="text-dark-yellow">Oct 1</span>.
+      </p>
+      <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
+        Updating takes a few code changes. The fastest way is to hand them to a
+        coding agent:
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <RainbowButton className="w-full" onClick={handleCopyPrompt}>
           <Copy className="mr-1.5 h-4 w-4 shrink-0" />
-          <span className="min-w-0 truncate" title="Copy prompt for agents">
-            Copy prompt for agents
+          <span className="min-w-0 truncate" title="Update SDK with agents">
+            Update SDK with agents
           </span>
         </RainbowButton>
       </div>

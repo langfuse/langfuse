@@ -102,7 +102,7 @@ export function V4SidebarToggle() {
     }
   };
 
-  const fastPreviewLabel = "Fast (Preview)";
+  const v4PreviewLabel = "V4 Preview";
 
   return (
     <>
@@ -116,9 +116,9 @@ export function V4SidebarToggle() {
             <Label
               htmlFor="v4-beta-toggle"
               className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
-              title={fastPreviewLabel}
+              title={v4PreviewLabel}
             >
-              {fastPreviewLabel}
+              {v4PreviewLabel}
             </Label>
           </div>
           <Tooltip>
@@ -130,7 +130,7 @@ export function V4SidebarToggle() {
                   checked={isBetaEnabled}
                   onCheckedChange={handleToggle}
                   disabled={isLoading}
-                  aria-label="Toggle Preview (fast)"
+                  aria-label="Toggle V4 Preview"
                   aria-describedby={PREVIEW_FAST_DESCRIPTION_ID}
                 />
               </div>
