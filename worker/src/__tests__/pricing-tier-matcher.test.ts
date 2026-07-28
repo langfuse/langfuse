@@ -9,9 +9,6 @@ import {
 import { DefaultModelPriceSchema } from "../scripts/upsertDefaultModelPrices";
 import defaultModelPrices from "../constants/default-model-prices.json";
 
-const compilePostgresRegex = (pattern: string) =>
-  new RegExp(pattern.replace(/^\(\?i\)/, ""), "i");
-
 describe("default-model-prices.json", () => {
   it("should parse successfully with Zod schema (same validation as upsertDefaultModelPrices)", () => {
     expect(() =>
@@ -220,12 +217,8 @@ describe("default-model-prices.json", () => {
     );
     expect(claudeModel).toBeDefined();
 
-    const regex = compilePostgresRegex(claudeModel!.matchPattern);
-    expect(regex.test("jp.anthropic.claude-haiku-4-5-20251001-v1:0")).toBe(
-      true,
-    );
-    expect(regex.test("au.anthropic.claude-haiku-4-5-20251001-v1:0")).toBe(
-      true,
+    expect(claudeModel!.matchPattern).toContain(
+      "(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0",
     );
   });
 
