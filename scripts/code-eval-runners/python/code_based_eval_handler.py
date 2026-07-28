@@ -151,7 +151,7 @@ def normalize_result(result):
                 continue
 
             alias_value = score.pop(alias)
-            if key not in score:
+            if alias_value is not None and key not in score:
                 score[key] = alias_value
 
     return normalized
