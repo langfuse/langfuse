@@ -10,7 +10,6 @@ interface DeleteDatasetButtonProps {
   projectId: string;
   datasetId: string;
   datasetName: string;
-  icon?: boolean;
   className?: string;
   size?: ButtonProps["size"];
   variant?: ButtonProps["variant"];
@@ -27,29 +26,7 @@ export const DeleteDatasetButton = forwardRef<
     scope: "datasets:CUD",
   });
 
-  const actionButton = props.icon ? (
-    <IconOnlyButton
-      ref={ref}
-      icon={<Trash className="h-4 w-4" />}
-      label="Delete"
-      aria-label="delete"
-      disabledReason={
-        hasAccess
-          ? undefined
-          : "You don't have permission to delete this dataset."
-      }
-      variant={props.variant}
-      size={props.size}
-      className={props.className}
-      onClick={(event) => {
-        event.stopPropagation();
-        setOpen(true);
-        capture("datasets:delete_form_open", {
-          source: "table-single-row",
-        });
-      }}
-    />
-  ) : (
+  const actionButton = (
     <Button
       ref={ref}
       variant={props.variant || "ghost"}
@@ -74,22 +51,63 @@ export const DeleteDatasetButton = forwardRef<
   );
 
   return (
+    <DeleteDatasetDialog
+      projectId={props.projectId}
+      datasetId={props.datasetId}
+      datasetName={props.datasetName}
+      open={hasAccess && open}
+      onOpenChange={setOpen}
+      trigger={{ type: "dialog", element: actionButton }}
+    />
+  );
+});
+
+DeleteDatasetButton.displayName = "DeleteDatasetButton";
+
+export const DeleteDatasetIconButton = forwardRef<
+  HTMLButtonElement,
+  DeleteDatasetButtonProps
+>((props, ref) => {
+  const capture = usePostHogClientCapture();
+  const [open, setOpen] = useState(false);
+  const hasAccess = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "datasets:CUD",
+  });
+
+  return (
     <>
-      {props.icon ? actionButton : null}
+      <IconOnlyButton
+        ref={ref}
+        icon={<Trash className="h-4 w-4" />}
+        label="Delete"
+        aria-label="delete"
+        disabledReason={
+          hasAccess
+            ? undefined
+            : "You don't have permission to delete this dataset."
+        }
+        variant={props.variant}
+        size={props.size}
+        className={props.className}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen(true);
+          capture("datasets:delete_form_open", {
+            source: "table-single-row",
+          });
+        }}
+      />
       <DeleteDatasetDialog
         projectId={props.projectId}
         datasetId={props.datasetId}
         datasetName={props.datasetName}
         open={hasAccess && open}
         onOpenChange={setOpen}
-        trigger={
-          props.icon
-            ? { type: "external" }
-            : { type: "dialog", element: actionButton }
-        }
+        trigger={{ type: "external" }}
       />
     </>
   );
 });
 
-DeleteDatasetButton.displayName = "DeleteDatasetButton";
+DeleteDatasetIconButton.displayName = "DeleteDatasetIconButton";

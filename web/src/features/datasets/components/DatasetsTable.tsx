@@ -1,7 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { DeleteDatasetButton } from "@/src/features/datasets/components/DeleteDatasetButton";
+import { DeleteDatasetIconButton } from "@/src/features/datasets/components/DeleteDatasetButton";
 import { UpdateDatasetIconButton } from "@/src/features/datasets/components/UpdateDatasetButton";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -468,11 +468,10 @@ export function DatasetsTable(props: { projectId: string }) {
               variant="ghost"
               size="icon-xs"
             />
-            <DeleteDatasetButton
+            <DeleteDatasetIconButton
               projectId={props.projectId}
               datasetId={key.id}
               datasetName={row.original.folderPath}
-              icon
               variant="ghost"
               size="icon-xs"
             />
