@@ -33,8 +33,9 @@ function asArrayValue(value: string | string[] | undefined) {
 
 // Shared behavior for every V4 Preview toggle surface: session-backed state,
 // intro dialog on first enable, and the datasets/experiments URL translation
-// that keeps the current page valid after switching.
-function useV4PreviewToggle() {
+// that keeps the current page valid after switching. `source` distinguishes
+// the surfaces in the shared v4_beta_toggled event.
+function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
   const router = useRouter();
   const {
     isBetaEnabled,
@@ -90,7 +91,7 @@ function useV4PreviewToggle() {
   // update done, intro dialog confirmed rather than dismissed).
   const handleToggle = (enabled: boolean, afterToggle?: () => void) => {
     const onSuccess = () => {
-      capture("sidebar:v4_beta_toggled", { enabled });
+      capture("sidebar:v4_beta_toggled", { enabled, source });
       if (afterToggle) {
         afterToggle();
       } else {
@@ -124,7 +125,7 @@ export function V4SidebarToggle() {
     showIntroDialog,
     confirmIntroDialog,
     dismissIntroDialog,
-  } = useV4PreviewToggle();
+  } = useV4PreviewToggle("sidebar");
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
 
   // v4-upgrade users get this toggle inside the migration panel instead.
@@ -199,7 +200,7 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
     showIntroDialog,
     confirmIntroDialog,
     dismissIntroDialog,
-  } = useV4PreviewToggle();
+  } = useV4PreviewToggle("migration_panel");
 
   if (!canToggleV4) {
     return null;

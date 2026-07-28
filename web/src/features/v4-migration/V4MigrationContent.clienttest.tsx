@@ -56,6 +56,12 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useInAppAiAgent: () => ({ setOpen: vi.fn(), submit: vi.fn() }),
 }));
 
+// The toggle row pulls in session + tRPC state via useV4Beta; stub it so the
+// content tests need no SessionProvider or tRPC client.
+vi.mock("@/src/features/events/components/V4SidebarToggle", () => ({
+  V4PreviewToggleRow: () => null,
+}));
+
 vi.mock("@/src/components/ui/collapsible", () => ({
   Collapsible: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
