@@ -6,26 +6,19 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
   type UseSidebarFilterStateOptions,
-  useSidebarFilterState,
+  useSidebarFilterPresentation,
+  useSidebarFilterStateCore,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
   getEventsColumnName,
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
-import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
-import { formatIntervalSeconds } from "@/src/utils/dates";
 import {
-  TableBadgeLoadingCell,
-  TableIconBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
+  DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
   type FilterState,
   BatchExportTableName,
@@ -35,8 +28,17 @@ import {
   BatchActionType,
   ActionId,
   RESOURCE_LIMIT_ERROR_MESSAGE,
+  type TimeFilter,
   type TracingSearchType,
+  type ScoreAggregate,
 } from "@langfuse/shared";
+import { formatIntervalSeconds } from "@/src/utils/dates";
+import {
+  TableBadgeLoadingCell,
+  TableIconBadgeLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -58,7 +60,6 @@ import { TimeRangePicker } from "@/src/components/date-picker";
 import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -78,7 +79,6 @@ import {
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -243,10 +243,10 @@ export type EventsTableProps = {
   isolateTableState?: boolean;
 };
 
-// Build the start-time `FilterState` for an absolute date range (lower bound
+// Build the start-time filters for an absolute date range (lower bound
 // always, upper bound when present). Shared by the live table-rows range and the
 // tick-decoupled facet-options range.
-const toStartTimeFilterState = (range?: TableDateRange): FilterState =>
+const toStartTimeFilterState = (range?: TableDateRange): TimeFilter[] =>
   range
     ? [
         {
@@ -284,8 +284,6 @@ export default function ObservationsEventsTable({
   isolateTableState = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
-  const router = useRouter();
-  const { viewId } = router.query;
   const eventsFilterConfig = useMemo(
     () => getObservationEventsFilterConfig(omittedFilter),
     [omittedFilter],
@@ -328,31 +326,6 @@ export default function ObservationsEventsTable({
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "observations",
     "s",
-  );
-
-  const [inputFilterState] = useQueryFilterState(
-    // Default type filter - exclude SPAN and EVENT types
-    !viewId
-      ? [
-          {
-            column: "type",
-            type: "stringOptions",
-            operator: "any of",
-            value: [
-              "GENERATION",
-              "AGENT",
-              "TOOL",
-              "CHAIN",
-              "RETRIEVER",
-              "EVALUATOR",
-              "EMBEDDING",
-              "GUARDRAIL",
-            ],
-          },
-        ]
-      : [],
-    "generations", // Use "generations" table name for compatibility
-    projectId,
   );
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -526,40 +499,16 @@ export default function ObservationsEventsTable({
 
   const dateRangeFilter: FilterState = toStartTimeFilterState(dateRange);
 
-  // Facet options are scoped only by the time window (the facet hook reads just
-  // the start-time filters); use the tick-decoupled range so the auto refresh
-  // leaves them alone.
-  const oldFilterState = (isolateTableState ? [] : inputFilterState).concat(
-    toStartTimeFilterState(filterOptionsDateRange),
-  );
-
-  // Fetch filter options. Lazy: start with the eagerly-visible facets and load
-  // the rest (high-cardinality userId/sessionId, model/prompt/score facets) only
-  // when a sidebar section is opened or a field is typed into the search bar.
-  const {
-    filterOptions,
-    isFilterOptionsPending,
-    erroredColumns,
-    loadingColumns,
-    requestColumns,
-  } = useEventsFilterOptions({
-    projectId,
-    oldFilterState,
-    lazy: true,
-  });
-
   const appRootDefault = useAppRootDefault({
     enabled: enableAppRootDefault,
     projectId,
   });
 
-  const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
+  // Route-state half of the sidebar filters, ahead of the facet-options query
+  // so the same state that scopes the rows can refine the counts (LFE-14489).
+  const filterStateOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
-      loading: isFilterOptionsPending,
-      loadingColumns,
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
-      // v4 fast-mode surface — drives `isV4` on filters:* analytics (LFE-10781).
-      isV4: true,
       defaultExplicitFilterState: appRootDefault.defaultExplicitFilterState,
       onExplicitFilterStateChange: appRootDefault.onExplicitFilterStateChange,
     };
@@ -586,18 +535,104 @@ export default function ObservationsEventsTable({
     };
   }, [
     tableStatePolicy.filterStateLocation,
-    isFilterOptionsPending,
-    loadingColumns,
     peekContext,
     projectId,
     appRootDefault.defaultExplicitFilterState,
     appRootDefault.onExplicitFilterStateChange,
   ]);
 
-  const queryFilter = useSidebarFilterState(
+  const filterCore = useSidebarFilterStateCore(
+    eventsFilterConfig,
+    filterStateOptions,
+  );
+
+  // Embed scoping (user/session detail tabs, prompt linked generations): these
+  // conditions bound the row query, so they refine the facet counts too.
+  const embedScopeFilterState: FilterState = useMemo(
+    () => [
+      ...(userId
+        ? [
+            {
+              column: "User ID",
+              type: "string" as const,
+              operator: "=" as const,
+              value: userId,
+            },
+          ]
+        : []),
+      ...(sessionId
+        ? [
+            {
+              column: "Session ID",
+              type: "string" as const,
+              operator: "=" as const,
+              value: sessionId,
+            },
+          ]
+        : []),
+      ...(promptName
+        ? [
+            {
+              column: "promptName",
+              type: "string" as const,
+              operator: "=" as const,
+              value: promptName,
+            },
+          ]
+        : []),
+      ...(promptVersion
+        ? [
+            {
+              column: "promptVersion",
+              type: "number" as const,
+              operator: "=" as const,
+              value: promptVersion,
+            },
+          ]
+        : []),
+    ],
+    [userId, sessionId, promptName, promptVersion],
+  );
+
+  // The time window travels separately, on the tick-decoupled range so the
+  // auto refresh leaves the facets alone.
+  const facetRefiningFilter = useMemo(
+    () =>
+      externalFilterState ??
+      filterCore.filterState.concat(embedScopeFilterState),
+    [externalFilterState, filterCore.filterState, embedScopeFilterState],
+  );
+  const facetStartTimeFilter = useMemo(
+    () => toStartTimeFilterState(filterOptionsDateRange),
+    [filterOptionsDateRange],
+  );
+
+  // Fetch filter options. Lazy: start with the eagerly-visible facets and load
+  // the rest (high-cardinality userId/sessionId, model/prompt/score facets) only
+  // when a sidebar section is opened or a field is typed into the search bar.
+  const {
+    filterOptions,
+    isFilterOptionsPending,
+    erroredColumns,
+    loadingColumns,
+    requestColumns,
+  } = useEventsFilterOptions({
+    projectId,
+    startTimeFilter: facetStartTimeFilter,
+    refiningFilter: facetRefiningFilter,
+    lazy: true,
+  });
+
+  const queryFilter = useSidebarFilterPresentation(
+    filterCore,
     eventsFilterConfig,
     filterOptions,
-    queryFilterOptions,
+    {
+      loading: isFilterOptionsPending,
+      loadingColumns,
+      // v4 fast-mode surface — drives `isV4` on filters:* analytics (LFE-10781).
+      isV4: true,
+    },
   );
 
   // Lazy filter-options: load a facet's values when its sidebar section is
@@ -712,59 +747,12 @@ export default function ObservationsEventsTable({
   //       ]
   //     : [];
 
-  // Create user ID filter if userId is provided
-  const userIdFilter: FilterState = userId
-    ? [
-        {
-          column: "User ID",
-          type: "string",
-          operator: "=",
-          value: userId,
-        },
-      ]
-    : [];
-
-  const sessionIdFilter: FilterState = sessionId
-    ? [
-        {
-          column: "Session ID",
-          type: "string",
-          operator: "=",
-          value: sessionId,
-        },
-      ]
-    : [];
-
-  const promptNameFilter: FilterState = promptName
-    ? [
-        {
-          column: "promptName",
-          type: "string",
-          operator: "=",
-          value: promptName,
-        },
-      ]
-    : [];
-
-  const promptVersionFilter: FilterState = promptVersion
-    ? [
-        {
-          column: "promptVersion",
-          type: "number",
-          operator: "=",
-          value: promptVersion,
-        },
-      ]
-    : [];
-
   // The sidebar's effective filter state is the single source of truth in both
-  // modes — the search bar syncs into it rather than replacing it.
+  // modes — the search bar syncs into it, and the facet counts above refine
+  // from the same state + embed scoping (LFE-14489).
   const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
-    .concat(userIdFilter)
-    .concat(sessionIdFilter)
-    .concat(promptNameFilter)
-    .concat(promptVersionFilter);
+    .concat(embedScopeFilterState);
 
   // Use external filter state if provided, otherwise use combined filter
   // state. Even with an external filter, still apply the date-range bound so

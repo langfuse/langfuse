@@ -21,6 +21,7 @@ import {
   withWebCalloutInFlightLimit,
   type WebCalloutLimitContext,
 } from "@/src/features/web-callouts/server/rateLimit";
+import { LangfuseUserAgent } from "@langfuse/shared";
 import { fetchWithSecureRedirects, logger } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -205,7 +206,7 @@ export const invokeWebCalloutEndpoint = async ({
     const decryptedHeaders = decryptWebCalloutHeaders(endpoint.requestHeaders);
     const outboundHeaders = new Headers();
     outboundHeaders.set("Content-Type", "application/json");
-    outboundHeaders.set("User-Agent", "Langfuse/1.0");
+    outboundHeaders.set("User-Agent", LangfuseUserAgent);
 
     for (const [name, value] of Object.entries(decryptedHeaders)) {
       outboundHeaders.set(name, value);

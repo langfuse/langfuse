@@ -10,7 +10,7 @@ import {
 import {
   useCanUseInAppAgent,
   useInAppAiAgent,
-} from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 
 function BadgeContent({

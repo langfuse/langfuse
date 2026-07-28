@@ -111,6 +111,14 @@ Always fetch pricing from the provider's official docs before editing.
   "$5/$30", which was confusion with gpt-5.6-sol pricing. When a pricing summary for a
   model alias appears inconsistent with what the file holds, always fetch the specific
   model page (`https://developers.openai.com/api/docs/models/<model-id>`) to confirm.
+- **gpt-5.3-codex (added July 2026)** — `gpt-5.3-codex` appeared on the OpenAI pricing
+  page and model page in July 2026, described as "the most capable agentic coding model".
+  Pricing: $1.75/MTok input, $0.175/MTok cached input, $14.00/MTok output. Context window:
+  400k tokens; max output 128k tokens. No large-context tier. No date-stamped snapshot at
+  launch. Standard OpenAI matchPattern: `(?i)^(openai\/)?(gpt-5.3-codex)$`. Added to pricing
+  file and `openAIModels` in July 27 2026 audit. Official sources:
+  `https://developers.openai.com/api/docs/pricing` and
+  `https://developers.openai.com/api/docs/models/gpt-5.3-codex`.
 
 Capture:
 
