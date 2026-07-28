@@ -1,20 +1,24 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { encrypt } from "../../../packages/shared/src/encryption";
 import { env } from "../../../packages/shared/src/env";
+import { LLMAdapter } from "../../../packages/shared/src/server/llm/types";
 import {
-  ChatMessageType,
-  LLMAdapter,
-} from "../../../packages/shared/src/server/llm/types";
-import { fetchLLMCompletion } from "../../../packages/shared/src/server/llm/fetchLLMCompletion";
+  generateLLMText,
+  streamLLMText,
+} from "../../../packages/shared/src/server/llm/llmText";
 import {
   createSecureLlmFetch,
   fetchSecureLlmUrl,
 } from "../../../packages/shared/src/server/llm/secureLlmFetch";
-import { RedirectValidationError } from "../../../packages/shared/src/server/outbound-url";
+import { LLMValidationError } from "../../../packages/shared/src/server/llm/errors";
 import {
   startLocalLlmServer,
   type LocalLlmServer,
 } from "./helpers/localLlmServer";
+import {
+  startLocalForwardProxy,
+  type LocalForwardProxy,
+} from "./helpers/localForwardProxy";
 
 // These tests replace the previous mock-heavy unit tests for the secure LLM
 // fetch path. The happy-path wiring is now proven against a real local HTTP
@@ -84,6 +88,7 @@ const OPENAI_RESPONSES_RESPONSE = JSON.parse(OPENAI_RESPONSES_BODY);
 
 describe("secure LLM fetch", () => {
   const originalWhitelistedHosts = env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST;
+  const originalWhitelistedIps = env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS;
   // env is the zod-validated object: read from process.env at module load and
   // not refreshed afterward. Mutating process.env later is a no-op for the
   // code under test, so we mutate `env.*` directly and restore in afterEach.
@@ -93,12 +98,14 @@ describe("secure LLM fetch", () => {
   beforeEach(() => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = ["127.0.0.1"];
+    env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS = ["127.0.0.1"];
   });
 
   afterEach(async () => {
     vi.restoreAllMocks();
     await Promise.all(servers.splice(0).map((s) => s.close()));
     env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = originalWhitelistedHosts;
+    env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS = originalWhitelistedIps;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
@@ -120,29 +127,26 @@ describe("secure LLM fetch", () => {
           res.end(OPENAI_RESPONSE_BODY);
         });
 
-        const completion = await fetchLLMCompletion({
-          streaming: false,
+        const completion = await generateLLMText({
           messages: [
             {
               role: "user",
               content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "openai",
+          model: {
             adapter: LLMAdapter.OpenAI,
-            model: "gpt-4o-mini",
-            temperature: 0,
-            max_tokens: 10,
+            id: "gpt-4o-mini",
           },
-          llmConnection: {
+          temperature: 0,
+          maxOutputTokens: 10,
+          connection: {
             secretKey: encrypt("openai-api-key"),
             baseURL: `${server.url}/v1`,
           },
         });
 
-        expect(completion).toBe("4");
+        expect(completion.text).toBe("4");
         expect(server.requests).toHaveLength(1);
         const [request] = server.requests;
         expect(request.method).toBe("POST");
@@ -164,23 +168,20 @@ describe("secure LLM fetch", () => {
           res.end(OPENAI_RESPONSES_BODY);
         });
 
-        const completion = await fetchLLMCompletion({
-          streaming: false,
+        const completion = await generateLLMText({
           messages: [
             {
               role: "user",
               content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "openai",
+          model: {
             adapter: LLMAdapter.OpenAI,
-            model: "gpt-4o-mini",
-            temperature: 0,
-            max_tokens: 10,
+            id: "gpt-4o-mini",
           },
-          llmConnection: {
+          temperature: 0,
+          maxOutputTokens: 10,
+          connection: {
             secretKey: encrypt("openai-api-key"),
             baseURL: `${server.url}/v1`,
             config: {
@@ -189,7 +190,7 @@ describe("secure LLM fetch", () => {
           },
         });
 
-        expect(completion).toBe("4");
+        expect(completion.text).toBe("4");
         expect(server.requests).toHaveLength(1);
         const [request] = server.requests;
         expect(request.method).toBe("POST");
@@ -250,23 +251,20 @@ describe("secure LLM fetch", () => {
           res.end();
         });
 
-        const stream = await fetchLLMCompletion({
-          streaming: true,
+        const stream = await streamLLMText({
           messages: [
             {
               role: "user",
               content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "openai",
+          model: {
             adapter: LLMAdapter.OpenAI,
-            model: "gpt-4o-mini",
-            temperature: 0,
-            max_tokens: 10,
+            id: "gpt-4o-mini",
           },
-          llmConnection: {
+          temperature: 0,
+          maxOutputTokens: 10,
+          connection: {
             secretKey: encrypt("openai-api-key"),
             baseURL: `${server.url}/v1`,
             config: {
@@ -275,15 +273,53 @@ describe("secure LLM fetch", () => {
           },
         });
 
-        const decoder = new TextDecoder();
         let text = "";
-        for await (const chunk of stream) {
-          text += decoder.decode(chunk);
+        for await (const chunk of stream.textStream) {
+          text += chunk;
         }
 
         expect(text).toBe("pong");
         expect(server.requests).toHaveLength(1);
         expect(server.requests[0].url).toBe("/v1/responses");
+      },
+    );
+
+    test(
+      "strips encrypted connection headers from cross-origin redirects",
+      { timeout: 30_000 },
+      async () => {
+        const target = await spinUp((_req, _body, res) => {
+          res.setHeader("content-type", "application/json");
+          res.end(OPENAI_RESPONSE_BODY);
+        });
+        const redirector = await spinUp((_req, _body, res) => {
+          res.statusCode = 307;
+          res.setHeader("location", `${target.url}/v1/chat/completions`);
+          res.end();
+        });
+
+        const completion = await generateLLMText({
+          messages: [{ role: "user", content: "Say 4" }],
+          model: {
+            adapter: LLMAdapter.OpenAI,
+            id: "gpt-4o-mini",
+          },
+          connection: {
+            secretKey: encrypt("openai-api-key"),
+            baseURL: `${redirector.url}/v1`,
+            extraHeaders: encrypt(
+              JSON.stringify({ "x-gateway-token": "gateway-secret" }),
+            ),
+          },
+        });
+
+        expect(completion.text).toBe("4");
+        expect(redirector.requests).toHaveLength(1);
+        expect(redirector.requests[0].headers["x-gateway-token"]).toBe(
+          "gateway-secret",
+        );
+        expect(target.requests).toHaveLength(1);
+        expect(target.requests[0].headers["x-gateway-token"]).toBeUndefined();
       },
     );
   });
@@ -366,7 +402,12 @@ describe("secure LLM fetch", () => {
           headers: { authorization: "Bearer leakable-token" },
           body: JSON.stringify({ messages: [] }),
         }),
-      ).rejects.toBeInstanceOf(RedirectValidationError);
+      ).rejects.toEqual(
+        expect.objectContaining<Partial<LLMValidationError>>({
+          name: "LLMValidationError",
+          code: "invalid-connection",
+        }),
+      );
     });
 
     test("strips additional sensitive headers on cross-origin redirects", async () => {
@@ -402,6 +443,134 @@ describe("secure LLM fetch", () => {
       expect(forwarded.headers["x-api-key"]).toBeUndefined();
       // Non-sensitive headers survive the redirect.
       expect(forwarded.headers["x-non-sensitive"]).toBe("keep-me");
+    });
+  });
+
+  describe("HTTPS_PROXY / NO_PROXY routing", () => {
+    const originalHttpsProxy = env.HTTPS_PROXY;
+    const originalNoProxy = env.NO_PROXY;
+    const originalNoProxyLower = env.no_proxy;
+    const proxies: LocalForwardProxy[] = [];
+
+    beforeEach(() => {
+      env.HTTPS_PROXY = undefined;
+      env.NO_PROXY = undefined;
+      env.no_proxy = undefined;
+    });
+
+    afterEach(async () => {
+      env.HTTPS_PROXY = originalHttpsProxy;
+      env.NO_PROXY = originalNoProxy;
+      env.no_proxy = originalNoProxyLower;
+      await Promise.all(proxies.splice(0).map((p) => p.close()));
+    });
+
+    async function spinUpProxy() {
+      const proxy = await startLocalForwardProxy();
+      proxies.push(proxy);
+      return proxy;
+    }
+
+    function spinUpTarget() {
+      return spinUp((_req, _body, res) => {
+        res.setHeader("content-type", "application/json");
+        res.end(OPENAI_RESPONSE_BODY);
+      });
+    }
+
+    async function fetchThroughSecureLlmFetch(url: string) {
+      const secureFetch = createSecureLlmFetch({
+        logContext: "Test LLM endpoint",
+      });
+      const response = await secureFetch(`${url}/v1/chat/completions`, {
+        method: "POST",
+        body: JSON.stringify({ messages: [] }),
+      });
+      // Consume the body so keep-alive sockets return to the pool instead of
+      // staying busy until close.
+      await response.text();
+      return response;
+    }
+
+    test("routes requests through HTTPS_PROXY when NO_PROXY does not match", async () => {
+      const target = await spinUpTarget();
+      const proxy = await spinUpProxy();
+
+      env.HTTPS_PROXY = proxy.url;
+      env.NO_PROXY = "does-not-match.example";
+
+      const response = await fetchThroughSecureLlmFetch(target.url);
+
+      expect(response.status).toBe(200);
+      expect(proxy.targets).toHaveLength(1);
+      expect(target.requests).toHaveLength(1);
+    });
+
+    test("connects directly when the target host matches NO_PROXY", async () => {
+      const target = await spinUpTarget();
+      const proxy = await spinUpProxy();
+
+      env.HTTPS_PROXY = proxy.url;
+      env.NO_PROXY = "127.0.0.1";
+
+      const response = await fetchThroughSecureLlmFetch(target.url);
+
+      expect(response.status).toBe(200);
+      expect(proxy.targets).toHaveLength(0);
+      expect(target.requests).toHaveLength(1);
+    });
+
+    test("NO_PROXY=* connects directly for every host", async () => {
+      const target = await spinUpTarget();
+      const proxy = await spinUpProxy();
+
+      env.HTTPS_PROXY = proxy.url;
+      env.NO_PROXY = "*";
+
+      const response = await fetchThroughSecureLlmFetch(target.url);
+
+      expect(response.status).toBe(200);
+      expect(proxy.targets).toHaveLength(0);
+      expect(target.requests).toHaveLength(1);
+    });
+
+    test("the lowercase no_proxy variant wins over NO_PROXY", async () => {
+      const target = await spinUpTarget();
+      const proxy = await spinUpProxy();
+
+      env.HTTPS_PROXY = proxy.url;
+      env.no_proxy = "127.0.0.1";
+      env.NO_PROXY = "does-not-match.example";
+
+      const response = await fetchThroughSecureLlmFetch(target.url);
+
+      expect(response.status).toBe(200);
+      expect(proxy.targets).toHaveLength(0);
+      expect(target.requests).toHaveLength(1);
+    });
+
+    test("redirect hops re-evaluate NO_PROXY per origin", async () => {
+      const target = await spinUpTarget();
+      const redirector = await spinUp((_req, _body, res) => {
+        res.statusCode = 302;
+        res.setHeader("location", `${target.url}/v1/chat/completions`);
+        res.end();
+      });
+      const proxy = await spinUpProxy();
+
+      env.HTTPS_PROXY = proxy.url;
+      // Port-qualified entry: only the redirector bypasses the proxy, the
+      // redirect target (same host, different port) must be proxied.
+      env.NO_PROXY = `127.0.0.1:${new URL(redirector.url).port}`;
+
+      const response = await fetchThroughSecureLlmFetch(redirector.url);
+
+      expect(response.status).toBe(200);
+      expect(redirector.requests).toHaveLength(1);
+      expect(target.requests).toHaveLength(1);
+      // Exactly one hop (the redirect target) traversed the proxy.
+      expect(proxy.targets).toHaveLength(1);
+      expect(proxy.targets[0]).toContain(`:${new URL(target.url).port}`);
     });
   });
 

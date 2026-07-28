@@ -1,7 +1,11 @@
+import { createHash } from "crypto";
 import { Readable } from "stream";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { S3Client } from "@aws-sdk/client-s3";
+
+import { env } from "../../env";
 import { StorageServiceFactory } from "./StorageService";
 
 /**
@@ -229,5 +233,137 @@ describe("GoogleCloudStorageService signed-URL retry", () => {
       "https://signed-read-url",
     );
     expect(getSignedUrl).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Regression tests for the DeleteObjects checksum sent to S3-compatible
+ * stores.
+ *
+ * Since AWS SDK v3.729 the S3 client attaches a CRC32 flexible checksum to
+ * DeleteObjects even under `requestChecksumCalculation: "WHEN_REQUIRED"`,
+ * because the S3 model marks the operation as checksum-required. Older
+ * S3-compatible stores (e.g. the MinIO bundled with langfuse-k8s) only accept
+ * the legacy Content-MD5 header for multi-object deletes and reject the CRC32
+ * variant with 400 MissingContentMD5, silently breaking data retention and
+ * deletion jobs (https://github.com/langfuse/langfuse-k8s/issues/356).
+ * LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM lets deployments pick the
+ * algorithm the store accepts ("MD5" maps to the Content-MD5 header); it is
+ * unset by default because MD5 is unavailable on FIPS runtimes.
+ */
+describe("S3StorageService DeleteObjects checksum", () => {
+  const EMPTY_DELETE_RESULT_XML = `<?xml version="1.0" encoding="UTF-8"?><DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"></DeleteResult>`;
+
+  const setChecksumAlgorithm = (value: string | undefined) => {
+    (
+      env as { LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM?: string }
+    ).LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM = value;
+  };
+
+  afterEach(() => {
+    setChecksumAlgorithm(undefined);
+  });
+
+  type CapturedRequest = {
+    method: string;
+    headers: Record<string, string>;
+    body?: unknown;
+  };
+
+  // Build a real S3StorageService whose client runs the full middleware stack
+  // (serialization, flexible checksums, signing) but short-circuits right
+  // before the HTTP handler, capturing the final outgoing request and
+  // returning a canned success response. No network I/O happens.
+  const makeServiceWithCapture = (responseXml: string) => {
+    const service = StorageServiceFactory.getInstance({
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+      bucketName: "test-bucket",
+      endpoint: "http://127.0.0.1:9000",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    const client = (service as unknown as { client: S3Client }).client;
+    const captured: CapturedRequest[] = [];
+
+    const captureMiddleware = () => async (args: { request: unknown }) => {
+      captured.push(args.request as CapturedRequest);
+      return {
+        response: {
+          statusCode: 200,
+          reason: "OK",
+          headers: { "content-type": "application/xml" },
+          body: Readable.from([Buffer.from(responseXml)]),
+        },
+      };
+    };
+
+    client.middlewareStack.add(
+      captureMiddleware as unknown as Parameters<
+        typeof client.middlewareStack.add
+      >[0],
+      {
+        step: "deserialize",
+        priority: "low",
+        name: "testCaptureRequest",
+        override: true,
+      },
+    );
+
+    return { service, captured };
+  };
+
+  const findHeader = (
+    request: CapturedRequest,
+    name: string,
+  ): string | undefined => {
+    const key = Object.keys(request.headers).find(
+      (header) => header.toLowerCase() === name,
+    );
+    return key === undefined ? undefined : request.headers[key];
+  };
+
+  it("keeps the SDK's CRC32 checksum on DeleteObjects by default", async () => {
+    const { service, captured } = makeServiceWithCapture(
+      EMPTY_DELETE_RESULT_XML,
+    );
+
+    await service.deleteFiles([
+      "events/project-1/file-1.json",
+      "media/project-1/file-2.png",
+    ]);
+
+    expect(captured).toHaveLength(1);
+    const request = captured[0];
+    expect(findHeader(request, "x-amz-checksum-crc32")).toBeDefined();
+    expect(findHeader(request, "content-md5")).toBeUndefined();
+  });
+
+  it("sends Content-MD5 on DeleteObjects when the algorithm is set to MD5", async () => {
+    setChecksumAlgorithm("MD5");
+    const { service, captured } = makeServiceWithCapture(
+      EMPTY_DELETE_RESULT_XML,
+    );
+
+    await service.deleteFiles([
+      "events/project-1/file-1.json",
+      "media/project-1/file-2.png",
+    ]);
+
+    expect(captured).toHaveLength(1);
+    const request = captured[0];
+    expect(typeof request.body).toBe("string");
+
+    const expectedMd5 = createHash("md5")
+      .update(request.body as string)
+      .digest("base64");
+    expect(findHeader(request, "content-md5")).toBe(expectedMd5);
+    expect(findHeader(request, "x-amz-checksum-crc32")).toBeUndefined();
   });
 });

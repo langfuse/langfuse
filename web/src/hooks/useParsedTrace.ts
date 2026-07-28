@@ -16,11 +16,14 @@
  * - Graceful fallback: Uses sync parsing if Web Workers unavailable
  */
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
   ParseRequest,
   ParseResponse,
 } from "@/src/workers/json-parser.worker";
+import { cheapHash } from "@/src/hooks/parsedIoCacheKey";
+import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
 
 /**
  * Threshold for using Web Worker vs sync parsing (in characters).
@@ -71,8 +74,8 @@ function getOrCreateWorker(): Worker | null {
         }
       };
 
-      workerInstance.onerror = (error) => {
-        console.error("[useParsedTrace] Worker error:", error);
+      workerInstance.onerror = (event) => {
+        reportParserWorkerError("useParsedTrace", event);
       };
     } catch (error) {
       console.error("[useParsedTrace] Failed to create worker:", error);
@@ -188,16 +191,19 @@ export function useParsedTrace({
   output,
   metadata,
 }: UseParsedTraceParams) {
+  // Per-field cache signatures: content-sensitive but never a whole-payload
+  // stringify. Memoized on the raw reference (react-query structural sharing
+  // keeps it referentially stable between renders), so each O(n) hash runs
+  // only when that field actually changes — the exact moment a re-parse is
+  // wanted — instead of the multi-MB re-serialization the old raw-value key
+  // forced on every render.
+  const inputSig = useMemo(() => cheapHash(input), [input]);
+  const outputSig = useMemo(() => cheapHash(output), [output]);
+  const metadataSig = useMemo(() => cheapHash(metadata), [metadata]);
+
   // Parse the data in Web Worker (React Query caches this)
   const parseQuery = useQuery({
-    queryKey: [
-      "parsed-trace",
-      traceId,
-      // Include data hash to detect changes
-      input,
-      output,
-      metadata,
-    ],
+    queryKey: ["parsed-trace", traceId, inputSig, outputSig, metadataSig],
     queryFn: async () => {
       return parseTraceData(input, output, metadata);
     },

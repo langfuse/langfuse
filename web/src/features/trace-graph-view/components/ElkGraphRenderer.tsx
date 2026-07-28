@@ -38,6 +38,12 @@ type ElkGraphRendererProps = {
   activeNodeNames?: ReadonlySet<string> | null;
   /** Layer direction: DOWN (default) or RIGHT (long expanded chains). */
   layoutDirection?: GraphLayoutDirection;
+  /**
+   * Recovery action for the "too large to lay out" notice: switch to the
+   * budget-exempt expanded view, which can render the same trace. Omitted when
+   * no view switch is available (or the view is already expanded).
+   */
+  onShowExpanded?: (() => void) | null;
 };
 
 type Transform = { x: number; y: number; k: number };
@@ -85,6 +91,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   currentObservationIndices = {},
   activeNodeNames = null,
   layoutDirection = "DOWN",
+  onShowExpanded = null,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -352,8 +359,39 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           </Button>
         </div>
       )}
+      {layout?.tooLarge && (
+        // Budget exceeded: ELK was skipped rather than freeze the tab. No retry
+        // — it would just wedge again. Point the user at the tree/timeline.
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
+          <span>
+            This graph is too large to lay out
+            {layout.nodeCount != null && layout.edgeCount != null
+              ? ` (${layout.nodeCount.toLocaleString()} nodes, ${layout.edgeCount.toLocaleString()} connections)`
+              : ""}
+            .
+          </span>
+          <span>
+            Try the{" "}
+            {onShowExpanded ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation(); // don't treat as a canvas deselect
+                  onShowExpanded();
+                }}
+                className="text-primary underline underline-offset-2 hover:opacity-80"
+              >
+                expanded graph
+              </button>
+            ) : (
+              "expanded graph"
+            )}
+            , tree, or timeline view to explore this trace.
+          </span>
+        </div>
+      )}
 
-      {layout && (
+      {layout && !layout.tooLarge && (
         <div
           ref={worldRef}
           className="absolute top-0 left-0 origin-top-left"

@@ -18,7 +18,7 @@ export const CsvImportValidationError: React.FC<
 
   return (
     <Alert variant="destructive" className="mt-4">
-      <AlertTitle className="text-base font-semibold">
+      <AlertTitle className="text-base font-bold">
         Schema Validation Failed
       </AlertTitle>
       <AlertDescription className="mt-2 space-y-3">
@@ -37,7 +37,7 @@ export const CsvImportValidationError: React.FC<
           variant="ghost"
           size="sm"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="h-auto p-0 text-sm font-medium hover:bg-transparent"
+          className="h-auto p-0 text-sm font-bold hover:bg-transparent"
         >
           {isExpanded ? (
             <ChevronDown className="mr-1 h-4 w-4" />
@@ -58,7 +58,7 @@ export const CsvImportValidationError: React.FC<
                   <span className="text-muted-foreground font-mono text-xs">
                     #{idx + 1}
                   </span>
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-bold">
                     CSV Row {error.itemIndex + 2}:{" "}
                     {error.field === "input"
                       ? "Input"

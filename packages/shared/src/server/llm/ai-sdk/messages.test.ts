@@ -53,7 +53,7 @@ describe("mapChatMessagesToModelMessages", () => {
     }
   });
 
-  it("drops a lone empty message like the LangChain filter", () => {
+  it("drops a lone empty message", () => {
     expect(
       mapChatMessagesToModelMessages([{ ...systemMessage, content: "" }], {
         adapter: LLMAdapter.Anthropic,

@@ -59,6 +59,7 @@ import {
 import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
+  getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
 } from "@/src/hooks/useDashboardQueryScheduler";
 import {
@@ -1076,10 +1077,6 @@ export default function DashboardDetail() {
 
   const dashboardTimeRangePresets = DASHBOARD_AGGREGATION_OPTIONS;
   const widgetSchedulerPrefix = `dashboard:${projectId}:${dashboardId}:widget:`;
-  const widgetPlacements = useMemo(
-    () => localDashboardDefinition?.widgets ?? [],
-    [localDashboardDefinition?.widgets],
-  );
 
   const getWidgetSchedulerId = useCallback(
     (widgetPlacementId: string) =>
@@ -1087,25 +1084,30 @@ export default function DashboardDetail() {
     [widgetSchedulerPrefix],
   );
 
-  const schedulerResetKey = useMemo(() => {
-    return [
-      projectId,
+  // Reset key intentionally excludes the widget set: adding or removing a
+  // widget must not re-queue in-flight or already-rendered siblings (which,
+  // on the SSE path, blanks them while they re-stream — LFE-10986). A new
+  // widget registers with the scheduler incrementally; a removed one
+  // unregisters. Only genuinely query-affecting params belong here.
+  const schedulerResetKey = useMemo(
+    () =>
+      getDashboardSchedulerResetKey({
+        projectId,
+        dashboardId,
+        fromIso: absoluteTimeRange?.from?.toISOString() ?? "",
+        toIso: absoluteTimeRange?.to?.toISOString() ?? "",
+        filters: currentFilters,
+        environments: selectedEnvironments,
+      }),
+    [
+      absoluteTimeRange?.from,
+      absoluteTimeRange?.to,
+      currentFilters,
       dashboardId,
-      absoluteTimeRange?.from?.toISOString() ?? "",
-      absoluteTimeRange?.to?.toISOString() ?? "",
-      JSON.stringify(currentFilters),
-      selectedEnvironments.join(","),
-      widgetPlacements.map((widget) => widget.id).join(","),
-    ].join("|");
-  }, [
-    absoluteTimeRange?.from,
-    absoluteTimeRange?.to,
-    currentFilters,
-    dashboardId,
-    projectId,
-    selectedEnvironments,
-    widgetPlacements,
-  ]);
+      projectId,
+      selectedEnvironments,
+    ],
+  );
 
   const scheduler = useDashboardQueryScheduler({
     maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
@@ -1298,7 +1300,7 @@ export default function DashboardDetail() {
           <Layer name="modal">
             <div className="bg-background/80 pointer-events-none fixed inset-0 flex items-center justify-center backdrop-blur-xs">
               <div className="border-primary bg-background rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
-                <p className="font-medium">Drop to import</p>
+                <p className="font-bold">Drop to import</p>
                 <p className="text-muted-foreground text-sm">
                   Langfuse dashboard or widget JSON
                 </p>

@@ -10,7 +10,7 @@ import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { LockIcon, TrashIcon } from "lucide-react";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
+import { type ProjectScope } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Input } from "@/src/components/ui/input";
@@ -134,7 +134,7 @@ export function DeleteButton({
                   ? undefined
                   : `You don't have permission to delete this ${entityToDeleteName}.`
               }
-              variant={variant ?? "outline-solid"}
+              variant={variant ?? "outline"}
               size={size ?? "icon"}
               className={className}
               disabled={!enabled}
@@ -176,7 +176,7 @@ export function DeleteButton({
       <PopoverContent onClick={(e) => e.stopPropagation()}>
         {deleteBlocker ?? (
           <>
-            <h2 className="mb-3 font-semibold">Please confirm</h2>
+            <h2 className="mb-3 font-bold">Please confirm</h2>
             <p className="mb-3 max-w-72 text-sm">
               {customDeletePrompt ??
                 `This action cannot be undone. It removes all the data associated with

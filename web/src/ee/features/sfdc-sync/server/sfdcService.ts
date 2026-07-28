@@ -3,6 +3,7 @@ import { SpanKind } from "@opentelemetry/api";
 
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
+import { cloudConfigPlans, planLabels, type Plan } from "@langfuse/shared";
 import {
   instrumentAsync,
   logger,
@@ -13,19 +14,33 @@ import {
  * SFDC sync via Mulesoft (Langfuse Cloud only).
  *
  * Two endpoints, four logical events:
- *   - `/manage-user` — upsertUser (lead/contact)
- *   - org endpoint  — upsertOrg (type:"updateOrg") on org create
+ *   - `/manage-user` — upsertUser (lead/contact) on user signup
+ *   - org endpoint  — upsertOrg (type:"updateOrg") on org create and on plan
+ *                     changes (Stripe webhook). Mulesoft ignores user fields
+ *                     on updateOrg, so the payload is org-only; members are
+ *                     linked exclusively via setUserRole.
  *                   — setUserRole (type:"setUserRole") on member add or role change
  *                     (a NONE role is synced as removeUser instead)
  *                   — removeUser  (type:"removeUser")  on member removal
  *
  * Every payload carries `isLangfuse: true` to distinguish Langfuse traffic.
+ * Date formats follow the SFDC field types behind the Mulesoft mapping
+ * (which passes values through verbatim and falls back to `now` when a date
+ * field is absent):
+ *   - user `createdAt` — ISO-8601 UTC seconds precision
+ *     (`YYYY-MM-DDThh:mm:ssZ`); the Lead field accepts datetimes.
+ *   - org `createdAt` / `convertedToPaidAt` — date-only (`YYYY-MM-DD`); the
+ *     org fields are SFDC Date-typed and reject datetimes with
+ *     INVALID_TYPE_ON_FIELD_IN_RECORD.
  *
  * Contract for callers: every public method is fire-and-forget safe.
  * Methods NEVER throw/reject — missing emails, NONE roles, validation
  * failures, HTTP errors, timeouts, and persistence errors are all handled
- * internally with a structured log line. Call sites therefore need no
- * null-checks beyond the factory and no try/catch:
+ * internally with a structured log line. Each method resolves to a delivery
+ * boolean: true only when Mulesoft acked the POST with a 2xx, false on any
+ * skip or failure. Live call sites ignore it (fire-and-forget); the SFDC
+ * backfill script uses it to track per-entity outcomes. Call sites therefore
+ * need no null-checks beyond the factory and no try/catch:
  *
  *     await getSfdcService()?.setUserRole({ orgId, userId, email, role });
  *
@@ -49,11 +64,52 @@ const LANGFUSE_TO_SFDC_ROLE = {
   VIEWER: "DEVELOPER",
 } as const;
 
+/**
+ * SFDC Lead Source picklist values for Langfuse leads. Mulesoft passes them
+ * to the SFDC Lead Source field verbatim: signup = organic account creation,
+ * invite = user pulled in by an existing org (pending invitation at signup,
+ * SCIM provisioning).
+ */
+const SFDC_LEAD_SOURCES = [
+  "Langfuse Cloud Signup",
+  "Langfuse Cloud Invite",
+] as const;
+export type SfdcLeadSource = (typeof SFDC_LEAD_SOURCES)[number];
+
+/**
+ * SFDC tier picklist (`Langfuse_Active_Plan__c`) — identical to the
+ * `cloudConfig.plan` values, so the shared constant is the schema source.
+ */
+export type SfdcPlan = (typeof cloudConfigPlans)[number];
+
+/**
+ * Map a resolved entitlement plan to the SFDC tier picklist value. Returns
+ * null for non-cloud plans (oss / self-hosted), which have no SFDC tier —
+ * callers should skip the sync in that case (cannot happen on Cloud, where
+ * this service is the only way to reach Mulesoft).
+ */
+export function toSfdcPlan(plan: Plan): SfdcPlan | null {
+  const label = planLabels[plan];
+  return (cloudConfigPlans as readonly string[]).includes(label)
+    ? (label as SfdcPlan)
+    : null;
+}
+
+/** Datetime-accepting SFDC fields: ISO-8601 UTC, seconds precision, no millis. */
+const toIsoUtcSeconds = (date: Date): string =>
+  date.toISOString().replace(/\.\d{3}Z$/, "Z");
+
+/** SFDC Date-typed fields (the org dates) accept only `YYYY-MM-DD` (UTC). */
+const toIsoUtcDate = (date: Date): string => date.toISOString().slice(0, 10);
+
 const UpsertUserPayload = z.object({
   userId: z.string().min(1),
   email: z.email(),
   fullName: z.string().min(1),
   companyName: z.string().min(1),
+  // -> SFDC "Langfuse Cloud Signup Date" (Langfuse_Signup_Date__c)
+  createdAt: z.iso.datetime(),
+  leadSource: z.enum(SFDC_LEAD_SOURCES),
 });
 
 const SyncableRole = LangfuseRole.exclude(["NONE"]).transform(
@@ -63,9 +119,16 @@ const SyncableRole = LangfuseRole.exclude(["NONE"]).transform(
 const UpsertOrgPayload = z.object({
   orgId: z.string().min(1),
   orgName: z.string().min(1),
-  userId: z.string().min(1),
-  email: z.email(),
-  role: SyncableRole,
+  // -> SFDC "Langfuse Created Date" (Langfuse_Created_Date__c), Date-typed:
+  // date-only strings, datetimes are rejected.
+  createdAt: z.iso.date(),
+  // -> SFDC "Langfuse Tier" (Langfuse_Active_Plan__c)
+  plan: z.enum(cloudConfigPlans),
+  // -> SFDC "Converted to Paid" (Converted_to_Paid_Date__c), Date-typed.
+  // Only sent when the org left Hobby at least once; omitted otherwise so
+  // SFDC keeps any previously written value (e.g. across a later downgrade
+  // push).
+  convertedToPaidAt: z.iso.date().optional(),
 });
 
 const SetUserRolePayload = z.object({
@@ -89,13 +152,18 @@ export type UpsertUserInput = {
   email: string | null | undefined;
   name?: string | null;
   companyName?: string;
+  /** User signup timestamp — sent as the SFDC Langfuse Cloud Signup Date. */
+  createdAt: Date;
+  leadSource: SfdcLeadSource;
 };
 export type UpsertOrgInput = {
   orgId: string;
   orgName: string;
-  userId: string;
-  email: string | null | undefined;
-  role: LangfuseRole;
+  /** Org creation timestamp — sent as the SFDC Langfuse Created Date. */
+  createdAt: Date;
+  plan: SfdcPlan;
+  /** First Hobby→paid conversion; omit while the org never converted. */
+  convertedToPaidAt?: Date | null;
 };
 export type SetUserRoleInput = {
   orgId: string;
@@ -152,13 +220,13 @@ export class SfdcService {
   }
 
   /** Lead / contact upsert on user signup. POSTs to `/manage-user`. */
-  async upsertUser(input: UpsertUserInput): Promise<void> {
+  async upsertUser(input: UpsertUserInput): Promise<boolean> {
     return this.run("upsertUser", { userId: input.userId }, async () => {
       if (!input.email) {
         logger.warn("[SFDC] skipping upsertUser — user has no email", {
           userId: input.userId,
         });
-        return;
+        return false;
       }
       const parsed = UpsertUserPayload.safeParse({
         userId: input.userId,
@@ -166,45 +234,50 @@ export class SfdcService {
         fullName: input.name || input.email,
         companyName:
           input.companyName || env.MULESOFT_SFDC_DEFAULT_COMPANY_NAME,
+        createdAt: toIsoUtcSeconds(input.createdAt),
+        leadSource: input.leadSource,
       });
       if (!parsed.success) {
         logger.warn("[SFDC] invalid upsertUser input — skipping", {
           userId: input.userId,
           error: parsed.error.message,
         });
-        return;
+        return false;
       }
-      await this.post({
+      const { ok } = await this.post({
         url: this.config.userUrl,
         payload: { isLangfuse: true, ...parsed.data },
         context: { event: "upsertUser", userId: parsed.data.userId },
         expectJsonResponse: false,
       });
+      return ok;
     });
   }
 
   /**
-   * Org upsert on organization create. POSTs to org endpoint; Mulesoft links
-   * the creator's lead to the org as an org-member server-side.
+   * Org upsert on organization create and on plan changes. POSTs to the org
+   * endpoint. Carries no user fields (Mulesoft ignores them on updateOrg) —
+   * member links are established exclusively via setUserRole.
    */
-  async upsertOrg(input: UpsertOrgInput): Promise<void> {
+  async upsertOrg(input: UpsertOrgInput): Promise<boolean> {
     return this.run("upsertOrg", { orgId: input.orgId }, async () => {
-      if (!input.email) {
-        logger.warn("[SFDC] skipping upsertOrg — creator has no email", {
-          orgId: input.orgId,
-          userId: input.userId,
-        });
-        return;
-      }
-      const parsed = UpsertOrgPayload.safeParse(input);
+      const parsed = UpsertOrgPayload.safeParse({
+        orgId: input.orgId,
+        orgName: input.orgName,
+        createdAt: toIsoUtcDate(input.createdAt),
+        plan: input.plan,
+        ...(input.convertedToPaidAt
+          ? { convertedToPaidAt: toIsoUtcDate(input.convertedToPaidAt) }
+          : {}),
+      });
       if (!parsed.success) {
         logger.warn("[SFDC] invalid upsertOrg input — skipping", {
           orgId: input.orgId,
           error: parsed.error.message,
         });
-        return;
+        return false;
       }
-      const response = await this.post({
+      const { ok, data } = await this.post({
         url: this.config.orgUrl,
         payload: {
           isLangfuse: true,
@@ -219,9 +292,10 @@ export class SfdcService {
         },
         context: { event: "upsertOrg", orgId: parsed.data.orgId },
       });
-      if (response?.sfdcOrgId) {
-        await this.persistSfdcOrgId(parsed.data.orgId, response.sfdcOrgId);
+      if (data?.sfdcOrgId) {
+        await this.persistSfdcOrgId(parsed.data.orgId, data.sfdcOrgId);
       }
+      return ok;
     });
   }
 
@@ -232,7 +306,7 @@ export class SfdcService {
    * for the user, so it is synced as a removal — that covers downgrades of
    * existing members.
    */
-  async setUserRole(input: SetUserRoleInput): Promise<void> {
+  async setUserRole(input: SetUserRoleInput): Promise<boolean> {
     if (input.role === "NONE") {
       return this.removeUser({
         orgId: input.orgId,
@@ -249,7 +323,7 @@ export class SfdcService {
             orgId: input.orgId,
             userId: input.userId,
           });
-          return;
+          return false;
         }
         const parsed = SetUserRolePayload.safeParse(input);
         if (!parsed.success) {
@@ -258,9 +332,9 @@ export class SfdcService {
             userId: input.userId,
             error: parsed.error.message,
           });
-          return;
+          return false;
         }
-        await this.post({
+        const { ok } = await this.post({
           url: this.config.orgUrl,
           payload: {
             isLangfuse: true,
@@ -274,12 +348,13 @@ export class SfdcService {
           },
           expectJsonResponse: false,
         });
+        return ok;
       },
     );
   }
 
   /** Remove a user from an org. Fires on membership deletion. */
-  async removeUser(input: RemoveUserInput): Promise<void> {
+  async removeUser(input: RemoveUserInput): Promise<boolean> {
     return this.run(
       "removeUser",
       { orgId: input.orgId, userId: input.userId },
@@ -289,7 +364,7 @@ export class SfdcService {
             orgId: input.orgId,
             userId: input.userId,
           });
-          return;
+          return false;
         }
         const parsed = RemoveUserPayload.safeParse(input);
         if (!parsed.success) {
@@ -298,9 +373,9 @@ export class SfdcService {
             userId: input.userId,
             error: parsed.error.message,
           });
-          return;
+          return false;
         }
-        await this.post({
+        const { ok } = await this.post({
           url: this.config.orgUrl,
           payload: {
             isLangfuse: true,
@@ -314,22 +389,24 @@ export class SfdcService {
           },
           expectJsonResponse: false,
         });
+        return ok;
       },
     );
   }
 
   /**
    * Belt-and-braces never-throw wrapper around every public method body so
-   * the fire-and-forget contract holds even for unforeseen errors. Wraps the
-   * operation in one `sfdc.<event>` span; because errors never propagate to
-   * callers, this span (marked errored via traceException) is the only place
-   * failed syncs surface in APM.
+   * the fire-and-forget contract holds even for unforeseen errors (which
+   * resolve to a `false` delivery outcome). Wraps the operation in one
+   * `sfdc.<event>` span; because errors never propagate to callers, this
+   * span (marked errored via traceException) is the only place failed syncs
+   * surface in APM.
    */
   private async run(
     event: string,
     context: Record<string, unknown>,
-    fn: () => Promise<void>,
-  ): Promise<void> {
+    fn: () => Promise<boolean>,
+  ): Promise<boolean> {
     return instrumentAsync(
       { name: `sfdc.${event}`, spanKind: SpanKind.CLIENT },
       async (span) => {
@@ -339,23 +416,28 @@ export class SfdcService {
           }
         }
         try {
-          await fn();
+          return await fn();
         } catch (err) {
           traceException(err, span);
           logger.error(`[SFDC] ${event} failed unexpectedly`, {
             ...context,
             error: err instanceof Error ? err.message : String(err),
           });
+          return false;
         }
       },
     );
   }
 
   /**
-   * Single POST helper. Returns the parsed response on 2xx, null otherwise.
+   * Single POST helper. Returns `ok` (true iff Mulesoft answered 2xx) plus
+   * the parsed JSON body when one came back (`data` — null on plain-text or
+   * unexpected-shape responses, which still count as delivered).
    * Never throws — HTTP errors, timeouts, and malformed bodies are logged.
    * Every request leaves exactly one outcome log line (info on 2xx, warn
-   * otherwise) so each Mulesoft call is auditable in the log stream.
+   * otherwise) so each Mulesoft call is auditable in the log stream. At
+   * debug level, every call additionally logs its full request payload
+   * before send and the full raw response body once received.
    */
   private async post(args: {
     url: string;
@@ -363,7 +445,7 @@ export class SfdcService {
     context: Record<string, unknown>;
     /** The user endpoint acks with plain text — set false to skip JSON parsing. */
     expectJsonResponse?: boolean;
-  }): Promise<z.infer<typeof SfdcResponse> | null> {
+  }): Promise<{ ok: boolean; data: z.infer<typeof SfdcResponse> | null }> {
     const { url, payload, context, expectJsonResponse = true } = args;
     const controller = new AbortController();
     const timeout = setTimeout(
@@ -371,6 +453,12 @@ export class SfdcService {
       env.MULESOFT_SFDC_REQUEST_TIMEOUT_MS,
     );
     const startTime = Date.now();
+
+    logger.debug("[SFDC] Mulesoft request payload", {
+      ...context,
+      url,
+      payload,
+    });
 
     try {
       const response = await fetch(url, {
@@ -383,8 +471,15 @@ export class SfdcService {
         signal: controller.signal,
       });
 
+      const responseText = await response.text().catch(() => "");
+      logger.debug("[SFDC] Mulesoft response body", {
+        ...context,
+        url,
+        status: response.status,
+        responseBody: responseText,
+      });
+
       if (!response.ok) {
-        const responseBody = await response.text().catch(() => "");
         traceException(new Error(`Mulesoft returned ${response.status}`));
         logger.error("[SFDC] Mulesoft returned non-2xx", {
           ...context,
@@ -392,9 +487,9 @@ export class SfdcService {
           status: response.status,
           statusText: response.statusText,
           durationMs: Date.now() - startTime,
-          responseBody: responseBody.slice(0, 500),
+          responseBody: responseText.slice(0, 500),
         });
-        return null;
+        return { ok: false, data: null };
       }
 
       logger.info("[SFDC] Mulesoft request succeeded", {
@@ -405,8 +500,7 @@ export class SfdcService {
       });
 
       // Tolerate empty / non-JSON bodies; we only care if an ID comes back.
-      const responseText = await response.text();
-      if (!expectJsonResponse || !responseText) return null;
+      if (!expectJsonResponse || !responseText) return { ok: true, data: null };
 
       let parsed: unknown;
       try {
@@ -416,7 +510,7 @@ export class SfdcService {
           ...context,
           responseBody: responseText.slice(0, 500),
         });
-        return null;
+        return { ok: true, data: null };
       }
 
       const result = SfdcResponse.safeParse(parsed);
@@ -425,9 +519,9 @@ export class SfdcService {
           ...context,
           error: result.error.message,
         });
-        return null;
+        return { ok: true, data: null };
       }
-      return result.data;
+      return { ok: true, data: result.data };
     } catch (err) {
       const isAbort = err instanceof Error && err.name === "AbortError";
       traceException(err);
@@ -442,7 +536,7 @@ export class SfdcService {
           error: err instanceof Error ? err.message : String(err),
         },
       );
-      return null;
+      return { ok: false, data: null };
     } finally {
       clearTimeout(timeout);
     }

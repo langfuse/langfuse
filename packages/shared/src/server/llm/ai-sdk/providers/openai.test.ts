@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { translateOpenAIProviderOptions } from "./openai";
+import {
+  isOpenAICompatibleEndpoint,
+  translateOpenAIProviderOptions,
+} from "./openai";
 
 describe("translateOpenAIProviderOptions", () => {
   it("returns undefined for empty input", () => {
@@ -68,5 +71,46 @@ describe("translateOpenAIProviderOptions", () => {
       ok: false,
       unknownKeys: ["response_format", "some_custom_param"],
     });
+  });
+
+  it("preserves compatible-provider wire keys while passing through unknown keys", () => {
+    const result = translateOpenAIProviderOptions(
+      {
+        reasoning_effort: "high",
+        service_tier: "flex",
+        parallel_tool_calls: false,
+        logit_bias: { "42": 1 },
+        thinkingBudget: 1024,
+        thinkingLevel: "high",
+      },
+      { passthroughUnknown: true, target: "openai-compatible" },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        reasoningEffort: "high",
+        service_tier: "flex",
+        parallel_tool_calls: false,
+        logit_bias: { "42": 1 },
+        thinkingBudget: 1024,
+        thinkingLevel: "high",
+      },
+    });
+  });
+});
+
+describe("isOpenAICompatibleEndpoint", () => {
+  it("recognizes custom OpenAI-compatible endpoints", () => {
+    expect(isOpenAICompatibleEndpoint(undefined)).toBe(false);
+    expect(isOpenAICompatibleEndpoint(null)).toBe(false);
+    expect(isOpenAICompatibleEndpoint("https://api.openai.com/v1")).toBe(false);
+    expect(
+      isOpenAICompatibleEndpoint("https://openai-compatible.example.com/v1"),
+    ).toBe(true);
+  });
+
+  it("does not enable passthrough mode for malformed URLs", () => {
+    expect(isOpenAICompatibleEndpoint("localhost:8080")).toBe(false);
   });
 });

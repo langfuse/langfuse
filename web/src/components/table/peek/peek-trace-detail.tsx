@@ -10,6 +10,8 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
+import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { buildTraceDetailPath } from "@/src/utils/navigation";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -22,24 +24,22 @@ export const TablePeekViewTraceDetail = (
   const { projectId } = props;
 
   const router = useRouter();
-  const peekId = router.query.peek as string | undefined;
-  const timestampParam = router.query.timestamp as string | undefined;
+  const { traceId, timestamp } = resolvePeekTraceParams({
+    reader: "trace",
+    peek: router.query.peek as string | undefined,
+    traceId: router.query.traceId as string | undefined,
+    timestamp: router.query.timestamp,
+  });
 
   // Live handle on the peeked trace id: an in-flight delete that resolves after
   // K/J-navigation reads the CURRENT peek here (not the stale value captured
   // when the delete was fired), so it only closes the peek it actually deleted.
-  const peekIdRef = useRef(peekId);
-  peekIdRef.current = peekId;
-
-  // Decode the timestamp parameter before parsing as Date
-  // This handles cases where the timestamp might be URL-encoded
-  const timestamp = timestampParam
-    ? new Date(decodeURIComponent(timestampParam))
-    : undefined;
+  const peekIdRef = useRef(traceId);
+  peekIdRef.current = traceId;
 
   const trace = usePeekData({
     projectId,
-    traceId: peekId,
+    traceId,
     timestamp,
   });
 
@@ -49,6 +49,11 @@ export const TablePeekViewTraceDetail = (
         projectId: trace.data.projectId,
         bookmarked: trace.data.bookmarked,
         isPublic: trace.data.public,
+        shareUrl: buildTraceDetailPath({
+          projectId: trace.data.projectId,
+          traceId: trace.data.id,
+          timestamp,
+        }),
         name: trace.data.name,
         timestamp,
         onAfterDelete: (deletedTraceId: string) => {
@@ -62,7 +67,7 @@ export const TablePeekViewTraceDetail = (
   return (
     <TablePeekView
       {...props}
-      title={traceDetailTitle(trace.data, peekId)}
+      title={traceDetailTitle(trace.data, traceId)}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }

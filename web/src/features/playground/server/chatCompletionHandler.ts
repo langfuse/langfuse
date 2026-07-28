@@ -7,7 +7,6 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 
-import { PosthogCallbackHandler } from "./analytics/posthogCallback";
 import { authorizeRequestOrThrow } from "./authorizeRequest";
 import { validateChatCompletionBody } from "./validateChatCompletionBody";
 
@@ -15,9 +14,14 @@ import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   LLMApiKeySchema,
+  createLLMOutput,
+  createLLMToolSet,
+  generateLLMText,
+  getLLMErrorInfo,
   logger,
-  fetchLLMCompletion,
   contextWithLangfuseProps,
+  mapLegacyLLMCompletionParams,
+  streamLLMText,
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 
@@ -66,88 +70,96 @@ export default async function chatCompletionHandler(req: NextRequest) {
         );
       }
 
-      const fetchLLMCompletionParams = {
-        llmConnection: parsedKey.data,
-        messages,
-        modelParams,
-        structuredOutputSchema,
-        callbacks: [new PosthogCallbackHandler("playground", body, userId)],
-      };
-
-      if (structuredOutputSchema) {
-        const result = await fetchLLMCompletion({
-          ...fetchLLMCompletionParams,
-          streaming: false,
-          structuredOutputSchema,
-        });
-        return NextResponse.json(result);
-      }
-
       // If messages contain tool results, we include tools in the request
       const hasToolResults = messages.some((msg) => msg.type === "tool-result");
+      // Fix empty tool_call_id values by mapping to langgraph IDs
+      const fixedMessages =
+        (tools && tools.length > 0) || hasToolResults
+          ? messages.map((msg) => {
+              if (
+                msg.type === "tool-result" &&
+                (!msg.toolCallId || msg.toolCallId === "")
+              ) {
+                const assistantMessages = messages
+                  .filter(
+                    (m) => m.type === "assistant-tool-call" && m.toolCalls,
+                  )
+                  .reverse();
+
+                // Find the first matching tool call by name
+                // Note: using 'as any' because we filtered for assistant-tool-call messages above
+                for (const prevMsg of assistantMessages) {
+                  const matchingToolCall = (prevMsg as any).toolCalls.find(
+                    (tc: any) => tc.name === (msg as any)._originalRole,
+                  );
+                  if (matchingToolCall && matchingToolCall.id) {
+                    return {
+                      ...msg,
+                      toolCallId: matchingToolCall.id,
+                    };
+                  }
+                }
+              }
+
+              return msg;
+            })
+          : messages;
+
+      const completionParams = mapLegacyLLMCompletionParams({
+        connection: parsedKey.data,
+        messages: fixedMessages,
+        modelParams,
+      });
+
+      if (structuredOutputSchema) {
+        const result = await generateLLMText({
+          ...completionParams,
+          output: createLLMOutput(structuredOutputSchema),
+        });
+        return NextResponse.json(result.output);
+      }
 
       if ((tools && tools.length > 0) || hasToolResults) {
-        // Fix empty tool_call_id values by mapping to langgraph IDs
-        const fixedMessages = messages.map((msg) => {
-          if (
-            msg.type === "tool-result" &&
-            (!msg.toolCallId || msg.toolCallId === "")
-          ) {
-            const assistantMessages = messages
-              .filter((m) => m.type === "assistant-tool-call" && m.toolCalls)
-              .reverse();
-
-            // Find the first matching tool call by name
-            // Note: using 'as any' because we filtered for assistant-tool-call messages above
-            for (const prevMsg of assistantMessages) {
-              const matchingToolCall = (prevMsg as any).toolCalls.find(
-                (tc: any) => tc.name === (msg as any)._originalRole,
-              );
-              if (matchingToolCall && matchingToolCall.id) {
-                return {
-                  ...msg,
-                  toolCallId: matchingToolCall.id,
-                };
-              }
-            }
-          }
-
-          return msg;
+        const result = await generateLLMText({
+          ...completionParams,
+          tools: createLLMToolSet(tools ?? []),
         });
-
-        const result = await (fetchLLMCompletion as any)({
-          ...fetchLLMCompletionParams,
-          messages: fixedMessages,
-          streaming: false,
-          tools: tools ?? [],
+        return NextResponse.json({
+          content: result.text,
+          tool_calls: result.toolCalls.map((toolCall) => ({
+            name: toolCall.toolName,
+            id: toolCall.toolCallId,
+            args:
+              typeof toolCall.input === "object" &&
+              toolCall.input !== null &&
+              !Array.isArray(toolCall.input)
+                ? toolCall.input
+                : {},
+          })),
+          ...(result.finalStep.reasoningText
+            ? { reasoning: result.finalStep.reasoningText }
+            : {}),
         });
-        return NextResponse.json(result);
       }
 
       if (streaming) {
-        const completion = await fetchLLMCompletion({
-          ...fetchLLMCompletionParams,
-          streaming,
-        });
-
-        return new Response(completion, {
-          status: 200,
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+        const completion = await streamLLMText(completionParams);
+        return new Response(
+          completion.textStream.pipeThrough(new TextEncoderStream()),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+            },
           },
-        });
+        );
       }
-      const completion = await fetchLLMCompletion({
-        ...fetchLLMCompletionParams,
-        streaming,
-      });
-
-      if (typeof completion === "string") {
-        return NextResponse.json({ content: completion });
-      }
+      const completion = await generateLLMText(completionParams);
       return NextResponse.json({
         content: completion.text,
-        reasoning: completion.reasoning,
+        ...(completion.finalStep.reasoningText
+          ? { reasoning: completion.finalStep.reasoningText }
+          : {}),
       });
     });
   } catch (err) {
@@ -164,14 +176,14 @@ export default async function chatCompletionHandler(req: NextRequest) {
     }
 
     if (err instanceof Error) {
-      const statusCode =
-        (err as any)?.response?.status ?? (err as any)?.status ?? 500;
-      const errorMessage = err.message || "An unknown error occurred";
+      const llmError = getLLMErrorInfo(err);
+      const statusCode = llmError?.statusCode ?? 500;
+      const errorMessage = llmError?.message ?? "An internal error occurred";
 
       return NextResponse.json(
         {
           message: errorMessage,
-          error: err.name || "Error",
+          error: llmError ? err.name || "Error" : "InternalServerError",
         },
         { status: statusCode },
       );

@@ -317,7 +317,7 @@ const SimpleMultiSectionViewerInner = forwardRef<
         minWidth: "100%",
         backgroundColor: theme.background,
         color: theme.foreground,
-        fontFamily: "monospace",
+        fontFamily: "var(--font-mono)",
       }}
     >
       <div style={{ position: "relative" }}>

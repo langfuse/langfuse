@@ -33,16 +33,20 @@ import {
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
-import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import {
+  BaseError,
+  UnauthorizedError,
+  ForbiddenError,
+  safeJsonParse,
+} from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
-import { InAppAgentMcpRunOverrideSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
-import { safeJsonParse } from "@/src/utils/json";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
+import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -101,6 +105,14 @@ export default async function handler(
       );
     }
 
+    addUserToSpan({
+      apiKeyId: authCheck.scope.apiKeyId,
+      publicKey: authCheck.scope.publicKey,
+      projectId: authCheck.scope.projectId,
+      orgId: authCheck.scope.orgId,
+      plan: authCheck.scope.plan,
+    });
+
     // Check if ingestion is suspended due to usage limits
     if (authCheck.scope.isIngestionSuspended) {
       throw new ForbiddenError(
@@ -129,6 +141,9 @@ export default async function handler(
       apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
+      plan: authCheck.scope.plan,
+      rateLimitOverrides: authCheck.scope.rateLimitOverrides,
+      userAgent: req.headers["user-agent"],
       inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
     };
 

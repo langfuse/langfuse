@@ -200,11 +200,15 @@ The `PeekTableState` interface defines what state is persisted:
 ```typescript
 interface PeekTableState {
   filters: FilterState;
-  sorting: OrderByState;
+  sorting: OrderByState | undefined;
   pagination: { pageIndex: number; pageSize: number };
   search: { query: string | null; type: string[] };
 }
 ```
+
+An undefined `sorting` value means the table uses the default passed to
+`useOrderByState`. Once the user changes or disables sorting, that explicit
+peek-local value is persisted.
 
 ## Implementation Guide
 

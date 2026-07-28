@@ -48,12 +48,13 @@ import {
   ActionId,
   TableViewPresetTableName,
   type TimeFilter,
+  type ScoreAggregate,
+  DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { type ScoreAggregate } from "@langfuse/shared";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
@@ -87,7 +88,6 @@ import {
   getTraceFilterConfig,
   type TraceOmittableFilterColumn,
 } from "@/src/features/filters/config/traces-config";
-import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -1322,12 +1322,17 @@ export default function TracesTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
-    queryParams: ["observation", "display", "timestamp"],
+    // traceId is not written by this table but arrives on v4-dialect shared
+    // URLs (LFE-11041); listing it clears it on open/navigate/close so it
+    // cannot pin the peek to the originally shared trace.
+    queryParams: ["observation", "display", "timestamp", "traceId"],
     extractParamsValuesFromRow: (row: TracesTableRow) => ({
       timestamp: row.timestamp?.toISOString() || "",
     }),
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
+      pathParam: "traceId",
+      reader: "trace",
     },
   });
 

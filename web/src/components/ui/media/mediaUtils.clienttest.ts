@@ -26,8 +26,99 @@ describe("classifyMediaValue", () => {
     });
   });
 
+  it("classifies a multi-megabyte base64 data URI (the huge-IO case)", () => {
+    // One unbroken 8 MB base64 token — the payload shape from LFE-10152 seeding.
+    const src = "data:image/png;base64," + "A".repeat(8 * 1024 * 1024);
+    const descriptor = classifyMediaValue(src);
+    expect(descriptor).toMatchObject({
+      kind: "dataUri",
+      contentType: "image/png",
+    });
+    // Whole payload is preserved as the src; only the head is scanned.
+    expect(descriptor?.kind === "dataUri" && descriptor.src).toBe(src);
+  });
+
+  it("classifies genuine data URIs with header variants", () => {
+    // Percent-encoded (non-base64) SVG image.
+    expect(
+      classifyMediaValue("data:image/svg+xml,%3Csvg%3E%3C/svg%3E")?.contentType,
+    ).toBe("image/svg+xml");
+    // A parameter (charset) before the mandatory comma.
+    expect(
+      classifyMediaValue("data:image/svg+xml;charset=utf-8,<svg></svg>")
+        ?.contentType,
+    ).toBe("image/svg+xml");
+    // Audio + video top-level types are previewable too.
+    expect(classifyMediaValue("data:audio/mpeg;base64,AAAA")?.contentType).toBe(
+      "audio/mpeg",
+    );
+    expect(classifyMediaValue("data:video/mp4;base64,AAAA")?.contentType).toBe(
+      "video/mp4",
+    );
+    // Empty payload is still a well-formed (comma-terminated) data URI.
+    expect(classifyMediaValue("data:image/png;base64,")?.contentType).toBe(
+      "image/png",
+    );
+  });
+
+  it("accepts the base64 token case-insensitively (WHATWG data-URL spec)", () => {
+    // Browsers accept `;BASE64,` / `;Base64,`; the regex's `i` flag matches
+    // them. The lowercase mediatype still gates previewability.
+    expect(classifyMediaValue("data:image/png;BASE64,AAAA")?.contentType).toBe(
+      "image/png",
+    );
+    expect(classifyMediaValue("data:audio/mpeg;Base64,AAAA")?.contentType).toBe(
+      "audio/mpeg",
+    );
+  });
+
+  it("does not classify a data URI whose header exceeds the scan window", () => {
+    // Documents the intentional bound: only the first 256 chars of the head are
+    // scanned, so a (valid but) pathologically long header pushes its mandatory
+    // comma out of range and the value falls through to plain-string handling.
+    // Real image/audio/video headers are well under 40 chars, so this never
+    // affects genuine media.
+    const longHeader = "data:image/png;charset=" + "a".repeat(300) + ",AAAA";
+    expect(classifyMediaValue(longHeader)).toBeNull();
+    // Same header, comfortably within the window, is classified normally.
+    const shortHeader = "data:image/png;charset=" + "a".repeat(10) + ",AAAA";
+    expect(classifyMediaValue(shortHeader)?.contentType).toBe("image/png");
+  });
+
   it("ignores non-previewable data URIs", () => {
     expect(classifyMediaValue("data:text/plain,hello")).toBeNull();
+    expect(classifyMediaValue("data:application/json,{}")).toBeNull();
+  });
+
+  it("does not mistake prose or malformed 'data:' strings for media", () => {
+    // No comma at all -> not a data URI, just a string that starts like one.
+    expect(classifyMediaValue("data:image/png")).toBeNull();
+    // Prose after the MIME head: the header is not comma-terminated.
+    expect(
+      classifyMediaValue("data:image/png is the best format for screenshots"),
+    ).toBeNull();
+    // A comma appears, but only later inside prose — the header itself is not
+    // well-formed up to a comma.
+    expect(
+      classifyMediaValue("data:audio/mpeg not supported, sadly"),
+    ).toBeNull();
+    // "base64" without the terminating comma is still malformed.
+    expect(classifyMediaValue("data:image/png;base64")).toBeNull();
+    // A huge non-data-URI string that merely starts with the prefix must fall
+    // through (so the caller truncates it) instead of being handed off whole.
+    expect(
+      classifyMediaValue("data:image/png " + "x".repeat(5_000_000)),
+    ).toBeNull();
+  });
+
+  it("does not treat a bare base64-ish token or embedded substring as media", () => {
+    // Short base64-looking tokens are not data URIs.
+    expect(classifyMediaValue("aGVsbG8gd29ybGQ=")).toBeNull();
+    expect(classifyMediaValue("iVBORw0KGgoAAAANSUhEUgAA")).toBeNull();
+    // A JSON string that merely contains a "data:" substring, not at the start.
+    expect(
+      classifyMediaValue('{"note":"see data:image/png;base64,AAAA"}'),
+    ).toBeNull();
   });
 
   it("classifies image/audio/video URLs by extension", () => {

@@ -7,9 +7,25 @@
 // retrying. Errors arrive wrapped via `new Error(..., { cause })`
 // (StorageService.handleStorageError), so we walk the cause chain.
 
+// Counter for integrations auto-disabled after a terminal customer fault, tagged
+// by `reason`. Lets a rollout regression (a classifier bug mass-disabling
+// working integrations) show up as a spike in the non-SSRF buckets against a
+// near-zero baseline, separately from expected SSRF/abuse disables.
+export const BLOB_INTEGRATION_DISABLED_METRIC =
+  "langfuse.blobstorage.integration_disabled.count";
+
+// Coarse cause bucket for a disable, for logs/metrics. `ssrf_blocked_endpoint`
+// is the SSRF-guard rejection (endpoint resolves to a blocked host/IP) — the
+// "likely abuse" bucket to watch — while the rest are customer misconfiguration.
+export type CustomerFaultReason =
+  | "ssrf_blocked_endpoint"
+  | "invalid_endpoint_url"
+  | "credentials"
+  | "bucket_or_container";
+
 // AWS SDK v3 sets `.name`/`.Code`; Azure RestError sets `.code`. S3-compatible
 // providers (incl. GCS S3-interop) surface the S3 codes.
-const CUSTOMER_FAULT_ERROR_CODES = new Set<string>([
+const CREDENTIAL_FAULT_CODES = new Set<string>([
   // S3 — auth & credentials
   "InvalidAccessKeyId",
   "SignatureDoesNotMatch",
@@ -17,9 +33,6 @@ const CUSTOMER_FAULT_ERROR_CODES = new Set<string>([
   "AllAccessDisabled",
   "AccountProblem",
   "AuthorizationHeaderMalformed",
-  // S3 — bucket & path
-  "NoSuchBucket",
-  "InvalidBucketName",
   // Azure — auth & credentials
   "AuthenticationFailed",
   "AuthorizationFailure",
@@ -27,9 +40,35 @@ const CUSTOMER_FAULT_ERROR_CODES = new Set<string>([
   "InvalidAuthenticationInfo",
   "AccountIsDisabled",
   "InsufficientAccountPermissions",
+]);
+
+const BUCKET_FAULT_CODES = new Set<string>([
+  // S3 — bucket & path
+  "NoSuchBucket",
+  "InvalidBucketName",
   // Azure — container & path
   "ContainerNotFound",
   "InvalidResourceName",
+]);
+
+// Langfuse outbound-URL / SSRF validation rejections (OutboundUrlValidationError
+// from @langfuse/shared/.../outbound-url), split by cause. Every code here is a
+// deterministic property of the endpoint config, so it is safe to auto-disable
+// on. We deliberately omit `dns-lookup-failed`: resolvability depends on runtime
+// resolver state, not the config, so a transient DNS outage across the retry
+// window must not permanently disable a working integration. secureLlmFetch
+// makes the same distinction (dns-lookup-failed -> "endpoint-unreachable").
+const SSRF_BLOCKED_OUTBOUND_URL_CODES = new Set<string>([
+  "blocked-hostname",
+  "blocked-ip",
+]);
+
+const INVALID_URL_OUTBOUND_URL_CODES = new Set<string>([
+  "invalid-syntax",
+  "invalid-encoding",
+  "https-required",
+  "protocol-not-allowed",
+  "url-credentials-not-allowed",
 ]);
 
 // GCS JSON-API reasons (only reachable via a GCS-native client; S3-interop uses
@@ -87,22 +126,57 @@ function extractGcsReasons(err: object): string[] {
     .filter((r): r is string => typeof r === "string");
 }
 
-function isCustomerFaultLink(err: object): boolean {
-  if (extractErrorCodes(err).some((c) => CUSTOMER_FAULT_ERROR_CODES.has(c))) {
-    return true;
+// Duck-type on `.name` (survives cross-package module duplication where
+// `instanceof` is unreliable) rather than importing the class, then map the
+// deterministic code to a reason; transient reasons like `dns-lookup-failed`
+// return undefined so they stay non-disabling.
+function classifyOutboundUrlFault(
+  err: object,
+): CustomerFaultReason | undefined {
+  if ((err as { name?: unknown }).name !== "OutboundUrlValidationError") {
+    return undefined;
   }
+  const code = (err as { code?: unknown }).code;
+  if (typeof code !== "string") return undefined;
+  if (SSRF_BLOCKED_OUTBOUND_URL_CODES.has(code)) return "ssrf_blocked_endpoint";
+  if (INVALID_URL_OUTBOUND_URL_CODES.has(code)) return "invalid_endpoint_url";
+  return undefined;
+}
+
+function classifyCustomerFaultLink(
+  err: object,
+): CustomerFaultReason | undefined {
+  const outbound = classifyOutboundUrlFault(err);
+  if (outbound) return outbound;
+
+  const codes = extractErrorCodes(err);
+  if (codes.some((c) => CREDENTIAL_FAULT_CODES.has(c))) return "credentials";
+  if (codes.some((c) => BUCKET_FAULT_CODES.has(c)))
+    return "bucket_or_container";
+
   // 401 = credentials rejected: unambiguous, so it trips without a code. A bare
   // 403/404 does not (e.g. clock-skew RequestTimeTooSkewed is a 403).
-  if (extractHttpStatus(err) === 401) return true;
+  if (extractHttpStatus(err) === 401) return "credentials";
   if (extractGcsReasons(err).some((r) => CUSTOMER_FAULT_GCS_REASONS.has(r))) {
-    return true;
+    return "credentials";
   }
-  return false;
+  return undefined;
+}
+
+// Returns the deterministic customer-fault reason for the first matching link in
+// the cause chain, or undefined when nothing qualifies (retry-worthy / infra /
+// transient). The handler disables on any defined reason and tags the disable
+// log + metric with it.
+export function classifyCustomerFault(
+  error: unknown,
+): CustomerFaultReason | undefined {
+  for (const link of errorCauseChain(error)) {
+    const reason = classifyCustomerFaultLink(link);
+    if (reason) return reason;
+  }
+  return undefined;
 }
 
 export function isCustomerFaultError(error: unknown): boolean {
-  for (const link of errorCauseChain(error)) {
-    if (isCustomerFaultLink(link)) return true;
-  }
-  return false;
+  return classifyCustomerFault(error) !== undefined;
 }

@@ -34,8 +34,11 @@ import {
   escapeSqlLikePattern,
   tableColumnsToSqlFilterAndPrefix,
   getObservationsWithPromptName,
+  getObservationsWithPromptNameFromEvents,
   getObservationMetricsForPrompts,
+  getObservationMetricsForPromptsFromEvents,
   getAggregatedScoresForPrompts,
+  getAggregatedScoresForPromptsFromEvents,
   postgresSearchCondition,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -260,15 +263,16 @@ export const promptRouter = createTRPCRouter({
           message: "fromTimestamp must be before toTimestamp",
         }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { projectId, promptNames, ...timeWindow } = input;
       if (promptNames.length === 0) return [];
+      const useEventsTable = ctx.session.user.v4BetaEnabled === true;
 
-      const res = await getObservationsWithPromptName(
-        projectId,
-        promptNames,
-        timeWindow,
-      );
+      const getPromptCounts = useEventsTable
+        ? getObservationsWithPromptNameFromEvents
+        : getObservationsWithPromptName;
+
+      const res = await getPromptCounts(projectId, promptNames, timeWindow);
       return res.map(({ promptName, count }) => ({
         promptName,
         observationCount: count,
@@ -1287,6 +1291,7 @@ export const promptRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { projectId, promptIds, ...timeWindow } = input;
+      const useEventsTable = ctx.session.user.v4BetaEnabled === true;
 
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -1294,10 +1299,29 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
+      const getPromptMetrics = useEventsTable
+        ? getObservationMetricsForPromptsFromEvents
+        : getObservationMetricsForPrompts;
+      const getPromptScores = useEventsTable
+        ? getAggregatedScoresForPromptsFromEvents
+        : getAggregatedScoresForPrompts;
+
       const [observations, observationScores, traceScores] = await Promise.all([
-        getObservationMetricsForPrompts(projectId, promptIds, timeWindow),
-        getScoresForPromptIds(projectId, promptIds, "observation", timeWindow),
-        getScoresForPromptIds(projectId, promptIds, "trace", timeWindow),
+        getPromptMetrics(projectId, promptIds, timeWindow),
+        getScoresForPromptIds(
+          projectId,
+          promptIds,
+          "observation",
+          timeWindow,
+          getPromptScores,
+        ),
+        getScoresForPromptIds(
+          projectId,
+          promptIds,
+          "trace",
+          timeWindow,
+          getPromptScores,
+        ),
       ]);
 
       return observations.map((r) => {
@@ -1499,8 +1523,9 @@ const getScoresForPromptIds = async (
     fromTimestamp?: Date;
     toTimestamp?: Date;
   } = {},
+  getScores: typeof getAggregatedScoresForPrompts = getAggregatedScoresForPrompts,
 ) => {
-  const scores = await getAggregatedScoresForPrompts(
+  const scores = await getScores(
     projectId,
     promptIds,
     fetchScoreRelation,

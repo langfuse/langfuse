@@ -182,7 +182,7 @@ export function MonitorsTable() {
       cell: ({ row }) => (
         <span
           className={cn(
-            "text-sm font-medium",
+            "text-sm font-bold",
             row.original.severity === "PAUSED" && "opacity-50",
           )}
         >

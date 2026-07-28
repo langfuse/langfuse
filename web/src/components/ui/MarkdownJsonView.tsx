@@ -31,7 +31,7 @@ export function MarkdownJsonViewHeader({
   const [isCopied, setIsCopied] = useState(false);
 
   return (
-    <div className="io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize transition-colors">
+    <div className="io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between px-1 py-1 text-sm font-bold capitalize transition-colors">
       <div className="flex items-center gap-2">
         {titleIcon}
         {title}
@@ -83,22 +83,24 @@ export function MarkdownJsonView({
   title,
   titleIcon,
   className,
-  customCodeHeaderClassName,
   audio,
   media,
   controlButtons,
   afterHeader,
+  isSystemPrompt,
 }: {
   content?: unknown;
   title?: string;
   titleIcon?: React.ReactNode;
   className?: string;
-  customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   controlButtons?: React.ReactNode;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
+  /** Collapse long content to a preview (from raw `role === "system"`, since
+      the title can carry a message `name` instead of the role). */
+  isSystemPrompt?: boolean;
 }) {
   const validatedOpenAIContent = useMemo(
     () => OpenAIContentSchema.safeParse(content),
@@ -119,11 +121,11 @@ export function MarkdownJsonView({
           }
           title={title}
           titleIcon={titleIcon}
-          customCodeHeaderClassName={customCodeHeaderClassName}
           audio={audio}
           media={media}
           controlButtons={controlButtons}
           afterHeader={afterHeader}
+          isSystemPrompt={isSystemPrompt}
         />
       ) : (
         <PrettyJsonView
@@ -135,6 +137,7 @@ export function MarkdownJsonView({
           currentView="pretty"
           controlButtons={controlButtons}
           afterHeader={afterHeader}
+          isSystemPrompt={isSystemPrompt}
         />
       )}
     </>

@@ -1,5 +1,5 @@
 import { BaseError } from "@langfuse/shared";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import { addUserToSpan, instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind, type Span } from "@opentelemetry/api";
 
 import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
@@ -22,10 +22,17 @@ export const runMcpTool = async <TResult>({
   instrumentAsync(
     { name: spanName, spanKind: SpanKind.INTERNAL },
     async (span) => {
+      addUserToSpan(
+        {
+          projectId: context.projectId,
+          orgId: context.orgId,
+          apiKeyId: context.apiKeyId,
+        },
+        span,
+      );
+
       span.setAttributes({
-        "langfuse.project.id": context.projectId,
-        "langfuse.org.id": context.orgId,
-        "mcp.api_key_id": context.apiKeyId,
+        ...(context.userAgent ? { user_agent: context.userAgent } : {}),
         ...Object.fromEntries(
           Object.entries(attributes ?? {}).filter(
             (entry): entry is [string, McpToolAttribute] =>

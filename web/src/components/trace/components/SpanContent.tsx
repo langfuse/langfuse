@@ -124,7 +124,9 @@ export function SpanContent({
         onSelect?.();
       }}
       onMouseEnter={onHover}
-      title={node.name}
+      // No row-level title: it would pop a native tooltip from ANYWHERE in the
+      // row — stacking on the score chips' own titles and the ScoreTag level
+      // tooltip. The truncating name span below carries its own title.
       className={cn(
         "peer relative flex min-w-0 flex-1 items-center rounded-md py-0.5 pr-2 pl-1 text-left",
         className,

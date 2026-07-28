@@ -2,6 +2,7 @@ import { env } from "../../env";
 import {
   type OutboundUrlConnectionValidationOptions,
   type OutboundUrlValidationWhitelist,
+  OutboundUrlValidationError,
   parseOutboundUrl,
   validateOutboundUrlHost,
 } from "../outbound-url";
@@ -47,11 +48,15 @@ export async function validateBlobStorageEndpoint(
   const url = parseOutboundUrl(endpoint);
 
   if (!["https:", "http:"].includes(url.protocol)) {
-    throw new Error("Only HTTP and HTTPS protocols are allowed");
+    throw new OutboundUrlValidationError(
+      "protocol-not-allowed",
+      "Only HTTP and HTTPS protocols are allowed",
+    );
   }
 
   if (isLangfuseCloudEndpointValidationEnabled() && url.protocol !== "https:") {
-    throw new Error(
+    throw new OutboundUrlValidationError(
+      "https-required",
       "Only HTTPS blob storage endpoints are allowed on Langfuse Cloud",
     );
   }
@@ -66,9 +71,21 @@ export async function validateBlobStorageEndpoint(
       shouldSkipDnsCheckForLiteralIps: true,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Validation failed";
-    throw new Error(`${message}${getSelfHostedWhitelistGuidance()}`);
+    // Re-wrap to append self-hosted guidance while preserving the validation
+    // `code` so the worker's customer-fault classifier still recognises the
+    // rejection. Do not chain `cause`: the guidance-suffixed message is the
+    // authoritative one, and downstream formatters (worker
+    // extractStorageErrorMessage, tRPC getErrorMessage) prefer a cause's
+    // message and would otherwise drop the guidance / duplicate the text.
+    // Unexpected non-validation errors pass through untouched so they are not
+    // misclassified as customer faults.
+    if (error instanceof OutboundUrlValidationError) {
+      throw new OutboundUrlValidationError(
+        error.code,
+        `${error.message}${getSelfHostedWhitelistGuidance()}`,
+      );
+    }
+    throw error;
   }
 }
 

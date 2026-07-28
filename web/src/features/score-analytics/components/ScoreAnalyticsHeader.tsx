@@ -87,7 +87,7 @@ export function ScoreAnalyticsHeader({
           </HoverCardTrigger>
           <HoverCardContent className="w-80">
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold">Beta Feature</h4>
+              <h4 className="text-sm font-bold">Beta Feature</h4>
               <p className="text-muted-foreground text-sm">
                 Score analytics is currently in beta. We&apos;re actively
                 improving this feature and would love to hear your feedback.
@@ -96,7 +96,7 @@ export function ScoreAnalyticsHeader({
                 href="https://langfuse.com/discussions"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline"
+                className="text-primary inline-flex items-center gap-1 text-sm font-bold hover:underline"
               >
                 Share feedback on GitHub Discussions
                 <ExternalLink className="h-3 w-3" />

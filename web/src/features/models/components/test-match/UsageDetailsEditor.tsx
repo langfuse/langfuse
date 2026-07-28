@@ -59,7 +59,7 @@ export function UsageDetailsEditor({
   return (
     <div className="space-y-4">
       <div>
-        <div className="pb-2 text-sm font-medium">Usage Details (optional)</div>
+        <div className="pb-2 text-sm font-bold">Usage Details (optional)</div>
         <div className="text-muted-foreground text-sm">
           Add usage details to test pricing tier matching. Leave empty to match
           the default tier.
@@ -105,7 +105,7 @@ export function UsageDetailsEditor({
       {/* Usage Details Table */}
       {entries.length > 0 ? (
         <div className="space-y-2 rounded-lg border p-3">
-          <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-medium">
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-bold">
             <div>Usage Type</div>
             <div>Value</div>
             <div className="w-10" />

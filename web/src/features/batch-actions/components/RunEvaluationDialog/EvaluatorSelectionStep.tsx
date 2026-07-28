@@ -4,7 +4,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/ui/input";
 import { EvaluatorPromptPreview } from "./EvaluatorPromptPreview";
 import { renderPromptPreviewFromObservation } from "./utils";
@@ -92,8 +92,8 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-2">
-      <div className="min-h-0 flex-1">
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      <div className="flex min-h-0 flex-1 flex-col">
         {isQueryLoading ? (
           <p className="text-muted-foreground text-sm">Loading evaluators...</p>
         ) : isQueryError ? (
@@ -189,7 +189,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                       >
                         <div className="min-w-0 flex-1">
                           <p
-                            className="truncate text-sm font-medium"
+                            className="truncate text-sm font-bold"
                             title={item.scoreName}
                           >
                             {item.scoreName}
@@ -219,13 +219,14 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                             </Button>
                           }
                         />
-                        <Checkbox
-                          checked={selectedEvaluatorIds.includes(item.id)}
-                          aria-label={`Select ${item.scoreName}`}
-                          onClick={(event) => event.stopPropagation()}
-                          onCheckedChange={() => onToggleEvaluator(item.id)}
-                          className="mr-1"
-                        />
+                        <span className="mr-1">
+                          <Checkbox
+                            checked={selectedEvaluatorIds.includes(item.id)}
+                            aria-label={`Select ${item.scoreName}`}
+                            onClick={(event) => event.stopPropagation()}
+                            onCheckedChange={() => onToggleEvaluator(item.id)}
+                          />
+                        </span>
                       </div>
                       {index < array.length - 1 ? (
                         <div className="border-border/50 border-b" />

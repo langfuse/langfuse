@@ -160,7 +160,7 @@ export default function RemapEvaluatorPage() {
               href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-dark-blue font-medium hover:opacity-80"
+              className="text-dark-blue font-bold hover:opacity-80"
             >
               Follow our step-by-step guide
             </a>{" "}
@@ -199,7 +199,7 @@ export default function RemapEvaluatorPage() {
               {/* LEFT: Read-only old config */}
               <div className="space-y-4 p-3">
                 <div className="flex items-center gap-2 pb-2">
-                  <h3 className="text-lg font-semibold">
+                  <h3 className="text-lg font-bold">
                     Legacy Configuration{" "}
                     {isTraceTarget(oldConfig.targetObject)
                       ? "(runs on traces)"
@@ -229,7 +229,7 @@ export default function RemapEvaluatorPage() {
 
               {/* RIGHT: Editable new config form */}
               <div className="space-y-4 p-3">
-                <h3 className="pb-2 text-lg font-semibold">
+                <h3 className="pb-2 text-lg font-bold">
                   New Configuration{" "}
                   {isTraceTarget(oldConfig.targetObject)
                     ? "(runs on observations)"

@@ -32,7 +32,7 @@ export function DatasetSelectStep({
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h3 className="text-lg font-medium">Select Dataset</h3>
+        <h3 className="text-lg font-bold">Select Dataset</h3>
         <p className="text-muted-foreground text-sm">
           Choose an existing dataset to add your observations to
         </p>

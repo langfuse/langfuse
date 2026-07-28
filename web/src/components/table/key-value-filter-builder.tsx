@@ -24,7 +24,9 @@ import {
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { Plus, X, Check, ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
+import { ScoreTag } from "@/src/components/score-tag";
 import type {
+  KeyScoreLevels,
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
   BooleanKeyValueFilterEntry,
@@ -35,6 +37,7 @@ type KeyValueFilterBuilderProps =
   | {
       mode: "categorical";
       keyOptions?: string[];
+      keyLevels?: KeyScoreLevels;
       availableValues: Record<string, string[]>;
       activeFilters: KeyValueFilterEntry[];
       onChange: (filters: KeyValueFilterEntry[]) => void;
@@ -43,6 +46,7 @@ type KeyValueFilterBuilderProps =
   | {
       mode: "numeric";
       keyOptions?: string[];
+      keyLevels?: KeyScoreLevels;
       activeFilters: NumericKeyValueFilterEntry[];
       onChange: (filters: NumericKeyValueFilterEntry[]) => void;
       keyPlaceholder?: string;
@@ -50,6 +54,7 @@ type KeyValueFilterBuilderProps =
   | {
       mode: "boolean";
       keyOptions?: string[];
+      keyLevels?: KeyScoreLevels;
       activeFilters: BooleanKeyValueFilterEntry[];
       onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
       keyPlaceholder?: string;
@@ -57,6 +62,7 @@ type KeyValueFilterBuilderProps =
   | {
       mode: "string";
       keyOptions?: string[];
+      keyLevels?: KeyScoreLevels;
       activeFilters: StringKeyValueFilterEntry[];
       onChange: (filters: StringKeyValueFilterEntry[]) => void;
       keyPlaceholder?: string;
@@ -86,6 +92,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   const {
     mode,
     keyOptions,
+    keyLevels,
     activeFilters,
     onChange,
     keyPlaceholder = "Key",
@@ -253,10 +260,17 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                     <Button
                       variant="outline"
                       role="combobox"
-                      className="flex-1 justify-between text-left font-normal"
+                      className="min-w-0 flex-1 justify-between overflow-hidden text-left font-normal"
                     >
+                      {/* Selected name renders plain — level tags show only in
+                          the option rows below (design call: a selected filter
+                          needs no level tag, and long names must truncate). */}
                       <span
-                        className={cn(!filter.key && "text-muted-foreground")}
+                        className={cn(
+                          "min-w-0 truncate",
+                          !filter.key && "text-muted-foreground",
+                        )}
+                        title={filter.key || keyPlaceholder}
                       >
                         {filter.key || keyPlaceholder}
                       </span>
@@ -292,7 +306,19 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                                     : "invisible",
                                 )}
                               />
-                              {option}
+                              <span
+                                className="min-w-0 flex-1 truncate"
+                                title={option}
+                              >
+                                {option}
+                              </span>
+                              {keyLevels?.[option]?.map((level) => (
+                                <ScoreTag
+                                  key={level}
+                                  level={level}
+                                  className="ml-1.5"
+                                />
+                              ))}
                             </InputCommandItem>
                           ))}
                         </InputCommandGroup>
