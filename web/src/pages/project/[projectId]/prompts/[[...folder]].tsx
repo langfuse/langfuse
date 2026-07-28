@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { toast } from "sonner";
 
 export default function PromptsWithFolder() {
   const router = useRouter();
@@ -74,6 +75,8 @@ export default function PromptsWithFolder() {
       a.click();
       URL.revokeObjectURL(url);
       capture("prompts:bulk_export", { mode });
+    } catch {
+      toast.error("Failed to export prompts. Please try again.");
     } finally {
       setIsExporting(false);
     }
