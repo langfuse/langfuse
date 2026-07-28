@@ -173,7 +173,7 @@ jobs:
             # cloud.langfuse.com browser bundle), baked in here so this PR's
             # preview reports usage analytics during the session-redesign
             # customer outreach; events are filterable by $host.
-            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV --build-arg NEXT_PUBLIC_POSTHOG_KEY=phc_zkMwFajk8ehObUlMth0D7DtPItFnxETi3lmSvyQDrwB --build-arg NEXT_PUBLIC_POSTHOG_HOST=https://eu.posthog.com
+            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV --build-arg NEXT_PUBLIC_POSTHOG_KEY=phc_zkMwFajk8ehObUlMth0D7DtPItFnxETi3lmSvyQDrwB --build-arg NEXT_PUBLIC_POSTHOG_HOST=https://ph.langfuse.com
           - target: worker
             image: ${{ needs.meta.outputs.worker_image }}
             dockerfile: worker/Dockerfile
