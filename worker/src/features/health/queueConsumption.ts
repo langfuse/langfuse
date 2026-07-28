@@ -3,17 +3,11 @@ import { env } from "../../env";
 /**
  * In-memory liveness signal for this container's BullMQ queue consumers.
  *
- * After Redis lock loss (FLUSHALL, key eviction, failover — see #15509 and
- * #13880) BullMQ workers can wedge permanently: the process stays alive and
+ * After Redis lock loss BullMQ workers can wedge permanently: the process stays alive and
  * connectivity checks pass, but no queue picks up jobs ever again. Because
- * default-on repeatable jobs (blob storage integration scheduler every 20
- * minutes, PostHog/Mixpanel schedulers hourly) keep a healthy worker busy at
- * least once per hour, "no job activity for longer than the threshold" is a
+ * default-on repeatable jobs keep a healthy worker busy at
+ * least once per hour, "no job activity for longer than the threshold" should be a
  * reliable per-container wedge signal that a liveness probe can act on.
- *
- * State is deliberately process-local (not Redis): each container must report
- * on its own consumption, and the failure modes we guard against include a
- * flushed or unreachable Redis.
  */
 
 export type QueueConsumptionHealth = {

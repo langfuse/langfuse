@@ -10,7 +10,6 @@ import {
   recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
-import { env } from "../env";
 import {
   markQueueJobActivity,
   markQueueWorkerRegistered,
@@ -162,7 +161,6 @@ export class WorkerManager {
     worker.on("active", markQueueJobActivity);
     worker.on("completed", markQueueJobActivity);
 
-    const oldMetric = convertQueueNameToMetricName(queueName);
     const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
 
     // Add error handling

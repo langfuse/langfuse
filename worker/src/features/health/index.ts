@@ -136,10 +136,9 @@ type ContainerHealthOptions = {
   failIfEventPropagationStuck?: boolean;
   /**
    * Also fail (503) when this container's BullMQ workers have not processed a
-   * single job within LANGFUSE_QUEUE_CONSUMPTION_STUCK_THRESHOLD_MINUTES —
-   * the silent full-worker wedge after Redis lock loss (#15509). Opt-in via
-   * the ?failIfQueueConsumptionStuck=true query parameter so only a probe that
-   * should force restarts evaluates it.
+   * single job within LANGFUSE_QUEUE_CONSUMPTION_STUCK_THRESHOLD_MINUTES.
+   * Opt-in via the ?failIfQueueConsumptionStuck=true query parameter so only a
+   * probe that should force restarts evaluates it.
    */
   failIfQueueConsumptionStuck?: boolean;
 };
