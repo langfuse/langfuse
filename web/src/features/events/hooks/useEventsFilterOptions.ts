@@ -1,6 +1,10 @@
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { useCallback, useMemo, useState } from "react";
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
+import {
+  planEventFacetQueries,
+  splitFacetFilter,
+} from "@/src/features/events/lib/facet-query-plan";
 
 type EventFilterOptionColumnsInput =
   RouterInputs["events"]["filterOptions"]["columns"];
@@ -85,8 +89,8 @@ const isEventFilterOptionColumn = (
 
 // Shared react-query options: filter options change slowly and are never live —
 // fetch once and keep (no refetch on mount/focus/reconnect, infinite stale time),
-// and keep prior values on screen while a key changes (time-range move) so the
-// sidebar/bar never flicker.
+// and keep prior values on screen while a key changes (time-range move or filter
+// edit) so the sidebar/bar never flicker.
 const FILTER_OPTION_QUERY_OPTIONS = {
   refetchOnMount: false,
   refetchOnWindowFocus: false,
@@ -101,14 +105,20 @@ type LazyFilterOptionResult = {
   isError: boolean;
 };
 
+const EMPTY_FILTER_STATE: FilterState = [];
+
 type UseEventsFilterOptionsParams = {
   projectId: string;
-  oldFilterState: FilterState;
+  /** Time scope for the bounded facet scan. Separate from `refiningFilter`, so
+   *  a window move re-keys every query but a filter edit only the refined ones. */
+  startTimeFilter?: TimeFilter[];
+  /** Active filters the counts refine against (LFE-14489). Pass the SAME state
+   *  that scopes the row query; each facet self-excludes its own column via the
+   *  query plan. Start-time conditions are re-routed into `startTimeFilter`. */
+  refiningFilter?: FilterState;
   isRootObservation?: boolean;
-  /**
-   * Explicit column subset to request (non-lazy). Ignored when `lazy` is set.
-   * Omit to request every column (the default bulk behavior).
-   */
+  /** Explicit column subset (non-lazy; ignored when `lazy`). Omit to request
+   *  all — request-all cannot self-exclude, so only valid unfiltered. */
   columns?: EventFilterOptionColumnsInput;
   /**
    * Lazy mode (v4 events table): request only the eagerly-visible columns up
@@ -123,29 +133,36 @@ type UseEventsFilterOptionsParams = {
 
 export function useEventsFilterOptions({
   projectId,
-  oldFilterState,
+  startTimeFilter,
+  refiningFilter = EMPTY_FILTER_STATE,
   isRootObservation,
   columns,
   lazy = false,
 }: UseEventsFilterOptionsParams) {
-  // Extract start time filters for filter options query
-  const startTimeFilters = useMemo(() => {
-    return oldFilterState.filter(
-      (f) =>
-        (f.column === "Start Time" || f.column === "startTime") &&
-        f.type === "datetime",
-    ) as TimeFilter[];
-  }, [oldFilterState]);
-
-  const baseInput = useMemo(
-    () => ({
-      projectId,
-      startTimeFilter:
-        startTimeFilters.length > 0 ? startTimeFilters : undefined,
-      isRootObservation,
-    }),
-    [projectId, startTimeFilters, isRootObservation],
+  // User-authored start-time conditions (search-bar `startTime:>…`) merge into
+  // the authoritative startTimeFilter channel — the server ignores them in
+  // `filter`, so counts would otherwise silently ignore that narrowing.
+  const splitFilter = useMemo(
+    () => splitFacetFilter(refiningFilter),
+    [refiningFilter],
   );
+
+  const baseInput = useMemo(() => {
+    const mergedStartTime = [
+      ...(startTimeFilter ?? []),
+      ...splitFilter.startTimeFilter,
+    ];
+    return {
+      projectId,
+      startTimeFilter: mergedStartTime.length > 0 ? mergedStartTime : undefined,
+      isRootObservation,
+    };
+  }, [
+    projectId,
+    startTimeFilter,
+    splitFilter.startTimeFilter,
+    isRootObservation,
+  ]);
 
   // Lazy mode owns a monotonically-growing set of on-demand columns (everything
   // beyond the eager set). It only grows — re-collapsing a facet does not narrow
@@ -182,27 +199,43 @@ export function useEventsFilterOptions({
     [lazyColumnSet],
   );
 
-  // Eager bulk query: one ClickHouse scan for the always-visible columns (lazy
-  // mode) — or the explicit/all columns in non-lazy mode (unchanged behavior).
-  const eagerColumns = lazy ? [...EAGER_EVENT_FILTER_OPTION_COLUMNS] : columns;
+  // All refinement semantics (self-exclusion, score catalog, id/label
+  // canonicalization) live in the pure plan module.
+  const plan = useMemo(
+    () =>
+      planEventFacetQueries<EventFilterOptionColumn>({
+        refiningFilter: splitFilter.refiningFilter,
+        eagerColumns: lazy ? EAGER_EVENT_FILTER_OPTION_COLUMNS : columns,
+        lazyColumns,
+      }),
+    [splitFilter.refiningFilter, lazy, columns, lazyColumns],
+  );
+
+  // Eager bulk query: one ClickHouse scan for the plan's shared columns.
   const eagerQuery = api.events.filterOptions.useQuery(
-    { ...baseInput, columns: eagerColumns },
+    {
+      ...baseInput,
+      filter: plan.bulk.filter,
+      columns: plan.bulk.columns,
+    },
     {
       trpc: { context: { skipBatch: true } },
       ...FILTER_OPTION_QUERY_OPTIONS,
     },
   );
 
-  // One independently-cached query per on-demand column. `combine` merges them
-  // into a single payload + derives which columns are still loading / errored,
-  // and react-query memoizes the result so identity is stable between changes.
+  // One independently-cached query per plan.perColumn entry. `combine` merges
+  // them into a single payload + derives which columns are still loading /
+  // errored, and react-query memoizes the result so identity is stable between
+  // changes.
+  const perColumnPlan = plan.perColumn;
   const combineLazy = useCallback(
     (results: readonly LazyFilterOptionResult[]) => {
       const data: FilterOptionsData = {};
       const pendingColumns: string[] = [];
       const erroredColumns: string[] = [];
       results.forEach((r, i) => {
-        const column = lazyColumns[i];
+        const column = perColumnPlan[i]?.column;
         if (column === undefined) return;
         // Publish data first: a post-success refetch error keeps placeholderData,
         // so an already-loaded facet retains its values instead of blanking out —
@@ -222,14 +255,14 @@ export function useEventsFilterOptions({
       });
       return { data, pendingColumns, erroredColumns };
     },
-    [lazyColumns],
+    [perColumnPlan],
   );
 
   const lazyResult = api.useQueries(
     (t) =>
-      lazyColumns.map((column) =>
+      perColumnPlan.map(({ column, filter }) =>
         t.events.filterOptions(
-          { ...baseInput, columns: [column] },
+          { ...baseInput, filter, columns: [column] },
           FILTER_OPTION_QUERY_OPTIONS,
         ),
       ),
@@ -318,17 +351,20 @@ export function useEventsFilterOptions({
   // "no data". On a terminal error the column is dropped (no auto-retry, so the
   // facet renders its empty state instead of skeletoning forever).
   const isEagerFetching = eagerQuery.isFetching;
+  const bulkColumns = plan.bulk.columns;
   const loadingColumns = useMemo<ReadonlySet<string> | undefined>(() => {
     if (!lazy) return undefined;
     const pending = new Set<string>(lazyResult.pendingColumns);
     if (isEagerFetching) {
       const data = rawData as Record<string, unknown>;
-      for (const column of EAGER_EVENT_FILTER_OPTION_COLUMNS) {
+      // Only the columns actually in the bulk query — the self-excluded ones
+      // report through lazyResult.pendingColumns instead.
+      for (const column of bulkColumns ?? []) {
         if (data[column] === undefined) pending.add(column);
       }
     }
     return pending;
-  }, [lazy, lazyResult.pendingColumns, isEagerFetching, rawData]);
+  }, [lazy, lazyResult.pendingColumns, isEagerFetching, rawData, bulkColumns]);
 
   // Columns whose fetch terminally errored, per column. Consumers settle these to
   // the empty state (no skeleton, no perpetual loading row — there is no
@@ -340,11 +376,11 @@ export function useEventsFilterOptions({
   const erroredColumns = useMemo<ReadonlySet<string>>(() => {
     const errored = new Set<string>(lazyErroredColumns);
     if (isEagerError) {
-      for (const column of EAGER_EVENT_FILTER_OPTION_COLUMNS)
+      for (const column of bulkColumns ?? EAGER_EVENT_FILTER_OPTION_COLUMNS)
         errored.add(column);
     }
     return errored;
-  }, [lazyErroredColumns, isEagerError]);
+  }, [lazyErroredColumns, isEagerError, bulkColumns]);
 
   return {
     filterOptions: newFilterOptions,
