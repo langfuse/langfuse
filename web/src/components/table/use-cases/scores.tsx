@@ -25,17 +25,8 @@ import {
   SCORE_COLUMN_TO_BACKEND_KEY,
   type ScoresTableHiddenColumn,
 } from "@/src/features/filters/config/scores-config";
-import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
-import { isNumericDataType } from "@/src/features/scores/lib/helpers";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { api } from "@/src/utils/api";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-
-import type { RouterOutput } from "@/src/utils/types";
 import {
+  DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   isPresent,
   type FilterState,
   type ScoreDataTypeType,
@@ -45,6 +36,15 @@ import {
   TableViewPresetTableName,
   type TimeFilter,
 } from "@langfuse/shared";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { isNumericDataType } from "@/src/features/scores/lib/helpers";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { api } from "@/src/utils/api";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+
+import type { RouterOutput } from "@/src/utils/types";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";

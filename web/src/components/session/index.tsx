@@ -55,6 +55,7 @@ import {
   type FilterState,
   type ScoreDomain,
   TableViewPresetTableName,
+  normalizeLegacySessionPositionInTraceFilters,
 } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { WebCalloutButton } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
@@ -68,7 +69,6 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { normalizeLegacySessionPositionInTraceFilters } from "@/src/components/session/session-position-in-trace";
 import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
@@ -1396,7 +1396,7 @@ const LoadedSessionEventsPage: React.FC<{
 
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
-    oldFilterState: timeFiltersForOptions,
+    startTimeFilter: timeFiltersForOptions,
   });
   const typedFilterOptions = filterOptions as EventFilterOptions;
 

@@ -221,7 +221,7 @@ const run = async (
           name: isRoot
             ? "session-turn"
             : isGeneration
-              ? "gpt-4o-completion"
+              ? "gpt-5.4-completion"
               : rng.pick(["fetch-context", "log-event", "format-reply"]),
           start_time: startTime,
           end_time: endTime,
@@ -252,7 +252,7 @@ const run = async (
                   bulk: bulkMetadataValue,
                 }
               : { scenario: "long-session", turn: String(t) },
-          provided_model_name: isGeneration ? "gpt-4o" : null,
+          provided_model_name: isGeneration ? "gpt-5.4" : null,
           internal_model_id: null,
           model_parameters: isGeneration
             ? JSON.stringify({ temperature: 0.7 })

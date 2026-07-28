@@ -8,7 +8,7 @@ import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
-import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import { projectRoleAccessRights } from "@langfuse/shared";
 
 export async function createProjectMembershipsOnSignup(
   user: {

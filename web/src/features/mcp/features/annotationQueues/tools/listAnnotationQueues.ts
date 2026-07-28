@@ -4,7 +4,7 @@ import {
 } from "@/src/features/public-api/types/annotation-queues";
 import { listAnnotationQueuesForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { defineTool } from "../../../core/define-tool";
-import { buildAnnotationQueueUrl } from "@/src/utils/product-url";
+import { buildAnnotationQueueUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [listAnnotationQueuesTool, handleListAnnotationQueues] =

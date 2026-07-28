@@ -132,7 +132,7 @@ export function TraceLayoutMobile({
           <TabsBarTrigger value="tree">Tree</TabsBarTrigger>
           <TabsBarTrigger value="timeline">Timeline</TabsBarTrigger>
           {showGraph && <TabsBarTrigger value="graph">Graph</TabsBarTrigger>}
-          <TabsBarTrigger value="info">Info</TabsBarTrigger>
+          <TabsBarTrigger value="info">Data</TabsBarTrigger>
         </TabsBarList>
 
         {/* Inactive tabs unmount (Radix default). On memory-constrained mobile

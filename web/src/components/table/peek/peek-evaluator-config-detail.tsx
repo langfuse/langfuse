@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { V4MigrationUpdateRequiredAssistantBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { UserCircle2Icon } from "lucide-react";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -71,11 +71,7 @@ const PeekViewEvaluatorConfigDetail = ({
         <div className="flex flex-row items-center gap-2">
           <span className="max-h-fit text-lg font-bold">Configuration</span>
           <div className="flex items-center gap-2">
-            <StatusBadge
-              type={displayStatus.toLowerCase()}
-              isLive
-              className="max-h-8"
-            />
+            <StatusBadge type={displayStatus.toLowerCase()} isLive />
             {/* Quick-deactivate is a migration aid: only shown where legacy
                 evals can no longer be set up (cloud), consistent with the
                 read-only edit gate. */}

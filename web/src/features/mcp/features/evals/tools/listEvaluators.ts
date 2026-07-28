@@ -4,7 +4,7 @@ import {
 } from "@/src/features/public-api/types/unstable-evaluators";
 import { listPublicEvaluators } from "@/src/features/evals/server/unstable-public-api";
 import { defineTool } from "../../../core/define-tool";
-import { buildEvaluatorUrl } from "@/src/utils/product-url";
+import { buildEvaluatorUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [listEvaluatorsTool, handleListEvaluators] = defineTool({
