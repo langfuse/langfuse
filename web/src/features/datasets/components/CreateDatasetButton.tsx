@@ -1,6 +1,9 @@
-import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
-import { CreateDatasetDialogContent } from "@/src/features/datasets/components/CreateDatasetDialogContent";
+import {
+  CreateDatasetDialogContent,
+  type CreateDatasetTarget,
+} from "@/src/features/datasets/components/CreateDatasetDialogContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { LockIcon, PlusIcon } from "lucide-react";
@@ -8,16 +11,14 @@ import { forwardRef, useState } from "react";
 
 interface CreateDatasetButtonProps {
   projectId: string;
-  folderPrefix?: string;
-  className?: string;
-  size?: ButtonProps["size"];
-  variant?: ButtonProps["variant"];
+  target: CreateDatasetTarget;
+  size: "default" | "lg";
 }
 
 export const CreateDatasetButton = forwardRef<
   HTMLButtonElement,
   CreateDatasetButtonProps
->(({ projectId, folderPrefix, className, size, variant }, ref) => {
+>(({ projectId, target, size }, ref) => {
   const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
@@ -31,10 +32,9 @@ export const CreateDatasetButton = forwardRef<
         <Button
           ref={ref}
           size={size}
-          className={className}
           disabled={!hasAccess}
           onClick={() => capture("datasets:new_form_open")}
-          variant={variant || "default"}
+          variant="default"
         >
           {hasAccess ? (
             <PlusIcon className="mr-1.5 -ml-0.5 h-4 w-4" aria-hidden="true" />
@@ -46,7 +46,7 @@ export const CreateDatasetButton = forwardRef<
       </DialogTrigger>
       <CreateDatasetDialogContent
         projectId={projectId}
-        folderPrefix={folderPrefix}
+        target={target}
         onFormSuccess={() => setOpen(false)}
       />
     </Dialog>

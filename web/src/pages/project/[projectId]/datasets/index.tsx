@@ -56,7 +56,12 @@ export default function Datasets() {
         actionButtonsRight: (
           <CreateDatasetButton
             projectId={projectId}
-            folderPrefix={currentFolderPath || undefined}
+            size="default"
+            target={
+              currentFolderPath
+                ? { type: "folder", prefix: currentFolderPath }
+                : { type: "root" }
+            }
           />
         ),
       }}

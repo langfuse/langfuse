@@ -5,13 +5,17 @@ import {
 } from "@/src/components/ui/dialog";
 import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 
+export type CreateDatasetTarget =
+  | { type: "root" }
+  | { type: "folder"; prefix: string };
+
 export function CreateDatasetDialogContent({
   projectId,
-  folderPrefix,
+  target,
   onFormSuccess,
 }: {
   projectId: string;
-  folderPrefix?: string;
+  target: CreateDatasetTarget;
   onFormSuccess: () => void;
 }) {
   return (
@@ -23,7 +27,7 @@ export function CreateDatasetDialogContent({
         mode="create"
         projectId={projectId}
         onFormSuccess={onFormSuccess}
-        folderPrefix={folderPrefix}
+        folderPrefix={target.type === "folder" ? target.prefix : undefined}
       />
     </DialogContent>
   );

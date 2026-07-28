@@ -42,9 +42,9 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
         label: "Create Dataset",
         component: (
           <CreateDatasetButton
-            variant="default"
             projectId={projectId}
             size="lg"
+            target={{ type: "root" }}
           />
         ),
       }}
