@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { DatasetsTable } from "@/src/features/datasets/components/DatasetsTable";
 import Page from "@/src/components/layouts/page";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { CreateDatasetButton } from "@/src/features/datasets/components/CreateDatasetButton";
 import { api } from "@/src/utils/api";
 import { DatasetsOnboarding } from "@/src/components/onboarding/DatasetsOnboarding";
 import { useQueryParam, StringParam } from "use-query-params";
@@ -54,9 +54,8 @@ export default function Datasets() {
           href: "https://langfuse.com/docs/evaluation/dataset-runs/datasets",
         },
         actionButtonsRight: (
-          <DatasetActionButton
+          <CreateDatasetButton
             projectId={projectId}
-            mode="create"
             folderPrefix={currentFolderPath || undefined}
           />
         ),

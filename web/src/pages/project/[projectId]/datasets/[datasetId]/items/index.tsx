@@ -6,7 +6,7 @@ import {
 } from "@/src/features/navigation/utils/dataset-tabs";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { UpdateDatasetButton } from "@/src/features/datasets/components/UpdateDatasetButton";
 import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
@@ -112,8 +112,7 @@ function DatasetItemsView() {
               </DropdownMenuTrigger>
               <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
                 <DropdownMenuItem asChild>
-                  <DatasetActionButton
-                    mode="update"
+                  <UpdateDatasetButton
                     projectId={projectId}
                     datasetId={datasetId}
                     datasetName={dataset.data?.name ?? ""}

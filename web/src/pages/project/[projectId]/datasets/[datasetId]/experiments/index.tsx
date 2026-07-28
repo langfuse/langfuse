@@ -3,7 +3,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { UpdateDatasetButton } from "@/src/features/datasets/components/UpdateDatasetButton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -313,8 +313,7 @@ export default function Dataset() {
               </DropdownMenuTrigger>
               <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
                 <DropdownMenuItem asChild>
-                  <DatasetActionButton
-                    mode="update"
+                  <UpdateDatasetButton
                     projectId={projectId}
                     datasetId={datasetId}
                     datasetName={dataset.data?.name ?? ""}

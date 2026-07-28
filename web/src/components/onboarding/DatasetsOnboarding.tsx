@@ -4,7 +4,7 @@ import {
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
 import { Database, Beaker, Zap, Code } from "lucide-react";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { CreateDatasetButton } from "@/src/features/datasets/components/CreateDatasetButton";
 
 export function DatasetsOnboarding({ projectId }: { projectId: string }) {
   const valuePropositions: ValueProposition[] = [
@@ -41,9 +41,8 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
       primaryAction={{
         label: "Create Dataset",
         component: (
-          <DatasetActionButton
+          <CreateDatasetButton
             variant="default"
-            mode="create"
             projectId={projectId}
             size="lg"
           />
