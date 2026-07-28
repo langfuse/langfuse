@@ -414,10 +414,7 @@ export default function ObservationsEventsTable({
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
-      // The footer "Total ≈ X" rides events.filterOptions, so invalidate it on
-      // the auto tick too — otherwise the count goes stale while the rows
-      // refresh (matters for a fixed absolute range). This does re-anchor the
-      // facet options as a side effect; accepted so the count stays fresh.
+      // Invalidate filterOptions too so the "Total ≈ X" count refreshes on the auto tick (re-anchors facets as a side effect).
       utils.events.filterOptions.invalidate(),
       utils.dashboard.executeQuery.invalidate(),
     ]);
@@ -436,8 +433,7 @@ export default function ObservationsEventsTable({
     ]);
   }, [utils]);
 
-  // Auto-refresh runs handleAutoRefresh on the interval (rows + chart + the
-  // filter-options scan that backs the "Total ≈ X" count).
+  // Auto-refresh runs handleAutoRefresh (rows + chart + the "Total ≈ X" filter-options scan).
   useEffect(() => {
     if (!refreshInterval) return;
     const id = setInterval(() => {
@@ -628,17 +624,12 @@ export default function ObservationsEventsTable({
     projectId,
     startTimeFilter: facetStartTimeFilter,
     refiningFilter: facetRefiningFilter,
-    // Compute the footer "Total ≈ X" here: the bulk facet scan already applies
-    // `facetRefiningFilter` (post-LFE-14489), so uniq(span_id) over it is the
-    // filter-aware count. Skip for embedded/preview tables (no footer).
+    // "Total ≈ X" rides the facet scan (uniq(span_id) over facetRefiningFilter); skip for embedded/preview tables.
     includeApproxCount: !limitRows,
     lazy: true,
   });
 
-  // The count over-counts (partial scope) when the server omitted filters it
-  // can't apply here (input/output/comment) OR a full-text search is active
-  // (search is not part of the facet query), so the footer marks it and drops
-  // the accuracy claim.
+  // Partial scope (over-counts) when the server dropped filters (input/output/comment) or a full-text search is active.
   const approxTotalCountIsPartial =
     approxTotalCountIsPartialScope ||
     Boolean(searchQuery && searchQuery.trim().length > 0);
@@ -788,15 +779,7 @@ export default function ObservationsEventsTable({
   // rest as "not applied" (see chartFilterExclusions below).
   const chartEnabled = !hideControls && !userId && !sessionId;
 
-  // The outlier strip additionally hides on prompt-version-scoped tables:
-  // `promptVersion` is a page-scope prop the aggregate query cannot express
-  // (number filter, not a forwardable dimension), and unlike sidebar facets it
-  // has no "not applied" affordance — the strip would silently aggregate
-  // across ALL versions while the table shows one. (`promptName` forwards.)
-  // External state pins also disqualify it: the strip's drill-in writes the
-  // URL range, which a table on externalDateRange would ignore — chart and
-  // table would silently diverge. (No current surface combines these with
-  // chartEnabled; this encodes the invariant for future mounts.)
+  // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =
     chartEnabled &&
     promptVersion === undefined &&
@@ -950,8 +933,7 @@ export default function ObservationsEventsTable({
     onSettled: () => {
       utils.events.all.invalidate();
       utils.events.countAll.invalidate();
-      // The footer "Total ≈ X" rides filterOptions — refresh it (and the facet
-      // counts) after a delete changes what matches.
+      // Refresh filterOptions so the "Total ≈ X" count updates after a delete.
       utils.events.filterOptions.invalidate();
       utils.traces.all.invalidate();
     },
@@ -2315,11 +2297,7 @@ export default function ObservationsEventsTable({
                         hasNextPage: hasMore,
                         hideTotalCount: true,
                         canJumpPages: false,
-                        // Approximate observation count ("Total ≈ X"),
-                        // filter + time-range aware. Rides the filter-options
-                        // scan (no extra query), so it resolves async. Only
-                        // shown for multi-page results; a single page shows the
-                        // exact total from the loaded rows.
+                        // Approx observation count ("Total ≈ X"), rides the filter-options scan (async).
                         approxTotalCount,
                         isApproxTotalCountLoading,
                         approxTotalCountIsPartialScope:

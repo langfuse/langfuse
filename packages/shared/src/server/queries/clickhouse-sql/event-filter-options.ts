@@ -13,9 +13,7 @@ import { createFilterFromFilterState } from "./factory";
 
 export const EVENTS_FILTER_OPTION_TOP_N = 1000;
 
-// Sentinel "column" under which the bulk filter-options query returns the
-// approximate total observation count (its `count` field). Rides the facet
-// scan so the traces-table footer "Total ≈ X" needs no extra ClickHouse scan.
+// Sentinel "column" carrying the approx total observation count in the facet result.
 export const EVENTS_APPROX_TOTAL_COUNT_MARKER = "__approxTotalCount__";
 
 const EVENTS_FILTER_OPTION_TOP_K_MAX_N = 65_536;
@@ -358,24 +356,7 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   columns: readonly EventFilterOptionColumn[];
   limit: number;
   scope?: EventFilterOptionScope;
-  /**
-   * When true, the query also returns the approximate total observation count
-   * matching `filter`, as a single `uniq(span_id)` riding the SAME bulk facet
-   * scan — no extra ClickHouse scan. Surfaced as a sentinel row (see
-   * `EVENTS_APPROX_TOTAL_COUNT_MARKER`).
-   *
-   * Correctness: `uniq(span_id)` counts exactly the rows the bulk scan matches,
-   * i.e. the scan's own WHERE = `filter`. Post-LFE-14489 (#15466) the caller
-   * passes the row query's refining filter here (previously it passed none, so
-   * the scan was project + time only), and per-facet self-exclusion drops
-   * columns from the bulk COLUMN LIST — never predicates from the WHERE (see
-   * `planEventFacetQueries`: `bulk.filter` is the full refiningFilter). So the
-   * count reflects the full refined filter, with no predicate/scan divergence
-   * to under- or over-count. `filter` here excludes input/output/comment
-   * (dropped upstream in `partitionEventFilterOptionsFilter`) and full-text
-   * search, so the count over-counts when those are active — the service flags
-   * that (`omitCounts`) and the UI labels it + drops the accuracy claim.
-   */
+  // approx total = uniq(span_id) over the bulk scan's full-filter WHERE; re-verify if the scan ever drops predicates
   includeApproxCount?: boolean;
 }): { query: string; params: Record<string, unknown> } | null => {
   const columns = uniqueEventFilterOptionColumns(params.columns);
@@ -406,9 +387,7 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   const { query: aggregatedOptionsQuery, params: aggregatedOptionsParams } =
     aggregatedOptionsBuilder.buildWithParams();
 
-  // The approximate total is emitted as one extra sentinel row, so the result
-  // shape stays `{column, value, count}` and callers pick it out by column.
-  // (Partial-scope is derived by the service from `omitCounts`, not here.)
+  // Approx total rides one extra sentinel row so the result shape stays {column, value, count}.
   const approxTotalCountRow = includeApproxTotal
     ? `,\n      [tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0))]`
     : "";

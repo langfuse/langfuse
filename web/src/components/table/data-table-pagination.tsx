@@ -32,12 +32,7 @@ interface DataTablePaginationProps<TData> {
   paginationOptions?: number[];
   hideTotalCount?: boolean;
   canJumpPages?: boolean; // if we need a cursor (last_item_id), we can't jump pages
-  /**
-   * Approximate count matching the active filters. Enables the "Total …" footer
-   * (pass a value — `number` or `null` — to opt in; `undefined` = no footer).
-   * Only used when the result spans more than one page; a single/last page
-   * shows the EXACT total derived from the loaded rows instead.
-   */
+  // Approx count for the "Total" footer; undefined = no footer (opt-in).
   approxTotalCount?: number | null;
   isApproxTotalCountLoading?: boolean;
   /** The estimate over-counts (non-native filters dropped) — mark it partial. */
@@ -59,16 +54,13 @@ export function DataTablePagination<TData>({
 }: DataTablePaginationProps<TData>) {
   const capture = usePostHogClientCapture();
 
-  // "Total" footer: opt-in by passing approxTotalCount (number|null). When the
-  // result fits on the last loaded page (no next page), show the EXACT total
-  // from the loaded rows; only a genuinely multi-page result shows "Total ≈ X".
+  // Last page shows the exact loaded-row total; multi-page shows "Total ≈ X".
   const totalFooterEnabled =
     approxTotalCount !== undefined || isApproxTotalCountLoading;
   const paginationState = table.getState().pagination;
   const loadedRowCount = table.getRowModel().rows.length;
   const isInitialTotalLoading = isLoading && loadedRowCount === 0;
-  // hasNextPage prop is authoritative for cursor tables; fall back to the
-  // table's own signal when it isn't provided.
+  // hasNextPage is authoritative for cursor tables; fall back to the table's signal.
   const morePagesExist =
     (hasNextPage ?? table.getCanNextPage()) && !isInitialTotalLoading;
   const exactTotal =
@@ -142,8 +134,7 @@ export function DataTablePagination<TData>({
                   )}
                   {approxTotalCountIsPartialScope &&
                     approxTotalCount != null && (
-                      // Intentional marker: the estimate ignores some active
-                      // filters, so it can exceed the visible row count.
+                      // Marks that the estimate ignores some filters (can exceed row count).
                       <span className="text-muted-foreground/70 ml-0.5 align-super text-[0.65rem] leading-none">
                         *
                       </span>
