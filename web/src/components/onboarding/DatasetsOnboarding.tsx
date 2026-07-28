@@ -3,7 +3,7 @@ import {
   SplashScreen,
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
-import { Button } from "@/src/components/ui/button";
+import { ButtonWithIcon } from "@/src/components/ButtonWithIcon";
 import { DialogTrigger } from "@/src/components/ui/dialog";
 import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
 import { Database, Beaker, Zap, Code, LockIcon, PlusIcon } from "lucide-react";
@@ -49,25 +49,14 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
           >
             {({ disabled, openDialog }) => (
               <DialogTrigger asChild>
-                <Button
+                <ButtonWithIcon
                   size="lg"
                   disabled={disabled !== undefined}
                   onClick={openDialog}
                   variant="default"
-                >
-                  {disabled === undefined ? (
-                    <PlusIcon
-                      className="mr-1.5 -ml-0.5 h-4 w-4"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <LockIcon
-                      className="mr-1.5 -ml-0.5 h-3 w-3"
-                      aria-hidden="true"
-                    />
-                  )}
-                  New dataset
-                </Button>
+                  icon={disabled === undefined ? PlusIcon : LockIcon}
+                  text="New dataset"
+                />
               </DialogTrigger>
             )}
           </CreateDatasetDialogController>
