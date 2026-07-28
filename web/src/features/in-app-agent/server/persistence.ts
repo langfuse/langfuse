@@ -6,12 +6,15 @@ import {
   InAppAgentRunStatus,
   LangfuseConflictError,
   LangfuseNotFoundError,
+  safeJsonParse,
 } from "@langfuse/shared";
 import {
   ChatMessageRole,
   ChatMessageType,
   LangfuseInternalTraceEnvironment,
   logger,
+  generateLangfuseAIText,
+  getLangfuseAITraceSinkParams,
 } from "@langfuse/shared/src/server";
 import { Prisma } from "@langfuse/shared/src/db";
 import type {
@@ -20,10 +23,6 @@ import type {
 } from "@langfuse/shared/src/db";
 
 import { env } from "@/src/env.mjs";
-import {
-  generateLangfuseAIText,
-  getLangfuseAITraceSinkParams,
-} from "@/src/features/ai-features/server/bedrockCompletion";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import { truncate } from "@/src/utils/string";
 import { assertUnreachable } from "@/src/utils/types";
@@ -35,7 +34,6 @@ import {
 } from "@/src/features/in-app-agent/schema";
 import { compactPersistedEventDeltas } from "@/src/features/in-app-agent/server/eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/features/in-app-agent/constants";
-import { safeJsonParse } from "@/src/utils/json";
 import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "@/src/features/in-app-agent/server/tools";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream

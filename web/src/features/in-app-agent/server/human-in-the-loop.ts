@@ -1,12 +1,15 @@
 import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
-import { InvalidRequestError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  safeJsonParse,
+  stableJsonStringify,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@/src/features/in-app-agent/constants";
 import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES } from "@/src/features/in-app-agent/server/tools";
-import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
 import {
   type AgUiEvent,
   type AgUiMessage,

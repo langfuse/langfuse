@@ -34,6 +34,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import { formatApproximateDuration } from "@/src/utils/dates";
 import {
   InAppAgentMessage,
@@ -390,6 +391,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
   );
   const capture = usePostHogClientCapture();
+  // No auto-focus on mobile — it springs the keyboard and buries the panel.
+  const isMobile = useIsMobile();
   const isRateLimited = isInAppAgentRateLimited(error);
   const isInputDisabled = baseIsInputDisabled || isRateLimited;
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -478,14 +481,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     (input: HTMLTextAreaElement | null) => {
       inputRef.current = input;
 
+      // Skip on mobile: refocusing after a turn re-springs the keyboard, even
+      // for the quick-action flow that never focused the input.
       const shouldRefocusInput =
-        previousIsInputDisabledRef.current && !isInputDisabled;
+        previousIsInputDisabledRef.current && !isInputDisabled && !isMobile;
 
       if (input && shouldRefocusInput) {
         input.focus();
       }
     },
-    [isInputDisabled],
+    [isInputDisabled, isMobile],
   );
 
   useEffect(() => {
@@ -924,7 +929,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             }}
           >
             <textarea
-              autoFocus={!isExpanded}
+              autoFocus={!isExpanded && !isMobile}
               ref={setInputRef}
               value={input}
               onChange={(event) => {

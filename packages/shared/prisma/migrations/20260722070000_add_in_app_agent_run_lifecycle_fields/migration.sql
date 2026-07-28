@@ -11,7 +11,7 @@ ALTER TABLE "in_app_agent_runs"
   ADD COLUMN "cancel_requested_at" TIMESTAMP(3);
 
 -- Close only runs the app itself would already consider stale (>150s,
--- ACTIVE_RUN_STALE_AFTER_MS in web/src/features/in-app-agent/server/persistence.ts).
+-- ACTIVE_RUN_STALE_AFTER_MS in web/src/ee/features/in-app-agent/server/persistence.ts).
 -- Younger unfinished rows are genuinely running foreground streams and must
 -- stay open, or their event flushes and finish would silently no-op.
 UPDATE "in_app_agent_runs"

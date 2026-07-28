@@ -3,7 +3,7 @@ import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
 import type { InAppAgentMessageContent } from "../InAppAgentMessage";
 import { deduplicateBy } from "@/src/utils/arrays";
-import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
+import { safeJsonParse, stableJsonStringify } from "@langfuse/shared";
 import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,

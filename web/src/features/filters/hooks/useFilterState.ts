@@ -10,6 +10,10 @@ import {
   datasetItemFilterColumns,
   datasetRunItemsTableCols,
   usersTableCols,
+  escapePipeInValue,
+  splitOnUnescapedPipe,
+  unescapePipeInValue,
+  normalizeLegacySessionPositionInTraceKey,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
@@ -23,12 +27,6 @@ import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfig
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
 import { experimentsTableCols } from "@/src/features/experiments/components/table/filter-config";
 import { experimentItemsTableCols } from "@/src/features/experiments/config/experiment-items-filter-config";
-import {
-  escapePipeInValue,
-  splitOnUnescapedPipe,
-  unescapePipeInValue,
-} from "../lib/filter-query-encoding";
-import { normalizeLegacySessionPositionInTraceKey } from "@/src/components/session/session-position-in-trace";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 const DEBUG_QUERY_STATE = false;

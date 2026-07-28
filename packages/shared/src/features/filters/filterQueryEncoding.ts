@@ -1,9 +1,7 @@
-import {
-  type FilterState,
-  singleFilter,
-  type SingleValueOption,
-} from "@langfuse/shared";
-import { normalizeLegacySessionPositionInTraceKey } from "@/src/components/session/session-position-in-trace";
+import { type FilterState } from "../../types";
+import { singleFilter } from "../../interfaces/filters";
+import { type SingleValueOption } from "../../tableDefinitions/types";
+import { normalizeLegacySessionPositionInTraceKey } from "./sessionPositionInTrace";
 
 const encodeDelimitedArray = (values: string[], delimiter: string): string =>
   values.join(delimiter);

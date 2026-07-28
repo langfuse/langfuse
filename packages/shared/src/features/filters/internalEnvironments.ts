@@ -1,4 +1,4 @@
-import { LangfuseInternalTraceEnvironment } from "@langfuse/shared";
+import { LangfuseInternalTraceEnvironment } from "../../server/llm/types";
 
 export const DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS = [
   LangfuseInternalTraceEnvironment.PromptExperiments,
