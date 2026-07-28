@@ -30,6 +30,7 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import {
   ApiError,
+  areLegacyWritesActive,
   type JSONValue,
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -37,6 +38,7 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
 import {
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
@@ -392,6 +394,8 @@ export const listDatasetsByProjectForApi = async ({
   page,
   limit,
 }: ListDatasetsV1Input) => {
+  const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+  const shouldReadLegacyDatasetRuns = areLegacyWritesActive(writeMode);
   const datasets = await prisma.dataset.findMany({
     select: {
       name: true,
@@ -403,12 +407,16 @@ export const listDatasetsByProjectForApi = async ({
       createdAt: true,
       updatedAt: true,
       id: true,
-      datasetRuns: {
-        select: {
-          name: true,
-        },
-        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      },
+      ...(shouldReadLegacyDatasetRuns
+        ? {
+            datasetRuns: {
+              select: {
+                name: true,
+              },
+              orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            },
+          }
+        : {}),
     },
     where: { projectId },
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
@@ -439,7 +447,7 @@ export const listDatasetsByProjectForApi = async ({
   });
 
   return {
-    data: datasets.map(({ datasetRuns, ...rest }) => ({
+    data: datasets.map(({ datasetRuns = [], ...rest }) => ({
       ...rest,
       items: datasetItemIdsMap.get(rest.id) || [],
       runs: datasetRuns.map(({ name }) => name),
@@ -457,18 +465,24 @@ export const getDatasetByNameForApi = async ({
   projectId,
   name,
 }: GetDatasetV1Input) => {
+  const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+  const shouldReadLegacyDatasetRuns = areLegacyWritesActive(writeMode);
   const dataset = await prisma.dataset.findFirst({
     where: {
       name,
       projectId,
     },
-    include: {
-      datasetRuns: {
-        select: {
-          name: true,
-        },
-      },
-    },
+    ...(shouldReadLegacyDatasetRuns
+      ? {
+          include: {
+            datasetRuns: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        }
+      : {}),
   });
 
   if (!dataset) {
@@ -484,7 +498,7 @@ export const getDatasetByNameForApi = async ({
     includeDatasetName: true,
   });
 
-  const { datasetRuns, ...params } = dataset;
+  const { datasetRuns = [], ...params } = dataset;
 
   const mediaReferences = await resolveDatasetItemMediaReferences({
     projectId,
@@ -498,7 +512,7 @@ export const getDatasetByNameForApi = async ({
       mediaReferences:
         mediaReferences.get(datasetItemMediaReferenceKey(item)) ?? [],
     })),
-    runs: datasetRuns.map((run) => run.name),
+    runs: datasetRuns.map(({ name }) => name),
   };
 };
 
