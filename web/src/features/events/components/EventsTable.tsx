@@ -42,7 +42,7 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
-import { LevelColors } from "@/src/components/level-colors";
+import { getLevelColors } from "@/src/components/level-colors";
 import {
   compactNumberFormatter,
   numberFormatter,
@@ -1288,8 +1288,8 @@ export default function ObservationsEventsTable({
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              LevelColors[value].bg,
-              LevelColors[value].text,
+              getLevelColors(value).bg,
+              getLevelColors(value).text,
             )}
           >
             {value}
