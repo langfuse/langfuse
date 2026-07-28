@@ -12,6 +12,14 @@
  * which captures the `x-build-id` response header on every tRPC response. React
  * reads it via {@link useVersionUpdateAvailable} (a `useSyncExternalStore` hook)
  * — no polling, no effect-driven state sync.
+ *
+ * New-version debounce (LFE-14537): a page loaded while the web container is
+ * mid-deploy can see the new build id immediately, and prompting a reload right
+ * then reloads the tab into the still-switching pod (a broken loading state). So
+ * "update available" only flips the snapshot to `true` once at least
+ * {@link VERSION_UPDATE_DEBOUNCE_MS} has elapsed since the FIRST new build id was
+ * seen — a settling window for the deploy to finish. This gate is combined at the
+ * banner with a post-load grace (see `useAppSettled`); both must pass.
  */
 
 /**
@@ -29,10 +37,22 @@ export function isVersionMismatch(
   );
 }
 
+/**
+ * How long after the FIRST new build id is observed before the banner is allowed
+ * to appear — a debounce so a deploy that's still switching pods doesn't
+ * immediately prompt a reload into a half-deployed state (LFE-14537). Keyed on
+ * the first sighting, not re-armed per response, so it can't be starved by a
+ * rolling deploy re-serving build ids.
+ */
+export const VERSION_UPDATE_DEBOUNCE_MS = 3 * 60 * 1000;
+
 export type VersionUpdateStore = {
   /** Subscribe to snapshot changes (for `useSyncExternalStore`). */
   subscribe: (listener: () => void) => () => void;
-  /** Current snapshot: is an update available and not yet dismissed? */
+  /**
+   * Current snapshot: is an update available, not yet dismissed, AND has the
+   * new-version debounce ({@link VERSION_UPDATE_DEBOUNCE_MS}) elapsed?
+   */
   getSnapshot: () => boolean;
   /** SSR snapshot — always `false`; the mismatch only exists in a live tab. */
   getServerSnapshot: () => boolean;
@@ -79,9 +99,16 @@ export type VersionUpdateStore = {
  * Reloading always converges the tab to whatever build is currently served, so
  * "a build ≠ yours exists → offer reload" is the right action even though we
  * can't prove the other build is strictly newer.
+ *
+ * `debounceMs` is the new-version settling window (default
+ * {@link VERSION_UPDATE_DEBOUNCE_MS}); injected for deterministic testing. A
+ * value ≤ 0 disables the debounce (the update shows as soon as it is available)
+ * and stays synchronous — no timer — which keeps the detection/stickiness tests
+ * free of fake timers.
  */
 export function createVersionUpdateStore(
   getRunningBuildId: () => string | null | undefined,
+  debounceMs: number = VERSION_UPDATE_DEBOUNCE_MS,
 ): VersionUpdateStore {
   const listeners = new Set<() => void>();
   // Every build id observed that differs from the running one. Membership is
@@ -93,8 +120,16 @@ export function createVersionUpdateStore(
   // `banner_shown` analytics guard — true once the current appearance has been
   // reported. Reset when a genuinely new build id arrives (new appearance).
   let shownReported = false;
+  // New-version debounce (LFE-14537). `debounceStarted` guards the one-shot
+  // timer so it is armed exactly once — on the FIRST new build id, keyed to that
+  // sighting (never re-armed by later responses, so a rolling deploy can't
+  // starve it). `debounceElapsed` is sticky: once the window passes the update
+  // is eligible forever, and a later genuinely-new build re-prompts immediately.
+  let debounceStarted = false;
+  let debounceElapsed = false;
 
-  const compute = (): boolean => updateAvailable && !dismissed;
+  const compute = (): boolean =>
+    updateAvailable && !dismissed && debounceElapsed;
 
   // Cache the snapshot so `getSnapshot` returns a referentially stable value
   // between changes — `useSyncExternalStore` requires this to avoid re-render
@@ -106,6 +141,24 @@ export function createVersionUpdateStore(
     if (next === snapshot) return;
     snapshot = next;
     for (const listener of listeners) listener();
+  };
+
+  // Arm the new-version debounce once, on the first new build id. When it
+  // elapses the update becomes eligible; the timer emits so a tab that has been
+  // sitting on a settling deploy re-renders the banner in without any further
+  // response. A non-positive window elapses synchronously (no timer left
+  // running). One-shot and self-completing — nothing to clean up.
+  const startDebounce = () => {
+    if (debounceStarted) return;
+    debounceStarted = true;
+    if (debounceMs <= 0) {
+      debounceElapsed = true;
+      return;
+    }
+    setTimeout(() => {
+      debounceElapsed = true;
+      emitChange();
+    }, debounceMs);
   };
 
   return {
@@ -134,6 +187,9 @@ export function createVersionUpdateStore(
       // appearance for analytics.
       dismissed = false;
       shownReported = false;
+      // Arm the settling window on the first new build; a no-op on later ones
+      // (the debounce is keyed to the first sighting, not re-armed per build).
+      startDebounce();
       emitChange();
     },
     dismiss() {
