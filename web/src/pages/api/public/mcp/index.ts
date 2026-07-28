@@ -37,12 +37,16 @@ import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
-import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import {
+  BaseError,
+  UnauthorizedError,
+  ForbiddenError,
+  safeJsonParse,
+} from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
-import { InAppAgentMcpRunOverrideSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
-import { safeJsonParse } from "@/src/utils/json";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/features/in-app-agent/constants";
+import { InAppAgentMcpRunOverrideSchema } from "@/src/features/in-app-agent/server/human-in-the-loop";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";

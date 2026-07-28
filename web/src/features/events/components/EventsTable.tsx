@@ -17,15 +17,8 @@ import {
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
-import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
-import { formatIntervalSeconds } from "@/src/utils/dates";
 import {
-  TableBadgeLoadingCell,
-  TableIconBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
+  DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
   type FilterState,
   BatchExportTableName,
@@ -36,7 +29,15 @@ import {
   ActionId,
   RESOURCE_LIMIT_ERROR_MESSAGE,
   type TracingSearchType,
+  type ScoreAggregate,
 } from "@langfuse/shared";
+import { formatIntervalSeconds } from "@/src/utils/dates";
+import {
+  TableBadgeLoadingCell,
+  TableIconBadgeLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -58,7 +59,6 @@ import { TimeRangePicker } from "@/src/components/date-picker";
 import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";

@@ -82,7 +82,7 @@ export const getProjectMigrationReadiness = (
     return "checking";
   }
   if (
-    status.sdk.status === "latest" &&
+    (status.sdk.status === "latest" || status.sdk.status === "otel_realtime") &&
     counts.every((count) => count.count === 0)
   ) {
     return "ready";

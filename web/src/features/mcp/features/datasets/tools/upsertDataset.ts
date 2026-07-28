@@ -4,9 +4,11 @@ import {
   PostDatasetsV2Body,
   PostDatasetsV2Response,
 } from "@/src/features/public-api/types/datasets";
-import { DatasetJSONSchema } from "@langfuse/shared/src/server";
+import {
+  DatasetJSONSchema,
+  buildDatasetUrl,
+} from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
-import { buildDatasetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const idField = z.string().min(1).optional();

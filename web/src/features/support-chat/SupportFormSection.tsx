@@ -52,14 +52,10 @@ import {
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import {
-  Dropzone,
-  DropzoneContent,
-  DropzoneEmptyState,
-} from "@/src/components/ui/shadcn-io/dropzone";
-import { Paperclip, Trash2 } from "lucide-react";
+import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
+import { Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
@@ -193,10 +189,6 @@ export function SupportFormSection({
 
   // Local file state from Dropzone
   const [files, setFiles] = useState<File[] | undefined>(undefined);
-  const totalUploadBytes = useMemo(
-    () => (files ?? []).reduce((sum, f) => sum + f.size, 0),
-    [files],
-  );
 
   // Local submit guard to avoid flicker across multiple mutations
   const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
@@ -379,10 +371,6 @@ export function SupportFormSection({
 
   const messageIsShortAfterWarning =
     warnedShortOnce && (form.getValues("message") ?? "").trim().length < 50;
-
-  // --- Compact attachment row helpers
-  const totalMB = (totalUploadBytes / (1024 * 1024)).toFixed(2);
-  const hasFiles = (files?.length ?? 0) > 0;
 
   return (
     <div className="mt-1 flex flex-col gap-3">
@@ -595,52 +583,33 @@ export function SupportFormSection({
 
                 <FormMessage />
 
-                <Dropzone
-                  className="mt-1 border-none p-0 text-left"
-                  maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
-                  maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
-                  onDrop={(accepted) =>
-                    setFiles((prev) => {
-                      const existing = prev ?? [];
-                      const merged = [...existing, ...accepted];
-                      const maxFiles = FILE_UPLOAD_CONSTRAINTS.maxFiles;
-                      return merged.slice(0, maxFiles);
-                    })
-                  }
-                  onError={(error) => {
-                    const userMessage = formatFileError(error);
-                    showErrorToast("File Upload Error", userMessage, "WARNING");
-                  }}
-                  src={files}
-                >
-                  {/* Small, single-line trigger */}
-                  <DropzoneEmptyState>
-                    <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-                      <Paperclip className="h-4 w-4" />
-                      <span
-                        className="truncate"
-                        title={
-                          hasFiles
-                            ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
-                            : "Attach files"
-                        }
-                      >
-                        {hasFiles
-                          ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
-                          : "Attach files"}
-                      </span>
-                    </div>
-                  </DropzoneEmptyState>
-                  {/* Keep content area minimal; we still allow preview slot if needed */}
-                  <DropzoneContent>
-                    <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-                      <Paperclip className="h-4 w-4" />
-                      <span className="truncate" title="Attach files">
-                        Attach files
-                      </span>
-                    </div>
-                  </DropzoneContent>
-                </Dropzone>
+                <div className="mt-1">
+                  <Dropzone
+                    accept={undefined}
+                    isDisabled={false}
+                    maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
+                    maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
+                    minSize={undefined}
+                    onDrop={(accepted) =>
+                      setFiles((prev) => {
+                        const existing = prev ?? [];
+                        const merged = [...existing, ...accepted];
+                        const maxFiles = FILE_UPLOAD_CONSTRAINTS.maxFiles;
+                        return merged.slice(0, maxFiles);
+                      })
+                    }
+                    onError={(error) => {
+                      const userMessage = formatFileError(error);
+                      showErrorToast(
+                        "File Upload Error",
+                        userMessage,
+                        "WARNING",
+                      );
+                    }}
+                    src={files}
+                    variant="compact"
+                  />
+                </div>
 
                 {files && files.length > 0 && (
                   <div className="p-0 text-left text-sm font-bold">

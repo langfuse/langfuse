@@ -10,13 +10,11 @@ import {
   singleFilter,
   type SingleValueOption,
   type ColumnDefinition,
-} from "@langfuse/shared";
-import {
   computeSelectedValues,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
   MAX_URL_FILTER_QUERY_LENGTH,
-} from "../lib/filter-query-encoding";
+} from "@langfuse/shared";
 import {
   buildSidebarFilterQueryStorageKey,
   createPersistedSidebarFilterQueryState,
