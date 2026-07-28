@@ -110,11 +110,11 @@ export function pickChartGranularity(params: {
 
 export type OutlierStripMetricKey = "cost" | "latency" | "tokens";
 export type OutlierStripLatencyAgg = "max" | "p95" | "avg";
-export type OutlierStripCostAgg = "max" | "total";
+export type OutlierStripCostAgg = "max" | "sum";
 export type OutlierStripAggKey = OutlierStripLatencyAgg | OutlierStripCostAgg;
 
 type AggregationDef = {
-  /** The user-facing option key ("total" reads better than "sum"). */
+  /** The user-facing option key (currently 1:1 with the query aggregation). */
   key: OutlierStripAggKey;
   /** The executeQuery aggregation this option lowers to. */
   queryAggregation: "max" | "sum" | "p95" | "avg";
@@ -140,7 +140,7 @@ export const OUTLIER_STRIP_METRICS: Record<
     measure: "totalCost",
     aggregations: [
       { key: "max", queryAggregation: "max" },
-      { key: "total", queryAggregation: "sum" },
+      { key: "sum", queryAggregation: "sum" },
     ],
     fromRaw: (raw) => raw,
     format: (value) =>

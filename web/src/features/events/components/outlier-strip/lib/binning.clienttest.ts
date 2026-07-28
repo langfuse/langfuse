@@ -195,7 +195,7 @@ describe("prepareOutlierSeries", () => {
     expect(run("latency", "p95")).toBe(4); // 4000ms → 4s
     expect(run("latency", "avg")).toBe(2); // 2000ms → 2s
     expect(run("cost", "max")).toBe(8);
-    expect(run("cost", "total")).toBe(80); // sum = 10 × max in the helper
+    expect(run("cost", "sum")).toBe(80); // sum = 10 × max in the helper
     // Unknown option falls back to the metric's default (max) — a stored
     // legacy value can never plot the wrong column.
     expect(run("cost", "median")).toBe(8);

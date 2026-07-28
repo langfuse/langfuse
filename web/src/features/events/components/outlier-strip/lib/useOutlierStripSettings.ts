@@ -13,7 +13,7 @@ const outlierStripSettingsSchema = z
   .object({
     mode: z.enum(["cost", "latency", "tokens", "split"]).catch("cost"),
     latencyAgg: z.enum(["max", "p95", "avg"]).catch("max"),
-    costAgg: z.enum(["max", "total"]).catch("max"),
+    costAgg: z.enum(["max", "sum"]).catch("max"),
   })
   .catch({ mode: "cost", latencyAgg: "max", costAgg: "max" });
 
