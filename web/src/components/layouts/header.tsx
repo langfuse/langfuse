@@ -1,11 +1,14 @@
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { Badge } from "@/src/components/ui/badge";
 import { type Status, StatusBadge } from "./status-badge";
 import { cn } from "@/src/utils/tailwind";
 
 type HeaderProps = {
   title: string;
-  status?: Status | (string & {});
+  status?: Status;
+  /** Plain informational badge next to the title, e.g. "Demo Org". Not a status. */
+  labelBadge?: string;
   label?: {
     text: string;
     href: string;
@@ -66,6 +69,9 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
             ) : null}
           </div>
           {props.status && <StatusBadge type={props.status} />}
+          {props.labelBadge && (
+            <Badge variant="secondary">{props.labelBadge}</Badge>
+          )}
           {props.label && (
             <Link href={props.label.href}>
               <StatusBadge type={props.label.text} />

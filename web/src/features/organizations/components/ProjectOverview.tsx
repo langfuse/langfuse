@@ -300,7 +300,9 @@ const SingleOrganizationProjectOverviewTile = ({
       <Header
         title={org.name}
         className="truncate"
-        status={orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
+        labelBadge={
+          orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
+        }
         label={
           isCloudPlan(org.plan)
             ? {
