@@ -2,19 +2,20 @@ import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAp
 import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { api } from "@/src/utils/api";
 
-const V4_SDK_UPGRADE_URL =
-  "https://langfuse.com/docs/observability/sdk/upgrade-path";
-const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+const V4_MIGRATION_SKILL_URL =
+  "https://raw.githubusercontent.com/langfuse/skills/main/skills/langfuse/references/v4-project-migration.md";
 
 /** Prompt for external coding agents (Cursor, Codex, Claude Code) covering
- * the codebase-side migration work the in-app assistant cannot do. Single
- * source of truth — also embedded verbatim into the assistant prompts below
- * so users can copy it straight from the assistant's answer. */
-export const V4_CODING_AGENT_PROMPT = `Migrate this project's Langfuse setup to v4:
-1. Upgrade the Langfuse SDK to the latest major version. Upgrade guide: ${V4_SDK_UPGRADE_URL}
-2. Repoint evals that target trace input/output to observations instead.
-3. Replace calls to deprecated APIs (GET /api/public/traces, GET /api/public/sessions, GET /api/public/metrics) with their v4 replacements.
-Docs: ${V4_DOCS_URL}`;
+ * the codebase-side migration work the in-app assistant cannot do. The
+ * canonical workflow lives in the Langfuse skill repository; this prompt is
+ * also embedded verbatim below so users can copy it from the assistant. */
+export const V4_CODING_AGENT_PROMPT = `Migrate this repository's Langfuse setup to v4.
+
+If the Langfuse skill is installed, use it and read references/v4-project-migration.md.
+Otherwise, fetch and follow the canonical migration workflow:
+${V4_MIGRATION_SKILL_URL}
+
+Work in code-only mode unless Langfuse project access is already configured. Do not stop to install the Langfuse CLI or request credentials. Complete and test all repository changes you can verify, then return the seven-row readiness report required by the workflow and mark project-dependent checks as blocked.`;
 
 const EVAL_UPGRADE_ASSISTANT_PROMPT =
   "I want to start my eval upgrade. Use the langfuse skill. Please review this project's deprecated evaluators (trace- and dataset-level), that are both ACTIVE and run on NEW time scope, and help me migrate them to the new targets — observations and experiments. Check with me before applying any changes.";

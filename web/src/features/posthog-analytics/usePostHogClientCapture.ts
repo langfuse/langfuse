@@ -56,6 +56,17 @@ export const events = {
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
   // can be sliced by surface without leaking ids.
   peek: ["opened", "closed", "expand_toggle", "resized", "open_in_new_tab"],
+  // Pulse outlier strip above the v4 events table (LFE-14451). Props are
+  // metadata only — mode/metric/aggregation enums, gesture trigger, bucket
+  // counts — never bucket values or time-range contents.
+  pulse: [
+    "drill_in",
+    "preview_pinned",
+    "mode_switch",
+    "aggregation_switch",
+    "closed",
+    "reopened",
+  ],
   generations: ["export"],
   // Lazy JSON viewer perf telemetry (LFE-14419): learn whether the size gate
   // and main-thread assumptions hold on real payloads. Metadata only —

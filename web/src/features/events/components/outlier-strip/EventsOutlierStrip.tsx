@@ -14,7 +14,11 @@ import {
   chartFilterExclusionReason,
   toChartFilters,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
-import { OutlierBarStrip } from "./OutlierBarStrip";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  OutlierBarStrip,
+  type OutlierStripDrillTrigger,
+} from "./OutlierBarStrip";
 import {
   OUTLIER_STRIP_METRICS,
   outlierStripQueryMetrics,
@@ -193,6 +197,7 @@ export function EventsOutlierStrip({
   searchIgnored?: boolean;
   onSelectRange: (range: { from: Date; to: Date }) => void;
 }) {
+  const capture = usePostHogClientCapture();
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
   // Transient drag selection (LFE-14532, Grafana-style). Window-keyed: a
   // range/granularity change (drill, browser back/forward) invalidates a
@@ -291,14 +296,51 @@ export function EventsOutlierStrip({
     ],
   );
 
-  const handleSelectBucket = (range: { fromMs: number; toMs: number }) => {
+  // Analytics props are metadata only (enums, counts, the granularity step) —
+  // never bucket values or range contents. `isV4` per the filters:* taxonomy
+  // convention: the strip only exists on the v4 events table (LFE-10781).
+  const handleSelectBucket = (
+    range: { fromMs: number; toMs: number },
+    meta: { trigger: OutlierStripDrillTrigger },
+  ) => {
+    capture("pulse:drill_in", {
+      trigger: meta.trigger,
+      metric: mode,
+      aggregation: aggregationFor(mode),
+      mode,
+      stepSeconds: granularity.stepSeconds,
+      spanBuckets: Math.max(
+        1,
+        Math.round(
+          (range.toMs - range.fromMs) / (granularity.stepSeconds * 1000),
+        ),
+      ),
+      isV4: true,
+    });
     onSelectRange({ from: new Date(range.fromMs), to: new Date(range.toMs) });
+  };
+
+  const handleModeChange = (next: StripMode) => {
+    if (next === mode) return;
+    capture("pulse:mode_switch", {
+      mode: next,
+      previousMode: mode,
+      isV4: true,
+    });
+    update({ mode: next });
   };
 
   const setAggregation = (
     metric: OutlierStripMetricKey,
     agg: OutlierStripAggKey,
   ) => {
+    if (agg === aggregationFor(metric)) return;
+    capture("pulse:aggregation_switch", {
+      metric,
+      aggregation: agg,
+      previousAggregation: aggregationFor(metric),
+      isV4: true,
+    });
     if (metric === "latency") {
       update({ latencyAgg: agg as OutlierStripSettings["latencyAgg"] });
     } else if (metric === "cost") {
@@ -357,7 +399,7 @@ export function EventsOutlierStrip({
                 <ModeDropdown
                   value={mode}
                   options={MODE_OPTIONS}
-                  onChange={(next) => update({ mode: next })}
+                  onChange={handleModeChange}
                 />
                 {/* The bar's aggregate must be legible where there is a
                     choice (p95 vs avg); single-option metrics are
@@ -392,6 +434,13 @@ export function EventsOutlierStrip({
                 metric={mode}
                 widthPx={chartWidth}
                 onSelectBucket={handleSelectBucket}
+                onPreviewPinned={(trigger) =>
+                  capture("pulse:preview_pinned", {
+                    trigger,
+                    metric: mode,
+                    isV4: true,
+                  })
+                }
                 selection={activeSelection}
                 onSelectionChange={handleSelectionChange}
               />
