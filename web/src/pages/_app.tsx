@@ -99,6 +99,12 @@ if (
     // Enable debug mode in development
     loaded: (posthog) => {
       if (process.env.NODE_ENV === "development") posthog.debug();
+      // PR previews bypass the project-wide recording sample rate so every
+      // visitor session is recorded (the preview domain must also be in the
+      // PostHog project's authorized recording domains). No-op elsewhere.
+      if (window.location.hostname.endsWith(".preview.langfuse.com")) {
+        posthog.startSessionRecording({ sampling: true });
+      }
     },
     session_recording: {
       maskCapturedNetworkRequestFn(request) {
