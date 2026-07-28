@@ -101,16 +101,35 @@ export function OutlierBarStrip({
   const dragRef = useRef<{ startX: number; dragging: boolean } | null>(null);
   // The pinned preview centers on its anchor, so keeping it on-screen needs
   // the rendered size. A callback ref measures in the commit phase (before
-  // paint — no mispositioned flash); the div is keyed per preview window so
-  // re-taps remount and re-measure.
+  // paint — no mispositioned flash) and attaches a ResizeObserver so content
+  // changes while pinned (a live refetch growing the count, the Explore
+  // button toggling) re-clamp instead of drifting on a stale size.
   const [previewSize, setPreviewSize] = useState<{
     width: number;
     height: number;
   } | null>(null);
+  const previewResizeObserverRef = useRef<ResizeObserver | null>(null);
   const measurePreview = useCallback((el: HTMLDivElement | null) => {
-    setPreviewSize(
-      el ? { width: el.offsetWidth, height: el.offsetHeight } : null,
-    );
+    previewResizeObserverRef.current?.disconnect();
+    previewResizeObserverRef.current = null;
+    if (!el) {
+      setPreviewSize(null);
+      return;
+    }
+    const measure = () =>
+      setPreviewSize((prev) => {
+        const width = el.offsetWidth;
+        const height = el.offsetHeight;
+        return prev && prev.width === width && prev.height === height
+          ? prev
+          : { width, height };
+      });
+    measure();
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(measure);
+      observer.observe(el);
+      previewResizeObserverRef.current = observer;
+    }
   }, []);
 
   const metricSpec = OUTLIER_STRIP_METRICS[metric];
