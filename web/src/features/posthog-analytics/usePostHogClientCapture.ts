@@ -56,7 +56,22 @@ export const events = {
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
   // can be sliced by surface without leaking ids.
   peek: ["opened", "closed", "expand_toggle", "resized", "open_in_new_tab"],
+  // Pulse outlier strip above the v4 events table (LFE-14451). Props are
+  // metadata only — mode/metric/aggregation enums, gesture trigger, bucket
+  // counts — never bucket values or time-range contents.
+  pulse: [
+    "drill_in",
+    "preview_pinned",
+    "mode_switch",
+    "aggregation_switch",
+    "closed",
+    "reopened",
+  ],
   generations: ["export"],
+  // Lazy JSON viewer perf telemetry (LFE-14419): learn whether the size gate
+  // and main-thread assumptions hold on real payloads. Metadata only —
+  // durations, char counts, tier; never payload content.
+  json_viewer: ["indexed", "slow_expand"],
   saved_views: [
     "create",
     "update",
@@ -232,6 +247,10 @@ export const events = {
     "compare_run_added",
     "compare_run_removed",
   ],
+  // Version-update reload notification (LFE-10978). `banner_shown` fires once
+  // per appearance; the two actions measure the reload-vs-dismiss split. No
+  // props carry user content.
+  version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
   toast: ["report_issue", "dismiss"],
   tag: [
@@ -304,6 +323,8 @@ export const events = {
     "contact_book_call_clicked",
     "contact_support_clicked",
     "status_row_clicked",
+    "update_required_badge_clicked",
+    "migrate_evals_with_agent_clicked",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only

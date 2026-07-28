@@ -4,6 +4,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { LEGACY_BLOB_EXPORT_CUTOFF } from "@langfuse/shared";
+import { decrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -382,6 +383,74 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
         projectId: project.id,
       });
       expect(result.config?.exportSource).toBe("EVENTS");
+    });
+  });
+
+  // LFE-14384: the credential is write-only — get returns only a masked
+  // display value; a blank token on update keeps the persisted encrypted value.
+  describe("Mixpanel credential masking", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    });
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    it("get returns a masked display value, never the plaintext token", async () => {
+      const { caller, project } = await prepare();
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      const result = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config).not.toHaveProperty("mixpanelProjectToken");
+      // Last-4-only: leading characters of the token are real secret material.
+      expect(result.config?.mixpanelProjectTokenDisplay).toBe(
+        "..." + baseConfig.mixpanelProjectToken.slice(-4),
+      );
+      expect(JSON.stringify(result)).not.toContain(
+        baseConfig.mixpanelProjectToken,
+      );
+    });
+
+    it("update with a blank token keeps the existing credential", async () => {
+      const { caller, project } = await prepare();
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        mixpanelProjectToken: "",
+        enabled: false,
+      });
+      const row = await prisma.mixpanelIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(decrypt(row.encryptedMixpanelProjectToken)).toBe(
+        baseConfig.mixpanelProjectToken,
+      );
+      expect(row.enabled).toBe(false);
+    });
+
+    it("create with a blank token → BAD_REQUEST", async () => {
+      const { caller, project } = await prepare();
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          mixpanelProjectToken: "",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
   });
 });

@@ -52,6 +52,7 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
 
     super({
       name: "DeletedMaskCleaner",
+      metricName: "deleted_mask_cleaner",
       lockKey: DELETED_MASK_CLEANER_LOCK_KEY,
       lockTtlSeconds,
       onUnavailable: "fail",

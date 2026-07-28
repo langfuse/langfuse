@@ -34,6 +34,9 @@ service:
       request: CreateDatasetRequest
       response: commons.Dataset
     getRun:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset runs are replaced by experiments; use GET /api/public/experiments instead."
       method: GET
       docs: Get a dataset run and its items
       path: /datasets/{datasetName}/runs/{runName}
@@ -42,6 +45,9 @@ service:
         runName: string
       response: commons.DatasetRunWithItems
     deleteRun:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset runs are replaced by experiments."
       method: DELETE
       docs: Delete a dataset run and all its run items. This action is irreversible.
       path: /datasets/{datasetName}/runs/{runName}
@@ -50,6 +56,9 @@ service:
         runName: string
       response: DeleteDatasetRunResponse
     getRuns:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset runs are replaced by experiments; use GET /api/public/experiments instead."
       method: GET
       docs: Get dataset runs
       path: /datasets/{datasetName}/runs
@@ -86,6 +95,7 @@ types:
     properties:
       data: list<commons.DatasetRun>
       meta: pagination.MetaResponse
+      _deprecation: optional<commons.Deprecation>
   DeleteDatasetRunResponse:
     properties:
       message: string

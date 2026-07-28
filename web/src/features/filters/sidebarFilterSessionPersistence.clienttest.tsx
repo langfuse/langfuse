@@ -1,8 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { FilterState } from "@langfuse/shared";
+import { type FilterState, encodeFiltersGeneric } from "@langfuse/shared";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
-import { encodeFiltersGeneric } from "./lib/filter-query-encoding";
 import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQuery";
 
 const queryParamStore = new Map<string, unknown>();

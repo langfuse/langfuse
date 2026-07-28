@@ -7,12 +7,14 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
     querySchema: GetScoresQueryV2,
     responseSchema: GetScoresResponseV2,
+    deprecation: SCORES_DEPRECATION,
     rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       // Validate that trace filters are not used when trace field is excluded

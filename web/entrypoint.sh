@@ -124,24 +124,5 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-# On ECS, resolve the task ARN from the container metadata endpoint and append
-# it to DD_TAGS so dd-trace stamps tracer telemetry (runtime metrics, spans)
-# with task_arn.  The full ARN exact-match joins with EventBridge's taskArn
-# field and Datadog's ECS task_arn tag convention.  Reuses the separator
-# DD_TAGS already uses (comma or space).  Best-effort, bounded to ~2s total:
-# on any failure DD_TAGS is left untouched and startup proceeds — this block
-# never fails boot.
-if [ -n "$ECS_CONTAINER_METADATA_URI_V4" ]; then
-    _task_arn=$(timeout 2 wget -T 2 -qO- "${ECS_CONTAINER_METADATA_URI_V4}/task" | sed -n 's/.*"TaskARN"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-    if [ -n "$_task_arn" ]; then
-        case "$DD_TAGS" in
-            *,*) _sep="," ;;
-            *" "*) _sep=" " ;;
-            *) _sep="," ;;
-        esac
-        export DD_TAGS="${DD_TAGS:+${DD_TAGS}${_sep}}task_arn:${_task_arn}"
-    fi
-fi
-
 # Run the command passed to the docker image on start
 exec "$@"

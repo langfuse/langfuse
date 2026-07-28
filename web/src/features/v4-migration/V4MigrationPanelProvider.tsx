@@ -19,7 +19,7 @@ type V4MigrationPanelContextType = {
 const V4MigrationPanelContext =
   createContext<V4MigrationPanelContextType | null>(null);
 
-export interface V4MigrationPanelProviderProps extends PropsWithChildren {
+interface V4MigrationPanelProviderProps extends PropsWithChildren {
   defaultOpen?: boolean;
 }
 

@@ -12,6 +12,16 @@ import type {
 } from "./types";
 import { toStoredEvaluatorType } from "./adapters";
 
+const PUBLIC_WRITABLE_EVAL_TARGETS = [
+  EvalTargetObject.EVENT,
+  EvalTargetObject.EXPERIMENT,
+];
+const PUBLIC_READABLE_EVAL_TARGETS = [
+  ...PUBLIC_WRITABLE_EVAL_TARGETS,
+  EvalTargetObject.TRACE,
+  EvalTargetObject.DATASET,
+];
+
 export function getPrismaClient(client?: PrismaClientLike) {
   return client ?? prisma;
 }
@@ -78,7 +88,7 @@ export async function countEvaluationRulesForEvaluator(params: {
     where: {
       projectId: params.projectId,
       targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+        in: PUBLIC_READABLE_EVAL_TARGETS,
       },
       evalTemplateId: params.evaluatorId,
     },
@@ -100,7 +110,7 @@ export async function countEvaluationRulesForEvaluatorIds(params: {
     where: {
       projectId: params.projectId,
       targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+        in: PUBLIC_READABLE_EVAL_TARGETS,
       },
       evalTemplateId: {
         in: params.evaluatorIds,
@@ -206,6 +216,29 @@ export async function findPublicEvaluationRuleOrThrow(params: {
   projectId: string;
   evaluationRuleId: string;
 }) {
+  return findEvaluationRuleOrThrow({
+    ...params,
+    targetObjects: PUBLIC_WRITABLE_EVAL_TARGETS,
+  });
+}
+
+export async function findReadablePublicEvaluationRuleOrThrow(params: {
+  client?: PrismaClientLike;
+  projectId: string;
+  evaluationRuleId: string;
+}) {
+  return findEvaluationRuleOrThrow({
+    ...params,
+    targetObjects: PUBLIC_READABLE_EVAL_TARGETS,
+  });
+}
+
+async function findEvaluationRuleOrThrow(params: {
+  client?: PrismaClientLike;
+  projectId: string;
+  evaluationRuleId: string;
+  targetObjects: EvalTargetObject[];
+}) {
   const client = getPrismaClient(params.client);
 
   const config = await client.jobConfiguration.findFirst({
@@ -213,7 +246,7 @@ export async function findPublicEvaluationRuleOrThrow(params: {
       id: params.evaluationRuleId,
       projectId: params.projectId,
       targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+        in: params.targetObjects,
       },
       evalTemplate: {
         is: {
@@ -288,7 +321,7 @@ export async function listPublicEvaluationRuleConfigs(params: {
       where: {
         projectId: params.projectId,
         targetObject: {
-          in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+          in: PUBLIC_READABLE_EVAL_TARGETS,
         },
         evalTemplate: {
           is: {
@@ -316,7 +349,7 @@ export async function listPublicEvaluationRuleConfigs(params: {
       where: {
         projectId: params.projectId,
         targetObject: {
-          in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+          in: PUBLIC_READABLE_EVAL_TARGETS,
         },
         evalTemplate: {
           is: {

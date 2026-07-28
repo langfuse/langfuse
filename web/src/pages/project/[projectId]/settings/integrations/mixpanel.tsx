@@ -1,7 +1,7 @@
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -201,6 +201,15 @@ const MixpanelIntegrationSettingsForm = ({
   const formSchema = useMemo(
     () =>
       mixpanelIntegrationFormSchema.superRefine((data, ctx) => {
+        // The credential is write-only: blank keeps the saved token, so it is
+        // only required when no integration exists yet (LFE-14384).
+        if (!state && !data.mixpanelProjectToken) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["mixpanelProjectToken"],
+            message: "Mixpanel Project Token is required",
+          });
+        }
         if (!isExportSourceSelectable(data.exportSource, exportSourceCtx)) {
           ctx.addIssue({
             code: "custom",
@@ -210,7 +219,7 @@ const MixpanelIntegrationSettingsForm = ({
           });
         }
       }),
-    [exportSourceCtx],
+    [exportSourceCtx, state],
   );
 
   const defaultExportSource = isPostCutoffCloud
@@ -226,7 +235,7 @@ const MixpanelIntegrationSettingsForm = ({
       mixpanelRegion:
         (state?.mixpanelRegion as MixpanelRegion) ??
         MIXPANEL_REGIONS[0].subdomain,
-      mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
+      mixpanelProjectToken: "",
       enabled: state?.enabled ?? false,
       exportSource: defaultExportSource,
     },
@@ -238,7 +247,7 @@ const MixpanelIntegrationSettingsForm = ({
       mixpanelRegion:
         (state?.mixpanelRegion as MixpanelRegion) ??
         MIXPANEL_REGIONS[0].subdomain,
-      mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
+      mixpanelProjectToken: "",
       enabled: state?.enabled ?? false,
       exportSource: defaultExportSource,
     });
@@ -313,11 +322,15 @@ const MixpanelIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Mixpanel Project Token</FormLabel>
               <FormControl>
-                <PasswordInput {...field} />
+                <PasswordInput
+                  {...field}
+                  placeholder={state?.mixpanelProjectTokenDisplay}
+                />
               </FormControl>
               <FormDescription>
-                You can find your Project Token in your Mixpanel project
-                settings
+                {state
+                  ? "Leave blank to keep the current token."
+                  : "You can find your Project Token in your Mixpanel project settings"}
               </FormDescription>
               <FormMessage />
             </FormItem>

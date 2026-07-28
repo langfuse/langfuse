@@ -39,6 +39,9 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
+  // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
+  // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
+  VERCEL_URL: z.string().optional(),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   // Standard SMTP URL (`smtp://`, `smtps://`) or `ses://<region>` to send via
   // AWS SES using the default AWS credential chain (IAM role, SSO, env vars).
@@ -309,9 +312,11 @@ const EnvSchema = z.object({
   // public API routes that rely on the legacy traces/observations tables.
   // The worker owns the writes; the web only needs to know whether legacy
   // tables are still being populated to decide whether to serve reads.
+  // Defaults to `events_only` for the v4 target state (v3 shipped `legacy`);
+  // keep this value in sync with worker/src/env.ts and web/src/env.mjs.
   LANGFUSE_MIGRATION_V4_WRITE_MODE: z
     .enum(["legacy", "dual", "events_only"])
-    .default("legacy"),
+    .default("events_only"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
   // Checksum algorithm for S3 DeleteObjects requests; unset keeps the SDK
@@ -451,6 +456,12 @@ const EnvSchema = z.object({
     .default(1000) // Use high default to minimize number of API calls and hence avoid rate limits
     .describe("Number of channels to fetch per Slack API page"),
   HTTPS_PROXY: z.string().optional(),
+  // Hosts that must be reached directly instead of through HTTPS_PROXY,
+  // using the standard NO_PROXY grammar (undici EnvHttpProxyAgent
+  // semantics). The lowercase variant wins when both are set, mirroring
+  // undici and curl.
+  NO_PROXY: z.string().optional(),
+  no_proxy: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
     .number()
@@ -476,8 +487,26 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  // Ambient AWS profile of the host process; the in-app agent prefers it over
+  // the configured Bedrock profile so local dev credentials win.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
+    .enum(["dangerous-docker", "lambda-microvm"])
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
+    z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
+    .string()
+    .optional(),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

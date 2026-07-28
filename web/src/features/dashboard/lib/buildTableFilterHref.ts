@@ -1,4 +1,8 @@
-import { type FilterState } from "@langfuse/shared";
+import {
+  type FilterState,
+  encodeFiltersGeneric,
+  MAX_URL_FILTER_QUERY_LENGTH,
+} from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
@@ -6,10 +10,6 @@ import {
   classifyViewFiltersForTable,
   tableTargetForView,
 } from "@/src/features/dashboard/lib/viewFilterToTableFilter";
-import {
-  encodeFiltersGeneric,
-  MAX_URL_FILTER_QUERY_LENGTH,
-} from "@/src/features/filters/lib/filter-query-encoding";
 import { rangeToString } from "@/src/utils/date-range-utils";
 
 type ViewName = z.infer<typeof views>;
