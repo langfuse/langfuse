@@ -2248,6 +2248,7 @@ export default function ObservationsEventsTable({
                   filterState={filterState}
                   fromTimestamp={chartTimeWindow.from}
                   toTimestamp={chartTimeWindow.to}
+                  searchIgnored={Boolean(searchQuery)}
                   onSelectRange={setTimeRangeTransient}
                   onClose={() => setPulseClosed(true)}
                 />

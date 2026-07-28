@@ -175,14 +175,16 @@ const ModeDropdown = ({
 
 /** Filters the strip's aggregate query cannot express — excluding the ones
  * whose dropping is by design (the explicit from/to carries startTime; root
- * scoping is deliberately ignored per the LFE-14451 product call). */
+ * scoping is deliberately ignored per the LFE-14451 product call).
+ * `has:`/`-has:` presence filters (type "null") are dropped by toChartFilters
+ * even on forwardable columns, so they count regardless of column. */
 const countIgnoredFilters = (filterState: FilterState): number =>
   filterState.filter(
     (f) =>
       !(f.type === "datetime" && f.column === "startTime") &&
       f.column !== "isRootObservation" &&
       f.column !== "hasParentObservation" &&
-      chartFilterExclusionReason(f.column) !== null,
+      (f.type === "null" || chartFilterExclusionReason(f.column) !== null),
   ).length;
 
 export function EventsOutlierStrip({

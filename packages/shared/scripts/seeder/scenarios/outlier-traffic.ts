@@ -402,7 +402,12 @@ const run = async (
     params,
     projectId: ctx.projectId,
     environment: ctx.environment,
-    traceIds: Array.from({ length: 5 }, (_, i) => `${ctx.idPrefix}-d1-t${i}`),
+    // Day 1 only ever holds tracesPerDay traces — never list ids that were
+    // not written (a deep link built from one would 404).
+    traceIds: Array.from(
+      { length: Math.min(tracesPerDay, 5) },
+      (_, i) => `${ctx.idPrefix}-d1-t${i}`,
+    ),
     sessionIds: [],
     counts,
     verified,
