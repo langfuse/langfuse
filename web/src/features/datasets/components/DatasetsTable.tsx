@@ -465,6 +465,7 @@ export function DatasetsTable(props: { projectId: string }) {
               datasetExpectedOutputSchema={
                 row.original.expectedOutputSchema ?? undefined
               }
+              source="table-single-row"
               variant="ghost"
               size="icon-xs"
             />

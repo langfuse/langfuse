@@ -6,7 +6,7 @@ import {
 import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 import { type Prisma } from "@langfuse/shared";
 
-export interface UpdateDatasetDialogContentProps {
+export interface UpdateDatasetDialogProps {
   projectId: string;
   datasetId: string;
   datasetName: string;
@@ -14,6 +14,9 @@ export interface UpdateDatasetDialogContentProps {
   datasetMetadata?: Prisma.JsonValue;
   datasetInputSchema?: Prisma.JsonValue;
   datasetExpectedOutputSchema?: Prisma.JsonValue;
+}
+
+interface UpdateDatasetDialogContentProps extends UpdateDatasetDialogProps {
   onFormSuccess: () => void;
 }
 

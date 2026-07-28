@@ -122,6 +122,7 @@ function DatasetItemsView() {
                     datasetExpectedOutputSchema={
                       dataset.data?.expectedOutputSchema ?? undefined
                     }
+                    source="dataset"
                   />
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

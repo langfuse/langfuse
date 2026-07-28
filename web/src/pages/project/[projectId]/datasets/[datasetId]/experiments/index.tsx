@@ -323,6 +323,7 @@ export default function Dataset() {
                     datasetExpectedOutputSchema={
                       dataset.data?.expectedOutputSchema ?? undefined
                     }
+                    source="dataset"
                   />
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
