@@ -438,6 +438,7 @@ export default function ObservationsEventsTable({
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
+      utils.events.approxCount.invalidate(),
       utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
@@ -450,6 +451,7 @@ export default function ObservationsEventsTable({
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
+      utils.events.approxCount.invalidate(),
       utils.events.filterOptions.invalidate(),
       utils.dashboard.executeQuery.invalidate(),
     ]);
@@ -802,6 +804,10 @@ export default function ObservationsEventsTable({
     // In chart mode the table is hidden and the chart runs its own aggregate
     // query — don't also run the expensive row + batched-I/O fetches.
     rowsEnabled: !chartActive,
+    // The "Total ≈ X" footer only renders when the pagination footer does
+    // (i.e. not for `limitRows` embedded/preview tables) — don't fire the
+    // approximate-count query for a value that is never shown.
+    approxCountEnabled: !limitRows,
   });
 
   useApplyAppRootFallback({
@@ -911,6 +917,7 @@ export default function ObservationsEventsTable({
     onSettled: () => {
       utils.events.all.invalidate();
       utils.events.countAll.invalidate();
+      utils.events.approxCount.invalidate();
       utils.traces.all.invalidate();
     },
   });
