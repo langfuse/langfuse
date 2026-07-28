@@ -20,6 +20,28 @@ interface CreateDatasetButtonProps {
   variant?: ButtonProps["variant"];
 }
 
+function CreateDatasetDialogContent({
+  projectId,
+  folderPrefix,
+  onFormSuccess,
+}: Pick<CreateDatasetButtonProps, "projectId" | "folderPrefix"> & {
+  onFormSuccess: () => void;
+}) {
+  return (
+    <DialogContent className="max-h-[90vh] sm:max-w-2xl md:max-w-3xl">
+      <DialogHeader>
+        <DialogTitle>Create new dataset</DialogTitle>
+      </DialogHeader>
+      <DatasetForm
+        mode="create"
+        projectId={projectId}
+        onFormSuccess={onFormSuccess}
+        folderPrefix={folderPrefix}
+      />
+    </DialogContent>
+  );
+}
+
 export const CreateDatasetButton = forwardRef<
   HTMLButtonElement,
   CreateDatasetButtonProps
@@ -50,17 +72,11 @@ export const CreateDatasetButton = forwardRef<
           New dataset
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] sm:max-w-2xl md:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Create new dataset</DialogTitle>
-        </DialogHeader>
-        <DatasetForm
-          mode="create"
-          projectId={projectId}
-          onFormSuccess={() => setOpen(false)}
-          folderPrefix={folderPrefix}
-        />
-      </DialogContent>
+      <CreateDatasetDialogContent
+        projectId={projectId}
+        folderPrefix={folderPrefix}
+        onFormSuccess={() => setOpen(false)}
+      />
     </Dialog>
   );
 });
