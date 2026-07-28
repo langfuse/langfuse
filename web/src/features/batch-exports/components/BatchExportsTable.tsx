@@ -1,8 +1,7 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type BatchExport } from "@langfuse/shared";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -28,6 +27,8 @@ import {
 import { useState } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
+type BatchExportRow = RouterOutputs["batchExport"]["all"]["exports"][number];
+
 export function BatchExportsTable(props: { projectId: string }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -35,6 +36,7 @@ export function BatchExportsTable(props: { projectId: string }) {
   });
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [selectedExportId, setSelectedExportId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const batchExports = api.batchExport.all.useQuery({
     projectId: props.projectId,
@@ -50,6 +52,8 @@ export function BatchExportsTable(props: { projectId: string }) {
     },
   });
 
+  const downloadBatchExport = api.batchExport.downloadUrl.useMutation();
+
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "batchExports:create",
@@ -63,7 +67,7 @@ export function BatchExportsTable(props: { projectId: string }) {
       size: 200,
       cell: ({ row }) => {
         const name = row.getValue("name") as string;
-        const { createdAt, finishedAt } = row.original;
+        const { createdAt, finishedAt, expiresAt } = row.original;
         return (
           <div className="flex items-center gap-2">
             <span className="whitespace-break-spaces">{name}</span>
@@ -78,6 +82,10 @@ export function BatchExportsTable(props: { projectId: string }) {
                     <div>
                       Finished:{" "}
                       {finishedAt ? new Date(finishedAt).toLocaleString() : "-"}
+                    </div>
+                    <div>
+                      Download expires:{" "}
+                      {expiresAt ? new Date(expiresAt).toLocaleString() : "-"}
                     </div>
                   </div>
                 </TooltipContent>
@@ -98,23 +106,41 @@ export function BatchExportsTable(props: { projectId: string }) {
       },
     },
     {
-      accessorKey: "url",
-      id: "url",
-      header: "Download URL",
+      accessorKey: "isDownloadable",
+      id: "download",
+      header: "Download",
       size: 130,
-      cell: (info) => {
-        const url = info.getValue() as string | null;
-        if (!url) {
-          return null;
+      cell: ({ row }) => {
+        const { id, status, isExpired, isDownloadable } = row.original;
+        if (isDownloadable) {
+          return (
+            <ActionButton
+              icon={<DownloadIcon size={16} />}
+              size="sm"
+              loading={downloadBatchExport.isPending && downloadingId === id}
+              onClick={() => {
+                setDownloadingId(id);
+                downloadBatchExport.mutate(
+                  { projectId: props.projectId, batchExportId: id },
+                  {
+                    // Content-Disposition is `attachment`, so assigning the
+                    // fresh URL triggers a download without leaving the page.
+                    onSuccess: (data) => {
+                      window.location.href = data.url;
+                    },
+                    onSettled: () => setDownloadingId(null),
+                  },
+                );
+              }}
+            >
+              Download
+            </ActionButton>
+          );
         }
-        if (url === "expired") {
+        if (status === "COMPLETED" && isExpired) {
           return <span className="text-muted-foreground">Expired</span>;
         }
-        return (
-          <ActionButton href={url} icon={<DownloadIcon size={16} />} size="sm">
-            Download
-          </ActionButton>
-        );
+        return null;
       },
     },
     {
@@ -218,7 +244,7 @@ export function BatchExportsTable(props: { projectId: string }) {
         );
       },
     },
-  ] as LangfuseColumnDef<BatchExport>[];
+  ] as LangfuseColumnDef<BatchExportRow>[];
 
   return (
     <>

@@ -300,12 +300,20 @@ export const handleBatchExportJob = async (
   });
 
   if (user?.email) {
+    // Link to the exports page rather than the signed URL: the page mints a
+    // fresh download URL on click, while a URL signed with temporary
+    // credentials (e.g. IAM role sessions) can die well before expiresAt.
+    const exportsPageUrl = env.NEXTAUTH_URL
+      ? `${env.NEXTAUTH_URL}/project/${projectId}/settings/exports`
+      : undefined;
+
     await sendBatchExportSuccessEmail({
       env,
       receiverEmail: user.email,
-      downloadLink: signedUrl,
+      downloadLink: exportsPageUrl ?? signedUrl,
       userName: user?.name || "",
       batchExportName: jobDetails.name,
+      downloadWindowHours: env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS,
     });
 
     logger.info(
