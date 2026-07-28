@@ -2,6 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
+import { formatDistanceToNow } from "date-fns";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -141,6 +142,26 @@ export function BatchExportsTable(props: { projectId: string }) {
           return <span className="text-muted-foreground">Expired</span>;
         }
         return null;
+      },
+    },
+    {
+      accessorKey: "expiresAt",
+      id: "expiresAt",
+      header: "Expires",
+      size: 130,
+      cell: ({ row }) => {
+        const { status, expiresAt, isExpired } = row.original;
+        if (status !== "COMPLETED" || !expiresAt) {
+          return null;
+        }
+        return (
+          <span
+            className={isExpired ? "text-muted-foreground" : undefined}
+            title={new Date(expiresAt).toLocaleString()}
+          >
+            {formatDistanceToNow(new Date(expiresAt), { addSuffix: true })}
+          </span>
+        );
       },
     },
     {
