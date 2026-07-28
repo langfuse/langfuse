@@ -13,24 +13,15 @@ import {
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { CreatePromptSchema } from "@langfuse/shared";
 import { z } from "zod";
 
-const importItemSchema = z.object({
-  name: z.string().min(1, "name must be a non-empty string"),
-  type: z.enum(["text", "chat"]).optional(),
-  prompt: z.union([z.string(), z.array(z.unknown())]),
-  config: z.unknown().optional(),
-  tags: z.array(z.string()).optional(),
-  labels: z.array(z.string()).optional(),
-  commitMessage: z.string().nullish(),
-});
-
-type ImportItem = z.infer<typeof importItemSchema>;
+type ImportItem = z.infer<typeof CreatePromptSchema>;
 
 const IMPORT_MAX = 500;
 
 const importPayloadSchema = z
-  .array(importItemSchema)
+  .array(CreatePromptSchema)
   .min(1, "File contains an empty array.")
   .max(
     IMPORT_MAX,

@@ -15,6 +15,7 @@ import {
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import {
   CommentObjectType,
+  CreatePromptSchema,
   CreatePromptTRPCSchema,
   LATEST_PROMPT_LABEL,
   optionalPaginationZod,
@@ -1573,19 +1574,7 @@ export const promptRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        prompts: z
-          .array(
-            z.object({
-              name: z.string(),
-              type: z.enum(["text", "chat"]).optional(),
-              prompt: z.union([z.string(), z.array(z.any())]),
-              config: z.any().optional(),
-              tags: z.array(z.string()).optional(),
-              labels: z.array(z.string()).optional(),
-              commitMessage: z.string().nullish(),
-            }),
-          )
-          .max(500),
+        prompts: z.array(CreatePromptSchema).max(500),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -1625,13 +1614,13 @@ export const promptRouter = createTRPCRouter({
             createdPrompt = await createPrompt({
               ...sharedParams,
               type: PromptType.Chat,
-              prompt: item.prompt as Array<{ role: string; content: string }>,
+              prompt: item.prompt,
             });
           } else {
             createdPrompt = await createPrompt({
               ...sharedParams,
               type: PromptType.Text,
-              prompt: item.prompt as string,
+              prompt: item.prompt,
             });
           }
           await auditLog(

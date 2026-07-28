@@ -133,6 +133,41 @@ describe("prompts trpc", () => {
   });
 
   describe("prompts.importBulk", () => {
+    it.each([
+      {
+        caseName: "array content without a chat type",
+        prompt: { name: "invalid-text-prompt", prompt: [] },
+      },
+      {
+        caseName: "string content with a chat type",
+        prompt: {
+          name: "invalid-chat-prompt",
+          type: "chat",
+          prompt: "Hello world",
+        },
+      },
+      {
+        caseName: "a malformed chat message",
+        prompt: {
+          name: "invalid-chat-message",
+          type: "chat",
+          prompt: [{ role: "user" }],
+        },
+      },
+    ])("rejects $caseName", async ({ prompt }) => {
+      const { project, caller } = await prepare();
+      const input: unknown = {
+        projectId: project.id,
+        prompts: [prompt],
+      };
+
+      await expect(
+        caller.prompts.importBulk(
+          input as Parameters<typeof caller.prompts.importBulk>[0],
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("reports an item as failed when audit logging fails", async () => {
       const { project, caller } = await prepare();
       const promptName = `audit-failure-${v4()}`;
