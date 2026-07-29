@@ -15,6 +15,10 @@ import { env } from "../../env";
 export async function applyObservationFieldOverflow(
   eventRecord: EventRecordInsertType,
 ): Promise<EventRecordInsertType> {
+  if (env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED !== "true") {
+    return eventRecord;
+  }
+
   const overflowResult = await processObservationFieldOverflow({
     projectId: eventRecord.project_id,
     traceId: eventRecord.trace_id,

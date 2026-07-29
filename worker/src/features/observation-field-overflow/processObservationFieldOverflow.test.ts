@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventRecordInsertType } from "@langfuse/shared/src/server";
 
 const mocks = vi.hoisted(() => ({
+  env: {
+    LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket",
+    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "media/",
+    LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "true",
+    LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: 10,
+  },
   logger: { warn: vi.fn() },
   recordDistribution: vi.fn(),
   recordIncrement: vi.fn(),
@@ -17,11 +23,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 }));
 
 vi.mock("../../env", () => ({
-  env: {
-    LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket",
-    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "media/",
-    LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: 10,
-  },
+  env: mocks.env,
 }));
 
 import {
@@ -30,7 +32,27 @@ import {
 } from "./processObservationFieldOverflow";
 
 describe("processObservationFieldOverflow", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED = "true";
+  });
+
+  it("returns the original event record when overflow is disabled", async () => {
+    mocks.env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED = "false";
+    const eventRecord = {
+      project_id: "project-id",
+      trace_id: "trace-id",
+      span_id: "observation-id",
+      input: "x".repeat(11),
+    } as EventRecordInsertType;
+
+    const result = await applyObservationFieldOverflow(eventRecord);
+
+    expect(result).toBe(eventRecord);
+    expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
+    expect(mocks.recordIncrement).not.toHaveBeenCalled();
+    expect(mocks.recordDistribution).not.toHaveBeenCalled();
+  });
 
   it("logs an upload failure and persists the original oversized field", async () => {
     const originalInput = "x".repeat(11);

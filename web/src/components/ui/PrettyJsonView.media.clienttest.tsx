@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { MediaContentType } from "@langfuse/shared";
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
@@ -10,6 +11,7 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { LARGE_STRING_RENDER_CHAR_LIMIT } from "@/src/components/ui/largeStringGate";
+import { MediaEnabledFields } from "@/src/features/media/validation";
 
 describe("PrettyJsonView media layout", () => {
   it("aligns attachment tiles with the section content", () => {
@@ -20,11 +22,11 @@ describe("PrettyJsonView media layout", () => {
         media={[
           {
             mediaId: "media-id",
-            contentType: "text/plain",
+            contentType: MediaContentType.TXT,
             contentLength: 1,
             url: "https://example.com/media.txt",
             urlExpiry: "2099-01-01T00:00:00.000Z",
-            field: "output",
+            field: MediaEnabledFields.Output,
           },
         ]}
       />,

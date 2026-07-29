@@ -368,6 +368,9 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: z.coerce
     .number()
     .int()
