@@ -110,8 +110,11 @@ const ImportPromptsDialogContent: React.FC<{
               Import complete — {successCount} succeeded, {failCount} failed.
             </p>
             <div className="max-h-64 overflow-y-auto rounded-md border p-2 text-sm">
-              {state.results.map((r) => (
-                <div key={r.name} className="flex items-start gap-2 py-1">
+              {state.results.map((r, index) => (
+                <div
+                  key={`${r.name}-${index}`}
+                  className="flex items-start gap-2 py-1"
+                >
                   {r.success ? (
                     <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
                   ) : (
