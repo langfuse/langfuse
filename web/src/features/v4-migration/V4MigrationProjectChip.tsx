@@ -17,14 +17,16 @@ export function V4MigrationProjectChip({
   const capture = usePostHogClientCapture();
 
   const readiness = status ? getProjectMigrationReadiness(status) : "checking";
+  if (readiness === "ready") {
+    return null;
+  }
+
   const label =
-    readiness === "ready"
-      ? "Migrated"
-      : readiness === "checking"
-        ? "Checking"
-        : readiness === "unavailable"
-          ? "Check status"
-          : "Update";
+    readiness === "checking"
+      ? "Checking"
+      : readiness === "unavailable"
+        ? "Check status"
+        : "Update";
 
   const handleClick = () => {
     capture("v4_migration:project_chip_clicked");
@@ -39,11 +41,7 @@ export function V4MigrationProjectChip({
     >
       <span
         aria-hidden
-        className={
-          readiness === "ready"
-            ? "size-1.75 shrink-0 rounded-full bg-green-500 dark:bg-green-500"
-            : "size-1.75 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
-        }
+        className="size-1.75 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
       ></span>
       {label}
     </button>

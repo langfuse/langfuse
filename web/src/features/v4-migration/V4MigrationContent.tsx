@@ -417,16 +417,19 @@ export function V4MigrationDetailsContent({
     orgId: organization?.id,
     enabled: Boolean(projectId),
   });
+  const evalsUrl =
+    typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
   const handleMigrateEvalsWithAgent = async () => {
     capture("v4_migration:migrate_evals_with_agent_clicked");
     onNavigate?.();
+    if (evalsUrl) {
+      await router.push(evalsUrl).catch(() => undefined);
+    }
     setAgentOpen(true);
     await submitAgentMessage(upgradePlan.assistantPrompt, {
       newConversation: true,
     });
   };
-  const evalsUrl =
-    typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
   const integrationsUrl =
     typeof projectId === "string"
       ? `/project/${projectId}/settings/integrations`
