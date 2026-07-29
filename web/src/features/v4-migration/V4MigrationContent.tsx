@@ -187,9 +187,7 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
     ) : sdk.status === "otel_header_required" ? (
       <Chip variant="warning">OTel header required</Chip>
     ) : sdk.status === "unknown" ? (
-      <Chip variant="warning">
-        {detectedSdkSeries.length > 0 ? "Needs review" : "Not detected"}
-      </Chip>
+      <Chip variant="warning">Needs review</Chip>
     ) : sdk.status === "error" ? (
       <Chip variant="warning">Check failed</Chip>
     ) : (
@@ -217,14 +215,7 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
         ) : sdk.status === "no_data" ? (
           `No ingestion data was detected in the last ${V4_MIGRATION_LOOKBACK_DAYS} days.`
         ) : sdk.status === "unknown" ? (
-          detectedSdkSeries.length > 0 ? (
-            "We could not recognize every detected SDK version. Verify that these SDKs are up to date."
-          ) : (
-            <>
-              We could not detect an attributed Langfuse SDK in the ingested
-              data. If this project uses one, verify that it is up to date.
-            </>
-          )
+          "We could not recognize every detected SDK version. Verify that these SDKs are up to date."
         ) : sdk.status === "error" ? (
           "We could not check the latest traces for this project. Try again later."
         ) : sdk.status === "latest" ? (
