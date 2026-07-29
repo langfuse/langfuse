@@ -1,12 +1,9 @@
 ---
 name: seed-test-data
 description: |
-  Seed local Langfuse test data with one command: large/branching observation
-  trees (v3 and v4 events), long sessions, bulk traces for list performance.
-  Use whenever a task needs ClickHouse/Postgres test data — e.g. "seed a
-  complex trace", "make a tough session", "fill the trace list", "test v4
-  events UI", or when debugging trace/session/list rendering or performance.
-  Never write ad-hoc seed scripts or raw ClickHouse inserts.
+  Seed reproducible local Langfuse data in ClickHouse and Postgres. Use for
+  complex traces, long sessions, v3/v4 events, bulk list data, or frontend
+  rendering and performance tests; never use ad hoc scripts or raw inserts.
 ---
 
 # Seed Test Data

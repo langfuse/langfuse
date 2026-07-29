@@ -1,12 +1,10 @@
 ---
 name: frontend-large-feature-architecture
 description: |
-  Use when building, changing, or refactoring large Langfuse frontend features,
-  virtualized lists, large tables, controller components, local feature state,
-  Zustand stores, row selection, high-frequency UI state, or
-  rendering-performance issues. Also read BEFORE writing any useEffect
-  (especially one that syncs fetched data into state), wiring form
-  initialValues/defaultValues from loaded data, or adding useCallback/useMemo.
+  Architect large or state-heavy Langfuse frontend features. Use for virtualized
+  lists, large tables, controllers, Zustand stores, row selection, high-frequency
+  state, rendering performance, or before adding useEffect, useMemo, useCallback,
+  or form defaults derived from loaded data.
 ---
 
 # Frontend Large Feature Architecture
