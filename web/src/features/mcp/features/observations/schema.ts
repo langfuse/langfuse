@@ -20,10 +20,8 @@ type ObservationMcpFieldDefinition = ObservationMcpFieldMetadata & {
   group: ObservationFieldGroupPublicApi;
 };
 
-type ObservationMcpField = Exclude<
-  (typeof OBSERVATION_FIELD_GROUP_FIELD_NAMES)[ObservationFieldGroupPublicApi][number],
-  "isRootObservation"
->;
+type ObservationMcpField =
+  (typeof OBSERVATION_FIELD_GROUP_FIELD_NAMES)[ObservationFieldGroupPublicApi][number];
 
 type ObservationMcpFieldType =
   | "array"
@@ -35,11 +33,10 @@ type ObservationMcpFieldType =
   | "string"
   | "unknown";
 
-const OBSERVATION_MCP_FIELDS = OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap(
-  (group) => OBSERVATION_FIELD_GROUP_FIELD_NAMES[group],
-).filter(
-  (field): field is ObservationMcpField => field !== "isRootObservation",
-);
+const OBSERVATION_MCP_FIELDS: ObservationMcpField[] =
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap(
+    (group) => OBSERVATION_FIELD_GROUP_FIELD_NAMES[group],
+  );
 
 const OBSERVATION_MCP_FIELD_SET = new Set<string>(OBSERVATION_MCP_FIELDS);
 
@@ -53,6 +50,12 @@ const OBSERVATION_MCP_FIELD_METADATA: Record<
   endTime: { type: "datetime", nullable: true, default: true },
   projectId: { type: "string", sensitive: true },
   parentObservationId: { type: "string", nullable: true, default: true },
+  isRootObservation: {
+    type: "boolean",
+    default: true,
+    description:
+      "Whether this observation is a logical root. App-root observations can be roots while retaining a non-null parentObservationId.",
+  },
   type: { type: "string", default: true },
   name: { type: "string", nullable: true, default: true },
   level: { type: "string", default: true },
