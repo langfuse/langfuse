@@ -17,6 +17,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'e."environment"',
   },
   {
+    uiTableName: "API Key",
+    uiTableId: "ingestionApiKey",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: 'e."ingestion_api_key"',
+  },
+  {
     uiTableName: "Type",
     uiTableId: "type",
     clickhouseTableName: "events_proto",

@@ -552,6 +552,21 @@ const EnvSchema = z.object({
     .int()
     .default(15),
 
+  // Liveness threshold for the opt-in ?failIfQueueConsumptionStuck=true health
+  // check: fail once this container's BullMQ workers have neither picked up nor
+  // completed a single job for this long. Default-on repeatable jobs keep a
+  // healthy worker busy at least once per hour (blob storage integration
+  // scheduler every 20 min, PostHog/Mixpanel schedulers hourly), so an hour of
+  // total silence indicates a wedged worker.
+  // In multi-replica deployments each scheduler tick lands
+  // on only one replica — raise the threshold if replicas can legitimately sit
+  // idle (no ingestion or other traffic) for extended periods.
+  LANGFUSE_QUEUE_CONSUMPTION_STUCK_THRESHOLD_MINUTES: z.coerce
+    .number()
+    .positive()
+    .int()
+    .default(60),
+
   LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
