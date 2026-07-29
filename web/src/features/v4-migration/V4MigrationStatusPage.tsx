@@ -68,7 +68,7 @@ function AffectedCell({ count }: { count: MigrationCountState }) {
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
   const label =
     readiness === "ready"
-      ? "Ready"
+      ? "Migrated"
       : readiness === "checking"
         ? "Checking"
         : readiness === "unavailable"
@@ -211,15 +211,17 @@ function OrgStatusSection({
           ? 5
           : row.status?.sdk.status === "otel_realtime"
             ? 5
-            : row.status?.sdk.status === "legacy"
-              ? 4
-              : row.status?.sdk.status === "otel_header_required"
-                ? 3
-                : row.status?.sdk.status === "unknown"
-                  ? 2
-                  : row.status?.sdk.status === "checking"
-                    ? 1
-                    : 0;
+            : row.status?.sdk.status === "no_data"
+              ? 5
+              : row.status?.sdk.status === "legacy"
+                ? 4
+                : row.status?.sdk.status === "otel_header_required"
+                  ? 3
+                  : row.status?.sdk.status === "unknown"
+                    ? 2
+                    : row.status?.sdk.status === "checking"
+                      ? 1
+                      : 0;
       case "evals":
         return row.status?.evals.count ?? 0;
       case "apis":
@@ -335,6 +337,10 @@ function OrgStatusSection({
                       ) : row.status.sdk.status === "otel_realtime" ? (
                         <span className="text-foreground-tertiary">
                           OTel real-time
+                        </span>
+                      ) : row.status.sdk.status === "no_data" ? (
+                        <span className="text-foreground-tertiary">
+                          No data detected
                         </span>
                       ) : row.status.sdk.status === "checking" ? (
                         <span className="text-foreground-tertiary">

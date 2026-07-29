@@ -12,6 +12,7 @@ import {
   V4MigrationHeaderContent,
 } from "./V4MigrationContent";
 import { type MigrationCountState } from "./migrationData";
+import { type V4MigrationSdkState } from "./sdkVersionStatus";
 
 const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
@@ -28,7 +29,8 @@ const mocks = vi.hoisted(() => ({
       status: "latest" as const,
       sdkUsageSeries: [],
       upgradeRequiredCount: 0,
-    },
+      delayedOtelIngestionCount: 0,
+    } as V4MigrationSdkState,
     evals: { status: "loaded", count: 0 } as MigrationCountState,
     apis: { status: "loaded", count: 1 } as MigrationCountState,
     exports: { status: "loaded", count: 3 } as MigrationCountState,
@@ -107,6 +109,7 @@ describe("V4MigrationDetailsContent", () => {
     mocks.submitAgentMessage.mockResolvedValue(undefined);
     mocks.migrationData.evals = { status: "loaded", count: 0 };
     mocks.canToggleV4 = true;
+    mocks.migrationData.sdk.status = "latest";
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
     mocks.migrationData.apiUsage = [
@@ -174,6 +177,18 @@ describe("V4MigrationDetailsContent", () => {
     expect(
       screen.getByText("No deprecated evals detected."),
     ).toBeInTheDocument();
+  });
+
+  it("shows no detected ingestion data without asking for SDK review", () => {
+    mocks.migrationData.sdk.status = "no_data";
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("No data detected")).toBeInTheDocument();
+    expect(
+      screen.getByText(/No ingestion data was detected in the last 14 days/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Needs review")).not.toBeInTheDocument();
   });
 
   it("shows the preview-toggle section only when the session can toggle v4", () => {
