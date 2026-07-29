@@ -494,6 +494,7 @@ types:
       - `stringOptions`: `any of`, `none of`
       - `arrayOptions`: `any of`, `none of`, `all of`
       - `stringObject`: same operators as `string`
+      - `boolean`: `"="`, `"<>"`
       - `null`: `is null`, `is not null`
 
       Supported columns by target:
@@ -508,6 +509,7 @@ types:
         - `sessionId`: `string`
         - `tags`: `arrayOptions`, operators `any of` / `none of` / `all of`
         - `metadata`: `stringObject` with `key`
+        - `isRootObservation`: `boolean`, operators `=` / `<>`; true when the observation has no parent or is explicitly marked as an application root
         - `parentObservationId`: `null`, operators `is null` / `is not null`
         - `calledToolNames`: `arrayOptions`, operators `any of` / `none of` / `all of`
         - `toolCalls`: `number`
@@ -561,6 +563,12 @@ types:
           type: "null"
           column: parentObservationId
           operator: is null
+      - name: ObservationLogicalRootFilter
+        value:
+          type: boolean
+          column: isRootObservation
+          operator: "="
+          value: true
       - name: ObservationTagsFilter
         value:
           type: arrayOptions
