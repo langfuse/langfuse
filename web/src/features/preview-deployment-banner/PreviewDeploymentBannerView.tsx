@@ -29,42 +29,40 @@ export function PreviewDeploymentBannerView({
   return (
     <div
       ref={ref}
-      className="border-preview-banner-border bg-preview-banner text-preview-banner-foreground fixed z-51 flex w-full items-center justify-center gap-4 border-b px-4 py-1"
+      className="border-preview-banner-border bg-preview-banner text-preview-banner-foreground fixed z-51 flex w-full items-center justify-center border-b px-4 py-1"
       style={{ top: topOffset }}
     >
-      <div className="flex items-center gap-3 text-sm">
-        <span>
-          Preview deployment of{" "}
-          <a
-            href={prUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-preview-banner-link hover:text-preview-banner-link-hover font-bold"
-          >
-            {prNumber ? `PR #${prNumber}` : "a pull request"}
-          </a>
-          {author ? (
-            <>
-              {" "}
-              by{" "}
-              <a
-                href={`https://github.com/${encodeURIComponent(author)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-preview-banner-link hover:text-preview-banner-link-hover font-bold"
-              >
-                @{author}
-              </a>
-            </>
-          ) : null}
-          {updatedText ? (
-            <>
-              {" "}
-              · <span title={updatedTitle}>updated {updatedText}</span>
-            </>
-          ) : null}
-        </span>
-      </div>
+      <span className="text-sm">
+        Preview deployment of{" "}
+        <a
+          href={prUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-preview-banner-link hover:text-preview-banner-link-hover font-bold hover:underline"
+        >
+          {prNumber ? `PR #${prNumber}` : "a pull request"}
+        </a>
+        {author ? (
+          <>
+            {" "}
+            by{" "}
+            <a
+              href={`https://github.com/${encodeURIComponent(author)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-preview-banner-link hover:text-preview-banner-link-hover font-bold hover:underline"
+            >
+              @{author}
+            </a>
+          </>
+        ) : null}
+        {updatedText ? (
+          <>
+            {" "}
+            · <span title={updatedTitle}>updated {updatedText}</span>
+          </>
+        ) : null}
+      </span>
     </div>
   );
 }

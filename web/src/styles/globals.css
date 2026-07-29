@@ -467,9 +467,10 @@
     --primary-accent: 246 55% 70%;
     --link: 246 55% 70%;
     --link-hover: 246 95% 85%;
-    /* Preview-deployment strip: blue-500/25 and blue-300/20 precomposed over
-       the 6% canvas — the strip needs an opaque fill. Body text stays on the
-       neutral foreground tier; links are blue-400/300. */
+    /* Preview-deployment strip: fill is blue-500/25 precomposed over the 6%
+       canvas, border is blue-300/20 precomposed over that fill — the strip
+       needs opaque colors. Body text stays on the neutral foreground tier;
+       links are blue-400/300. */
     --preview-banner: 217 47% 19%;
     --preview-banner-foreground: 0 0% 70%;
     --preview-banner-border: 215 37% 31%;
