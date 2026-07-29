@@ -47,6 +47,11 @@ export function PreviewDeploymentBanner() {
           ? formatDistanceToNow(lastUpdated, { addSuffix: true })
           : undefined
       }
+      updatedTitle={
+        lastUpdated && !Number.isNaN(lastUpdated.getTime())
+          ? lastUpdated.toLocaleString()
+          : undefined
+      }
       topOffset={getTopBannerOffset(PREVIEW_BANNER_ORDER)}
     />
   );

@@ -9,6 +9,9 @@ export type PreviewDeploymentBannerViewProps = {
   author?: string;
   /** Human-readable relative time the preview was last updated, e.g. "2 hours ago". */
   updatedText?: string;
+  /** Absolute timestamp shown on hover — the relative text is computed at render
+   * time and goes stale in a long-lived tab. */
+  updatedTitle?: string;
   /** Vertical offset when stacked below other top banners. */
   topOffset?: number;
   ref?: Ref<HTMLDivElement>;
@@ -19,6 +22,7 @@ export function PreviewDeploymentBannerView({
   prNumber,
   author,
   updatedText,
+  updatedTitle,
   topOffset = 0,
   ref,
 }: PreviewDeploymentBannerViewProps) {
@@ -53,7 +57,12 @@ export function PreviewDeploymentBannerView({
               </a>
             </>
           ) : null}
-          {updatedText ? <> · updated {updatedText}</> : null}
+          {updatedText ? (
+            <>
+              {" "}
+              · <span title={updatedTitle}>updated {updatedText}</span>
+            </>
+          ) : null}
         </span>
       </div>
     </div>
