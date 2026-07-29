@@ -224,14 +224,14 @@ export function BatchExportsTable(props: { projectId: string }) {
       size: 130,
       cell: ({ row }) => {
         const { status, expiresAt, isExpired } = row.original;
-        if (status !== "COMPLETED" || !expiresAt) {
+        // The Action column already reads "Expired" for lapsed exports; a
+        // "how long ago" timestamp adds nothing, so show the countdown only
+        // while the download is still available.
+        if (status !== "COMPLETED" || !expiresAt || isExpired) {
           return null;
         }
         return (
-          <span
-            className={isExpired ? "text-muted-foreground" : undefined}
-            title={new Date(expiresAt).toLocaleString()}
-          >
+          <span title={new Date(expiresAt).toLocaleString()}>
             {formatDistanceToNow(new Date(expiresAt), { addSuffix: true })}
           </span>
         );
