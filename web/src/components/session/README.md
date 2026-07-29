@@ -16,6 +16,8 @@ feature-flagged choice between the existing card layout and Modern Session.
   `ModernSessionObservationList`.
 - `SessionVirtualizedRow.tsx` + `useStableVirtualRowMeasurement.ts`: translated
   DOM-safe dynamic row measurement.
+- `src/hooks/useVirtualizedScrollSpy.ts`: reusable active-item derivation,
+  viewport-relative anchor, selection, and smooth navigation.
 - `SessionObservationIO.tsx`: bounded observation payload rendering and the
   bridge into `IOPreview` full/conversation modes.
 
@@ -34,7 +36,11 @@ unless the V4 Preview toggle selects this events-backed page.
 
 Server/query state remains in tRPC and React Query. Active Modern Session state
 is derived from TanStack Virtual's current scroll offset unless the user
-explicitly selects a turn that cannot reach the feed's top edge. User
-scrolling restores scroll-spy ownership; no effect mirrors either state.
+explicitly selects a turn for smooth navigation. User scrolling restores
+scroll-spy ownership; no effect mirrors either state. The scroll-spy anchor
+moves from the feed's top edge to 20% of its visible height over the first 20%
+of viewport scrolling, remains there through the middle, then moves to the
+bottom edge over the final 20%. The feed keeps its natural height without
+trailing scroll padding.
 The span rail distinguishes loading turn summaries from loading the span rows
 inside an already-known turn; only the latter can show turn and span counts.

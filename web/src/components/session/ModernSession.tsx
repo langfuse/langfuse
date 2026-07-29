@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
@@ -6,6 +6,8 @@ import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionT
 import { ConnectedModernSessionObservationList } from "@/src/components/session/ConnectedModernSessionObservationList";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import { useElementSize } from "@/src/hooks/useElementSize";
+import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
 
 const MODERN_SESSION_OVERSCAN = 5;
 const EMPTY_TRACES: EventSessionTrace[] = [];
@@ -41,8 +43,7 @@ export function ModernSession({
 }: ModernSessionProps) {
   const traces =
     tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
-  const feedRef = useRef<HTMLDivElement>(null);
-  const [selectedTraceId, setSelectedTraceId] = useState<string>();
+  const [feedRef, feedSize] = useElementSize<HTMLDivElement>();
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => feedRef.current,
@@ -50,39 +51,18 @@ export function ModernSession({
     overscan: MODERN_SESSION_OVERSCAN,
     getItemKey: (index) => traces[index]?.id ?? index,
   });
-  const virtualItems = virtualizer.getVirtualItems();
-  const scrollOffset = virtualizer.scrollOffset ?? 0;
-  const activeVirtualItem =
-    virtualItems.find(
-      (item) => item.start <= scrollOffset + 1 && item.end > scrollOffset + 1,
-    ) ?? virtualItems.find((item) => item.start > scrollOffset);
-  const scrollSpyTraceId =
-    traces[activeVirtualItem?.index ?? 0]?.id ?? traces[0]?.id;
-  const activeTraceId = selectedTraceId ?? scrollSpyTraceId;
-
-  const scrollToTrace = useCallback(
-    (index: number) => {
-      const feed = feedRef.current;
-      const offset = virtualizer.getOffsetForIndex(index, "start")?.[0];
-      if (!feed || offset === undefined) return;
-      // Native scrolling avoids TanStack's smooth-scroll retries against
-      // dynamically measured rows stopping one row before the target.
-      feed.scrollTo({ top: offset, behavior: "smooth" });
-    },
-    [virtualizer],
-  );
-
-  const selectTrace = useCallback(
-    (index: number) => {
-      const trace = traces[index];
-      if (!trace) return;
-      setSelectedTraceId(trace.id);
-      scrollToTrace(index);
-    },
-    [scrollToTrace, traces],
-  );
-
-  const restoreScrollSpy = () => setSelectedTraceId(undefined);
+  const {
+    activeItemId: activeTraceId,
+    virtualItems,
+    selectItem: selectTrace,
+    restoreScrollSpy,
+  } = useVirtualizedScrollSpy({
+    items: traces,
+    virtualizer,
+    scrollElementRef: feedRef,
+    viewportHeight: feedSize?.height ?? 0,
+    viewportRatio: 0.2,
+  });
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-1">
@@ -121,6 +101,22 @@ export function ModernSession({
             const trace = traces[virtualItem.index];
             if (!trace) return null;
 
+            const content = (
+              <LazySessionTraceEventsRow
+                trace={trace}
+                projectId={projectId}
+                sessionId={sessionId}
+                openPeek={openPeek}
+                traceCommentCounts={traceCommentCounts}
+                index={virtualItem.index}
+                filterState={filterState}
+                viewLabel={viewLabel}
+                surface="modern"
+                contentMode={showInlineToolCalls ? "all" : "conversation"}
+                showSystemPrompt={showSystemPrompt}
+              />
+            );
+
             return (
               <SessionVirtualizedRow
                 key={virtualItem.key}
@@ -130,19 +126,7 @@ export function ModernSession({
                 virtualItem={virtualItem}
                 virtualizer={virtualizer}
               >
-                <LazySessionTraceEventsRow
-                  trace={trace}
-                  projectId={projectId}
-                  sessionId={sessionId}
-                  openPeek={openPeek}
-                  traceCommentCounts={traceCommentCounts}
-                  index={virtualItem.index}
-                  filterState={filterState}
-                  viewLabel={viewLabel}
-                  surface="modern"
-                  contentMode={showInlineToolCalls ? "all" : "conversation"}
-                  showSystemPrompt={showSystemPrompt}
-                />
+                {content}
               </SessionVirtualizedRow>
             );
           })}
