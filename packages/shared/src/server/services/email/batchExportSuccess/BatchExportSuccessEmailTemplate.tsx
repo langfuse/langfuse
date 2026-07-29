@@ -57,7 +57,8 @@ export const BatchExportSuccessEmailTemplate = ({
               Your data export{" "}
               <span className="font-mono">{batchExportName}</span> is ready to
               download. The download is available for the next{" "}
-              {downloadWindowHours} hours.
+              {downloadWindowHours}{" "}
+              {downloadWindowHours === 1 ? "hour" : "hours"}.
             </Text>
             <Text className="text-sm leading-6 text-black">
               Please note data exports do not reflect custom column ordering or
