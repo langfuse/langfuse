@@ -180,6 +180,8 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
       <Chip variant="success">Up to date</Chip>
     ) : sdk.status === "otel_realtime" ? (
       <Chip variant="success">OTel real-time</Chip>
+    ) : sdk.status === "no_data" ? (
+      <Chip variant="success">No data detected</Chip>
     ) : sdk.status === "checking" ? (
       <Chip variant="warning">Checking</Chip>
     ) : sdk.status === "otel_header_required" ? (
@@ -212,14 +214,15 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
           </>
         ) : sdk.status === "otel_realtime" ? (
           "OTel data is using real-time ingestion. No ingestion header update is required."
+        ) : sdk.status === "no_data" ? (
+          `No ingestion data was detected in the last ${V4_MIGRATION_LOOKBACK_DAYS} days.`
         ) : sdk.status === "unknown" ? (
           detectedSdkSeries.length > 0 ? (
             "We could not recognize every detected SDK version. Verify that these SDKs are up to date."
           ) : (
             <>
-              We could not detect an attributed Langfuse SDK in traces from the
-              last 7 days. If this project uses one, verify that it is up to
-              date.
+              We could not detect an attributed Langfuse SDK in the ingested
+              data. If this project uses one, verify that it is up to date.
             </>
           )
         ) : sdk.status === "error" ? (

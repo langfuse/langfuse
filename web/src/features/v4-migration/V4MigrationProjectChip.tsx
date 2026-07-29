@@ -19,7 +19,7 @@ export function V4MigrationProjectChip({
   const readiness = status ? getProjectMigrationReadiness(status) : "checking";
   const label =
     readiness === "ready"
-      ? "Up to date"
+      ? "Migrated"
       : readiness === "checking"
         ? "Checking"
         : readiness === "unavailable"
