@@ -199,7 +199,6 @@ export function CreateEvaluationRuleDialog({
   };
 
   const create = async () => {
-    if (selectedEvaluatorIds.length === 0) return;
     await validateSelectedEvaluators();
     try {
       await createRule.mutateAsync({
@@ -209,11 +208,15 @@ export function CreateEvaluationRuleDialog({
         filter: filterState,
         sampling,
         enabled: true,
-        evaluatorIds: selectedEvaluatorIds,
-        evaluatorMappings: selectedEvaluators.map((evaluator) => ({
-          evaluatorId: evaluator.id,
-          mapping: evaluator.variableMapping,
-        })),
+        ...(selectedEvaluatorIds.length > 0
+          ? {
+              evaluatorIds: selectedEvaluatorIds,
+              evaluatorMappings: selectedEvaluators.map((evaluator) => ({
+                evaluatorId: evaluator.id,
+                mapping: evaluator.variableMapping,
+              })),
+            }
+          : {}),
       });
     } catch {
       return;
@@ -226,9 +229,11 @@ export function CreateEvaluationRuleDialog({
     showSuccessToast({
       title: "Rule created",
       description:
-        selectedEvaluators.length === 1
-          ? `${name.trim()} is active with ${selectedEvaluators[0]?.scoreName ?? "the evaluator"} attached.`
-          : `${name.trim()} is active with ${selectedEvaluators.length} evaluators attached.`,
+        selectedEvaluators.length === 0
+          ? `${name.trim()} is active. Attach an evaluator when you are ready.`
+          : selectedEvaluators.length === 1
+            ? `${name.trim()} is active with ${selectedEvaluators[0]?.scoreName ?? "the evaluator"} attached.`
+            : `${name.trim()} is active with ${selectedEvaluators.length} evaluators attached.`,
     });
     onOpenChange(false);
   };
@@ -503,7 +508,7 @@ export function CreateEvaluationRuleDialog({
               loading={
                 createRule.isPending || validation.pendingEvaluatorId !== null
               }
-              disabled={!name.trim() || selectedEvaluatorIds.length === 0}
+              disabled={!name.trim()}
               onClick={() => create().catch(() => undefined)}
             >
               Save

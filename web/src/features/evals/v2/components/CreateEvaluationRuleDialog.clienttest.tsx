@@ -438,6 +438,46 @@ describe("CreateEvaluationRuleDialog", () => {
     expect(mocks.runLlmTest).not.toHaveBeenCalled();
   });
 
+  it("creates a rule without requiring an evaluator", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <TooltipProvider>
+        <CreateEvaluationRuleDialog
+          projectId="project-1"
+          open
+          onOpenChange={onOpenChange}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Step 4: Name rule" }));
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Production observations" },
+    });
+
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    expect(saveButton).toBeEnabled();
+    fireEvent.click(saveButton);
+
+    await waitFor(() =>
+      expect(mocks.createRule).toHaveBeenCalledWith({
+        projectId: "project-1",
+        name: "Production observations",
+        targetObject: "event",
+        filter: mocks.defaultFilters,
+        sampling: 1,
+        enabled: true,
+      }),
+    );
+    expect(mocks.getEvaluator).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(mocks.showSuccessToast).toHaveBeenCalledWith({
+      title: "Rule created",
+      description:
+        "Production observations is active. Attach an evaluator when you are ready.",
+    });
+  });
+
   it("prefills the sample filters, sampling, and saved evaluator", async () => {
     const setupFilters: FilterState = [
       {
