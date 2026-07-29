@@ -93,43 +93,15 @@ function useEvalUpdateRequiredBadgeState() {
   return { project, organization, enabled, visible };
 }
 
-/** Opens the v4 migration drawer — for page-level surfaces where the drawer
- * is fully visible (e.g. the evaluators page header). */
+/** Opens the v4 migration drawer if no in-app agent is available, otherwise opens the in-app agent */
 export function V4MigrationUpdateRequiredBadge() {
   const openMigrationPanel = useOpenV4MigrationPanel();
   const capture = usePostHogClientCapture();
-  const { project, visible } = useEvalUpdateRequiredBadgeState();
-
-  if (!visible || !project) {
-    return null;
-  }
-
-  const handleClick = () => {
-    capture("v4_migration:update_required_badge_clicked");
-    openMigrationPanel({ id: project.id, name: project.name });
-  };
-
-  return (
-    <BadgeContent
-      handleClick={handleClick}
-      title="Action required"
-      description="Update your eval set up"
-    />
-  );
-}
-
-/** Starts the eval upgrade in the in-app assistant — for overlay surfaces
- * like the table peek, where the assistant (`agent` layer) renders above the
- * peek (`panel` layer) while the migration drawer would open behind it.
- * Falls back to the drawer when the assistant is unavailable. */
-export function V4MigrationUpdateRequiredAssistantBadge() {
-  const openMigrationPanel = useOpenV4MigrationPanel();
-  const capture = usePostHogClientCapture();
   const canUseAgent = useCanUseInAppAgent();
+  const { project, visible, enabled, organization } =
+    useEvalUpdateRequiredBadgeState();
   const { setOpen: setAgentOpen, submit: submitAgentMessage } =
     useInAppAiAgent();
-  const { project, organization, enabled, visible } =
-    useEvalUpdateRequiredBadgeState();
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId: project?.id,
     orgId: organization?.id,
@@ -156,7 +128,7 @@ export function V4MigrationUpdateRequiredAssistantBadge() {
     <BadgeContent
       handleClick={handleClick}
       title="Action required"
-      description="Click here to start the upgrade now"
+      description="Start the upgrade now"
     />
   );
 }
