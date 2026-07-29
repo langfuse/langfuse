@@ -1,6 +1,6 @@
 ---
 name: security-review
-description: Security review patterns for Langfuse. Use during code review, design, or planning whenever a change accepts user-supplied URLs, host/endpoint/baseURL fields, secrets, cross-tenant data, new outbound HTTP requests, new integrations (webhooks, blob storage, LLM connections, image proxies), redirect-following behavior, or new auth/permission scopes. Covers SSRF/outbound URL validation today and is intentionally extensible to other recurring security findings (tenant isolation, secret handling, redirect mishandling, file upload, RBAC scope drift).
+description: Review Langfuse changes for SSRF, tenant isolation, secret handling, unsafe redirects or uploads, and RBAC drift. Use when a design or change accepts URLs or host fields, handles secrets or cross-tenant data, makes outbound requests, adds an integration, follows redirects, or widens permissions.
 ---
 
 # Security Review

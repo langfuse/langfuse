@@ -1,15 +1,9 @@
 ---
 name: langfuse-previews
 description: >
-  Disposable per-PR preview environments for langfuse/langfuse. A same-repo PR
-  auto-builds a full Langfuse stack reachable at pr-N.preview.langfuse.com.
-  Use when spinning up or using a PR preview, logging into one, working out why
-  a preview did not come up (built but the URL 404s, ImagePullBackOff, pods
-  stuck Pending), reading web / worker / ClickHouse logs or otherwise debugging
-  a preview with kubectl, waking a preview that went to sleep off-hours,
-  seeding or adding more test data to a preview (deep traces, big sessions,
-  bulk traces, v4 events) with the seed CLI over a port-forward, or getting
-  preview deploy or cluster access. Synthetic data only.
+  Use Langfuse's disposable per-PR previews at pr-N.preview.langfuse.com
+  (synthetic data only). Use for preview access, failed deployments, test-data
+  seeding, kubectl debugging, or waking sleeping previews.
 ---
 
 # Langfuse PR Previews
