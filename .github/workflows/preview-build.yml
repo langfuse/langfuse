@@ -397,8 +397,8 @@ jobs:
       # stays visible no matter how long the discussion below grows (GitHub has
       # no pinned comments for PRs). The block is machine-managed between
       # hidden markers; the author's own text below it is never touched. Runs
-      # after the deployment record on purpose: a pin failure still fails the
-      # job loudly, but can no longer skip the more functional artifact.
+      # after the deployment record on purpose: a pin API failure still fails
+      # the job loudly, but can no longer skip the more functional artifact.
       - name: Pin preview link to the PR description
         if: needs.build.result == 'success'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -426,16 +426,21 @@ jobs:
               "",
             ].join("\n");
 
-            // Upsert at the very top. The ^ anchor is load-bearing: the block
-            // is always prepended, so anchoring guarantees an author QUOTING
-            // the marker strings mid-description is never matched or clobbered.
-            // Last-writer-wins against a concurrent manual description edit is
-            // acceptable for one machine-managed block every build rewrites.
+            // Sweep every existing block (line-anchored, so a block displaced
+            // by a manual description edit can't duplicate or outlive the
+            // preview; inline mentions of the markers mid-sentence are never
+            // matched — only a full quoted block with markers on their own
+            // lines would be swept), then prepend the fresh block at the top.
+            // The (?:\r?\n)* tail matters: web-UI edits resubmit bodies with
+            // CRLF endings. Last-writer-wins against a concurrent manual edit
+            // is acceptable for one machine-managed line every build rewrites.
             const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
             const body = pr.body ?? "";
-            const blockRe = new RegExp(`^${START}[\\s\\S]*?${END}\\n*`);
-            const next = blockRe.test(body) ? body.replace(blockRe, block) : block + body;
+            const strayRe = new RegExp(`(^|\\r?\\n)${START}[\\s\\S]*?${END}(?:\\r?\\n)*`, "g");
+            const next = block + body.replace(strayRe, "$1").replace(/^(?:\r?\n)+/, "");
             if (next.length > 65536) {
+              // Degrade to a warning: a huge description should not fail
+              // preview builds (a real API failure below still fails loudly).
               core.warning("PR body would exceed GitHub's 65536-char limit; leaving it unchanged.");
               return;
             }

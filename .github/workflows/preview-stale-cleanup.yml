@@ -149,28 +149,30 @@ jobs:
                   // reaped preview's URL stops being advertised at the top of
                   // the PR. Markers + regex must stay byte-identical to
                   // preview-build.yml's pin step and preview-deactivate.yml
-                  // (^ anchor: never match author-quoted markers mid-body).
-                  // The body is re-fetched because the pulls.list snapshot can
-                  // be minutes old on a large sweep — writing it back would
+                  // (line-anchored sweep: also removes displaced blocks;
+                  // inline marker mentions mid-sentence never match). The
+                  // body is re-fetched because the pulls.list snapshot can be
+                  // minutes old on a large sweep — writing it back would
                   // silently revert a concurrent description edit. Failure is
                   // isolated like the deployment loop above — the label
                   // removal (the actual teardown) already succeeded.
                   try {
                     const START = "<!-- aws-preview-pin:start -->";
                     const END = "<!-- aws-preview-pin:end -->";
-                    const blockRe = new RegExp(`^${START}[\\s\\S]*?${END}\\n*`);
+                    const strayRe = new RegExp(`(^|\\r?\\n)${START}[\\s\\S]*?${END}(?:\\r?\\n)*`, "g");
                     const { data: fresh } = await github.rest.pulls.get({
                       owner,
                       repo,
                       pull_number: pr.number,
                     });
                     const body = fresh.body ?? "";
-                    if (blockRe.test(body)) {
+                    const next = body.replace(strayRe, "$1").replace(/^(?:\r?\n)+/, "");
+                    if (next !== body) {
                       await github.rest.pulls.update({
                         owner,
                         repo,
                         pull_number: pr.number,
-                        body: body.replace(blockRe, ""),
+                        body: next,
                       });
                     }
                   } catch (e) {

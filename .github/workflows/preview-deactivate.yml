@@ -118,22 +118,19 @@ jobs:
           script: |
             // Markers + regex must stay byte-identical to preview-build.yml's
             // pin step and preview-stale-cleanup.yml, or the block is never
-            // found and a dead preview URL stays pinned forever. The ^ anchor
-            // keeps author-quoted marker strings mid-body from being matched.
+            // found and a dead preview URL stays pinned forever. Line-anchored
+            // sweep: also removes blocks displaced by manual description
+            // edits; inline mentions of the markers mid-sentence never match.
             const START = "<!-- aws-preview-pin:start -->";
             const END = "<!-- aws-preview-pin:end -->";
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
             const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
             const body = pr.body ?? "";
-            const blockRe = new RegExp(`^${START}[\\s\\S]*?${END}\\n*`);
-            if (!blockRe.test(body)) {
+            const strayRe = new RegExp(`(^|\\r?\\n)${START}[\\s\\S]*?${END}(?:\\r?\\n)*`, "g");
+            const next = body.replace(strayRe, "$1").replace(/^(?:\r?\n)+/, "");
+            if (next === body) {
               core.info("No preview pin in the PR description; nothing to remove.");
               return;
             }
-            await github.rest.pulls.update({
-              owner,
-              repo,
-              pull_number,
-              body: body.replace(blockRe, ""),
-            });
+            await github.rest.pulls.update({ owner, repo, pull_number, body: next });
