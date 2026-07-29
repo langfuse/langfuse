@@ -42,7 +42,6 @@ import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   evalConfigFormSchema,
   type EvalFormType,
@@ -335,8 +334,8 @@ export const InnerEvaluatorForm = (props: {
   hideTargetSelection?: boolean;
   hidePreviewTable?: boolean;
   evalCapabilities: EvalCapabilities;
-  defaultRunOnLive?: boolean;
-  runOnLiveStatusOnly?: boolean;
+  createStatus?: PartialConfig["status"];
+  showLiveIncomingStatus?: boolean;
   defaultTarget?: EvalTargetObject;
   renderFooter?: (params: { isLoading: boolean }) => React.ReactNode;
   oldConfigId?: string;
@@ -459,9 +458,6 @@ export const InnerEvaluatorForm = (props: {
         (option): option is "NEW" | "EXISTING" =>
           ["NEW", "EXISTING"].includes(option),
       ),
-      runOnLive: props.existingEvaluator
-        ? props.existingEvaluator.status === "ACTIVE"
-        : (props.defaultRunOnLive ?? true),
     },
   }) as UseFormReturn<EvalFormType>;
 
@@ -545,7 +541,6 @@ export const InnerEvaluatorForm = (props: {
   );
 
   const watchedTarget = form.watch("target");
-  const watchedRunOnLive = form.watch("runOnLive");
   const watchedScoreName = form.watch("scoreName");
   const watchedFilter = form.watch("filter") ?? EMPTY_FILTER_STATE;
   const shouldShowExperimentEventsPreview =
@@ -668,13 +663,7 @@ export const InnerEvaluatorForm = (props: {
     const filter = validatedFilter.data;
     const scoreName = values.scoreName;
 
-    // For modern targets, derive status from runOnLive
     const isModern = !isLegacyEvalTarget(values.target);
-    const status = isModern
-      ? values.runOnLive
-        ? JobConfigState.ACTIVE
-        : JobConfigState.INACTIVE
-      : undefined;
 
     (props.mode === "edit" && props.existingEvaluator?.id
       ? updateJobMutation.mutateAsync({
@@ -687,7 +676,6 @@ export const InnerEvaluatorForm = (props: {
             sampling,
             scoreName,
             timeScope: isModern ? ["NEW"] : values.timeScope,
-            ...(status ? { status } : {}),
           },
         })
       : createJobMutation.mutateAsync({
@@ -700,7 +688,9 @@ export const InnerEvaluatorForm = (props: {
           sampling,
           delay,
           timeScope: isModern ? ["NEW"] : values.timeScope,
-          ...(status ? { status } : {}),
+          ...(props.createStatus !== undefined
+            ? { status: props.createStatus }
+            : {}),
         })
     )
       .then(() => {
@@ -776,7 +766,6 @@ export const InnerEvaluatorForm = (props: {
           : [],
     );
     form.setValue("mapping", newMapping);
-    form.setValue("runOnLive", props.defaultRunOnLive ?? true);
     setAvailableVariables(targetState.getAvailableVariables(actualTarget));
     return actualTarget;
   }
@@ -791,6 +780,10 @@ export const InnerEvaluatorForm = (props: {
     !props.disabled &&
     isExperimentTarget(watchedTarget) &&
     !isBetaEnabled;
+  const runsOnLiveIncoming =
+    (props.existingEvaluator?.status ??
+      props.createStatus ??
+      JobConfigState.ACTIVE) === JobConfigState.ACTIVE;
 
   const formBody = (
     <div
@@ -1076,71 +1069,18 @@ export const InnerEvaluatorForm = (props: {
                 />
               )}
 
-            {props.runOnLiveStatusOnly &&
+            {props.showLiveIncomingStatus &&
               !isLegacyEvalTarget(watchedTarget) && (
                 <div className="flex max-w-4xl flex-col gap-0.5 rounded-lg border p-3">
-                  <p className="text-sm font-medium">Run on live incoming</p>
                   <p className="text-muted-foreground text-sm">
-                    {watchedRunOnLive
-                      ? `Automatically evaluates new matching ${getTargetDisplayName(watchedTarget)}.`
+                    {runsOnLiveIncoming
+                      ? `Automatically evaluates new live incoming ${getTargetDisplayName(watchedTarget)}.`
                       : `Inactive. Enable the evaluator to evaluate new matching ${getTargetDisplayName(watchedTarget)}.`}
                   </p>
                 </div>
               )}
 
-            {/* Run on Live toggle for modern (non-legacy) targets */}
-            {!props.runOnLiveStatusOnly &&
-              !props.hideAdvancedSettings &&
-              !isLegacyEvalTarget(watchedTarget) && (
-                <FormField
-                  control={form.control}
-                  name="runOnLive"
-                  render={({ field }) => {
-                    const target = form.watch("target");
-                    return (
-                      <div className="flex max-w-4xl flex-col gap-2">
-                        <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                          <div className="space-y-0.5">
-                            <FormLabel>
-                              {isEventTarget(target)
-                                ? "Run on live incoming observations"
-                                : "Run on new experiments"}
-                            </FormLabel>
-                            <FormDescription>
-                              Automatically evaluate new incoming{" "}
-                              {getTargetDisplayName(target)}.
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                              disabled={props.disabled}
-                            />
-                          </FormControl>
-                        </FormItem>
-                        {!field.value && isEventTarget(target) && (
-                          <p className="text-muted-foreground text-xs">
-                            This evaluator can still be used for batched
-                            evaluation of historic observations.{" "}
-                            <a
-                              href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-dark-blue hover:opacity-80"
-                            >
-                              Read the docs
-                            </a>
-                          </p>
-                        )}
-                      </div>
-                    );
-                  }}
-                />
-              )}
-
-            {(isLegacyEvalTarget(form.watch("target")) ||
-              form.watch("runOnLive")) && (
+            {(isLegacyEvalTarget(watchedTarget) || runsOnLiveIncoming) && (
               <>
                 <FormField
                   control={form.control}

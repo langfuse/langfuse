@@ -72,6 +72,7 @@ const PeekViewEvaluatorConfigDetail = ({
             <DeactivateEvalConfig
               projectId={projectId}
               evalConfig={evalConfig}
+              onStatusChange={() => setIsEditMode(false)}
             />
           </div>
         </div>
@@ -161,7 +162,7 @@ const PeekViewEvaluatorConfigDetail = ({
           }
           mode="edit"
           disabled={!isEditMode}
-          runOnLiveStatusOnly
+          showLiveIncomingStatus
           shouldWrapVariables={true}
           useDialog={false}
           onFormSuccess={() => {

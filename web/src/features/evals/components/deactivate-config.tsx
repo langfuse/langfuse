@@ -16,9 +16,11 @@ import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilit
 export function DeactivateEvalConfig({
   projectId,
   evalConfig,
+  onStatusChange,
 }: {
   projectId: string;
   evalConfig: RouterOutputs["evals"]["configById"];
+  onStatusChange?: () => void;
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
@@ -36,40 +38,31 @@ export function DeactivateEvalConfig({
 
   const mutEvaluator = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
+      onStatusChange?.();
       utils.evals.invalidate();
     },
   });
 
-  const onClick = () => {
-    if (!projectId) {
-      console.error("Project ID is missing");
-      return;
-    }
+  const handleConfirm = () => {
     // The popover trigger wraps the switch, so guard the action itself too.
     if (reactivationBlocked) {
       setIsOpen(false);
       return;
     }
 
-    const prevStatus = evalConfig?.status;
-
-    mutEvaluator.mutateAsync({
+    mutEvaluator.mutate({
       projectId,
       evalConfigId: evalConfig?.id ?? "",
       config: {
         status: isActive ? EvaluatorStatus.INACTIVE : EvaluatorStatus.ACTIVE,
       },
     });
-    capture(
-      prevStatus === EvaluatorStatus.ACTIVE
-        ? "eval_config:deactivate"
-        : "eval_config:activate",
-    );
+    capture(isActive ? "eval_config:deactivate" : "eval_config:activate");
     setIsOpen(false);
   };
 
   return (
-    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <div className="flex items-center">
           <Switch
@@ -102,7 +95,7 @@ export function DeactivateEvalConfig({
               evalConfig?.status === "ACTIVE" ? "destructive" : "default"
             }
             loading={mutEvaluator.isPending}
-            onClick={onClick}
+            onClick={handleConfirm}
           >
             {evalConfig?.status === "ACTIVE" ? "Deactivate" : "Activate"}
           </Button>

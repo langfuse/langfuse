@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   EvalTargetObject,
+  JobConfigState,
   type EvalTargetObject as EvalTargetObjectType,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -115,7 +116,7 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
                 templateId={templateId}
                 hideTargetSelection
                 hidePreviewTable
-                defaultRunOnLive={false}
+                createStatus={JobConfigState.INACTIVE}
                 defaultTarget={targetObject}
                 onFormSuccess={() => {
                   handleClose(false);
@@ -133,13 +134,9 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
                   ...values,
                   target: targetObject,
                   timeScope: ["NEW"],
-                  ...(values.runOnLive
-                    ? {}
-                    : {
-                        filter: [],
-                        sampling: 1,
-                        delay: 0,
-                      }),
+                  filter: [],
+                  sampling: 1,
+                  delay: 0,
                 })}
               />
             </div>

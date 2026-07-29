@@ -267,7 +267,7 @@ export default function RemapEvaluatorPage() {
                   hideTargetSelection={true}
                   preventRedirect={true}
                   hideAdvancedSettings={true}
-                  runOnLiveStatusOnly
+                  showLiveIncomingStatus
                   evalCapabilities={evalCapabilities}
                   oldConfigId={evalConfigId}
                   renderFooter={({ isLoading }) => (

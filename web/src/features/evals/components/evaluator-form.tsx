@@ -23,8 +23,8 @@ export const EvaluatorForm = (props: {
   hideTargetSelection?: boolean;
   preventRedirect?: boolean;
   preprocessFormValues?: (values: any) => any;
-  defaultRunOnLive?: boolean;
-  runOnLiveStatusOnly?: boolean;
+  createStatus?: PartialConfig["status"];
+  showLiveIncomingStatus?: boolean;
   hidePreviewTable?: boolean;
   defaultTarget?: EvalTargetObject;
 }) => {
@@ -72,8 +72,8 @@ export const EvaluatorForm = (props: {
           preprocessFormValues={props.preprocessFormValues}
           useDialog={props.useDialog}
           evalCapabilities={evalCapabilities}
-          defaultRunOnLive={props.defaultRunOnLive}
-          runOnLiveStatusOnly={props.runOnLiveStatusOnly}
+          createStatus={props.createStatus}
+          showLiveIncomingStatus={props.showLiveIncomingStatus}
           hidePreviewTable={props.hidePreviewTable}
           defaultTarget={props.defaultTarget}
         />
