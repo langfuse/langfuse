@@ -1767,7 +1767,11 @@ const LoadedSessionEventsPage: React.FC<{
             </div>
           ) : (
             <ModernSession
-              traces={traces ?? []}
+              tracesState={
+                isTracesSuccess
+                  ? { type: "loaded", traces: traces ?? [] }
+                  : { type: "loading" }
+              }
               projectId={projectId}
               sessionId={sessionId}
               openPeek={openPeek}
@@ -1775,7 +1779,6 @@ const LoadedSessionEventsPage: React.FC<{
               filterState={visibleFilterState}
               filterMeasurementKey={visibleFilterMeasurementKey}
               viewLabel={viewLabel}
-              totalCost={session.totalCost ?? 0}
               showInlineToolCalls={showInlineToolCalls}
               showSystemPrompt={showSystemPrompt}
             />
