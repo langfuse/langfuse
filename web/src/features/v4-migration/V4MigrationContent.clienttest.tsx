@@ -212,6 +212,27 @@ describe("V4MigrationDetailsContent", () => {
       { newConversation: true },
     );
   });
+
+  it("opens the assistant when navigation to evals is interrupted", async () => {
+    mocks.migrationData.evals = { status: "loaded", count: 1 };
+    mocks.routerPush.mockRejectedValueOnce(
+      new Error("Abort fetching component for route"),
+    );
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Migrate with assistant" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.setAgentOpen).toHaveBeenCalledWith(true);
+    });
+    expect(mocks.submitAgentMessage).toHaveBeenCalledWith(
+      "eval-upgrade-prompt",
+      { newConversation: true },
+    );
+  });
 });
 
 describe("V4MigrationHeaderContent", () => {

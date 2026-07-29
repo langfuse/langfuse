@@ -429,7 +429,7 @@ export function V4MigrationDetailsContent({
     capture("v4_migration:migrate_evals_with_agent_clicked");
     onNavigate?.();
     if (evalsUrl) {
-      await router.push(evalsUrl);
+      await router.push(evalsUrl).catch(() => undefined);
     }
     setAgentOpen(true);
     await submitAgentMessage(upgradePlan.assistantPrompt, {
