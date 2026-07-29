@@ -4,7 +4,7 @@ import { BaseError, ForbiddenError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
 import { env } from "@/src/env.mjs";
-import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 export async function assertInAppAgentAvailable({
   prisma,
@@ -24,15 +24,11 @@ export async function assertInAppAgentAvailable({
     );
   }
 
-  if (
-    !hasEntitlement({
-      entitlement: "in-app-agent",
-      sessionUser: user,
-      projectId,
-    })
-  ) {
-    throw new ForbiddenError("Assistant is not enabled for this plan");
-  }
+  throwIfNoEntitlement({
+    entitlement: "in-app-agent",
+    sessionUser: user,
+    projectId,
+  });
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
