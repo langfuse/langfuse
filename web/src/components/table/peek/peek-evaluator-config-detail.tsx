@@ -9,7 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { V4MigrationUpdateRequiredAssistantBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
@@ -26,6 +26,9 @@ import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useL
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { EvaluatorStatus } from "@/src/features/evals/types";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -46,6 +49,7 @@ const PeekViewEvaluatorConfigDetail = ({
     evaluatorId: evalConfig?.id,
     evaluator: evalConfig,
   });
+  const canUseAgent = useCanUseInAppAgent();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
@@ -72,6 +76,9 @@ const PeekViewEvaluatorConfigDetail = ({
             <DeactivateEvalConfig
               projectId={projectId}
               evalConfig={evalConfig}
+              // Status changes remount the form below; drop edit mode so
+              // in-progress form state cannot fight the new status.
+              onStatusChange={() => setIsEditMode(false)}
             />
           </div>
         </div>
@@ -88,15 +95,16 @@ const PeekViewEvaluatorConfigDetail = ({
           </span>
           <Switch
             disabled={
-              !hasAccess || (evaluatorRequiresMigration && !allowLegacy)
+              !hasAccess ||
+              (isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy)
             }
             checked={isEditMode}
             onCheckedChange={setIsEditMode}
-            {...(evaluatorRequiresMigration &&
-              !allowLegacy && {
-                title:
-                  "Deprecated evaluators are only available in read-only mode",
-              })}
+            title={
+              isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy
+                ? "Deprecated evaluators are only available in read-only mode"
+                : undefined
+            }
           />
           <DeleteEvalConfigButton
             aria-label="delete"
@@ -114,8 +122,8 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
       </div>
 
-      {evaluatorRequiresMigration && evalConfig.evalTemplate && (
-        <V4MigrationUpdateRequiredAssistantBadge />
+      {evaluatorRequiresMigration && evalConfig.evalTemplate && canUseAgent && (
+        <V4MigrationUpdateRequiredBadge />
       )}
 
       <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />

@@ -43,11 +43,9 @@ export type V4UpgradeAssistantMode =
 
 /**
  * Plans how the in-app assistant participates in the v4 upgrade:
- * - "evals-ready": deprecated evals remain, all trivially repointable
- *   (dataset targets or single-observation mappings, computed server-side as
- *   `allAssistantMigratable`), and the SDK upgrade is not known to be
- *   pending → the assistant migrates the evals.
- * - "sdk-first-choice": evals are assistant-migratable and the SDK upgrade is
+ * - "evals-ready": deprecated evals remain, all repointable
+ *   → the assistant migrates the evals
+ * - "sdk-first-choice": the SDK upgrade is
  *   known to be pending → the assistant asks whether to do the SDK first
  *   (recommended, outside Langfuse) or migrate evals now; legacy and new
  *   evaluators run side by side until the SDK upgrade lands.
@@ -72,15 +70,12 @@ export function useEvalUpgradeAssistantPlan(params: {
     sdk.status === "otel_header_required" ||
     sdk.upgradeRequiredCount > 0;
   const evalsPending = (evalQuery.data?.traceLevelEvalCount ?? 0) > 0;
-  const allAssistantMigratable =
-    evalQuery.data?.allAssistantMigratable === true;
 
-  const mode: V4UpgradeAssistantMode =
-    evalsPending && allAssistantMigratable
-      ? sdkUpgradeKnownPending
-        ? "sdk-first-choice"
-        : "evals-ready"
-      : "outside";
+  const mode: V4UpgradeAssistantMode = evalsPending
+    ? sdkUpgradeKnownPending
+      ? "sdk-first-choice"
+      : "evals-ready"
+    : "outside";
 
   return {
     canUseAssistant,
