@@ -41,7 +41,7 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
-import { LevelColors } from "@/src/components/level-colors";
+import { getLevelColors } from "@/src/components/level-colors";
 import {
   compactNumberFormatter,
   numberFormatter,
@@ -65,7 +65,7 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
-import { ChartNoAxesColumn, InfoIcon, LightbulbIcon } from "lucide-react";
+import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
@@ -131,8 +131,6 @@ import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
-import useLocalStorage from "@/src/components/useLocalStorage";
-import { Button } from "@/src/components/ui/button";
 import {
   chartFilterExclusionReason,
   chartSearchFieldReason,
@@ -414,6 +412,8 @@ export default function ObservationsEventsTable({
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
+      // Invalidate filterOptions too so the "Total ≈ X" count refreshes on the auto tick (re-anchors facets as a side effect).
+      utils.events.filterOptions.invalidate(),
       utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
@@ -431,8 +431,7 @@ export default function ObservationsEventsTable({
     ]);
   }, [utils]);
 
-  // Auto-refresh runs the tick-safe set (rows + chart), NOT the facet
-  // re-anchor — otherwise every tick re-issues facet queries for open columns.
+  // Auto-refresh runs handleAutoRefresh (rows + chart + the "Total ≈ X" filter-options scan).
   useEffect(() => {
     if (!refreshInterval) return;
     const id = setInterval(() => {
@@ -482,13 +481,6 @@ export default function ObservationsEventsTable({
     [dateRange],
   );
 
-  // Pulse strip open/closed — per-user persisted; null = no explicit choice
-  // yet (open on desktop, closed on mobile — resolved below once isMobile is
-  // known).
-  const [pulseClosedStored, setPulseClosed] = useLocalStorage<boolean | null>(
-    "events-outlier-strip-closed",
-    null,
-  );
   // Drill-in writes the clicked bucket as an absolute range. URL-only
   // (pushIn → browser Back restores the outer window) and deliberately NOT
   // persisted as the project's default range — a transient zoom must not
@@ -613,6 +605,9 @@ export default function ObservationsEventsTable({
   const {
     filterOptions,
     isFilterOptionsPending,
+    approxTotalCount,
+    isApproxTotalCountLoading,
+    approxTotalCountIsPartialScope,
     erroredColumns,
     loadingColumns,
     requestColumns,
@@ -620,8 +615,15 @@ export default function ObservationsEventsTable({
     projectId,
     startTimeFilter: facetStartTimeFilter,
     refiningFilter: facetRefiningFilter,
+    // "Total ≈ X" rides the facet scan (uniq(span_id) over facetRefiningFilter); skip for embedded/preview tables.
+    includeApproxCount: !limitRows,
     lazy: true,
   });
+
+  // Partial scope (over-counts) when the server dropped filters (input/output/comment) or a full-text search is active.
+  const approxTotalCountIsPartial =
+    approxTotalCountIsPartialScope ||
+    Boolean(searchQuery && searchQuery.trim().length > 0);
 
   const queryFilter = useSidebarFilterPresentation(
     filterCore,
@@ -768,15 +770,7 @@ export default function ObservationsEventsTable({
   // rest as "not applied" (see chartFilterExclusions below).
   const chartEnabled = !hideControls && !userId && !sessionId;
 
-  // The outlier strip additionally hides on prompt-version-scoped tables:
-  // `promptVersion` is a page-scope prop the aggregate query cannot express
-  // (number filter, not a forwardable dimension), and unlike sidebar facets it
-  // has no "not applied" affordance — the strip would silently aggregate
-  // across ALL versions while the table shows one. (`promptName` forwards.)
-  // External state pins also disqualify it: the strip's drill-in writes the
-  // URL range, which a table on externalDateRange would ignore — chart and
-  // table would silently diverge. (No current surface combines these with
-  // chartEnabled; this encodes the invariant for future mounts.)
+  // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
   const outlierStripEnabled =
     chartEnabled &&
     promptVersion === undefined &&
@@ -930,6 +924,8 @@ export default function ObservationsEventsTable({
     onSettled: () => {
       utils.events.all.invalidate();
       utils.events.countAll.invalidate();
+      // Refresh filterOptions so the "Total ≈ X" count updates after a delete.
+      utils.events.filterOptions.invalidate();
       utils.traces.all.invalidate();
     },
   });
@@ -1092,22 +1088,6 @@ export default function ObservationsEventsTable({
   // checkboxes would do nothing. Omit the select column on mobile until a
   // dedicated mobile action affordance exists.
   const isMobile = useIsMobile();
-  const pulseClosed = pulseClosedStored ?? isMobile;
-  // One reopen affordance for both surfaces: the desktop toolbar slot (left of
-  // Columns) and the mobile header band — mobile defaults to closed, so
-  // without this the strip would be unreachable there.
-  const pulseReopenButton =
-    outlierStripEnabled && chartViewMode !== "chart" && pulseClosed ? (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setPulseClosed(false)}
-        className="h-8 gap-1.5 text-xs"
-      >
-        <ChartNoAxesColumn className="h-3.5 w-3.5" />
-        Pulse
-      </Button>
-    ) : null;
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
@@ -1282,8 +1262,8 @@ export default function ObservationsEventsTable({
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              LevelColors[value].bg,
-              LevelColors[value].text,
+              getLevelColors(value).bg,
+              getLevelColors(value).text,
             )}
           >
             {value}
@@ -2011,7 +1991,6 @@ export default function ObservationsEventsTable({
                 onModeChange={setChartViewMode}
               />
             )}
-            {pulseReopenButton}
           </div>
         )}
         {!hideControls && !isMobile && (
@@ -2094,7 +2073,6 @@ export default function ObservationsEventsTable({
               setRowHeight={setRowHeight}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-              preColumnsSlot={pulseReopenButton ?? undefined}
               viewModeToggle={
                 chartEnabled ? (
                   <ViewModeToggle
@@ -2228,19 +2206,16 @@ export default function ObservationsEventsTable({
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Pulse strip (LFE-14451): table-width, so the facet sidebar keeps
                 its full height (design feedback); hidden in full chart mode. */}
-            {outlierStripEnabled &&
-              chartViewMode !== "chart" &&
-              !pulseClosed && (
-                <EventsOutlierStrip
-                  projectId={projectId}
-                  filterState={filterState}
-                  fromTimestamp={chartTimeWindow.from}
-                  toTimestamp={chartTimeWindow.to}
-                  searchIgnored={Boolean(searchQuery)}
-                  onSelectRange={setTimeRangeTransient}
-                  onClose={() => setPulseClosed(true)}
-                />
-              )}
+            {outlierStripEnabled && chartViewMode !== "chart" && (
+              <EventsOutlierStrip
+                projectId={projectId}
+                filterState={filterState}
+                fromTimestamp={chartTimeWindow.from}
+                toTimestamp={chartTimeWindow.to}
+                searchIgnored={Boolean(searchQuery)}
+                onSelectRange={setTimeRangeTransient}
+              />
+            )}
             {chartEnabled && chartViewMode === "chart" ? (
               <EventsChartView
                 projectId={projectId}
@@ -2292,6 +2267,11 @@ export default function ObservationsEventsTable({
                         hasNextPage: hasMore,
                         hideTotalCount: true,
                         canJumpPages: false,
+                        // Approx observation count ("Total ≈ X"), rides the filter-options scan (async).
+                        approxTotalCount,
+                        isApproxTotalCountLoading,
+                        approxTotalCountIsPartialScope:
+                          approxTotalCountIsPartial,
                         onChange: (updater) => {
                           const newState =
                             typeof updater === "function"
