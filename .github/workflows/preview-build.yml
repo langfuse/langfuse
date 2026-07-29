@@ -416,11 +416,11 @@ jobs:
             const pull_number = context.payload.pull_request.number;
             const host = process.env.PREVIEW_HOST;
 
-            // Exactly one plain line, by request — the markdown link is needed
+            // Exactly one bold line, by request — the markdown link is needed
             // because a schemeless hostname does not auto-link.
             const block = [
               START,
-              `Live preview: [${host}](https://${host})`,
+              `🟡 **Live preview: [${host}](https://${host})**`,
               END,
               "",
               "",
