@@ -69,6 +69,7 @@ export function makeFixtureBins(params: {
       bucketStart: new Date(t),
       count,
       values: {
+        count_count: count,
         sum_totalCost: noData ? null : 0.02 * base * outlier * 5,
         p95_latency: noData ? null : 2000 * base * outlier * 0.6,
         p50_latency: noData ? null : 2000 * base * outlier * 0.35,

@@ -1,5 +1,9 @@
 import { format } from "date-fns";
-import { latencyFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  latencyFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { parseChartTimestamp } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 
 /**
@@ -104,16 +108,19 @@ export function pickChartGranularity(params: {
 // Metric registry
 // ---------------------------------------------------------------------------
 
-export type OutlierStripMetricKey = "cost" | "latency";
+export type OutlierStripMetricKey = "count" | "cost" | "latency";
 export type OutlierStripLatencyAgg = "p95" | "p50";
 export type OutlierStripCostAgg = "sum";
-export type OutlierStripAggKey = OutlierStripLatencyAgg | OutlierStripCostAgg;
+export type OutlierStripAggKey =
+  | "count"
+  | OutlierStripLatencyAgg
+  | OutlierStripCostAgg;
 
 type AggregationDef = {
   /** The user-facing option key (currently 1:1 with the query aggregation). */
   key: OutlierStripAggKey;
   /** The executeQuery aggregation this option lowers to. */
-  queryAggregation: "sum" | "p95" | "p50";
+  queryAggregation: "count" | "sum" | "p95" | "p50";
 };
 
 export type OutlierStripMetricDef = {
@@ -178,6 +185,13 @@ export const OUTLIER_STRIP_METRICS: Record<
   OutlierStripMetricKey,
   OutlierStripMetricDef
 > = {
+  count: {
+    shortLabel: "Count",
+    measure: "count",
+    aggregations: [{ key: "count", queryAggregation: "count" }],
+    fromRaw: (raw) => raw,
+    format: (value) => numberFormatter(value, 0),
+  },
   cost: {
     shortLabel: "Cost",
     measure: "totalCost",
@@ -230,16 +244,14 @@ export const outlierStripResultColumn = (
  */
 export const outlierStripQueryMetrics = (): {
   measure: string;
-  aggregation: "count" | AggregationDef["queryAggregation"];
-}[] => [
-  { measure: "count", aggregation: "count" },
-  ...Object.values(OUTLIER_STRIP_METRICS).flatMap((def) =>
+  aggregation: AggregationDef["queryAggregation"];
+}[] =>
+  Object.values(OUTLIER_STRIP_METRICS).flatMap((def) =>
     def.aggregations.map((agg) => ({
       measure: def.measure,
       aggregation: agg.queryAggregation,
     })),
-  ),
-];
+  );
 
 /** Resolves an aggregation option, falling back to the metric's default. */
 export const resolveAggregation = (
