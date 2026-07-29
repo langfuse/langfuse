@@ -17,7 +17,7 @@ export default function Document() {
     // expected mismatch one level deep (React 19 logs it and can re-render).
     <Html lang="en" suppressHydrationWarning>
       <Head />
-      <body style={{ zoom: 2 }}>
+      <body>
         <Main />
         <div data-overlay-root>
           {LAYER_ORDER.map((name) => (
