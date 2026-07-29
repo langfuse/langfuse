@@ -3,6 +3,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
   isNoisyHttpClientPollEvent,
+  isReactDevtoolsInternalEvent,
 } from "@/src/utils/sentryFilters";
 
 /**
@@ -531,6 +532,75 @@ describe("isDenylistedNoiseEvent", () => {
 
     it("keeps an event with an empty exception value", () => {
       expect(isDenylistedNoiseEvent(exceptionEvent(""))).toBe(false);
+    });
+  });
+});
+
+describe("isReactDevtoolsInternalEvent", () => {
+  describe("drops React DevTools internal probes", () => {
+    it("drops a message-event probe", () => {
+      expect(
+        isReactDevtoolsInternalEvent(
+          messageEvent(
+            "Cannot read properties of undefined (reading '__reactContextDevtoolDebugId')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops an exception-value variant", () => {
+      expect(
+        isReactDevtoolsInternalEvent(
+          exceptionEvent(
+            "Cannot read properties of undefined (reading '__reactContextDevtoolDebugId')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops it when the text lives on event.logentry.message", () => {
+      expect(
+        isReactDevtoolsInternalEvent(
+          logentryEvent(
+            "Cannot read properties of null (reading '__reactContextDevtoolDebugId')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a mixed event: EMPTY exception value but text on message", () => {
+      // An empty-string exception value is not nullish, so a naive `??` chain
+      // would keep it and never look at `message`. `eventText` treats it as
+      // absent, so this still matches.
+      expect(
+        isReactDevtoolsInternalEvent({
+          exception: { values: [{ value: "" }] },
+          message:
+            "Cannot read properties of undefined (reading '__reactContextDevtoolDebugId')",
+        } as unknown as Parameters<typeof isReactDevtoolsInternalEvent>[0]),
+      ).toBe(true);
+    });
+  });
+
+  // The safety contract: a suppression predicate must not swallow real errors.
+  describe("KEEPS real errors (never masks a genuine app error)", () => {
+    it("keeps a real thrown TypeError unrelated to DevTools", () => {
+      expect(
+        isReactDevtoolsInternalEvent(
+          exceptionEvent("TypeError: cannot read x", "TypeError"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an unrelated message event", () => {
+      expect(
+        isReactDevtoolsInternalEvent(messageEvent("some unrelated message")),
+      ).toBe(false);
+    });
+
+    it("keeps an event with no exception/message/logentry text", () => {
+      expect(isReactDevtoolsInternalEvent({} as ErrorEvent)).toBe(false);
     });
   });
 });

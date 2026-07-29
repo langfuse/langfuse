@@ -8,7 +8,7 @@ import {
   PostUnstableDashboardWidgetBody,
   PostUnstableDashboardWidgetView,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { buildDashboardWidgetUrl } from "@/src/utils/product-url";
+import { buildDashboardWidgetUrl } from "@langfuse/shared/src/server";
 
 export const DashboardWidgetFilterBaseSchema = z
   .object({

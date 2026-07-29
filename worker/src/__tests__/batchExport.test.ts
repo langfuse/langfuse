@@ -4955,6 +4955,7 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
       "release",
       "trace_name",
       "parent_observation_id",
+      "is_root_observation",
       "bookmarked",
       "public",
       "created_at",
@@ -4990,6 +4991,7 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     // --- Boolean columns ---
     expect(row.bookmarked).toBe(true);
     expect(row.public).toBe(true);
+    expect(row.is_root_observation).toBe(true);
 
     // --- Numeric columns ---
     expect(row.prompt_version).toBe(1);
@@ -5111,6 +5113,7 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
       "release",
       "trace_name",
       "parent_observation_id",
+      "is_root_observation",
       "bookmarked",
       "public",
       "created_at",

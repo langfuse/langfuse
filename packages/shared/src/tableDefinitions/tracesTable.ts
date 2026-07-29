@@ -218,7 +218,9 @@ export const datasetCol: ColumnDefinition = {
 // Used only for dataset evaluator, not on dataset table
 export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
 
+/** @alias */
 export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
+/** @alias */
 export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 
 export type TraceOptions = {

@@ -282,7 +282,7 @@ export function CodeEvalTemplateFormBody({
             )}
             Format
             <KeyboardShortcut
-              className="ml-2 hidden h-4 sm:inline-flex"
+              className="ml-2 h-4"
               keys={
                 typeof navigator !== "undefined" &&
                 navigator.userAgent.includes("Macintosh")

@@ -163,9 +163,3 @@ export function ChatMessageList({
     </div>
   );
 }
-
-/**
- * OpenAiMessageView - Alias for backwards compatibility.
- * @deprecated Use ChatMessageList instead.
- */
-export const OpenAiMessageView = ChatMessageList;

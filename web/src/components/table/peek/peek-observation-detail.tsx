@@ -8,6 +8,8 @@ import {
   traceDetailTitle,
 } from "@/src/components/trace/TraceDetailBody";
 import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
+import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 
@@ -22,16 +24,13 @@ export const TablePeekViewObservationDetail = (
   const router = useRouter();
 
   const { projectId } = props;
-  const peekId = router.query.peek as string | undefined;
-  const timestampParam = router.query.timestamp as string | undefined;
-
-  // Decode the timestamp parameter before parsing as Date
-  // This handles cases where the timestamp might be URL-encoded
-  const timestamp = timestampParam
-    ? new Date(decodeURIComponent(timestampParam))
-    : undefined;
-
-  const traceId = router.query.traceId as string | undefined;
+  const peekObservationId = router.query.peek as string | undefined;
+  const { traceId, timestamp } = resolvePeekTraceParams({
+    reader: "observation",
+    peek: peekObservationId,
+    traceId: router.query.traceId as string | undefined,
+    timestamp: router.query.timestamp,
+  });
 
   // Live handle on the peeked observation's trace id: an in-flight delete that
   // resolves after K/J-navigation reads the CURRENT trace here, so it only
@@ -51,6 +50,16 @@ export const TablePeekViewObservationDetail = (
         projectId: trace.data.projectId,
         bookmarked: trace.data.bookmarked,
         isPublic: trace.data.public,
+        shareUrl: buildTraceDetailPath({
+          projectId: trace.data.projectId,
+          traceId: trace.data.id,
+          observationId:
+            typeof router.query.traceId === "string"
+              ? peekObservationId
+              : undefined,
+          timestamp:
+            typeof router.query.traceId === "string" ? undefined : timestamp,
+        }),
         name: trace.data.name,
         timestamp,
         onAfterDelete: (deletedTraceId: string) => {
@@ -74,7 +83,11 @@ export const TablePeekViewObservationDetail = (
         ) : undefined
       }
     >
-      <TraceDetailBody trace={trace.data} context="peek" keySuffix={peekId} />
+      <TraceDetailBody
+        trace={trace.data}
+        context="peek"
+        keySuffix={peekObservationId}
+      />
     </TablePeekView>
   );
 };

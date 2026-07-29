@@ -11,8 +11,12 @@ evaluating, and debugging AI applications.
   wire form initial values from loaded data — read
   `.agents/skills/frontend-large-feature-architecture/SKILL.md` first. Most
   such effects should not exist.
-- For bug fixes, write the failing test first, confirm it fails, then fix the
-  bug. If the bug depends on a data shape, pause and ask: can
+- For bug fixes, first write the smallest failing test that proves the reported
+  behavior and confirm it fails against the buggy behavior before changing
+  production code. Add another test only when it exercises a distinct adapter,
+  contract, or execution path. Extend the closest existing test suite; do not
+  create a standalone constant test when an existing feature suite owns the
+  behavior. If the bug depends on a data shape, pause and ask: can
   `pnpm run seed` prefill that shape locally? If not, consider extending a
   seeder scenario so the bug stays cheaply reproducible
   (`packages/shared/scripts/seeder/AGENTS.md`), or note why a seed cannot
@@ -21,6 +25,9 @@ evaluating, and debugging AI applications.
   real browser before signoff. Prefill the data the flow needs with the seed
   CLI (`pnpm run seed -- list` shows scenarios; runs print UI deep links) —
   never with ad-hoc scripts or raw ClickHouse inserts.
+- When fixing an isolated styling issue in an individual component, read
+  `.agents/skills/storybook/SKILL.md` create or update a component story following its
+  guidance first.
 - Every PR auto-builds (via GitHub Actions) a disposable, full-stack preview at
   `pr-<N>.preview.langfuse.com` — nothing to spin up. Use the `langfuse-previews`
   skill to use or debug one, e.g. read a preview's web/worker error logs with

@@ -138,8 +138,13 @@ export class ClickhouseWriter {
 
     const errorMessage = (error as Error).message?.toLowerCase() || "";
 
-    // Check for socket hang up and other network-related errors
-    return errorMessage.includes("socket hang up");
+    // Socket hang up and client-side request timeouts ("Timeout error." from
+    // @clickhouse/client when request_timeout elapses) are transient: a retry
+    // opens a fresh connection that can land on a healthy replica.
+    return (
+      errorMessage.includes("socket hang up") ||
+      errorMessage.includes("timeout error")
+    );
   }
 
   private isSizeError(error: unknown): boolean {

@@ -1,17 +1,21 @@
 import {
+  getClickhouseEntityType,
   instrumentAsync,
   logger,
   processOtelMedia,
   recordDistribution,
-  type OtelMediaEvent,
+  type IngestionEventType,
+  type OtelMediaPayload,
+  type OtelMediaTarget,
+  type OtelMediaWritePath,
   uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
 /**
- * Worker integration point for media in normalized OTEL events. The ingestion
- * queue calls this only for enabled direct events-table writes.
+ * Worker integration point for media in normalized OTEL payloads selected for
+ * persistence by the ingestion queue.
  *
  * Responsibilities are split across three layers:
  * - This adapter filters event shapes and owns storage configuration,
@@ -22,12 +26,13 @@ const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
  *   Data URI/provider-shape detection and replacement algorithm. It has no
  *   knowledge of OTEL, storage, projects, or tracing.
  *
- * Successful replacements mutate each event in place. Missing storage
+ * Successful replacements mutate each target payload in place. Missing storage
  * configuration or unexpected processing errors are logged and swallowed so
  * media extraction cannot reject the enclosing OTEL ingestion job.
  */
 export async function processOtelEventMedia(params: {
-  eventInputs: unknown[];
+  targets: OtelMediaTarget[];
+  writePath: OtelMediaWritePath;
   projectId: string;
   fileKey: string;
   mediaBucket?: string;
@@ -35,7 +40,8 @@ export async function processOtelEventMedia(params: {
   processMedia?: typeof processOtelMedia;
 }): Promise<void> {
   const {
-    eventInputs,
+    targets,
+    writePath,
     projectId,
     fileKey,
     mediaBucket,
@@ -51,8 +57,7 @@ export async function processOtelEventMedia(params: {
     return;
   }
 
-  const events = eventInputs.filter(isOtelMediaEvent);
-  if (events.length === 0) return;
+  if (targets.length === 0) return;
 
   try {
     await instrumentAsync(
@@ -61,8 +66,9 @@ export async function processOtelEventMedia(params: {
         const startedAt = Date.now();
         try {
           const result = await processMedia({
-            events,
+            targets,
             projectId,
+            writePath,
             mediaBucket,
             mediaPrefix,
             uploadMedia: uploadMediaForTrace,
@@ -72,7 +78,9 @@ export async function processOtelEventMedia(params: {
             "langfuse.ingestion.otel.media.uploaded": result.uploaded,
             "langfuse.ingestion.otel.media.reused": result.reused,
             "langfuse.ingestion.otel.media.invalid": result.invalid,
+            "langfuse.ingestion.otel.media.ignored": result.ignored,
             "langfuse.ingestion.otel.media.failed": result.failed,
+            "langfuse.ingestion.otel.media.write_path": writePath,
             "langfuse.ingestion.otel.media.candidates": result.candidates,
             "langfuse.ingestion.otel.media.bytes_processed":
               result.bytesProcessed,
@@ -94,6 +102,7 @@ export async function processOtelEventMedia(params: {
           recordDistribution(
             "langfuse.ingestion.otel.media.batch_byte_length",
             result.bytesProcessed,
+            { write_path: writePath },
           );
           recordDistribution(
             "langfuse.ingestion.otel.media.batch_checked_byte_length",
@@ -101,11 +110,13 @@ export async function processOtelEventMedia(params: {
               (total, bytes) => total + bytes,
               0,
             ),
+            { write_path: writePath },
           );
         } finally {
           recordDistribution(
             "langfuse.ingestion.otel.media.processing_duration_ms",
             Date.now() - startedAt,
+            { write_path: writePath },
           );
         }
       },
@@ -118,15 +129,70 @@ export async function processOtelEventMedia(params: {
   }
 }
 
-function isOtelMediaEvent(value: unknown): value is OtelMediaEvent {
+/**
+ * Creates media targets for direct events-table inputs without cloning their
+ * potentially large input, output, or metadata values.
+ */
+export function createDirectOtelMediaTargets(
+  eventInputs: unknown[],
+): OtelMediaTarget[] {
+  const targets: OtelMediaTarget[] = [];
+  for (const value of eventInputs) {
+    if (!isRecordWithMediaFields(value)) continue;
+    if (typeof value.traceId !== "string" || typeof value.spanId !== "string") {
+      continue;
+    }
+    targets.push({
+      traceId: value.traceId,
+      observationId: value.spanId,
+      payload: value,
+    });
+  }
+  return targets;
+}
+
+/**
+ * Creates media targets for normalized legacy trace and observation events.
+ *
+ * The returned targets reference each event's existing `body`; successful
+ * replacements therefore reach both legacy persistence and event forwarding
+ * without copying or synchronizing large payloads.
+ */
+export function createLegacyOtelMediaTargets(
+  events: IngestionEventType[],
+): OtelMediaTarget[] {
+  const targets: OtelMediaTarget[] = [];
+  for (const event of events) {
+    const body: unknown = event.body;
+    if (!isRecordWithMediaFields(body)) continue;
+
+    const entityType = getClickhouseEntityType(event.type);
+    if (entityType === "trace" && typeof body.id === "string") {
+      targets.push({ traceId: body.id, payload: body });
+      continue;
+    }
+    if (
+      entityType === "observation" &&
+      typeof body.traceId === "string" &&
+      typeof body.id === "string"
+    ) {
+      targets.push({
+        traceId: body.traceId,
+        observationId: body.id,
+        payload: body,
+      });
+    }
+  }
+  return targets;
+}
+
+function isRecordWithMediaFields(
+  value: unknown,
+): value is Record<string, unknown> & OtelMediaPayload {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
 
-  const event = value as Record<string, unknown>;
-  return (
-    typeof event.traceId === "string" &&
-    typeof event.spanId === "string" &&
-    MEDIA_FIELDS.some((field) => event[field] != null)
-  );
+  const record = value as Record<string, unknown>;
+  return MEDIA_FIELDS.some((field) => record[field] != null);
 }

@@ -1,6 +1,6 @@
 ---
 name: housekeeping
-description: Review an engineer's recurring work queue across Linear, Pylon, and GitHub. Use when asked to triage assigned issues, waiting or urgent work, customer-support follow-ups, stale tickets, or pull requests where the engineer is a direct or team reviewer; return concrete action recommendations and gate all writes on explicit human approval.
+description: Triage an engineer's work queue across Linear, Pylon, and GitHub. Use for assigned, urgent, waiting, or stale issues, support follow-ups, and PR reviews.
 ---
 
 # Housekeeping

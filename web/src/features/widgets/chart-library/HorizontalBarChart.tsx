@@ -157,5 +157,3 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
     </ChartContainer>
   );
 };
-
-export default HorizontalBarChart;

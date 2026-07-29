@@ -89,6 +89,21 @@ Always fetch pricing from the provider's official docs before editing.
   Long context prices: sol $10/$1.00/$45, terra $5/$0.50/$22.50, luna $2/$0.20/$9
   per MTok input/cached/output. Added Large Context (>272K) tiers to the pricing file in
   July 2026. The threshold of 272K is unique to this family; most other models use 200K.
+- **Gemini 3.6 Flash (added July 2026)** — `gemini-3.6-flash` appeared on the official AI Studio
+  pricing page in July 2026 at $1.50/MTok input, $7.50/MTok output, cache read $0.15/MTok
+  (10% cache-read ratio). No large-context tier. Added to pricing file and selectable model lists
+  (`vertexAIModels`, `googleAIStudioModels`) in the July 22 2026 audit. Note: despite the higher
+  version number, output price ($7.50) is lower than gemini-3.5-flash ($9.00); this is correct
+  per the official page (improved efficiency at same input price).
+- **Gemini 3.5 Flash-Lite (added July 2026)** — `gemini-3.5-flash-lite` appeared on the official
+  AI Studio pricing page in July 2026 at $0.30/MTok input, $2.50/MTok output. No large-context
+  tier. **Context caching is NOT available** for this model (explicitly listed as "Not available"
+  on the official AI Studio pricing page for all tiers — Standard, Batch, Flex, Priority).
+  The entry was initially added on July 22 2026 with cache pricing; the cache keys were
+  removed on July 23 2026 after official confirmation. Do NOT add cache pricing for this model
+  unless the official page explicitly adds it. Follows the same selectable-model pattern as
+  gemini-3.1-flash-lite.
+- **Claude Opus 5 (added July 2026)** — `claude-opus-5` appeared on the official Anthropic pricing and models pages in July 2026. API ID: `claude-opus-5` (no date suffix, pinned snapshot). Bedrock ID: `anthropic.claude-opus-5`. Google Cloud ID: `claude-opus-5`. Pricing: $5/$25 MTok input/output, 5m cache $6.25/MTok, 1h cache $10/MTok, cache read $0.50/MTok — same as Opus 4.8/4.7/4.6. The model is in the flat long-context list (1M token context at standard pricing; no Large Context tier). Fast mode is available at $10/$50 MTok (shared price point with Opus 4.8). Added to pricing file and `anthropicModels` in the July 25 2026 audit. matchPattern: `(?i)^((anthropic\/)?claude-opus-5|(eu\.|us\.|apac\.|global\.)?anthropic\.claude-opus-5(-v1(:0)?)?)$`.
 - **gpt-5-chat-latest confirmed pricing** — This alias has confirmed pricing at $1.25/MTok
   input, $0.125/MTok cached input, $10.00/MTok output, verified via its specific model page
   `https://developers.openai.com/api/docs/models/gpt-5-chat-latest` (July 2026 audit).
@@ -96,6 +111,14 @@ Always fetch pricing from the provider's official docs before editing.
   "$5/$30", which was confusion with gpt-5.6-sol pricing. When a pricing summary for a
   model alias appears inconsistent with what the file holds, always fetch the specific
   model page (`https://developers.openai.com/api/docs/models/<model-id>`) to confirm.
+- **gpt-5.3-codex (added July 2026)** — `gpt-5.3-codex` appeared on the OpenAI pricing
+  page and model page in July 2026, described as "the most capable agentic coding model".
+  Pricing: $1.75/MTok input, $0.175/MTok cached input, $14.00/MTok output. Context window:
+  400k tokens; max output 128k tokens. No large-context tier. No date-stamped snapshot at
+  launch. Standard OpenAI matchPattern: `(?i)^(openai\/)?(gpt-5.3-codex)$`. Added to pricing
+  file and `openAIModels` in July 27 2026 audit. Official sources:
+  `https://developers.openai.com/api/docs/pricing` and
+  `https://developers.openai.com/api/docs/models/gpt-5.3-codex`.
 
 Capture:
 

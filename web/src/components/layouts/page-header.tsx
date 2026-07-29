@@ -1,4 +1,5 @@
-import { EnvLabel } from "@/src/components/EnvLabel";
+import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
+import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
@@ -13,30 +14,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import {
+  PageTabs,
+  type PageTabsProps,
+} from "@/src/components/layouts/page-tabs";
 import { cn } from "@/src/utils/tailwind";
-import Link from "next/link";
-import { useRouter } from "next/router";
-import { type ParsedUrlQuery } from "querystring";
 import { type ReactNode } from "react";
-
-type TabDefinition = {
-  value: string;
-  label: string;
-  href?: string;
-  onClick?: () => void;
-  querySelector?: (
-    query: ParsedUrlQuery,
-  ) => Record<string, string | string[] | undefined>;
-  disabled?: boolean;
-  className?: string;
-};
-
-type PageTabsProps = {
-  tabs: TabDefinition[];
-  activeTab: string;
-  className?: string;
-  listClassName?: string;
-};
 
 const containerLayoutClassName =
   "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
@@ -49,6 +32,13 @@ export type PageHeaderProps = {
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
+  /** Mobile-only: the same actions rendered as full-width labeled menu rows
+   * (icon + label), for the compact header's `⋯` overflow. Pages pass a
+   * `layout="menu"` variant of their actions here (mirrors the table peek's
+   * `actionsMenu`). When omitted, the mobile header falls back to folding the
+   * inline `actionButtonsRight`/`actionButtonsLeft` nodes as-is. Desktop
+   * `PageHeader` ignores this. */
+  actionButtonsMenu?: React.ReactNode;
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;
@@ -78,8 +68,8 @@ const PageHeader = ({
   titleBadges,
   breadcrumbBadges,
 }: PageHeaderProps) => {
-  const router = useRouter();
   const hasAppSidebar = useHasAppSidebar();
+  const envLabel = useEnvLabel();
   // The sidebar trigger + brand mark only make sense where a real AppSidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
@@ -124,7 +114,12 @@ const PageHeader = ({
                 )
               )}
               <div>
-                <EnvLabel />
+                {envLabel.visible && (
+                  <EnvLabelBadge
+                    region={envLabel.region}
+                    onClick={envLabel.dismiss}
+                  />
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <BreadcrumbComponent items={breadcrumb} />
@@ -225,52 +220,10 @@ const PageHeader = ({
           </div>
 
           {tabsProps && (
-            <div className={cn("ml-2", tabsProps.className)}>
-              <div
-                className={cn(
-                  "inline-flex h-8 items-center justify-start",
-                  tabsProps.listClassName,
-                )}
-              >
-                {tabsProps.tabs.map((tab) => {
-                  const tabClassName = cn(
-                    "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground font-bold inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
-                    tab.value === tabsProps.activeTab
-                      ? "border-primary-accent text-foreground bg-transparent shadow-none"
-                      : "",
-                    tab.disabled && "pointer-events-none opacity-50",
-                    tab.className,
-                  );
-
-                  if (tab.onClick) {
-                    return (
-                      <button
-                        key={tab.value}
-                        type="button"
-                        onClick={tab.onClick}
-                        className={tabClassName}
-                        disabled={tab.disabled}
-                      >
-                        {tab.label}
-                      </button>
-                    );
-                  }
-
-                  return (
-                    <Link
-                      key={tab.value}
-                      href={{
-                        pathname: tab.href ?? "",
-                        query: tab.querySelector?.(router.query),
-                      }}
-                      className={tabClassName}
-                    >
-                      {tab.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
+            <PageTabs
+              {...tabsProps}
+              className={cn("ml-2", tabsProps.className)}
+            />
           )}
         </div>
       </div>

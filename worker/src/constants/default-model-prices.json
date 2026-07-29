@@ -1287,9 +1287,9 @@
   {
     "id": "cltgy0iuw000008le3vod1hhy",
     "modelName": "claude-3-opus-20240229",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3-opus-20240229|anthropic\\.claude-3-opus-20240229-v1:0|claude-3-opus@20240229)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-opus-20240229|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3-opus-20240229-v1:0|claude-3-opus@20240229)$",
     "createdAt": "2024-03-07T17:55:38.139Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1308,9 +1308,9 @@
   {
     "id": "cltgy0pp6000108le56se7bl3",
     "modelName": "claude-3-sonnet-20240229",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3-sonnet-20240229|anthropic\\.claude-3-sonnet-20240229-v1:0|claude-3-sonnet@20240229)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-sonnet-20240229|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3-sonnet-20240229-v1:0|claude-3-sonnet@20240229)$",
     "createdAt": "2024-03-07T17:55:38.139Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1338,9 +1338,9 @@
   {
     "id": "cltr0w45b000008k1407o9qv1",
     "modelName": "claude-3-haiku-20240307",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3-haiku-20240307|anthropic\\.claude-3-haiku-20240307-v1:0|claude-3-haiku@20240307)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-haiku-20240307|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3-haiku-20240307-v1:0|claude-3-haiku@20240307)$",
     "createdAt": "2024-03-14T09:41:18.736Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1537,9 +1537,9 @@
   {
     "id": "clxt0n0m60000pumz1j5b7zsf",
     "modelName": "claude-3-5-sonnet-20240620",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20240620|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-sonnet-20240620-v1:0|claude-3-5-sonnet@20240620)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20240620|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3-5-sonnet-20240620-v1:0|claude-3-5-sonnet@20240620)$",
     "createdAt": "2024-06-25T11:47:24.475Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1747,9 +1747,9 @@
   {
     "id": "cm2krz1uf000208jjg5653iud",
     "modelName": "claude-3.5-sonnet-20241022",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20241022|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-sonnet-20241022-v2:0|claude-3-5-sonnet-V2@20241022)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20241022|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3-5-sonnet-20241022-v2:0|claude-3-5-sonnet-V2@20241022)$",
     "createdAt": "2024-10-22T18:48:01.676Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1807,9 +1807,9 @@
   {
     "id": "cm34aq60d000207ml0j1h31ar",
     "modelName": "claude-3-5-haiku-20241022",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-20241022|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-haiku-20241022-v1:0|claude-3-5-haiku-V1@20241022)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-20241022|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3-5-haiku-20241022-v1:0|claude-3-5-haiku-V1@20241022)$",
     "createdAt": "2024-11-05T10:30:50.566Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2157,9 +2157,9 @@
   {
     "id": "cm7ka7561000108js3t9tb3at",
     "modelName": "claude-3.7-sonnet-20250219",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3.7-sonnet-20250219|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3.7-sonnet-20250219-v1:0|claude-3-7-sonnet-V1@20250219)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3.7-sonnet-20250219|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-3.7-sonnet-20250219-v1:0|claude-3-7-sonnet-V1@20250219)$",
     "createdAt": "2025-02-25T09:35:39.000Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2573,9 +2573,9 @@
   {
     "id": "c5qmrqolku82tra3vgdixmys",
     "modelName": "claude-sonnet-4-5-20250929",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5(-20250929)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-5(-20250929)?-v1(:0)?|claude-sonnet-4-5-V1(@20250929)?|claude-sonnet-4-5(@20250929)?)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5(-20250929)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-4-5(-20250929)?-v1(:0)?|claude-sonnet-4-5-V1(@20250929)?|claude-sonnet-4-5(@20250929)?)$",
     "createdAt": "2025-09-29T00:00:00.000Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2630,9 +2630,9 @@
   {
     "id": "cmazmkzlm00000djp1e1qe4k4",
     "modelName": "claude-sonnet-4-20250514",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4(-20250514)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4(-20250514)?-v1(:0)?|claude-sonnet-4-V1(@20250514)?|claude-sonnet-4(@20250514)?)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4(-20250514)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-4(-20250514)?-v1(:0)?|claude-sonnet-4-V1(@20250514)?|claude-sonnet-4(@20250514)?)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2690,9 +2690,9 @@
   {
     "id": "cmazmlm2p00020djpa9s64jw5",
     "modelName": "claude-opus-4-20250514",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4(-20250514)?|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4(-20250514)?-v1(:0)?|claude-opus-4(@20250514)?)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4(-20250514)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4(-20250514)?-v1(:0)?|claude-opus-4(@20250514)?)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2878,9 +2878,9 @@
   {
     "id": "cmdysde5w0000rkmzbc1g5au3",
     "modelName": "claude-opus-4-1-20250805",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-1(-20250805)?|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-1(-20250805)?-v1(:0)?|claude-opus-4-1(@20250805)?)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-1(-20250805)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-1(-20250805)?-v1(:0)?|claude-opus-4-1(@20250805)?)$",
     "createdAt": "2025-08-05T15:00:00.000Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -3174,9 +3174,9 @@
   {
     "id": "cmgt5gnkv000104jx171tbq4e",
     "modelName": "claude-haiku-4-5-20251001",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5(-20251001)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5(-20251001)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
     "createdAt": "2025-10-16T08:20:44.558Z",
-    "updatedAt": "2026-04-20T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -3264,9 +3264,9 @@
   {
     "id": "cmieupdva000004l541kwae70",
     "modelName": "claude-opus-4-5-20251101",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5(-20251101)?|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-5(-20251101)?-v1(:0)?|claude-opus-4-5(@20251101)?)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5(-20251101)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-5(-20251101)?-v1(:0)?|claude-opus-4-5(@20251101)?)$",
     "createdAt": "2025-11-24T20:53:27.571Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3295,9 +3295,9 @@
   {
     "id": "90ec5ec3-1a48-4ff0-919c-70cdb8f632ed",
     "modelName": "claude-sonnet-4-6",
-    "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-6(-v1(:0)?)?|claude-sonnet-4-6)$",
+    "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-4-6(-v1(:0)?)?|claude-sonnet-4-6)$",
     "createdAt": "2026-02-18T00:00:00.000Z",
-    "updatedAt": "2026-06-29T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3326,9 +3326,9 @@
   {
     "id": "13458bc0-1c20-44c2-8753-172f54b67647",
     "modelName": "claude-opus-4-6",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
     "createdAt": "2026-02-09T00:00:00.000Z",
-    "updatedAt": "2026-04-13T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3357,9 +3357,9 @@
   {
     "id": "d506b291-cc9c-4833-9014-0f387a8e1cc8",
     "modelName": "claude-opus-4-7",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-7|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-7-v1(:0)?|claude-opus-4-7)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-7|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-7-v1(:0)?|claude-opus-4-7)$",
     "createdAt": "2026-04-16T00:00:00.000Z",
-    "updatedAt": "2026-04-16T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3388,9 +3388,9 @@
   {
     "id": "80753fd5-342b-4ed3-bbb1-57d3d57b7e03",
     "modelName": "claude-opus-4-8",
-    "matchPattern": "(?i)^((anthropic\/)?claude-opus-4-8|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-8(-v1(:0)?)?)$",
+    "matchPattern": "(?i)^((anthropic\/)?claude-opus-4-8|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-8(-v1(:0)?)?)$",
     "createdAt": "2026-05-28T00:00:00.000Z",
-    "updatedAt": "2026-05-28T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3419,9 +3419,9 @@
   {
     "id": "0b9a828d-9fdc-46d4-b5ec-f6574c42ad65",
     "modelName": "claude-fable-5",
-    "matchPattern": "(?i)^((anthropic\/)?claude-fable-5|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-fable-5(-v1(:0)?)?)$",
+    "matchPattern": "(?i)^((anthropic\/)?claude-fable-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-fable-5(-v1(:0)?)?)$",
     "createdAt": "2026-06-09T00:00:00.000Z",
-    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3481,9 +3481,9 @@
   {
     "id": "7c2e1f89-3a54-4b67-9d21-58e634b79a0c",
     "modelName": "claude-sonnet-5",
-    "matchPattern": "(?i)^((anthropic\\/)?claude-sonnet-5|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-5(-v1(:0)?)?)$",
+    "matchPattern": "(?i)^((anthropic\\/)?claude-sonnet-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-5(-v1(:0)?)?)$",
     "createdAt": "2026-07-01T00:00:00.000Z",
-    "updatedAt": "2026-07-01T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3505,6 +3505,37 @@
           "cache_read_input_tokens": 2e-7,
           "input_cached_tokens": 2e-7,
           "input_cache_read": 2e-7
+        }
+      }
+    ]
+  },
+  {
+    "id": "a5b2c3d4-e5f6-4789-8abc-def012345678",
+    "modelName": "claude-opus-5",
+    "matchPattern": "(?i)^((anthropic\\/)?claude-opus-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-5(-v1(:0)?)?)$",
+    "createdAt": "2026-07-25T00:00:00.000Z",
+    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "a5b2c3d4-e5f6-4789-8abc-def012345678_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_tokens": 5e-6,
+          "output": 25e-6,
+          "output_tokens": 25e-6,
+          "cache_creation_input_tokens": 6.25e-6,
+          "input_cache_creation": 6.25e-6,
+          "input_cache_creation_5m": 6.25e-6,
+          "input_cache_creation_1h": 10e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6
         }
       }
     ]
@@ -3835,6 +3866,36 @@
           "output": 168e-6,
           "output_reasoning_tokens": 168e-6,
           "output_reasoning": 168e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "f1e2d3c4-b5a6-4789-8abc-0d1e2f3a4b5c",
+    "modelName": "gpt-5.3-codex",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.3-codex)$",
+    "createdAt": "2026-07-27T00:00:00.000Z",
+    "updatedAt": "2026-07-29T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "f1e2d3c4-b5a6-4789-8abc-0d1e2f3a4b5c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.75e-6,
+          "input_cached_tokens": 0.175e-6,
+          "input_cache_read": 0.175e-6,
+          "output": 14e-6,
+          "output_reasoning_tokens": 14e-6,
+          "output_reasoning": 14e-6
         }
       }
     ]
@@ -4456,6 +4517,80 @@
           "input_image": 3e-6,
           "output_text": 2e-6,
           "output_audio": 12e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "modelName": "gemini-3.6-flash",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.6-flash)$",
+    "createdAt": "2026-07-22T00:00:00.000Z",
+    "updatedAt": "2026-07-22T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.5e-6,
+          "input_text": 1.5e-6,
+          "input_modality_1": 1.5e-6,
+          "prompt_token_count": 1.5e-6,
+          "promptTokenCount": 1.5e-6,
+          "input_cached_tokens": 0.15e-6,
+          "cached_content_token_count": 0.15e-6,
+          "output": 7.5e-6,
+          "output_text": 7.5e-6,
+          "output_modality_1": 7.5e-6,
+          "candidates_token_count": 7.5e-6,
+          "candidatesTokenCount": 7.5e-6,
+          "thoughtsTokenCount": 7.5e-6,
+          "thoughts_token_count": 7.5e-6,
+          "output_reasoning_tokens": 7.5e-6,
+          "output_reasoning": 7.5e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      }
+    ]
+  },
+  {
+    "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+    "modelName": "gemini-3.5-flash-lite",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash-lite)$",
+    "createdAt": "2026-07-22T00:00:00.000Z",
+    "updatedAt": "2026-07-23T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.3e-6,
+          "input_text": 0.3e-6,
+          "input_modality_1": 0.3e-6,
+          "prompt_token_count": 0.3e-6,
+          "promptTokenCount": 0.3e-6,
+          "output": 2.5e-6,
+          "output_text": 2.5e-6,
+          "output_modality_1": 2.5e-6,
+          "candidates_token_count": 2.5e-6,
+          "candidatesTokenCount": 2.5e-6,
+          "thoughtsTokenCount": 2.5e-6,
+          "thoughts_token_count": 2.5e-6,
+          "output_reasoning_tokens": 2.5e-6,
+          "output_reasoning": 2.5e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
         }
       }
     ]

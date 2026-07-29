@@ -144,6 +144,40 @@ function coreMessage(value: string): string {
 }
 
 /**
+ * True for React DevTools' internal probes against React's private fiber
+ * properties (`__reactContextDevtoolDebugId` and similar). These are benign:
+ * DevTools reads properties React does not guarantee exist, and the resulting
+ * failure is DevTools' own instrumentation, not a Langfuse app bug — it fires
+ * only when the extension is attached and installs its own probes.
+ *
+ * Matched against ALL text fields (exception value, message-event text, and
+ * the `logentry` fallback) because these can arrive as either an exception or
+ * a message event depending on how DevTools triggers the failure.
+ */
+/**
+ * The event's first NON-EMPTY text field — the exception value, else the
+ * message-event text, else the `logentry` fallback. An empty-string exception
+ * value is treated as absent (not nullish, so `??` alone would keep it), so a
+ * "mixed" event — empty exception value but real text on `message` — still
+ * matches on the message rather than being silently skipped.
+ */
+function eventText(event: ErrorEvent): string {
+  const exceptionValue = event.exception?.values?.[0]?.value;
+  return (
+    (typeof exceptionValue === "string" && exceptionValue.length > 0
+      ? exceptionValue
+      : undefined) ??
+    event.message ??
+    event.logentry?.message ??
+    ""
+  );
+}
+
+export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
+  return eventText(event).includes("__reactContextDevtoolDebugId");
+}
+
+/**
  * True for known-benign CLIENT-side noise that cannot be a real Langfuse app
  * bug: browser-level network/transport failures, transient framework/vendor
  * poll logs, and expected browser-permission / cancellation artifacts. Returning
@@ -179,17 +213,13 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   const exception = event.exception?.values?.[0];
   const exceptionType = exception?.type;
   const exceptionValue = exception?.value;
-  const hasExceptionValue =
-    typeof exceptionValue === "string" && exceptionValue.length > 0;
 
-  // The message-signature rules run against the exception value when present,
-  // otherwise the message-event text (console-origin noise has no exception).
-  const messageText =
-    (hasExceptionValue ? exceptionValue : undefined) ??
-    event.message ??
-    event.logentry?.message;
+  // Message-signature rules run against the first non-empty text field
+  // (exception value → message → logentry); `eventText` treats an empty
+  // exception value as absent so mixed events still match on the message.
+  const messageText = eventText(event);
 
-  if (typeof messageText === "string" && messageText.length > 0) {
+  if (messageText.length > 0) {
     const core = coreMessage(messageText);
 
     // --- A. Transport / connectivity (whole-message match after unwrapping) ---

@@ -304,5 +304,3 @@ export function BillingInvoiceTable() {
     </div>
   );
 }
-
-export default BillingInvoiceTable;

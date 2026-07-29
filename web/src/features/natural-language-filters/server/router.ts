@@ -8,16 +8,14 @@ import {
   ChatMessageType,
   LangfuseInternalTraceEnvironment,
   logger,
+  generateLangfuseAIText,
+  getLangfuseAITraceSinkParams,
+  isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
 import { parseFiltersFromCompletion, getLangfuseClient } from "./utils";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  generateLangfuseAIText,
-  getLangfuseAITraceSinkParams,
-  isLangfuseAITracingConfigured,
-} from "@/src/features/ai-features/server/bedrockCompletion";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure

@@ -24,11 +24,11 @@ the detail behind its rules.
   reaches Sentry; it does not. (Treat "Sentry = frontend-only" until a decision
   says otherwise.)
 - **Filter predicates** live in [`web/src/utils/sentryFilters.ts`](../../../../web/src/utils/sentryFilters.ts)
-  with unit tests in `sentryFilters.clienttest.ts`; `beforeSend` calls them.
-  `beforeSend` also still carries two legacy inline checks (invalid-href,
-  React-devtools) that predate this convention and read only
-  `event.exception.values[0].value` — a known gap to migrate into named,
-  all-field predicates. Add new filters only as predicates here, never inline.
+  with unit tests in `sentryFilters.clienttest.ts`; `beforeSend` only calls
+  these named predicates and holds no inline checks (the former invalid-href
+  and React-devtools inline checks were removed / migrated to
+  `isReactDevtoolsInternalEvent` in #15276). Add new filters only as predicates
+  here, never inline.
 - **The tRPC seam** is `handleTrpcError` in [`web/src/utils/api.ts`](../../../../web/src/utils/api.ts):
   every query/mutation error flows through it — the single place to classify.
   PR #15243 drops expected `data.code`s (`NOT_FOUND` / `FORBIDDEN` /

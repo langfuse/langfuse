@@ -229,8 +229,12 @@ const PublicEnvironmentName = z
   .string()
   .toLowerCase()
   .transform((val) => {
-    // Strip leading "langfuse" prefix (with optional separator)
-    const stripped = val.replace(/^langfuse[-_]?/, "");
+    // Strip all leading "langfuse" prefixes (with optional separator). The
+    // repeated strip keeps normalization idempotent — values now pass through
+    // this schema twice on the OTel path (extractEnvironment, then the
+    // ingestion event parse) — and closes the reserved-namespace bypass where
+    // "langfuselangfuse-x" survived a single-pass strip as "langfuse-x".
+    const stripped = val.replace(/^(?:langfuse[-_]?)+/, "");
     // Truncate to 40 chars, validate allowed chars
     const truncated = stripped.slice(0, 40);
     if (!truncated || !/^[a-z0-9-_]+$/.test(truncated)) {
@@ -255,6 +259,22 @@ const InternalEnvironmentName = z
 
 /** @deprecated Use PublicEnvironmentName or InternalEnvironmentName instead */
 export const EnvironmentName = PublicEnvironmentName;
+
+/**
+ * Normalizes an environment value outside of a full ingestion event parse,
+ * e.g. for the direct OTel events_full write path. Applies the same rules as
+ * the ingestion event schemas: public values are lowercased and lose the
+ * reserved "langfuse" prefix; internal values keep it so internal traces stay
+ * in the "langfuse-*" namespace (see createIngestionEventSchema).
+ */
+export const normalizeEnvironment = (
+  value: unknown,
+  opts?: { isLangfuseInternal?: boolean },
+): string =>
+  (opts?.isLangfuseInternal
+    ? InternalEnvironmentName
+    : PublicEnvironmentName
+  ).parse(value);
 
 export const eventTypes = {
   TRACE_CREATE: "trace-create",
