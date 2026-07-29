@@ -36,10 +36,13 @@ Pushing updates it; closing the PR tears it down.
   pinned at the top of the PR description (removed again on teardown), and a
   deployment in the shared GitHub `PR Preview` environment gives the PR a
   **View deployment** button. No manual step, no label to add.
-- **Log in** — use the credentials in the **bot's PR comment** (the source of
-  truth). The demo project's shared seed identity is `demo@langfuse.com` /
-  `password`, with API keys `pk-lf-1234567890` / `sk-lf-1234567890` — shared and
-  synthetic, so never treat a preview as private.
+- **Log in** — previews sign you in automatically as the shared demo user; just
+  open the URL. To use the regular sign-in flow instead (e.g. to test auth
+  changes), open `/auth/sign-in?autoSignIn=false` and use the credentials in
+  the **bot's PR comment** (the source of truth). The demo project's shared
+  seed identity is `demo@langfuse.com` / `password`, with API keys
+  `pk-lf-1234567890` / `sk-lf-1234567890` — shared and synthetic, so never
+  treat a preview as private.
 - **Know where you are** — every preview page shows a top strip linking back
   to the PR, with the author and when the preview content last changed.
 - **Update** — push to the PR; it rebuilds and rolls to the new image (~5 min,
