@@ -93,8 +93,10 @@ function useEvalUpdateRequiredBadgeState() {
   return { project, organization, enabled, visible };
 }
 
-/** Opens the v4 migration drawer — for page-level surfaces where the drawer
- * is fully visible (e.g. the evaluators page header). */
+/**
+ * Opens the v4 migration drawer for page-level surfaces where it is fully
+ * visible, such as the evaluators page header.
+ */
 export function V4MigrationUpdateRequiredBadge() {
   const openMigrationPanel = useOpenV4MigrationPanel();
   const capture = usePostHogClientCapture();
