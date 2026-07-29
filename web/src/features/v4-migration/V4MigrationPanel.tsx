@@ -54,6 +54,7 @@ export const V4MigrationPanel = ({
         <div className="bg-background sticky top-0 z-[1] px-4 pt-4">
           <V4MigrationHeaderContent
             projectName={project?.name}
+            projectId={project?.id}
             onNavigate={() => setOpen(false)}
           />
           <Separator className="mt-6" />
