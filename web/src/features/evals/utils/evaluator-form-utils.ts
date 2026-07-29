@@ -104,10 +104,6 @@ export function getJsonPathCompatibilityWarning(
 
   const selectorWithoutStrings = stripJsonPathStringLiterals(selector);
 
-  if (/[\u2018\u2019\u201c\u201d]/u.test(selectorWithoutStrings)) {
-    return "Smart quotes are not supported in JSONPath. Use straight quotes (' or \") instead.";
-  }
-
   if (/\[\s*\?/u.test(selectorWithoutStrings)) {
     return "Filter expressions ([?...]) are not supported and will not be applied.";
   }

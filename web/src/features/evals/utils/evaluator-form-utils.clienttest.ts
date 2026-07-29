@@ -27,14 +27,9 @@ describe("getJsonPathCompatibilityWarning", () => {
         "Negative array indices (for example, [-1]) are not supported. Use a slice such as [-1:] instead.",
     },
     {
-      selector: "$[‘items’]",
-      expected:
-        "Smart quotes are not supported in JSONPath. Use straight quotes (' or \") instead.",
-    },
-    {
       selector: "$[‘items’][?@.a]",
       expected:
-        "Smart quotes are not supported in JSONPath. Use straight quotes (' or \") instead.",
+        "Filter expressions ([?...]) are not supported and will not be applied.",
     },
   ])("warns about unsupported selector $selector", ({ selector, expected }) => {
     expect(getJsonPathCompatibilityWarning(selector)).toBe(expected);
@@ -50,6 +45,8 @@ describe("getJsonPathCompatibilityWarning", () => {
     "$['property[(@.length - 1)]']",
     '$["Don’t"]',
     "$['it’s'].a",
+    "$.Don’t",
+    "$[‘items’]",
   ])("does not warn about supported selector %s", (selector) => {
     expect(getJsonPathCompatibilityWarning(selector)).toBeNull();
   });
