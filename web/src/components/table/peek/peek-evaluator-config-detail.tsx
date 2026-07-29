@@ -28,7 +28,6 @@ import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/Langfu
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
-import { EvaluatorStatus } from "@/src/features/evals/types";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,

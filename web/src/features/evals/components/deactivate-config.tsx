@@ -43,7 +43,7 @@ export function DeactivateEvalConfig({
     },
   });
 
-  const onClick = () => {
+  const onClick = async () => {
     if (!projectId) {
       console.error("Project ID is missing");
       return;
@@ -56,13 +56,19 @@ export function DeactivateEvalConfig({
 
     const prevStatus = evalConfig?.status;
 
-    mutEvaluator.mutateAsync({
-      projectId,
-      evalConfigId: evalConfig?.id ?? "",
-      config: {
-        status: isActive ? EvaluatorStatus.INACTIVE : EvaluatorStatus.ACTIVE,
-      },
-    });
+    try {
+      await mutEvaluator.mutateAsync({
+        projectId,
+        evalConfigId: evalConfig?.id ?? "",
+        config: {
+          status: isActive ? EvaluatorStatus.INACTIVE : EvaluatorStatus.ACTIVE,
+        },
+      });
+    } catch {
+      // The default mutation error toast reports the failure; the status is
+      // unchanged, so keep the popover open and skip the change callbacks.
+      return;
+    }
     capture(
       prevStatus === EvaluatorStatus.ACTIVE
         ? "eval_config:deactivate"
