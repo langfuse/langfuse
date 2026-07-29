@@ -337,6 +337,10 @@ export const GetObservationsV2Query = z.object({
   traceId: z.string().nullish(),
   version: z.string().nullish(),
   parentObservationId: z.string().nullish(),
+  isRootObservation: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .optional(),
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime.optional(),
   toStartTime: stringDateTime.optional(),
@@ -360,6 +364,7 @@ const APIObservationV2 = z
     type: z.string(),
 
     // Basic fields (field group: basic)
+    isRootObservation: z.boolean().optional(),
     name: z.string().nullable().optional(),
     level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]).optional(),
     statusMessage: z.string().nullable().optional(),
