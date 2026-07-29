@@ -13,16 +13,30 @@ import { OUTPUT_MAPPING } from "@/src/features/evals/utils/evaluator-constants";
 export const isLegacyEvalTarget = (target: string): boolean =>
   target === "trace" || target === "dataset";
 
-export const evalConfigFormSchema = z.object({
-  scoreName: z.string(),
-  target: EvalTargetObjectSchema,
-  filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
-  mapping: z.array(wipVariableMapping),
-  sampling: z.coerce.number().gt(0).lte(1),
-  delay: z.coerce.number().min(0).optional().default(10),
-  timeScope: TimeScopeSchema,
-  runOnLive: z.boolean().optional().default(true),
-});
+export const evalConfigFormSchema = z
+  .object({
+    scoreName: z.string(),
+    target: EvalTargetObjectSchema,
+    filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
+    mapping: z.array(wipVariableMapping),
+    sampling: z.coerce.number().gt(0).lte(1),
+    delay: z.coerce.number().min(0).optional().default(10),
+    timeScope: TimeScopeSchema,
+    runOnLive: z.boolean().optional().default(true),
+  })
+  .superRefine(({ mapping }, ctx) => {
+    mapping.forEach(({ jsonSelector }, index) => {
+      const compatibilityError = getJsonPathCompatibilityWarning(jsonSelector);
+
+      if (compatibilityError) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["mapping", index, "jsonSelector"],
+          message: compatibilityError,
+        });
+      }
+    });
+  });
 
 export type EvalFormType = z.infer<typeof evalConfigFormSchema>;
 
@@ -53,6 +67,61 @@ export const fieldHasJsonSelectorOption = (
   selectedColumnId === "experimentItemExpectedOutput" ||
   selectedColumnId === "experimentItemMetadata" ||
   selectedColumnId === "toolCalls";
+
+const stripJsonPathStringLiterals = (selector: string): string => {
+  let quote: "'" | '"' | "`" | null = null;
+  let isEscaped = false;
+
+  // Ignore expression-like text inside quoted property names to avoid false warnings.
+  return [...selector]
+    .map((character) => {
+      if (quote) {
+        if (isEscaped) {
+          isEscaped = false;
+        } else if (character === "\\") {
+          isEscaped = true;
+        } else if (character === quote) {
+          quote = null;
+        }
+
+        return " ";
+      }
+
+      if (character === "'" || character === '"' || character === "`") {
+        quote = character;
+        return " ";
+      }
+
+      return character;
+    })
+    .join("");
+};
+
+export function getJsonPathCompatibilityWarning(
+  selector: string | null | undefined,
+): string | null {
+  if (!selector) return null;
+
+  const selectorWithoutStrings = stripJsonPathStringLiterals(selector);
+
+  if (/[\u2018\u2019\u201c\u201d]/u.test(selectorWithoutStrings)) {
+    return "Smart quotes are not supported in JSONPath. Use straight quotes (' or \") instead.";
+  }
+
+  if (/\[\s*\?/u.test(selectorWithoutStrings)) {
+    return "Filter expressions ([?...]) are not supported and will not be applied.";
+  }
+
+  if (/\[\s*\(/u.test(selectorWithoutStrings)) {
+    return "Script expressions ([(...)]) are not supported. The evaluator will use the unfiltered value instead.";
+  }
+
+  if (/\[\s*-\d+\s*\]/u.test(selectorWithoutStrings)) {
+    return "Negative array indices (for example, [-1]) are not supported. Use a slice such as [-1:] instead.";
+  }
+
+  return null;
+}
 
 export const getTargetDisplayName = (target: string): string => {
   switch (target) {
