@@ -33,6 +33,10 @@ Focus on:
 - security and tenant-isolation risks
 - performance issues with real impact
 - missing or weak tests for risky changes
+- Before calling coverage missing, identify the unique regression each proposed
+  test catches. Prefer merging into the closest existing suite. Flag repeated
+  tests of the same predicate across layers unless each proves a distinct
+  transport, projection, or execution boundary.
 
 ## Output Expectations
 
