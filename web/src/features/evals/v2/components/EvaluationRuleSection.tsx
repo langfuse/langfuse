@@ -8,7 +8,11 @@ import { useObservedMetadataPaths } from "@/src/features/search-bar/hooks/useObs
 import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { type EvaluationRuleObject } from "@/src/features/evals/v2/lib/evaluationRuleObject";
-import { type FilterState, type TracingSearchType } from "@langfuse/shared";
+import {
+  type FilterState,
+  type TimeFilter,
+  type TracingSearchType,
+} from "@langfuse/shared";
 
 /**
  * Observations produced by evaluation runs themselves (LLM judges, prompt
@@ -206,7 +210,7 @@ export function RuleFilterSearchBar({
 
   // Facet options are scoped to a recent window; stable identity so the
   // filter-option queries never refetch on re-render.
-  const [optionsFilterState] = useState<FilterState>(() => [
+  const [optionsStartTimeFilter] = useState<TimeFilter[]>(() => [
     {
       column: "Start Time",
       type: "datetime",
@@ -218,7 +222,7 @@ export function RuleFilterSearchBar({
   const { filterOptions, isFilterOptionsPending, requestColumns } =
     useEventsFilterOptions({
       projectId,
-      oldFilterState: optionsFilterState,
+      startTimeFilter: optionsStartTimeFilter,
       lazy: true,
     });
 

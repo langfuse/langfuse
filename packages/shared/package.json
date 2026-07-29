@@ -81,7 +81,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-build-assets.mjs",
     "build:check": "tsc",
     "typecheck": "dotenv -e ../../.env -- tsc --noEmit --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "tsc --watch",
