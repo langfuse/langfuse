@@ -1,20 +1,63 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Search } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Filter,
+  ListFilter,
+  Save,
+  Search,
+  Settings2,
+} from "lucide-react";
+import { type TableViewPresetState } from "@langfuse/shared";
 
 import { type ObservationListRowsRenderer } from "@/src/components/session/ObservationListRows";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import {
+  SESSION_DETAIL_SYSTEM_PRESETS,
+  SESSION_DETAIL_VIEW_TRIGGER_ID,
+} from "@/src/components/session/session-detail-presets";
 import {
   computeIdleGapSeconds,
   formatIdleGap,
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/components/session/sessionIdleGap";
 import { Input } from "@/src/components/ui/input";
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
 
 const OBSERVATION_LIST_OVERSCAN = 5;
 const EMPTY_TRACES: EventSessionTrace[] = [];
+
+export type ModernSessionObservationFilterControls = {
+  activeFilterCount: number;
+  activeViewName: string | undefined;
+  selectedViewId: string | null;
+  matchingSystemPresetId: string | undefined;
+  matchingSavedViewId: string | undefined;
+  savedViews: Array<TableViewPresetState & { id: string; name: string }>;
+  onApplyPreset: (
+    preset: (typeof SESSION_DETAIL_SYSTEM_PRESETS)[number],
+  ) => void;
+  onApplySavedView: (
+    view: TableViewPresetState & { id: string; name: string },
+  ) => void;
+  onManageViews: () => void;
+  onOpenFilterDialog: () => void;
+  onClearFilters: () => void;
+};
 
 const TurnCard = React.memo(
   ({
@@ -113,6 +156,7 @@ export function ModernSessionObservationList(
         traces: EventSessionTrace[];
         activeTraceId: string | undefined;
         selectedTraceId: string | undefined;
+        filterControls: ModernSessionObservationFilterControls;
         renderObservationRows: ObservationListRowsRenderer;
         onSelect: (index: number) => void;
       },
@@ -186,8 +230,13 @@ export function ModernSessionObservationList(
     );
   }
 
-  const { activeTraceId, selectedTraceId, renderObservationRows, onSelect } =
-    props;
+  const {
+    activeTraceId,
+    selectedTraceId,
+    filterControls,
+    renderObservationRows,
+    onSelect,
+  } = props;
 
   return (
     <div
@@ -203,7 +252,7 @@ export function ModernSessionObservationList(
           {traces.length} traces, {totalSpanCount} spans
         </span>
       </div>
-      <div className="flex shrink-0 items-center border-b px-1 pt-2.5 pb-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b px-1 pt-2.5 pb-3">
         <div className="relative min-w-0 flex-1">
           <Search
             className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
@@ -217,6 +266,121 @@ export function ModernSessionObservationList(
             className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
           />
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              id={SESSION_DETAIL_VIEW_TRIGGER_ID}
+              type="button"
+              variant="outline"
+              size="icon"
+              className="relative h-7 w-7 shrink-0 rounded-sm"
+              aria-label="Filter observations"
+            >
+              <ListFilter className="h-3.5 w-3.5" />
+              {filterControls.activeFilterCount > 0 ? (
+                <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 font-mono text-[9px]">
+                  {filterControls.activeFilterCount}
+                </span>
+              ) : null}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuLabel>Presets</DropdownMenuLabel>
+            {SESSION_DETAIL_SYSTEM_PRESETS.map((preset) => (
+              <DropdownMenuItem
+                key={preset.id}
+                onSelect={() => filterControls.onApplyPreset(preset)}
+                className="items-start gap-2"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm">{preset.name}</span>
+                  {preset.description ? (
+                    <span className="text-muted-foreground block text-xs">
+                      {preset.description}
+                    </span>
+                  ) : null}
+                </span>
+                {filterControls.matchingSystemPresetId === preset.id ? (
+                  <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                ) : null}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Save className="mr-2 h-4 w-4" />
+                Saved Views
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-56">
+                {filterControls.savedViews.map((view) => (
+                  <DropdownMenuItem
+                    key={view.id}
+                    onSelect={() => filterControls.onApplySavedView(view)}
+                  >
+                    <span className="min-w-0 flex-1 truncate" title={view.name}>
+                      {view.name}
+                    </span>
+                    {filterControls.matchingSavedViewId === view.id ? (
+                      <Check className="ml-2 h-4 w-4 shrink-0" />
+                    ) : null}
+                  </DropdownMenuItem>
+                ))}
+                {filterControls.savedViews.length === 0 ? (
+                  <DropdownMenuItem disabled>No saved views</DropdownMenuItem>
+                ) : null}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={filterControls.onManageViews}>
+                  <Settings2 className="mr-2 h-4 w-4" />
+                  Manage Views
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={filterControls.onOpenFilterDialog}>
+              <Filter className="mr-2 h-4 w-4" />
+              Apply custom filter
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {filterControls.activeFilterCount > 0 ||
+        filterControls.activeViewName ||
+        filterControls.selectedViewId ? (
+          <div className="text-muted-foreground flex basis-full items-center gap-2 overflow-hidden pt-1 font-mono text-[10px]">
+            <span
+              className="min-w-0 flex-1 truncate"
+              title={
+                filterControls.activeViewName ??
+                `${filterControls.activeFilterCount} active filters`
+              }
+            >
+              {filterControls.activeViewName ??
+                `${filterControls.activeFilterCount} active filters`}
+            </span>
+            {!filterControls.activeViewName ? (
+              <button
+                type="button"
+                className="hover:text-foreground shrink-0"
+                onClick={filterControls.onOpenFilterDialog}
+              >
+                Save filters as view
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="hover:text-foreground shrink-0"
+              onClick={filterControls.onOpenFilterDialog}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              className="hover:text-foreground shrink-0"
+              onClick={filterControls.onClearFilters}
+            >
+              Clear
+            </button>
+          </div>
+        ) : null}
       </div>
       <div
         ref={listRef}

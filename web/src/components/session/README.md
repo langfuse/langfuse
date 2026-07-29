@@ -42,5 +42,10 @@ moves from the feed's top edge to 20% of its visible height over the first 20%
 of viewport scrolling, remains there through the middle, then moves to the
 bottom edge over the final 20%. The feed keeps its natural height without
 trailing scroll padding.
+Modern Session observation filters remain one URL-backed `FilterState`. The
+rail menu edits that state through presets, saved views, or a staged custom
+filter dialog. Row-level type-and-name exclusions are encoded as one hidden
+synthetic filter condition so they round-trip through URLs and saved views
+without changing the shared filter grammar.
 The span rail distinguishes loading turn summaries from loading the span rows
 inside an already-known turn; only the latter can show turn and span counts.

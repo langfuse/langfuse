@@ -1,7 +1,10 @@
 import { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 
-import { ModernSessionObservationList } from "@/src/components/session/ModernSessionObservationList";
+import {
+  ModernSessionObservationList,
+  type ModernSessionObservationFilterControls,
+} from "@/src/components/session/ModernSessionObservationList";
 import {
   ObservationListRows,
   type ObservationListRowsRenderer,
@@ -9,6 +12,7 @@ import {
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { type SessionTraceObservation } from "@/src/components/session/SessionObservationIO";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { type ModernSessionObservationIdentity } from "@/src/components/session/modernSessionObservationFilters";
 
 type ObservationsResponse =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"];
@@ -28,10 +32,12 @@ function ConnectedObservationRows({
   traceId,
   search,
   onSelectTurn,
+  onExcludeObservation,
 }: Parameters<ObservationListRowsRenderer>[0] & {
   projectId: string;
   sessionId: string;
   filterState: FilterState;
+  onExcludeObservation: (observation: ModernSessionObservationIdentity) => void;
 }) {
   const observationsQuery =
     api.sessions.observationsForTraceFromEvents.useQuery(
@@ -61,7 +67,7 @@ function ConnectedObservationRows({
       <ObservationListRows
         state={{
           type: "empty",
-          hasFilters: search.trim() !== "",
+          hasFilters: search.trim() !== "" || filterState.length > 0,
         }}
       />
     );
@@ -71,6 +77,7 @@ function ConnectedObservationRows({
     <ObservationListRows
       state={{ type: "loaded", rows }}
       onSelectTurn={onSelectTurn}
+      onExcludeObservation={onExcludeObservation}
     />
   );
 }
@@ -80,6 +87,8 @@ export function ConnectedModernSessionObservationList({
   projectId,
   sessionId,
   filterState,
+  filterControls,
+  onExcludeObservation,
 }: {
   state:
     | { type: "loading" }
@@ -93,6 +102,8 @@ export function ConnectedModernSessionObservationList({
   projectId: string;
   sessionId: string;
   filterState: FilterState;
+  filterControls: ModernSessionObservationFilterControls;
+  onExcludeObservation: (observation: ModernSessionObservationIdentity) => void;
 }) {
   if (state.type === "loading") {
     return <ModernSessionObservationList state="loading" />;
@@ -106,12 +117,14 @@ export function ConnectedModernSessionObservationList({
       traces={traces}
       activeTraceId={activeTraceId}
       selectedTraceId={selectedTraceId}
+      filterControls={filterControls}
       renderObservationRows={(props) => (
         <ConnectedObservationRows
           {...props}
           projectId={projectId}
           sessionId={sessionId}
           filterState={filterState}
+          onExcludeObservation={onExcludeObservation}
         />
       )}
       onSelect={onSelect}

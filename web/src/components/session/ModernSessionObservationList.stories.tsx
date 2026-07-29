@@ -115,6 +115,19 @@ const loadedArgs = {
   traces,
   activeTraceId: "turn-2",
   selectedTraceId: undefined,
+  filterControls: {
+    activeFilterCount: 0,
+    activeViewName: undefined,
+    selectedViewId: null,
+    matchingSystemPresetId: undefined,
+    matchingSavedViewId: undefined,
+    savedViews: [],
+    onApplyPreset: fn(),
+    onApplySavedView: fn(),
+    onManageViews: fn(),
+    onOpenFilterDialog: fn(),
+    onClearFilters: fn(),
+  },
   renderObservationRows,
   onSelect: fn(),
 } satisfies Extract<
@@ -140,6 +153,29 @@ export const SelectedTurn = meta.story({
   args: {
     ...loadedArgs,
     selectedTraceId: "turn-2",
+  },
+});
+
+export const ActiveFilters = meta.story({
+  args: {
+    ...loadedArgs,
+    filterControls: {
+      ...loadedArgs.filterControls,
+      activeFilterCount: 2,
+    },
+  },
+});
+
+export const ActiveView = meta.story({
+  args: {
+    ...loadedArgs,
+    filterControls: {
+      ...loadedArgs.filterControls,
+      activeFilterCount: 2,
+      activeViewName: "All observations with I/O",
+      selectedViewId: "__langfuse_with_io__",
+      matchingSystemPresetId: "__langfuse_with_io__",
+    },
   },
 });
 

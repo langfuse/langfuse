@@ -164,6 +164,10 @@ interface TableViewPresetsDrawerProps {
   systemFilterPresets?: SystemFilterPreset[];
   /** Optional DOM id on the trigger button so other UI can open the drawer. */
   triggerId?: string;
+  /** Optional controlled state for embedding the management drawer elsewhere. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
 function formatOrderBy(orderBy?: OrderByState) {
@@ -187,6 +191,9 @@ export function TableViewPresetsDrawer({
   currentState,
   systemFilterPresets,
   triggerId,
+  open,
+  onOpenChange,
+  hideTrigger = false,
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
@@ -446,27 +453,31 @@ export function TableViewPresetsDrawer({
   return (
     <>
       <Drawer
+        open={open}
         forceDirection="responsive-left"
-        onOpenChange={(open) => {
-          if (open) {
+        onOpenChange={(nextOpen) => {
+          onOpenChange?.(nextOpen);
+          if (nextOpen) {
             capture("saved_views:drawer_open", { tableName });
           } else {
             capture("saved_views:drawer_close", { tableName });
           }
         }}
       >
-        <DrawerTrigger asChild>
-          <Button variant="outline" id={triggerId} title="My Views">
-            <span>My Views</span>
-            {selectedViewId ? (
-              <ChevronDown className="ml-1 h-4 w-4" />
-            ) : (
-              <div className="bg-input ml-1 rounded-sm px-1 text-xs">
-                {drawerPresetList?.length ?? 0}
-              </div>
-            )}
-          </Button>
-        </DrawerTrigger>
+        {!hideTrigger ? (
+          <DrawerTrigger asChild>
+            <Button variant="outline" id={triggerId} title="My Views">
+              <span>My Views</span>
+              {selectedViewId ? (
+                <ChevronDown className="ml-1 h-4 w-4" />
+              ) : (
+                <div className="bg-input ml-1 rounded-sm px-1 text-xs">
+                  {drawerPresetList?.length ?? 0}
+                </div>
+              )}
+            </Button>
+          </DrawerTrigger>
+        ) : null}
         <DrawerContent overlayClassName="bg-primary/10">
           <div className="mx-auto w-full">
             <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-1.5">

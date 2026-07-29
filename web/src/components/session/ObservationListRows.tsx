@@ -1,6 +1,15 @@
 import { type ReactNode } from "react";
+import { MoreHorizontal } from "lucide-react";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { type ModernSessionObservationIdentity } from "@/src/components/session/modernSessionObservationFilters";
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 type ObservationListRow = {
@@ -18,14 +27,19 @@ type ObservationListRowsState =
 export function ObservationListRows({
   state,
   onSelectTurn,
+  onExcludeObservation,
 }:
   | {
       state: Extract<ObservationListRowsState, { type: "loading" | "empty" }>;
       onSelectTurn?: never;
+      onExcludeObservation?: never;
     }
   | {
       state: Extract<ObservationListRowsState, { type: "loaded" }>;
       onSelectTurn: () => void;
+      onExcludeObservation?: (
+        observation: ModernSessionObservationIdentity,
+      ) => void;
     }) {
   if (state.type === "loading") {
     return (
@@ -47,25 +61,56 @@ export function ObservationListRows({
   return (
     <div className="mt-2 ml-4 flex flex-col">
       {state.rows.map((observation) => (
-        <button
+        <div
           key={observation.id}
-          type="button"
-          onClick={onSelectTurn}
-          className="hover:bg-foreground/10 -mr-2 flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors duration-150"
+          className="group/observation hover:bg-foreground/10 -mr-2 flex items-center rounded-sm transition-colors duration-150"
         >
-          {renderFilterIcon(observation.type)}
-          <span
-            className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
-            title={observation.name ?? observation.id}
+          <button
+            type="button"
+            onClick={onSelectTurn}
+            className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left"
           >
-            {observation.name ?? observation.id}
-          </span>
-          {observation.latency !== null && observation.type !== "EVENT" ? (
-            <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
-              {formatIntervalSeconds(observation.latency)}
+            {renderFilterIcon(observation.type)}
+            <span
+              className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
+              title={observation.name ?? observation.id}
+            >
+              {observation.name ?? observation.id}
             </span>
+            {observation.latency !== null && observation.type !== "EVENT" ? (
+              <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
+                {formatIntervalSeconds(observation.latency)}
+              </span>
+            ) : null}
+          </button>
+          {observation.name && onExcludeObservation ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0 opacity-100 sm:opacity-0 sm:group-hover/observation:opacity-100 sm:focus:opacity-100 sm:data-[state=open]:opacity-100"
+                  aria-label={`Actions for ${observation.name}`}
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() =>
+                    onExcludeObservation({
+                      type: observation.type,
+                      name: observation.name as string,
+                    })
+                  }
+                >
+                  Exclude similar observations
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
-        </button>
+        </div>
       ))}
     </div>
   );

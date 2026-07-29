@@ -8,6 +8,8 @@ import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualiz
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
+import { type ModernSessionObservationIdentity } from "@/src/components/session/modernSessionObservationFilters";
+import { type ModernSessionObservationFilterControls } from "@/src/components/session/ModernSessionObservationList";
 
 const MODERN_SESSION_OVERSCAN = 5;
 const EMPTY_TRACES: EventSessionTrace[] = [];
@@ -27,6 +29,8 @@ type ModernSessionProps = {
   viewLabel: string | null;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
+  observationFilterControls: ModernSessionObservationFilterControls;
+  onExcludeObservation: (observation: ModernSessionObservationIdentity) => void;
 };
 
 export function ModernSession({
@@ -40,6 +44,8 @@ export function ModernSession({
   viewLabel,
   showInlineToolCalls,
   showSystemPrompt,
+  observationFilterControls,
+  onExcludeObservation,
 }: ModernSessionProps) {
   const traces =
     tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
@@ -82,6 +88,8 @@ export function ModernSession({
         projectId={projectId}
         sessionId={sessionId}
         filterState={filterState}
+        filterControls={observationFilterControls}
+        onExcludeObservation={onExcludeObservation}
       />
       <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px] border-l">
         <div
