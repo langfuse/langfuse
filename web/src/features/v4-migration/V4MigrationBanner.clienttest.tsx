@@ -62,10 +62,25 @@ describe("V4MigrationBanner", () => {
     mocks.statusByProjectId = new Map();
   });
 
-  it("shows while a project still needs migration work", () => {
+  it("shows while the only project still needs migration work", () => {
     mocks.statusByProjectId.set(
       "project-1",
       status({ evals: { status: "loaded", count: 2 } }),
+    );
+    render(<V4MigrationBanner />);
+    expect(
+      screen.getByText(/Your project needs an upgrade/),
+    ).toBeInTheDocument();
+  });
+
+  it("says all projects need an upgrade only when they all do", () => {
+    mocks.statusByProjectId.set(
+      "project-1",
+      status({ evals: { status: "loaded", count: 2 } }),
+    );
+    mocks.statusByProjectId.set(
+      "project-2",
+      status({ apis: { status: "loaded", count: 1 } }),
     );
     render(<V4MigrationBanner />);
     expect(
@@ -73,12 +88,22 @@ describe("V4MigrationBanner", () => {
     ).toBeInTheDocument();
   });
 
+  it("counts the projects needing an upgrade in mixed accounts", () => {
+    mocks.statusByProjectId.set(
+      "project-1",
+      status({ evals: { status: "loaded", count: 2 } }),
+    );
+    mocks.statusByProjectId.set("project-2", status());
+    render(<V4MigrationBanner />);
+    expect(
+      screen.getByText(/1 of your 2 projects needs an upgrade/),
+    ).toBeInTheDocument();
+  });
+
   it("hides once every project is ready", () => {
     mocks.statusByProjectId.set("project-1", status());
     render(<V4MigrationBanner />);
-    expect(
-      screen.queryByText(/All projects need an upgrade/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/an upgrade/)).not.toBeInTheDocument();
   });
 
   it("hides while readiness is still being checked", () => {
@@ -87,9 +112,7 @@ describe("V4MigrationBanner", () => {
       status({ evals: { status: "loading", count: 0 } }),
     );
     render(<V4MigrationBanner />);
-    expect(
-      screen.queryByText(/All projects need an upgrade/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/an upgrade/)).not.toBeInTheDocument();
   });
 
   it("excludes the demo org and deleted projects from the queried scope", () => {

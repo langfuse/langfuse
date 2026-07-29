@@ -38,11 +38,12 @@ export function V4MigrationBanner() {
     organizations,
     enabled: organizations.length > 0,
   });
-  const someProjectNeedsMigration = Array.from(
-    migrationStatusByProjectId.values(),
-  ).some((status) => getProjectMigrationReadiness(status) === "action-needed");
+  const statuses = Array.from(migrationStatusByProjectId.values());
+  const projectsNeedingMigration = statuses.filter(
+    (status) => getProjectMigrationReadiness(status) === "action-needed",
+  ).length;
 
-  if (!someProjectNeedsMigration) {
+  if (projectsNeedingMigration === 0) {
     return null;
   }
 
@@ -86,7 +87,11 @@ export function V4MigrationBanner() {
           <span className="font-bold">
             Langfuse v4 is here: real-time and up to 165× faster.
           </span>{" "}
-          All projects need an upgrade.
+          {projectsNeedingMigration === statuses.length
+            ? projectsNeedingMigration === 1
+              ? "Your project needs an upgrade."
+              : "All projects need an upgrade."
+            : `${projectsNeedingMigration} of your ${statuses.length} projects ${projectsNeedingMigration === 1 ? "needs" : "need"} an upgrade.`}
         </span>
       </div>
     </Callout>
