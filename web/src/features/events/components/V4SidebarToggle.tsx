@@ -18,9 +18,10 @@ import {
   toExperimentsResultsUrl,
 } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
-const V4_PREVIEW_LABEL = "V4 Preview";
-const V4_PREVIEW_DESCRIPTION =
-  "Get a more performant Langfuse experience. Upgrade SDKs to the latest major for real-time data. This is a personal setting.";
+import {
+  V4_PREVIEW_LABEL,
+  V4_PREVIEW_DESCRIPTION,
+} from "@/src/features/events/lib/v4PreviewLabel";
 
 function asSingleValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

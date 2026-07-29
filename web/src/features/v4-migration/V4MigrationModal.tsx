@@ -61,6 +61,7 @@ function V4MigrationModalContent({
         <DialogBody className="gap-0 p-4">
           <V4MigrationHeaderContent
             projectName={project.name}
+            projectId={project.id}
             onNavigate={() => setOpen(false)}
           />
           <Separator className="my-6" />

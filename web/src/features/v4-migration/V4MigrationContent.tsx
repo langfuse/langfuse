@@ -29,9 +29,11 @@ import {
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
+  getProjectMigrationReadiness,
   V4_MIGRATION_LOOKBACK_DAYS,
   type MigrationCountState,
 } from "@/src/features/v4-migration/migrationData";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useProject } from "@/src/features/projects/hooks";
@@ -285,15 +287,30 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
 // agent, the second click copies it.
 export function V4MigrationHeaderContent({
   projectName,
+  projectId,
   onNavigate,
 }: {
   projectName?: string;
+  projectId?: string;
   /** Fires when an internal link is followed so the surface can close. */
   onNavigate?: () => void;
 }) {
   const capture = usePostHogClientCapture();
   const handleCopyPrompt = useCopyMigrationPrompt();
   const [promptVisible, setPromptVisible] = useState(false);
+
+  // Same queries as V4MigrationDetailsContent below, so react-query dedupes
+  // them. Only claim the project needs migrating once the checks confirm it —
+  // a fully migrated project shows the v4 value prop without a status claim.
+  const { organization } = useProject(projectId ?? null);
+  const migrationData = useProjectV4MigrationData({
+    projectId,
+    orgId: organization?.id,
+    enabled: Boolean(projectId),
+  });
+  const needsMigration =
+    Boolean(projectId) &&
+    getProjectMigrationReadiness(migrationData) === "action-needed";
 
   const handleShowPrompt = () => {
     capture("v4_migration:coding_agent_prompt_viewed");
@@ -322,8 +339,9 @@ export function V4MigrationHeaderContent({
           Langfuse v4
         </ExternalLink>{" "}
         is here: real-time, up to 165× faster, plus new dashboards, alerting,
-        sessions, and trace view. This project still uses the previous setup,
-        which stops working soon.
+        sessions, and trace view.
+        {needsMigration &&
+          " This project still uses the previous setup, which stops working soon."}
       </p>
       <div className="flex flex-col gap-2">
         {promptVisible && (
@@ -380,6 +398,7 @@ export function V4MigrationDetailsContent({
     orgId: organization?.id,
     enabled: Boolean(projectId),
   });
+  const { canToggleV4 } = useV4Beta();
 
   const handleEmailEngineer = () => {
     capture("v4_migration:contact_support_clicked");
@@ -410,26 +429,33 @@ export function V4MigrationDetailsContent({
 
   return (
     <>
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-base font-bold">
-            <LibraryBig className="h-4 w-4" /> Want to review first?
+      {/* The toggle row hides itself when the session cannot toggle v4
+          (legacy/events_only write mode, post-rollout auto-enrollment), so the
+          copy describing it must hide on the same condition. */}
+      {canToggleV4 && (
+        <>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-base font-bold">
+                <LibraryBig className="h-4 w-4" /> Want to review first?
+              </div>
+              <V4PreviewToggleRow projectId={projectId} />
+            </div>
+            <p className="text-muted-foreground text-sm">
+              The latest SDK no longer sets trace input and output; v4{" "}
+              <ExternalLink
+                href={OBSERVATIONS_DATA_MODEL_URL}
+                className="text-inherit underline"
+              >
+                infers them from observations
+              </ExternalLink>
+              . Use this toggle to compare both views while you upgrade.
+            </p>
           </div>
-          <V4PreviewToggleRow projectId={projectId} />
-        </div>
-        <p className="text-muted-foreground text-sm">
-          The latest SDK no longer sets trace input and output; v4{" "}
-          <ExternalLink
-            href={OBSERVATIONS_DATA_MODEL_URL}
-            className="text-inherit underline"
-          >
-            infers them from observations
-          </ExternalLink>
-          . Use this toggle to compare both views while you upgrade.
-        </p>
-      </div>
 
-      <Separator />
+          <Separator />
+        </>
+      )}
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
