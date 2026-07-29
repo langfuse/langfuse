@@ -17,7 +17,7 @@ service:
         ## Field Selection
         Use the `fields` parameter to control which observation fields are returned:
         - `core` - Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type
-        - `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId
+        - `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId, isRootObservation
         - `time` - completionStartTime, createdAt, updatedAt
         - `io` - input, output
         - `metadata` - metadata (truncated to 200 chars by default, use `expandMetadata` to get full values)
@@ -72,7 +72,17 @@ service:
           level:
             type: optional<commons.ObservationLevel>
             docs: Optional filter for observations with a specific level (e.g. "DEBUG", "DEFAULT", "WARNING", "ERROR").
-          parentObservationId: optional<string>
+          parentObservationId:
+            type: optional<string>
+            docs: |
+              Filter by the physical parent observation ID.
+              An empty value matches only observations without a physical parent. Use `isRootObservation` to include observations marked as app roots by the SDK, which may retain a non-null `parentObservationId`.
+          isRootObservation:
+            type: optional<boolean>
+            docs: |
+              Filter by whether an observation is a logical root.
+              Root observations include observations without a physical parent and observations marked as app roots by the SDK.
+              An app-root observation may have `isRootObservation=true` and a non-null `parentObservationId`.
           environment:
             type: optional<string>
             allow-multiple: true
@@ -130,6 +140,7 @@ service:
               - `version` (string) - Version tag
               - `userId` (string) - User ID
               - `sessionId` (string) - Session ID
+              - `isRootObservation` (boolean) - Whether the observation is a logical root. Observations marked as app roots by the SDK may retain a non-null parentObservationId.
 
               ### Trace-Related Fields
               - `traceName` (string) - Name of the parent trace
@@ -190,6 +201,12 @@ service:
                   "column": "output",
                   "operator": "matches",
                   "value": "needle"
+                },
+                {
+                  "type": "boolean",
+                  "column": "isRootObservation",
+                  "operator": "=",
+                  "value": true
                 }
               ]
               ```
