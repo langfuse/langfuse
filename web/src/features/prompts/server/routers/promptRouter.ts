@@ -1697,7 +1697,12 @@ export const promptRouter = createTRPCRouter({
               after: createdPrompt,
             },
             ctx.prisma,
-          );
+          ).catch((error) => {
+            logger.error(
+              `Failed to create audit log for bulk-imported prompt ${createdPrompt.id} in project ${input.projectId}`,
+              error,
+            );
+          });
           results.push({ name: item.name, success: true });
         } catch (e) {
           results.push({

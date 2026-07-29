@@ -2,7 +2,10 @@ import { disconnectQueues } from "@/src/__tests__/test-utils";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  EntityChangeQueue,
+} from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import waitForExpect from "wait-for-expect";
@@ -257,7 +260,7 @@ describe("prompts trpc", () => {
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
 
-    it("reports an item as failed when audit logging fails", async () => {
+    it("reports a committed item as successful when audit logging fails", async () => {
       const { project, caller } = await prepare();
       const promptName = `audit-failure-${v4()}`;
       const auditLogCreateSpy = vi
@@ -270,16 +273,85 @@ describe("prompts trpc", () => {
           prompts: [{ name: promptName, prompt: "Hello world" }],
         });
 
-        expect(result.results).toEqual([
-          {
-            name: promptName,
-            success: false,
-            error: "audit log unavailable",
-          },
-        ]);
+        expect(result.results).toEqual([{ name: promptName, success: true }]);
+        await expect(
+          prisma.prompt.findUnique({
+            where: {
+              projectId_name_version: {
+                projectId: project.id,
+                name: promptName,
+                version: 1,
+              },
+            },
+          }),
+        ).resolves.not.toBeNull();
       } finally {
         auditLogCreateSpy.mockRestore();
       }
+    });
+
+    it("reports a committed item as successful when event sourcing fails", async () => {
+      const { project, caller } = await prepare();
+      const promptName = `event-failure-${v4()}`;
+      const getQueueSpy = vi
+        .spyOn(EntityChangeQueue, "getInstance")
+        .mockReturnValue({
+          add: vi.fn().mockRejectedValue(new Error("queue unavailable")),
+        } as never);
+
+      try {
+        const result = await caller.prompts.importBulk({
+          projectId: project.id,
+          prompts: [{ name: promptName, prompt: "Hello world" }],
+        });
+
+        expect(result.results).toEqual([{ name: promptName, success: true }]);
+        await expect(
+          prisma.prompt.findUnique({
+            where: {
+              projectId_name_version: {
+                projectId: project.id,
+                name: promptName,
+                version: 1,
+              },
+            },
+          }),
+        ).resolves.not.toBeNull();
+      } finally {
+        getQueueSpy.mockRestore();
+      }
+    });
+
+    it("reports failures that happen before the prompt is committed", async () => {
+      const { project, caller } = await prepare();
+      const promptName = `type-mismatch-${v4()}`;
+      await caller.prompts.importBulk({
+        projectId: project.id,
+        prompts: [{ name: promptName, prompt: "Text prompt" }],
+      });
+
+      const result = await caller.prompts.importBulk({
+        projectId: project.id,
+        prompts: [
+          {
+            name: promptName,
+            type: "chat",
+            prompt: [{ role: "user", content: "Chat prompt" }],
+          },
+        ],
+      });
+
+      expect(result.results).toEqual([
+        expect.objectContaining({
+          name: promptName,
+          success: false,
+        }),
+      ]);
+      await expect(
+        prisma.prompt.count({
+          where: { projectId: project.id, name: promptName },
+        }),
+      ).resolves.toBe(1);
     });
   });
 
