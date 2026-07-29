@@ -686,6 +686,8 @@ export default function SignIn({
       // already signed in — useAuthGuard navigates away from this page
       return;
     }
+    // re-arm in case the flag flipped enabled after mount (query-only nav)
+    setPreviewAutoSignInPending(true);
     signIn("credentials", {
       email: PREVIEW_DEMO_USER_EMAIL,
       password: PREVIEW_DEMO_USER_PASSWORD,
