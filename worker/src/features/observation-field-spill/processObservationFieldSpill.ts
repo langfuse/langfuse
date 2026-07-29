@@ -1,4 +1,5 @@
 import {
+  type EventRecordInsertType,
   type ObservationFieldsForSpill,
   type ObservationFieldSpillOutcome,
   logger,
@@ -10,6 +11,35 @@ import {
 import { MediaContentType } from "@langfuse/shared";
 
 import { env } from "../../env";
+
+export async function spillOversizedEventRecordFields(
+  eventRecord: EventRecordInsertType,
+): Promise<EventRecordInsertType> {
+  const spillResult = await processObservationFieldSpill({
+    projectId: eventRecord.project_id,
+    traceId: eventRecord.trace_id,
+    observationId: eventRecord.span_id,
+    fields: {
+      input: eventRecord.input,
+      output: eventRecord.output,
+      metadata: eventRecord.metadata_values,
+    },
+  });
+  const persistedMetadataValues = Array.isArray(spillResult.fields.metadata)
+    ? spillResult.fields.metadata
+    : [];
+
+  return {
+    ...eventRecord,
+    input: spillResult.fields.input ?? undefined,
+    output: spillResult.fields.output ?? undefined,
+    metadata_values: persistedMetadataValues.map((value) =>
+      typeof value === "string"
+        ? value
+        : (JSON.stringify(value) ?? String(value)),
+    ),
+  };
+}
 
 export async function processObservationFieldSpill(params: {
   projectId: string;
@@ -75,5 +105,3 @@ export async function processObservationFieldSpill(params: {
 
   return result;
 }
-
-export type ProcessObservationFieldSpill = typeof processObservationFieldSpill;

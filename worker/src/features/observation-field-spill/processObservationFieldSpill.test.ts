@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { EventRecordInsertType } from "@langfuse/shared/src/server";
 
 const mocks = vi.hoisted(() => ({
   logger: { warn: vi.fn() },
@@ -23,7 +24,10 @@ vi.mock("../../env", () => ({
   },
 }));
 
-import { processObservationFieldSpill } from "./processObservationFieldSpill";
+import {
+  processObservationFieldSpill,
+  spillOversizedEventRecordFields,
+} from "./processObservationFieldSpill";
 
 describe("processObservationFieldSpill", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -90,5 +94,43 @@ describe("processObservationFieldSpill", () => {
       1,
       { field: "output", outcome: "uploaded" },
     );
+  });
+
+  it("returns a spilled event record without mutating the enriched record", async () => {
+    mocks.uploadMediaForTrace
+      .mockResolvedValueOnce({
+        mediaId: "input-media",
+        outcome: "uploaded",
+      })
+      .mockResolvedValueOnce({
+        mediaId: "metadata-media",
+        outcome: "uploaded",
+      });
+    const eventRecord = {
+      project_id: "project-id",
+      trace_id: "trace-id",
+      span_id: "observation-id",
+      input: "x".repeat(11),
+      output: "small",
+      metadata_values: ["small", "y".repeat(11)],
+    } as EventRecordInsertType;
+
+    const result = await spillOversizedEventRecordFields(eventRecord);
+
+    expect(result).not.toBe(eventRecord);
+    expect(result).toMatchObject({
+      input:
+        "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
+      output: "small",
+      metadata_values: [
+        "small",
+        "@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@",
+      ],
+    });
+    expect(eventRecord).toMatchObject({
+      input: "x".repeat(11),
+      output: "small",
+      metadata_values: ["small", "y".repeat(11)],
+    });
   });
 });

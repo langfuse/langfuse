@@ -1,4 +1,16 @@
-import { expect, describe, it, vi } from "vitest";
+import { beforeEach, expect, describe, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  spillOversizedEventRecordFields: vi.fn(),
+}));
+
+vi.mock(
+  "../../../features/observation-field-spill/processObservationFieldSpill",
+  () => ({
+    spillOversizedEventRecordFields: mocks.spillOversizedEventRecordFields,
+  }),
+);
+
 import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
@@ -9,6 +21,13 @@ import {
 import { TableName } from "../../ClickhouseWriter";
 
 describe("IngestionService unit tests", () => {
+  beforeEach(() => {
+    mocks.spillOversizedEventRecordFields.mockReset();
+    mocks.spillOversizedEventRecordFields.mockImplementation(
+      async (eventRecord) => eventRecord,
+    );
+  });
+
   it("writes the final serialized event size instead of the raw OTEL span size", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
@@ -56,24 +75,11 @@ describe("IngestionService unit tests", () => {
 
   it("spills only the direct events_full copy and preserves the enriched record", async () => {
     const addToQueue = vi.fn();
-    const fieldSpillProcessor = vi.fn().mockResolvedValue({
-      fields: {
-        input:
-          "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
-        output: "original output",
-        metadata: [
-          "small",
-          "@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@",
-        ],
-      },
-      outcomes: [],
-    });
     const ingestionService = new IngestionService(
       {} as any,
       {} as any,
       { addToQueue } as any,
       {} as any,
-      fieldSpillProcessor,
     );
     const eventRecord = await ingestionService.createEventRecord(
       {
@@ -94,19 +100,21 @@ describe("IngestionService unit tests", () => {
       },
       "raw-event.json",
     );
+    mocks.spillOversizedEventRecordFields.mockResolvedValueOnce({
+      ...eventRecord,
+      input:
+        "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
+      metadata_values: [
+        "small",
+        "@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@",
+      ],
+    });
 
     await ingestionService.writeEventRecord(eventRecord);
 
-    expect(fieldSpillProcessor).toHaveBeenCalledWith({
-      projectId: "project-id",
-      traceId: "trace-id",
-      observationId: "observation-id",
-      fields: {
-        input: "original input",
-        output: "original output",
-        metadata: ["small", "large"],
-      },
-    });
+    expect(mocks.spillOversizedEventRecordFields).toHaveBeenCalledWith(
+      eventRecord,
+    );
     expect(eventRecord.input).toBe("original input");
     expect(eventRecord.metadata_names).toEqual(["keep", "large.nested"]);
     expect(addToQueue).toHaveBeenCalledOnce();
@@ -119,13 +127,11 @@ describe("IngestionService unit tests", () => {
 
   it("does not spill legacy observation or dual-write staging records", async () => {
     const addToQueue = vi.fn();
-    const fieldSpillProcessor = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
       {} as any,
       { addToQueue } as any,
       {} as any,
-      fieldSpillProcessor,
     );
     const timestamp = "2026-07-22T00:00:00.000Z";
     const input = "x".repeat(11);
@@ -169,7 +175,7 @@ describe("IngestionService unit tests", () => {
       },
     });
 
-    expect(fieldSpillProcessor).not.toHaveBeenCalled();
+    expect(mocks.spillOversizedEventRecordFields).not.toHaveBeenCalled();
     for (const table of [
       TableName.Observations,
       TableName.ObservationsBatchStaging,

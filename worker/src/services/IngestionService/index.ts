@@ -67,10 +67,7 @@ import {
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
-import {
-  processObservationFieldSpill,
-  type ProcessObservationFieldSpill,
-} from "../../features/observation-field-spill/processObservationFieldSpill";
+import { spillOversizedEventRecordFields } from "../../features/observation-field-spill/processObservationFieldSpill";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -174,7 +171,6 @@ export class IngestionService {
     private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
     private clickhouseClient: ClickhouseClientType,
-    private readonly fieldSpillProcessor: ProcessObservationFieldSpill = processObservationFieldSpill,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -448,29 +444,7 @@ export class IngestionService {
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
   ): Promise<void> {
-    const spillResult = await this.fieldSpillProcessor({
-      projectId: eventRecord.project_id,
-      traceId: eventRecord.trace_id,
-      observationId: eventRecord.span_id,
-      fields: {
-        input: eventRecord.input,
-        output: eventRecord.output,
-        metadata: eventRecord.metadata_values,
-      },
-    });
-    const persistedMetadataValues = Array.isArray(spillResult.fields.metadata)
-      ? spillResult.fields.metadata
-      : [];
-    const persistedRecord: EventRecordInsertType = {
-      ...eventRecord,
-      input: spillResult.fields.input ?? undefined,
-      output: spillResult.fields.output ?? undefined,
-      metadata_values: persistedMetadataValues.map((value) =>
-        typeof value === "string"
-          ? value
-          : (JSON.stringify(value) ?? String(value)),
-      ),
-    };
+    const persistedRecord = await spillOversizedEventRecordFields(eventRecord);
 
     this.clickHouseWriter.addToQueue(
       TableName.EventsFull,
