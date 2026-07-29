@@ -16,7 +16,7 @@ import {
   DialogBody,
   DialogFooter,
 } from "@/src/components/ui/dialog";
-import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CircleX } from "lucide-react";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
@@ -106,6 +106,7 @@ export const MultiStepExperimentForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const [activeStep, setActiveStep] = useState("prompt");
+  const [hasAttemptedReview, setHasAttemptedReview] = useState(false);
   const [selectedPromptName, setSelectedPromptName] = useState<string>(
     promptDefault?.name ?? "",
   );
@@ -399,6 +400,44 @@ export const MultiStepExperimentForm = ({
     }
   };
 
+  const handleStepChange = (stepId: string) => {
+    if (stepId === "review") {
+      setHasAttemptedReview(true);
+    }
+    setActiveStep(stepId);
+  };
+
+  const renderStepStatusIcon = (stepId: string, stepLabel: string) => {
+    if (isStepValid(stepId)) {
+      return <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />;
+    }
+
+    if (
+      hasAttemptedReview &&
+      ["prompt", "dataset", "details"].includes(stepId)
+    ) {
+      return (
+        <CircleX
+          aria-label={`${stepLabel} has errors`}
+          className="mr-1.5 h-3.5 w-3.5 text-red-500"
+        />
+      );
+    }
+
+    return null;
+  };
+
+  const invalidRequiredStepLabels = steps
+    .filter((step) => ["prompt", "dataset", "details"].includes(step.id))
+    .filter((step) => !isStepValid(step.id))
+    .map((step) => step.label);
+  const reviewErrorMessage =
+    invalidRequiredStepLabels.length === 0
+      ? undefined
+      : invalidRequiredStepLabels.length === 1
+        ? `Complete the ${invalidRequiredStepLabels[0]} step before running the experiment.`
+        : `Complete the following steps before running the experiment: ${invalidRequiredStepLabels.join(", ")}.`;
+
   if (
     !promptsByName ||
     !datasets.data ||
@@ -409,7 +448,7 @@ export const MultiStepExperimentForm = ({
 
   // Prepare grouped props
   const formState = { form: form as UseFormReturn<CreateExperiment> };
-  const navigationState = { setActiveStep };
+  const navigationState = { setActiveStep: handleStepChange };
   const promptModelState = {
     selectedPromptName,
     setSelectedPromptName,
@@ -501,19 +540,15 @@ export const MultiStepExperimentForm = ({
                     <BreadcrumbItem>
                       {step.id === activeStep ? (
                         <BreadcrumbPage className="flex items-center">
-                          {isStepValid(step.id) && (
-                            <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
-                          )}
+                          {renderStepStatusIcon(step.id, step.label)}
                           {step.label}
                         </BreadcrumbPage>
                       ) : (
                         <BreadcrumbLink
-                          onClick={() => setActiveStep(step.id)}
+                          onClick={() => handleStepChange(step.id)}
                           className="flex cursor-pointer items-center"
                         >
-                          {isStepValid(step.id) && (
-                            <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
-                          )}
+                          {renderStepStatusIcon(step.id, step.label)}
                           {step.label}
                         </BreadcrumbLink>
                       )}
@@ -564,6 +599,7 @@ export const MultiStepExperimentForm = ({
                 <ReviewStep
                   formState={formState}
                   navigationState={navigationState}
+                  errorMessage={reviewErrorMessage}
                   summary={reviewSummary}
                 />
               )}
@@ -580,7 +616,7 @@ export const MultiStepExperimentForm = ({
                   const stepIds = steps.map((s) => s.id);
                   const currentIndex = stepIds.indexOf(activeStep);
                   if (currentIndex > 0) {
-                    setActiveStep(stepIds[currentIndex - 1]);
+                    handleStepChange(stepIds[currentIndex - 1]);
                   }
                 }}
                 disabled={activeStep === "prompt"}
@@ -598,7 +634,7 @@ export const MultiStepExperimentForm = ({
                       const stepIds = steps.map((s) => s.id);
                       const currentIndex = stepIds.indexOf(activeStep);
                       if (currentIndex < steps.length - 1) {
-                        setActiveStep(stepIds[currentIndex + 1]);
+                        handleStepChange(stepIds[currentIndex + 1]);
                       }
                     }}
                   >
