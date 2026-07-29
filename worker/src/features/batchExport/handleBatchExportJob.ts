@@ -271,9 +271,14 @@ export const handleBatchExportJob = async (
     partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
   });
 
+  // asAttachment must be explicit: S3 defaults it to true, but GCS and Azure
+  // don't — and the web tier's downloadUrl fallback returns this stored URL
+  // for same-tab navigation, so without a Content-Disposition header the
+  // browser would render the export instead of downloading it.
   const signedUrl = await storageService.getSignedUrl(
     fileName,
     expiresInSeconds,
+    true,
   );
 
   logger.info(`[BATCH EXPORT] Batch export file ${fileName} uploaded`);
