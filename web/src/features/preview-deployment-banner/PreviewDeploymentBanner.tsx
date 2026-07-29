@@ -1,7 +1,5 @@
 import { useRef } from "react";
-import { ExternalLink, GitPullRequest } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { Button } from "@/src/components/ui/button";
 import {
   useTopBanner,
   useTopBannerRegistration,
@@ -46,18 +44,17 @@ export function PreviewDeploymentBanner() {
   return (
     <div
       ref={bannerRef}
-      className="bg-foreground text-background fixed z-51 flex w-full items-center justify-between gap-4 px-4 py-1"
+      className="fixed z-51 flex w-full items-center justify-center gap-4 border-b border-violet-200 bg-violet-100 px-4 py-1 text-violet-950 dark:border-violet-300/15 dark:bg-violet-500/10 dark:text-violet-200"
       style={{ top: getTopBannerOffset(PREVIEW_BANNER_ORDER) }}
     >
       <div className="flex items-center gap-3 text-sm">
-        <GitPullRequest className="h-4 w-4 shrink-0" />
         <span>
           Preview deployment of{" "}
           <a
             href={prUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-bold underline underline-offset-2"
+            className="text-link hover:text-link-hover font-bold"
           >
             {prNumber ? `PR #${prNumber}` : "a pull request"}
           </a>
@@ -69,7 +66,7 @@ export function PreviewDeploymentBanner() {
                 href={`https://github.com/${encodeURIComponent(author)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-bold underline underline-offset-2"
+                className="text-link hover:text-link-hover font-bold"
               >
                 @{author}
               </a>
@@ -78,13 +75,6 @@ export function PreviewDeploymentBanner() {
           {updatedText ? <> · updated {updatedText}</> : null}
         </span>
       </div>
-
-      <Button size="sm" variant="ghost" asChild>
-        <a href={prUrl} target="_blank" rel="noopener noreferrer">
-          Open PR
-          <ExternalLink className="ml-2 h-4 w-4" />
-        </a>
-      </Button>
     </div>
   );
 }
