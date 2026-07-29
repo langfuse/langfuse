@@ -35,8 +35,28 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    useUtils: () => ({
+      projectApiKeys: { invalidate: vi.fn() },
+    }),
+    projectApiKeys: {
+      create: {
+        useMutation: () => ({
+          mutateAsync: vi.fn(),
+          isPending: false,
+        }),
+      },
+    },
+  },
+}));
+
 vi.mock("@/src/features/projects/hooks", () => ({
   useProject: () => ({ organization: { id: "org-1" } }),
+}));
+
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+  useHasProjectAccess: () => true,
 }));
 
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({

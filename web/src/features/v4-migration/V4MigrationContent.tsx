@@ -8,10 +8,12 @@ import {
   LibraryBig,
   LifeBuoy,
   TriangleAlert,
+  Loader2,
 } from "lucide-react";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
+import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Separator } from "@/src/components/ui/separator";
 import {
@@ -42,6 +44,8 @@ import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { api } from "@/src/utils/api";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -145,6 +149,32 @@ function ExternalLink({
     >
       {children}
     </a>
+  );
+}
+
+function ApiKeyCopyField({
+  label,
+  value,
+  masked = false,
+}: {
+  label: "PK" | "SK";
+  value: string;
+  masked?: boolean;
+}) {
+  return (
+    <div className="flex min-w-0 items-stretch overflow-hidden rounded-md border">
+      <div className="bg-muted text-muted-foreground flex w-10 shrink-0 items-center justify-center border-r font-mono text-xs font-bold">
+        {label}
+      </div>
+      <CodeView
+        content={
+          masked ? value.slice(0, 4) + "••••••••••••••••••••••••" : value
+        }
+        originalContent={value}
+        className="min-w-0 flex-1 [&>div]:rounded-none [&>div]:border-0"
+        lineWrap={false}
+      />
+    </div>
   );
 }
 
@@ -318,9 +348,40 @@ export function V4MigrationHeaderContent({
     Boolean(projectId) &&
     getProjectMigrationReadiness(migrationData) === "action-needed";
 
+  const [generatedKeys, setGeneratedKeys] = useState<{
+    secretKey: string;
+    publicKey: string;
+  } | null>(null);
+
+  const utils = api.useUtils();
+  const mutCreateProjectApiKey = api.projectApiKeys.create.useMutation({
+    onSuccess: () => utils.projectApiKeys.invalidate(),
+  });
+  const hasApiKeyCreateAccess = useHasProjectAccess({
+    projectId,
+    scope: "apiKeys:CUD",
+  });
+
   const handleShowPrompt = () => {
     capture("v4_migration:coding_agent_prompt_viewed");
     setPromptVisible(true);
+    if (!projectId || !hasApiKeyCreateAccess) return;
+
+    mutCreateProjectApiKey
+      .mutateAsync({
+        projectId,
+        note: "v4-migration-key",
+      })
+      .then(({ secretKey, publicKey }) => {
+        setGeneratedKeys({
+          secretKey,
+          publicKey,
+        });
+        capture(`project_settings:api_key_create`);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
   };
 
   return (
@@ -379,6 +440,26 @@ export function V4MigrationHeaderContent({
             </span>
           )}
         </RainbowButton>
+        {promptVisible &&
+          projectId &&
+          (generatedKeys ? (
+            <div className="mt-1 flex flex-col gap-2">
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                If you are setting up the Langfuse CLI or skills for the first
+                time, use these project API keys.
+              </p>
+              <div className="flex flex-col gap-2">
+                <ApiKeyCopyField label="PK" value={generatedKeys.publicKey} />
+                <ApiKeyCopyField
+                  label="SK"
+                  value={generatedKeys.secretKey}
+                  masked
+                />
+              </div>
+            </div>
+          ) : (
+            <Loader2 className="h-4 w-4 shrink-0" />
+          ))}
       </div>
     </>
   );
