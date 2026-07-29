@@ -39,6 +39,7 @@ type AgentScenario = (ctx: {
 const scenarioRef = vi.hoisted(() => ({
   current: undefined as AgentScenario | undefined,
   failApiKeyDelete: false,
+  apiKeyDeleteCalls: 0,
 }));
 
 vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
@@ -88,6 +89,7 @@ vi.mock("@langfuse/shared/src/server/auth/apiKeys", async (importOriginal) => {
     deleteApiKeyFromDb: async (
       ...args: Parameters<typeof actual.deleteApiKeyFromDb>
     ) => {
+      scenarioRef.apiKeyDeleteCalls += 1;
       if (scenarioRef.failApiKeyDelete) {
         throw new Error("simulated api key delete failure");
       }
@@ -474,6 +476,36 @@ describe("executeInAppAgentRun", () => {
     expect(failed.errorCode).toBe("agent_error");
     expect(failed.errorMessage).toBe("persistence blew up");
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+  });
+
+  it("deletes the MCP key exactly once when the loop's onFinish races the outer catch", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+    scenarioRef.apiKeyDeleteCalls = 0;
+
+    scenarioRef.current = async ({ options }) => {
+      await options.onEvent(textChunk("partial"));
+      // Replicate failStream exactly: the terminal onError→onFinish chain is
+      // fired WITHOUT awaiting it, then the stream errors synchronously —
+      // so onFinish's cleanup races the outer catch's cleanup.
+      void (async () => {
+        await options.onError(new Error("persist failed"));
+        await options.onFinish();
+      })();
+      throw new Error("persist failed");
+    };
+
+    await expect(
+      executeInAppAgentRun({ projectId, runId: run.id }),
+    ).rejects.toThrow("persist failed");
+
+    await vi.waitFor(async () => {
+      expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+    });
+    const failed = await getRun(projectId, run.id);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.errorCode).toBe("agent_error");
+    expect(failed.mcpApiKeyId).toBeNull();
+    expect(scenarioRef.apiKeyDeleteCalls).toBe(1);
   });
 
   it("fails revalidation at claim as FAILED (init_failed) when AI features are disabled", async () => {

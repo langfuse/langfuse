@@ -93,7 +93,7 @@ export async function executeInAppAgentRun(params: {
   let heartbeatTimer: NodeJS.Timeout | undefined;
   let mcpApiKey: { id: string; publicKey: string; secretKey: string } | null =
     null;
-  let mcpApiKeyDeleted = false;
+  let mcpApiKeyCleanup: Promise<void> | undefined;
   let isApprovedContinuation = false;
   let approvedToolResultPersisted = false;
   // True once createAgUiStream returned: from here on, errors reaching the
@@ -114,20 +114,29 @@ export async function executeInAppAgentRun(params: {
         }
       : undefined;
 
-  const cleanupMcpApiKey = async () => {
-    if (!mcpApiKey || mcpApiKeyDeleted) return;
-    await deleteApiKeyFromDb({
-      prisma,
-      id: mcpApiKey.id,
-      entityId: projectId,
-      scope: "PROJECT",
-      redis,
+  // Single-flight (same shape as web's withInAppAgentMcpApiKeyCleanup): the
+  // loop's onFinish and the outer catch can invoke this concurrently because
+  // failStream errors the stream without awaiting its onError/onFinish chain.
+  const cleanupMcpApiKey = (): Promise<void> => {
+    if (!mcpApiKey) return Promise.resolve();
+    const keyId = mcpApiKey.id;
+    mcpApiKeyCleanup ??= (async () => {
+      await deleteApiKeyFromDb({
+        prisma,
+        id: keyId,
+        entityId: projectId,
+        scope: "PROJECT",
+        redis,
+      });
+      // Pointer is nulled only after the delete is confirmed; if the delete
+      // failed above, the terminal run keeps the pointer so reconciliation
+      // retries the cleanup.
+      await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
+    })().catch((error: unknown) => {
+      mcpApiKeyCleanup = undefined;
+      throw error;
     });
-    mcpApiKeyDeleted = true;
-    // Pointer is nulled only after the delete is confirmed; if the delete
-    // failed above, the terminal run keeps the pointer so reconciliation
-    // retries the cleanup.
-    await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
+    return mcpApiKeyCleanup;
   };
 
   const cleanupMcpApiKeyLogged = () =>
