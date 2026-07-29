@@ -69,6 +69,7 @@ export async function processObservationFieldSpill(params: {
         contentBytes,
         mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
         mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+        protectExistingContentType: true,
       });
     },
     onUploadError: ({ error, field, originalBytes }) => {

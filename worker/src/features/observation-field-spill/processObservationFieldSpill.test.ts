@@ -87,6 +87,7 @@ describe("processObservationFieldSpill", () => {
         field: "output",
         mediaBucket: "media-bucket",
         mediaPrefix: "media/",
+        protectExistingContentType: true,
       }),
     );
     expect(mocks.recordIncrement).toHaveBeenCalledWith(

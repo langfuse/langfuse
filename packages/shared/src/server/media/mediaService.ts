@@ -44,6 +44,8 @@ export async function upsertMediaRecord(params: {
   uploadBucket: string;
   contentType: MediaContentType;
   contentLength: number;
+  /** Prevents an existing same-hash media row from being retyped. */
+  protectExistingContentType?: boolean;
 }): Promise<void> {
   const {
     mediaId,
@@ -53,6 +55,7 @@ export async function upsertMediaRecord(params: {
     uploadBucket,
     contentType,
     contentLength,
+    protectExistingContentType,
   } = params;
 
   // Media has unique constraints for both the public ID and full hash. Absorb
@@ -85,7 +88,7 @@ export async function upsertMediaRecord(params: {
       projectId,
       id: mediaId,
       sha256Hash,
-      contentType,
+      ...(protectExistingContentType ? { contentType } : {}),
     },
     data: {
       bucketName: uploadBucket,
@@ -183,6 +186,8 @@ export async function uploadMediaForTrace(params: {
   contentBytes: Buffer;
   mediaBucket: string;
   mediaPrefix: string;
+  /** Prevents an existing same-hash media row from being retyped. */
+  protectExistingContentType?: boolean;
 }): Promise<UploadMediaForTraceResult> {
   const {
     projectId,
@@ -193,6 +198,7 @@ export async function uploadMediaForTrace(params: {
     contentBytes,
     mediaBucket,
     mediaPrefix,
+    protectExistingContentType,
   } = params;
   const sha256Hash = createHash("sha256").update(contentBytes).digest("base64");
   const mediaId = getMediaId(sha256Hash);
@@ -205,7 +211,11 @@ export async function uploadMediaForTrace(params: {
     },
   });
 
-  if (existingMedia && existingMedia.contentType !== contentType) {
+  if (
+    protectExistingContentType &&
+    existingMedia &&
+    existingMedia.contentType !== contentType
+  ) {
     throw new InternalServerError(
       `Media asset ${existingMedia.id} already exists with a different content type`,
     );
@@ -242,6 +252,7 @@ export async function uploadMediaForTrace(params: {
     uploadBucket: mediaBucket,
     contentType,
     contentLength: contentBytes.length,
+    protectExistingContentType,
   });
 
   const uploadStartedAt = Date.now();
