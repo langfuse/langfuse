@@ -142,7 +142,6 @@ export function ModernSession({
                   surface="modern"
                   contentMode={showInlineToolCalls ? "all" : "conversation"}
                   showSystemPrompt={showSystemPrompt}
-                  isActive={trace.id === activeTraceId}
                 />
               </SessionVirtualizedRow>
             );
