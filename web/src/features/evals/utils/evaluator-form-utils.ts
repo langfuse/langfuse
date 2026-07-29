@@ -25,8 +25,9 @@ export const evalConfigFormSchema = z
     runOnLive: z.boolean().optional().default(true),
   })
   .superRefine(({ mapping }, ctx) => {
-    mapping.forEach(({ jsonSelector }, index) => {
-      const compatibilityError = getJsonPathCompatibilityWarning(jsonSelector);
+    mapping.forEach((mappingRow, index) => {
+      const compatibilityError =
+        getActiveJsonPathCompatibilityWarning(mappingRow);
 
       if (compatibilityError) {
         ctx.addIssue({
@@ -117,6 +118,21 @@ export function getJsonPathCompatibilityWarning(
   }
 
   return null;
+}
+
+/**
+ * Only warns while the row's JsonPath input is rendered: a target switch nulls
+ * selectedColumnId but keeps jsonSelector
+ * (`useEvaluatorTarget.transformMapping`), orphaning the value behind a hidden
+ * input. Reporting it then would disable submit with no visible cause.
+ */
+export function getActiveJsonPathCompatibilityWarning(mappingRow: {
+  selectedColumnId?: string | null;
+  jsonSelector?: string | null;
+}): string | null {
+  if (!fieldHasJsonSelectorOption(mappingRow.selectedColumnId)) return null;
+
+  return getJsonPathCompatibilityWarning(mappingRow.jsonSelector);
 }
 
 export const getTargetDisplayName = (target: string): string => {

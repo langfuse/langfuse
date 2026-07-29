@@ -45,7 +45,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   evalConfigFormSchema,
-  getJsonPathCompatibilityWarning,
+  getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
   getTargetDisplayName,
   inferDefaultMapping,
@@ -469,9 +469,8 @@ export const InnerEvaluatorForm = (props: {
   }) as UseFormReturn<EvalFormType>;
 
   const currentMapping = form.watch("mapping") ?? [];
-  const hasJsonPathCompatibilityError = currentMapping.some(
-    ({ jsonSelector }) =>
-      Boolean(getJsonPathCompatibilityWarning(jsonSelector)),
+  const hasJsonPathCompatibilityError = currentMapping.some((mappingRow) =>
+    Boolean(getActiveJsonPathCompatibilityWarning(mappingRow)),
   );
   const syncStatus = useVariableMappingSync({
     templateVars: isCodeEvalConfig ? [] : props.evalTemplate?.vars,

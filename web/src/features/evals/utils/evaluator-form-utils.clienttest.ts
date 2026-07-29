@@ -84,4 +84,29 @@ describe("evalConfigFormSchema", () => {
       );
     }
   });
+
+  // A target switch nulls selectedColumnId but keeps jsonSelector, hiding the
+  // JsonPath input and the only place its warning could render.
+  it("ignores unsupported selectors on columns that have no JsonPath input", () => {
+    const result = evalConfigFormSchema.safeParse({
+      scoreName: "Correctness",
+      target: "event",
+      filter: [],
+      mapping: [
+        {
+          templateVariable: "input",
+          langfuseObject: "event",
+          objectName: null,
+          selectedColumnId: null,
+          jsonSelector: "$.items[?@.status]",
+        },
+      ],
+      sampling: 1,
+      delay: 0,
+      timeScope: ["NEW"],
+      runOnLive: true,
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
