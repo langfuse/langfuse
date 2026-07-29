@@ -7,8 +7,7 @@ name: AWS preview deployment cleanup
 #
 # Safe triggers: plain `pull_request` close / label removal with no checkout,
 # no PR-code execution, and no cloud credentials. It only mutates deployment
-# records and the machine-managed preview pin in the PR description, so it
-# stays off zizmor's dangerous-triggers list.
+# records, so it stays off zizmor's dangerous-triggers list.
 on:
   pull_request:
     types: [closed, unlabeled]
@@ -39,9 +38,6 @@ jobs:
       (github.event.action == 'closed' || github.event.label.name == 'preview')
     permissions:
       deployments: write
-      # Remove the preview pin block from the PR description on teardown
-      # (pulls.update body mutation is gated by the pull-requests scope).
-      pull-requests: write
     steps:
       - name: Retire and delete PR deployments
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -108,29 +104,3 @@ jobs:
             if (failures) {
               core.setFailed(`${failures} of ${deployments.length} deployment(s) could not be deleted.`);
             }
-
-      - name: Unpin preview link from PR description
-        # Runs even if deployment-record deletion failed above: a dead URL
-        # pinned at the top of the PR misleads more than a leftover record.
-        if: always()
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            // Markers + regex must stay byte-identical to preview-build.yml's
-            // pin step and preview-stale-cleanup.yml, or the block is never
-            // found and a dead preview URL stays pinned forever. Line-anchored
-            // sweep: also removes blocks displaced by manual description
-            // edits; inline mentions of the markers mid-sentence never match.
-            const START = "<!-- aws-preview-pin:start -->";
-            const END = "<!-- aws-preview-pin:end -->";
-            const { owner, repo } = context.repo;
-            const pull_number = context.payload.pull_request.number;
-            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
-            const body = pr.body ?? "";
-            const strayRe = new RegExp(`(^|\\r?\\n)(?:${START}[\\s\\S]*?${END}(?:\\r?\\n)*)+`, "g");
-            const next = body.replace(strayRe, "$1").replace(/^(?:\r?\n)+/, "");
-            if (next === body) {
-              core.info("No preview pin in the PR description; nothing to remove.");
-              return;
-            }
-            await github.rest.pulls.update({ owner, repo, pull_number, body: next });

@@ -12,9 +12,8 @@ name: AWS preview stale cleanup
 # freshly labeled PR is never immediately reaped.
 #
 # Safe triggers only: `schedule` + `workflow_dispatch`. No checkout, no PR-code
-# execution, no cloud credentials — only PR label/comment/description and
-# deployment-record mutations — so it stays off zizmor's dangerous-triggers
-# list.
+# execution, no cloud credentials — only PR label/comment mutations — so it
+# stays off zizmor's dangerous-triggers list.
 on:
   schedule:
     - cron: "0 6 * * *" # daily 06:00 UTC
@@ -143,42 +142,6 @@ jobs:
                         `PR #${pr.number} deployment ${deployment.id}: ${e.message} — continuing`,
                       );
                     }
-                  }
-
-                  // Remove the preview pin from the PR description so the
-                  // reaped preview's URL stops being advertised at the top of
-                  // the PR. Markers + regex must stay byte-identical to
-                  // preview-build.yml's pin step and preview-deactivate.yml
-                  // (line-anchored sweep: also removes displaced blocks;
-                  // inline marker mentions mid-sentence never match). The
-                  // body is re-fetched because the pulls.list snapshot can be
-                  // minutes old on a large sweep — writing it back would
-                  // silently revert a concurrent description edit. Failure is
-                  // isolated like the deployment loop above — the label
-                  // removal (the actual teardown) already succeeded.
-                  try {
-                    const START = "<!-- aws-preview-pin:start -->";
-                    const END = "<!-- aws-preview-pin:end -->";
-                    const strayRe = new RegExp(`(^|\\r?\\n)(?:${START}[\\s\\S]*?${END}(?:\\r?\\n)*)+`, "g");
-                    const { data: fresh } = await github.rest.pulls.get({
-                      owner,
-                      repo,
-                      pull_number: pr.number,
-                    });
-                    const body = fresh.body ?? "";
-                    const next = body.replace(strayRe, "$1").replace(/^(?:\r?\n)+/, "");
-                    if (next !== body) {
-                      await github.rest.pulls.update({
-                        owner,
-                        repo,
-                        pull_number: pr.number,
-                        body: next,
-                      });
-                    }
-                  } catch (e) {
-                    core.warning(
-                      `PR #${pr.number} description pin: ${e.message} — continuing`,
-                    );
                   }
                 }
               } catch (e) {
