@@ -5,7 +5,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { createObservation, createTrace } from "@langfuse/shared/src/server";
 import {
+  createScoresCh,
+  createTraceScore,
   getTracesTable,
+  getTracesTableCount,
   type TracesTableUiReturnType,
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
@@ -246,6 +249,149 @@ describe("Traces table API test", () => {
           expect(tableRows[index].public).toEqual(expectedTrace.public);
         }
       });
+    });
+  });
+
+  // The scores CTE is restricted to the score names referenced by the filters.
+  // These cover the cases where that restriction could change results: scores
+  // under other names must not affect matching, and negated operators must still
+  // see traces that carry no score of the filtered name at all.
+  describe("score name pushdown", () => {
+    const seedProject = async () => {
+      const project_id = v4();
+      const matching = v4();
+      const wrongValue = v4();
+      const otherNameOnly = v4();
+      const noScores = v4();
+      const timestamp = new Date().getTime();
+
+      await createTracesCh(
+        [matching, wrongValue, otherNameOnly, noScores].map((id) =>
+          createTrace({ id, project_id, timestamp }),
+        ),
+      );
+
+      await createScoresCh([
+        // Target name, passes `< 0`. Also carries an unrelated score so the CTE
+        // has a name to drop for a trace that must still match.
+        createTraceScore({
+          project_id,
+          trace_id: matching,
+          name: "target",
+          value: -5,
+          timestamp,
+        }),
+        createTraceScore({
+          project_id,
+          trace_id: matching,
+          name: "unrelated",
+          value: 100,
+          timestamp,
+        }),
+        // Target name, fails `< 0`.
+        createTraceScore({
+          project_id,
+          trace_id: wrongValue,
+          name: "target",
+          value: 7,
+          timestamp,
+        }),
+        // Only an unrelated name: must not match a positive filter on "target".
+        createTraceScore({
+          project_id,
+          trace_id: otherNameOnly,
+          name: "unrelated",
+          value: -42,
+          timestamp,
+        }),
+        // Boolean scores for the negated-operator case. `matching` carries
+        // flag:true, `wrongValue` carries flag:false, and the remaining two
+        // traces carry no "flag" score at all.
+        createTraceScore({
+          project_id,
+          trace_id: matching,
+          name: "flag",
+          value: 1,
+          string_value: "true",
+          data_type: "BOOLEAN",
+          timestamp,
+        }),
+        createTraceScore({
+          project_id,
+          trace_id: wrongValue,
+          name: "flag",
+          value: 0,
+          string_value: "false",
+          data_type: "BOOLEAN",
+          timestamp,
+        }),
+      ]);
+
+      return { project_id, matching, wrongValue, otherNameOnly, noScores };
+    };
+
+    it("matches only traces whose named score satisfies the filter", async () => {
+      const { project_id, matching } = await seedProject();
+
+      const filter: FilterState = [
+        {
+          column: "scores_avg",
+          type: "numberObject",
+          key: "target",
+          operator: "<",
+          value: 0,
+        },
+      ];
+
+      const rows = await getTracesTable({
+        projectId: project_id,
+        filter,
+        searchQuery: undefined,
+        orderBy: undefined,
+        limit: 50,
+        page: 0,
+      });
+
+      expect(rows.map((r) => r.id)).toEqual([matching]);
+
+      // countAll takes the same CTE path and must agree with the row query.
+      const count = await getTracesTableCount({
+        projectId: project_id,
+        filter,
+        searchType: [],
+      });
+      expect(count).toEqual(1);
+    });
+
+    it("keeps negated operators consistent for traces without the named score", async () => {
+      const { project_id, matching, wrongValue, otherNameOnly, noScores } =
+        await seedProject();
+
+      // NOT has(score_booleans, 'flag:true'). The pushdown restricts the CTE to
+      // name = 'flag', which leaves traces that never had a "flag" score without
+      // a CTE row at all. The LEFT JOIN fills those with an empty array, so they
+      // must still satisfy the negation — exactly as they would have with the
+      // unrestricted CTE.
+      const rows = await getTracesTable({
+        projectId: project_id,
+        filter: [
+          {
+            column: "score_booleans",
+            type: "booleanObject",
+            key: "flag",
+            operator: "<>",
+            value: true,
+          },
+        ],
+        searchQuery: undefined,
+        orderBy: undefined,
+        limit: 50,
+        page: 0,
+      });
+
+      const ids = rows.map((r) => r.id).sort();
+      expect(ids).toEqual([wrongValue, otherNameOnly, noScores].sort());
+      expect(ids).not.toContain(matching);
     });
   });
 });

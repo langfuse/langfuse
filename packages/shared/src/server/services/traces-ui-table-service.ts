@@ -8,6 +8,9 @@ import {
   StringFilter,
   StringOptionsFilter,
   DateTimeFilter,
+  NumberObjectFilter,
+  CategoryOptionsFilter,
+  BooleanObjectFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import {
   getProjectIdDefaultFilter,
@@ -274,10 +277,57 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
-  const requiresScoresJoin =
-    tracesFilter.find((f) => f.clickhouseTable === "scores") !== undefined ||
+  const ordersByScores =
     findUiColumnMapping(tracesTableUiColumnDefinitions, orderBy?.column)
       ?.clickhouseTableName === "scores";
+
+  const requiresScoresJoin =
+    tracesFilter.find((f) => f.clickhouseTable === "scores") !== undefined ||
+    ordersByScores;
+
+  // Restrict the scores CTE to the score names the filters actually reference.
+  //
+  // `scores` is ORDER BY (project_id, toDate(timestamp), name, id), so a `name`
+  // predicate is a primary key range scan. Without it the CTE aggregates every
+  // score name in the project from `traceTimestamp - 1 hour` onwards — there is
+  // no upper bound, because scores may be attached long after their trace — and
+  // the outer query then discards all but the filtered names. On projects with
+  // high score volume that CTE is the dominant cost of the whole statement, both
+  // as GROUP BY state and as the right side of the LEFT JOIN.
+  //
+  // Only sound when the CTE is not projected and not ordered on: `metrics`
+  // selects s.scores_avg / s.score_categories / s.score_booleans, and ordering by
+  // a score column needs the full per-trace aggregate. Score filters that do not
+  // name a score (e.g. a NullFilter on the column) disable the pushdown, since
+  // they can match a trace through any name.
+  //
+  // Equivalence holds for negated operators too ("!=", "none of", "<>"): each of
+  // these filters only ever inspects array entries carrying its own key, so
+  // entries for other names cannot change the outcome. Traces left without a CTE
+  // row are filled by the LEFT JOIN with empty arrays — the same value they would
+  // have had from an unfiltered CTE that matched none of their scores.
+  const scoreFilterNames: string[] = [];
+  let everyScoreFilterNamesAScore = true;
+  tracesFilter.forEach((f) => {
+    if (f.clickhouseTable !== "scores") return;
+    if (
+      f instanceof NumberObjectFilter ||
+      f instanceof CategoryOptionsFilter ||
+      f instanceof BooleanObjectFilter
+    ) {
+      scoreFilterNames.push(f.key);
+    } else {
+      everyScoreFilterNamesAScore = false;
+    }
+  });
+
+  const pushedDownScoreNames =
+    select !== "metrics" &&
+    !ordersByScores &&
+    everyScoreFilterNamesAScore &&
+    scoreFilterNames.length > 0
+      ? Array.from(new Set(scoreFilterNames))
+      : null;
 
   const requiresObservationsJoin =
     tracesFilter.find((f) => f.clickhouseTable === "observations") !==
@@ -342,6 +392,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
                   WHERE
                     project_id = {projectId: String}
                     ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+                    ${pushedDownScoreNames ? `AND s.name IN {scoreNames: Array(String)}` : ""}
                     ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
                   GROUP BY
                     project_id,
@@ -506,6 +557,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       limit: limit,
       offset: limit && page ? limit * page : 0,
       traceTimestamp: timeStampFilter?.value.getTime(),
+      ...(pushedDownScoreNames ? { scoreNames: pushedDownScoreNames } : {}),
       ...(traceDeleteCursor
         ? {
             cursorTimestamp: convertDateToClickhouseDateTime(
