@@ -56,9 +56,9 @@ const session: Session = {
       },
     ],
     featureFlags: {
+      searchBar: false,
       excludeClickhouseRead: false,
       templateFlag: true,
-      inAppAgent: false,
       v4BetaToggleVisible: false,
       observationEvals: false,
       experimentsV4Enabled: false,
@@ -347,15 +347,17 @@ describe("Dataset item media tRPC procedures", () => {
         "x-amz-checksum-sha256": sha256Hash,
         "x-ms-blob-type": "BlockBlob",
       });
-      expect(result.uploadHeaders["x-ms-version"]).toBeDefined();
+      expect(
+        (result.uploadHeaders as { "x-ms-version"?: string })["x-ms-version"],
+      ).toBeDefined();
 
       const uploadResponse = await fetch(result.uploadUrl!, {
         method: "PUT",
-        body: fileBytes,
+        body: fileBytes as BodyInit,
         headers: {
           "Content-Type": MediaContentType.PNG,
           ...result.uploadHeaders,
-        },
+        } as HeadersInit,
       });
 
       await caller.datasets.markItemMediaUploadComplete({

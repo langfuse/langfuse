@@ -10,6 +10,8 @@ import {
 } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 
 export function DeactivateEvalConfig({
   projectId,
@@ -20,9 +22,17 @@ export function DeactivateEvalConfig({
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const { allowLegacy } = useEvalCapabilities(projectId);
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const isActive = evalConfig?.status === EvaluatorStatus.ACTIVE;
+  // Where new legacy setups are not allowed (cloud), deactivating a legacy
+  // evaluator is a one-way door: reactivating it would amount to setting up
+  // a legacy eval again.
+  const reactivationBlocked =
+    !isActive &&
+    isLegacyEvalTarget(evalConfig?.targetObject ?? "") &&
+    !allowLegacy;
 
   const mutEvaluator = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
@@ -33,6 +43,11 @@ export function DeactivateEvalConfig({
   const onClick = () => {
     if (!projectId) {
       console.error("Project ID is missing");
+      return;
+    }
+    // The popover trigger wraps the switch, so guard the action itself too.
+    if (reactivationBlocked) {
+      setIsOpen(false);
       return;
     }
 
@@ -60,16 +75,21 @@ export function DeactivateEvalConfig({
           <Switch
             disabled={
               !hasAccess ||
+              reactivationBlocked ||
               (evalConfig?.timeScope?.length === 1 &&
                 evalConfig.timeScope[0] === "EXISTING")
             }
             checked={isActive}
             color="green"
+            {...(reactivationBlocked && {
+              title:
+                "Deprecated evaluators cannot be reactivated. Migrate to the new evaluators instead.",
+            })}
           />
         </div>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-bold">Please confirm</h2>
         <p className="mb-3 text-sm">
           {evalConfig?.status === "ACTIVE"
             ? "This action will deactivate the evaluator. No more traces will be evaluated based on this evaluator."

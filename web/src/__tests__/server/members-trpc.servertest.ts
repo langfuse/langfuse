@@ -3,6 +3,12 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { Role, type Plan } from "@langfuse/shared";
 import type { Session } from "next-auth";
+
+// Session fixture sub-object types; casts keep the runtime fixtures unchanged
+// while satisfying newer required fields on the session user type.
+type SessionUser = NonNullable<Session["user"]>;
+type SessionProject = SessionUser["organizations"][number]["projects"][number];
+type SessionFeatureFlags = SessionUser["featureFlags"];
 import { v4 as uuidv4 } from "uuid";
 
 async function createTestOrg(plan: Plan) {
@@ -80,14 +86,14 @@ function createSession(
               deletedAt: null,
               name: project.name,
               metadata: {},
-            },
+            } as SessionProject,
           ],
         },
       ],
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
-      },
+      } as SessionFeatureFlags,
       admin: false, // Not admin to test actual limits
     },
     environment: {

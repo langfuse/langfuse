@@ -191,7 +191,7 @@ export function MappingPreviewPanel({
     return (
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-semibold">Preview</h3>
+          <h3 className="text-sm font-bold">Preview</h3>
           <p className="text-muted-foreground text-xs">
             Sample from first observation
           </p>
@@ -206,7 +206,7 @@ export function MappingPreviewPanel({
     return (
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-semibold">Preview</h3>
+          <h3 className="text-sm font-bold">Preview</h3>
           <p className="text-muted-foreground text-xs">
             Sample from first observation
           </p>
@@ -223,7 +223,7 @@ export function MappingPreviewPanel({
   return (
     <div className="space-y-2">
       <div>
-        <h3 className="text-sm font-semibold">Preview</h3>
+        <h3 className="text-sm font-bold">Preview</h3>
         <p className="text-muted-foreground text-xs">
           Sample from first observation
         </p>
@@ -231,7 +231,7 @@ export function MappingPreviewPanel({
 
       {/* Source data */}
       <div className="space-y-2">
-        <p className="text-muted-foreground text-xs font-medium">
+        <p className="text-muted-foreground text-xs font-bold">
           Source: {sourceLabel}
         </p>
         <div className="bg-muted/30 max-h-[21vh] overflow-auto rounded-md border">
@@ -247,7 +247,7 @@ export function MappingPreviewPanel({
       {/* Result data */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <p className="text-muted-foreground text-xs font-medium">
+          <p className="text-muted-foreground text-xs font-bold">
             Result: Dataset Item {fieldLabel}
           </p>
           {/* Validation status indicator */}

@@ -10,6 +10,7 @@ import {
   FTS_OPERATOR_DESCRIPTORS,
   isFtsEventsTable,
   isFtsMetadataField,
+  isFtsTextField,
   isFtsTextTarget,
 } from "./fts";
 
@@ -716,3 +717,13 @@ export class FilterList {
     };
   }
 }
+
+// events_core stores input/output/metadata_values truncated to 200 chars
+// (events_core_mv); filters on these fields must run against events_full or
+// matches beyond the truncation point are silently dropped.
+export const filtersRequireEventsFull = (filters: FilterList): boolean =>
+  filters.some(
+    (f) =>
+      isFtsEventsTable(f.clickhouseTable) &&
+      (isFtsTextField(f.field) || isFtsMetadataField(f.field)),
+  );

@@ -150,7 +150,7 @@ engineering loop and authentic dogfooding.
   AI-features Langfuse project via `traceSinkParams` (env
   `langfuse-natural-language-filter`, traceName `search-bar-filter`,
   `targetProjectId = LANGFUSE_AI_FEATURES_PROJECT_ID`), gated on org
-  `aiTelemetryEnabled`. `fetchLLMCompletion` records the system+user messages and
+  `aiTelemetryEnabled`. `generateLLMText` records the system+user messages and
   the raw completion.
 - ❌ **Prompt is in-code** (`buildFilterPrompt.ts`, registry-derived) → no
   versions, no deploy-free iteration, no prompt↔trace linkage, nothing to eval.

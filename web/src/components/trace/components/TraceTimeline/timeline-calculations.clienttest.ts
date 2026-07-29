@@ -173,12 +173,22 @@ describe("timeline-calculations", () => {
       expect(PREDEFINED_STEP_SIZES).toContain(stepSize);
     });
 
-    it("should return largest step size for very long traces", () => {
-      // 10000 second trace
-      const stepSize = calculateStepSize(10000);
-      expect(stepSize).toBe(
-        PREDEFINED_STEP_SIZES[PREDEFINED_STEP_SIZES.length - 1],
-      );
+    it("should keep tick spacing readable for very long traces (LFE-10959)", () => {
+      // A ~2.8h trace (the reported deep-chain trace) previously clamped to
+      // the 500s max step -> ~21 ticks ~45px apart with overlapping labels.
+      // Ticks must never be denser than the STEP_SIZE (100px) design grid.
+      for (const duration of [
+        10_000, 10_061, 40_000, 86_400, 100_000, 500_000, 1_000_000,
+      ]) {
+        const stepSize = calculateStepSize(duration);
+        const tickSpacingPx = (stepSize / duration) * SCALE_WIDTH;
+        expect(tickSpacingPx).toBeGreaterThanOrEqual(100);
+      }
+    });
+
+    it("should pick time-nice steps for hour-scale traces", () => {
+      // ~2.8h trace: step lands on a clean 20m boundary, not a raw 500s clamp
+      expect(calculateStepSize(10_061)).toBe(1200);
     });
 
     it("should return smallest applicable step size", () => {

@@ -53,7 +53,7 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
   },
   {
     id: `${SYSTEM_PRESET_ID_PREFIX}first_generation__`,
-    name: "First Generation in Trace",
+    name: "First LLM Call per Trace",
     description: "Shows only the first generation in each trace",
     filters: [
       {
@@ -72,7 +72,7 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
   },
   {
     id: `${SYSTEM_PRESET_ID_PREFIX}last_generation__`,
-    name: "Last Generation in Trace",
+    name: "Last LLM Call per Trace",
     description: "Shows only the last generation in each trace",
     filters: [
       {
@@ -90,6 +90,11 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
     ] satisfies FilterState,
   },
 ];
+
+export const SESSION_DETAIL_LLM_CALL_PRESETS =
+  SESSION_DETAIL_SYSTEM_PRESETS.filter((preset) =>
+    preset.filters.some((filter) => filter.type === "positionInTrace"),
+  );
 
 /**
  * The default view: "All observations with I/O". Shows the real session out of

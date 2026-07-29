@@ -50,7 +50,29 @@ import { ExperimentDetailsStep } from "./steps/ExperimentDetailsStep";
 import { ReviewStep } from "./steps/ReviewStep";
 
 // Import step prop types
-import { PromptType } from "@langfuse/shared";
+import {
+  hasPromptToolStructuredOutputConflict,
+  PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+  PromptType,
+} from "@langfuse/shared";
+
+const LegacyExperimentNameValidation = ({
+  projectId,
+  datasetId,
+  form,
+}: {
+  projectId: string;
+  datasetId: string;
+  form: UseFormReturn<any>;
+}) => {
+  useExperimentNameValidation({
+    projectId,
+    datasetId,
+    form,
+  });
+
+  return null;
+};
 
 export const MultiStepExperimentForm = ({
   projectId,
@@ -59,6 +81,7 @@ export const MultiStepExperimentForm = ({
   promptDefault,
   handleExperimentSettled,
   handleExperimentSuccess,
+  enableLegacyNameValidation = false,
 }: {
   projectId: string;
   setFormOpen: (open: boolean) => void;
@@ -79,6 +102,7 @@ export const MultiStepExperimentForm = ({
     runId: string;
     runName: string;
   }) => Promise<void>;
+  enableLegacyNameValidation?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const [activeStep, setActiveStep] = useState("prompt");
@@ -178,6 +202,7 @@ export const MultiStepExperimentForm = ({
     promptsByName,
     expectedColumns,
     selectedPromptModelConfig,
+    selectedPromptToolConfig,
   } = useExperimentPromptData({
     projectId,
     form,
@@ -200,12 +225,6 @@ export const MultiStepExperimentForm = ({
           model: selectedPromptModelConfig.model,
         }
       : null,
-  });
-
-  useExperimentNameValidation({
-    projectId,
-    datasetId,
-    form,
   });
 
   // Watch model config changes and update form
@@ -269,6 +288,19 @@ export const MultiStepExperimentForm = ({
   };
 
   const onSubmit = async (data: CreateExperiment) => {
+    if (
+      hasPromptToolStructuredOutputConflict(
+        selectedPromptToolConfig,
+        Boolean(data.structuredOutputSchema),
+      )
+    ) {
+      showErrorToast(
+        PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+        "Disable structured output or choose a prompt without tools.",
+      );
+      return;
+    }
+
     capture("dataset_run:new_form_submit");
     const experiment = {
       ...data,
@@ -329,6 +361,10 @@ export const MultiStepExperimentForm = ({
 
   // Get dataset info for review step
   const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
+  const hasToolStructuredOutputConflict = hasPromptToolStructuredOutputConflict(
+    selectedPromptToolConfig,
+    structuredOutputEnabled,
+  );
 
   // Step validation function
   const isStepValid = (stepId: string): boolean => {
@@ -338,6 +374,7 @@ export const MultiStepExperimentForm = ({
           form.getValues("promptId") &&
           modelParams.provider.value &&
           modelParams.model.value &&
+          !hasToolStructuredOutputConflict &&
           !form.formState.errors.promptId &&
           !form.formState.errors.modelConfig
         );
@@ -379,6 +416,7 @@ export const MultiStepExperimentForm = ({
     selectedPromptVersion,
     setSelectedPromptVersion,
     promptsByName,
+    selectedPromptToolConfig,
   };
   const modelState = {
     modelParams,
@@ -446,6 +484,13 @@ export const MultiStepExperimentForm = ({
           to learn more.
         </DialogDescription>
       </DialogHeader>
+      {enableLegacyNameValidation && (
+        <LegacyExperimentNameValidation
+          projectId={projectId}
+          datasetId={datasetId}
+          form={form}
+        />
+      )}
       <Form {...form}>
         <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
           <DialogBody>
@@ -566,6 +611,7 @@ export const MultiStepExperimentForm = ({
                     disabled={
                       (Boolean(promptIdFromHook && datasetId) &&
                         !validationResult.data?.isValid) ||
+                      hasToolStructuredOutputConflict ||
                       !!form.formState.errors.name
                     }
                     loading={form.formState.isSubmitting}

@@ -167,11 +167,28 @@ export type TimeAxis = {
   };
 };
 
+/** Options that let a caller override the default axis presentation. */
+export type PrepareTimeAxisOptions = {
+  /**
+   * Hide the tick labels on a categorical (entity-name) axis entirely, keeping
+   * the full name in the tooltip. Off by default: the category branch shows its
+   * (truncated, angled) labels. Opt in for the experiments / dataset-compare
+   * charts, whose long entity names add clutter with little value on the axis
+   * itself, so we surface them only on hover. No effect on a temporal axis,
+   * whose timestamp labels are always useful.
+   */
+  hideCategoryTickLabels?: boolean;
+};
+
 /**
  * Decide the time-axis format + tick spacing for a set of raw bucket values.
  * `maxTicks` is how many labels fit the chart's measured width.
  */
-export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
+export function prepareTimeAxis(
+  rawValues: unknown[],
+  maxTicks = 6,
+  options: PrepareTimeAxisOptions = {},
+): TimeAxis {
   const timestamps: number[] = [];
   for (const value of rawValues) {
     const date = parseChartTimestamp(value);
@@ -189,6 +206,20 @@ export function prepareTimeAxis(rawValues: unknown[], maxTicks = 6): TimeAxis {
   if (!temporal) {
     const full = (raw: unknown): string =>
       raw == null ? "" : typeof raw === "string" ? raw : String(raw);
+    // Opt-in (experiments / dataset-compare): hide the entity names on the axis
+    // entirely and surface the full name on hover instead — the names cluttered
+    // the axis with little value. Nothing to fit, so draw every tick (`0`)
+    // label-less with a slim x-axis height; the tooltip keeps the full name.
+    if (options.hideCategoryTickLabels) {
+      return {
+        interval: 0,
+        formatTick: () => "",
+        formatTooltip: full,
+        mode: "category",
+        showVerticalGrid: false,
+        tickProps: { height: 8 },
+      };
+    }
     return {
       // The fix for the categorical smear (LFE-10583). A numeric interval makes
       // recharts show every Nth tick BY INDEX and skip its label-collision test,

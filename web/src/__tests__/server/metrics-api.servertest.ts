@@ -312,7 +312,10 @@ describe("/api/public/metrics API Endpoint", () => {
       toTimestamp: new Date().toISOString(),
     };
 
-    const { status, body } = await makeAPICall(
+    const { status, body } = await makeAPICall<{
+      error: string;
+      message: string;
+    }>(
       "GET",
       `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidMetricNameQuery))}`,
       undefined,
@@ -335,7 +338,10 @@ describe("/api/public/metrics API Endpoint", () => {
       toTimestamp: new Date().toISOString(),
     };
 
-    const { status, body } = await makeAPICall(
+    const { status, body } = await makeAPICall<{
+      error: string;
+      message: string;
+    }>(
       "GET",
       `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidAggregationQuery))}`,
       undefined,
@@ -358,7 +364,10 @@ describe("/api/public/metrics API Endpoint", () => {
       toTimestamp: new Date().toISOString(),
     };
 
-    const { status, body } = await makeAPICall(
+    const { status, body } = await makeAPICall<{
+      error: string;
+      message: string;
+    }>(
       "GET",
       `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidDimensionQuery))}`,
       undefined,
@@ -389,7 +398,10 @@ describe("/api/public/metrics API Endpoint", () => {
       toTimestamp: new Date().toISOString(),
     };
 
-    const { status, body } = await makeAPICall(
+    const { status, body } = await makeAPICall<{
+      error: string;
+      message: string;
+    }>(
       "GET",
       `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidFilterQuery))}`,
       undefined,
@@ -522,7 +534,10 @@ describe("/api/public/metrics API Endpoint", () => {
       };
 
       // Make API call and expect 400 error
-      const response = await makeAPICall(
+      const response = await makeAPICall<{
+        error: string;
+        message: string;
+      }>(
         "GET",
         `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidStringTypeQuery))}`,
       );
@@ -602,7 +617,10 @@ describe("/api/public/metrics API Endpoint", () => {
         orderBy: null,
       };
 
-      const response = await makeAPICall(
+      const response = await makeAPICall<{
+        error: string;
+        message: string;
+      }>(
         "GET",
         `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidSessionIdTypeQuery))}`,
       );
@@ -676,7 +694,7 @@ describe("/api/public/metrics API Endpoint", () => {
         (row: any) => row.name === "tagged-trace",
       );
       expect(taggedTraceResult).toBeDefined();
-      expect(Number(taggedTraceResult.count_count)).toBe(1);
+      expect(Number(taggedTraceResult!.count_count)).toBe(1);
     });
   });
 });

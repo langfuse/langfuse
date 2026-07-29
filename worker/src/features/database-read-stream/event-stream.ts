@@ -10,15 +10,14 @@
 import {
   FilterCondition,
   type ScoreDataTypeType,
-  TimeFilter,
   TracingSearchType,
 } from "@langfuse/shared";
 import {
+  buildEventsBlobExportStreamQuery,
   buildEventsStreamQuery,
   getDistinctScoreNames,
   queryClickhouseStream,
   logger,
-  eventsScoresAggregation,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -65,49 +64,21 @@ export const getEventsStream = async (props: {
     },
   };
 
-  const {
-    query,
-    params: queryParams,
-    eventOnlyFilters,
-  } = buildEventsStreamQuery({
+  const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
     projectId,
     cutoffCreatedAt,
     filter,
     searchQuery,
     searchType,
     rowLimit,
-    configureQuery: (builder) =>
-      builder
-        .selectFieldSet("export")
-        .selectIO(false) // Full I/O, no truncation
-        .selectMetadataExpanded() // Full metadata values from events_full
-        .selectRaw(
-          "s.scores_avg as scores_avg",
-          "s.score_categories as score_categories",
-          "s.score_categories_tuples as score_categories_tuples",
-        )
-        .withCTE(
-          "scores_agg",
-          eventsScoresAggregation({
-            projectId,
-            includeTupleEncoding: true,
-          }),
-        )
-        .leftJoin(
-          "scores_agg s",
-          "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
-        ),
   });
+  const { query, params: queryParams } = queryBuilder.buildWithParams();
 
   // Get distinct score names for empty columns
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
-    filter: eventOnlyFilters,
-    isTimestampFilter: (
-      filterItem: FilterCondition,
-    ): filterItem is TimeFilter =>
-      filterItem.column === "Start Time" && filterItem.type === "datetime",
+    startTimeFrom,
     clickhouseConfigs,
   });
 
@@ -159,6 +130,20 @@ export const getEventsStream = async (props: {
       | undefined;
     score_categories: string[] | undefined;
     score_categories_tuples: [string, string | null, string][] | undefined;
+    // Trace-level scores (observation_id NULL) live in their own aggregate;
+    // exported rows merge them with the observation-level ones so the export
+    // matches the UI's unified Scores column (LFE-10596).
+    trace_scores_avg:
+      | {
+          name: string;
+          value: number;
+          dataType: ScoreDataTypeType;
+          stringValue: string;
+        }[]
+      | undefined;
+    trace_score_categories_tuples:
+      | [string, string | null, string][]
+      | undefined;
   };
 
   const asyncGenerator = queryClickhouseStream<EventRow>({
@@ -174,8 +159,13 @@ export const getEventsStream = async (props: {
     bufferedRow: EventRow,
     commentsByEvent: Map<string, any[]>,
   ) => {
-    // Process numeric/boolean scores (tuples from ClickHouse)
-    const numericScores = (bufferedRow.scores_avg ?? []).map((score: any) => ({
+    // Process numeric/boolean scores (tuples from ClickHouse), merging the
+    // observation-level and trace-level aggregates so the export matches the
+    // UI's unified Scores column (LFE-10596).
+    const numericScores = [
+      ...(bufferedRow.scores_avg ?? []),
+      ...(bufferedRow.trace_scores_avg ?? []),
+    ].map((score: any) => ({
       name: score[0],
       value: score[1],
       dataType: score[2],
@@ -183,14 +173,15 @@ export const getEventsStream = async (props: {
     }));
 
     // Process categorical scores (tuples from ClickHouse)
-    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
-      (cat: [string, string | null, string]) => ({
-        name: cat[0],
-        value: null,
-        dataType: cat[2],
-        stringValue: cat[1],
-      }),
-    );
+    const categoricalScores = [
+      ...(bufferedRow.score_categories_tuples ?? []),
+      ...(bufferedRow.trace_score_categories_tuples ?? []),
+    ].map((cat: [string, string | null, string]) => ({
+      name: cat[0],
+      value: null,
+      dataType: cat[2],
+      stringValue: cat[1],
+    }));
 
     const outputScores: Record<string, string[] | number[]> =
       prepareScoresForOutput([...numericScores, ...categoricalScores]);
@@ -321,16 +312,19 @@ export const getEventsStreamForDataset = async (props: {
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
 
-  const { query, params: queryParams } = buildEventsStreamQuery({
+  const { queryBuilder } = buildEventsStreamQuery({
     projectId,
     cutoffCreatedAt,
     filter,
     searchQuery,
     searchType,
     rowLimit,
-    configureQuery: (builder) =>
-      builder.selectFieldSet("core").selectIO(false).selectFieldSet("metadata"),
   });
+  const { query, params: queryParams } = queryBuilder
+    .selectFieldSet("core")
+    .selectIO(false)
+    .selectFieldSet("metadata")
+    .buildWithParams();
 
   type DatasetEventRow = {
     id: string;
@@ -391,15 +385,17 @@ export const getEventsStreamForAnnotationQueue = async (props: {
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
 
-  const { query, params: queryParams } = buildEventsStreamQuery({
+  const { queryBuilder } = buildEventsStreamQuery({
     projectId,
     cutoffCreatedAt,
     filter,
     searchQuery,
     searchType,
     rowLimit,
-    configureQuery: (builder) => builder.selectFieldSet("core"),
   });
+  const { query, params: queryParams } = queryBuilder
+    .selectFieldSet("core")
+    .buildWithParams();
 
   type AnnotationQueueEventRow = {
     id: string;

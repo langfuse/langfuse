@@ -54,9 +54,7 @@ export function HeatmapLegend({
     return (
       <div className={cn("flex flex-col gap-2", className)}>
         {title && (
-          <div className="text-muted-foreground text-xs font-medium">
-            {title}
-          </div>
+          <div className="text-muted-foreground text-xs font-bold">{title}</div>
         )}
         <div className="flex flex-col gap-1">
           {colors

@@ -19,7 +19,7 @@
 
 import { type TreeNode } from "../lib/types";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { LevelColors } from "@/src/components/level-colors";
+import { getLevelColors } from "@/src/components/level-colors";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -124,7 +124,9 @@ export function SpanContent({
         onSelect?.();
       }}
       onMouseEnter={onHover}
-      title={node.name}
+      // No row-level title: it would pop a native tooltip from ANYWHERE in the
+      // row — stacking on the score chips' own titles and the ScoreTag level
+      // tooltip. The truncating name span below carries its own title.
       className={cn(
         "peer relative flex min-w-0 flex-1 items-center rounded-md py-0.5 pr-2 pl-1 text-left",
         className,
@@ -151,8 +153,8 @@ export function SpanContent({
                   <span
                     className={cn(
                       "rounded-sm p-0.5 text-xs",
-                      LevelColors[node.level as keyof typeof LevelColors]?.bg,
-                      LevelColors[node.level as keyof typeof LevelColors]?.text,
+                      getLevelColors(node.level).bg,
+                      getLevelColors(node.level).text,
                     )}
                   >
                     {node.level}

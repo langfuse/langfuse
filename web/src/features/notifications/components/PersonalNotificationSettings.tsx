@@ -62,7 +62,7 @@ export function PersonalNotificationSettings() {
       <Header title="Personal Notifications" />
       <div className="flex flex-col gap-4">
         <div>
-          <h3 className="text-lg font-medium">Email Notifications</h3>
+          <h3 className="text-lg font-bold">Email Notifications</h3>
           <p className="text-muted-foreground text-sm">
             Manage your personal email notification preferences for this
             project.

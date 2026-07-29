@@ -8,7 +8,6 @@ export interface EvalCapabilities {
   isNewCompatible: boolean;
   compatibilityCheckWasPerformed: boolean;
   allowLegacy: boolean;
-  allowPropagationFilters: boolean;
   isLoading: boolean;
   hasLegacyEvals: boolean;
 }
@@ -41,8 +40,6 @@ export function useEvalCapabilities(
 
   // Determine OTEL status from SDK version info
   const isOtel = sdkVersionInfo.data?.isOtel ?? false;
-  // TODO: Implement propagation check
-  const isPropagating = false;
 
   // Get eval counts including legacy eval count
   const evalCounts = api.evals.counts.useQuery({ projectId });
@@ -54,13 +51,11 @@ export function useEvalCapabilities(
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const v4WriteMode = session?.environment?.v4WriteMode;
 
-  // Whether a *new* config may use the legacy experience (independent of
-  // hasLegacyEvals, which always keeps legacy visible so existing legacy
-  // evaluators stay manageable):
+  // Whether a *new* config may use the legacy experience:
   // - events_only: legacy tables are no longer written → no new legacy evals.
-  // - dual: self-hosted deployments always allow legacy; on Cloud, new legacy
-  //   evals are only available via hasLegacyEvals (projects that already have
-  //   legacy evaluators) — being able to toggle V4 is not enough.
+  // - dual: self-hosted deployments always allow legacy; on Cloud, no new
+  //   legacy evals — existing legacy evaluators stay visible in read-only mode,
+  //   but cannot be newly set up.
   // - legacy: legacy is the only experience.
   const modeAllowsNewLegacy =
     v4WriteMode === "events_only"
@@ -73,11 +68,10 @@ export function useEvalCapabilities(
     isNewCompatible: isOtel,
     // True when v4 beta is enabled (SDK check query was run)
     compatibilityCheckWasPerformed: isBetaEnabled,
-    // Allow legacy if: not a code eval AND (user has legacy evals to manage OR
-    // the deployment mode/cohort offers the legacy experience).
-    allowLegacy: !isCodeEvalConfig && (hasLegacyEvals || modeAllowsNewLegacy),
-    // Allow propagation filters only when using OTEL and spans are propagating
-    allowPropagationFilters: isOtel && isPropagating,
+    // Allow setting up new legacy evals only if: not a code eval AND the
+    // deployment mode offers the legacy experience. Having existing legacy
+    // evals no longer grants this; they remain editable via edit mode.
+    allowLegacy: !isCodeEvalConfig && modeAllowsNewLegacy,
     isLoading:
       evalCounts.isLoading || isSessionLoading || sdkVersionInfo.isLoading,
     hasLegacyEvals,

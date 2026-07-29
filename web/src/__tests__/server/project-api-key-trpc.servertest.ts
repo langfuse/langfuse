@@ -42,27 +42,36 @@ describe("project API keys trpc", () => {
             plan: "cloud:hobby",
             cloudConfig: undefined,
             metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,
                 role: "ADMIN",
                 retentionDays: 30,
                 deletedAt: null,
+                hasTraces: false,
                 name: "Test Project",
+                metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
         ],
         featureFlags: {
+          searchBar: false,
           excludeClickhouseRead: false,
           templateFlag: true,
+          v4BetaToggleVisible: false,
+          observationEvals: false,
+          experimentsV4Enabled: false,
         },
         admin: false,
       },
       environment: {} as any,
     };
 
-    const ctx = createInnerTRPCContext({ session });
+    const ctx = createInnerTRPCContext({ session, headers: {} });
     const caller = appRouter.createCaller({ ...ctx, prisma });
 
     return { caller, projectId };

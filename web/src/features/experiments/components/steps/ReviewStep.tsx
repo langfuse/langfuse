@@ -54,11 +54,11 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-muted-foreground">Name:</span>
-              <span className="font-medium">{selectedPromptName}</span>
+              <span className="font-bold">{selectedPromptName}</span>
             </div>
             <div className="flex gap-2">
               <span className="text-muted-foreground">Version:</span>
-              <span className="font-medium">v{selectedPromptVersion}</span>
+              <span className="font-bold">v{selectedPromptVersion}</span>
             </div>
           </CardContent>
         </Card>
@@ -114,7 +114,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-muted-foreground">Name:</span>
-              <span className="font-medium">{selectedDataset?.name}</span>
+              <span className="font-bold">{selectedDataset?.name}</span>
             </div>
             {validationResult?.isValid && (
               <div className="flex gap-2">
@@ -159,11 +159,11 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-muted-foreground">Experiment Name:</span>
-              <span className="font-medium">{formValues.name}</span>
+              <span className="font-bold">{formValues.name}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Run Name:</span>
-              <span className="font-medium">{formValues.runName}</span>
+              <span className="font-bold">{formValues.runName}</span>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <InfoIcon className="text-muted-foreground h-3.5 w-3.5" />

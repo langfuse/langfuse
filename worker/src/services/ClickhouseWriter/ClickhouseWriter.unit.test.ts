@@ -190,6 +190,27 @@ describe("ClickhouseWriter", () => {
     );
   });
 
+  it("should retry client request timeouts within the same flush", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValueOnce(new Error("Timeout error."))
+      .mockResolvedValueOnce();
+
+    writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
+
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+    // let the backOff retry delay elapse
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(mockInsert).toHaveBeenCalledTimes(2);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    expect(serverExports.recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.rows_dropped",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
   it("should shutdown gracefully", async () => {
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
     const mockInsert = vi

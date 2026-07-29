@@ -10,8 +10,7 @@ export function trimTrailingSlashes(url: string): string {
 }
 
 /**
- * Normalizes a stored LangChain-era base URL (an origin-style prefix the
- * underlying SDK appended a version segment to) into the AI SDK shape, where
+ * Normalizes a stored origin-style base URL into the AI SDK shape, where
  * the version segment is part of `baseURL`. Keeps an already-suffixed URL
  * unchanged.
  */

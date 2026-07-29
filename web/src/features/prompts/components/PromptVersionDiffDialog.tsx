@@ -87,10 +87,7 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
         size="xl"
         // prevent event bubbling up and triggering the row's click handler
         onClick={(event) => event.stopPropagation()}
-        onPointerDownOutside={(e) => {
-          setIsOpen(false);
-          e.stopPropagation();
-        }}
+        closeOnInteractionOutside
       >
         <DialogHeader>
           <DialogTitle>
@@ -98,14 +95,14 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
           </DialogTitle>
 
           <DialogDescription className="flex items-center gap-2">
-            <span className="font-medium">Prompt {leftPrompt.name}</span>
+            <span className="font-bold">Prompt {leftPrompt.name}</span>
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <div className="space-y-6">
             <div className="space-y-4">
               <div>
-                <h3 className="mb-2 text-base font-medium">Content</h3>
+                <h3 className="mb-2 text-base font-bold">Content</h3>
                 <DiffViewer
                   {...createSmartDiff(leftPrompt, rightPrompt)}
                   oldLabel={`v${leftPrompt.version}`}
@@ -115,7 +112,7 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
                 />
               </div>
               <div>
-                <h3 className="mb-2 text-base font-medium">Config</h3>
+                <h3 className="mb-2 text-base font-bold">Config</h3>
                 <DiffViewer
                   oldString={JSON.stringify(leftPrompt.config, null, 2)}
                   newString={JSON.stringify(rightPrompt.config, null, 2)}

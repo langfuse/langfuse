@@ -1,7 +1,7 @@
 import { MoreVertical, PauseCircle, PlayCircle, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useMediaQuery } from "react-responsive";
 
 import { DeleteMonitorButton } from "@/src/components/deleteButton";
@@ -19,7 +19,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { monitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -57,7 +56,6 @@ type MonitorsOrderBy = RouterInputs["monitors"]["all"]["orderBy"];
 export function MonitorsTable() {
   const router = useRouter();
   const projectId = useProjectIdFromURL() ?? "";
-  const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   /** hasCUDAccess gates the edit, pause/resume, and delete row actions behind the monitors:CUD RBAC scope. */
   const hasCUDAccess = useHasProjectAccess({
@@ -158,16 +156,6 @@ export function MonitorsTable() {
     },
   );
 
-  useEffect(() => {
-    if (monitors.isSuccess) {
-      setDetailPageList(
-        "monitors",
-        monitors.data.monitors.map((m) => ({ id: m.id })),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monitors.isSuccess, monitors.data]);
-
   /** columns is the DataTable column schema, conditionally including Tags on viewports wider than a phone. */
   const columns: LangfuseColumnDef<MonitorRow>[] = [
     {
@@ -194,7 +182,7 @@ export function MonitorsTable() {
       cell: ({ row }) => (
         <span
           className={cn(
-            "text-sm font-medium",
+            "text-sm font-bold",
             row.original.severity === "PAUSED" && "opacity-50",
           )}
         >

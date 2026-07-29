@@ -50,6 +50,7 @@ const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
     user: {
       id: `user-${randomUUID()}`,
       name: "Batch Delete Test User",
+      canCreateOrganizations: true,
       admin: true,
       v4BetaEnabled: opts.v4BetaEnabled ?? false,
       organizations: [
@@ -59,6 +60,9 @@ const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
           role: "OWNER",
           plan: "cloud:team",
           cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: project.id,
@@ -66,6 +70,9 @@ const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
               retentionDays: 30,
               deletedAt: null,
               name: project.name,
+              hasTraces: true,
+              metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -73,12 +80,16 @@ const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
     },
     environment: {} as any,
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   return {
     projectId: project.id,
     session,
@@ -111,7 +122,7 @@ describe("traces.deleteMany batch action", () => {
     });
     expect(batchAction).toMatchObject({
       projectId,
-      userId: session.user.id,
+      userId: session.user!.id,
       actionType: "trace-delete",
       tableName: "traces",
       status: BatchActionStatus.Queued,
@@ -143,7 +154,7 @@ describe("traces.deleteMany batch action", () => {
       data: {
         id: batchActionId,
         projectId,
-        userId: session.user.id,
+        userId: session.user!.id,
         actionType: "trace-delete",
         tableName: "traces",
         status: BatchActionStatus.Processing,
@@ -195,7 +206,7 @@ describe("traces.deleteMany batch action", () => {
       data: {
         id: batchActionId,
         projectId,
-        userId: session.user.id,
+        userId: session.user!.id,
         actionType: "trace-delete",
         tableName: "traces",
         status: BatchActionStatus.Completed,
@@ -263,7 +274,7 @@ describe("traces.deleteMany batch action", () => {
       data: {
         id: batchActionId,
         projectId,
-        userId: session.user.id,
+        userId: session.user!.id,
         actionType: "trace-delete",
         tableName: "traces",
         status: BatchActionStatus.Processing,

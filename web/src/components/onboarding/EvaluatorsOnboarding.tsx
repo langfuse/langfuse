@@ -55,13 +55,13 @@ export function EvaluatorsOnboarding({ projectId }: EvaluatorsOnboardingProps) {
             Langfuse supports two evaluator types:
             <ul className="text-muted-foreground mx-auto mt-2 max-w-2xl list-disc space-y-2 pl-5 text-left text-sm">
               <li>
-                <span className="text-foreground font-medium">
+                <span className="text-foreground font-bold">
                   LLM-as-a-judge evaluators
                 </span>{" "}
                 use an LLM to score outputs against natural-language criteria.
               </li>
               <li>
-                <span className="text-foreground font-medium">
+                <span className="text-foreground font-bold">
                   Code evaluators
                 </span>{" "}
                 use {codeEvaluatorLanguageDescription} logic for deterministic,

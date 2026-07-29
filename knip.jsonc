@@ -5,29 +5,19 @@
     "catalog": "off",
   },
   "ignoreIssues": {
-    "web/**": [
-      "files",
-      "exports",
-      "nsExports",
-      "types",
-      "nsTypes",
-      "enumMembers",
-      "namespaceMembers",
-      "duplicates",
-    ],
-    "packages/shared/**": [
-      "files",
-      "exports",
-      "nsExports",
-      "types",
-      "nsTypes",
-      "enumMembers",
-      "namespaceMembers",
-      "duplicates",
-    ],
+    "web/**": ["files", "exports", "types"],
+    "packages/shared/**": ["files", "exports", "types"],
+    "worker/**": ["files", "exports", "types"],
   },
-  "ignoreWorkspaces": ["worker"],
   "workspaces": {
+    "worker": {
+      // Tests intentionally load these from @langfuse/shared's dependency tree.
+      "ignoreDependencies": [
+        "@aws-sdk/client-bedrock-runtime",
+        "@langchain/aws",
+        "@langchain/core",
+      ],
+    },
     "web": {
       // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
       "project": ["src/**/*.{ts,tsx,mjs}"],
@@ -42,13 +32,29 @@
         "raw-loader",
         // The next-auth patch requires this module from core/lib/oauth/client.js.
         "https-proxy-agent",
+        // In-app-agent servertests vi.mock these runtime deps of the shared
+        // agent module (@langfuse/shared/in-app-agent/server); the mock
+        // specifiers must resolve from web.
+        "@aws-sdk/client-lambda-microvms",
+        "@aws-sdk/credential-providers",
+        "dockerode",
+        "@types/dockerode",
       ],
     },
     "ee": {
       "project": ["src/**/*.ts"],
     },
+    "packages/in-app-agent-sandbox-runtime": {
+      "entry": ["src/server.ts"],
+      "project": ["src/**/*.ts"],
+    },
     "packages/config-eslint": {
       "project": ["*.js"],
+      // eslint-plugin-import loads these from the resolver names in next.js settings.
+      "ignoreDependencies": [
+        "eslint-import-resolver-node",
+        "eslint-import-resolver-typescript",
+      ],
     },
     "packages/eslint-plugin": {
       "project": ["src/**/*.ts"],

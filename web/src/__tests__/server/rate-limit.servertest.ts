@@ -4,12 +4,24 @@ import {
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
 import { randomUUID } from "crypto";
+import type { Redis } from "ioredis";
+import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import {
   clearRedisKeysByPatternSafely,
   createRedisTestClient,
   ensureRedisReady,
   type RedisTestClient,
 } from "@/src/__tests__/server/redis-test-utils";
+
+// The rate limiter only reads these scope fields; the cast keeps the test
+// fixtures minimal without changing them at runtime.
+type TestApiAccessScope = Pick<
+  ApiAccessScope,
+  "orgId" | "plan" | "projectId" | "accessLevel" | "rateLimitOverrides"
+>;
+
+const asScope = (scope: TestApiAccessScope): ApiAccessScope =>
+  scope as ApiAccessScope;
 
 describe("RateLimitService", () => {
   const orgId = `rate-limit-test-org-${randomUUID()}`;
@@ -55,13 +67,13 @@ describe("RateLimitService", () => {
       remainingPoints: 999,
       msBeforeNext: 1000,
       resource: "public-api" as const,
-      scope: {
+      scope: asScope({
         orgId: orgId,
         plan: "cloud:hobby" as const,
         projectId,
         accessLevel: "project" as const,
         rateLimitOverrides: [],
-      },
+      }),
       consumedPoints: 1,
       isFirstInDuration: true,
     };
@@ -87,8 +99,11 @@ describe("RateLimitService", () => {
 
     expect(redis).toBeDefined();
 
-    const rateLimitService = RateLimitService.getInstance(redis);
-    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+    const result = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "public-api",
+    );
 
     expect(result?.res).toEqual({
       scope: scope,
@@ -120,10 +135,13 @@ describe("RateLimitService", () => {
       rateLimitOverrides: [],
     };
 
-    const rateLimitService = RateLimitService.getInstance(redis);
-    await rateLimitService.rateLimitRequest(scope, "public-api");
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+    await rateLimitService.rateLimitRequest(asScope(scope), "public-api");
 
-    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
+    const result = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "public-api",
+    );
 
     expect(result?.res).toEqual({
       scope: scope,
@@ -148,11 +166,11 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = RateLimitService.getInstance(redis);
-    await rateLimitService.rateLimitRequest(scope, "public-api");
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+    await rateLimitService.rateLimitRequest(asScope(scope), "public-api");
 
     const firstResult = await rateLimitService.rateLimitRequest(
-      scope,
+      asScope(scope),
       "public-api",
     );
     expect(firstResult?.isRateLimited()).toBe(false);
@@ -170,7 +188,7 @@ describe("RateLimitService", () => {
     await redis.del(`${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api:${orgId}`);
 
     const secondResult = await rateLimitService.rateLimitRequest(
-      scope,
+      asScope(scope),
       "public-api",
     );
 
@@ -198,13 +216,16 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = RateLimitService.getInstance(redis);
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
     for (let i = 0; i < 5; i++) {
-      await rateLimitService.rateLimitRequest(scope, "public-api");
+      await rateLimitService.rateLimitRequest(asScope(scope), "public-api");
     }
 
-    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
+    const result = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "public-api",
+    );
 
     expect(result?.res).toEqual({
       scope: scope,
@@ -229,9 +250,12 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = RateLimitService.getInstance(redis);
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
-    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
+    const result = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "public-api",
+    );
 
     expect(result?.res).toEqual({
       scope: scope,
@@ -255,9 +279,12 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = RateLimitService.getInstance(redis);
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
-    const result = await rateLimitService.rateLimitRequest(scope, "prompts");
+    const result = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "prompts",
+    );
 
     expect(result?.res).toBeUndefined();
     expect(result?.isRateLimited()).toBe(false);
@@ -274,9 +301,12 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = RateLimitService.getInstance(redis);
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
-    const result = await rateLimitService.rateLimitRequest(scope, "ingestion");
+    const result = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "ingestion",
+    );
 
     expect(result?.res).toBeUndefined();
   });
@@ -295,7 +325,7 @@ describe("RateLimitService", () => {
   //
   //   const rateLimitService = new RateLimitService(null);
   //
-  //   const result = await rateLimitService.rateLimitRequest(scope, "public-api");
+  //   const result = await rateLimitService.rateLimitRequest(asScope(scope), "public-api");
   //
   //   expect(result?.res).toBeUndefined();
   //   expect(result?.isRateLimited()).toBe(false);
@@ -310,9 +340,12 @@ describe("RateLimitService", () => {
       rateLimitOverrides: [],
     };
 
-    const rateLimitService = RateLimitService.getInstance(redis);
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
-    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
+    const result = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "public-api",
+    );
 
     expect(result?.res).toBeUndefined();
     expect(result?.isRateLimited()).toBe(false);
@@ -327,9 +360,9 @@ describe("RateLimitService", () => {
       rateLimitOverrides: [],
     };
 
-    const rateLimitService = RateLimitService.getInstance(redis);
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
     const result = await rateLimitService.rateLimitRequest(
-      scope,
+      asScope(scope),
       "score-delete",
     );
 
@@ -354,7 +387,7 @@ describe("RateLimitService", () => {
       { plan: "cloud:enterprise" as const, points: 100 },
     ];
 
-    const rateLimitService = RateLimitService.getInstance(redis);
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
     for (const testCase of cases) {
       await redis.del(
@@ -370,7 +403,7 @@ describe("RateLimitService", () => {
       };
 
       const result = await rateLimitService.rateLimitRequest(
-        scope,
+        asScope(scope),
         "public-api-legacy",
       );
 
@@ -396,7 +429,7 @@ describe("RateLimitService", () => {
       { plan: "cloud:enterprise" as const, points: 500, durationInSec: 3600 },
     ];
 
-    const rateLimitService = RateLimitService.getInstance(redis);
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
     for (const testCase of cases) {
       const activeKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-v2-metrics:${orgId}`;
@@ -412,7 +445,7 @@ describe("RateLimitService", () => {
       };
 
       const result = await rateLimitService.rateLimitRequest(
-        scope,
+        asScope(scope),
         "public-api-v2-metrics",
       );
 
@@ -444,13 +477,13 @@ describe("RateLimitService", () => {
       rateLimitOverrides: [],
     };
 
-    const rateLimitService = RateLimitService.getInstance(redis);
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
     const mediaResult = await rateLimitService.rateLimitRequest(
-      scope,
+      asScope(scope),
       "media-upload",
     );
     const ingestionResult = await rateLimitService.rateLimitRequest(
-      scope,
+      asScope(scope),
       "ingestion",
     );
 

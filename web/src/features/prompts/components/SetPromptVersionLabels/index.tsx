@@ -204,7 +204,7 @@ export function SetPromptVersionLabels({
           onClick={(event) => event.stopPropagation()}
           className="flex flex-col"
         >
-          <h2 className="mb-3 font-semibold">Prompt labels</h2>
+          <h2 className="mb-3 font-bold">Prompt labels</h2>
           <h2 className="mb-3 text-xs">
             Use labels to fetch prompts via SDKs. The{" "}
             <strong>production</strong> labeled prompt will be served by

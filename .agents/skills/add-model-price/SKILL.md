@@ -54,6 +54,7 @@ updates in `packages/shared/`.
 | Match patterns                  | You are editing `matchPattern` regexes or provider coverage                           | [references/match-patterns.md](references/match-patterns.md)                                   |
 | Workflow and validation         | You are applying the end-to-end edit process or checking common mistakes              | [references/workflow-and-validation.md](references/workflow-and-validation.md)                 |
 | Automated audit mode            | You are running a scheduled/default-price audit and need CI-safe edit rules           | [references/automated-audit.md](references/automated-audit.md)                                 |
+| Audit memory                    | You need optional per-model context retained from a useful prior automated audit      | [references/model-audit-memory.md](references/model-audit-memory.md)                           |
 
 ## Deterministic Helpers
 

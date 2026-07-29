@@ -79,6 +79,9 @@ describe("scores trpc", () => {
             role: "OWNER",
             plan: "cloud:hobby",
             cloudConfig: undefined,
+            metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,
@@ -86,6 +89,9 @@ describe("scores trpc", () => {
                 retentionDays: 30,
                 deletedAt: null,
                 name: "Test Project",
+                hasTraces: false,
+                metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
@@ -93,13 +99,17 @@ describe("scores trpc", () => {
         featureFlags: {
           excludeClickhouseRead: false,
           templateFlag: true,
+          searchBar: false,
+          v4BetaToggleVisible: false,
+          observationEvals: false,
+          experimentsV4Enabled: false,
         },
         admin: true,
       },
       environment: {} as any,
     };
 
-    const ctx = createInnerTRPCContext({ session });
+    const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });
   });
 
@@ -146,15 +156,15 @@ describe("scores trpc", () => {
         filter: [
           {
             column: "booleanValue",
-            type: "stringOptions",
-            operator: "none of",
+            type: "stringOptions" as const,
+            operator: "none of" as const,
             value: ["false"],
           },
         ],
-        orderBy: { column: "timestamp", order: "DESC" },
+        orderBy: { column: "timestamp", order: "DESC" as const },
         page: 0,
         limit: 50,
-      } as const;
+      };
 
       const result = await caller.scores.all(payload);
       const resultFromEvents = await caller.scores.allFromEvents(payload);
@@ -418,7 +428,7 @@ describe("scores trpc", () => {
   describe("scoreConfigs.all", () => {
     it("should paginate score configs deterministically when createdAt timestamps tie", async () => {
       const sharedCreatedAt = new Date("2100-05-12T00:00:00.000Z");
-      const configIds = [randomUUID(), randomUUID(), randomUUID()];
+      const configIds: string[] = [randomUUID(), randomUUID(), randomUUID()];
 
       await prisma.scoreConfig.createMany({
         data: configIds.map((id, index) => ({

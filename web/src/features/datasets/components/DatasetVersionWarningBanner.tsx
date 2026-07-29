@@ -32,7 +32,7 @@ export function DatasetVersionWarningBanner({
         <div className="flex items-center justify-between gap-4">
           <p className="text-muted-foreground text-sm wrap-break-word">
             Viewing version from{" "}
-            <span className="text-foreground font-medium">
+            <span className="text-foreground font-bold">
               {format(selectedVersion, "MMM d, yyyy 'at' h:mm a")}
             </span>
           </p>

@@ -6,7 +6,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { ActionButton } from "@/src/components/ActionButton";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -234,7 +234,7 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
             ) : (
               endpoints.data?.map((endpoint) => (
                 <TableRow key={endpoint.id}>
-                  <TableCell density="comfortable" className="font-medium">
+                  <TableCell density="comfortable" className="font-bold">
                     {endpoint.name}
                   </TableCell>
                   <TableCell
@@ -698,7 +698,7 @@ export function WebCalloutIntegrationCard(props: {
     <Card className="p-3">
       <div className="mb-4 flex items-center gap-2">
         <Webhook className="text-foreground h-5 w-5" />
-        <span className="font-semibold">Web Callouts</span>
+        <span className="font-bold">Web Callouts</span>
       </div>
       <p className="text-primary mb-4 text-sm">
         Send backend callouts from trace, observation, and session detail views

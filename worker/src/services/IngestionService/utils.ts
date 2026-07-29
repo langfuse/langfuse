@@ -9,7 +9,11 @@ export const convertJsonSchemaToRecord = (
   const record: Record<string, string> = {};
 
   // if it's a literal, return the value with "metadata" prefix
-  if (typeof jsonSchema === "string" || typeof jsonSchema === "number") {
+  if (
+    typeof jsonSchema === "string" ||
+    typeof jsonSchema === "number" ||
+    typeof jsonSchema === "boolean"
+  ) {
     record["metadata"] = jsonSchema.toString();
     return record;
   }

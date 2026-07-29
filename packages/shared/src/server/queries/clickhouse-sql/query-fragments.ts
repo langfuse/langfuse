@@ -11,6 +11,10 @@ import {
   type CTEWithSchema,
 } from "./event-query-builder";
 import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
+import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+} from "../../repositories/constants";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
@@ -27,6 +31,59 @@ export const eventsTraceMetadata = (projectId: string): EventsQueryBuilder =>
     .whereRaw("e.trace_name <> ''")
     .whereRaw("e.is_deleted = 0")
     .limitBy("e.trace_id");
+
+export const promptEventsForMetrics = (params: {
+  projectId: string;
+  promptIds: string[];
+  fromTimestamp?: string;
+  toTimestamp?: string;
+}): CTEWithSchema => {
+  const builder = new EventsQueryBuilder({ projectId: params.projectId })
+    .selectRaw(
+      "e.project_id AS project_id",
+      "e.prompt_id AS prompt_id",
+      "e.prompt_version AS prompt_version",
+      "e.trace_id AS trace_id",
+      "e.span_id AS span_id",
+      "e.start_time AS start_time",
+      "e.end_time AS end_time",
+      "e.usage_details AS usage_details",
+      "e.cost_details AS cost_details",
+      "e.is_deleted AS is_deleted",
+    )
+    .whereRaw("e.type = 'GENERATION'")
+    .whereRaw("e.prompt_id IN ({promptIds: Array(String)})", {
+      promptIds: params.promptIds,
+    })
+    .when(Boolean(params.fromTimestamp), (b) =>
+      b.whereRaw("e.start_time >= {fromTimestamp: DateTime64(6)}", {
+        fromTimestamp: params.fromTimestamp,
+      }),
+    )
+    .when(Boolean(params.toTimestamp), (b) =>
+      b.whereRaw("e.start_time <= {toTimestamp: DateTime64(6)}", {
+        toTimestamp: params.toTimestamp,
+      }),
+    )
+    .orderByColumns([{ column: "e.event_ts", direction: "DESC" }])
+    .limitBy("e.span_id", "e.project_id");
+
+  return {
+    ...builder.buildWithParams(),
+    schema: [
+      "project_id",
+      "prompt_id",
+      "prompt_version",
+      "trace_id",
+      "span_id",
+      "start_time",
+      "end_time",
+      "usage_details",
+      "cost_details",
+      "is_deleted",
+    ],
+  };
+};
 
 interface EventsTracesAggregationParams {
   projectId: string;
@@ -90,6 +147,7 @@ interface BaseScoresParams {
 
 interface BaseScoresAggregationParams extends BaseScoresParams {
   hasScoreAggregationFilters?: boolean;
+  startTimeLookbackIntervals: readonly string[];
   /**
    * When true, adds an extra `score_categories_tuples` column with
    * `tuple(name, string_value, data_type)` encoding alongside the default concat-encoded
@@ -99,6 +157,14 @@ interface BaseScoresAggregationParams extends BaseScoresParams {
    */
   includeTupleEncoding?: boolean;
 }
+
+const scoreTimestampLowerBound = (
+  startTimeFrom: string | null | undefined,
+  lookbackIntervals: readonly string[],
+): string =>
+  startTimeFrom
+    ? `AND timestamp >= {startTimeFrom: DateTime64(3)}${lookbackIntervals.map((interval) => ` - ${interval}`).join("")}`
+    : "";
 
 /**
  * Unified score aggregation CTE builder for both observation-level and trace-level scores.
@@ -153,7 +219,7 @@ export const buildScoresAggregationCTE = (
         FROM scores FINAL
         WHERE project_id = {projectId: String}
           ${observationFilter}
-          ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+          ${scoreTimestampLowerBound(params.startTimeFrom, params.startTimeLookbackIntervals)}
         GROUP BY
           ${primaryKey},
           trace_id,
@@ -190,6 +256,7 @@ export const eventsScoresAggregation = (
   return buildScoresAggregationCTE({
     ...params,
     level: "observation",
+    startTimeLookbackIntervals: [SCORE_TO_TRACE_OBSERVATIONS_INTERVAL],
   });
 };
 
@@ -197,10 +264,14 @@ interface EventsTracesScoresAggregationParams {
   projectId: string;
   startTimeFrom?: string | null;
   hasScoreAggregationFilters?: boolean;
-  // Note: includeTupleEncoding is intentionally omitted. This function is only used
-  // in UI table queries where score_categories are used for filtering, not programmatic
-  // parsing. If this is ever used in an export path, add includeTupleEncoding here and
-  // pass it through to buildScoresAggregationCTE (see EventsScoresAggregationParams).
+  /**
+   * Adds the `score_categories_tuples` column for programmatic parsing (see
+   * BaseScoresAggregationParams). Only meaningful together with
+   * `hasScoreAggregationFilters` (the flat branch returns score ids only);
+   * used by the blob-export path so trace-level categorical scores export
+   * safely even when names contain colons.
+   */
+  includeTupleEncoding?: boolean;
 }
 
 /**
@@ -212,13 +283,15 @@ interface EventsTracesScoresAggregationParams {
  *
  * Returns a query and params object that can be passed directly to withCTE.
  */
-export const eventsTracesScoresAggregation = (
+const buildEventsTracesScoresAggregation = (
   params: EventsTracesScoresAggregationParams,
+  startTimeLookbackIntervals: readonly string[],
 ): { query: string; params: Record<string, any> } => {
   if (params.hasScoreAggregationFilters) {
     return buildScoresAggregationCTE({
       ...params,
       level: "trace",
+      startTimeLookbackIntervals,
     });
   }
 
@@ -239,7 +312,7 @@ export const eventsTracesScoresAggregation = (
     FROM scores
     WHERE project_id = {projectId: String}
       AND observation_id IS NULL
-      ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+      ${scoreTimestampLowerBound(params.startTimeFrom, startTimeLookbackIntervals)}
     GROUP BY
       trace_id,
       project_id
@@ -247,6 +320,25 @@ export const eventsTracesScoresAggregation = (
 
   return { query, params: queryParams };
 };
+
+export const eventsTracesScoresAggregation = (
+  params: EventsTracesScoresAggregationParams,
+): { query: string; params: Record<string, any> } =>
+  buildEventsTracesScoresAggregation(params, [
+    SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  ]);
+
+/**
+ * Trace-score aggregation for observation rows selected by event start time.
+ * The lower bound covers trace-to-observation skew before the score lookback.
+ */
+export const eventsTracesScoresAggregationFromObservationStart = (
+  params: EventsTracesScoresAggregationParams,
+): { query: string; params: Record<string, any> } =>
+  buildEventsTracesScoresAggregation(params, [
+    OBSERVATIONS_TO_TRACE_INTERVAL,
+    SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  ]);
 
 /**
  * Aggregates events directly by session_id in a single step.
@@ -259,11 +351,15 @@ export const eventsSessionsAggregation = (params: {
   projectId: string;
   sessionIds?: string[];
   startTimeFrom?: string | null;
+  includeMetadata?: boolean;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
   })
-    .selectFieldSet("all")
+    .selectFieldSet("base")
+    .when(Boolean(params.includeMetadata), (builder) =>
+      builder.selectFieldSet("metadata"),
+    )
     .withSessionIds(params.sessionIds)
     .withStartTimeFrom(params.startTimeFrom)
     .whereRaw("session_id != ''");
@@ -298,7 +394,14 @@ export const eventsExperimentsAggregation = (params: {
     .whereRaw("e.experiment_id != ''");
 };
 
-export const eventsExperimentsRootSpans = (params: {
+/**
+ * Scopes events to a project/experiment/item-id set, without narrowing to
+ * root-span rows. Use this (instead of eventsExperimentsRootSpans) when a
+ * query needs to see every observation for an item - e.g. to aggregate cost
+ * across an item's full subtree - and will pick the root row itself via
+ * ORDER BY / LIMIT BY rather than WHERE, so aggregates see sibling rows too.
+ */
+export const eventsExperimentsForItems = (params: {
   projectId: string;
   experimentIds?: string[];
   experimentItemIds?: string[];
@@ -306,18 +409,25 @@ export const eventsExperimentsRootSpans = (params: {
   eventsExperiments({
     projectId: params.projectId,
     experimentIds: params.experimentIds,
-  })
-    .whereRaw("e.experiment_item_root_span_id = e.span_id")
-    .when(
-      Boolean(params.experimentItemIds && params.experimentItemIds.length > 0),
-      (b) =>
-        b.whereRaw(
-          "e.experiment_item_id IN ({experimentItemIds: Array(String)})",
-          {
-            experimentItemIds: params.experimentItemIds,
-          },
-        ),
-    );
+  }).when(
+    Boolean(params.experimentItemIds && params.experimentItemIds.length > 0),
+    (b) =>
+      b.whereRaw(
+        "e.experiment_item_id IN ({experimentItemIds: Array(String)})",
+        {
+          experimentItemIds: params.experimentItemIds,
+        },
+      ),
+  );
+
+export const eventsExperimentsRootSpans = (params: {
+  projectId: string;
+  experimentIds?: string[];
+  experimentItemIds?: string[];
+}): EventsQueryBuilder =>
+  eventsExperimentsForItems(params).whereRaw(
+    "e.experiment_item_root_span_id = e.span_id",
+  );
 
 /**
  * Session-level scores aggregation CTE.

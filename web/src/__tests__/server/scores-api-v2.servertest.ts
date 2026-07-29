@@ -17,6 +17,17 @@ import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
 
+// GetScoresResponseV2 rows are a union where only the trace-enriched branch
+// carries `trace`; narrow to that branch for assertions on trace fields.
+type ScoreV2WithTrace = z.infer<typeof GetScoresResponseV2>["data"][number] & {
+  trace?: {
+    userId?: string | null;
+    tags?: string[] | null;
+    environment?: string | null;
+    sessionId?: string | null;
+  } | null;
+};
+
 describe("/api/public/v2/scores API Endpoint", () => {
   describe("GET /api/public/v2/scores/:scoreId", () => {
     let auth: string;
@@ -625,9 +636,10 @@ describe("/api/public/v2/scores API Endpoint", () => {
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
-          expect(val.traceId).toBe(traceId);
-          expect(val.trace?.tags?.sort()).toEqual(["prod", "test"].sort());
-          expect(val.trace?.userId).toBe("user-name");
+          const score = val as ScoreV2WithTrace;
+          expect(score.traceId).toBe(traceId);
+          expect(score.trace?.tags?.sort()).toEqual(["prod", "test"].sort());
+          expect(score.trace?.userId).toBe("user-name");
         }
       });
 
@@ -1842,7 +1854,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         expect(getScores.body.data).toHaveLength(3);
         // All scores should have trace as null
         for (const score of getScores.body.data) {
-          expect(score.trace).toBeNull();
+          expect((score as ScoreV2WithTrace).trace).toBeNull();
         }
       });
     });

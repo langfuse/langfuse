@@ -187,7 +187,6 @@ export const DuplicatePromptButton: React.FC<{
     scope: "prompts:CUD",
   });
   const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
-  const capture = usePostHogClientCapture();
 
   const allPromptNames = api.prompts.allNames.useQuery(
     {
@@ -207,13 +206,17 @@ export const DuplicatePromptButton: React.FC<{
         <ActionButton
           icon={<Copy className="h-4 w-4" aria-hidden="true" />}
           hasAccess={hasAccess}
+          trackingEventName="prompt_detail:duplicate_button_click"
           variant="outline"
-          limit={promptLimit}
           title="Duplicate prompt"
-          limitValue={allPromptNames.data?.length ?? undefined}
-          onClick={() => {
-            capture("prompt_detail:duplicate_button_click");
-          }}
+          usageLimit={
+            typeof promptLimit === "number"
+              ? {
+                  current: allPromptNames.data?.length ?? undefined,
+                  max: promptLimit,
+                }
+              : undefined
+          }
         >
           <span className="hidden md:ml-1 md:inline">Duplicate</span>
         </ActionButton>

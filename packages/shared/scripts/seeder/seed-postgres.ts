@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
+import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "../../src/in-app-agent/server/prompts/in-app-agent-system-prompt";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
@@ -43,16 +42,7 @@ const options = {
 
 const prisma = new PrismaClient();
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
-const IN_APP_AGENT_SYSTEM_PROMPT_PATH = resolve(
-  __dirname,
-  "../../../..",
-  "web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt",
-);
-
-const inAppAgentSystemPrompt = readFileSync(
-  IN_APP_AGENT_SYSTEM_PROMPT_PATH,
-  "utf-8",
-);
+const inAppAgentSystemPrompt = IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE;
 
 async function main() {
   const environment = parseArgs({
@@ -98,6 +88,7 @@ async function main() {
     where: { id: seedOrgId },
     update: {
       name: "Seed Org",
+      aiFeaturesEnabled: true,
       cloudConfig: {
         plan: "Team",
       },
@@ -126,6 +117,7 @@ async function main() {
   });
 
   await upsertInAppAgentSystemPrompt(project1.id);
+  await upsertNaturalLanguageFilterPrompt(project1.id);
 
   // Realistic support chat scenario
   await createSupportChatSession(project1);
@@ -822,6 +814,42 @@ async function upsertInAppAgentSystemPrompt(projectId: string) {
   });
 }
 
+// The legacy natural-language filter feature fetches this prompt from the
+// AI-features project at runtime; on self-referential deployments (previews)
+// that project is llm-app, so it must exist on the default seed path too.
+const NATURAL_LANGUAGE_FILTER_PROMPT_NAME = "get-filter-conditions-from-query";
+
+async function upsertNaturalLanguageFilterPrompt(projectId: string) {
+  const seedPrompt = SEED_PROMPT_VERSIONS.find(
+    (p) => p.name === NATURAL_LANGUAGE_FILTER_PROMPT_NAME,
+  );
+  if (!seedPrompt) return;
+
+  await prisma.prompt.upsert({
+    where: {
+      projectId_name_version: {
+        projectId,
+        name: seedPrompt.name,
+        version: seedPrompt.version,
+      },
+    },
+    create: {
+      projectId,
+      createdBy: seedPrompt.createdBy,
+      prompt: seedPrompt.prompt,
+      name: seedPrompt.name,
+      type: seedPrompt.type ?? "text",
+      version: seedPrompt.version,
+      labels: seedPrompt.labels,
+    },
+    update: {
+      prompt: seedPrompt.prompt,
+      type: seedPrompt.type ?? "text",
+      labels: seedPrompt.labels,
+    },
+  });
+}
+
 export const PROMPT_IDS: string[] = [];
 
 async function generatePrompts(project: Project) {
@@ -830,14 +858,13 @@ async function generatePrompts(project: Project) {
     const versions = Math.floor(Math.random() * 20) + 1;
     for (let i = 1; i <= versions; i++) {
       const promptId = `prompt-${v4()}`;
-      await prisma.prompt.upsert({
+      const seededPrompt = await prisma.prompt.upsert({
         where: {
           projectId_name_version: {
             projectId: project.id,
             name: prompt.name,
             version: i,
           },
-          id: promptId,
         },
         create: {
           id: promptId,
@@ -848,18 +875,16 @@ async function generatePrompts(project: Project) {
           version: i,
           labels: i === versions ? prompt.labels : [],
         },
-        update: {
-          id: promptId,
-        },
+        update: {},
       });
-      promptIds.push(promptId);
+      promptIds.push(seededPrompt.id);
     }
   }
 
   for (const prompt of SEED_CHAT_ML_PROMPTS) {
-    const promptId = `prompt-${v4()}`;
     const versions = Math.floor(Math.random() * 20) + 1;
     for (let i = 1; i <= versions; i++) {
+      const promptId = `prompt-${v4()}`;
       const versionAddition = [
         {
           role: "user",
@@ -867,14 +892,13 @@ async function generatePrompts(project: Project) {
         },
       ];
 
-      await prisma.prompt.upsert({
+      const seededPrompt = await prisma.prompt.upsert({
         where: {
           projectId_name_version: {
             projectId: project.id,
             name: prompt.name,
-            version: prompt.version,
+            version: i,
           },
-          id: promptId,
         },
         create: {
           id: promptId,
@@ -887,24 +911,21 @@ async function generatePrompts(project: Project) {
           labels: prompt.labels,
           tags: prompt.tags,
         },
-        update: {
-          id: promptId,
-        },
+        update: {},
       });
-      promptIds.push(promptId);
+      promptIds.push(seededPrompt.id);
     }
   }
 
   for (const version of SEED_PROMPT_VERSIONS) {
     const id = `prompt-${v4()}`;
-    await prisma.prompt.upsert({
+    const seededPrompt = await prisma.prompt.upsert({
       where: {
         projectId_name_version: {
           projectId: project.id,
           name: version.name,
           version: version.version,
         },
-        id: id,
       },
       create: {
         id: id,
@@ -917,11 +938,9 @@ async function generatePrompts(project: Project) {
         version: version.version,
         labels: version.labels,
       },
-      update: {
-        id: id,
-      },
+      update: {},
     });
-    promptIds.push(id);
+    promptIds.push(seededPrompt.id);
   }
 
   return promptIds;

@@ -1,4 +1,5 @@
-CREATE OR REPLACE VIEW analytics_scores AS
+DROP VIEW IF EXISTS analytics_scores;
+CREATE VIEW analytics_scores AS
 SELECT
     project_id,
     toStartOfHour(timestamp) AS hour,

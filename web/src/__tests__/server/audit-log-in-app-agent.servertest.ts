@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { prisma, AuditLogRecordType } from "../../../../packages/shared/src/db";
-import { createAndAddApiKeysToDb } from "../../../../packages/shared/src/server/auth/apiKeys";
-import { createOrgProjectAndApiKey } from "../../../../packages/shared/src/server/test-utils/org-factory";
+import { prisma, AuditLogRecordType } from "@langfuse/shared/src/db";
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 
 describe("in-app agent audit logging", () => {
   it("stores the creator on in-app-agent MCP keys", async () => {

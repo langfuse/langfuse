@@ -44,6 +44,7 @@ function makeSession(
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: projectId,
@@ -61,11 +62,10 @@ function makeSession(
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: false,
-        inAppAgent: false,
+        searchBar: false,
         v4BetaToggleVisible: false,
         observationEvals: false,
         experimentsV4Enabled: false,
-        monitors: false,
       },
       admin: false,
     },

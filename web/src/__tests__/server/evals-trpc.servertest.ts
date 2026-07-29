@@ -76,14 +76,18 @@ async function prepare() {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: project.id,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
+              hasTraces: false,
               name: project.name,
               metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -91,6 +95,10 @@ async function prepare() {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
@@ -100,7 +108,7 @@ async function prepare() {
     },
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   __orgIds.push(org.id);
@@ -1492,7 +1500,10 @@ describe("evals trpc", () => {
         expires: session.expires,
         environment: session.environment,
       };
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCtx = createInnerTRPCContext({
+        session: limitedSession,
+        headers: {},
+      });
       const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
       // Create a job
@@ -1757,7 +1768,10 @@ describe("evals trpc", () => {
         expires: session.expires,
         environment: session.environment,
       };
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCtx = createInnerTRPCContext({
+        session: limitedSession,
+        headers: {},
+      });
       const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
       const evalTemplate = await createTemplateVersion(

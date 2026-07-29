@@ -49,6 +49,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   subtleFill = false,
   missingValue = "gap",
   connectNulls = false,
+  hideXAxisLabels = false,
 }) => {
   const [selfHovered, setSelfHovered] = useState(false);
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
@@ -83,8 +84,9 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
       prepareTimeAxis(
         groupedData.map((d) => d.time_dimension),
         maxTicks,
+        { hideCategoryTickLabels: hideXAxisLabels },
       ),
-    [groupedData, maxTicks],
+    [groupedData, maxTicks, hideXAxisLabels],
   );
 
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({
@@ -223,5 +225,3 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
     </div>
   );
 };
-
-export default AreaChartTimeSeries;

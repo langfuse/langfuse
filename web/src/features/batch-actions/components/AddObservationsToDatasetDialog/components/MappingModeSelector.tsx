@@ -21,7 +21,7 @@ export function MappingModeSelector({
         <RadioGroupItem value="full" id={`${fieldName}-full`} />
         <Label
           htmlFor={`${fieldName}-full`}
-          className="flex-1 cursor-pointer py-3 text-sm font-medium"
+          className="flex-1 cursor-pointer py-3 text-sm font-bold"
         >
           {fullLabel}
         </Label>
@@ -30,7 +30,7 @@ export function MappingModeSelector({
         <RadioGroupItem value="custom" id={`${fieldName}-custom`} />
         <Label
           htmlFor={`${fieldName}-custom`}
-          className="flex-1 cursor-pointer py-3 text-sm font-medium"
+          className="flex-1 cursor-pointer py-3 text-sm font-bold"
         >
           Custom mapping
         </Label>
@@ -44,7 +44,7 @@ export function MappingModeSelector({
           />
           <Label
             htmlFor={`${fieldName}-none`}
-            className="flex-1 cursor-pointer py-3 text-sm font-medium"
+            className="flex-1 cursor-pointer py-3 text-sm font-bold"
           >
             None
           </Label>

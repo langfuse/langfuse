@@ -36,18 +36,18 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
         </Button>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-bold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action permanently deletes this prompt. All requests to fetch
           prompt{" "}
-          <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+          <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-bold">
             {promptName}
           </code>{" "}
           will error.
         </p>
         {error && (
           <div className="mb-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            <p className="font-medium">Error:</p>
+            <p className="font-bold">Error:</p>
             <p className="whitespace-pre-wrap">{error}</p>
           </div>
         )}

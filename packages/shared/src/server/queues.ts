@@ -69,7 +69,7 @@ export const OtelIngestionEvent = z.object({
   sdkVersion: z.string().optional(),
   ingestionVersion: z.string().optional(),
   // Langfuse-internal telemetry (e.g. LLM-as-a-judge / prompt-experiment
-  // executions published via fetchLLMCompletion's AI SDK engine). The
+  // executions published by the internal AI SDK LLM runtime). The
   // consumer must parse these events with the INTERNAL ingestion schema:
   // the public schema strips the reserved "langfuse-" environment prefix,
   // which would expose internal traces as user environments and bypass the
@@ -80,6 +80,12 @@ export const OtelIngestionEvent = z.object({
 export const BatchExportJobSchema = z.object({
   projectId: z.string(),
   batchExportId: z.string(),
+});
+// Deliberately minimal: the run row (in_app_agent_runs.request) carries the
+// typed input; the queue is delivery-only and the claim CAS owns correctness.
+export const InAppAgentRunQueueEventSchema = z.object({
+  projectId: z.string(),
+  runId: z.string(),
 });
 export const CloudSpendAlertJobSchema = z.object({
   orgId: z.string(),
@@ -322,6 +328,9 @@ export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
 >;
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
+export type InAppAgentRunQueueEventType = z.infer<
+  typeof InAppAgentRunQueueEventSchema
+>;
 export type CloudSpendAlertJobType = z.infer<typeof CloudSpendAlertJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
@@ -405,6 +414,7 @@ export enum QueueName {
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
   MonitorQueue = "monitor-queue",
+  InAppAgentRunQueue = "in-app-agent-run-queue",
 }
 
 export enum QueueJobs {
@@ -442,6 +452,7 @@ export enum QueueJobs {
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
   MonitorJob = "monitor-job",
+  InAppAgentRunJob = "in-app-agent-run-job",
 }
 
 export type TQueueJobTypes = {
@@ -628,5 +639,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: MonitorQueueEventInput;
     name: QueueJobs.MonitorJob;
+  };
+  [QueueName.InAppAgentRunQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: InAppAgentRunQueueEventType;
+    name: QueueJobs.InAppAgentRunJob;
   };
 };

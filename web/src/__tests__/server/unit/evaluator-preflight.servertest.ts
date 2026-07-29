@@ -6,6 +6,7 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   logger: {
     debug: vi.fn(),
   },
+  getLLMErrorInfo: vi.fn(),
   testModelCall: vi.fn(),
 }));
 
@@ -15,7 +16,7 @@ import {
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
-  LLMCompletionError,
+  getLLMErrorInfo,
   testModelCall,
 } from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
@@ -25,10 +26,19 @@ const numericOutputDefinition = createNumericEvalOutputDefinition({
   scoreDescription: "A score between 0 and 1",
 });
 
+// The real config carries a full parsed LLM API key record plus the adapter;
+// the preflight only reads the connection fields stubbed below, so the
+// fixture stays minimal behind a cast.
+type ValidModelConfig = Extract<
+  Awaited<ReturnType<typeof DefaultEvalModelService.fetchValidModelConfig>>,
+  { valid: true }
+>["config"];
+
 describe("evaluator preflight", () => {
   const mockFetchValidModelConfig = vi.mocked(
     DefaultEvalModelService.fetchValidModelConfig,
   );
+  const mockGetLLMErrorInfo = vi.mocked(getLLMErrorInfo);
   const mockTestModelCall = vi.mocked(testModelCall);
   const originalSkipFlag =
     process.env.LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION;
@@ -49,7 +59,7 @@ describe("evaluator preflight", () => {
           config: null,
           adapter: LLMAdapter.OpenAI,
         },
-      },
+      } as unknown as ValidModelConfig,
     });
   });
 
@@ -97,6 +107,29 @@ describe("evaluator preflight", () => {
     expect(mockTestModelCall).not.toHaveBeenCalled();
   });
 
+  it("preserves actionable output definition validation errors", async () => {
+    const result = await getEvaluatorDefinitionPreflightError({
+      projectId: "project_test",
+      template: {
+        name: "Answer correctness",
+        outputDefinition: {
+          version: 2,
+          dataType: "CATEGORICAL",
+          reasoning: { description: "Why the score was assigned" },
+          score: {
+            description: "The matching category",
+            categories: [],
+            shouldAllowMultipleMatches: false,
+          },
+        },
+      },
+    });
+
+    expect(result).toContain("Add at least 2 categories");
+    expect(mockTestModelCall).not.toHaveBeenCalled();
+    expect(mockGetLLMErrorInfo).not.toHaveBeenCalled();
+  });
+
   describe("live provider call failures", () => {
     // The preflight skips the provider call in test-like environments;
     // stub these so the mocked testModelCall is actually reached.
@@ -111,12 +144,18 @@ describe("evaluator preflight", () => {
 
     it("returns a clean model-not-found message when the provider responds with 404", async () => {
       mockTestModelCall.mockRejectedValue(
-        new LLMCompletionError({
-          message:
-            '404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-sonnet-20240229"}}',
-          responseStatusCode: 404,
-        }),
+        new Error(
+          '404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-sonnet-20240229"}}',
+        ),
       );
+      mockGetLLMErrorInfo.mockReturnValue({
+        kind: "provider",
+        message:
+          '404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-sonnet-20240229"}}',
+        statusCode: 404,
+        isRetryable: false,
+        error: new Error("provider error"),
+      });
 
       const result = await getEvaluatorDefinitionPreflightError({
         projectId: "project_test",
@@ -133,11 +172,15 @@ describe("evaluator preflight", () => {
 
     it("keeps the provider error message for non-404 failures", async () => {
       mockTestModelCall.mockRejectedValue(
-        new LLMCompletionError({
-          message: "401 Incorrect API key provided",
-          responseStatusCode: 401,
-        }),
+        new Error("401 Incorrect API key provided"),
       );
+      mockGetLLMErrorInfo.mockReturnValue({
+        kind: "provider",
+        message: "401 Incorrect API key provided",
+        statusCode: 401,
+        isRetryable: false,
+        error: new Error("provider error"),
+      });
 
       const result = await getEvaluatorDefinitionPreflightError({
         projectId: "project_test",
@@ -150,6 +193,26 @@ describe("evaluator preflight", () => {
       expect(result).toBe(
         `Model configuration not valid for evaluator "Answer correctness". 401 Incorrect API key provided`,
       );
+    });
+
+    it("does not expose unknown model call errors", async () => {
+      mockTestModelCall.mockRejectedValue(
+        new Error("sensitive internal model call detail"),
+      );
+      mockGetLLMErrorInfo.mockReturnValue(null);
+
+      const result = await getEvaluatorDefinitionPreflightError({
+        projectId: "project_test",
+        template: {
+          name: "Answer correctness",
+          outputDefinition: numericOutputDefinition,
+        },
+      });
+
+      expect(result).toBe(
+        `Model configuration not valid for evaluator "Answer correctness". An internal error occurred`,
+      );
+      expect(result).not.toContain("sensitive internal model call detail");
     });
   });
 });

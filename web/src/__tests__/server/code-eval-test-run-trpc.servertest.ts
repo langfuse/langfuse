@@ -83,11 +83,10 @@ async function prepare() {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
         v4BetaToggleVisible: false,
         observationEvals: false,
         experimentsV4Enabled: false,
-        monitors: false,
-        inAppAgent: false,
       },
       admin: true,
     },

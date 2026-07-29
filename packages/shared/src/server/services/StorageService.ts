@@ -941,6 +941,11 @@ class S3StorageService implements StorageService {
       for (const chunk of chunks) {
         const command = new DeleteObjectsCommand({
           Bucket: this.bucketName,
+          // Unset keeps the SDK default (CRC32). Some S3-compatible stores
+          // reject CRC32 with 400 MissingContentMD5 and need "MD5", which the
+          // SDK sends as the legacy Content-MD5 header, e.g. MinIO before
+          // RELEASE.2025-02-03 (langfuse/langfuse-k8s#356).
+          ChecksumAlgorithm: env.LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM,
           Delete: {
             Objects: chunk.map((path) => ({ Key: path })),
             Quiet: true,
