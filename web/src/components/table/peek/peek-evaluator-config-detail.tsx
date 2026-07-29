@@ -161,6 +161,7 @@ const PeekViewEvaluatorConfigDetail = ({
           }
           mode="edit"
           disabled={!isEditMode}
+          runOnLiveStatusOnly
           shouldWrapVariables={true}
           useDialog={false}
           onFormSuccess={() => {

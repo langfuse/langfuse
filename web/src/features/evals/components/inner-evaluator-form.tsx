@@ -791,9 +791,6 @@ export const InnerEvaluatorForm = (props: {
     !props.disabled &&
     isExperimentTarget(watchedTarget) &&
     !isBetaEnabled;
-  const runOnLiveTargetLabel = isEventTarget(watchedTarget)
-    ? "incoming observations"
-    : "new experiments";
 
   const formBody = (
     <div
@@ -1082,14 +1079,11 @@ export const InnerEvaluatorForm = (props: {
             {props.runOnLiveStatusOnly &&
               !isLegacyEvalTarget(watchedTarget) && (
                 <div className="flex max-w-4xl flex-col gap-0.5 rounded-lg border p-3">
-                  <p className="text-sm font-medium">
-                    {watchedRunOnLive ? "Running" : "Not running"} on{" "}
-                    {runOnLiveTargetLabel}
-                  </p>
+                  <p className="text-sm font-medium">Run on live incoming</p>
                   <p className="text-muted-foreground text-sm">
                     {watchedRunOnLive
-                      ? `Automatically evaluates matching ${getTargetDisplayName(watchedTarget)}.`
-                      : "The evaluator will remain inactive after saving."}
+                      ? `Automatically evaluates new matching ${getTargetDisplayName(watchedTarget)}.`
+                      : `Inactive. Enable the evaluator to evaluate new matching ${getTargetDisplayName(watchedTarget)}.`}
                   </p>
                 </div>
               )}

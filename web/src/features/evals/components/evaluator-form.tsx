@@ -24,6 +24,7 @@ export const EvaluatorForm = (props: {
   preventRedirect?: boolean;
   preprocessFormValues?: (values: any) => any;
   defaultRunOnLive?: boolean;
+  runOnLiveStatusOnly?: boolean;
   hidePreviewTable?: boolean;
   defaultTarget?: EvalTargetObject;
 }) => {
@@ -72,6 +73,7 @@ export const EvaluatorForm = (props: {
           useDialog={props.useDialog}
           evalCapabilities={evalCapabilities}
           defaultRunOnLive={props.defaultRunOnLive}
+          runOnLiveStatusOnly={props.runOnLiveStatusOnly}
           hidePreviewTable={props.hidePreviewTable}
           defaultTarget={props.defaultTarget}
         />
