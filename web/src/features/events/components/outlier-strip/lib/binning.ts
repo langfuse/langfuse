@@ -1,5 +1,9 @@
 import { format } from "date-fns";
-import { latencyFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  latencyFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { parseChartTimestamp } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 
 /**
@@ -104,16 +108,19 @@ export function pickChartGranularity(params: {
 // Metric registry
 // ---------------------------------------------------------------------------
 
-export type OutlierStripMetricKey = "cost" | "latency";
+export type OutlierStripMetricKey = "count" | "cost" | "latency";
 export type OutlierStripLatencyAgg = "p95" | "p50";
 export type OutlierStripCostAgg = "sum";
-export type OutlierStripAggKey = OutlierStripLatencyAgg | OutlierStripCostAgg;
+export type OutlierStripAggKey =
+  | "count"
+  | OutlierStripLatencyAgg
+  | OutlierStripCostAgg;
 
 type AggregationDef = {
   /** The user-facing option key (currently 1:1 with the query aggregation). */
   key: OutlierStripAggKey;
   /** The executeQuery aggregation this option lowers to. */
-  queryAggregation: "sum" | "p95" | "p50";
+  queryAggregation: "count" | "sum" | "p95" | "p50";
 };
 
 export type OutlierStripMetricDef = {
@@ -125,19 +132,90 @@ export type OutlierStripMetricDef = {
   /** Raw result value → plotted unit (e.g. latency ms → s). */
   fromRaw: (raw: number) => number;
   format: (value: number) => string;
+  /** Ascending "nice" y-tick values in the plotted unit. Metrics without a
+   * ladder (plain numbers like cost) tick on 1-2-5 decades; durations need
+   * time-native steps so ticks read "1m", not "1m 40s" (100). */
+  yTickLadder?: readonly number[];
+};
+
+/**
+ * Durations ≥ 1 minute as two units ("1m 31s", "1h 30m"), zero sub-unit
+ * dropped ("2m"); below a minute the shared single-unit formatter already
+ * reads naturally ("450ms", "7.3s"). The shared latencyFormatter can't do
+ * this itself — Intl.NumberFormat formats exactly one unit, so it renders
+ * decimal minutes ("1.51m").
+ */
+const COMPOUND_DURATION_UNITS = [
+  { label: "d", ms: 86_400_000 },
+  { label: "h", ms: 3_600_000 },
+  { label: "m", ms: 60_000 },
+  { label: "s", ms: 1_000 },
+] as const;
+
+export const formatCompoundDuration = (ms: number): string => {
+  // Threshold on the SECOND-ROUNDED value: 59,998ms must take the compound
+  // path ("1m") — the single-unit formatter's own rounding would print
+  // "60s". Non-finite corrupt data keeps the shared formatter's "∞d", not
+  // "Infinityd" from the arithmetic below.
+  const secondRounded = Math.round(ms / 1_000) * 1_000;
+  if (!Number.isFinite(ms) || secondRounded < 60_000) {
+    return latencyFormatter(ms);
+  }
+  const index = COMPOUND_DURATION_UNITS.findIndex(
+    (unit) => secondRounded >= unit.ms,
+  );
+  const unit = COMPOUND_DURATION_UNITS[index];
+  // Always defined: ms >= 60_000 selects "m" or coarser, never "s".
+  const sub = COMPOUND_DURATION_UNITS[index + 1];
+  // Round to the sub-unit FIRST: a value that rounds up across its unit
+  // boundary ("59m 59.6s" → 60 minutes) must re-select the larger unit
+  // ("1h"), not denormalize — the recursion strictly promotes, so it ends.
+  const rounded = Math.round(ms / sub.ms) * sub.ms;
+  const larger = COMPOUND_DURATION_UNITS[index - 1];
+  if (larger && rounded >= larger.ms) return formatCompoundDuration(rounded);
+  const primary = Math.floor(rounded / unit.ms);
+  // Exact: `rounded` and unit.ms are both multiples of sub.ms.
+  const rest = (rounded - primary * unit.ms) / sub.ms;
+  return rest > 0
+    ? `${primary}${unit.label} ${rest}${sub.label}`
+    : `${primary}${unit.label}`;
 };
 
 export const OUTLIER_STRIP_METRICS: Record<
   OutlierStripMetricKey,
   OutlierStripMetricDef
 > = {
+  count: {
+    shortLabel: "Count",
+    measure: "count",
+    aggregations: [{ key: "count", queryAggregation: "count" }],
+    fromRaw: (raw) => raw,
+    format: (value) => numberFormatter(value, 0),
+  },
   cost: {
     shortLabel: "Cost",
     measure: "totalCost",
     aggregations: [{ key: "sum", queryAggregation: "sum" }],
     fromRaw: (raw) => raw,
+    // Zero minimum fraction digits: round values render bare ("$2", "$0.5"),
+    // on ticks and tooltips alike; the adaptive maximum still gives small
+    // values the precision they need ("$0.0042"). Deeper tiers keep
+    // micro-dollar Y TICKS honest — a 6-digit cap would label a 2e-7
+    // gridline "$0".
     format: (value) =>
-      usdFormatter(value, 2, value < 0.001 ? 6 : value < 0.1 ? 4 : 2),
+      usdFormatter(
+        value,
+        0,
+        value < 1e-9
+          ? 12
+          : value < 1e-6
+            ? 9
+            : value < 0.001
+              ? 6
+              : value < 0.1
+                ? 4
+                : 2,
+      ),
   },
   latency: {
     shortLabel: "Latency",
@@ -147,7 +225,10 @@ export const OUTLIER_STRIP_METRICS: Record<
       { key: "p50", queryAggregation: "p50" },
     ],
     fromRaw: (raw) => raw / 1000, // executeQuery latency is in ms
-    format: (value) => latencyFormatter(value * 1000),
+    format: (value) => formatCompoundDuration(value * 1000),
+    // Same duration steps as the time grid: y ticks land on "30s"/"1m"/"5m",
+    // not on decimal-decade values like 100s.
+    yTickLadder: OUTLIER_STRIP_STEP_LADDER_SECONDS,
   },
 };
 
@@ -163,16 +244,14 @@ export const outlierStripResultColumn = (
  */
 export const outlierStripQueryMetrics = (): {
   measure: string;
-  aggregation: "count" | AggregationDef["queryAggregation"];
-}[] => [
-  { measure: "count", aggregation: "count" },
-  ...Object.values(OUTLIER_STRIP_METRICS).flatMap((def) =>
+  aggregation: AggregationDef["queryAggregation"];
+}[] =>
+  Object.values(OUTLIER_STRIP_METRICS).flatMap((def) =>
     def.aggregations.map((agg) => ({
       measure: def.measure,
       aggregation: agg.queryAggregation,
     })),
-  ),
-];
+  );
 
 /** Resolves an aggregation option, falling back to the metric's default. */
 export const resolveAggregation = (
@@ -361,6 +440,100 @@ export function prepareOutlierSeries(params: {
   }
 
   return { dense, maxValue, ticks };
+}
+
+// ---------------------------------------------------------------------------
+// Y axis (value gridlines)
+// ---------------------------------------------------------------------------
+
+/** A prepared value gridline: metric value, registry-formatted label, and its
+ * scale-mapped distance above the baseline. */
+export type OutlierStripYTick = {
+  value: number;
+  label: string;
+  /** px above the baseline, already mapped through the bar-height scale. */
+  offsetPx: number;
+};
+
+/** Vertical room a 9px axis label needs between accepted gridlines. */
+const Y_TICK_MIN_SPACING_PX = 14;
+/** Ticks closer to the baseline than this collide with activity ticks. */
+const Y_TICK_MIN_OFFSET_PX = 10;
+const Y_TICK_MAX_COUNT = 3;
+
+/**
+ * Descending "nice" tick candidates ≤ maxValue: the metric's ladder first
+ * (largest fitting step down to its floor), then 1-2-5 decades below the
+ * floor (sub-second latencies); ladderless metrics walk 1-2-5 decades from
+ * the max. Values strictly decrease, so the consumer's baseline guard always
+ * terminates the (infinite) walk.
+ */
+function* descendNiceValues(
+  maxValue: number,
+  ladder?: readonly number[],
+): Generator<number> {
+  const ladderFloor = ladder?.length ? ladder[0] : Number.POSITIVE_INFINITY;
+  if (ladder?.length) {
+    for (let i = ladder.length - 1; i >= 0; i--) {
+      if (ladder[i] <= maxValue) yield ladder[i];
+    }
+  }
+  const below125Start = Math.min(maxValue, ladderFloor);
+  for (let exp = Math.ceil(Math.log10(below125Start)); ; exp--) {
+    for (const mantissa of [5, 2, 1]) {
+      const value = mantissa * 10 ** exp;
+      if (value <= maxValue && value < ladderFloor) yield value;
+    }
+  }
+}
+
+/**
+ * Places horizontal value gridlines for the strip: nice values below the max
+ * ({@link descendNiceValues}), walked top-down and accepted only where the
+ * label fits — the sqrt scale compresses lower values toward the baseline,
+ * so spacing must be checked in SCALED pixel space, not value space. The
+ * bars scale against the true max (tallest bar always hits the top), so
+ * ticks land at their exact scaled positions rather than the domain being
+ * rounded up to a nice number.
+ */
+export function prepareOutlierYTicks(params: {
+  /** Max metric value across buckets (the bar scale's domain). */
+  maxValue: number;
+  metric: OutlierStripMetricKey;
+  /** Bar canvas height above the baseline. */
+  plotHeightPx: number;
+  /** Must match the visualiser's bar-height scale. */
+  scale: "linear" | "sqrt";
+}): OutlierStripYTick[] {
+  const { maxValue, plotHeightPx } = params;
+  // Number.isFinite: an Infinity max (corrupt data surviving the wire) would
+  // walk descendNiceValues forever — Infinity candidates never drop below
+  // the baseline guard.
+  if (
+    !Number.isFinite(maxValue) ||
+    maxValue <= 0 ||
+    plotHeightPx <= Y_TICK_MIN_OFFSET_PX
+  ) {
+    return [];
+  }
+  const def = OUTLIER_STRIP_METRICS[params.metric];
+  const toOffsetPx = (value: number) => {
+    const fraction = value / maxValue;
+    const scaled = params.scale === "sqrt" ? Math.sqrt(fraction) : fraction;
+    return scaled * plotHeightPx;
+  };
+
+  const ticks: OutlierStripYTick[] = [];
+  let lastOffsetPx = Number.POSITIVE_INFINITY;
+  for (const value of descendNiceValues(maxValue, def.yTickLadder)) {
+    const offsetPx = toOffsetPx(value);
+    if (offsetPx < Y_TICK_MIN_OFFSET_PX) break;
+    if (lastOffsetPx - offsetPx < Y_TICK_MIN_SPACING_PX) continue;
+    ticks.push({ value, label: def.format(value), offsetPx });
+    if (ticks.length >= Y_TICK_MAX_COUNT) break;
+    lastOffsetPx = offsetPx;
+  }
+  return ticks;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import {
@@ -29,12 +29,15 @@ import {
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
+  getProjectMigrationReadiness,
   V4_MIGRATION_LOOKBACK_DAYS,
   type MigrationCountState,
 } from "@/src/features/v4-migration/migrationData";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useProject } from "@/src/features/projects/hooks";
+import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,
@@ -50,6 +53,8 @@ const OTEL_V4_MIGRATION_URL =
   "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4";
 const DEPRECATED_API_MIGRATION_URL =
   "https://langfuse.com/faq/all/deprecated-api-migration";
+const OBSERVATIONS_DATA_MODEL_URL =
+  "https://langfuse.com/docs/observability/data-model#observations-and-traces";
 const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
   PostHog:
     "https://langfuse.com/integrations/analytics/posthog#migrate-export-source",
@@ -277,36 +282,102 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
   );
 }
 
-// Title, description, and the primary agent CTA.
+// Title, description, and the primary agent CTA. The CTA is two-step: the
+// first click reveals the prompt so users can see what they hand to their
+// agent, the second click copies it.
 export function V4MigrationHeaderContent({
   projectName,
+  projectId,
+  onNavigate,
+  titleRowClassName,
 }: {
   projectName?: string;
+  projectId?: string;
+  /** Fires when an internal link is followed so the surface can close. */
+  onNavigate?: () => void;
+  /** Extra classes on the title row. The modal host passes a right gutter:
+   *  its dialog floats a fallback close button over the body's top-right
+   *  corner (the title is sr-only, so there is no DialogHeader row), which
+   *  would otherwise overlap the right-aligned status link. */
+  titleRowClassName?: string;
 }) {
+  const capture = usePostHogClientCapture();
   const handleCopyPrompt = useCopyMigrationPrompt();
+  const [promptVisible, setPromptVisible] = useState(false);
+
+  // Same queries as V4MigrationDetailsContent below, so react-query dedupes
+  // them. Only claim the project needs migrating once the checks confirm it —
+  // a fully migrated project shows the v4 value prop without a status claim.
+  const { organization } = useProject(projectId ?? null);
+  const migrationData = useProjectV4MigrationData({
+    projectId,
+    orgId: organization?.id,
+    enabled: Boolean(projectId),
+  });
+  const needsMigration =
+    Boolean(projectId) &&
+    getProjectMigrationReadiness(migrationData) === "action-needed";
+
+  const handleShowPrompt = () => {
+    capture("v4_migration:coding_agent_prompt_viewed");
+    setPromptVisible(true);
+  };
 
   return (
     <>
-      <p className="mb-1.5 text-lg font-bold">
-        {projectName ? (
-          <>
-            Review v4 migration for{" "}
-            <span className="underline">{projectName}</span>
-          </>
-        ) : (
-          "Review v4 migration"
+      <div
+        className={cn(
+          "mb-1.5 flex items-baseline justify-between gap-2",
+          titleRowClassName,
         )}
-      </p>
+      >
+        <p className="min-w-0 text-lg font-bold">
+          {projectName ? <>Migrate {projectName} to v4</> : "Migrate to v4"}
+        </p>
+        <Link
+          href="/v4-migration"
+          onClick={() => {
+            capture("v4_migration:panel_status_link_clicked");
+            onNavigate?.();
+          }}
+          className="shrink-0 text-sm underline"
+        >
+          View Status
+        </Link>
+      </div>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
-        Review the items below and update anything still using the legacy data
-        model.
+        <ExternalLink href={V4_DOCS_URL} className="text-inherit underline">
+          Langfuse v4
+        </ExternalLink>{" "}
+        is here: real-time, up to 165× faster, plus new dashboards, alerting,
+        sessions, and trace view.
+        {needsMigration &&
+          " This project still uses the previous setup, which stops working soon."}
       </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <RainbowButton className="w-full" onClick={handleCopyPrompt}>
-          <Copy className="mr-1.5 h-4 w-4 shrink-0" />
-          <span className="min-w-0 truncate" title="Copy prompt for agents">
-            Copy prompt for agents
-          </span>
+      <div className="flex flex-col gap-2">
+        {promptVisible && (
+          <div className="bg-muted/50 max-h-44 overflow-y-auto rounded-md border p-3">
+            <code className="text-muted-foreground font-mono text-xs leading-5 break-words whitespace-pre-wrap">
+              {V4_CODING_AGENT_PROMPT}
+            </code>
+          </div>
+        )}
+        <RainbowButton
+          className="w-full"
+          onClick={promptVisible ? handleCopyPrompt : handleShowPrompt}
+        >
+          {promptVisible ? (
+            <>
+              <Copy className="mr-1.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate" title="Copy prompt">
+                Copy prompt
+              </span>
+            </>
+          ) : (
+            <span className="min-w-0 truncate" title="Update SDK with agents">
+              Update SDK with agents
+            </span>
+          )}
         </RainbowButton>
       </div>
     </>
@@ -338,6 +409,7 @@ export function V4MigrationDetailsContent({
     orgId: organization?.id,
     enabled: Boolean(projectId),
   });
+  const { canToggleV4 } = useV4Beta();
 
   const handleEmailEngineer = () => {
     capture("v4_migration:contact_support_clicked");
@@ -368,38 +440,53 @@ export function V4MigrationDetailsContent({
 
   return (
     <>
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-base font-bold">
-          <LibraryBig className="h-4 w-4" /> Want to review first?
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" asChild className="min-w-0 flex-1">
-            <a href={V4_DOCS_URL} target="_blank" rel="noopener noreferrer">
-              <span className="min-w-0 truncate" title="Documentation">
-                Documentation
-              </span>
-            </a>
-          </Button>
-          <Button variant="outline" asChild className="min-w-0 flex-1">
-            <Link href="/v4-migration" onClick={onNavigate}>
-              <span className="min-w-0 truncate" title="Check migration status">
-                Check migration status
-              </span>
-            </Link>
-          </Button>
-        </div>
-      </div>
+      {/* The toggle row hides itself when the session cannot toggle v4
+          (legacy/events_only write mode, post-rollout auto-enrollment), so the
+          copy describing it must hide on the same condition. */}
+      {canToggleV4 && (
+        <>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-base font-bold">
+                <LibraryBig className="h-4 w-4 shrink-0" /> Want to review
+                first?
+              </div>
+              <V4PreviewToggleRow projectId={projectId} />
+            </div>
+            <p className="text-muted-foreground text-sm">
+              The latest SDK no longer sets trace input and output; v4{" "}
+              <ExternalLink
+                href={OBSERVATIONS_DATA_MODEL_URL}
+                className="text-inherit underline"
+              >
+                infers them from observations
+              </ExternalLink>
+              . Use this toggle to compare both views while you upgrade.
+            </p>
+          </div>
 
-      <Separator />
+          <Separator />
+        </>
+      )}
 
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-base font-bold">
-          <TriangleAlert className="h-4 w-4" /> What happens if I don&apos;t
-          update?
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-base font-bold">
+            <TriangleAlert className="h-4 w-4 shrink-0" /> What happens if I
+            don&apos;t update?
+          </div>
+          <a
+            href={V4_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => capture("v4_migration:panel_docs_link_clicked")}
+            className="text-foreground shrink-0 text-sm underline"
+          >
+            Documentation
+          </a>
         </div>
         <p className="text-muted-foreground text-sm">
-          Some features will stop working{" "}
-          <span className="text-dark-yellow">soon</span>.
+          Some features will stop working soon.
         </p>
         <div>
           <V4MigrationSdkSection sdk={migrationData.sdk} />
@@ -492,8 +579,7 @@ export function V4MigrationDetailsContent({
               <>
                 <p className="text-muted-foreground mb-2 text-sm">
                   You&apos;ve called these deprecated endpoints in the last{" "}
-                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working{" "}
-                  <span className="text-dark-yellow">soon</span>; the{" "}
+                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working soon; the{" "}
                   <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
                     migration guide
                   </ExternalLink>{" "}
@@ -594,7 +680,7 @@ export function V4MigrationDetailsContent({
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 text-base font-bold">
-          <LifeBuoy className="h-4 w-4" /> Contact us
+          <LifeBuoy className="h-4 w-4 shrink-0" /> Contact us
         </div>
         <p className="text-muted-foreground text-sm">
           Need a hand with the update? We&apos;re here to help!

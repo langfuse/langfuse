@@ -218,7 +218,16 @@ const ListObservationsBaseSchema = z.object({
   level: ObservationLevelDomain.optional(),
   traceId: z.string().optional(),
   version: z.string().optional(),
-  parentObservationId: z.string().optional(),
+  parentObservationId: z
+    .string()
+    .optional()
+    .describe("Physical parent observation ID to match exactly."),
+  isRootObservation: z
+    .boolean()
+    .optional()
+    .describe(
+      "Filter by logical root status. App-root observations can match true while retaining a non-null parentObservationId.",
+    ),
   // TODO: Re-enable string[] once the public observations API correctly
   // applies allow-multiple environment filters instead of dropping arrays.
   // see: https://linear.app/langfuse/issue/LFE-9852/bug-observations-api-accepts-multiple-environment-params-but-ignores
@@ -346,6 +355,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
             type: input.type,
             environment: input.environment,
             parentObservationId: input.parentObservationId,
+            isRootObservation: input.isRootObservation,
             fromStartTime: input.fromStartTime,
             toStartTime: input.toStartTime,
             version: input.version,

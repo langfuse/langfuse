@@ -118,6 +118,7 @@ export const eventsObservationRecordReadSchema =
   observationRecordReadSchema.extend({
     user_id: z.string().nullish(),
     session_id: z.string().nullish(),
+    is_root_observation: z.boolean().optional(),
     trace_name: z.string().nullish(),
     release: z.string().nullish(),
     tags: z.array(z.string()).optional(),

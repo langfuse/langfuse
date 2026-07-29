@@ -1,13 +1,9 @@
 ---
 name: langfuse-previews
 description: >
-  Disposable per-PR preview environments for langfuse/langfuse. A same-repo PR
-  auto-builds a full Langfuse stack reachable at pr-N.preview.langfuse.com.
-  Use when spinning up or using a PR preview, logging into one, working out why
-  a preview did not come up (built but the URL 404s, ImagePullBackOff, pods
-  stuck Pending), reading web / worker / ClickHouse logs or otherwise debugging
-  a preview with kubectl, waking a preview that went to sleep off-hours, or
-  getting preview deploy or cluster access. Synthetic data only.
+  Use Langfuse's disposable per-PR previews at pr-N.preview.langfuse.com
+  (synthetic data only). Use for preview access, failed deployments, test-data
+  seeding, kubectl debugging, or waking sleeping previews.
 ---
 
 # Langfuse PR Previews
@@ -62,6 +58,51 @@ Pushing updates it; closing the PR tears it down.
 - **Disposable data.** Closing a PR destroys its database; reopening gives a
   **fresh** environment, not the old one.
 - **Forks can't preview.** External / fork PRs never build or deploy.
+
+## Add or improve data in a preview
+
+Previews start pre-seeded with the demo project and some synthetic traces. To
+add the specific shape you're testing — a very deep trace, a huge session, bulk
+traces for list performance, v4 events, malformed payloads — run the
+deterministic **seed CLI from your local checkout**, pointed at the preview's
+datastores over a `port-forward`. The CLI has no LLM/agent loop; you (or your
+coding agent) pick the scenario — the **`seed-test-data` skill** maps "what I
+need" → the exact command and flags.
+
+Needs cluster access (see [Getting access](#getting-access)) and a working
+local `.env` (your normal local-dev setup — it supplies everything except the
+DB connection, which the commands below override).
+
+```bash
+NS=langfuse-pr-<N>              # e.g. langfuse-pr-42
+
+# 1. tunnel Postgres + ClickHouse to localhost (leave these running)
+kubectl -n $NS port-forward svc/$NS-postgresql 5432:5432 &
+CH=$(kubectl -n $NS get svc -o name | grep clickhouse | head -1)
+kubectl -n $NS port-forward "$CH" 8123:8123 &
+
+# 2. per-preview generated passwords (synthetic, disposable)
+PGPW=$(kubectl -n $NS get secret langfuse-secrets -o jsonpath='{.data.postgres-password}' | base64 -d)
+CHPW=$(kubectl -n $NS get secret langfuse-secrets -o jsonpath='{.data.clickhouse-password}' | base64 -d)
+
+# 3. seed — overrides only the DB connection (your .env supplies the rest);
+#    NEXTAUTH_URL makes the CLI's printed deep links point at the preview UI
+cd packages/shared
+DATABASE_URL="postgresql://postgres:$PGPW@localhost:5432/postgres_langfuse" \
+CLICKHOUSE_URL="http://localhost:8123" CLICKHOUSE_PASSWORD="$CHPW" \
+NEXTAUTH_URL="https://pr-<N>.preview.langfuse.com" \
+pnpm run seed:scenario -- deep-chain --v4
+```
+
+- `pnpm run seed:scenario -- list` shows every scenario and flag; add
+  `--dry-run` to predict counts and write nothing. Full catalog: the
+  `seed-test-data` skill.
+- The last stdout line is a JSON summary with `verified` and clickable `links`
+  straight into the preview UI.
+- Run from a checkout whose **migrations match the PR** — scenario code and the
+  preview DB must agree, so seed from the PR's branch (usually already checked
+  out), not a stale `main`.
+- **Synthetic data only** — same rule as everywhere else in a preview.
 
 ## Debug a preview
 

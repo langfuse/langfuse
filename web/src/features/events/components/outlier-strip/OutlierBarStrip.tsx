@@ -6,6 +6,7 @@ import { Layer } from "@/src/components/ui/layer";
 import {
   formatBucketRange,
   OUTLIER_STRIP_METRICS,
+  prepareOutlierYTicks,
   type OutlierStripDenseBin,
   type OutlierStripMetricKey,
   type OutlierStripTick,
@@ -14,16 +15,18 @@ import {
 /**
  * OutlierBarStrip — compact, Firefox-devtools-inspired bar strip (LFE-14451).
  * Pure visualiser: renders the dense series `prepareOutlierSeries` produced
- * and decides nothing about data. Every bar is the worst single event in its
- * time bucket; clicking a bar reports the bucket's range so the caller can
- * narrow the table's time window.
+ * and decides nothing about data. Each bar is a prepared aggregate for its
+ * time bucket; clicking it reports the bucket's range so the caller can narrow
+ * the table's time window.
  *
  * The strip always spans the full `widthPx` (fractional bar slots), with a
- * baseline and sparse vertical gridline ticks so the chart's boundaries stay
- * visible even where the range holds no data.
+ * baseline and horizontal value gridlines so the chart's boundaries stay
+ * visible even where the range holds no data; sparse time labels sit on the
+ * tick grid without any vertical lines.
  */
 
 const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
+  count: "hsl(var(--chart-4))",
   cost: "hsl(var(--chart-1))",
   latency: "hsl(var(--chart-2))",
 };
@@ -55,7 +58,7 @@ export type OutlierBarStripProps = {
    * readable while outliers still dominate.
    */
   scale?: "linear" | "sqrt";
-  /** 1px baseline tick where events exist but carry no metric data. */
+  /** 1px baseline tick where observations exist but carry no metric data. */
   showActivityTicks?: boolean;
   /** Sparse time labels under the gridline ticks. */
   showTimeLabels?: boolean;
@@ -70,6 +73,8 @@ export type OutlierBarStripProps = {
    *  drag on one strip highlights on all (LF-34, Grafana-style). */
   selection?: { fromMs: number; toMs: number } | null;
   onSelectionChange?: (range: { fromMs: number; toMs: number } | null) => void;
+  /** Why the chart cannot represent the current table state. */
+  disabledReason?: string;
   className?: string;
 };
 
@@ -90,6 +95,7 @@ export function OutlierBarStrip({
   onPreviewPinned,
   selection = null,
   onSelectionChange,
+  disabledReason,
   className,
 }: OutlierBarStripProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -185,16 +191,26 @@ export function OutlierBarStrip({
       const scaled = scale === "sqrt" ? Math.sqrt(fraction) : fraction;
       return Math.max(1.5, scaled * plotHeight);
     };
+    // Y axis: nice-value gridlines + labels, scale-mapped by the preparer so
+    // they sit exactly where a bar of that value would top out.
+    const yTicks = prepareOutlierYTicks({
+      maxValue,
+      metric,
+      plotHeightPx: plotHeight,
+      scale,
+    });
     return (
       <>
-        {/* Sparse vertical gridline ticks (Firefox-devtools style) */}
-        {ticks.map((tick) => (
+        {/* Horizontal value gridlines (behind the bars). No vertical chrome
+            at all — the time grid carries its sparse labels alone, and the
+            horizontal lines mark the y axis (design 2026-07-29). */}
+        {yTicks.map((tick) => (
           <line
-            key={`tick-${tick.index}`}
-            x1={tick.index * slotPx}
-            y1={0}
-            x2={tick.index * slotPx}
-            y2={plotHeight}
+            key={`y-tick-${tick.value}`}
+            x1={0}
+            y1={plotHeight - tick.offsetPx}
+            x2={widthPx}
+            y2={plotHeight - tick.offsetPx}
             className="stroke-foreground"
             strokeWidth={1}
             opacity={0.07}
@@ -214,7 +230,7 @@ export function OutlierBarStrip({
         {/* Bars */}
         {dense.map((bin, i) => {
           if (bin.value === null) {
-            // Events without metric data get a subtle activity tick so the
+            // Observations without metric data get a subtle activity tick so the
             // strip never reads "nothing happened" when data is merely absent.
             return showActivityTicks && bin.count > 0 ? (
               <rect
@@ -249,12 +265,36 @@ export function OutlierBarStrip({
               key={`label-${tick.index}`}
               x={tick.index * slotPx + 3}
               y={heightPx + 9}
-              className="fill-muted-foreground/80 font-mono"
+              className="fill-muted-foreground/80 font-sans"
               fontSize={9}
             >
               {tick.label}
             </text>
           ))}
+
+        {/* Y-axis labels — after the bars so they stay legible on top; the
+            background-colored stroke (paint-order) keeps them readable where
+            they overlap a bar. Every label hangs BELOW its gridline: the top
+            gridline can hug the plot's top edge (no room above), and one
+            consistent side means the preparer's line spacing is also the
+            label spacing. */}
+        {yTicks.map((tick) => {
+          const lineY = plotHeight - tick.offsetPx;
+          return (
+            <text
+              key={`y-label-${tick.value}`}
+              x={3}
+              y={lineY + 9}
+              textAnchor="start"
+              className="fill-muted-foreground stroke-background font-sans"
+              fontSize={9}
+              strokeWidth={2.5}
+              style={{ paintOrder: "stroke" }}
+            >
+              {tick.label}
+            </text>
+          );
+        })}
       </>
     );
   }, [
@@ -267,6 +307,7 @@ export function OutlierBarStrip({
     color,
     ticks,
     maxValue,
+    metric,
     scale,
     hasData,
     showActivityTicks,
@@ -306,6 +347,21 @@ export function OutlierBarStrip({
   const previewHalfWidth = (previewSize?.width ?? 0) / 2;
   const viewportWidth =
     typeof window !== "undefined" ? window.innerWidth : Number.MAX_SAFE_INTEGER;
+
+  if (disabledReason) {
+    return (
+      <div
+        className={cn(
+          "text-muted-foreground bg-muted/30 flex items-center justify-center rounded text-[11px]",
+          className,
+        )}
+        style={{ width: widthPx, height: heightPx + labelHeight }}
+        aria-disabled="true"
+      >
+        {disabledReason}
+      </div>
+    );
+  }
 
   return (
     <div className={cn("relative", className)} style={{ width: widthPx }}>
@@ -485,7 +541,7 @@ export function OutlierBarStrip({
         <span className="text-muted-foreground/70 pointer-events-none absolute inset-0 flex items-center justify-center text-[10px]">
           {hasActivity
             ? `No ${metricSpec.shortLabel.toLowerCase()} data in range`
-            : "No events in range"}
+            : "No observations in range"}
         </span>
       )}
 
@@ -521,9 +577,11 @@ export function OutlierBarStrip({
                 : hovered.count > 0
                   ? "no data"
                   : metricSpec.format(0)}
-              <span className="text-muted-foreground ml-1.5 font-normal">
-                · {hovered.count} events
-              </span>
+              {metric !== "count" && (
+                <span className="text-muted-foreground ml-1.5 font-normal">
+                  · {hovered.count} observations
+                </span>
+              )}
             </div>
           </div>
         </Layer>
@@ -569,9 +627,11 @@ export function OutlierBarStrip({
                     : previewStats.count > 0
                       ? "no data"
                       : metricSpec.format(0)}
-                  <span className="text-muted-foreground ml-1.5 font-normal">
-                    · {previewStats.count} events
-                  </span>
+                  {metric !== "count" && (
+                    <span className="text-muted-foreground ml-1.5 font-normal">
+                      · {previewStats.count} observations
+                    </span>
+                  )}
                 </div>
               </div>
               <button
