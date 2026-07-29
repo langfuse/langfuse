@@ -138,12 +138,13 @@ async function spillValue(params: {
     upload,
     onUploadError,
   } = params;
-  const contentBytes = Buffer.from(serializedValue, "utf8");
-  const originalBytes = contentBytes.length;
+  const originalBytes = Buffer.byteLength(serializedValue, "utf8");
 
   if (originalBytes <= maxFieldBytes) {
     return { value: fallbackValue };
   }
+
+  const contentBytes = Buffer.from(serializedValue, "utf8");
 
   try {
     const uploadResult = await upload({ field, contentBytes });

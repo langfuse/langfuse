@@ -101,6 +101,26 @@ describe("spillOversizedObservationFields", () => {
     expect(upload).not.toHaveBeenCalled();
   });
 
+  it("does not allocate content buffers for fields within the limit", async () => {
+    const bufferFrom = vi.spyOn(Buffer, "from");
+
+    try {
+      await spillOversizedObservationFields({
+        fields: {
+          input: "small-input",
+          output: "small-output",
+          metadata: ["small-metadata"],
+        },
+        maxFieldBytes: 100,
+        upload: vi.fn(),
+      });
+
+      expect(bufferFrom).not.toHaveBeenCalled();
+    } finally {
+      bufferFrom.mockRestore();
+    }
+  });
+
   it("preserves metadata array order and duplicate-name values", async () => {
     const upload = vi
       .fn()
