@@ -6,6 +6,7 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import waitForExpect from "wait-for-expect";
+import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
 
 function createCaller({
   projectId,
@@ -135,6 +136,63 @@ describe("prompts trpc", () => {
   });
 
   describe("prompts.importBulk", () => {
+    it("enforces the prompt count limit for new prompt names", async () => {
+      const { project, org } = await createOrgProjectAndApiKey();
+      const existingPromptName = `existing-${v4()}`;
+      await prisma.prompt.create({
+        data: {
+          projectId: project.id,
+          name: existingPromptName,
+          version: 1,
+          type: "text",
+          prompt: "Version 1",
+          createdBy: "API",
+          labels: ["latest"],
+        },
+      });
+      const { caller } = createCaller({
+        projectId: project.id,
+        orgId: org.id,
+        projectName: project.name,
+        orgName: org.name,
+        admin: false,
+      });
+      const previousLimit =
+        entitlementAccess["cloud:hobby"].entitlementLimits[
+          "prompt-management-count-prompts"
+        ];
+      entitlementAccess["cloud:hobby"].entitlementLimits[
+        "prompt-management-count-prompts"
+      ] = 1;
+
+      try {
+        const existingPromptResult = await caller.prompts.importBulk({
+          projectId: project.id,
+          prompts: [{ name: existingPromptName, prompt: "Version 2" }],
+        });
+        expect(existingPromptResult.results).toEqual([
+          { name: existingPromptName, success: true },
+        ]);
+
+        const newPromptName = `new-${v4()}`;
+        await expect(
+          caller.prompts.importBulk({
+            projectId: project.id,
+            prompts: [{ name: newPromptName, prompt: "Version 1" }],
+          }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          prisma.prompt.findFirst({
+            where: { projectId: project.id, name: newPromptName },
+          }),
+        ).resolves.toBeNull();
+      } finally {
+        entitlementAccess["cloud:hobby"].entitlementLimits[
+          "prompt-management-count-prompts"
+        ] = previousLimit;
+      }
+    });
+
     it("rejects protected labels without protected-label access", async () => {
       const { project, org } = await createOrgProjectAndApiKey();
       const protectedLabel = `protected-${v4().slice(0, 8)}`;

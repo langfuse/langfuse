@@ -45,6 +45,7 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
+import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   if (!pathPrefix) {
@@ -1590,6 +1591,49 @@ export const promptRouter = createTRPCRouter({
           (label) => label !== "latest" && label !== "production",
         ),
       }));
+
+      const promptLimit = hasEntitlementLimit({
+        entitlementLimit: "prompt-management-count-prompts",
+        sessionUser: ctx.session.user,
+        projectId: input.projectId,
+      });
+
+      if (promptLimit !== false) {
+        const importedPromptNames = Array.from(
+          new Set(importItems.map(({ item }) => item.name)),
+        );
+        const [existingImportedPrompts, promptCountRows] = await Promise.all([
+          ctx.prisma.prompt.groupBy({
+            by: ["name"],
+            where: {
+              projectId: input.projectId,
+              name: { in: importedPromptNames },
+            },
+          }),
+          ctx.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+            SELECT COUNT(DISTINCT name) AS count
+            FROM prompts
+            WHERE project_id = ${input.projectId}
+          `),
+        ]);
+        const existingImportedPromptNames = new Set(
+          existingImportedPrompts.map(({ name }) => name),
+        );
+        const newPromptCount = importedPromptNames.filter(
+          (name) => !existingImportedPromptNames.has(name),
+        ).length;
+        const currentPromptCount = Number(promptCountRows[0]?.count ?? 0);
+
+        if (
+          newPromptCount > 0 &&
+          currentPromptCount + newPromptCount > promptLimit
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Import would create ${newPromptCount} new prompts and exceed the project limit of ${promptLimit} prompts (${currentPromptCount} existing).`,
+          });
+        }
+      }
 
       const { hasProtectedLabels, protectedLabels } =
         await checkHasProtectedLabels({
