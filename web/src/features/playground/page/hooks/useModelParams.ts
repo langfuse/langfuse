@@ -200,8 +200,10 @@ export const useModelParams = (
   ]);
 
   useEffect(() => {
+    if (availableModels.length === 0) return;
+
     if (
-      (availableModels.length > 0 && !modelParams.model.value) ||
+      !modelParams.model.value ||
       !availableModels.includes(modelParams.model.value)
     ) {
       if (persistedModelName && availableModels.includes(persistedModelName)) {
