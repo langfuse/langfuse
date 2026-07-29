@@ -202,6 +202,38 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
     });
 
+    it("returns core and basic fields when fields is omitted", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "default-fields-observation",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toContainEqual(
+        expect.objectContaining({
+          id: observationId,
+          name: "default-fields-observation",
+          level: "DEFAULT",
+          isRootObservation: true,
+        }),
+      );
+    });
+
     it("should respect limit parameter with default of 50", async () => {
       const timestamp = Date.now() * 1000;
       const observations = Array.from({ length: 6 }, (_, index) => {
@@ -266,6 +298,79 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.name).toBe("unique-observation-name");
       expect(obs?.type).toBe("GENERATION");
       expect(obs?.level).toBe("WARNING");
+    });
+
+    it("should filter semantic roots while preserving their physical parent", async () => {
+      const traceId = randomUUID();
+      const physicalRootId = randomUUID();
+      const appRootId = randomUUID();
+      const childId = randomUUID();
+      const externalParentId = randomUUID();
+      const timeValue = Date.now() * 1000;
+
+      await createEventsCh(
+        (
+          [
+            [physicalRootId, "", false],
+            [appRootId, externalParentId, true],
+            [childId, physicalRootId, false],
+          ] as const
+        ).map(([id, parentSpanId, isAppRoot], offset) =>
+          createEvent({
+            id,
+            span_id: id,
+            parent_span_id: parentSpanId,
+            is_app_root: isAppRoot,
+            trace_id: traceId,
+            project_id: projectId,
+            type: "SPAN",
+            level: "DEFAULT",
+            start_time: timeValue + offset,
+          }),
+        ),
+      );
+
+      const fetchTopology = async (filter: string) =>
+        Object.fromEntries(
+          (
+            await getObservations(
+              `/api/public/v2/observations?fields=basic&traceId=${traceId}&${filter}`,
+            )
+          ).body.data.map(({ id, isRootObservation, parentObservationId }) => [
+            id,
+            [isRootObservation, parentObservationId],
+          ]),
+        );
+      const structuredFilter = encodeURIComponent(
+        JSON.stringify([
+          {
+            type: "boolean",
+            column: "isRootObservation",
+            operator: "=",
+            value: true,
+          },
+        ]),
+      );
+      const expectedRoots = {
+        [physicalRootId]: [true, null],
+        [appRootId]: [true, externalParentId],
+      };
+
+      expect(
+        await Promise.all(
+          [
+            "isRootObservation=true",
+            `filter=${structuredFilter}`,
+            "parentObservationId=",
+            "isRootObservation=false",
+          ].map(fetchTopology),
+        ),
+      ).toEqual([
+        expectedRoots,
+        expectedRoots,
+        { [physicalRootId]: [true, null] },
+        { [childId]: [false, physicalRootId] },
+      ]);
     });
 
     it("should filter by multiple environment query params (any-of semantics)", async () => {
@@ -1063,6 +1168,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "public",
       "userId",
       "sessionId",
+      "isRootObservation",
       // time
       "completionStartTime",
       "createdAt",
@@ -1176,6 +1282,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         "public",
         "userId",
         "sessionId",
+        "isRootObservation",
       ],
       time: ["completionStartTime", "createdAt", "updatedAt"],
       io: ["input", "output"],
