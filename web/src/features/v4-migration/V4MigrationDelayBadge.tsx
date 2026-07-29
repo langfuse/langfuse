@@ -1,4 +1,5 @@
 import { ChevronRight } from "lucide-react";
+import { useRouter } from "next/router";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -7,10 +8,7 @@ import {
   useProjectV4EvalData,
   useProjectV4SdkData,
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
-import {
-  useCanUseInAppAgent,
-  useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 
 function BadgeContent({
@@ -120,12 +118,11 @@ export function V4MigrationUpdateRequiredBadge() {
 
 /** Starts the eval upgrade in the in-app assistant — for overlay surfaces
  * like the table peek, where the assistant (`agent` layer) renders above the
- * peek (`panel` layer) while the migration drawer would open behind it.
- * Falls back to the drawer when the assistant is unavailable. */
+ * peek (`panel` layer). When the assistant is unavailable, navigate to the
+ * full migration page instead of opening a drawer behind the peek. */
 export function V4MigrationUpdateRequiredAssistantBadge() {
-  const openMigrationPanel = useOpenV4MigrationPanel();
+  const router = useRouter();
   const capture = usePostHogClientCapture();
-  const canUseAgent = useCanUseInAppAgent();
   const { setOpen: setAgentOpen, submit: submitAgentMessage } =
     useInAppAiAgent();
   const { project, organization, enabled, visible } =
@@ -142,21 +139,25 @@ export function V4MigrationUpdateRequiredAssistantBadge() {
 
   const handleClick = async () => {
     capture("v4_migration:update_required_badge_clicked");
-    if (canUseAgent) {
+    if (upgradePlan.canUseAssistant) {
       setAgentOpen(true);
       await submitAgentMessage(upgradePlan.assistantPrompt, {
         newConversation: true,
       });
       return;
     }
-    openMigrationPanel({ id: project.id, name: project.name });
+    await router.push("/v4-migration");
   };
 
   return (
     <BadgeContent
       handleClick={handleClick}
       title="Action required"
-      description="Click here to start the upgrade now"
+      description={
+        upgradePlan.canUseAssistant
+          ? "Click here to start the upgrade now"
+          : "Open the migration guide"
+      }
     />
   );
 }
