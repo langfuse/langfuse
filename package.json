@@ -95,6 +95,7 @@
       "release": true,
       "web": true,
       "autoGenerate": true,
+      "makeLatest": false,
       "releaseName": "v${version}",
       "comments": {
         "submit": true,
