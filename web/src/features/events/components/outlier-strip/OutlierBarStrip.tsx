@@ -6,6 +6,7 @@ import { Layer } from "@/src/components/ui/layer";
 import {
   formatBucketRange,
   OUTLIER_STRIP_METRICS,
+  prepareOutlierYTicks,
   type OutlierStripDenseBin,
   type OutlierStripMetricKey,
   type OutlierStripTick,
@@ -19,8 +20,9 @@ import {
  * narrow the table's time window.
  *
  * The strip always spans the full `widthPx` (fractional bar slots), with a
- * baseline and sparse vertical gridline ticks so the chart's boundaries stay
- * visible even where the range holds no data.
+ * baseline and horizontal value gridlines so the chart's boundaries stay
+ * visible even where the range holds no data; sparse time labels sit on the
+ * tick grid without any vertical lines.
  */
 
 const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
@@ -185,16 +187,26 @@ export function OutlierBarStrip({
       const scaled = scale === "sqrt" ? Math.sqrt(fraction) : fraction;
       return Math.max(1.5, scaled * plotHeight);
     };
+    // Y axis: nice-value gridlines + labels, scale-mapped by the preparer so
+    // they sit exactly where a bar of that value would top out.
+    const yTicks = prepareOutlierYTicks({
+      maxValue,
+      metric,
+      plotHeightPx: plotHeight,
+      scale,
+    });
     return (
       <>
-        {/* Sparse vertical gridline ticks (Firefox-devtools style) */}
-        {ticks.map((tick) => (
+        {/* Horizontal value gridlines (behind the bars). No vertical chrome
+            at all — the time grid carries its sparse labels alone, and the
+            horizontal lines mark the y axis (design 2026-07-29). */}
+        {yTicks.map((tick) => (
           <line
-            key={`tick-${tick.index}`}
-            x1={tick.index * slotPx}
-            y1={0}
-            x2={tick.index * slotPx}
-            y2={plotHeight}
+            key={`y-tick-${tick.value}`}
+            x1={0}
+            y1={plotHeight - tick.offsetPx}
+            x2={widthPx}
+            y2={plotHeight - tick.offsetPx}
             className="stroke-foreground"
             strokeWidth={1}
             opacity={0.07}
@@ -249,12 +261,36 @@ export function OutlierBarStrip({
               key={`label-${tick.index}`}
               x={tick.index * slotPx + 3}
               y={heightPx + 9}
-              className="fill-muted-foreground/80 font-mono"
+              className="fill-muted-foreground/80 font-sans"
               fontSize={9}
             >
               {tick.label}
             </text>
           ))}
+
+        {/* Y-axis labels — after the bars so they stay legible on top; the
+            background-colored stroke (paint-order) keeps them readable where
+            they overlap a bar. Every label hangs BELOW its gridline: the top
+            gridline can hug the plot's top edge (no room above), and one
+            consistent side means the preparer's line spacing is also the
+            label spacing. */}
+        {yTicks.map((tick) => {
+          const lineY = plotHeight - tick.offsetPx;
+          return (
+            <text
+              key={`y-label-${tick.value}`}
+              x={3}
+              y={lineY + 9}
+              textAnchor="start"
+              className="fill-muted-foreground stroke-background font-sans"
+              fontSize={9}
+              strokeWidth={2.5}
+              style={{ paintOrder: "stroke" }}
+            >
+              {tick.label}
+            </text>
+          );
+        })}
       </>
     );
   }, [
@@ -267,6 +303,7 @@ export function OutlierBarStrip({
     color,
     ticks,
     maxValue,
+    metric,
     scale,
     hasData,
     showActivityTicks,
