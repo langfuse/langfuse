@@ -143,6 +143,30 @@ jobs:
                       );
                     }
                   }
+
+                  // Remove the preview pin from the PR description so the
+                  // reaped preview's URL stops being advertised at the top of
+                  // the PR. Markers must stay byte-identical to
+                  // preview-build.yml's pin step and preview-deactivate.yml.
+                  // Failure is isolated like the deployment loop above — the
+                  // label removal (the actual teardown) already succeeded.
+                  try {
+                    const START = "<!-- aws-preview-pin:start -->";
+                    const END = "<!-- aws-preview-pin:end -->";
+                    const blockRe = new RegExp(`${START}[\\s\\S]*?${END}\\n*`);
+                    if (pr.body && blockRe.test(pr.body)) {
+                      await github.rest.pulls.update({
+                        owner,
+                        repo,
+                        pull_number: pr.number,
+                        body: pr.body.replace(blockRe, ""),
+                      });
+                    }
+                  } catch (e) {
+                    core.warning(
+                      `PR #${pr.number} description pin: ${e.message} — continuing`,
+                    );
+                  }
                 }
               } catch (e) {
                 failures++;
