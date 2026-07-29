@@ -85,6 +85,7 @@ export async function upsertMediaRecord(params: {
       projectId,
       id: mediaId,
       sha256Hash,
+      contentType,
     },
     data: {
       bucketName: uploadBucket,
@@ -96,7 +97,7 @@ export async function upsertMediaRecord(params: {
 
   if (result.count === 0) {
     throw new InternalServerError(
-      `Media ID collision detected for media ID ${mediaId} in project ${projectId}. The existing media row has a different id or sha_256_hash.`,
+      `Media ID collision detected for media ID ${mediaId} in project ${projectId}. The existing media row has a different id, sha_256_hash, or content_type.`,
     );
   }
 }
@@ -203,6 +204,12 @@ export async function uploadMediaForTrace(params: {
       },
     },
   });
+
+  if (existingMedia && existingMedia.contentType !== contentType) {
+    throw new InternalServerError(
+      `Media asset ${existingMedia.id} already exists with a different content type`,
+    );
+  }
 
   if (
     existingMedia &&
