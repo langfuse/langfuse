@@ -720,7 +720,7 @@ describe("extractObservationVariables", () => {
       expect(result[0].value).toBeUndefined();
     });
 
-    it("should handle non-JSON string column with JSON selector", () => {
+    it("returns no value when a JSON selector does not match a plain string", () => {
       const observationWithPlainText: ObservationForEval = {
         ...mockObservation,
         input: "plain text, not JSON",
@@ -742,8 +742,7 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      // Should fall back to original value when JSON parsing fails
-      expect(result[0].value).toBe("plain text, not JSON");
+      expect(result[0].value).toBeUndefined();
     });
   });
 

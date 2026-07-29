@@ -1147,6 +1147,13 @@ export const evaluate = async ({
       id: job.jobConfigurationId,
       projectId: event.projectId,
     },
+    include: {
+      runScopeAssignments: {
+        where: { runScopeId: job.runScopeId ?? "__no_rule__" },
+        select: { variableMapping: true },
+        take: 1,
+      },
+    },
   });
 
   if (!config || !config.evalTemplateId) {
@@ -1189,7 +1196,7 @@ export const evaluate = async ({
 
   // Extract variables from tracing data
   const parsedVariableMapping = variableMappingList.parse(
-    config.variableMapping,
+    config.runScopeAssignments?.[0]?.variableMapping ?? config.variableMapping,
   );
 
   const extractedVariables = await extractVariablesFromTracingData({

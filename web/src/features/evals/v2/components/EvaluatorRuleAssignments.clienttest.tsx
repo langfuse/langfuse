@@ -202,7 +202,7 @@ describe("EvaluatorRuleAssignments", () => {
     });
     expect(reviewLink).toHaveAttribute(
       "href",
-      "/project/project-1/evals/v2/evaluator-1?edit=1&ruleId=rule-2",
+      "/project/project-1/evals/v2/rules?peek=rule-2&mappingEvaluatorId=evaluator-1",
     );
     reviewLink.addEventListener("click", (event) => event.preventDefault());
     fireEvent.click(reviewLink);

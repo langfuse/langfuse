@@ -155,6 +155,7 @@ function DrillSelector({
   initial,
   sourceObject,
   hasMatchingObservations,
+  sourceUnavailableMessage,
   onCommit,
   onCancel,
 }: {
@@ -162,6 +163,7 @@ function DrillSelector({
   initial: VariableFieldState;
   sourceObject: Record<string, unknown> | null;
   hasMatchingObservations: boolean;
+  sourceUnavailableMessage?: string;
   onCommit: (next: VariableFieldState) => void;
   onCancel: () => void;
 }) {
@@ -182,6 +184,7 @@ function DrillSelector({
         onSelectVariable={() => undefined}
         sourceObject={sourceObject}
         hasMatchingObservations={hasMatchingObservations}
+        sourceUnavailableMessage={sourceUnavailableMessage}
         onChange={setDraft}
       />
       <div className="flex items-center justify-end gap-2 border-t p-2">
@@ -219,6 +222,7 @@ function TreeSelectorBody({
   segments,
   sourceObject,
   hasMatchingObservations,
+  sourceUnavailableMessage,
   onSelect,
   onApplyJsonPath,
 }: {
@@ -227,6 +231,7 @@ function TreeSelectorBody({
   segments: PathSegment[] | null;
   sourceObject: Record<string, unknown> | null;
   hasMatchingObservations: boolean;
+  sourceUnavailableMessage?: string;
   onSelect: (columnId: string, segments: PathSegment[]) => void;
   onApplyJsonPath: (jsonSelector: string | null) => void;
 }) {
@@ -235,9 +240,10 @@ function TreeSelectorBody({
   if (!sourceObject) {
     return (
       <p className="text-muted-foreground p-4 text-center text-sm">
-        {hasMatchingObservations
-          ? "Loading sample data…"
-          : "No observations match the current rule — adjust the filters in the right pane."}
+        {sourceUnavailableMessage ??
+          (hasMatchingObservations
+            ? "Loading sample data…"
+            : "No observations match the current rule — adjust the filters in the right pane.")}
       </p>
     );
   }
@@ -307,6 +313,7 @@ function VariableMappingRow({
   fieldState,
   sourceObject,
   hasMatchingObservations,
+  sourceUnavailableMessage,
   onChange,
   onDelete,
 }: {
@@ -321,8 +328,9 @@ function VariableMappingRow({
   fieldState: VariableFieldState;
   sourceObject: Record<string, unknown> | null;
   hasMatchingObservations: boolean;
+  sourceUnavailableMessage?: string;
   onChange: (next: VariableFieldState) => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 }) {
   const rowRef = useRef<HTMLDivElement | null>(null);
   // The value preview is collapsed by default; the card header toggles it.
@@ -410,105 +418,102 @@ function VariableMappingRow({
       {/* Header: the mapping as information, and the collapse toggle for the
           card body — inner buttons (crumb toggles, pencil, trash) don't
           bubble into the toggle. The pencil is the one way into the selector. */}
-      <div
-        className={cn(
-          "bg-muted/30 flex min-w-0 items-center gap-2 rounded-t-md px-3 py-1.5 text-sm",
-          bodyVisible ? "border-b" : "rounded-b-md",
-          canToggle && "cursor-pointer",
-        )}
-        role={canToggle ? "button" : undefined}
-        tabIndex={canToggle ? 0 : undefined}
-        aria-expanded={canToggle ? previewOpen : undefined}
-        title={
-          canToggle
-            ? previewOpen
-              ? "Hide the details"
-              : "Show the details"
-            : undefined
-        }
-        onClick={(event) => {
-          if (!canToggle) return;
-          if ((event.target as Element).closest("button")) return;
-          setPreviewOpen((prev) => !prev);
-        }}
-        onKeyDown={(event) => {
-          if (!canToggle) return;
-          if (event.key !== "Enter" && event.key !== " ") return;
-          if ((event.target as Element).closest("button")) return;
-          event.preventDefault();
-          setPreviewOpen((prev) => !prev);
-        }}
-      >
-        <ChevronDown
+      {open && selector === "drill" ? null : (
+        <div
           className={cn(
-            "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
-            !previewOpen && "-rotate-90",
-            !canToggle && "invisible",
+            "bg-muted/30 flex min-w-0 items-center gap-2 rounded-t-md px-3 py-1.5 text-sm",
+            bodyVisible ? "border-b" : "rounded-b-md",
+            canToggle && "cursor-pointer",
           )}
-        />
-        <span
-          className="text-primary-accent shrink-0 font-mono font-bold"
-          title={`{{${variable}}}`}
+          role={canToggle ? "button" : undefined}
+          tabIndex={canToggle ? 0 : undefined}
+          aria-expanded={canToggle ? previewOpen : undefined}
+          title={
+            canToggle
+              ? previewOpen
+                ? "Hide the details"
+                : "Show the details"
+              : undefined
+          }
+          onClick={(event) => {
+            if (!canToggle) return;
+            if ((event.target as Element).closest("button")) return;
+            setPreviewOpen((prev) => !prev);
+          }}
+          onKeyDown={(event) => {
+            if (!canToggle) return;
+            if (event.key !== "Enter" && event.key !== " ") return;
+            if ((event.target as Element).closest("button")) return;
+            event.preventDefault();
+            setPreviewOpen((prev) => !prev);
+          }}
         >
-          {`{{${variable}}}`}
-        </span>
-        <span className="text-muted-foreground shrink-0">pulls from</span>
-        {open && selector === "drill" ? (
-          // The drill panel's crumb header is the navigation while open —
-          // don't repeat it here.
-          <span
-            className="text-muted-foreground truncate italic"
-            title="Confirm below with “Use this mapping”, or cancel"
-          >
-            choosing below…
-          </span>
-        ) : unmapped || !columnLabel ? (
-          <span className="text-dark-yellow flex min-w-0 items-center gap-1.5 font-bold">
-            <TriangleAlert className="h-4 w-4 shrink-0" />
-            <span className="truncate" title="Not mapped yet">
-              nothing yet
-            </span>
-          </span>
-        ) : (
-          <BindingCrumbs
-            columnLabel={columnLabel}
-            segments={segments}
-            jsonSelector={fieldState.jsonSelector}
-            onToggleSegment={toggleSegment}
-          />
-        )}
-        <span className="ml-auto flex shrink-0 items-center">
-          {/* Edit ↔ cancel: the pencil opens the selector and becomes an X
-              while it's open — closing discards any in-progress choice. */}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className={cn(open && "bg-accent text-foreground")}
-            title={
-              open ? "Cancel — keep the current mapping" : "Change the mapping"
-            }
-            aria-expanded={open}
-            onClick={() => onOpenChange(!open)}
-          >
-            {open ? (
-              <X className="h-3.5 w-3.5" />
-            ) : (
-              <Pencil className="h-3.5 w-3.5" />
+          <ChevronDown
+            className={cn(
+              "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
+              !previewOpen && "-rotate-90",
+              !canToggle && "invisible",
             )}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className="hover:text-destructive"
-            title={`Remove {{${variable}}} from the prompt`}
-            onClick={onDelete}
+          />
+          <span
+            className="text-primary-accent shrink-0 font-mono font-bold"
+            title={`{{${variable}}}`}
           >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </span>
-      </div>
+            {`{{${variable}}}`}
+          </span>
+          <span className="text-muted-foreground shrink-0">pulls from</span>
+          {unmapped || !columnLabel ? (
+            <span className="text-dark-yellow flex min-w-0 items-center gap-1.5 font-bold">
+              <TriangleAlert className="h-4 w-4 shrink-0" />
+              <span className="truncate" title="Not mapped yet">
+                nothing yet
+              </span>
+            </span>
+          ) : (
+            <BindingCrumbs
+              columnLabel={columnLabel}
+              segments={segments}
+              jsonSelector={fieldState.jsonSelector}
+              onToggleSegment={toggleSegment}
+            />
+          )}
+          <span className="ml-auto flex shrink-0 items-center">
+            {/* Edit ↔ cancel: the pencil opens the selector and becomes an X
+              while it's open — closing discards any in-progress choice. */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className={cn(open && "bg-accent text-foreground")}
+              title={
+                open
+                  ? "Cancel — keep the current mapping"
+                  : "Change the mapping"
+              }
+              aria-expanded={open}
+              onClick={() => onOpenChange(!open)}
+            >
+              {open ? (
+                <X className="h-3.5 w-3.5" />
+              ) : (
+                <Pencil className="h-3.5 w-3.5" />
+              )}
+            </Button>
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="hover:text-destructive"
+                title={`Remove {{${variable}}} from the prompt`}
+                onClick={onDelete}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
+          </span>
+        </div>
+      )}
 
       {/* Body: the selector while editing; otherwise warnings always show,
           and the value preview only when the header is expanded. */}
@@ -519,6 +524,7 @@ function VariableMappingRow({
             initial={fieldState}
             sourceObject={sourceObject}
             hasMatchingObservations={hasMatchingObservations}
+            sourceUnavailableMessage={sourceUnavailableMessage}
             onCommit={(next) => {
               onChange(next);
               onOpenChange(false);
@@ -532,6 +538,7 @@ function VariableMappingRow({
             segments={segments}
             sourceObject={sourceObject}
             hasMatchingObservations={hasMatchingObservations}
+            sourceUnavailableMessage={sourceUnavailableMessage}
             onSelect={(columnId, treeSegments) => {
               onChange({
                 selectedColumnId: columnId,
@@ -557,8 +564,8 @@ function VariableMappingRow({
         </div>
       ) : !sourceObject ? (
         <p className="text-muted-foreground p-3 text-sm">
-          Pick a sample in the right pane to preview the value this mapping
-          pulls in.
+          {sourceUnavailableMessage ??
+            "Pick a sample in the right pane to preview the value this mapping pulls in."}
         </p>
       ) : extracted?.error ? (
         <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">
@@ -593,6 +600,7 @@ export function VariableMappingList({
   onDeleteVariable,
   sourceObject,
   hasMatchingObservations,
+  sourceUnavailableMessage,
 }: {
   /** Every prompt variable with its mapping label, in prompt order. */
   overview: Array<{ variable: string; label: string; unmapped: boolean }>;
@@ -606,11 +614,12 @@ export function VariableMappingList({
   getFieldState: (variable: string) => VariableFieldState;
   onChangeField: (variable: string, next: VariableFieldState) => void;
   /** Removes the variable from the prompt (trash action on the card). */
-  onDeleteVariable: (variable: string) => void;
+  onDeleteVariable?: (variable: string) => void;
   /** The sample observation every variable maps against. */
   sourceObject: Record<string, unknown> | null;
   /** False when the rule matches nothing — drives the empty state. */
   hasMatchingObservations: boolean;
+  sourceUnavailableMessage?: string;
 }) {
   if (overview.length === 0) {
     return (
@@ -638,8 +647,11 @@ export function VariableMappingList({
           fieldState={getFieldState(item.variable)}
           sourceObject={sourceObject}
           hasMatchingObservations={hasMatchingObservations}
+          sourceUnavailableMessage={sourceUnavailableMessage}
           onChange={(next) => onChangeField(item.variable, next)}
-          onDelete={() => onDeleteVariable(item.variable)}
+          onDelete={
+            onDeleteVariable ? () => onDeleteVariable(item.variable) : undefined
+          }
         />
       ))}
     </div>

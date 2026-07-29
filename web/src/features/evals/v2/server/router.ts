@@ -15,6 +15,7 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
   observationVariableMapping,
+  observationVariableMappingList,
   PersistedEvalOutputDefinitionSchema,
   Prisma,
   singleFilter,
@@ -356,8 +357,9 @@ export const evalsV2Router = createTRPCRouter({
           evaluatorAssignments: {
             orderBy: { createdAt: "asc" },
             select: {
+              variableMapping: true,
               jobConfiguration: {
-                select: { id: true, scoreName: true },
+                select: { id: true, scoreName: true, variableMapping: true },
               },
             },
           },
@@ -404,9 +406,15 @@ export const evalsV2Router = createTRPCRouter({
         sampling: evaluationRule.sampling.toNumber(),
         filter: z.array(singleFilter).catch([]).parse(evaluationRule.filter),
         executionHistory,
-        evaluators: evaluationRule.evaluatorAssignments.map(
-          (assignment) => assignment.jobConfiguration,
-        ),
+        evaluators: evaluationRule.evaluatorAssignments.map((assignment) => ({
+          ...assignment.jobConfiguration,
+          variableMapping: observationVariableMappingList
+            .catch([])
+            .parse(
+              assignment.variableMapping ??
+                assignment.jobConfiguration.variableMapping,
+            ),
+        })),
       };
     }),
 
@@ -419,7 +427,7 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      return ctx.prisma.jobConfiguration.findMany({
+      const evaluators = await ctx.prisma.jobConfiguration.findMany({
         where: {
           projectId: input.projectId,
           jobType: "EVAL",
@@ -429,11 +437,19 @@ export const evalsV2Router = createTRPCRouter({
           id: true,
           scoreName: true,
           targetObject: true,
+          variableMapping: true,
           status: true,
           evalTemplate: { select: { type: true } },
         },
         orderBy: { scoreName: "asc" },
       });
+
+      return evaluators.map((evaluator) => ({
+        ...evaluator,
+        variableMapping: observationVariableMappingList
+          .catch([])
+          .parse(evaluator.variableMapping),
+      }));
     }),
 
   updateEvaluatorDefinition: protectedProjectProcedure
@@ -587,6 +603,14 @@ export const evalsV2Router = createTRPCRouter({
         name: z.string().trim().min(1),
         filter: z.array(singleFilter).nullable(),
         sampling: z.number().gt(0).lte(1),
+        evaluatorMappings: z
+          .array(
+            z.object({
+              evaluatorId: z.string(),
+              mapping: observationVariableMappingList,
+            }),
+          )
+          .optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -604,13 +628,50 @@ export const evalsV2Router = createTRPCRouter({
       }
 
       try {
-        await ctx.prisma.evalRunScope.update({
-          where: { id: rule.id, projectId: input.projectId },
-          data: {
-            name: input.name,
-            filter: input.filter ?? [],
-            sampling: input.sampling,
-          },
+        await ctx.prisma.$transaction(async (tx) => {
+          await tx.evalRunScope.update({
+            where: { id: rule.id, projectId: input.projectId },
+            data: {
+              name: input.name,
+              filter: input.filter ?? [],
+              sampling: input.sampling,
+            },
+          });
+
+          if (input.evaluatorMappings) {
+            const evaluatorIds = input.evaluatorMappings.map(
+              ({ evaluatorId }) => evaluatorId,
+            );
+            const assignmentCount = await tx.evalRunScopeAssignment.count({
+              where: {
+                runScopeId: rule.id,
+                jobConfigurationId: { in: evaluatorIds },
+                jobConfiguration: { projectId: input.projectId },
+              },
+            });
+            if (
+              assignmentCount !== new Set(evaluatorIds).size ||
+              evaluatorIds.length !== new Set(evaluatorIds).size
+            ) {
+              throw new LangfuseNotFoundError(
+                "One or more evaluator assignments were not found",
+              );
+            }
+
+            await Promise.all(
+              input.evaluatorMappings.map(({ evaluatorId, mapping }) =>
+                tx.evalRunScopeAssignment.update({
+                  where: {
+                    jobConfigurationId_runScopeId: {
+                      jobConfigurationId: evaluatorId,
+                      runScopeId: rule.id,
+                    },
+                  },
+                  data: { variableMapping: mapping },
+                }),
+              ),
+            );
+          }
         });
       } catch (error) {
         if (
@@ -769,6 +830,14 @@ export const evalsV2Router = createTRPCRouter({
         enabled: z.boolean(),
         evaluatorId: z.string().optional(),
         evaluatorIds: z.array(z.string()).min(1).optional(),
+        evaluatorMappings: z
+          .array(
+            z.object({
+              evaluatorId: z.string(),
+              mapping: observationVariableMappingList,
+            }),
+          )
+          .optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -780,6 +849,14 @@ export const evalsV2Router = createTRPCRouter({
 
       const evaluatorIds =
         input.evaluatorIds ?? (input.evaluatorId ? [input.evaluatorId] : []);
+      const allEvaluatorIds = [
+        ...new Set([
+          ...evaluatorIds,
+          ...(input.evaluatorMappings ?? []).map(
+            ({ evaluatorId }) => evaluatorId,
+          ),
+        ]),
+      ];
       const evaluationRule = await createRule({
         prisma: ctx.prisma,
         projectId: input.projectId,
@@ -790,11 +867,12 @@ export const evalsV2Router = createTRPCRouter({
         sampling: input.sampling,
         enabled: input.enabled,
         evaluatorIds,
+        evaluatorMappings: input.evaluatorMappings ?? [],
       });
       await auditLog({
         session: ctx.session,
         resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: evaluatorIds[0] ?? evaluationRule.id,
+        resourceId: allEvaluatorIds[0] ?? evaluationRule.id,
         action: "create",
       });
       await invalidateProjectEvalConfigCaches(input.projectId);
@@ -808,6 +886,7 @@ export const evalsV2Router = createTRPCRouter({
         projectId: z.string(),
         evaluatorId: z.string(),
         ruleId: z.string(),
+        mapping: observationVariableMappingList.optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {

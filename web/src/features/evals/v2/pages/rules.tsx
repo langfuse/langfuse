@@ -19,7 +19,9 @@ export default function EvaluationRulesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const peekNavigation = usePeekNavigation({ queryParams: ["editRule"] });
+  const peekNavigation = usePeekNavigation({
+    queryParams: ["editRule", "mappingEvaluatorId"],
+  });
 
   const hasReadAccess = useHasProjectAccess({
     projectId,

@@ -163,6 +163,22 @@ vi.mock("@/src/utils/api", () => ({
         invalidate: mocks.invalidateEvaluators,
       },
     }),
+    events: {
+      all: {
+        useQuery: () => ({
+          data: {
+            observations: [
+              {
+                id: "observation-1",
+                traceId: "trace-1",
+                startTime: new Date("2026-07-20T12:00:00.000Z"),
+              },
+            ],
+          },
+          isPending: false,
+        }),
+      },
+    },
     evalsV2: {
       rules: {
         useQuery: () => ({ data: [] }),
@@ -176,6 +192,13 @@ vi.mock("@/src/utils/api", () => ({
               targetObject: "event",
               status: "ACTIVE",
               evalTemplate: { type: "LLM_AS_JUDGE" },
+              variableMapping: [
+                {
+                  templateVariable: "input",
+                  selectedColumnId: "input",
+                  jsonSelector: null,
+                },
+              ],
             },
             {
               id: "evaluator-2",
@@ -183,8 +206,25 @@ vi.mock("@/src/utils/api", () => ({
               targetObject: "event",
               status: "ACTIVE",
               evalTemplate: { type: "LLM_AS_JUDGE" },
+              variableMapping: [
+                {
+                  templateVariable: "output",
+                  selectedColumnId: "output",
+                  jsonSelector: null,
+                },
+              ],
             },
           ],
+          isPending: false,
+        }),
+      },
+      sampleObservation: {
+        useQuery: () => ({
+          data: {
+            input: { question: "What is Langfuse?" },
+            output: { answer: "An LLM engineering platform." },
+            metadata: { environment: "test" },
+          },
           isPending: false,
         }),
       },
@@ -330,6 +370,13 @@ describe("CreateEvaluationRuleDialog", () => {
     expect(
       screen.getByRole("button", { name: "Remove Correctness" }),
     ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Configure Correctness variable mapping",
+      }),
+    );
+    expect(screen.getByText("{{input}}")).toBeInTheDocument();
+    expect(screen.getByText("Input")).toBeInTheDocument();
 
     expect(
       screen.getByRole("button", { name: "Attach evaluator" }),
@@ -355,6 +402,28 @@ describe("CreateEvaluationRuleDialog", () => {
         sampling: 1,
         enabled: true,
         evaluatorIds: ["evaluator-1", "evaluator-2"],
+        evaluatorMappings: [
+          {
+            evaluatorId: "evaluator-1",
+            mapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+                jsonSelector: null,
+              },
+            ],
+          },
+          {
+            evaluatorId: "evaluator-2",
+            mapping: [
+              {
+                templateVariable: "output",
+                selectedColumnId: "output",
+                jsonSelector: null,
+              },
+            ],
+          },
+        ],
       }),
     );
     expect(mocks.invalidateEvaluationRules).toHaveBeenCalledWith({
@@ -414,6 +483,18 @@ describe("CreateEvaluationRuleDialog", () => {
         sampling: 0.5,
         enabled: true,
         evaluatorIds: ["evaluator-1"],
+        evaluatorMappings: [
+          {
+            evaluatorId: "evaluator-1",
+            mapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+                jsonSelector: null,
+              },
+            ],
+          },
+        ],
       }),
     );
   });
@@ -535,6 +616,18 @@ describe("CreateEvaluationRuleDialog", () => {
         sampling: 1,
         enabled: true,
         evaluatorIds: ["evaluator-1"],
+        evaluatorMappings: [
+          {
+            evaluatorId: "evaluator-1",
+            mapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+                jsonSelector: null,
+              },
+            ],
+          },
+        ],
       }),
     );
     const warning = screen.getByRole("alert");

@@ -29,6 +29,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { EvaluationRuleExecutionTraceStatusHistory } from "@/src/features/evals/v2/components/EvaluationRuleExecutionStatusHistory";
+import { EvaluatorOverviewAttachToRuleButton } from "@/src/features/evals/v2/components/EvaluatorOverviewAttachToRuleButton";
 import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
 import { encodeFiltersGeneric } from "@langfuse/shared";
@@ -320,19 +321,12 @@ export function EvaluatorOverviewTable({
                 View scores
               </Button>
             ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!hasWriteAccess}
-                onClick={() =>
-                  router.push(
-                    `/project/${projectId}/evals/v2/${encodeURIComponent(row.original.id)}`,
-                  )
-                }
-              >
-                Attach to rule
-              </Button>
+              <EvaluatorOverviewAttachToRuleButton
+                projectId={projectId}
+                evaluatorId={row.original.id}
+                evaluatorName={row.original.scoreName}
+                hasWriteAccess={hasWriteAccess}
+              />
             )}
             <Tooltip>
               <TooltipTrigger asChild>

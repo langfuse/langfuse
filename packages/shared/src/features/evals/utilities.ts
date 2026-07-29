@@ -55,11 +55,6 @@ function parseMultiEncodedJson(value: unknown): unknown {
 }
 
 function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
-  // JSONPath can only query objects/arrays — return primitives as-is
-  if (typeof selectedColumn !== "object" || selectedColumn === null) {
-    return selectedColumn;
-  }
-
   const result = JSONPath({
     path: jsonSelector,
     json: selectedColumn as any, // JSONPath accepts unknown but types are strict
@@ -88,7 +83,7 @@ export function extractValueFromObject(
   let jsonSelectedColumn;
   let error: Error | null = null;
 
-  if (jsonSelector && selectedColumn) {
+  if (jsonSelector && selectedColumn !== null && selectedColumn !== undefined) {
     // Only parse multi-encoded JSON when a selector is present — avoids
     // mutating formatting (e.g. whitespace) for the no-selector passthrough.
     const parsed =

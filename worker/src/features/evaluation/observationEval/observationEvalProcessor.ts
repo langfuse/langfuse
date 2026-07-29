@@ -146,6 +146,11 @@ export async function processObservationEval(
           orgId: true,
         },
       },
+      runScopeAssignments: {
+        where: { runScopeId: job.runScopeId ?? "__no_rule__" },
+        select: { variableMapping: true },
+        take: 1,
+      },
     },
   });
 
@@ -239,7 +244,8 @@ export async function processObservationEval(
 
   // Extract variables from observation
   const parsedVariableMapping = observationVariableMappingList.parse(
-    evalJobConfig.variableMapping,
+    evalJobConfig.runScopeAssignments?.[0]?.variableMapping ??
+      evalJobConfig.variableMapping,
   ) as ObservationVariableMapping[];
 
   const extractedVariables = extractObservationVariables({

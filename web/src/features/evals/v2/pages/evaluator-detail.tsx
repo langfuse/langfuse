@@ -43,10 +43,23 @@ import { observationVariableMappingList, singleFilter } from "@langfuse/shared";
 import { z } from "zod";
 
 const EVALUATION_RULE_PEEK_CONFIG = {
-  queryParams: ["editRule", "peekView", "observation", "display", "timestamp"],
+  queryParams: [
+    "editRule",
+    "peekView",
+    "observation",
+    "display",
+    "timestamp",
+    "mappingEvaluatorId",
+  ],
   extractParamsValuesFromRow: (row: {
     openEdit?: boolean;
-  }): Record<string, string> => (row.openEdit ? { editRule: "1" } : {}),
+    mappingEvaluatorId?: string;
+  }): Record<string, string> => ({
+    ...(row.openEdit ? { editRule: "1" } : {}),
+    ...(row.mappingEvaluatorId
+      ? { mappingEvaluatorId: row.mappingEvaluatorId }
+      : {}),
+  }),
 };
 
 export default function EvaluatorDetailPage() {
@@ -123,15 +136,13 @@ export default function EvaluatorDetailPage() {
     Number.isFinite(parsedEstimatedCostUsd) && parsedEstimatedCostUsd >= 0
       ? parsedEstimatedCostUsd
       : null;
-  const setActivationDialogOpen = (open: boolean) => {
+  const setActivationDialogOpen = async (open: boolean) => {
     if (open) return;
     const query = { ...router.query };
     delete query.activate;
-    router
-      .replace({ pathname: router.pathname, query }, undefined, {
-        shallow: true,
-      })
-      .catch(() => undefined);
+    await router.replace({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
   };
   const redirectToEvaluatorOverview = () => {
     router.replace(`/project/${projectId}/evals/v2`).catch(() => undefined);
@@ -276,6 +287,8 @@ export default function EvaluatorDetailPage() {
       <ActivateEvaluatorDialog
         projectId={projectId}
         evaluatorId={data.id}
+        evaluatorName={data.scoreName}
+        attachedRuleIds={data.ruleAssignments.map(({ rule }) => rule.id)}
         setupFilter={filter}
         setupSampling={sampling}
         testRunCostUsd={testRunCostUsd}
@@ -283,9 +296,16 @@ export default function EvaluatorDetailPage() {
         open={activationDialogOpen}
         onOpenChange={setActivationDialogOpen}
         onComplete={redirectToEvaluatorOverview}
-        onCreateRule={() => {
-          setActivationDialogOpen(false);
+        onCreateRule={async () => {
+          await setActivationDialogOpen(false);
           setCreateRuleDialogOpen(true);
+        }}
+        onReviewRule={async (ruleId) => {
+          await setActivationDialogOpen(false);
+          evaluationRulePeekNavigation.openPeek(ruleId, {
+            openEdit: true,
+            mappingEvaluatorId: data.id,
+          });
         }}
       />
 
@@ -349,8 +369,11 @@ export default function EvaluatorDetailPage() {
         </div>
       </ConfirmDialog>
 
-      <Sheet open={rulesOpen} onOpenChange={setRulesOpen}>
-        <SheetContent className="flex flex-col gap-5 overflow-y-auto sm:max-w-lg">
+      <Sheet open={rulesOpen} onOpenChange={setRulesOpen} modal={false}>
+        <SheetContent
+          showOverlay={false}
+          className="flex flex-col gap-5 overflow-y-auto shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] sm:max-w-lg dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]"
+        >
           <SheetHeader>
             <SheetTitle>Rules</SheetTitle>
             <SheetDescription>
@@ -383,12 +406,16 @@ export default function EvaluatorDetailPage() {
 
       <Sheet
         open={versionHistoryOpen}
+        modal={false}
         onOpenChange={(open) => {
           setVersionHistoryOpen(open);
           if (!open) setSelectedVersionId(null);
         }}
       >
-        <SheetContent className="flex flex-col gap-5 overflow-y-auto sm:max-w-2xl">
+        <SheetContent
+          showOverlay={false}
+          className="flex flex-col gap-5 overflow-y-auto shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] sm:max-w-2xl dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]"
+        >
           {selectedVersion ? (
             <>
               <Button

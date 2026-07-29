@@ -205,6 +205,7 @@ export function createMockJobExecution(
     executionTraceId: string | null;
     jobTemplateId: string | null;
     jobInputTraceTimestamp: Date | null;
+    runScopeId: string | null;
   }> = {},
 ) {
   return {
@@ -226,6 +227,7 @@ export function createMockJobExecution(
     executionTraceId: overrides.executionTraceId ?? null,
     jobTemplateId: overrides.jobTemplateId ?? null,
     jobInputTraceTimestamp: overrides.jobInputTraceTimestamp ?? null,
+    runScopeId: overrides.runScopeId ?? null,
   };
 }
 
@@ -251,6 +253,7 @@ export function createMockJobConfiguration(
     createdAt: Date;
     updatedAt: Date;
     evalTemplate: ReturnType<typeof createMockEvalTemplate> | null;
+    runScopeAssignments: Array<{ variableMapping: unknown[] | null }>;
   }> = {},
 ) {
   const templateId = overrides.evalTemplateId ?? `template-${randomUUID()}`;
@@ -280,6 +283,7 @@ export function createMockJobConfiguration(
         ? overrides.evalTemplate
         : createMockEvalTemplate({ id: templateId, projectId }),
     project: { orgId: "test-org-123" },
+    runScopeAssignments: overrides.runScopeAssignments ?? [],
   };
 }
 

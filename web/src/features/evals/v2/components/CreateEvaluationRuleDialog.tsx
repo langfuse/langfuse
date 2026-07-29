@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, Link2, X } from "lucide-react";
+import { ArrowLeft, Link2 } from "lucide-react";
 
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
@@ -34,6 +34,10 @@ import { Slider } from "@/src/components/ui/slider";
 import { ActivationCostEstimate } from "@/src/features/evals/v2/components/ActivationCostEstimate";
 import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationAlert";
 import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
+import {
+  EvaluationRuleEvaluatorList,
+  parseEvaluationRuleVariableMapping,
+} from "@/src/features/evals/v2/components/EvaluationRuleEvaluatorList";
 import { EvaluationRuleFieldLabel } from "@/src/features/evals/v2/components/EvaluationRuleFieldLabel";
 import {
   EVALUATION_OBSERVATION_EXCLUSION_FILTERS,
@@ -50,7 +54,10 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { api } from "@/src/utils/api";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { type FilterState } from "@langfuse/shared";
+import {
+  type FilterState,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
 
 export function CreateEvaluationRuleDialog({
   projectId,
@@ -94,6 +101,9 @@ export function CreateEvaluationRuleDialog({
   const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<string[]>(
     () => [...new Set(initialEvaluatorIds)],
   );
+  const [mappingOverrides, setMappingOverrides] = useState<
+    Record<string, ObservationVariableMapping[]>
+  >({});
   const [evaluatorPickerOpen, setEvaluatorPickerOpen] = useState(false);
   const [traceId, setTraceId] = useState<string | null>(null);
   const validation = useValidatedRuleDraftEvaluator({ projectId });
@@ -115,7 +125,16 @@ export function CreateEvaluationRuleDialog({
     const evaluator = evaluatorOptions.data?.find(
       (candidate) => candidate.id === evaluatorId,
     );
-    return evaluator ? [evaluator] : [];
+    return evaluator
+      ? [
+          {
+            ...evaluator,
+            variableMapping:
+              mappingOverrides[evaluator.id] ??
+              parseEvaluationRuleVariableMapping(evaluator.variableMapping),
+          },
+        ]
+      : [];
   });
   const availableEvaluators = (evaluatorOptions.data ?? []).filter(
     (evaluator) => evaluator.targetObject === "event",
@@ -138,6 +157,11 @@ export function CreateEvaluationRuleDialog({
         (selectedId) => selectedId !== evaluatorId,
       );
       setSelectedEvaluatorIds(nextSelectedIds);
+      setMappingOverrides((current) => {
+        const next = { ...current };
+        delete next[evaluatorId];
+        return next;
+      });
       if (nextSelectedIds.length === 0) setNameOpen(false);
       validation.resetIssue();
       setEvaluatorPickerOpen(false);
@@ -165,6 +189,9 @@ export function CreateEvaluationRuleDialog({
       const valid = await validation.validate({
         evaluatorId,
         filter: filterState,
+        mapping:
+          selectedEvaluators.find((evaluator) => evaluator.id === evaluatorId)
+            ?.variableMapping ?? [],
       });
       if (!valid) return false;
     }
@@ -183,6 +210,10 @@ export function CreateEvaluationRuleDialog({
         sampling,
         enabled: true,
         evaluatorIds: selectedEvaluatorIds,
+        evaluatorMappings: selectedEvaluators.map((evaluator) => ({
+          evaluatorId: evaluator.id,
+          mapping: evaluator.variableMapping,
+        })),
       });
     } catch {
       return;
@@ -382,39 +413,19 @@ export function CreateEvaluationRuleDialog({
                     </PopoverContent>
                   </Popover>
                 </div>
-                {selectedEvaluators.length > 0 ? (
-                  <ul
-                    className="divide-border divide-y overflow-hidden rounded-md border"
-                    aria-label="Selected evaluators"
-                  >
-                    {selectedEvaluators.map((evaluator) => (
-                      <li
-                        key={evaluator.id}
-                        className="flex min-w-0 items-center px-1 py-1 text-sm"
-                      >
-                        <span
-                          className="min-w-0 flex-1 truncate px-2"
-                          title={evaluator.scoreName}
-                        >
-                          {evaluator.scoreName}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`Remove ${evaluator.scoreName}`}
-                          onClick={() => toggleEvaluator(evaluator.id)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-sm">
-                    No evaluators attached yet.
-                  </div>
-                )}
+                <EvaluationRuleEvaluatorList
+                  projectId={projectId}
+                  filterState={filterState}
+                  timeRange={absoluteTimeRange}
+                  evaluators={selectedEvaluators}
+                  onMappingChange={(evaluatorId, mapping) =>
+                    setMappingOverrides((current) => ({
+                      ...current,
+                      [evaluatorId]: mapping,
+                    }))
+                  }
+                  onRemove={toggleEvaluator}
+                />
                 {validation.issue ? (
                   <EvaluationRuleAttachmentValidationAlert
                     issue={validation.issue}

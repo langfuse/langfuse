@@ -93,6 +93,22 @@ vi.mock("@/src/utils/api", () => ({
         invalidate: mocks.evalsV2Invalidate,
       },
     }),
+    events: {
+      all: {
+        useQuery: () => ({
+          data: {
+            observations: [
+              {
+                id: "observation-1",
+                traceId: "trace-1",
+                startTime: new Date("2026-07-20T12:00:00.000Z"),
+              },
+            ],
+          },
+          isPending: false,
+        }),
+      },
+    },
     evalsV2: {
       updateRule: {
         useMutation: () => ({
@@ -114,6 +130,16 @@ vi.mock("@/src/utils/api", () => ({
       evaluatorOptions: {
         useQuery: () => ({ data: [] }),
       },
+      sampleObservation: {
+        useQuery: () => ({
+          data: {
+            input: { question: "What is Langfuse?" },
+            output: { answer: "An LLM engineering platform." },
+            metadata: { environment: "test" },
+          },
+          isPending: false,
+        }),
+      },
     },
   },
 }));
@@ -126,7 +152,19 @@ const rule = {
   filter: [],
   sampling: 1,
   enabled: true,
-  evaluators: [{ id: "evaluator-1", scoreName: "Quality" }],
+  evaluators: [
+    {
+      id: "evaluator-1",
+      scoreName: "Quality",
+      variableMapping: [
+        {
+          templateVariable: "input",
+          selectedColumnId: "input",
+          jsonSelector: null,
+        },
+      ],
+    },
+  ],
 };
 
 describe("EvaluationRuleEditView", () => {
@@ -187,6 +225,69 @@ describe("EvaluationRuleEditView", () => {
     );
   });
 
+  it("opens the problematic evaluator mapping for review", () => {
+    render(
+      <TooltipProvider>
+        <EvaluationRuleEditView
+          projectId="project-1"
+          evaluationRule={rule}
+          timeRange={null}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+          onOpenTrace={vi.fn()}
+          initialExpandedEvaluatorId="evaluator-1"
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "Step 3: Attach evaluator",
+      }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", {
+        name: "Collapse Quality variable mapping",
+      }),
+    ).toBeVisible();
+    expect(screen.getByText("Variable mapping")).toBeVisible();
+  });
+
+  it("does not count a mapping that resolves to no sample content", () => {
+    render(
+      <TooltipProvider>
+        <EvaluationRuleEditView
+          projectId="project-1"
+          evaluationRule={{
+            ...rule,
+            evaluators: [
+              {
+                ...rule.evaluators[0],
+                variableMapping: [
+                  {
+                    templateVariable: "input",
+                    selectedColumnId: "metadata",
+                    jsonSelector: "$.missing",
+                  },
+                ],
+              },
+            ],
+          }}
+          timeRange={null}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+          onOpenTrace={vi.fn()}
+          initialExpandedEvaluatorId="evaluator-1"
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("0/1 variable mapped")).toBeVisible();
+    expect(
+      screen.getByLabelText("Some variables are not mapped"),
+    ).toBeVisible();
+  });
+
   it("confirms before saving changes to a connected evaluation rule", async () => {
     const onSaved = vi.fn();
     render(
@@ -227,6 +328,18 @@ describe("EvaluationRuleEditView", () => {
         name: "Production traces",
         filter: [],
         sampling: 1,
+        evaluatorMappings: [
+          {
+            evaluatorId: "evaluator-1",
+            mapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+                jsonSelector: null,
+              },
+            ],
+          },
+        ],
       }),
     );
     expect(onSaved).toHaveBeenCalledOnce();

@@ -1,10 +1,7 @@
 import { z } from "zod";
 
-import {
-  extractValueFromObjectAsString,
-  observationVariableMapping,
-  type FilterState,
-} from "@langfuse/shared";
+import { observationVariableMapping, type FilterState } from "@langfuse/shared";
+import { evaluationVariableMappingResolves } from "@/src/features/evals/v2/lib/evaluationVariableMapping";
 import { type RouterInputs } from "@/src/utils/api";
 
 type EvaluatorConfig = {
@@ -39,6 +36,7 @@ type ValidationOutcome = "passed" | "failed" | "unavailable";
 export type EvaluationRuleAttachmentValidationIssue = {
   outcome: Exclude<ValidationOutcome, "passed">;
   message: string;
+  requiresMappingReview?: true;
 };
 
 export type ValidateAndAttachEvaluationRuleResult = {
@@ -87,9 +85,13 @@ function validationIssue(
   evaluatorType: EvaluatorType,
   outcome: EvaluationRuleAttachmentValidationIssue["outcome"],
   message: string,
+  options?: Pick<
+    EvaluationRuleAttachmentValidationIssue,
+    "requiresMappingReview"
+  >,
 ): ValidateEvaluationRuleAttachmentResult {
   captureValidation(dependencies, { outcome, evaluatorType });
-  return { valid: false, outcome, message };
+  return { valid: false, outcome, message, ...options };
 }
 
 function errorMessage(error: unknown): string {
@@ -138,12 +140,7 @@ function allLlmVariableMappingsResolve(
     );
     if (!variableMapping) return false;
 
-    const { value, error } = extractValueFromObjectAsString(
-      sampleData,
-      variableMapping.selectedColumnId,
-      variableMapping.jsonSelector ?? undefined,
-    );
-    return error === null && value.trim() !== "";
+    return evaluationVariableMappingResolves(sampleData, variableMapping);
   });
 }
 
@@ -201,6 +198,7 @@ export async function validateRuleAttachment(
       evaluatorType,
       "failed",
       "The evaluator has invalid variable mappings.",
+      { requiresMappingReview: true },
     );
   }
 
@@ -214,6 +212,7 @@ export async function validateRuleAttachment(
         evaluatorType,
         "failed",
         "Please complete all prompt variable mappings.",
+        { requiresMappingReview: true },
       );
     }
   }
@@ -246,6 +245,7 @@ export async function validateRuleAttachment(
         evaluatorType,
         "failed",
         "The evaluator's prompt variables could not all be filled from an observation matched by this evaluation rule.",
+        { requiresMappingReview: true },
       );
     }
 
@@ -332,6 +332,9 @@ export async function validateAndAttachRule(
       issue: {
         outcome: result.outcome,
         message: result.message,
+        ...(result.requiresMappingReview
+          ? { requiresMappingReview: true as const }
+          : {}),
       },
     };
   }

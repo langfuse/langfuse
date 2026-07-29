@@ -1282,7 +1282,7 @@ export function EvaluatorSetupForm({
               <SetupStep
                 number={2}
                 title="Map variables to data"
-                description="Connect evaluator variables to fields from the selected sample observation."
+                description="Configure how observation data maps to variables in your evaluator prompt. Use the sample observation to preview and verify the mapping."
                 open={mappingStepOpen}
                 onOpenChange={setMappingStepOpen}
               >

@@ -4,13 +4,18 @@ import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationAlert";
 import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
+import { parseEvaluationRuleVariableMapping } from "@/src/features/evals/v2/components/EvaluationRuleEvaluatorList";
 import { EvaluationRuleForm } from "@/src/features/evals/v2/components/EvaluationRuleForm";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
+import { getEvaluationRuleMappingReviewHref } from "@/src/features/evals/v2/lib/evaluationRuleMappingReviewHref";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { type AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { type FilterState } from "@langfuse/shared";
+import {
+  type FilterState,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
 
 export function EvaluationRuleEditView({
   projectId,
@@ -20,6 +25,7 @@ export function EvaluationRuleEditView({
   onSaved,
   onOpenTrace,
   readOnly = false,
+  initialExpandedEvaluatorId,
 }: {
   projectId: string;
   evaluationRule: {
@@ -28,18 +34,26 @@ export function EvaluationRuleEditView({
     filter: FilterState;
     sampling: number;
     enabled: boolean;
-    evaluators: Array<{ id: string; scoreName: string }>;
+    evaluators: Array<{
+      id: string;
+      scoreName: string;
+      variableMapping: ObservationVariableMapping[];
+    }>;
   };
   timeRange: AbsoluteTimeRange | null;
   onCancel: () => void;
   onSaved: () => void;
   onOpenTrace: (traceId: string) => void;
   readOnly?: boolean;
+  initialExpandedEvaluatorId?: string;
 }) {
   const utils = api.useUtils();
   const [name, setName] = useState(evaluationRule.name);
   const [filterState, setFilterState] = useState(evaluationRule.filter);
   const [sampling, setSampling] = useState(evaluationRule.sampling);
+  const [mappingOverrides, setMappingOverrides] = useState<
+    Record<string, ObservationVariableMapping[]>
+  >({});
   const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
   const attachment = useValidatedRuleAttachment({
     projectId,
@@ -68,14 +82,33 @@ export function EvaluationRuleEditView({
     { projectId },
     { enabled: !readOnly },
   );
-  const availableEvaluators = (evaluatorOptions.data ?? []).filter(
-    (evaluator) => evaluator.targetObject === "event",
-  );
+  const availableEvaluators = (evaluatorOptions.data ?? [])
+    .filter((evaluator) => evaluator.targetObject === "event")
+    .map((evaluator) => ({
+      ...evaluator,
+      variableMapping: parseEvaluationRuleVariableMapping(
+        evaluator.variableMapping,
+      ),
+    }));
+  const selectedEvaluators = evaluationRule.evaluators.map((evaluator) => ({
+    ...evaluator,
+    variableMapping:
+      mappingOverrides[evaluator.id] ?? evaluator.variableMapping,
+  }));
   const evaluatorCount = evaluationRule.evaluators.length;
   const hasChanges =
     name.trim() !== evaluationRule.name ||
     sampling !== evaluationRule.sampling ||
-    JSON.stringify(filterState) !== JSON.stringify(evaluationRule.filter);
+    JSON.stringify(filterState) !== JSON.stringify(evaluationRule.filter) ||
+    selectedEvaluators.some(
+      (evaluator) =>
+        JSON.stringify(evaluator.variableMapping) !==
+        JSON.stringify(
+          evaluationRule.evaluators.find(
+            (initialEvaluator) => initialEvaluator.id === evaluator.id,
+          )?.variableMapping,
+        ),
+    );
 
   const invalidateAfterSave = () =>
     Promise.all([utils.evals.invalidate(), utils.evalsV2.invalidate()]);
@@ -87,6 +120,10 @@ export function EvaluationRuleEditView({
         name: name.trim(),
         filter: filterState,
         sampling,
+        evaluatorMappings: selectedEvaluators.map((evaluator) => ({
+          evaluatorId: evaluator.id,
+          mapping: evaluator.variableMapping,
+        })),
       });
     } catch {
       return;
@@ -150,9 +187,15 @@ export function EvaluationRuleEditView({
         onFilterStateChange={setFilterState}
         sampling={sampling}
         onSamplingChange={setSampling}
-        evaluators={evaluationRule.evaluators}
+        evaluators={selectedEvaluators}
         availableEvaluators={availableEvaluators}
         onToggleEvaluator={toggleEvaluator}
+        onEvaluatorMappingChange={(evaluatorId, mapping) =>
+          setMappingOverrides((current) => ({
+            ...current,
+            [evaluatorId]: mapping,
+          }))
+        }
         timeRange={timeRange}
         onOpenTrace={onOpenTrace}
         evaluatorContent={
@@ -160,12 +203,17 @@ export function EvaluationRuleEditView({
             <EvaluationRuleAttachmentValidationAlert
               issue={attachment.issue}
               onDismiss={attachment.dismissIssue}
-              reviewHref={`/project/${projectId}/evals/v2/${encodeURIComponent(attachment.issue.evaluatorId)}?edit=1&ruleId=${encodeURIComponent(attachment.issue.ruleId)}`}
+              reviewHref={getEvaluationRuleMappingReviewHref({
+                projectId,
+                ruleId: attachment.issue.ruleId,
+                evaluatorId: attachment.issue.evaluatorId,
+              })}
             />
           ) : null
         }
         defaultSamplingOpen
-        defaultEvaluatorOpen={false}
+        defaultEvaluatorOpen={Boolean(initialExpandedEvaluatorId)}
+        initialExpandedEvaluatorId={initialExpandedEvaluatorId}
         defaultNameOpen={false}
         nameHint="Changes apply to every evaluator attached to this rule."
         idPrefix="edit-evaluation-rule"

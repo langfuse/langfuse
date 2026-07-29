@@ -6,11 +6,13 @@ import {
   validateAndAttachRule,
   type EvaluationRuleAttachmentValidationIssue,
 } from "@/src/features/evals/v2/actions/validateAndAttachRule";
+import { getLatestRuleSample } from "@/src/features/evals/v2/actions/getLatestRuleSample";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 export type EvaluationRuleAttachmentEntryPoint =
   | "evaluator_detail"
+  | "evaluator_overview"
   | "evaluation_rule_detail";
 
 type AttachmentInput = {
@@ -71,18 +73,28 @@ export function useValidatedRuleAttachment({
           }),
         getEvaluationRule: () =>
           utils.client.evalsV2.ruleById.query({ projectId, ruleId }),
-        getSample: async (filter) => {
-          const result = await utils.client.events.all.query({
-            projectId,
-            filter,
-            searchQuery: null,
-            searchType: [],
-            orderBy: { column: "startTime", order: "DESC" },
-            page: 1,
-            limit: 1,
-          });
-          return result.observations[0] ?? null;
-        },
+        getSample: (filter) =>
+          getLatestRuleSample(filter, {
+            getLatest: async (ruleFilter) => {
+              const result = await utils.client.events.all.query({
+                projectId,
+                filter: ruleFilter,
+                searchQuery: null,
+                searchType: [],
+                orderBy: { column: "startTime", order: "DESC" },
+                page: 1,
+                limit: 1,
+              });
+              return result.observations[0] ?? null;
+            },
+            getDetails: (sample) =>
+              utils.client.evalsV2.sampleObservation.query({
+                projectId,
+                observationId: sample.id,
+                traceId: sample.traceId,
+                startTime: sample.startTime,
+              }),
+          }),
         runCodeTest: (input) =>
           utils.client.evalsV2.testRunCodeEval.mutate({
             ...input,
@@ -105,17 +117,19 @@ export function useValidatedRuleAttachment({
       });
 
       if (result.issue) {
-        setIssue({
+        const enrichedIssue = {
           ...result.issue,
           ...input,
-        });
+        };
+        setIssue(enrichedIssue);
+        return { attached: true as const, issue: enrichedIssue };
       }
 
-      if (!result.issue) setIssue(null);
-      return true;
+      setIssue(null);
+      return { attached: true as const };
     } catch (error) {
       trpcErrorToast(error);
-      return false;
+      return { attached: false as const };
     } finally {
       setPendingKey(null);
     }

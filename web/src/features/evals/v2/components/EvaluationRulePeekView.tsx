@@ -25,6 +25,9 @@ export function TablePeekViewEvaluationRuleDetail({
 }) {
   const router = useRouter();
   const ruleId = router.query.peek as string | undefined;
+  const mappingEvaluatorId = router.query.mappingEvaluatorId as
+    | string
+    | undefined;
   const [inspectedTraceId, setInspectedTraceId] = useState<string | null>(null);
   const [formResetKey, setFormResetKey] = useState(0);
   const hasWriteAccess = useHasProjectAccess({
@@ -114,7 +117,7 @@ export function TablePeekViewEvaluationRuleDetail({
         </div>
       ) : (
         <EvaluationRuleEditView
-          key={`${evaluationRule.data.id}-${formResetKey}`}
+          key={`${evaluationRule.data.id}-${mappingEvaluatorId ?? "default"}-${formResetKey}`}
           projectId={projectId}
           evaluationRule={evaluationRule.data}
           timeRange={absoluteTimeRange}
@@ -122,6 +125,7 @@ export function TablePeekViewEvaluationRuleDetail({
           onSaved={() => setFormResetKey((key) => key + 1)}
           onOpenTrace={setInspectedTraceId}
           readOnly={!hasWriteAccess}
+          initialExpandedEvaluatorId={mappingEvaluatorId}
         />
       )}
     </TablePeekView>

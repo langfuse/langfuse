@@ -5,6 +5,7 @@ import {
   JobConfigState,
   LangfuseConflictError,
   LangfuseNotFoundError,
+  type observationVariableMapping,
   Prisma,
   singleFilter,
 } from "@langfuse/shared";
@@ -20,6 +21,7 @@ export async function createRule({
   sampling,
   enabled,
   evaluatorIds,
+  evaluatorMappings,
 }: {
   prisma: PrismaClient;
   projectId: string;
@@ -30,10 +32,22 @@ export async function createRule({
   sampling: number;
   enabled: boolean;
   evaluatorIds: string[];
+  evaluatorMappings: Array<{
+    evaluatorId: string;
+    mapping: z.infer<typeof observationVariableMapping>[];
+  }>;
 }) {
   try {
     return await prisma.$transaction(async (tx) => {
-      const uniqueEvaluatorIds = [...new Set(evaluatorIds)];
+      const mappingByEvaluatorId = new Map(
+        evaluatorMappings.map(({ evaluatorId, mapping }) => [
+          evaluatorId,
+          mapping,
+        ]),
+      );
+      const uniqueEvaluatorIds = [
+        ...new Set([...evaluatorIds, ...mappingByEvaluatorId.keys()]),
+      ];
       const evaluators = await tx.jobConfiguration.findMany({
         where: { id: { in: uniqueEvaluatorIds }, projectId },
       });
@@ -65,6 +79,7 @@ export async function createRule({
           data: evaluators.map((evaluator) => ({
             jobConfigurationId: evaluator.id,
             runScopeId: evaluationRule.id,
+            variableMapping: mappingByEvaluatorId.get(evaluator.id),
           })),
         });
         await tx.jobConfiguration.updateMany({
@@ -208,11 +223,13 @@ export async function attachEvaluatorToRule({
   projectId,
   evaluatorId,
   ruleId,
+  mapping,
 }: {
   prisma: PrismaClient;
   projectId: string;
   evaluatorId: string;
   ruleId: string;
+  mapping?: z.infer<typeof observationVariableMapping>[];
 }) {
   return prisma.$transaction(async (tx) => {
     const [evaluator, evaluationRule] = await Promise.all([
@@ -246,8 +263,11 @@ export async function attachEvaluatorToRule({
       create: {
         jobConfigurationId: evaluator.id,
         runScopeId: evaluationRule.id,
+        variableMapping: mapping,
       },
-      update: {},
+      update: {
+        ...(mapping ? { variableMapping: mapping } : {}),
+      },
     });
 
     // The worker reads all assignments. The legacy targeting columns retain a

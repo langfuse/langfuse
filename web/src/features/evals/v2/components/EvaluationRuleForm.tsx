@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from "react";
-import { Link2, X } from "lucide-react";
-import { type FilterState } from "@langfuse/shared";
+import { Link2 } from "lucide-react";
+import {
+  type FilterState,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -19,6 +22,10 @@ import {
 } from "@/src/components/ui/popover";
 import { Slider } from "@/src/components/ui/slider";
 import { EvaluationRuleFieldLabel } from "@/src/features/evals/v2/components/EvaluationRuleFieldLabel";
+import {
+  EvaluationRuleEvaluatorList,
+  type EvaluationRuleFormEvaluator,
+} from "@/src/features/evals/v2/components/EvaluationRuleEvaluatorList";
 import { EvaluationRulePreviewTable } from "@/src/features/evals/v2/components/EvaluationRulePreviewTable";
 import {
   EXAMPLE_FILTERS,
@@ -27,11 +34,6 @@ import {
 } from "@/src/features/evals/v2/components/EvaluationRuleSection";
 import { SetupStep } from "@/src/features/evals/v2/components/SetupStep";
 import { type AbsoluteTimeRange } from "@/src/utils/date-range-utils";
-
-type EvaluationRuleFormEvaluator = {
-  id: string;
-  scoreName: string;
-};
 
 export function EvaluationRuleForm({
   projectId,
@@ -44,9 +46,11 @@ export function EvaluationRuleForm({
   evaluators,
   availableEvaluators,
   onToggleEvaluator,
+  onEvaluatorMappingChange,
   timeRange,
   onOpenTrace,
   evaluatorContent,
+  initialExpandedEvaluatorId,
   nameOpen,
   onNameOpenChange,
   defaultSamplingOpen = false,
@@ -66,9 +70,14 @@ export function EvaluationRuleForm({
   evaluators: EvaluationRuleFormEvaluator[];
   availableEvaluators: EvaluationRuleFormEvaluator[];
   onToggleEvaluator: (evaluatorId: string) => void | Promise<void>;
+  onEvaluatorMappingChange: (
+    evaluatorId: string,
+    mapping: ObservationVariableMapping[],
+  ) => void;
   timeRange: AbsoluteTimeRange | null;
   onOpenTrace: (traceId: string) => void;
   evaluatorContent?: ReactNode;
+  initialExpandedEvaluatorId?: string;
   nameOpen?: boolean;
   onNameOpenChange?: (open: boolean) => void;
   defaultSamplingOpen?: boolean;
@@ -243,44 +252,16 @@ export function EvaluationRuleForm({
               </PopoverContent>
             </Popover>
           </div>
-          {evaluators.length > 0 ? (
-            <ul
-              className="divide-border divide-y overflow-hidden rounded-md border"
-              aria-label="Selected evaluators"
-            >
-              {evaluators.map((evaluator) => (
-                <li
-                  key={evaluator.id}
-                  className="flex min-w-0 items-center px-1 py-1 text-sm"
-                >
-                  <span
-                    className="min-w-0 flex-1 truncate px-2"
-                    title={evaluator.scoreName}
-                  >
-                    {evaluator.scoreName}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Remove ${evaluator.scoreName}`}
-                    disabled={readOnly}
-                    onClick={() =>
-                      Promise.resolve(onToggleEvaluator(evaluator.id)).catch(
-                        () => undefined,
-                      )
-                    }
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-sm">
-              No evaluators attached yet.
-            </div>
-          )}
+          <EvaluationRuleEvaluatorList
+            projectId={projectId}
+            filterState={filterState}
+            timeRange={timeRange}
+            evaluators={evaluators}
+            readOnly={readOnly}
+            initialExpandedEvaluatorId={initialExpandedEvaluatorId}
+            onMappingChange={onEvaluatorMappingChange}
+            onRemove={onToggleEvaluator}
+          />
           {evaluatorContent}
         </div>
       </SetupStep>

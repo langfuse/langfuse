@@ -18,6 +18,9 @@
   writers and remains read-only for users without write access. New attachments
   validate in place; failures link to evaluator edit with the rule preselected
   for manual review and testing.
+- `components/EvaluationRuleEvaluatorList.tsx` owns the collapsible evaluator
+  rows in rule create/edit forms. Each row edits the pairing-specific variable
+  mapping, initially copied from the evaluator default.
 - `components/EvaluatorConfigurationView.tsx` owns read-only evaluator and
   rule-assignment presentation. It reuses the edit hierarchy for prompt-variable
   mappings and score output; controls become read-only while `Advanced` remains
@@ -33,6 +36,8 @@ Server data remains in tRPC/React Query. Each detail page keeps only its
 form-local draft and selected evaluator/rule in React state. Rule filters are
 persisted on the legacy-named `EvalRunScope`; `EvalRunScopeAssignment` is the explicit
 many-to-many mapping to `JobConfiguration`.
+Its nullable `variableMapping` overrides the evaluator default for that rule;
+workers fall back to `JobConfiguration.variableMapping` for older pairings.
 
 `JobConfiguration.createdByUserId` records the creator of the runnable
 evaluator independently of its versioned definition. `EvalRunScope.enabled`

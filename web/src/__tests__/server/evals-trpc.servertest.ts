@@ -636,6 +636,92 @@ describe("evalsV2.activateEvaluator", () => {
     expect(persisted.evaluatorAssignments).toHaveLength(2);
   });
 
+  it("persists evaluator mapping overrides on evaluation rules", async () => {
+    const { project, caller } = await prepare();
+    const defaultMapping = [
+      {
+        templateVariable: "input",
+        selectedColumnId: "input",
+        jsonSelector: null,
+      },
+    ];
+    const initialOverride = [
+      {
+        templateVariable: "input",
+        selectedColumnId: "output",
+        jsonSelector: "answer",
+      },
+    ];
+    const updatedOverride = [
+      {
+        templateVariable: "input",
+        selectedColumnId: "metadata",
+        jsonSelector: "question",
+      },
+    ];
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        scoreName: `mapped-evaluator-${project.id}`,
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: defaultMapping,
+        sampling: 1,
+        delay: 0,
+      },
+    });
+
+    const created = await caller.evalsV2.createRule({
+      projectId: project.id,
+      name: `mapped-rule-${project.id}`,
+      targetObject: EvalTargetObject.EVENT,
+      filter: [],
+      sampling: 1,
+      enabled: true,
+      evaluatorMappings: [
+        { evaluatorId: evaluator.id, mapping: initialOverride },
+      ],
+    });
+
+    await expect(
+      caller.evalsV2.ruleById({
+        projectId: project.id,
+        ruleId: created.id,
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        evaluators: [
+          expect.objectContaining({
+            id: evaluator.id,
+            variableMapping: initialOverride,
+          }),
+        ],
+      }),
+    );
+
+    await caller.evalsV2.updateRule({
+      projectId: project.id,
+      ruleId: created.id,
+      name: `mapped-rule-${project.id}`,
+      filter: [],
+      sampling: 1,
+      evaluatorMappings: [
+        { evaluatorId: evaluator.id, mapping: updatedOverride },
+      ],
+    });
+
+    const assignment = await prisma.evalRunScopeAssignment.findUniqueOrThrow({
+      where: {
+        jobConfigurationId_runScopeId: {
+          jobConfigurationId: evaluator.id,
+          runScopeId: created.id,
+        },
+      },
+    });
+    expect(assignment.variableMapping).toEqual(updatedOverride);
+  });
+
   it("returns evaluator overview metadata and evaluation rule usage", async () => {
     const { project, caller } = await prepare();
     const creator = await prisma.user.create({

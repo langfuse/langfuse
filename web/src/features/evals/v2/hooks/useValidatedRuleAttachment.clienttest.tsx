@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   evalsV2Invalidate: vi.fn(),
   showSuccessToast: vi.fn(),
   validateAndAttachRule: vi.fn(),
+  eventsAll: vi.fn(),
+  sampleObservation: vi.fn(),
 }));
 
 vi.mock("@/src/features/evals/v2/actions/validateAndAttachRule", () => ({
@@ -32,9 +34,10 @@ vi.mock("@/src/utils/api", () => ({
         evals: { configById: { query: vi.fn() } },
         evalsV2: {
           ruleById: { query: vi.fn() },
+          sampleObservation: { query: mocks.sampleObservation },
           testRunCodeEval: { mutate: vi.fn() },
         },
-        events: { all: { query: vi.fn() } },
+        events: { all: { query: mocks.eventsAll } },
       },
       evals: {
         configById: { invalidate: mocks.configByIdInvalidate },
@@ -64,6 +67,23 @@ describe("useValidatedRuleAttachment", () => {
     mocks.attachMutation.mockResolvedValue(undefined);
     mocks.configByIdInvalidate.mockResolvedValue(undefined);
     mocks.evalsV2Invalidate.mockResolvedValue(undefined);
+    mocks.eventsAll.mockResolvedValue({
+      observations: [
+        {
+          id: "observation-1",
+          traceId: "trace-1",
+          startTime: new Date("2026-07-20T08:00:00.000Z"),
+        },
+      ],
+    });
+    mocks.sampleObservation.mockResolvedValue({
+      id: "observation-1",
+      traceId: "trace-1",
+      startTime: new Date("2026-07-20T08:00:00.000Z"),
+      input: { question: "What is Langfuse?" },
+      output: { answer: "An LLM engineering platform." },
+      metadata: { environment: "production" },
+    });
     mocks.validateAndAttachRule.mockImplementation(
       async (
         _projectId: string,
@@ -78,6 +98,45 @@ describe("useValidatedRuleAttachment", () => {
           },
         };
       },
+    );
+  });
+
+  it("hydrates the latest matching observation before validating mappings", async () => {
+    let validatedSample: unknown;
+    mocks.validateAndAttachRule.mockImplementation(
+      async (
+        _projectId: string,
+        dependencies: {
+          getSample: (filter: unknown[]) => Promise<unknown>;
+        },
+      ) => {
+        validatedSample = await dependencies.getSample([]);
+        return { attached: true };
+      },
+    );
+    const { result } = renderHook(() =>
+      useValidatedRuleAttachment({
+        projectId: "project-1",
+        entryPoint: "evaluator_detail",
+      }),
+    );
+
+    await act(async () => {
+      await result.current.attach(attachment);
+    });
+
+    expect(mocks.sampleObservation).toHaveBeenCalledWith({
+      projectId: "project-1",
+      observationId: "observation-1",
+      traceId: "trace-1",
+      startTime: new Date("2026-07-20T08:00:00.000Z"),
+    });
+    expect(validatedSample).toEqual(
+      expect.objectContaining({
+        input: { question: "What is Langfuse?" },
+        output: { answer: "An LLM engineering platform." },
+        metadata: { environment: "production" },
+      }),
     );
   });
 

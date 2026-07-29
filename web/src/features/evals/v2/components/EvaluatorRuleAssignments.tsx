@@ -24,6 +24,7 @@ import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Evaluat
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
+import { getEvaluationRuleMappingReviewHref } from "@/src/features/evals/v2/lib/evaluationRuleMappingReviewHref";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type FilterState } from "@langfuse/shared";
@@ -224,7 +225,11 @@ export function EvaluatorRuleAssignments({
         <EvaluationRuleAttachmentValidationAlert
           issue={attachment.issue}
           onDismiss={attachment.dismissIssue}
-          reviewHref={`/project/${projectId}/evals/v2/${encodeURIComponent(evaluatorId)}?edit=1&ruleId=${encodeURIComponent(attachment.issue.ruleId)}`}
+          reviewHref={getEvaluationRuleMappingReviewHref({
+            projectId,
+            ruleId: attachment.issue.ruleId,
+            evaluatorId,
+          })}
           onReview={onReviewEvaluator}
         />
       ) : null}

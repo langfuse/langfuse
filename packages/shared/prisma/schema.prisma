@@ -1012,6 +1012,7 @@ model EvalRunScopeAssignment {
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
   runScopeId         String           @map("run_scope_id")
   runScope           EvalRunScope     @relation(fields: [runScopeId], references: [id], onDelete: Cascade)
+  variableMapping    Json?            @map("variable_mapping")
 
   @@id([jobConfigurationId, runScopeId])
   @@index([runScopeId])

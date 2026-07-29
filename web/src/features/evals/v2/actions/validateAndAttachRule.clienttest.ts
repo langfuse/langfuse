@@ -85,6 +85,7 @@ describe("validateAndAttachRule", () => {
         outcome: "failed",
         message:
           "The evaluator's prompt variables could not all be filled from an observation matched by this evaluation rule.",
+        requiresMappingReview: true,
       },
     });
 
@@ -131,6 +132,7 @@ describe("validateAndAttachRule", () => {
       issue: {
         outcome: "failed",
         message: "Please complete all prompt variable mappings.",
+        requiresMappingReview: true,
       },
     });
 

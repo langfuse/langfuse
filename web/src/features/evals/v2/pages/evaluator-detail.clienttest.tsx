@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   routerQuery: {} as Record<string, string>,
   configByIdInvalidate: vi.fn(),
   editView: vi.fn(),
+  sheetProps: [] as Array<{ modal?: boolean }>,
+  sheetContentProps: [] as Array<{ showOverlay?: boolean }>,
 }));
 
 vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
@@ -126,11 +128,28 @@ vi.mock("@/src/components/ui/confirm-dialog", () => ({
   ConfirmDialog: () => null,
 }));
 vi.mock("@/src/components/ui/sheet", () => ({
-  Sheet: ({ children, open }: { children: ReactNode; open: boolean }) =>
-    open ? <div>{children}</div> : null,
-  SheetContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
+  Sheet: ({
+    children,
+    open,
+    modal,
+  }: {
+    children: ReactNode;
+    open: boolean;
+    modal?: boolean;
+  }) => {
+    mocks.sheetProps.push({ modal });
+    return open ? <div>{children}</div> : null;
+  },
+  SheetContent: ({
+    children,
+    showOverlay,
+  }: {
+    children: ReactNode;
+    showOverlay?: boolean;
+  }) => {
+    mocks.sheetContentProps.push({ showOverlay });
+    return <div>{children}</div>;
+  },
   SheetDescription: ({ children }: { children: ReactNode }) => (
     <p>{children}</p>
   ),
@@ -248,6 +267,8 @@ import EvaluatorDetailPage from "./evaluator-detail";
 describe("EvaluatorDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.sheetProps.length = 0;
+    mocks.sheetContentProps.length = 0;
     Object.keys(mocks.routerQuery).forEach((key) => {
       delete mocks.routerQuery[key];
     });
@@ -335,5 +356,17 @@ describe("EvaluatorDetailPage", () => {
 
     expect(screen.getByText("Saved definition: return 'old'")).toBeVisible();
     expect(screen.getByRole("button", { name: "All versions" })).toBeVisible();
+  });
+
+  it("shows rules and versions as non-modal panels without a dark overlay", () => {
+    render(<EvaluatorDetailPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rules 1" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show evaluator versions" }),
+    );
+
+    expect(mocks.sheetProps).toContainEqual({ modal: false });
+    expect(mocks.sheetContentProps).toContainEqual({ showOverlay: false });
   });
 });

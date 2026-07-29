@@ -230,6 +230,7 @@ export function VariableMappingPanel({
   onChange,
   onDelete,
   testAction,
+  sourceUnavailableMessage,
   className,
 }: {
   activeVariable: string | null;
@@ -255,9 +256,15 @@ export function VariableMappingPanel({
     lastResultLabel: string | null;
     onOpenLastResult: () => void;
   };
+  sourceUnavailableMessage?: string;
   className?: string;
 }) {
   const [editingPath, setEditingPath] = useState(false);
+  const unavailableMessage =
+    sourceUnavailableMessage ??
+    (hasMatchingObservations
+      ? "Loading sample data…"
+      : "No observations match the current rule — adjust the filters in the right pane to preview and drill into sample data.");
 
   const segments = useMemo(
     () =>
@@ -551,11 +558,7 @@ export function VariableMappingPanel({
         // Unmapped: pick the field the same way deeper levels are picked —
         // as drill rows over the sample data.
         !sourceObject ? (
-          <Callout>
-            {hasMatchingObservations
-              ? "Loading sample data…"
-              : "No observations match the current rule — adjust the filters in the right pane to preview and drill into sample data."}
-          </Callout>
+          <Callout>{unavailableMessage}</Callout>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2">
             <p className="text-muted-foreground px-2 pb-2 text-xs">
@@ -586,11 +589,7 @@ export function VariableMappingPanel({
           onCancel={() => setEditingPath(false)}
         />
       ) : !sourceObject ? (
-        <Callout>
-          {hasMatchingObservations
-            ? "Loading sample data…"
-            : "No observations match the current rule — adjust the filters in the right pane to preview and drill into sample data."}
-        </Callout>
+        <Callout>{unavailableMessage}</Callout>
       ) : segments === null ? (
         // A path the drill-down can't express (filter, slice, …).
         <div className="flex flex-col gap-2 p-3">
