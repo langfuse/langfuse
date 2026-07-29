@@ -20,8 +20,10 @@ type ObservationMcpFieldDefinition = ObservationMcpFieldMetadata & {
   group: ObservationFieldGroupPublicApi;
 };
 
-type ObservationMcpField =
-  (typeof OBSERVATION_FIELD_GROUP_FIELD_NAMES)[ObservationFieldGroupPublicApi][number];
+type ObservationMcpField = Exclude<
+  (typeof OBSERVATION_FIELD_GROUP_FIELD_NAMES)[ObservationFieldGroupPublicApi][number],
+  "isRootObservation"
+>;
 
 type ObservationMcpFieldType =
   | "array"
@@ -35,6 +37,8 @@ type ObservationMcpFieldType =
 
 const OBSERVATION_MCP_FIELDS = OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap(
   (group) => OBSERVATION_FIELD_GROUP_FIELD_NAMES[group],
+).filter(
+  (field): field is ObservationMcpField => field !== "isRootObservation",
 );
 
 const OBSERVATION_MCP_FIELD_SET = new Set<string>(OBSERVATION_MCP_FIELDS);
@@ -98,11 +102,15 @@ export type { ObservationMcpField };
 
 export const OBSERVATION_MCP_FIELD_DEFINITIONS: ObservationMcpFieldDefinition[] =
   OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap((group) =>
-    OBSERVATION_FIELD_GROUP_FIELD_NAMES[group].map((field) => ({
-      field,
-      group,
-      ...OBSERVATION_MCP_FIELD_METADATA[field],
-    })),
+    OBSERVATION_FIELD_GROUP_FIELD_NAMES[group]
+      .filter((field): field is ObservationMcpField =>
+        OBSERVATION_MCP_FIELD_SET.has(field),
+      )
+      .map((field) => ({
+        field,
+        group,
+        ...OBSERVATION_MCP_FIELD_METADATA[field],
+      })),
   );
 
 export const OBSERVATION_MCP_DEFAULT_FIELDS = OBSERVATION_MCP_FIELDS.filter(
