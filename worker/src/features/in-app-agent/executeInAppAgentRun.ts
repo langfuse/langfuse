@@ -94,6 +94,25 @@ export async function executeInAppAgentRun(params: {
   let mcpApiKey: { id: string; publicKey: string; secretKey: string } | null =
     null;
   let mcpApiKeyDeleted = false;
+  let isApprovedContinuation = false;
+  let approvedToolResultPersisted = false;
+  // True once createAgUiStream returned: from here on, errors reaching the
+  // outer catch are loop failures surfaced through the errored stream, not
+  // initialization failures.
+  let agentLoopStarted = false;
+
+  // The uncovered durability window: an approved mutation may have started
+  // but its result never persisted. Never generically retried. Hoisted to
+  // function scope because both the loop callbacks and the outer catch can
+  // record the terminal state (failStream races the drain rejection).
+  const failureCode = () =>
+    isApprovedContinuation && !approvedToolResultPersisted
+      ? {
+          errorCode: InAppAgentRunErrorCode.OUTCOME_UNKNOWN,
+          errorMessage:
+            "The approved action may have completed. Verify before retrying.",
+        }
+      : undefined;
 
   const cleanupMcpApiKey = async () => {
     if (!mcpApiKey || mcpApiKeyDeleted) return;
@@ -246,7 +265,7 @@ export async function executeInAppAgentRun(params: {
           : {},
     };
 
-    const isApprovedContinuation =
+    isApprovedContinuation =
       request.kind === "approvalDecision" && request.approved;
     const approvedRegistryToolName = isApprovedContinuation
       ? getRegistryToolName(approvalRequest?.toolName)
@@ -344,18 +363,6 @@ export async function executeInAppAgentRun(params: {
       });
 
     let interruptRequest: InAppAgentToolApprovalRequest | undefined;
-    let approvedToolResultPersisted = false;
-
-    // The uncovered durability window: an approved mutation may have started
-    // but its result never persisted. Never generically retried.
-    const failureCode = () =>
-      isApprovedContinuation && !approvedToolResultPersisted
-        ? {
-            errorCode: InAppAgentRunErrorCode.OUTCOME_UNKNOWN,
-            errorMessage:
-              "The approved action may have completed. Verify before retrying.",
-          }
-        : undefined;
 
     const finishWith = async (params2: {
       status: Parameters<typeof finishClaimedRun>[0]["status"];
@@ -398,6 +405,11 @@ export async function executeInAppAgentRun(params: {
             return;
           }
 
+          // The flag flips only when the result event is queued for
+          // persistence — deliberately NOT via onApprovedToolCallExecuted,
+          // which fires at execution time, before the adapter
+          // teardown/recreate window in which a crash would leave the
+          // executed mutation unrecorded.
           if (
             persistedEvent.type === "TOOL_CALL_RESULT" &&
             persistedEvent.toolCallId === approvalRequest?.toolCallId
@@ -412,9 +424,6 @@ export async function executeInAppAgentRun(params: {
           }
 
           return flushPersistedRunEvents();
-        },
-        onApprovedToolCallExecuted: () => {
-          approvedToolResultPersisted = true;
         },
         onComplete: async () => {
           await flushPersistedRunEvents();
@@ -524,23 +533,30 @@ export async function executeInAppAgentRun(params: {
       },
     });
 
+    agentLoopStarted = true;
     await drainStream(stream);
   } catch (error) {
-    // Failures before the loop's own callbacks could record an outcome
-    // (revalidation, input build, key minting). The CAS only matches a
-    // still-RUNNING row, so double-finishing is impossible.
+    // Two classes land here: pre-loop failures (revalidation, input build,
+    // key minting) and loop failures surfaced through the errored stream —
+    // failStream fires the loop's onError without awaiting it and errors the
+    // stream synchronously, so this catch can RACE that onError and win the
+    // terminal CAS. Both writers therefore classify identically: the
+    // durability check first, then agent_error for loop-phase failures and
+    // init_failed only before the loop existed.
     await finishClaimedRun({
       prisma,
       projectId,
       runId,
       status: InAppAgentRunStatus.FAILED,
-      errorCode: InAppAgentRunErrorCode.INIT_FAILED,
-      errorMessage:
-        error instanceof InAppAgentRunInitError
-          ? error.message
-          : error instanceof Error
+      ...(failureCode() ?? {
+        errorCode: agentLoopStarted
+          ? InAppAgentRunErrorCode.AGENT_ERROR
+          : InAppAgentRunErrorCode.INIT_FAILED,
+        errorMessage:
+          error instanceof Error
             ? error.message
             : "Agent initialization failed",
+      }),
     });
     await cleanupMcpApiKeyLogged();
 

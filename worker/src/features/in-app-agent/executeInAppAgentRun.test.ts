@@ -28,6 +28,7 @@ type AgentScenario = (ctx: {
   signal: AbortSignal;
   options: {
     onEvent: (event: unknown) => Promise<void> | void;
+    onApprovedToolCallExecuted?: () => Promise<void> | void;
     onComplete: () => Promise<void>;
     onAbort: () => Promise<void>;
     onError: (error: unknown) => Promise<void>;
@@ -64,8 +65,11 @@ vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
               signal: params.signal,
               options: params.options,
             });
-          } finally {
             controller.close();
+          } catch (error) {
+            // Mirrors the real loop's failStream: a scenario throw surfaces
+            // to the worker as an errored stream (rejected reader.read()).
+            controller.error(error);
           }
         },
       });
@@ -430,6 +434,46 @@ describe("executeInAppAgentRun", () => {
     const finished = await getRun(projectId, run.id);
     expect(finished.status).toBe("FAILED");
     expect(finished.errorCode).toBe("outcome_unknown");
+  });
+
+  it("keeps outcome_unknown when the loop dies in the executed-but-unpersisted window (no execution-time flag)", async () => {
+    const { projectId, run } = await seedApprovedContinuation();
+
+    scenarioRef.current = async ({ options }) => {
+      // Mirrors human-in-the-loop.ts: the approved mutation completed and the
+      // execution callback fires (if wired), but the crash happens before the
+      // synthetic TOOL_CALL_RESULT ever reaches onEvent.
+      await options.onApprovedToolCallExecuted?.();
+      throw new Error("adapter teardown crashed");
+    };
+
+    await expect(
+      executeInAppAgentRun({ projectId, runId: run.id }),
+    ).rejects.toThrow("adapter teardown crashed");
+
+    const failed = await getRun(projectId, run.id);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.errorCode).toBe("outcome_unknown");
+    expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+  });
+
+  it("classifies a loop-phase stream error as agent_error, not init_failed, in the outer catch", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+
+    scenarioRef.current = async ({ options }) => {
+      await options.onEvent(textChunk("partial"));
+      throw new Error("persistence blew up");
+    };
+
+    await expect(
+      executeInAppAgentRun({ projectId, runId: run.id }),
+    ).rejects.toThrow("persistence blew up");
+
+    const failed = await getRun(projectId, run.id);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.errorCode).toBe("agent_error");
+    expect(failed.errorMessage).toBe("persistence blew up");
+    expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
   });
 
   it("fails revalidation at claim as FAILED (init_failed) when AI features are disabled", async () => {
