@@ -151,13 +151,15 @@ export const formatCompoundDuration = (ms: number): string => {
   const unit = COMPOUND_DURATION_UNITS[index];
   // Always defined: ms >= 60_000 selects "m" or coarser, never "s".
   const sub = COMPOUND_DURATION_UNITS[index + 1];
-  let primary = Math.floor(ms / unit.ms);
-  let rest = Math.round((ms - primary * unit.ms) / sub.ms);
-  // Rounding the sub-unit up to a full primary ("1m 60s") must carry instead.
-  if (rest >= unit.ms / sub.ms) {
-    primary += 1;
-    rest = 0;
-  }
+  // Round to the sub-unit FIRST: a value that rounds up across its unit
+  // boundary ("59m 59.6s" → 60 minutes) must re-select the larger unit
+  // ("1h"), not denormalize — the recursion strictly promotes, so it ends.
+  const rounded = Math.round(ms / sub.ms) * sub.ms;
+  const larger = COMPOUND_DURATION_UNITS[index - 1];
+  if (larger && rounded >= larger.ms) return formatCompoundDuration(rounded);
+  const primary = Math.floor(rounded / unit.ms);
+  // Exact: `rounded` and unit.ms are both multiples of sub.ms.
+  const rest = (rounded - primary * unit.ms) / sub.ms;
   return rest > 0
     ? `${primary}${unit.label} ${rest}${sub.label}`
     : `${primary}${unit.label}`;
@@ -469,7 +471,16 @@ export function prepareOutlierYTicks(params: {
   scale: "linear" | "sqrt";
 }): OutlierStripYTick[] {
   const { maxValue, plotHeightPx } = params;
-  if (!(maxValue > 0) || plotHeightPx <= Y_TICK_MIN_OFFSET_PX) return [];
+  // Number.isFinite: an Infinity max (corrupt data surviving the wire) would
+  // walk descendNiceValues forever — Infinity candidates never drop below
+  // the baseline guard.
+  if (
+    !Number.isFinite(maxValue) ||
+    maxValue <= 0 ||
+    plotHeightPx <= Y_TICK_MIN_OFFSET_PX
+  ) {
+    return [];
+  }
   const def = OUTLIER_STRIP_METRICS[params.metric];
   const toOffsetPx = (value: number) => {
     const fraction = value / maxValue;

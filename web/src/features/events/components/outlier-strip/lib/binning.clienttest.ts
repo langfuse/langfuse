@@ -248,6 +248,21 @@ describe("prepareOutlierYTicks", () => {
     ).toEqual([]);
   });
 
+  it("returns no ticks for a non-finite max instead of walking forever", () => {
+    // An Infinity cost (corrupt data surviving superjson) must not hang the
+    // 1-2-5 walk: Infinity candidates never drop below the baseline guard.
+    for (const maxValue of [Number.POSITIVE_INFINITY, Number.NaN]) {
+      expect(
+        prepareOutlierYTicks({
+          maxValue,
+          metric: "cost",
+          plotHeightPx: 49,
+          scale: "sqrt",
+        }),
+      ).toEqual([]);
+    }
+  });
+
   it("walks nice values top-down and drops sqrt-compressed ones", () => {
     // max 7.3s on a 49px sqrt plot: 5 → 40.5px, 2 → 25.7px (gap 14.9, fits);
     // 1 → 18.1px and 0.5 → 12.8px are within 14px of the last tick (skipped);
@@ -375,6 +390,13 @@ describe("formatCompoundDuration", () => {
   it("carries a sub-unit that rounds up to a full primary", () => {
     // 1m 59.7s must not render "1m 60s".
     expect(formatCompoundDuration(119_700)).toBe("2m");
+  });
+
+  it("promotes a carry that lands on a full larger unit", () => {
+    // 59m 59.6s must render "1h", not the denormalized "60m".
+    expect(formatCompoundDuration(3_599_600)).toBe("1h");
+    // 23h 59m 59.5s → "1d", not "24h".
+    expect(formatCompoundDuration(86_399_499)).toBe("1d");
   });
 
   it("keeps the shared single-unit format below a minute", () => {
