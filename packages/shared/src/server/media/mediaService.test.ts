@@ -55,7 +55,6 @@ describe("uploadMediaForTrace", () => {
       contentBytes: CONTENT_BYTES,
       mediaBucket: "media-bucket",
       mediaPrefix: "media/",
-      protectExistingContentType: true,
     });
 
     expect(result).toEqual({
@@ -63,15 +62,6 @@ describe("uploadMediaForTrace", () => {
       outcome: "uploaded",
     });
     expect(mocks.executeRaw).toHaveBeenCalledTimes(1);
-    expect(mocks.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          projectId: "project-id",
-          id: "n-vgG9Qb-2loPinXEdit_8",
-          contentType: MediaContentType.PNG,
-        }),
-      }),
-    );
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
     expect(mocks.uploadFile).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -158,71 +148,6 @@ describe("uploadMediaForTrace", () => {
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
     expect(mocks.executeRaw).not.toHaveBeenCalled();
     expect(mocks.uploadFile).not.toHaveBeenCalled();
-  });
-
-  it("does not replace existing media with the same bytes and a different content type", async () => {
-    mocks.findUnique.mockResolvedValue({
-      id: "existing-media-id",
-      uploadHttpStatus: 200,
-      contentType: MediaContentType.SVG,
-    });
-    mocks.updateMany.mockResolvedValue({ count: 1 });
-    mocks.update.mockResolvedValue({});
-    mocks.uploadFile.mockResolvedValue(undefined);
-
-    await expect(
-      uploadMediaForTrace({
-        projectId: "project-id",
-        traceId: "trace-id",
-        observationId: "observation-id",
-        field: "input",
-        contentType: MediaContentType.TXT,
-        contentBytes: CONTENT_BYTES,
-        mediaBucket: "media-bucket",
-        mediaPrefix: "media/",
-        protectExistingContentType: true,
-      }),
-    ).rejects.toThrow("different content type");
-
-    expect(mocks.executeRaw).not.toHaveBeenCalled();
-    expect(mocks.updateMany).not.toHaveBeenCalled();
-    expect(mocks.uploadFile).not.toHaveBeenCalled();
-    expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.queryRaw).not.toHaveBeenCalled();
-  });
-
-  it("preserves reuploading with a different content type by default", async () => {
-    mocks.findUnique.mockResolvedValue({
-      id: "existing-media-id",
-      uploadHttpStatus: 200,
-      contentType: MediaContentType.SVG,
-    });
-    mocks.updateMany.mockResolvedValue({ count: 1 });
-    mocks.update.mockResolvedValue({});
-    mocks.uploadFile.mockResolvedValue(undefined);
-
-    const result = await uploadMediaForTrace({
-      projectId: "project-id",
-      traceId: "trace-id",
-      observationId: "observation-id",
-      field: "input",
-      contentType: MediaContentType.TXT,
-      contentBytes: CONTENT_BYTES,
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
-    });
-
-    expect(result.outcome).toBe("uploaded");
-    expect(mocks.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          projectId: "project-id",
-          id: "n-vgG9Qb-2loPinXEdit_8",
-          sha256Hash: expect.any(String),
-        },
-      }),
-    );
-    expect(mocks.uploadFile).toHaveBeenCalledOnce();
   });
 
   it("links trace media when no observation id is provided", async () => {

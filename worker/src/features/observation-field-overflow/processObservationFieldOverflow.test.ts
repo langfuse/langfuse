@@ -25,11 +25,11 @@ vi.mock("../../env", () => ({
 }));
 
 import {
-  processObservationFieldSpill,
-  spillOversizedEventRecordFields,
-} from "./processObservationFieldSpill";
+  applyObservationFieldOverflow,
+  processObservationFieldOverflow,
+} from "./processObservationFieldOverflow";
 
-describe("processObservationFieldSpill", () => {
+describe("processObservationFieldOverflow", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("logs an upload failure and persists the original oversized field", async () => {
@@ -37,7 +37,7 @@ describe("processObservationFieldSpill", () => {
     const uploadError = new Error("S3 unavailable");
     mocks.uploadMediaForTrace.mockRejectedValue(uploadError);
 
-    const result = await processObservationFieldSpill({
+    const result = await processObservationFieldOverflow({
       projectId: "project-id",
       traceId: "trace-id",
       observationId: "observation-id",
@@ -57,19 +57,19 @@ describe("processObservationFieldSpill", () => {
       },
     );
     expect(mocks.recordIncrement).toHaveBeenCalledWith(
-      "langfuse.ingestion.observation_field_spill",
+      "langfuse.ingestion.observation_field_overflow",
       1,
       { field: "input", outcome: "failed" },
     );
   });
 
-  it("records a successful spill and returns a field-limit media reference", async () => {
+  it("records a successful overflow and returns a field-limit media reference", async () => {
     mocks.uploadMediaForTrace.mockResolvedValue({
       mediaId: "media-id",
       outcome: "uploaded",
     });
 
-    const result = await processObservationFieldSpill({
+    const result = await processObservationFieldOverflow({
       projectId: "project-id",
       traceId: "trace-id",
       observationId: "observation-id",
@@ -87,17 +87,16 @@ describe("processObservationFieldSpill", () => {
         field: "output",
         mediaBucket: "media-bucket",
         mediaPrefix: "media/",
-        protectExistingContentType: true,
       }),
     );
     expect(mocks.recordIncrement).toHaveBeenCalledWith(
-      "langfuse.ingestion.observation_field_spill",
+      "langfuse.ingestion.observation_field_overflow",
       1,
       { field: "output", outcome: "uploaded" },
     );
   });
 
-  it("returns a spilled event record without mutating the enriched record", async () => {
+  it("returns an overflowed event record without mutating the enriched record", async () => {
     mocks.uploadMediaForTrace
       .mockResolvedValueOnce({
         mediaId: "input-media",
@@ -116,7 +115,7 @@ describe("processObservationFieldSpill", () => {
       metadata_values: ["small", "y".repeat(11)],
     } as EventRecordInsertType;
 
-    const result = await spillOversizedEventRecordFields(eventRecord);
+    const result = await applyObservationFieldOverflow(eventRecord);
 
     expect(result).not.toBe(eventRecord);
     expect(result).toMatchObject({

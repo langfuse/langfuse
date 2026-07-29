@@ -1,13 +1,13 @@
 import { beforeEach, expect, describe, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  spillOversizedEventRecordFields: vi.fn(),
+  applyObservationFieldOverflow: vi.fn(),
 }));
 
 vi.mock(
-  "../../../features/observation-field-spill/processObservationFieldSpill",
+  "../../../features/observation-field-overflow/processObservationFieldOverflow",
   () => ({
-    spillOversizedEventRecordFields: mocks.spillOversizedEventRecordFields,
+    applyObservationFieldOverflow: mocks.applyObservationFieldOverflow,
   }),
 );
 
@@ -22,8 +22,8 @@ import { TableName } from "../../ClickhouseWriter";
 
 describe("IngestionService unit tests", () => {
   beforeEach(() => {
-    mocks.spillOversizedEventRecordFields.mockReset();
-    mocks.spillOversizedEventRecordFields.mockImplementation(
+    mocks.applyObservationFieldOverflow.mockReset();
+    mocks.applyObservationFieldOverflow.mockImplementation(
       async (eventRecord) => eventRecord,
     );
   });
@@ -73,7 +73,7 @@ describe("IngestionService unit tests", () => {
     expect(eventBytes).toBeLessThan(rawOtelSpanBytes);
   });
 
-  it("spills only the direct events_full copy and preserves the enriched record", async () => {
+  it("overflows only the direct events_full copy and preserves the enriched record", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -87,7 +87,7 @@ describe("IngestionService unit tests", () => {
         traceId: "trace-id",
         spanId: "observation-id",
         parentSpanId: "",
-        name: "spill-copy",
+        name: "overflow-copy",
         type: "SPAN",
         environment: "default",
         startTimeISO: "2026-07-22T00:00:00.000Z",
@@ -100,7 +100,7 @@ describe("IngestionService unit tests", () => {
       },
       "raw-event.json",
     );
-    mocks.spillOversizedEventRecordFields.mockResolvedValueOnce({
+    mocks.applyObservationFieldOverflow.mockResolvedValueOnce({
       ...eventRecord,
       input:
         "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
@@ -112,7 +112,7 @@ describe("IngestionService unit tests", () => {
 
     await ingestionService.writeEventRecord(eventRecord);
 
-    expect(mocks.spillOversizedEventRecordFields).toHaveBeenCalledWith(
+    expect(mocks.applyObservationFieldOverflow).toHaveBeenCalledWith(
       eventRecord,
     );
     expect(eventRecord.input).toBe("original input");
@@ -125,7 +125,7 @@ describe("IngestionService unit tests", () => {
     });
   });
 
-  it("does not spill legacy observation or dual-write staging records", async () => {
+  it("does not overflow legacy observation or dual-write staging records", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -175,7 +175,7 @@ describe("IngestionService unit tests", () => {
       },
     });
 
-    expect(mocks.spillOversizedEventRecordFields).not.toHaveBeenCalled();
+    expect(mocks.applyObservationFieldOverflow).not.toHaveBeenCalled();
     for (const table of [
       TableName.Observations,
       TableName.ObservationsBatchStaging,

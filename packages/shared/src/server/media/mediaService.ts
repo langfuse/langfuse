@@ -44,8 +44,6 @@ export async function upsertMediaRecord(params: {
   uploadBucket: string;
   contentType: MediaContentType;
   contentLength: number;
-  /** Prevents an existing same-hash media row from being retyped. */
-  protectExistingContentType?: boolean;
 }): Promise<void> {
   const {
     mediaId,
@@ -55,7 +53,6 @@ export async function upsertMediaRecord(params: {
     uploadBucket,
     contentType,
     contentLength,
-    protectExistingContentType,
   } = params;
 
   // Media has unique constraints for both the public ID and full hash. Absorb
@@ -88,7 +85,6 @@ export async function upsertMediaRecord(params: {
       projectId,
       id: mediaId,
       sha256Hash,
-      ...(protectExistingContentType ? { contentType } : {}),
     },
     data: {
       bucketName: uploadBucket,
@@ -100,7 +96,7 @@ export async function upsertMediaRecord(params: {
 
   if (result.count === 0) {
     throw new InternalServerError(
-      `Media ID collision detected for media ID ${mediaId} in project ${projectId}. The existing media row has a different id, sha_256_hash, or content_type.`,
+      `Media ID collision detected for media ID ${mediaId} in project ${projectId}. The existing media row has a different id or sha_256_hash.`,
     );
   }
 }
@@ -186,8 +182,6 @@ export async function uploadMediaForTrace(params: {
   contentBytes: Buffer;
   mediaBucket: string;
   mediaPrefix: string;
-  /** Prevents an existing same-hash media row from being retyped. */
-  protectExistingContentType?: boolean;
 }): Promise<UploadMediaForTraceResult> {
   const {
     projectId,
@@ -198,7 +192,6 @@ export async function uploadMediaForTrace(params: {
     contentBytes,
     mediaBucket,
     mediaPrefix,
-    protectExistingContentType,
   } = params;
   const sha256Hash = createHash("sha256").update(contentBytes).digest("base64");
   const mediaId = getMediaId(sha256Hash);
@@ -210,16 +203,6 @@ export async function uploadMediaForTrace(params: {
       },
     },
   });
-
-  if (
-    protectExistingContentType &&
-    existingMedia &&
-    existingMedia.contentType !== contentType
-  ) {
-    throw new InternalServerError(
-      `Media asset ${existingMedia.id} already exists with a different content type`,
-    );
-  }
 
   if (
     existingMedia &&
@@ -252,7 +235,6 @@ export async function uploadMediaForTrace(params: {
     uploadBucket: mediaBucket,
     contentType,
     contentLength: contentBytes.length,
-    protectExistingContentType,
   });
 
   const uploadStartedAt = Date.now();

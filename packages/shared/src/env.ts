@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { OBSERVATION_FIELD_SIZE_LIMIT_BYTES } from "./domain/observation-field-spill";
+import { OBSERVATION_FIELD_SIZE_LIMIT_BYTES } from "./domain/observation-field-overflow";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 export const langfuseObservationFieldSizeLimitBytesSchema = z.coerce

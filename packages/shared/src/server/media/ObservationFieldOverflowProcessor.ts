@@ -1,17 +1,17 @@
 import {
   OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
-} from "../../domain/observation-field-spill";
+} from "../../domain/observation-field-overflow";
 import type { MediaField } from "../../domain/media";
 import type { UploadMediaForTraceResult } from "./mediaService";
 
-export type ObservationFieldsForSpill = {
+export type ObservationFieldsForOverflow = {
   input?: string | null;
   output?: string | null;
   metadata?: Record<string, unknown> | unknown[] | null;
 };
 
-export type ObservationFieldSpillOutcome = {
+export type ObservationFieldOverflowOutcome = {
   field: MediaField;
   outcome: UploadMediaForTraceResult["outcome"] | "failed";
   originalBytes: number;
@@ -30,8 +30,8 @@ type UploadOversizedObservationField = (params: {
  * Upload failures fail open per value: the original value is preserved and
  * processing continues with the remaining fields.
  */
-export async function spillOversizedObservationFields(params: {
-  fields: ObservationFieldsForSpill;
+export async function replaceOversizedObservationFieldsWithMedia(params: {
+  fields: ObservationFieldsForOverflow;
   upload: UploadOversizedObservationField;
   maxFieldBytes?: number;
   onUploadError?: (params: {
@@ -40,8 +40,8 @@ export async function spillOversizedObservationFields(params: {
     originalBytes: number;
   }) => void;
 }): Promise<{
-  fields: ObservationFieldsForSpill;
-  outcomes: ObservationFieldSpillOutcome[];
+  fields: ObservationFieldsForOverflow;
+  outcomes: ObservationFieldOverflowOutcome[];
 }> {
   const {
     fields,
@@ -49,14 +49,14 @@ export async function spillOversizedObservationFields(params: {
     maxFieldBytes = OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
     onUploadError,
   } = params;
-  const transformedFields: ObservationFieldsForSpill = { ...fields };
-  const outcomes: ObservationFieldSpillOutcome[] = [];
+  const transformedFields: ObservationFieldsForOverflow = { ...fields };
+  const outcomes: ObservationFieldOverflowOutcome[] = [];
 
   for (const field of ["input", "output"] as const) {
     const value = fields[field];
     if (value == null) continue;
 
-    const transformed = await spillValue({
+    const transformed = await replaceOversizedValue({
       field,
       serializedValue: value,
       fallbackValue: value,
@@ -71,7 +71,7 @@ export async function spillOversizedObservationFields(params: {
   if (Array.isArray(fields.metadata)) {
     const transformedMetadata = [...fields.metadata];
     for (const [index, value] of fields.metadata.entries()) {
-      const transformed = await spillValue({
+      const transformed = await replaceOversizedValue({
         field: "metadata",
         serializedValue: serializeFieldValue(value),
         fallbackValue: value,
@@ -89,7 +89,7 @@ export async function spillOversizedObservationFields(params: {
     };
     for (const [key, value] of Object.entries(fields.metadata)) {
       const serializedValue = serializeFieldValue(value);
-      const transformed = await spillValue({
+      const transformed = await replaceOversizedValue({
         field: "metadata",
         serializedValue,
         fallbackValue: value,
@@ -113,7 +113,7 @@ function serializeFieldValue(value: unknown): string {
   return serialized ?? String(value);
 }
 
-async function spillValue(params: {
+async function replaceOversizedValue(params: {
   field: MediaField;
   serializedValue: string;
   fallbackValue: unknown;
@@ -128,7 +128,7 @@ async function spillValue(params: {
     | undefined;
 }): Promise<{
   value: unknown;
-  outcome?: ObservationFieldSpillOutcome;
+  outcome?: ObservationFieldOverflowOutcome;
 }> {
   const {
     field,

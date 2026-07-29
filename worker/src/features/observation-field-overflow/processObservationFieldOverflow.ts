@@ -1,21 +1,21 @@
 import {
   type EventRecordInsertType,
-  type ObservationFieldsForSpill,
-  type ObservationFieldSpillOutcome,
+  type ObservationFieldsForOverflow,
+  type ObservationFieldOverflowOutcome,
   logger,
   recordDistribution,
   recordIncrement,
-  spillOversizedObservationFields,
+  replaceOversizedObservationFieldsWithMedia,
   uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 import { MediaContentType } from "@langfuse/shared";
 
 import { env } from "../../env";
 
-export async function spillOversizedEventRecordFields(
+export async function applyObservationFieldOverflow(
   eventRecord: EventRecordInsertType,
 ): Promise<EventRecordInsertType> {
-  const spillResult = await processObservationFieldSpill({
+  const overflowResult = await processObservationFieldOverflow({
     projectId: eventRecord.project_id,
     traceId: eventRecord.trace_id,
     observationId: eventRecord.span_id,
@@ -25,14 +25,14 @@ export async function spillOversizedEventRecordFields(
       metadata: eventRecord.metadata_values,
     },
   });
-  const persistedMetadataValues = Array.isArray(spillResult.fields.metadata)
-    ? spillResult.fields.metadata
+  const persistedMetadataValues = Array.isArray(overflowResult.fields.metadata)
+    ? overflowResult.fields.metadata
     : [];
 
   return {
     ...eventRecord,
-    input: spillResult.fields.input ?? undefined,
-    output: spillResult.fields.output ?? undefined,
+    input: overflowResult.fields.input ?? undefined,
+    output: overflowResult.fields.output ?? undefined,
     metadata_values: persistedMetadataValues.map((value) =>
       typeof value === "string"
         ? value
@@ -41,18 +41,18 @@ export async function spillOversizedEventRecordFields(
   };
 }
 
-export async function processObservationFieldSpill(params: {
+export async function processObservationFieldOverflow(params: {
   projectId: string;
   traceId: string;
   observationId: string;
-  fields: ObservationFieldsForSpill;
+  fields: ObservationFieldsForOverflow;
 }): Promise<{
-  fields: ObservationFieldsForSpill;
-  outcomes: ObservationFieldSpillOutcome[];
+  fields: ObservationFieldsForOverflow;
+  outcomes: ObservationFieldOverflowOutcome[];
 }> {
   const { projectId, traceId, observationId, fields } = params;
 
-  const result = await spillOversizedObservationFields({
+  const result = await replaceOversizedObservationFieldsWithMedia({
     fields,
     maxFieldBytes: env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
     upload: async ({ field, contentBytes }) => {
@@ -69,7 +69,6 @@ export async function processObservationFieldSpill(params: {
         contentBytes,
         mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
         mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
-        protectExistingContentType: true,
       });
     },
     onUploadError: ({ error, field, originalBytes }) => {
@@ -88,17 +87,17 @@ export async function processObservationFieldSpill(params: {
   });
 
   for (const outcome of result.outcomes) {
-    recordIncrement("langfuse.ingestion.observation_field_spill", 1, {
+    recordIncrement("langfuse.ingestion.observation_field_overflow", 1, {
       field: outcome.field,
       outcome: outcome.outcome,
     });
     recordDistribution(
-      "langfuse.ingestion.observation_field_spill.original_bytes",
+      "langfuse.ingestion.observation_field_overflow.original_bytes",
       outcome.originalBytes,
       { field: outcome.field, outcome: outcome.outcome },
     );
     recordDistribution(
-      "langfuse.ingestion.observation_field_spill.persisted_bytes",
+      "langfuse.ingestion.observation_field_overflow.persisted_bytes",
       outcome.persistedBytes,
       { field: outcome.field, outcome: outcome.outcome },
     );

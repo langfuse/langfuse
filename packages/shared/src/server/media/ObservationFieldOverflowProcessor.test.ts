@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "../../domain/observation-field-spill";
-import { spillOversizedObservationFields } from "./ObservationFieldSpillProcessor";
+import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "../../domain/observation-field-overflow";
+import { replaceOversizedObservationFieldsWithMedia } from "./ObservationFieldOverflowProcessor";
 
 const mediaReference = (id: string) =>
   `@@@langfuseMedia:type=text/plain|id=${id}|source=${OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE}@@@`;
 
-describe("spillOversizedObservationFields", () => {
-  it("spills oversized input and individual metadata values", async () => {
+describe("replaceOversizedObservationFieldsWithMedia", () => {
+  it("replaces oversized input and individual metadata values", async () => {
     const upload = vi
       .fn()
       .mockResolvedValueOnce({ mediaId: "input-media", outcome: "uploaded" })
@@ -16,7 +16,7 @@ describe("spillOversizedObservationFields", () => {
         outcome: "uploaded",
       });
 
-    const result = await spillOversizedObservationFields({
+    const result = await replaceOversizedObservationFieldsWithMedia({
       fields: {
         input: "input-too-large",
         output: "ok",
@@ -66,7 +66,7 @@ describe("spillOversizedObservationFields", () => {
       .fn()
       .mockResolvedValue({ mediaId: "media", outcome: "uploaded" });
 
-    const result = await spillOversizedObservationFields({
+    const result = await replaceOversizedObservationFieldsWithMedia({
       fields: {
         input: "🔥",
         output: "🔥a",
@@ -91,7 +91,7 @@ describe("spillOversizedObservationFields", () => {
       second: "123456",
     };
 
-    const result = await spillOversizedObservationFields({
+    const result = await replaceOversizedObservationFieldsWithMedia({
       fields: { metadata },
       maxFieldBytes: 6,
       upload,
@@ -105,7 +105,7 @@ describe("spillOversizedObservationFields", () => {
     const bufferFrom = vi.spyOn(Buffer, "from");
 
     try {
-      await spillOversizedObservationFields({
+      await replaceOversizedObservationFieldsWithMedia({
         fields: {
           input: "small-input",
           output: "small-output",
@@ -126,8 +126,8 @@ describe("spillOversizedObservationFields", () => {
       .fn()
       .mockResolvedValue({ mediaId: "metadata-media", outcome: "uploaded" });
 
-    const result = await spillOversizedObservationFields({
-      fields: { metadata: ["keep-first", "spill-this-value", "keep-last"] },
+    const result = await replaceOversizedObservationFieldsWithMedia({
+      fields: { metadata: ["keep-first", "replace-this-value", "keep-last"] },
       maxFieldBytes: 10,
       upload,
     });
@@ -144,7 +144,7 @@ describe("spillOversizedObservationFields", () => {
     const error = new Error("S3 unavailable");
     const onUploadError = vi.fn();
 
-    const result = await spillOversizedObservationFields({
+    const result = await replaceOversizedObservationFieldsWithMedia({
       fields: {
         input: "input-too-large",
         output: "output-too-large",
@@ -187,7 +187,7 @@ describe("spillOversizedObservationFields", () => {
     const exactLimit = "x".repeat(2 * 1024 * 1024);
     const overLimit = `${exactLimit}x`;
 
-    const result = await spillOversizedObservationFields({
+    const result = await replaceOversizedObservationFieldsWithMedia({
       fields: {
         input: exactLimit,
         output: overLimit,
