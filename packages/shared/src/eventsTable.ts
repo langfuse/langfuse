@@ -438,6 +438,7 @@ const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
   "metadata",
   "traceTags",
   "hasParentObservation",
+  "isRootObservation",
 ] as const satisfies readonly EventsTableColumnId[];
 
 export type ObservationMcpAllowedEventsTableFilterColumn =

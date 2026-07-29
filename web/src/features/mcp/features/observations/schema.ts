@@ -59,6 +59,11 @@ const OBSERVATION_MCP_FIELD_METADATA: Record<
   public: { type: "boolean" },
   userId: { type: "string", nullable: true, sensitive: true },
   sessionId: { type: "string", nullable: true, sensitive: true },
+  isRootObservation: {
+    type: "boolean",
+    description:
+      "True for trace roots: observations without a parent, plus app roots whose OpenTelemetry parent span was never ingested.",
+  },
   completionStartTime: { type: "datetime", nullable: true },
   createdAt: { type: "datetime" },
   updatedAt: { type: "datetime" },

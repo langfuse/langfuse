@@ -420,6 +420,9 @@ export function convertEventsObservation(
       tags: record.tags ?? null,
       bookmarked: record.bookmarked!,
       public: record.public!,
+      ...(record.is_root_observation !== undefined && {
+        isRootObservation: record.is_root_observation,
+      }),
     };
   }
 
@@ -437,6 +440,9 @@ export function convertEventsObservation(
     ...(record.tags !== undefined && { tags: record.tags }),
     ...(record.bookmarked !== undefined && { bookmarked: record.bookmarked }),
     ...(record.public !== undefined && { public: record.public }),
+    ...(record.is_root_observation !== undefined && {
+      isRootObservation: record.is_root_observation,
+    }),
   };
 }
 

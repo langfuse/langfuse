@@ -121,6 +121,9 @@ export const EventsObservationSchema = ObservationSchema.extend({
   tags: z.array(z.string()).nullable().optional(),
   bookmarked: z.boolean().optional(),
   public: z.boolean().optional(),
+  // True when the observation is a trace root: no parent, or an app root
+  // whose OTel parent span was never ingested (is_app_root).
+  isRootObservation: z.boolean().optional(),
 });
 
 export type EventsObservation = z.infer<typeof EventsObservationSchema>;

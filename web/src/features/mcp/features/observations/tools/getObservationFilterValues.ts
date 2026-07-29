@@ -35,6 +35,7 @@ const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "timeToFirstToken",
   "tags",
   "hasParentObservation",
+  "isRootObservation",
 ] as const satisfies readonly ObservationMcpFilterColumn[];
 
 const FilterValueColumnSchema = z.enum(OBSERVATION_MCP_FILTER_VALUE_COLUMNS);
@@ -89,8 +90,8 @@ const normalizeFilterOptions = (
 ): FilterOption[] => {
   const normalizeValue = (value: unknown): string | boolean | null => {
     if (typeof value === "string") {
-      // Special handling for the "hasParentObservation" column to convert "true"/"false" strings to boolean values.
-      if (column === "hasParentObservation") {
+      // Special handling for boolean columns to convert "true"/"false" strings to boolean values.
+      if (column === "hasParentObservation" || column === "isRootObservation") {
         if (value === "true") return true;
         if (value === "false") return false;
       }
