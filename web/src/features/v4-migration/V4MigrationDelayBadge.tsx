@@ -118,10 +118,11 @@ export function V4MigrationUpdateRequiredBadge() {
 
 /** Starts the eval upgrade in the in-app assistant — for overlay surfaces
  * like the table peek, where the assistant (`agent` layer) renders above the
- * peek (`panel` layer). When the assistant is unavailable, navigate to the
- * full migration page instead of opening a drawer behind the peek. */
+ * peek (`panel` layer). When the assistant is unavailable, close the peek by
+ * returning to the evals page before opening the migration panel. */
 export function V4MigrationUpdateRequiredAssistantBadge() {
   const router = useRouter();
+  const openMigrationPanel = useOpenV4MigrationPanel();
   const capture = usePostHogClientCapture();
   const { setOpen: setAgentOpen, submit: submitAgentMessage } =
     useInAppAiAgent();
@@ -146,7 +147,8 @@ export function V4MigrationUpdateRequiredAssistantBadge() {
       });
       return;
     }
-    await router.push("/v4-migration");
+    await router.push(`/project/${project.id}/evals`);
+    openMigrationPanel({ id: project.id, name: project.name });
   };
 
   return (
