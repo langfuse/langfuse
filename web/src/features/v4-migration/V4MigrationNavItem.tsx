@@ -28,14 +28,16 @@ export function V4MigrationNavItem() {
     apis: migrationData.apis,
     exports: migrationData.exports,
   });
+  if (readiness === "ready") {
+    return null;
+  }
+
   const label =
-    readiness === "ready"
-      ? "Up to date"
-      : readiness === "checking"
-        ? "Checking"
-        : readiness === "unavailable"
-          ? "Check status"
-          : "Action required";
+    readiness === "checking"
+      ? "Checking"
+      : readiness === "unavailable"
+        ? "Check status"
+        : "Action required";
 
   const handleClick = () => {
     capture("sidebar:v4_migration_card_clicked");
@@ -55,13 +57,7 @@ export function V4MigrationNavItem() {
         tooltip={label}
         className="border-input w-full gap-1.5 rounded-full border pr-2 pl-[9px]"
       >
-        <span
-          className={
-            readiness === "ready"
-              ? "h-2 w-2 shrink-0 rounded-full bg-green-500 dark:bg-green-500"
-              : "h-2 w-2 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
-          }
-        />
+        <span className="h-2 w-2 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400" />
         <span className="truncate font-bold" title={label}>
           {label}
         </span>
