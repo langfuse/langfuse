@@ -46,7 +46,7 @@ describe("PreviewDeploymentBanner", () => {
     expect(screen.getByText(/updated about 2 hours ago/)).toBeInTheDocument();
   });
 
-  it("omits the updated segment for an unparseable timestamp", () => {
+  it("omits the updated segment for an unparsable timestamp", () => {
     h.env.NEXT_PUBLIC_PREVIEW_PR_URL =
       "https://github.com/langfuse/langfuse/pull/1";
     h.env.NEXT_PUBLIC_PREVIEW_LAST_UPDATED = "not-a-date";

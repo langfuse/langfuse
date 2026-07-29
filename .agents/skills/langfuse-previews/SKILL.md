@@ -39,6 +39,8 @@ Pushing updates it; closing the PR tears it down.
   truth). The demo project's shared seed identity is `demo@langfuse.com` /
   `password`, with API keys `pk-lf-1234567890` / `sk-lf-1234567890` — shared and
   synthetic, so never treat a preview as private.
+- **Know where you are** — every preview page shows a top strip linking back
+  to the PR, with the author and when the preview content last changed.
 - **Update** — push to the PR; it rebuilds and rolls to the new image (~5 min,
   **same URL, data preserved**). A brief `ImagePullBackOff` during the rebuild
   is normal and self-heals.

@@ -32,9 +32,11 @@ export function PreviewDeploymentBanner() {
     return null;
   }
 
-  const lastUpdated = env.NEXT_PUBLIC_PREVIEW_LAST_UPDATED
+  const parsed = env.NEXT_PUBLIC_PREVIEW_LAST_UPDATED
     ? new Date(env.NEXT_PUBLIC_PREVIEW_LAST_UPDATED)
     : undefined;
+  const lastUpdated =
+    parsed && !Number.isNaN(parsed.getTime()) ? parsed : undefined;
 
   return (
     <PreviewDeploymentBannerView
@@ -43,15 +45,11 @@ export function PreviewDeploymentBanner() {
       prNumber={/\/pull\/(\d+)/.exec(prUrl)?.[1]}
       author={env.NEXT_PUBLIC_PREVIEW_PR_AUTHOR}
       updatedText={
-        lastUpdated && !Number.isNaN(lastUpdated.getTime())
+        lastUpdated
           ? formatDistanceToNow(lastUpdated, { addSuffix: true })
           : undefined
       }
-      updatedTitle={
-        lastUpdated && !Number.isNaN(lastUpdated.getTime())
-          ? lastUpdated.toLocaleString()
-          : undefined
-      }
+      updatedTitle={lastUpdated?.toLocaleString()}
       topOffset={getTopBannerOffset(PREVIEW_BANNER_ORDER)}
     />
   );
