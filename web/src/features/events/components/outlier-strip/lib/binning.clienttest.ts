@@ -98,6 +98,7 @@ describe("rowsToOutlierBins", () => {
     expect(bins).toHaveLength(1);
     expect(bins[0].count).toBe(2);
     expect(bins[0].values).toEqual({
+      count_count: 2,
       sum_totalCost: 2.5,
       p95_latency: 1000,
       p50_latency: 800,
@@ -114,6 +115,7 @@ describe("prepareOutlierSeries", () => {
     bucketStart: new Date(bucketStartMs),
     count: value === null ? 0 : 1,
     values: {
+      count_count: value === null ? null : 1,
       sum_totalCost: value,
       p95_latency: value === null ? null : value * 500,
       p50_latency: value === null ? null : value * 250,
@@ -174,7 +176,7 @@ describe("prepareOutlierSeries", () => {
   it("selects the aggregation's result column via the registry", () => {
     const step = 60;
     const t0 = Math.floor(Date.UTC(2025, 2, 10, 10, 0, 0) / 60000) * 60000;
-    const run = (metric: "cost" | "latency", aggregation: string) =>
+    const run = (metric: "count" | "cost" | "latency", aggregation: string) =>
       prepareOutlierSeries({
         bins: [bin(t0, 8)],
         metric,
@@ -184,6 +186,7 @@ describe("prepareOutlierSeries", () => {
         stepSeconds: step,
       }).dense[0].value;
 
+    expect(run("count", "count")).toBe(1);
     expect(run("latency", "p95")).toBe(4); // 4000ms → 4s
     expect(run("latency", "p50")).toBe(2); // 2000ms → 2s
     expect(run("cost", "sum")).toBe(8);

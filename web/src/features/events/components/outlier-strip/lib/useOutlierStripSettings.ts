@@ -11,13 +11,24 @@ import useLocalStorage from "@/src/components/useLocalStorage";
  */
 const outlierStripSettingsSchema = z
   .object({
-    mode: z.enum(["cost", "latency"]).catch("cost"),
+    mode: z.enum(["count", "cost", "latency"]).catch("count"),
     latencyAgg: z.enum(["p95", "p50"]).catch("p95"),
     costAgg: z.enum(["sum"]).catch("sum"),
   })
-  .catch({ mode: "cost", latencyAgg: "p95", costAgg: "sum" });
+  .catch({ mode: "count", latencyAgg: "p95", costAgg: "sum" });
 
 export type OutlierStripSettings = z.infer<typeof outlierStripSettingsSchema>;
+
+const OUTLIER_STRIP_SETTINGS_VERSION = 1;
+
+export const parseOutlierStripSettings = (raw: unknown) => {
+  const settings = outlierStripSettingsSchema.parse(raw ?? {});
+  const isCurrentVersion = z
+    .object({ version: z.literal(OUTLIER_STRIP_SETTINGS_VERSION) })
+    .safeParse(raw).success;
+
+  return isCurrentVersion ? settings : { ...settings, mode: "count" as const };
+};
 
 export function useOutlierStripSettings(): {
   settings: OutlierStripSettings;
@@ -27,12 +38,14 @@ export function useOutlierStripSettings(): {
     "events-pulse-chart-settings",
     {},
   );
-  const settings = useMemo(
-    () => outlierStripSettingsSchema.parse(raw ?? {}),
-    [raw],
-  );
+  const settings = useMemo(() => parseOutlierStripSettings(raw), [raw]);
   return {
     settings,
-    update: (patch) => setRaw({ ...settings, ...patch }),
+    update: (patch) =>
+      setRaw({
+        version: OUTLIER_STRIP_SETTINGS_VERSION,
+        ...settings,
+        ...patch,
+      }),
   };
 }
