@@ -336,6 +336,7 @@ export const InnerEvaluatorForm = (props: {
   hidePreviewTable?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
+  runOnLiveStatusOnly?: boolean;
   defaultTarget?: EvalTargetObject;
   renderFooter?: (params: { isLoading: boolean }) => React.ReactNode;
   oldConfigId?: string;
@@ -544,6 +545,7 @@ export const InnerEvaluatorForm = (props: {
   );
 
   const watchedTarget = form.watch("target");
+  const watchedRunOnLive = form.watch("runOnLive");
   const watchedScoreName = form.watch("scoreName");
   const watchedFilter = form.watch("filter") ?? EMPTY_FILTER_STATE;
   const shouldShowExperimentEventsPreview =
@@ -789,6 +791,9 @@ export const InnerEvaluatorForm = (props: {
     !props.disabled &&
     isExperimentTarget(watchedTarget) &&
     !isBetaEnabled;
+  const runOnLiveTargetLabel = isEventTarget(watchedTarget)
+    ? "incoming observations"
+    : "new experiments";
 
   const formBody = (
     <div
@@ -1074,9 +1079,25 @@ export const InnerEvaluatorForm = (props: {
                 />
               )}
 
+            {props.runOnLiveStatusOnly &&
+              !isLegacyEvalTarget(watchedTarget) && (
+                <div className="flex max-w-4xl flex-col gap-0.5 rounded-lg border p-3">
+                  <p className="text-sm font-medium">
+                    {watchedRunOnLive ? "Running" : "Not running"} on{" "}
+                    {runOnLiveTargetLabel}
+                  </p>
+                  <p className="text-muted-foreground text-sm">
+                    {watchedRunOnLive
+                      ? `Automatically evaluates matching ${getTargetDisplayName(watchedTarget)}.`
+                      : "The evaluator will remain inactive after saving."}
+                  </p>
+                </div>
+              )}
+
             {/* Run on Live toggle for modern (non-legacy) targets */}
-            {!props.hideAdvancedSettings &&
-              !isLegacyEvalTarget(form.watch("target")) && (
+            {!props.runOnLiveStatusOnly &&
+              !props.hideAdvancedSettings &&
+              !isLegacyEvalTarget(watchedTarget) && (
                 <FormField
                   control={form.control}
                   name="runOnLive"

@@ -22,6 +22,7 @@ import {
 import { ChevronDown } from "lucide-react";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 
 type LegacyEvalAction = "keep-active" | "mark-inactive" | "delete";
 
@@ -198,16 +199,36 @@ export default function RemapEvaluatorPage() {
             <div className="grid grid-cols-[1fr_2px_1fr] items-start">
               {/* LEFT: Read-only old config */}
               <div className="space-y-4 p-3">
-                <div className="flex items-center gap-2 pb-2">
-                  <h3 className="text-lg font-bold">
-                    Legacy Configuration{" "}
-                    {isTraceTarget(oldConfig.targetObject)
-                      ? "(runs on traces)"
-                      : ""}
-                  </h3>
-                  <span className="text-muted-foreground text-xs">
-                    Read-only
-                  </span>
+                <div className="flex items-start justify-between gap-4 pb-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold">
+                      Legacy Configuration{" "}
+                      {isTraceTarget(oldConfig.targetObject)
+                        ? "(runs on traces)"
+                        : ""}
+                    </h3>
+                    <span className="text-muted-foreground text-xs">
+                      Read-only
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor="keep-legacy-evaluator-active"
+                      className="text-sm font-medium"
+                    >
+                      Keep active after upgrade
+                    </label>
+                    <Switch
+                      id="keep-legacy-evaluator-active"
+                      checked={legacyAction === "keep-active"}
+                      onCheckedChange={(checked) =>
+                        setLegacyAction(
+                          checked ? "keep-active" : "mark-inactive",
+                        )
+                      }
+                      aria-label="Keep legacy evaluator active"
+                    />
+                  </div>
                 </div>
                 <InnerEvaluatorForm
                   projectId={projectId}
@@ -246,6 +267,7 @@ export default function RemapEvaluatorPage() {
                   hideTargetSelection={true}
                   preventRedirect={true}
                   hideAdvancedSettings={true}
+                  runOnLiveStatusOnly
                   evalCapabilities={evalCapabilities}
                   oldConfigId={evalConfigId}
                   renderFooter={({ isLoading }) => (
