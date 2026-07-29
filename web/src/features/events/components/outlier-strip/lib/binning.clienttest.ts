@@ -350,6 +350,19 @@ describe("prepareOutlierYTicks", () => {
     expect(ticks.map((t) => t.label)).toEqual(["$0.5", "$0.2"]);
   });
 
+  it("labels micro-dollar ticks with enough digits, never as $0", () => {
+    // Total range cost under a micro-dollar: the 6-digit tier would label
+    // the 2e-7 gridline "$0" and 5e-7 as a doubled "$0.000001".
+    const ticks = prepareOutlierYTicks({
+      maxValue: 8e-7,
+      metric: "cost",
+      plotHeightPx: 49,
+      scale: "sqrt",
+    });
+    expect(ticks.map((t) => t.value)).toEqual([5e-7, 2e-7]);
+    expect(ticks.map((t) => t.label)).toEqual(["$0.0000005", "$0.0000002"]);
+  });
+
   it("labels whole-dollar cost ticks bare", () => {
     // Max $23 sqrt 49px: $20 → 45.7px, $10 → 32.3px (gap 13.4, skipped),
     // $5 → 22.9px (gap 22.8, fits), $2 → 14.5px (gap 8.4, skipped),
@@ -402,6 +415,11 @@ describe("formatCompoundDuration", () => {
   it("keeps the shared single-unit format below a minute", () => {
     expect(formatCompoundDuration(30_000)).toBe("30s");
     expect(formatCompoundDuration(450)).toBe("450ms");
+  });
+
+  it("delegates non-finite input instead of rendering 'Infinityd'", () => {
+    // Corrupt latency data: keep the shared formatter's "∞d", pre-PR.
+    expect(formatCompoundDuration(Number.POSITIVE_INFINITY)).toBe("∞d");
   });
 
   it("is the latency metric's registry format", () => {

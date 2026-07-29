@@ -146,7 +146,9 @@ const COMPOUND_DURATION_UNITS = [
 ] as const;
 
 export const formatCompoundDuration = (ms: number): string => {
-  if (!(ms >= 60_000)) return latencyFormatter(ms);
+  // Non-finite corrupt data keeps the shared formatter's "∞d", not
+  // "Infinityd" from the arithmetic below.
+  if (!(ms >= 60_000) || !Number.isFinite(ms)) return latencyFormatter(ms);
   const index = COMPOUND_DURATION_UNITS.findIndex((unit) => ms >= unit.ms);
   const unit = COMPOUND_DURATION_UNITS[index];
   // Always defined: ms >= 60_000 selects "m" or coarser, never "s".
@@ -176,9 +178,23 @@ export const OUTLIER_STRIP_METRICS: Record<
     fromRaw: (raw) => raw,
     // Zero minimum fraction digits: round values render bare ("$2", "$0.5"),
     // on ticks and tooltips alike; the adaptive maximum still gives small
-    // values the precision they need ("$0.0042").
+    // values the precision they need ("$0.0042"). Deeper tiers keep
+    // micro-dollar Y TICKS honest — a 6-digit cap would label a 2e-7
+    // gridline "$0".
     format: (value) =>
-      usdFormatter(value, 0, value < 0.001 ? 6 : value < 0.1 ? 4 : 2),
+      usdFormatter(
+        value,
+        0,
+        value < 1e-9
+          ? 12
+          : value < 1e-6
+            ? 9
+            : value < 0.001
+              ? 6
+              : value < 0.1
+                ? 4
+                : 2,
+      ),
   },
   latency: {
     shortLabel: "Latency",
