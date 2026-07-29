@@ -8,6 +8,8 @@ const mediaReference = (id: string) =>
 
 describe("replaceOversizedObservationFieldsWithMedia", () => {
   it("replaces oversized input and individual metadata values", async () => {
+    const oversizedInput = "x".repeat(200);
+    const oversizedMetadata = { nested: "y".repeat(200) };
     const upload = vi
       .fn()
       .mockResolvedValueOnce({ mediaId: "input-media", outcome: "uploaded" })
@@ -18,11 +20,11 @@ describe("replaceOversizedObservationFieldsWithMedia", () => {
 
     const result = await replaceOversizedObservationFieldsWithMedia({
       fields: {
-        input: "input-too-large",
+        input: oversizedInput,
         output: "ok",
         metadata: {
           small: "keep-me",
-          large: { nested: "metadata-too-large" },
+          large: oversizedMetadata,
         },
       },
       maxFieldBytes: 10,
@@ -39,24 +41,26 @@ describe("replaceOversizedObservationFieldsWithMedia", () => {
     });
     expect(upload).toHaveBeenNthCalledWith(1, {
       field: "input",
-      contentBytes: Buffer.from("input-too-large"),
+      contentBytes: Buffer.from(oversizedInput),
     });
     expect(upload).toHaveBeenNthCalledWith(2, {
       field: "metadata",
-      contentBytes: Buffer.from('{"nested":"metadata-too-large"}'),
+      contentBytes: Buffer.from(JSON.stringify(oversizedMetadata)),
     });
     expect(result.outcomes).toEqual([
       {
         field: "input",
         outcome: "uploaded",
-        originalBytes: 15,
-        persistedBytes: expect.any(Number),
+        bytesRemoved:
+          Buffer.byteLength(oversizedInput) -
+          Buffer.byteLength(mediaReference("input-media")),
       },
       {
         field: "metadata",
         outcome: "uploaded",
-        originalBytes: 31,
-        persistedBytes: expect.any(Number),
+        bytesRemoved:
+          Buffer.byteLength(JSON.stringify(oversizedMetadata)) -
+          Buffer.byteLength(mediaReference("metadata-media")),
       },
     ]);
   });
@@ -163,14 +167,12 @@ describe("replaceOversizedObservationFieldsWithMedia", () => {
       {
         field: "input",
         outcome: "failed",
-        originalBytes: 15,
-        persistedBytes: 15,
+        bytesRemoved: 0,
       },
       {
         field: "output",
         outcome: "reused",
-        originalBytes: 16,
-        persistedBytes: expect.any(Number),
+        bytesRemoved: 0,
       },
     ]);
     expect(onUploadError).toHaveBeenCalledWith({

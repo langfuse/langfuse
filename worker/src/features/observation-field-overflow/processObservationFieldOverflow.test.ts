@@ -64,6 +64,9 @@ describe("processObservationFieldOverflow", () => {
   });
 
   it("records a successful overflow and returns a field-limit media reference", async () => {
+    const oversizedOutput = "x".repeat(100);
+    const mediaReference =
+      "@@@langfuseMedia:type=text/plain|id=media-id|source=field_size_limit@@@";
     mocks.uploadMediaForTrace.mockResolvedValue({
       mediaId: "media-id",
       outcome: "uploaded",
@@ -73,12 +76,10 @@ describe("processObservationFieldOverflow", () => {
       projectId: "project-id",
       traceId: "trace-id",
       observationId: "observation-id",
-      fields: { output: "x".repeat(11) },
+      fields: { output: oversizedOutput },
     });
 
-    expect(result.fields.output).toBe(
-      "@@@langfuseMedia:type=text/plain|id=media-id|source=field_size_limit@@@",
-    );
+    expect(result.fields.output).toBe(mediaReference);
     expect(mocks.uploadMediaForTrace).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: "project-id",
@@ -92,6 +93,12 @@ describe("processObservationFieldOverflow", () => {
     expect(mocks.recordIncrement).toHaveBeenCalledWith(
       "langfuse.ingestion.observation_field_overflow",
       1,
+      { field: "output", outcome: "uploaded" },
+    );
+    expect(mocks.recordDistribution).toHaveBeenCalledOnce();
+    expect(mocks.recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.observation_field_overflow.bytes_removed",
+      Buffer.byteLength(oversizedOutput) - Buffer.byteLength(mediaReference),
       { field: "output", outcome: "uploaded" },
     );
   });

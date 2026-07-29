@@ -92,13 +92,8 @@ export async function processObservationFieldOverflow(params: {
       outcome: outcome.outcome,
     });
     recordDistribution(
-      "langfuse.ingestion.observation_field_overflow.original_bytes",
-      outcome.originalBytes,
-      { field: outcome.field, outcome: outcome.outcome },
-    );
-    recordDistribution(
-      "langfuse.ingestion.observation_field_overflow.persisted_bytes",
-      outcome.persistedBytes,
+      "langfuse.ingestion.observation_field_overflow.bytes_removed",
+      outcome.bytesRemoved,
       { field: outcome.field, outcome: outcome.outcome },
     );
   }

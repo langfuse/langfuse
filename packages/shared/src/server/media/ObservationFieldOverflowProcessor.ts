@@ -14,8 +14,7 @@ export type ObservationFieldsForOverflow = {
 export type ObservationFieldOverflowOutcome = {
   field: MediaField;
   outcome: UploadMediaForTraceResult["outcome"] | "failed";
-  originalBytes: number;
-  persistedBytes: number;
+  bytesRemoved: number;
 };
 
 type UploadOversizedObservationField = (params: {
@@ -157,8 +156,10 @@ async function replaceOversizedValue(params: {
       outcome: {
         field,
         outcome: uploadResult.outcome,
-        originalBytes,
-        persistedBytes: Buffer.byteLength(mediaReference, "utf8"),
+        bytesRemoved: Math.max(
+          originalBytes - Buffer.byteLength(mediaReference, "utf8"),
+          0,
+        ),
       },
     };
   } catch (error) {
@@ -168,8 +169,7 @@ async function replaceOversizedValue(params: {
       outcome: {
         field,
         outcome: "failed",
-        originalBytes,
-        persistedBytes: originalBytes,
+        bytesRemoved: 0,
       },
     };
   }
