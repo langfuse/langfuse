@@ -26,6 +26,7 @@ const JobExecutionStatus = {
 } as const;
 
 vi.mock("@langfuse/shared", () => ({
+  OBSERVATION_FIELD_SIZE_LIMIT_BYTES: 2 * 1024 * 1024,
   removeEmptyEnvVariables: <T>(value: T) => value,
   EvalTemplateType: {
     LLM_AS_JUDGE: "LLM_AS_JUDGE",
