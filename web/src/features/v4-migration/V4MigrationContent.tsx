@@ -289,11 +289,17 @@ export function V4MigrationHeaderContent({
   projectName,
   projectId,
   onNavigate,
+  titleRowClassName,
 }: {
   projectName?: string;
   projectId?: string;
   /** Fires when an internal link is followed so the surface can close. */
   onNavigate?: () => void;
+  /** Extra classes on the title row. The modal host passes a right gutter:
+   *  its dialog floats a fallback close button over the body's top-right
+   *  corner (the title is sr-only, so there is no DialogHeader row), which
+   *  would otherwise overlap the right-aligned status link. */
+  titleRowClassName?: string;
 }) {
   const capture = usePostHogClientCapture();
   const handleCopyPrompt = useCopyMigrationPrompt();
@@ -319,7 +325,12 @@ export function V4MigrationHeaderContent({
 
   return (
     <>
-      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+      <div
+        className={cn(
+          "mb-1.5 flex items-baseline justify-between gap-2",
+          titleRowClassName,
+        )}
+      >
         <p className="min-w-0 text-lg font-bold">
           {projectName ? <>Migrate {projectName} to v4</> : "Migrate to v4"}
         </p>
@@ -331,7 +342,7 @@ export function V4MigrationHeaderContent({
           }}
           className="shrink-0 text-sm underline"
         >
-          Migration Status
+          View Status
         </Link>
       </div>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
