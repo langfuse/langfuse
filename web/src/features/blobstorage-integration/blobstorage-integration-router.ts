@@ -21,6 +21,7 @@ import {
   QueueJobs,
   StorageServiceFactory,
   blobStorageEndpointConnectionValidationOptions,
+  requireAzureSharedKeyCredential,
   validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
@@ -413,6 +414,15 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           region: region || undefined,
           forcePathStyle: forcePathStyle || false,
           useAzureBlob: type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+          // The endpoint is user-supplied, so never fall through to the
+          // deployment's Azure identity — its bearer token would be sent there.
+          azureCredential:
+            type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE
+              ? requireAzureSharedKeyCredential({
+                  accessKeyId: accessKeyId || undefined,
+                  secretAccessKey,
+                })
+              : undefined,
           useGoogleCloudStorage: false, // Not supported in blob storage integration
           useOCIObjectStorage: false, // Not supported in blob storage integration
           googleCloudCredentials: undefined,
