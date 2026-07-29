@@ -7,9 +7,9 @@ import { makeFixtureSeries } from "./lib/fixtures";
  * Design surface for the outlier strip above the trace table (LFE-14451).
  * Each bar aggregates its time bucket (summed cost, p95/avg latency, event
  * count) — the strip exists to click into spikes, so the visual must read
- * at a glance: compact, Firefox-devtools-inspired, values on hover only,
- * sparse gridline ticks, a baseline that keeps the plot boundary visible
- * where data is absent.
+ * at a glance: compact, Firefox-devtools-inspired, exact values on hover,
+ * horizontal value gridlines with left sans labels (no vertical lines), a
+ * baseline that keeps the plot boundary visible where data is absent.
  *
  * Locked defaults (design review 2026-07-27): sqrt scale, 40px height.
  */

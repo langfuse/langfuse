@@ -33,7 +33,7 @@
 
 export const OBSERVATION_FIELD_GROUPS_PUBLIC_API = [
   "core", // Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type
-  "basic", // name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId
+  "basic", // name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId, isRootObservation
   "time", // completionStartTime, createdAt, updatedAt
   "io", // input, output
   "metadata", // metadata

@@ -34,6 +34,7 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { type Session } from "next-auth";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
+import { V4MigrationBanner } from "@/src/features/v4-migration/V4MigrationBanner";
 import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
@@ -327,6 +328,7 @@ export const OrganizationProjectOverview = () => {
   const router = useRouter();
   const queryOrgId = router.query.organizationId;
   const session = useSession();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
@@ -385,7 +387,7 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      <AgentToolsBanner />
+      {v4UpgradeUiEnabled ? <V4MigrationBanner /> : <AgentToolsBanner />}
       {showOnboarding && <Onboarding />}
       {organizations
         .map((org) => {

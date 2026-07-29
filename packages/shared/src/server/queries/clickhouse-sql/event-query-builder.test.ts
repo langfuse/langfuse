@@ -7,6 +7,22 @@ import {
   EventsSessionAggregationQueryBuilder,
 } from "./event-query-builder";
 
+describe("EventsQueryBuilder public API v2 field groups", () => {
+  it.each([
+    ["basic", true],
+    ["core", false],
+  ] as const)(
+    "projects semantic root status for %s: %s",
+    (fieldSet, selected) => {
+      const query = new EventsQueryBuilder({ projectId: "test-project" })
+        .selectFieldSet(fieldSet)
+        .buildWithParams().query;
+
+      expect(query.includes('"is_root_observation"')).toBe(selected);
+    },
+  );
+});
+
 describe("EventsAggregationQueryBuilder", () => {
   it("counts distinct non-synthetic observations per trace", () => {
     const { query } = new EventsAggregationQueryBuilder({

@@ -26,7 +26,7 @@ correction visibility, inline-tool visibility, and system-prompt visibility so
 virtual row remounts do not reset view state. On the events-backed session
 page, `modernSession` is a user Feature Preview flag; disabled users retain the
 card layout without a page-level layout control. The preview toggle is disabled
-unless Fast (Preview) selects this events-backed page.
+unless the V4 Preview toggle selects this events-backed page.
 
 Server/query state remains in tRPC and React Query. Active Modern Session state
 is derived from TanStack Virtual's current scroll offset unless the user

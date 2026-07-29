@@ -1,7 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { V4MigrationDetailsContent } from "./V4MigrationContent";
+import {
+  V4MigrationDetailsContent,
+  V4MigrationHeaderContent,
+} from "./V4MigrationContent";
+import { type MigrationCountState } from "./migrationData";
 
 const mocks = vi.hoisted(() => ({
   migrationData: {
@@ -10,12 +14,13 @@ const mocks = vi.hoisted(() => ({
       sdkUsageSeries: [],
       upgradeRequiredCount: 0,
     },
-    evals: { status: "loaded" as const, count: 0 },
-    apis: { status: "loaded" as const, count: 1 },
-    exports: { status: "loaded" as const, count: 3 },
+    evals: { status: "loaded", count: 0 } as MigrationCountState,
+    apis: { status: "loaded", count: 1 } as MigrationCountState,
+    exports: { status: "loaded", count: 3 } as MigrationCountState,
     apiUsage: [{ endpoint: "GET /api/public/traces", count: 42 }],
     legacyIntegrations: ["PostHog", "Mixpanel", "Blob Storage"],
   },
+  canToggleV4: true,
 }));
 
 vi.mock("next/router", () => ({
@@ -56,6 +61,17 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useInAppAiAgent: () => ({ setOpen: vi.fn(), submit: vi.fn() }),
 }));
 
+// The toggle row pulls in session + tRPC state via useV4Beta; stub it so the
+// content tests need no SessionProvider or tRPC client.
+vi.mock("@/src/features/events/components/V4SidebarToggle", () => ({
+  V4PreviewToggleRow: () => null,
+}));
+
+// The details content reads canToggleV4 to gate the toggle section's copy.
+vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
+  useV4Beta: () => ({ canToggleV4: mocks.canToggleV4 }),
+}));
+
 vi.mock("@/src/components/ui/collapsible", () => ({
   Collapsible: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
@@ -70,6 +86,7 @@ vi.mock("@/src/components/ui/collapsible", () => ({
 
 describe("V4MigrationDetailsContent", () => {
   beforeEach(() => {
+    mocks.canToggleV4 = true;
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
     mocks.migrationData.apiUsage = [
@@ -137,5 +154,54 @@ describe("V4MigrationDetailsContent", () => {
     expect(
       screen.getByText("No deprecated evals detected."),
     ).toBeInTheDocument();
+  });
+
+  it("shows the preview-toggle section only when the session can toggle v4", () => {
+    const { unmount } = render(
+      <V4MigrationDetailsContent projectId="project-1" />,
+    );
+    expect(screen.getByText("Want to review first?")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Use this toggle to compare both views/),
+    ).toBeInTheDocument();
+    unmount();
+
+    mocks.canToggleV4 = false;
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+    expect(screen.queryByText("Want to review first?")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Use this toggle to compare both views/),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("V4MigrationHeaderContent", () => {
+  beforeEach(() => {
+    mocks.migrationData.apis = { status: "loaded", count: 1 };
+    mocks.migrationData.exports = { status: "loaded", count: 3 };
+  });
+
+  it("claims the project needs migrating while checks report action needed", () => {
+    render(<V4MigrationHeaderContent projectId="project-1" />);
+    expect(
+      screen.getByText(/This project still uses the previous setup/),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the status claim once every check is clean", () => {
+    mocks.migrationData.apis = { status: "loaded", count: 0 };
+    mocks.migrationData.exports = { status: "loaded", count: 0 };
+    render(<V4MigrationHeaderContent projectId="project-1" />);
+    expect(
+      screen.queryByText(/This project still uses the previous setup/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("drops the status claim while checks are still loading", () => {
+    mocks.migrationData.apis = { status: "loading", count: 0 };
+    render(<V4MigrationHeaderContent projectId="project-1" />);
+    expect(
+      screen.queryByText(/This project still uses the previous setup/),
+    ).not.toBeInTheDocument();
   });
 });

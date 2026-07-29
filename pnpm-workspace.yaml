@@ -13,6 +13,7 @@ catalog:
   "@aws-sdk/credential-providers": 3.1074.0
   "@aws-sdk/lib-storage": 3.1074.0
   "@aws-sdk/s3-request-presigner": 3.1074.0
+  eslint: ^10.8.0
   typescript: ^6.0.3
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
@@ -20,6 +21,8 @@ minimumReleaseAge: 7200
 # this list is version-specific
 minimumReleaseAgeExclude:
   - "brace-expansion@5.0.8"
+  - "@eslint/js@10.0.1"
+  - "eslint@10.8.0"
   - "postcss@8.5.22"
   - "@clickhouse/client@1.23.1"
   - "@next/env@16.2.11"
