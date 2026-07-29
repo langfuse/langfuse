@@ -12,7 +12,8 @@ evaluating, and debugging AI applications.
   `.agents/skills/frontend-large-feature-architecture/SKILL.md` first. Most
   such effects should not exist.
 - For bug fixes, first write the smallest failing test that proves the reported
-  behavior. Add another test only when it exercises a distinct adapter,
+  behavior and confirm it fails against the buggy behavior before changing
+  production code. Add another test only when it exercises a distinct adapter,
   contract, or execution path. Extend the closest existing test suite; do not
   create a standalone constant test when an existing feature suite owns the
   behavior. If the bug depends on a data shape, pause and ask: can

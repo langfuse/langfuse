@@ -50,8 +50,11 @@ on an existing endpoint, or a semantic replacement/breaking change.
 
 For an additive field/filter:
 
-- Reuse the canonical predicate and existing field-group/projection path.
-- Default to the normal optional partial-row schema and converter path.
+- Reuse the canonical predicate. For endpoints that already support field-group
+  selection, reuse their existing field-group/projection path.
+- Preserve the endpoint's existing response contract: use the normal optional
+  partial-row schema and converter path for field-group endpoints; retain the
+  strict response schema and converter path for ordinary endpoints.
 - Do not create API-version-specific field sets, casts, or "must be selected"
   runtime assertions unless compatibility requires them.
 - Extend examples and contracts; do not replace an existing filter example.
