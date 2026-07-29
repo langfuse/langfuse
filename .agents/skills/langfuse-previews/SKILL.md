@@ -39,8 +39,9 @@ Pushing updates it; closing the PR tears it down.
 - **Log in** — previews sign you in automatically as the shared demo user; just
   open the URL. To use the regular sign-in flow instead (e.g. to test auth
   changes), open `/auth/sign-in?autoSignIn=false` and use the credentials in
-  the **bot's PR comment** (the source of truth). The demo project's shared
-  seed identity is `demo@langfuse.com` / `password`, with API keys
+  the **bot's PR comment** (the source of truth); signing out via the UI also
+  lands on that opted-out form, so you stay signed out. The demo project's
+  shared seed identity is `demo@langfuse.com` / `password`, with API keys
   `pk-lf-1234567890` / `sk-lf-1234567890` — shared and synthetic, so never
   treat a preview as private.
 - **Know where you are** — every preview page shows a top strip linking back

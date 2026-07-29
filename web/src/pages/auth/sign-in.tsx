@@ -657,11 +657,18 @@ export default function SignIn({
   // Auto sign-in for disposable preview deployments: the flag is baked only
   // into preview images (.github/workflows/preview-build.yml) whose seeded
   // demo login is shared and public anyway. `?autoSignIn=false` opts out,
-  // e.g. to exercise the regular auth flows on a preview.
+  // e.g. to exercise the regular auth flows on a preview. NextAuth error
+  // redirects land on this page, so an error in the query keeps the form
+  // visible instead of silently signing in over it.
+  const autoSignInParam = router.query.autoSignIn;
+  const autoSignInOptedOut = Array.isArray(autoSignInParam)
+    ? autoSignInParam.includes("false")
+    : autoSignInParam === "false";
   const previewAutoSignInEnabled =
     env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN === "true" &&
     authProviders.credentials &&
-    router.query.autoSignIn !== "false";
+    !autoSignInOptedOut &&
+    !nextAuthError;
   const [previewAutoSignInPending, setPreviewAutoSignInPending] = useState(
     previewAutoSignInEnabled,
   );
@@ -772,7 +779,7 @@ export default function SignIn({
     }
   }
 
-  if (previewAutoSignInPending) {
+  if (previewAutoSignInEnabled && previewAutoSignInPending) {
     return (
       <>
         <Head>
