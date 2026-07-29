@@ -13,6 +13,7 @@ const PACING_EMA_WEIGHT = 0.35;
 const PACING_TARGET_UTILIZATION = 0.8;
 const MAX_PACING_INCREASE_FACTOR = 1.2;
 const MIN_SMOOTHED_GRAPHEMES = 16;
+const CATCH_UP_TARGET_MS = 1_500;
 const TOOL_TRANSITION_INTERVAL_MS = 500;
 const MIN_TOOL_RUNNING_DURATION_MS = 750;
 
@@ -248,10 +249,18 @@ function enqueueStreamingUpdate(
     publishedTexts,
     action.canAnimate,
   );
-  const approvalsChanged = !areToolApprovalsEqual(
-    state.targetToolApprovals,
-    action.pendingToolApprovals,
-  );
+  // Only a *live* approval change is worth pacing. Hydration delivers approvals
+  // too — a pending approval survives a refresh by design — and pacing those
+  // schedules an "appearance" transition for every tool call in the restored
+  // history at 2/second. The approval card sorts last, so it waits behind the
+  // entire backlog while `isAnimating` keeps the drawer looking busy: the run
+  // reads as still executing and the card never arrives.
+  const approvalsChanged =
+    isLivePublication &&
+    !areToolApprovalsEqual(
+      state.targetToolApprovals,
+      action.pendingToolApprovals,
+    );
 
   if (
     !action.canAnimate ||
@@ -326,11 +335,23 @@ function advanceStreamingFrame(state: SmoothStreamingState) {
   const remainingGraphemes = splitGraphemes(
     pendingText.targetText.slice(pendingText.displayedText.length),
   );
+  const pacedRate =
+    state.textPacingByMessageId[pendingText.targetMessage.id]
+      ?.graphemesPerSecond ?? DEFAULT_GRAPHEMES_PER_SECOND;
+  // Backlog-aware catch-up floor. The EMA estimates a *generation* rate from
+  // observed appends, which is meaningless when text arrives in whole
+  // compacted blocks: a single ~800-grapheme publication would crawl for ~20s
+  // at the default rate. Guaranteeing the backlog drains within
+  // CATCH_UP_TARGET_MS keeps the reveal smooth without pretending to pace
+  // something that already finished. It eases out naturally as the backlog
+  // shrinks, and it never fires on token-level streams, where the backlog is
+  // a few graphemes at a time.
+  const rate = Math.max(
+    pacedRate,
+    remainingGraphemes.length / (CATCH_UP_TARGET_MS / 1_000),
+  );
   const graphemeBudget =
-    state.animation.graphemeBudget +
-    (state.textPacingByMessageId[pendingText.targetMessage.id]
-      ?.graphemesPerSecond ?? DEFAULT_GRAPHEMES_PER_SECOND) *
-      (FRAME_DURATION_MS / 1_000);
+    state.animation.graphemeBudget + rate * (FRAME_DURATION_MS / 1_000);
   const graphemesThisFrame = Math.floor(graphemeBudget);
   const nextText =
     pendingText.displayedText +

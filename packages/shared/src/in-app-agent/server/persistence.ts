@@ -30,6 +30,10 @@ import {
   type AgUiEvent,
   type AgUiMessage,
 } from "../schema";
+import {
+  assertConversationAccess,
+  type InAppAgentConversationAction,
+} from "./access";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
@@ -38,7 +42,7 @@ import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./tools";
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.
 const ACTIVE_RUN_STALE_AFTER_MS = 150 * 1000;
-const ACTIVE_RUN_CONFLICT_MESSAGE =
+export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
 const STALE_RUN_ERROR_MESSAGE =
   "Run was marked stale before starting a new run";
@@ -56,6 +60,13 @@ export type PersistedConversationEvent = {
   event: AgUiEvent;
   runId: string;
   createdAt: Date;
+  /**
+   * Per-conversation monotonic position. This is the watch cursor: the
+   * hydration snapshot's high-water mark is definitionally the maximum over
+   * the events it returned, so attaching the tail with `> cursor` is
+   * gap-free and duplicate-free by construction.
+   */
+  sequenceNumber: number;
 };
 
 export function serializeConversation(
@@ -76,7 +87,7 @@ export function serializeConversation(
 
 export function isInAppAgentConversationWriteLocked(params: {
   conversation: Pick<InAppAgentConversation, "createdAt">;
-  events: readonly PersistedConversationEvent[];
+  events: readonly Pick<PersistedConversationEvent, "event">[];
   now?: Date;
 }) {
   const now = params.now ?? new Date();
@@ -105,19 +116,24 @@ export async function getOwnedConversationOrThrow(params: {
   projectId: string;
   conversationId: string;
   userId: string;
+  action?: InAppAgentConversationAction;
 }): Promise<InAppAgentConversation> {
   const conversation = await params.prisma.inAppAgentConversation.findFirst({
     where: {
       id: params.conversationId,
       projectId: params.projectId,
-      createdByUserId: params.userId,
-      deletedAt: null,
     },
   });
 
   if (!conversation) {
     throw new LangfuseNotFoundError("Agent conversation not found");
   }
+
+  assertConversationAccess({
+    action: params.action ?? "watch",
+    conversation,
+    userId: params.userId,
+  });
 
   return conversation;
 }
@@ -138,9 +154,11 @@ export async function ensureOwnedConversation(params: {
   });
 
   if (existing) {
-    if (existing.createdByUserId !== params.userId || existing.deletedAt) {
-      throw new LangfuseNotFoundError("Agent conversation not found");
-    }
+    assertConversationAccess({
+      action: "submit",
+      conversation: existing,
+      userId: params.userId,
+    });
 
     return existing;
   }
@@ -170,14 +188,24 @@ export async function createRun(params: {
   return params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
-    // The v1 agent is foreground-only. If a stream dies before finishRun runs,
-    // lazily mark the old run stale so it does not block the conversation forever.
+    // If a foreground stream dies before finishRun runs, lazily mark the old
+    // run stale so it does not block the conversation forever.
+    //
+    // `claimedAt`/`heartbeatAt` must stay NULL here: only the background
+    // worker sets them, and a background run legitimately runs for up to
+    // RUN_MAX_DURATION. Without this guard a foreground submit (flag off)
+    // would stale-close a healthy background run at 150s and fence its
+    // worker — execution mode is not sticky per conversation, so that mix is
+    // a normal state. An unclaimed QUEUED run stays sweepable, which is what
+    // we want: it unblocks the conversation and reconcile-on-read agrees.
     await tx.inAppAgentRun.updateMany({
       where: {
         projectId: params.projectId,
         conversationId: params.conversationId,
         finishedAt: null,
         createdAt: { lt: staleBefore },
+        claimedAt: null,
+        heartbeatAt: null,
       },
       data: {
         status: InAppAgentRunStatus.FAILED,
@@ -344,13 +372,19 @@ export async function getConversationEvents(params: {
       conversationId: params.conversationId,
     },
     orderBy: { sequenceNumber: "asc" },
-    select: { event: true, runId: true, createdAt: true },
+    select: {
+      event: true,
+      runId: true,
+      createdAt: true,
+      sequenceNumber: true,
+    },
   });
 
-  return events.map(({ event, runId, createdAt }) => ({
+  return events.map(({ event, runId, createdAt, sequenceNumber }) => ({
     event: event as unknown as AgUiEvent,
     runId,
     createdAt,
+    sequenceNumber,
   }));
 }
 
@@ -359,7 +393,7 @@ export async function getConversationEvents(params: {
  * calls so each sandbox session can mount the same context.
  */
 export function getSandboxToolCallFiles(
-  events: readonly PersistedConversationEvent[],
+  events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
 ) {
   const drafts = new Map<
     string,
@@ -1272,9 +1306,14 @@ function stripAssistantRunIds(messages: readonly AgUiMessage[]) {
   return changed ? sanitizedMessages : messages;
 }
 
-type InAppAgentTx = Prisma.TransactionClient;
+export type InAppAgentTx = Prisma.TransactionClient;
 
-async function lockConversation(
+/**
+ * Serializes every run-creating and approval-consuming mutation on one row.
+ * The partial unique index on active runs is only the backstop; this lock is
+ * what turns a race into a clean conflict error instead of a 500.
+ */
+export async function lockConversation(
   tx: InAppAgentTx,
   projectId: string,
   conversationId: string,

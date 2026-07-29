@@ -282,9 +282,12 @@ model InAppAgentRun {
   errorCode         String?                @map("error_code")
   errorMessage      String?                @map("error_message")
   finishedAt        DateTime?              @map("finished_at")
-  // Nullable until the first status reader ships (see RFC-background-execution
-  // PR 4), whose migration backfills NULLs and sets DEFAULT/NOT NULL.
-  // NULL means "row written by code that predates the status column".
+  // Nullable, and deliberately without a default: every writer sets the status
+  // explicitly (foreground inserts RUNNING, background inserts QUEUED), so a
+  // default would be a lie for whichever path forgot. NULL means "row written
+  // by code that predates the status column"; readers treat it as legacy and
+  // derive from finished_at/error_code. Tightening to NOT NULL is a separate
+  // data migration, deliberately not bundled with a feature change.
   status            String?
   request           Json?
   claimedAt         DateTime?              @map("claimed_at")

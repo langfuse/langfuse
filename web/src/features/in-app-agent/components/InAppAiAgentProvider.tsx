@@ -10,7 +10,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { EventType, HttpAgent } from "@ag-ui/client";
+import { EventType, HttpAgent, type AbstractAgent } from "@ag-ui/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { z } from "zod";
@@ -25,12 +25,21 @@ import {
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
+  getInAppAgentRunFailureMessage,
+  isActiveInAppAgentRunStatus,
+  isCancellableInAppAgentRunStatus,
   type AgUiMessage,
   type InAppAgentMessageFeedback,
   type InAppAgentMessageFeedbackValue,
   type InAppAgentRuntimeState,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
+import { InAppAgentRunStatus } from "@langfuse/shared";
+import {
+  InAppAgentBackgroundClient,
+  type InAppAgentRunStatusUpdate,
+} from "@/src/features/in-app-agent/lib/backgroundAgentClient";
+import { useInAppAgentBackgroundExecutionEnabled } from "@/src/features/in-app-agent/lib/backgroundExecutionFlag";
 import type { InAppAgentError } from "@/src/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -52,6 +61,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import {
   getInAppAgentError,
   isInAppAgentRateLimited,
+  type InAppAgentInterruptedRun,
   type InAppAiAgentMessage,
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
@@ -98,6 +108,10 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isSubmitting: false,
   pendingToolApprovals: [],
   isSelectedConversationHydrating: false,
+  backgroundExecutionEnabled: false,
+  backgroundRunNotice: null,
+  isCancellingRun: false,
+  interruptedRuns: [],
   error: null,
   messages: [],
   liveMessageVersion: 0,
@@ -152,6 +166,12 @@ export type InAppAgentPendingToolApproval = {
   id: string;
   approvalRequest: InAppAgentToolApprovalRequest;
   status: "pending" | "submitting";
+  /**
+   * The parked run this approval belongs to, as recorded on the persisted
+   * interrupt event. Present for approvals hydrated from history (background
+   * execution); the live stream carries it inside `approvalRequest` instead.
+   */
+  runId?: string;
 };
 
 export type InAppAiAgentConversation = {
@@ -175,6 +195,23 @@ type InAppAiAgentContextType = {
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
   isSelectedConversationHydrating: boolean;
+  /** True when this browser is opted into worker-executed runs. */
+  backgroundExecutionEnabled: boolean;
+  /**
+   * Copy about the current background run's lifecycle: that the user may
+   * close the drawer while it works, or why the last one ended badly.
+   */
+  backgroundRunNotice: string | null;
+  /** A stop has been requested and the run has not wound down yet. */
+  isCancellingRun: boolean;
+  /**
+   * Turns that ended without finishing, so the transcript can mark the
+   * boundary. Their partial events are kept, not hidden: the tool calls really
+   * ran, and the event stream is the only record of them.
+   */
+  interruptedRuns: InAppAgentInterruptedRun[];
+  /** Present only on the background path, where a run outlives the browser. */
+  cancelRun?: () => void;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
   liveMessageVersion: number;
@@ -301,12 +338,21 @@ function InAppAiAgentProviderInner({
     () => new Set(),
   );
   const [error, setError] = useState<InAppAgentError | null>(null);
-  const agentRef = useRef<HttpAgent | null>(null);
+  const agentRef = useRef<AbstractAgent | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
+  const backgroundExecutionEnabled = useInAppAgentBackgroundExecutionEnabled();
+  const [backgroundRunStatus, setBackgroundRunStatus] =
+    useState<InAppAgentRunStatusUpdate | null>(null);
+  // Read once, when a background transport is constructed; never rendered, so
+  // mirroring it into state would re-render the drawer for nothing.
+  const conversationCursorRef = useRef(-1);
+  // Attaching is async (it fetches the persisted snapshot first), so the guard
+  // has to be set synchronously or a re-render can start a second attach.
+  const attachInFlightRef = useRef(false);
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const runInFlightRef = useRef(false);
-  const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
+  const subscriptionRef = useRef<ReturnType<AbstractAgent["subscribe"]> | null>(
     null,
   );
 
@@ -330,6 +376,10 @@ function InAppAiAgentProviderInner({
   const deleteConversationMutation =
     api.inAppAgent.deleteConversation.useMutation();
   const feedbackMutation = api.inAppAgent.submitFeedback.useMutation();
+  const startRunMutation = api.inAppAgent.startRun.useMutation();
+  const cancelRunMutation = api.inAppAgent.cancelRun.useMutation();
+  const decideToolApprovalMutation =
+    api.inAppAgent.decideToolApproval.useMutation();
   const isSelectedConversationNotFound =
     conversationQuery.error?.data?.code === "NOT_FOUND";
   const selectedConversationId = isSelectedConversationNotFound
@@ -346,6 +396,67 @@ function InAppAiAgentProviderInner({
   const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
   const selectedConversationIsWriteLocked =
     conversationQuery.data?.conversation.isWriteLocked ?? false;
+
+  // Written during render on purpose: neither value is rendered, both are read
+  // when a background transport is constructed. Mirroring them into state
+  // would re-render the drawer on every hydration for no visible reason.
+  if (conversationQuery.data?.conversation.id === selectedConversationId) {
+    conversationCursorRef.current = conversationQuery.data.eventCursor;
+  }
+
+  const persistedToolApprovals = useMemo(
+    () =>
+      conversationQuery.data?.conversation.id === selectedConversationId
+        ? conversationQuery.data.pendingToolApprovals
+        : [],
+    [
+      conversationQuery.data?.conversation.id,
+      conversationQuery.data?.pendingToolApprovals,
+      selectedConversationId,
+    ],
+  );
+
+  /**
+   * Approval cards visible to the drawer.
+   *
+   * The foreground path only ever learns about an approval from the live
+   * stream, so a refresh loses the card. Background execution persists the
+   * interrupt event, so history is the source of truth — but a card that has
+   * just arrived over the tail is not in the last hydration yet, and one the
+   * user is currently deciding carries local "submitting" state. Union both,
+   * letting local status win.
+   */
+  const effectivePendingToolApprovals = useMemo(() => {
+    if (!backgroundExecutionEnabled) {
+      return pendingToolApprovals;
+    }
+
+    const localById = new Map(
+      pendingToolApprovals.map((approval) => [approval.id, approval]),
+    );
+
+    const hydrated = persistedToolApprovals.map(
+      ({ runId, approvalRequest }): InAppAgentPendingToolApproval => ({
+        id: approvalRequest.toolCallId,
+        approvalRequest,
+        status: localById.get(approvalRequest.toolCallId)?.status ?? "pending",
+        runId,
+      }),
+    );
+
+    const hydratedIds = new Set(hydrated.map((approval) => approval.id));
+
+    return [
+      ...hydrated,
+      ...pendingToolApprovals.filter(
+        (approval) => !hydratedIds.has(approval.id),
+      ),
+    ];
+  }, [
+    backgroundExecutionEnabled,
+    pendingToolApprovals,
+    persistedToolApprovals,
+  ]);
   const currentMessages = useMemo(() => {
     if (isSelectedConversationNotFound) {
       return EMPTY_MESSAGES;
@@ -516,6 +627,7 @@ function InAppAiAgentProviderInner({
     agentRef.current?.abortRun();
     agentRef.current = null;
     activeRunIdRef.current = null;
+    setBackgroundRunStatus(null);
     setDisplayState(createInAppAgentDisplayState());
     pendingToolApprovalsRef.current = [];
     setPendingToolApprovals([]);
@@ -557,7 +669,7 @@ function InAppAiAgentProviderInner({
   }, [rateLimitRetryAt]);
 
   const ensureSubscription = useCallback(
-    (agent: HttpAgent) => {
+    (agent: AbstractAgent) => {
       if (subscriptionRef.current) {
         return;
       }
@@ -701,22 +813,46 @@ function InAppAiAgentProviderInner({
 
       resetAgent();
 
-      const agent = new HttpAgent({
-        url: getInAppAgentUrl(),
-        threadId: conversationId,
-        initialMessages,
-        initialState: getConversationAgentState(
-          projectId,
-          conversationId,
-          isNewConversation,
-        ),
-      });
+      const initialState = getConversationAgentState(
+        projectId,
+        conversationId,
+        isNewConversation,
+      );
+
+      const agent = backgroundExecutionEnabled
+        ? new InAppAgentBackgroundClient({
+            projectId,
+            conversationId,
+            threadId: conversationId,
+            initialMessages,
+            initialState,
+            // The hydration snapshot's high-water mark. Attaching the tail
+            // above it is gap-free and duplicate-free by construction.
+            cursor: conversationCursorRef.current,
+            startRun: (params) =>
+              startRunMutation.mutateAsync({
+                projectId,
+                conversationId,
+                message: params.message,
+                context: [...params.context],
+              }),
+            onStatus: (status) => {
+              activeRunIdRef.current = status.runId;
+              setBackgroundRunStatus(status);
+            },
+          })
+        : new HttpAgent({
+            url: getInAppAgentUrl(),
+            threadId: conversationId,
+            initialMessages,
+            initialState,
+          });
 
       agentRef.current = agent;
 
       return agent;
     },
-    [projectId, resetAgent],
+    [backgroundExecutionEnabled, projectId, resetAgent, startRunMutation],
   );
 
   const releaseSubmitLock = useCallback(() => {
@@ -726,9 +862,9 @@ function InAppAiAgentProviderInner({
 
   const runAgent = useCallback(
     (
-      agent: HttpAgent,
+      agent: AbstractAgent,
       conversationId: string,
-      runParameters?: Parameters<HttpAgent["runAgent"]>[0],
+      runParameters?: Parameters<AbstractAgent["runAgent"]>[0],
       quickActionAttribution?: InAppAgentQuickActionAttribution,
       messageEntryPoint?: InAppAgentMessageEntryPoint,
     ) => {
@@ -928,9 +1064,14 @@ function InAppAiAgentProviderInner({
           conversationQuery.data?.conversation.id === conversationId
             ? conversationQuery.data.messages
             : undefined;
-        const initialMessages = !isNewConversation
-          ? getHydratedMessages(messages, storedMessages)
-          : [];
+        const initialMessages = isNewConversation
+          ? []
+          : backgroundExecutionEnabled
+            ? // Persisted state is the render source on the background path, so
+              // prefer it over the in-memory transcript.
+              (storedMessages?.filter(isAgentConversationMessage) ??
+              getHydratedMessages(messages, storedMessages))
+            : getHydratedMessages(messages, storedMessages);
         // TODO: Avoid hydrating the full history once the agent client can send
         // only the latest user turn; the server rebuilds history from persistence.
         const agent = getOrCreateAgent(
@@ -941,6 +1082,18 @@ function InAppAiAgentProviderInner({
 
         if (agent.isRunning) {
           return false;
+        }
+
+        // Submitting is an attach boundary too: a reused transport still holds
+        // AG-UI's in-memory transcript from the previous turn, while the
+        // smoother's baseline came from the server's projection after that
+        // turn's refetch. Re-seed both from persistence so the new turn is the
+        // only thing that animates. Foreground keeps its existing behaviour,
+        // where the transport is the sole source for a turn.
+        if (agent instanceof InAppAgentBackgroundClient && !isNewConversation) {
+          agent.setMessages(initialMessages);
+          agent.setCursor(conversationCursorRef.current);
+          setMessages(initialMessages);
         }
 
         ensureSubscription(agent);
@@ -978,6 +1131,7 @@ function InAppAiAgentProviderInner({
       }
     },
     [
+      backgroundExecutionEnabled,
       conversationQuery.data,
       capture,
       ensureSubscription,
@@ -1050,6 +1204,134 @@ function InAppAiAgentProviderInner({
     ],
   );
 
+  /**
+   * Background path only. Re-seed the transport from persisted state, then tail
+   * onward from that snapshot's cursor.
+   *
+   * The invariant this enforces: **the in-memory AG-UI transcript never crosses
+   * an attach boundary.** Whenever the user (re)opens the drawer, reselects a
+   * conversation, or decides an approval, what they see is what is in Postgres,
+   * and the stream continues from exactly there.
+   *
+   * Why it has to be re-seeded rather than resumed: the smoother decides what
+   * to animate by diffing the incoming message list against the one it last
+   * held, per message id. After a turn ends, that held list came from the
+   * server's display projection (the `getConversation` refetch), while a
+   * carried-over agent's list is AG-UI's in-memory reduction. The two disagree,
+   * so republishing the in-memory one reads as "the model just produced all of
+   * this" and re-reveals the whole transcript from the first divergence. Seeding
+   * both sides from the same persisted array makes that diff empty.
+   */
+  const attachToConversation = useCallback(
+    async (conversationId: string) => {
+      if (!backgroundExecutionEnabled || attachInFlightRef.current) {
+        return;
+      }
+
+      attachInFlightRef.current = true;
+
+      try {
+        // Authoritative read rather than whatever the query cache holds: the
+        // cursor and the transcript must come from one snapshot, or the tail
+        // can replay events the transcript already contains.
+        const snapshot = await utils.inAppAgent.getConversation.fetch({
+          projectId,
+          conversationId,
+        });
+
+        if (
+          !snapshot.latestRun ||
+          !isActiveInAppAgentRunStatus(snapshot.latestRun.status) ||
+          runInFlightRef.current
+        ) {
+          return;
+        }
+
+        const persistedMessages = snapshot.messages.filter(
+          isAgentConversationMessage,
+        );
+        const agent = getOrCreateAgent(
+          conversationId,
+          persistedMessages,
+          false,
+        );
+
+        if (!(agent instanceof InAppAgentBackgroundClient)) {
+          return;
+        }
+
+        agent.setMessages(persistedMessages);
+        agent.setCursor(snapshot.eventCursor);
+        // Deliberately not publishLiveMessages: hydration must not bump
+        // liveMessageVersion, or the smoother animates history.
+        setMessages(persistedMessages);
+
+        ensureSubscription(agent);
+        runInFlightRef.current = true;
+        setIsRunning(true);
+
+        agent
+          .connectAgent()
+          .finally(() => {
+            clearLoadingEvents();
+            setIsRunning(false);
+            runInFlightRef.current = false;
+            utils.inAppAgent.getConversation.invalidate({
+              projectId,
+              conversationId,
+            });
+            utils.inAppAgent.listConversations.invalidate({ projectId });
+          })
+          .catch((error: unknown) => {
+            setError(getInAppAgentError(error));
+            console.error(
+              "Failed to attach to background assistant run",
+              error,
+            );
+          });
+      } finally {
+        attachInFlightRef.current = false;
+      }
+    },
+    [
+      backgroundExecutionEnabled,
+      clearLoadingEvents,
+      ensureSubscription,
+      getOrCreateAgent,
+      projectId,
+      utils.inAppAgent.getConversation,
+      utils.inAppAgent.listConversations,
+    ],
+  );
+
+  const hydratedActiveRunId =
+    backgroundExecutionEnabled &&
+    conversationQuery.data?.conversation.id === selectedConversationId &&
+    conversationQuery.data.latestRun &&
+    isActiveInAppAgentRunStatus(conversationQuery.data.latestRun.status)
+      ? conversationQuery.data.latestRun.id
+      : null;
+
+  /**
+   * External system: the watch SSE connection to a run executing on a worker.
+   * Setup attaches the stream; the teardown effect below detaches it.
+   *
+   * An effect rather than an event handler because there is genuinely no
+   * initiating gesture — after a refresh the drawer restores itself from
+   * session storage and the conversation query resolves on its own, so "a run
+   * is executing and nobody is watching it" is a state we discover.
+   */
+  useEffect(() => {
+    if (!hydratedActiveRunId || !selectedConversationId) {
+      return;
+    }
+
+    attachToConversation(selectedConversationId).catch((error: unknown) => {
+      setError(getInAppAgentError(error));
+      console.error("Failed to attach to background assistant run", error);
+    });
+  }, [attachToConversation, hydratedActiveRunId, selectedConversationId]);
+
   const setAgentOpen = useCallback<Dispatch<SetStateAction<boolean>>>(
     (action) => {
       const nextOpen = evaluateSetStateAction(action, open);
@@ -1057,11 +1339,32 @@ function InAppAiAgentProviderInner({
       if (!nextOpen) {
         // Collapse the drawer when closing
         setIsExpanded(false);
+
+        // A hidden drawer should not hold a watch connection open. Detaching is
+        // not cancelling: the run keeps executing on the worker.
+        if (backgroundExecutionEnabled) {
+          agentRef.current?.abortRun();
+        }
+      }
+
+      if (nextOpen && backgroundExecutionEnabled && selectedConversationId) {
+        // Reopening is an attach boundary: show what is persisted now, then
+        // stream onward from there.
+        attachToConversation(selectedConversationId).catch((error: unknown) => {
+          setError(getInAppAgentError(error));
+          console.error("Failed to attach to background assistant run", error);
+        });
       }
 
       setOpen(nextOpen);
     },
-    [open, setOpen],
+    [
+      attachToConversation,
+      backgroundExecutionEnabled,
+      open,
+      selectedConversationId,
+      setOpen,
+    ],
   );
 
   const openAssistant = useCallback(
@@ -1079,6 +1382,158 @@ function InAppAiAgentProviderInner({
     [capture, organization, setAgentOpen],
   );
 
+  /**
+   * Freshest view of the conversation's current run: the tail's status frame
+   * while attached, the hydration snapshot otherwise. One source for the
+   * notice, the stop control, and the cancel mutation, so they cannot disagree.
+   */
+  const currentBackgroundRun = useMemo(() => {
+    if (!backgroundExecutionEnabled) {
+      return null;
+    }
+
+    if (backgroundRunStatus) {
+      return {
+        id: backgroundRunStatus.runId,
+        status: backgroundRunStatus.status,
+        errorCode: backgroundRunStatus.errorCode ?? null,
+        cancelRequested: backgroundRunStatus.cancelRequested === true,
+      };
+    }
+
+    const hydrated = conversationQuery.data?.latestRun;
+
+    return hydrated
+      ? {
+          id: hydrated.id,
+          status: hydrated.status,
+          errorCode: hydrated.errorCode,
+          cancelRequested: hydrated.cancelRequested,
+        }
+      : null;
+  }, [
+    backgroundExecutionEnabled,
+    backgroundRunStatus,
+    conversationQuery.data?.latestRun,
+  ]);
+
+  const interruptedRuns = useMemo(
+    () =>
+      backgroundExecutionEnabled &&
+      conversationQuery.data?.conversation.id === selectedConversationId
+        ? conversationQuery.data.interruptedRuns
+        : [],
+    [
+      backgroundExecutionEnabled,
+      conversationQuery.data?.conversation.id,
+      conversationQuery.data?.interruptedRuns,
+      selectedConversationId,
+    ],
+  );
+
+  const isCancellingRun = Boolean(
+    currentBackgroundRun &&
+    isActiveInAppAgentRunStatus(currentBackgroundRun.status) &&
+    currentBackgroundRun.cancelRequested,
+  );
+
+  /**
+   * Background runs outlive the browser, so the drawer has to say so — and has
+   * to explain a failure the user did not witness.
+   */
+
+  /**
+   * Cancel the run itself, server-side. Aborting the local stream would only
+   * stop watching — the worker would keep going, which is the whole feature.
+   */
+  const cancelRun = useCallback(() => {
+    const run = currentBackgroundRun;
+
+    if (
+      !selectedConversationId ||
+      !run ||
+      !isCancellableInAppAgentRunStatus(run.status) ||
+      run.cancelRequested
+    ) {
+      return;
+    }
+
+    intentionalAbortRef.current = true;
+    cancelRunMutation
+      .mutateAsync({
+        projectId,
+        conversationId: selectedConversationId,
+        runId: run.id,
+      })
+      .catch((error: unknown) => {
+        intentionalAbortRef.current = false;
+        showErrorToast("Failed to stop the run", getAgentErrorMessage(error));
+      });
+  }, [
+    cancelRunMutation,
+    currentBackgroundRun,
+    projectId,
+    selectedConversationId,
+  ]);
+
+  const decideBackgroundToolApproval = useCallback(
+    async (params: {
+      approval: InAppAgentPendingToolApproval;
+      approved: boolean;
+      conversationId: string;
+    }) => {
+      const runId =
+        params.approval.runId ?? params.approval.approvalRequest.runId;
+
+      updatePendingToolApprovals((currentApprovals) =>
+        currentApprovals.map((currentApproval) =>
+          currentApproval.id === params.approval.id
+            ? { ...currentApproval, status: "submitting" }
+            : currentApproval,
+        ),
+      );
+      setError(null);
+
+      try {
+        await decideToolApprovalMutation.mutateAsync({
+          projectId,
+          conversationId: params.conversationId,
+          runId,
+          toolCallId: params.approval.approvalRequest.toolCallId,
+          approved: params.approved,
+        });
+
+        updatePendingToolApprovals((currentApprovals) =>
+          currentApprovals.filter(
+            (currentApproval) => currentApproval.id !== params.approval.id,
+          ),
+        );
+
+        // The decision queued a continuation run. Go through the same attach
+        // path as reopening the drawer: re-seed from persisted state, then tail
+        // onward. Resuming the in-memory transcript here is what made the whole
+        // conversation appear to re-stream.
+        await attachToConversation(params.conversationId);
+      } catch (error) {
+        updatePendingToolApprovals((currentApprovals) =>
+          currentApprovals.map((currentApproval) =>
+            currentApproval.id === params.approval.id
+              ? { ...currentApproval, status: "pending" }
+              : currentApproval,
+          ),
+        );
+        setError(getInAppAgentError(error));
+        console.error("Failed to decide in-app agent tool approval", error);
+      }
+    },
+    [
+      attachToConversation,
+      decideToolApprovalMutation,
+      projectId,
+      updatePendingToolApprovals,
+    ],
+  );
+
   const resumeToolApproval = useCallback(
     async (approvalId: string, approved: boolean) => {
       if (selectedConversationIsWriteLocked) {
@@ -1089,7 +1544,7 @@ function InAppAiAgentProviderInner({
         return;
       }
 
-      const approval = pendingToolApprovals.find(
+      const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
       );
 
@@ -1100,6 +1555,15 @@ function InAppAiAgentProviderInner({
         runInFlightRef.current ||
         isInAppAgentRateLimited(error)
       ) {
+        return;
+      }
+
+      if (backgroundExecutionEnabled) {
+        await decideBackgroundToolApproval({
+          approval,
+          approved,
+          conversationId: selectedConversationId,
+        });
         return;
       }
 
@@ -1179,16 +1643,47 @@ function InAppAiAgentProviderInner({
       }
     },
     [
+      backgroundExecutionEnabled,
+      decideBackgroundToolApproval,
+      effectivePendingToolApprovals,
       ensureSubscription,
       error,
       isRunning,
-      pendingToolApprovals,
       runAgent,
       selectedConversationId,
       selectedConversationIsWriteLocked,
       updatePendingToolApprovals,
     ],
   );
+
+  const backgroundRunNotice = useMemo(() => {
+    const run = currentBackgroundRun;
+
+    if (!run) {
+      return null;
+    }
+
+    if (isActiveInAppAgentRunStatus(run.status) && run.cancelRequested) {
+      // Cancelling a RUNNING run is cooperative: the worker sees the flag on its
+      // next heartbeat and stops at the following step boundary. Saying so is
+      // what makes those seconds read as progress rather than a dead UI.
+      return "Stopping the run…";
+    }
+
+    if (run.status === InAppAgentRunStatus.QUEUED) {
+      return "Waiting for a worker to pick this up. You can close this; the run continues in the background.";
+    }
+
+    if (run.status === InAppAgentRunStatus.RUNNING) {
+      return "You can close this; the run continues in the background.";
+    }
+
+    if (run.status === InAppAgentRunStatus.FAILED) {
+      return getInAppAgentRunFailureMessage(run.errorCode ?? null);
+    }
+
+    return null;
+  }, [currentBackgroundRun]);
 
   const approveToolCall = useCallback(
     (approvalId: string) => resumeToolApproval(approvalId, true),
@@ -1212,8 +1707,13 @@ function InAppAiAgentProviderInner({
       isSubmitting,
       pendingToolApprovals: isSelectedConversationNotFound
         ? []
-        : pendingToolApprovals,
+        : effectivePendingToolApprovals,
       isSelectedConversationHydrating,
+      backgroundExecutionEnabled,
+      backgroundRunNotice,
+      isCancellingRun,
+      interruptedRuns,
+      cancelRun: backgroundExecutionEnabled ? cancelRun : undefined,
       error,
       messages: messagesWithUiState,
       liveMessageVersion,
@@ -1249,7 +1749,12 @@ function InAppAiAgentProviderInner({
       messagesWithUiState,
       open,
       openAssistant,
-      pendingToolApprovals,
+      backgroundExecutionEnabled,
+      backgroundRunNotice,
+      cancelRun,
+      isCancellingRun,
+      interruptedRuns,
+      effectivePendingToolApprovals,
       rejectToolCall,
       setAgentOpen,
       invalidateConversations,

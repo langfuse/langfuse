@@ -61,6 +61,12 @@ type InAppAgentRedirectActionContent = {
 
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
+  /**
+   * A run boundary: this turn ended without finishing. Rendered inline rather
+   * than as a banner because it belongs to a specific point in the transcript —
+   * the partial work above it really happened, and the next turn continues below.
+   */
+  | { type: "runNotice"; text: string }
   | { type: "reasoning"; text: string; isStreaming: boolean }
   | {
       type: "text";
@@ -180,6 +186,23 @@ export function InAppAgentMessage({
     return <InAppAgentReasoningBlock content={content} isCompact={isCompact} />;
   }
 
+  if (content.type === "runNotice") {
+    return (
+      <div className="flex items-center gap-2 py-1" role="note">
+        <span className="bg-border h-px flex-1" />
+        <span
+          className={cn(
+            "text-foreground-tertiary shrink-0",
+            isCompact ? "text-xs" : "text-xs",
+          )}
+        >
+          {content.text}
+        </span>
+        <span className="bg-border h-px flex-1" />
+      </div>
+    );
+  }
+
   if (content.type === "text" && role === "assistant") {
     return (
       <AssistantMessageWithFeedback
@@ -200,7 +223,7 @@ const MessageCard = forwardRef<
     role: InAppAgentMessageRole;
     content: Exclude<
       InAppAgentMessageContent,
-      { type: "toolGroup" | "redirectAction" | "reasoning" }
+      { type: "toolGroup" | "redirectAction" | "reasoning" | "runNotice" }
     >;
     isCompact: boolean;
   }

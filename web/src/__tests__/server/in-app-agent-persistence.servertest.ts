@@ -12,7 +12,11 @@ import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
 
-import { InAppAgentRunErrorCode, type Plan } from "@langfuse/shared";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type Plan,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Prisma } from "@langfuse/shared/src/db";
 import {
@@ -2047,6 +2051,50 @@ describe("in-app agent persistence", () => {
     expect(newRun.finishedAt).toBeNull();
   });
 
+  it("leaves a claimed background run alone when a foreground run starts", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const backgroundRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    // A background run legitimately runs for up to RUN_MAX_DURATION, far past
+    // the 150s foreground staleness window. Execution mode is not sticky per
+    // conversation, so a foreground submit landing here is a normal state — and
+    // it must not fence a healthy worker, which stale-closing would (both
+    // finishRun and the event append guard on the run still being open).
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: backgroundRun.id, projectId } },
+      data: {
+        createdAt: new Date("2026-05-20T10:00:00.000Z"),
+        claimedAt: new Date("2026-05-20T10:00:01.000Z"),
+        heartbeatAt: new Date(),
+      },
+    });
+
+    await expect(
+      createConversationRun({
+        projectId,
+        conversationId: conversation.id,
+        userId,
+      }),
+    ).rejects.toMatchObject({
+      message: "Assistant is already responding in this conversation",
+    });
+
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: backgroundRun.id, projectId } },
+      }),
+    ).resolves.toMatchObject({
+      status: "RUNNING",
+      finishedAt: null,
+      errorCode: null,
+    });
+  });
+
   it("writes run lifecycle status on the foreground path", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -2119,6 +2167,7 @@ describe("in-app agent persistence", () => {
           id: createInAppAgentRunId(),
           projectId,
           conversationId: conversation.id,
+          status: InAppAgentRunStatus.RUNNING,
         },
       }),
     ).rejects.toMatchObject({

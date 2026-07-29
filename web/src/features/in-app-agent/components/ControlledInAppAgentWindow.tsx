@@ -6,7 +6,7 @@ import { InAppAgentWindow } from "./InAppAgentWindow";
 import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
-import { getDrawerMessages } from "./utils/utils";
+import { getDrawerMessages, withInterruptedRunNotices } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import {
   getInAppAgentFocusedQuickActions,
@@ -46,6 +46,10 @@ export function ControlledInAppAgentWindow(
     isLoadingMoreConversations,
     isRunning,
     isSelectedConversationHydrating,
+    backgroundRunNotice,
+    cancelRun,
+    isCancellingRun,
+    interruptedRuns,
     isSubmitting,
     invalidateConversations,
     loadMoreConversations,
@@ -69,7 +73,12 @@ export function ControlledInAppAgentWindow(
     messages,
     liveMessageVersion,
     pendingToolApprovals,
-    shouldFlush: error !== null,
+    // Stop pacing the reveal once the user has asked the run to stop. The
+    // background path delivers whole compacted blocks, so a backlog can easily
+    // outlive the run itself — and watching buffered text keep typing out after
+    // pressing stop reads as "cancel did nothing", even though the run is
+    // already CANCELLED server-side.
+    shouldFlush: error !== null || isCancellingRun,
   });
   const isInputDisabled =
     isRunning ||
@@ -98,17 +107,21 @@ export function ControlledInAppAgentWindow(
 
   const drawerMessages = useMemo(
     () =>
-      getDrawerMessages({
-        error,
-        isRunning: isRunning || isAnimating,
-        messages: displayedMessages,
-        pendingToolApprovals: displayedPendingToolApprovals,
-        runningToolCallIds,
-      }),
+      withInterruptedRunNotices(
+        getDrawerMessages({
+          error,
+          isRunning: isRunning || isAnimating,
+          messages: displayedMessages,
+          pendingToolApprovals: displayedPendingToolApprovals,
+          runningToolCallIds,
+        }),
+        interruptedRuns,
+      ),
     [
       displayedMessages,
       displayedPendingToolApprovals,
       error,
+      interruptedRuns,
       isAnimating,
       isRunning,
       runningToolCallIds,
@@ -148,6 +161,9 @@ export function ControlledInAppAgentWindow(
       }}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
+      backgroundRunNotice={backgroundRunNotice}
+      isCancellingRun={isCancellingRun}
+      onCancelRun={cancelRun}
       onApproveToolCall={approveToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}

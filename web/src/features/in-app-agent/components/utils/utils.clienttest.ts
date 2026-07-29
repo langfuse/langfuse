@@ -4,8 +4,10 @@ import {
   getDrawerMessages,
   getInAppAgentError,
   isInAppAgentRateLimited,
+  withInterruptedRunNotices,
   type InAppAiAgentMessage,
 } from "./utils";
+import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 
 describe("getInAppAgentError", () => {
   const now = new Date("2026-07-08T20:00:54.997Z").getTime();
@@ -1114,5 +1116,98 @@ describe("getDrawerMessages", () => {
     if (toolGroup?.content.type === "toolGroup") {
       expect(toolGroup.content.tools[0]).not.toHaveProperty("approval");
     }
+  });
+});
+
+describe("withInterruptedRunNotices", () => {
+  const message = (id: string, runId?: string) => ({
+    id,
+    role: "assistant" as const,
+    content: { type: "text" as const, text: id },
+    ...(runId ? { runId } : {}),
+  });
+
+  const unattributed = (id: string) => ({
+    id,
+    role: "assistant" as const,
+    content: { type: "reasoning" as const, text: id, isStreaming: false },
+  });
+
+  const userMessage = (id: string) => ({
+    id,
+    role: "user" as const,
+    content: { type: "text" as const, text: id },
+  });
+
+  const label = (m: InAppAgentWindowMessage) =>
+    m.content.type === "runNotice" ? `notice:${m.content.text}` : m.id;
+
+  it("renders exactly one notice per interrupted run, at the end of its work", () => {
+    // The shape a real cancelled turn produces: only the assistant messages
+    // carry a runId, while the reasoning blocks and tool groups between and
+    // after them do not. Keying off "next message has a different runId" fires
+    // at every assistant message and scatters duplicate notices mid-transcript.
+    const result = withInterruptedRunNotices(
+      [
+        unattributed("thought-1"),
+        message("assistant-1", "run-1"),
+        unattributed("tools-1"),
+        message("assistant-2", "run-1"),
+        unattributed("thought-2"),
+      ],
+      [{ id: "run-1", message: "You stopped this run." }],
+    );
+
+    expect(result.map(label)).toEqual([
+      "thought-1",
+      "assistant-1",
+      "tools-1",
+      "assistant-2",
+      "thought-2",
+      "notice:You stopped this run.",
+    ]);
+  });
+
+  it("does not push a notice past the next user message", () => {
+    // A user message always starts a new turn, so attribution resets there;
+    // otherwise the interrupted run's notice lands below the next question.
+    const result = withInterruptedRunNotices(
+      [
+        message("assistant-1", "run-1"),
+        unattributed("thought-1"),
+        userMessage("user-2"),
+        message("assistant-2", "run-2"),
+      ],
+      [{ id: "run-1", message: "You stopped this run." }],
+    );
+
+    expect(result.map(label)).toEqual([
+      "assistant-1",
+      "thought-1",
+      "notice:You stopped this run.",
+      "user-2",
+      "assistant-2",
+    ]);
+  });
+
+  it("still marks a run that never produced a message", () => {
+    // Cancelling while the run is queued leaves nothing to anchor to; dropping
+    // the notice would make the cancel leave no trace at all.
+    const result = withInterruptedRunNotices(
+      [message("a1", "run-1")],
+      [{ id: "run-2", message: "You stopped this run." }],
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result[1]?.content).toEqual({
+      type: "runNotice",
+      text: "You stopped this run.",
+    });
+  });
+
+  it("leaves the transcript untouched when nothing was interrupted", () => {
+    const messages = [message("a1", "run-1")];
+
+    expect(withInterruptedRunNotices(messages, [])).toBe(messages);
   });
 });

@@ -17,6 +17,7 @@ import {
   Minus,
   Plus,
   SendHorizontal,
+  Square,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -274,6 +275,16 @@ export type InAppAgentWindowProps = {
   onRejectToolCall: (approvalId: string) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
+  /**
+   * Lifecycle copy for a worker-executed run: that the user may close the
+   * drawer while it works, or why the last run ended badly. Null on the
+   * foreground path, where a run cannot outlive the tab.
+   */
+  backgroundRunNotice?: string | null;
+  /** Present only when a run can outlive the browser and so needs stopping. */
+  onCancelRun?: () => void;
+  /** A stop is already in flight; the run is winding down cooperatively. */
+  isCancellingRun?: boolean;
   onSubmit: (
     input: string,
     options?: InAppAgentSubmitOptions,
@@ -376,6 +387,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
+    backgroundRunNotice,
+    onCancelRun,
+    isCancellingRun = false,
     onSubmitFeedback,
     focusedQuickActions,
     quickActionContext,
@@ -391,6 +405,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isMobile = useIsMobile();
   const isRateLimited = isInAppAgentRateLimited(error);
   const isInputDisabled = baseIsInputDisabled || isRateLimited;
+  // Stopping only makes sense while something is actually executing, and only
+  // where a run outlives the tab — otherwise closing the drawer is the stop.
+  const canStopRun = Boolean(onCancelRun) && isAssistantTurnInProgress;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
@@ -854,6 +871,19 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   {screenContextNotice}
                 </span>
               </p>
+              {backgroundRunNotice && (
+                <p
+                  className={cn(
+                    "border-border bg-muted/60 text-foreground-secondary flex w-full items-center gap-1 rounded-lg border px-2 py-1",
+                    isExpanded ? "text-sm" : "text-xs",
+                  )}
+                >
+                  <Info aria-hidden="true" className="size-3 shrink-0" />
+                  <span className="min-w-0" title={backgroundRunNotice}>
+                    {backgroundRunNotice}
+                  </span>
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -946,32 +976,64 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   : "border-input max-h-40 min-h-8 px-3 py-1",
               )}
             />
-            {!isExpanded && (
-              <Button
-                type="submit"
-                size="icon"
-                className="h-8 w-8 rounded-md border"
-                aria-label="Send message"
-                variant="outline"
-                disabled={isInputDisabled || !input.trim()}
-              >
-                <SendHorizontal className="h-4 w-4" />
-              </Button>
-            )}
+            {!isExpanded &&
+              (canStopRun ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  className="h-8 w-8 rounded-md border"
+                  aria-label={isCancellingRun ? "Stopping run" : "Stop run"}
+                  variant="outline"
+                  disabled={isCancellingRun}
+                  onClick={() => {
+                    onCancelRun?.();
+                  }}
+                >
+                  <Square className="h-3 w-3" />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="h-8 w-8 rounded-md border"
+                  aria-label="Send message"
+                  variant="outline"
+                  disabled={isInputDisabled || !input.trim()}
+                >
+                  <SendHorizontal className="h-4 w-4" />
+                </Button>
+              ))}
 
             {isExpanded && (
               <div className="flex w-full justify-end p-1">
-                <Button
-                  type="submit"
-                  className="h-8 w-fit rounded-md px-3"
-                  aria-label="Send message"
-                  disabled={isInputDisabled || !input.trim()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                >
-                  Send <SendHorizontal className="ml-2 h-4 w-4" />
-                </Button>
+                {canStopRun ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 w-fit rounded-md px-3"
+                    aria-label={isCancellingRun ? "Stopping run" : "Stop run"}
+                    disabled={isCancellingRun}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCancelRun?.();
+                    }}
+                  >
+                    {isCancellingRun ? "Stopping" : "Stop"}
+                    <Square className="ml-2 h-3 w-3" />
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    className="h-8 w-fit rounded-md px-3"
+                    aria-label="Send message"
+                    disabled={isInputDisabled || !input.trim()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    Send <SendHorizontal className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
               </div>
             )}
           </form>

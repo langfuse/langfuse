@@ -697,3 +697,92 @@ function mergeSources(
 ): InAppAgentMessageSource[] {
   return deduplicateBy([...existing, ...next], (source) => source.url);
 }
+
+export type InAppAgentInterruptedRun = {
+  id: string;
+  /** User-facing reason, already mapped from the run's typed error code. */
+  message: string;
+};
+
+/**
+ * Mark turns that ended without finishing.
+ *
+ * A cancelled or failed run keeps its partial work in the transcript — the tool
+ * calls really ran, and the events are the only record of them, so they are
+ * neither deleted nor hidden. Without a boundary, though, the turn just appears
+ * to trail off mid-sentence, which is indistinguishable from the agent giving up
+ * on its own.
+ *
+ * The notice is anchored after the run's last message. A run that produced no
+ * message at all (cancelled while still queued) has nothing to anchor to, so its
+ * notice goes at the end — otherwise the cancel would leave no trace whatsoever.
+ */
+export function withInterruptedRunNotices(
+  messages: InAppAgentWindowMessage[],
+  interruptedRuns: readonly InAppAgentInterruptedRun[],
+): InAppAgentWindowMessage[] {
+  if (interruptedRuns.length === 0) {
+    return messages;
+  }
+
+  const messageByRunId = new Map(
+    interruptedRuns.map((run) => [run.id, run.message]),
+  );
+
+  // Only assistant messages carry a runId; reasoning blocks and tool groups do
+  // not. So attribution carries forward from the last assistant message, and
+  // resets at a user message — which always starts a new turn, and would
+  // otherwise inherit the previous run and push its notice below the user's
+  // next question. Without this, "is the next message a different run?" is true
+  // at *every* assistant message and one interrupted run renders several
+  // notices scattered mid-transcript.
+  const lastIndexByRunId = new Map<string, number>();
+  let attributedRunId: string | undefined;
+
+  messages.forEach((message, index) => {
+    if (message.role === "user") {
+      attributedRunId = undefined;
+      return;
+    }
+
+    if (message.runId) {
+      attributedRunId = message.runId;
+    }
+
+    if (attributedRunId) {
+      lastIndexByRunId.set(attributedRunId, index);
+    }
+  });
+
+  const anchored = new Set<string>();
+  const withNotices: InAppAgentWindowMessage[] = [];
+
+  messages.forEach((message, index) => {
+    withNotices.push(message);
+
+    for (const [runId, lastIndex] of lastIndexByRunId) {
+      if (lastIndex !== index || !messageByRunId.has(runId)) {
+        continue;
+      }
+
+      anchored.add(runId);
+      withNotices.push(createRunNotice(runId, messageByRunId.get(runId) ?? ""));
+    }
+  });
+
+  for (const run of interruptedRuns) {
+    if (!anchored.has(run.id)) {
+      withNotices.push(createRunNotice(run.id, run.message));
+    }
+  }
+
+  return withNotices;
+}
+
+function createRunNotice(runId: string, text: string): InAppAgentWindowMessage {
+  return {
+    id: `in-app-agent-run-notice-${runId}`,
+    role: "assistant",
+    content: { type: "runNotice", text },
+  };
+}

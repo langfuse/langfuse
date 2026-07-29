@@ -44,3 +44,25 @@ export const IN_APP_AGENT_APPROVAL_TTL_MS = envMs(
   "LANGFUSE_IN_APP_AGENT_APPROVAL_TTL_MS",
   24 * 60 * 60_000,
 );
+
+/** Interval at which the watch stream re-reads run status + new events. */
+export const IN_APP_AGENT_WATCH_TAIL_POLL_MS = envMs(
+  "LANGFUSE_IN_APP_AGENT_WATCH_TAIL_POLL_MS",
+  1_000,
+);
+
+/** SSE comment interval, so load-balancer idle timeouts never fire. */
+export const IN_APP_AGENT_WATCH_KEEPALIVE_MS = envMs(
+  "LANGFUSE_IN_APP_AGENT_WATCH_KEEPALIVE_MS",
+  15_000,
+);
+
+/**
+ * Deliberate stream end; the client reconnects with its cursor through the
+ * same path as a fresh page load, so route/LB duration limits are never hit
+ * unpredictably. Kept well inside the watch route's 120s `maxDuration`.
+ */
+export const IN_APP_AGENT_WATCH_MAX_CONNECTION_MS = envMs(
+  "LANGFUSE_IN_APP_AGENT_WATCH_MAX_CONNECTION_MS",
+  90_000,
+);
