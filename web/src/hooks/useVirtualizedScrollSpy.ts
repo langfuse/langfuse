@@ -140,6 +140,7 @@ export function useVirtualizedScrollSpy<
 
   return {
     activeItemId: selectedItemId ?? scrollSpyItemId,
+    selectedItemId,
     virtualItems,
     selectItem,
     restoreScrollSpy,

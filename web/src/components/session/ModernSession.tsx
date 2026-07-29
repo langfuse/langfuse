@@ -53,6 +53,7 @@ export function ModernSession({
   });
   const {
     activeItemId: activeTraceId,
+    selectedItemId: selectedTraceId,
     virtualItems,
     selectItem: selectTrace,
     restoreScrollSpy,
@@ -65,7 +66,7 @@ export function ModernSession({
   });
 
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-1">
+    <div className="bg-background dark:bg-header relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden pb-4 pl-4 lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
       <ConnectedModernSessionObservationList
         state={
           tracesState.type === "loading"
@@ -74,6 +75,7 @@ export function ModernSession({
                 type: "loaded",
                 traces,
                 activeTraceId,
+                selectedTraceId,
                 onSelect: selectTrace,
               }
         }
@@ -81,55 +83,57 @@ export function ModernSession({
         sessionId={sessionId}
         filterState={filterState}
       />
-      <div
-        ref={feedRef}
-        className="min-h-0 overflow-y-auto scroll-smooth"
-        onWheel={restoreScrollSpy}
-        onTouchMove={restoreScrollSpy}
-        onPointerDown={(event) => {
-          if (event.target === event.currentTarget) restoreScrollSpy();
-        }}
-      >
+      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px] border-l">
         <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            width: "100%",
-            position: "relative",
+          ref={feedRef}
+          className="h-full min-h-0 overflow-y-auto scroll-smooth"
+          onWheel={restoreScrollSpy}
+          onTouchMove={restoreScrollSpy}
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) restoreScrollSpy();
           }}
         >
-          {virtualItems.map((virtualItem) => {
-            const trace = traces[virtualItem.index];
-            if (!trace) return null;
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualItems.map((virtualItem) => {
+              const trace = traces[virtualItem.index];
+              if (!trace) return null;
 
-            const content = (
-              <LazySessionTraceEventsRow
-                trace={trace}
-                projectId={projectId}
-                sessionId={sessionId}
-                openPeek={openPeek}
-                traceCommentCounts={traceCommentCounts}
-                index={virtualItem.index}
-                filterState={filterState}
-                viewLabel={viewLabel}
-                surface="modern"
-                contentMode={showInlineToolCalls ? "all" : "conversation"}
-                showSystemPrompt={showSystemPrompt}
-              />
-            );
+              const content = (
+                <LazySessionTraceEventsRow
+                  trace={trace}
+                  projectId={projectId}
+                  sessionId={sessionId}
+                  openPeek={openPeek}
+                  traceCommentCounts={traceCommentCounts}
+                  index={virtualItem.index}
+                  filterState={filterState}
+                  viewLabel={viewLabel}
+                  surface="modern"
+                  contentMode={showInlineToolCalls ? "all" : "conversation"}
+                  showSystemPrompt={showSystemPrompt}
+                />
+              );
 
-            return (
-              <SessionVirtualizedRow
-                key={virtualItem.key}
-                itemKey={String(virtualItem.key)}
-                measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}`}
-                source="modern"
-                virtualItem={virtualItem}
-                virtualizer={virtualizer}
-              >
-                {content}
-              </SessionVirtualizedRow>
-            );
-          })}
+              return (
+                <SessionVirtualizedRow
+                  key={virtualItem.key}
+                  itemKey={String(virtualItem.key)}
+                  measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}`}
+                  source="modern"
+                  virtualItem={virtualItem}
+                  virtualizer={virtualizer}
+                >
+                  {content}
+                </SessionVirtualizedRow>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

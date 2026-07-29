@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 
+import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 type ObservationListRow = {
@@ -28,7 +29,7 @@ export function ObservationListRows({
     }) {
   if (state.type === "loading") {
     return (
-      <div className="flex flex-col gap-1 px-3 py-2">
+      <div className="flex flex-col gap-1 py-2 pl-4">
         <div className="bg-muted h-3 w-3/4 animate-pulse rounded-sm" />
         <div className="bg-muted h-3 w-1/2 animate-pulse rounded-sm" />
       </div>
@@ -37,32 +38,30 @@ export function ObservationListRows({
 
   if (state.type === "empty") {
     return (
-      <p className="text-muted-foreground px-3 py-2 text-xs">
+      <p className="text-muted-foreground py-2 pl-4 text-xs">
         {state.hasFilters ? "No matching spans" : "No observations"}
       </p>
     );
   }
 
   return (
-    <div>
+    <div className="mt-2 ml-4 flex flex-col">
       {state.rows.map((observation) => (
         <button
           key={observation.id}
           type="button"
           onClick={onSelectTurn}
-          className="hover:bg-muted/40 flex w-full items-center gap-2 border-t px-2.5 py-1.5 text-left"
+          className="hover:bg-foreground/10 -mr-2 flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors duration-150"
         >
-          <span className="bg-muted/40 text-muted-foreground min-w-[46px] shrink-0 rounded-sm border px-1 py-px text-center font-mono text-[8.5px] font-bold tracking-wide uppercase">
-            {observation.type === "GENERATION" ? "GEN" : observation.type}
-          </span>
+          {renderFilterIcon(observation.type)}
           <span
-            className="min-w-0 flex-1 truncate text-xs"
+            className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
             title={observation.name ?? observation.id}
           >
             {observation.name ?? observation.id}
           </span>
           {observation.latency !== null && observation.type !== "EVENT" ? (
-            <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
+            <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
               {formatIntervalSeconds(observation.latency)}
             </span>
           ) : null}

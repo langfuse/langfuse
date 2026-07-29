@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 
 import { type ObservationListRowsRenderer } from "@/src/components/session/ObservationListRows";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
@@ -21,6 +21,7 @@ const TurnCard = React.memo(
     trace,
     index,
     isActive,
+    isSelected,
     isCollapsed,
     onToggleCollapse,
     onSelect,
@@ -30,6 +31,7 @@ const TurnCard = React.memo(
     trace: EventSessionTrace;
     index: number;
     isActive: boolean;
+    isSelected: boolean;
     isCollapsed: boolean;
     onToggleCollapse: (traceId: string) => void;
     onSelect: (index: number) => void;
@@ -38,36 +40,17 @@ const TurnCard = React.memo(
   }) => (
     <div
       className={cn(
-        "bg-background mb-2 overflow-hidden rounded-sm border",
-        isActive && "ring-primary/60 border-primary/60 ring-1",
+        "group hover:bg-foreground/[0.03] rounded-sm border border-transparent p-2 transition-colors duration-150",
+        isActive && !isSelected && "bg-foreground/5",
       )}
       data-observation-list-active={isActive}
     >
       <button
         type="button"
         onClick={() => onSelect(index)}
-        className={cn(
-          "flex w-full items-center gap-2 px-2.5 py-2 text-left",
-          isActive && "bg-primary/5",
-        )}
+        className="flex w-full items-center gap-2 text-left"
         aria-current={isActive ? "true" : undefined}
       >
-        <span
-          className={cn(
-            "shrink-0 rounded-sm border px-1.5 py-px font-mono text-[9px] font-bold",
-            isActive
-              ? "border-primary/50 bg-primary/10 text-primary"
-              : "bg-muted/50 text-muted-foreground",
-          )}
-        >
-          {index + 1}
-        </span>
-        <span
-          className="min-w-0 flex-1 truncate text-xs font-bold"
-          title={trace.name ?? "Trace"}
-        >
-          {trace.name ?? "Trace"}
-        </span>
         <span
           role="button"
           tabIndex={0}
@@ -83,14 +66,31 @@ const TurnCard = React.memo(
               onToggleCollapse(trace.id);
             }
           }}
-          className="hover:bg-muted flex h-5 w-5 shrink-0 items-center justify-center rounded-sm"
+          className="text-muted-foreground flex h-3.5 w-3.5 shrink-0 items-center justify-center"
         >
           <ChevronDown
             className={cn(
-              "text-muted-foreground h-3.5 w-3.5 transition-transform",
+              "h-3 w-3 transition-transform duration-150",
               isCollapsed ? "-rotate-90" : "rotate-0",
             )}
+            strokeWidth={1.6}
           />
+        </span>
+        <span
+          className={cn(
+            "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]",
+            isSelected
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border bg-tertiary text-foreground",
+          )}
+        >
+          {index + 1}
+        </span>
+        <span
+          className="min-w-0 flex-1 truncate text-[13px] font-bold"
+          title={trace.name ?? "Trace"}
+        >
+          {trace.name ?? "Trace"}
         </span>
       </button>
       {!isCollapsed
@@ -112,6 +112,7 @@ export function ModernSessionObservationList(
         state: "loaded";
         traces: EventSessionTrace[];
         activeTraceId: string | undefined;
+        selectedTraceId: string | undefined;
         renderObservationRows: ObservationListRowsRenderer;
         onSelect: (index: number) => void;
       },
@@ -157,20 +158,19 @@ export function ModernSessionObservationList(
         role="complementary"
         aria-label="Session spans"
         aria-busy="true"
-        className="bg-background flex h-full min-h-0 flex-col border-r"
+        className="relative flex h-full min-h-0 flex-col"
       >
-        <div className="flex shrink-0 items-center gap-1.5 border-b p-2">
+        <div className="flex shrink-0 justify-end px-1 pt-4 pb-[7px]">
+          <div className="bg-muted h-2.5 w-24 animate-pulse rounded-sm" />
+        </div>
+        <div className="flex shrink-0 items-center border-b px-1 pt-2.5 pb-3">
           <div className="bg-muted h-7 flex-1 animate-pulse rounded-sm" />
         </div>
-        <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
-          <div className="bg-muted h-2.5 w-14 animate-pulse rounded-sm" />
-          <div className="bg-muted h-2.5 w-5 animate-pulse rounded-sm" />
-        </div>
-        <div className="bg-muted/40 flex min-h-0 flex-1 flex-col gap-2 p-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 px-1 pt-0.5 pb-4">
           {[0, 1, 2].map((index) => (
             <div
               key={index}
-              className="bg-background flex flex-col gap-2 rounded-sm border p-2.5"
+              className="flex flex-col gap-2 rounded-sm border border-transparent p-2"
             >
               <div className="flex items-center gap-2">
                 <div className="bg-muted h-4 w-4 animate-pulse rounded-sm" />
@@ -186,34 +186,41 @@ export function ModernSessionObservationList(
     );
   }
 
-  const { activeTraceId, renderObservationRows, onSelect } = props;
+  const { activeTraceId, selectedTraceId, renderObservationRows, onSelect } =
+    props;
 
   return (
     <div
       role="complementary"
       aria-label="Session spans"
-      className="bg-background flex h-full min-h-0 flex-col border-r"
+      className="relative flex h-full min-h-0 flex-col"
     >
-      <div className="flex shrink-0 items-center gap-1.5 border-b p-2">
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          aria-label="Search spans"
-          placeholder="Search spans..."
-          className="h-7 flex-1 text-xs"
-        />
+      <div className="flex shrink-0 justify-end px-1 pt-4 pb-[7px]">
+        <span
+          className="text-foreground-tertiary font-mono text-[10px]"
+          title={`${traces.length} traces, ${totalSpanCount} spans`}
+        >
+          {traces.length} traces, {totalSpanCount} spans
+        </span>
       </div>
-      <div className="flex shrink-0 items-center justify-between border-b px-3 py-1.5">
-        <span className="text-muted-foreground font-mono text-[9px] font-bold tracking-[0.08em] uppercase">
-          All spans
-        </span>
-        <span className="text-muted-foreground font-mono text-[10px]">
-          {totalSpanCount}
-        </span>
+      <div className="flex shrink-0 items-center border-b px-1 pt-2.5 pb-3">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
+            strokeWidth={1.6}
+          />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            aria-label="Search spans"
+            placeholder="Search spans"
+            className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
+          />
+        </div>
       </div>
       <div
         ref={listRef}
-        className="bg-muted/40 min-h-0 flex-1 overflow-y-auto p-2"
+        className="min-h-0 flex-1 overflow-y-auto px-1 pt-0.5 pb-4"
       >
         <div
           style={{
@@ -245,16 +252,19 @@ export function ModernSessionObservationList(
                     </span>
                   </div>
                 ) : null}
-                <TurnCard
-                  trace={trace}
-                  index={virtualItem.index}
-                  isActive={trace.id === activeTraceId}
-                  isCollapsed={isCollapsed}
-                  onToggleCollapse={toggleCollapse}
-                  onSelect={onSelect}
-                  renderObservationRows={renderObservationRows}
-                  search={search}
-                />
+                <div className="pb-2">
+                  <TurnCard
+                    trace={trace}
+                    index={virtualItem.index}
+                    isActive={trace.id === activeTraceId}
+                    isSelected={trace.id === selectedTraceId}
+                    isCollapsed={isCollapsed}
+                    onToggleCollapse={toggleCollapse}
+                    onSelect={onSelect}
+                    renderObservationRows={renderObservationRows}
+                    search={search}
+                  />
+                </div>
               </SessionVirtualizedRow>
             );
           })}

@@ -55,6 +55,7 @@ describe("useVirtualizedScrollSpy", () => {
     act(() => result.current.selectItem(10));
 
     expect(result.current.activeItemId).toBe("10");
+    expect(result.current.selectedItemId).toBe("10");
     expect(scrollElement.scrollTo).toHaveBeenCalledWith({
       top: 1_000,
       behavior: "smooth",
@@ -63,5 +64,6 @@ describe("useVirtualizedScrollSpy", () => {
     act(() => result.current.restoreScrollSpy());
 
     expect(result.current.activeItemId).toBe("52");
+    expect(result.current.selectedItemId).toBeUndefined();
   });
 });

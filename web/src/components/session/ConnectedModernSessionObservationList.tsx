@@ -87,6 +87,7 @@ export function ConnectedModernSessionObservationList({
         type: "loaded";
         traces: EventSessionTrace[];
         activeTraceId: string | undefined;
+        selectedTraceId: string | undefined;
         onSelect: (index: number) => void;
       };
   projectId: string;
@@ -97,13 +98,14 @@ export function ConnectedModernSessionObservationList({
     return <ModernSessionObservationList state="loading" />;
   }
 
-  const { traces, activeTraceId, onSelect } = state;
+  const { traces, activeTraceId, selectedTraceId, onSelect } = state;
 
   return (
     <ModernSessionObservationList
       state="loaded"
       traces={traces}
       activeTraceId={activeTraceId}
+      selectedTraceId={selectedTraceId}
       renderObservationRows={(props) => (
         <ConnectedObservationRows
           {...props}

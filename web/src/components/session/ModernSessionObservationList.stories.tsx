@@ -114,6 +114,7 @@ const loadedArgs = {
   state: "loaded",
   traces,
   activeTraceId: "turn-2",
+  selectedTraceId: undefined,
   renderObservationRows,
   onSelect: fn(),
 } satisfies Extract<
@@ -125,7 +126,7 @@ const meta = preview.meta({
   component: ModernSessionObservationList,
   parameters: { layout: "fullscreen" },
   render: (args) => (
-    <div className="h-screen w-[300px]">
+    <div className="bg-background h-screen w-[296px]">
       <ModernSessionObservationList {...args} />
     </div>
   ),
@@ -134,6 +135,13 @@ const meta = preview.meta({
 export default meta;
 
 export const Default = meta.story({ args: loadedArgs });
+
+export const SelectedTurn = meta.story({
+  args: {
+    ...loadedArgs,
+    selectedTraceId: "turn-2",
+  },
+});
 
 export const LoadingTurns = meta.story({
   args: {
