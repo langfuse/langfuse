@@ -412,6 +412,14 @@ describe("formatCompoundDuration", () => {
     expect(formatCompoundDuration(86_399_499)).toBe("1d");
   });
 
+  it("routes values that round up to a minute into the compound path", () => {
+    // 59.998s falls under the raw 60s threshold, but the single-unit
+    // formatter's own rounding would print "60s" — it must read "1m".
+    expect(formatCompoundDuration(59_998)).toBe("1m");
+    // Below the rounding window the single-unit format stays.
+    expect(formatCompoundDuration(59_400)).toBe("59.4s");
+  });
+
   it("keeps the shared single-unit format below a minute", () => {
     expect(formatCompoundDuration(30_000)).toBe("30s");
     expect(formatCompoundDuration(450)).toBe("450ms");

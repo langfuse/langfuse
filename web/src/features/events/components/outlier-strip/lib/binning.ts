@@ -146,10 +146,17 @@ const COMPOUND_DURATION_UNITS = [
 ] as const;
 
 export const formatCompoundDuration = (ms: number): string => {
-  // Non-finite corrupt data keeps the shared formatter's "∞d", not
+  // Threshold on the SECOND-ROUNDED value: 59,998ms must take the compound
+  // path ("1m") — the single-unit formatter's own rounding would print
+  // "60s". Non-finite corrupt data keeps the shared formatter's "∞d", not
   // "Infinityd" from the arithmetic below.
-  if (!(ms >= 60_000) || !Number.isFinite(ms)) return latencyFormatter(ms);
-  const index = COMPOUND_DURATION_UNITS.findIndex((unit) => ms >= unit.ms);
+  const secondRounded = Math.round(ms / 1_000) * 1_000;
+  if (!Number.isFinite(ms) || secondRounded < 60_000) {
+    return latencyFormatter(ms);
+  }
+  const index = COMPOUND_DURATION_UNITS.findIndex(
+    (unit) => secondRounded >= unit.ms,
+  );
   const unit = COMPOUND_DURATION_UNITS[index];
   // Always defined: ms >= 60_000 selects "m" or coarser, never "s".
   const sub = COMPOUND_DURATION_UNITS[index + 1];
