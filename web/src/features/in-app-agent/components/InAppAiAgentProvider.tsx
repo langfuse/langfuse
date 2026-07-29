@@ -10,7 +10,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { EventType, HttpAgent } from "@ag-ui/client";
+import { EventType, HttpAgent, type AbstractAgent } from "@ag-ui/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { z } from "zod";
@@ -25,12 +25,24 @@ import {
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
+  isActiveInAppAgentRunStatus,
   type AgUiMessage,
   type InAppAgentMessageFeedback,
   type InAppAgentMessageFeedbackValue,
   type InAppAgentRuntimeState,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
+import { InAppAgentRunStatus } from "@langfuse/shared";
+import { InAppAgentBackgroundClient } from "@/src/features/in-app-agent/lib/backgroundAgentClient";
+import { useInAppAgentBackgroundExecutionEnabled } from "@/src/features/in-app-agent/lib/backgroundExecutionFlag";
+import {
+  BackgroundExecutionSessionController,
+  getBackgroundRunFailureMessage,
+  isCancellableBackgroundRun,
+  type AgentInput,
+  type BackgroundExecutionSession,
+  type BackgroundExecutionView,
+} from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
 import type { InAppAgentError } from "@/src/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -102,6 +114,9 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isSubmitting: false,
   pendingToolApprovals: [],
   isSelectedConversationHydrating: false,
+  backgroundExecutionEnabled: false,
+  backgroundRunNotice: null,
+  isCancellingRun: false,
   error: null,
   messages: [],
   liveMessageVersion: 0,
@@ -156,6 +171,8 @@ export type InAppAgentPendingToolApproval = {
   id: string;
   approvalRequest: InAppAgentToolApprovalRequest;
   status: "pending" | "submitting";
+  // Present for approvals restored from persisted background events.
+  runId?: string;
 };
 
 export type InAppAiAgentConversation = {
@@ -169,9 +186,7 @@ type InAppAiAgentContextType = {
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
-  /** Open the assistant from an entrypoint. Owns the AI-features gate: shows
-   * the disabled dialog and returns false when the organization has AI
-   * features turned off. */
+  /** Returns false and opens the disabled dialog when AI features are off. */
   openAssistant: (source: InAppAgentEntryPoint) => boolean;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
@@ -179,6 +194,11 @@ type InAppAiAgentContextType = {
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
   isSelectedConversationHydrating: boolean;
+  /** True when this browser is opted into worker-executed runs. */
+  backgroundExecutionEnabled: boolean;
+  backgroundRunNotice: string | null;
+  isCancellingRun: boolean;
+  cancelRun?: () => void;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
   liveMessageVersion: number;
@@ -305,13 +325,22 @@ function InAppAiAgentProviderInner({
     () => new Set(),
   );
   const [error, setError] = useState<InAppAgentError | null>(null);
-  const agentRef = useRef<HttpAgent | null>(null);
+  const agentRef = useRef<AbstractAgent | null>(null);
+  const backgroundSessionRef = useRef<BackgroundExecutionSession | null>(null);
+  const backgroundSessionUnsubscribeRef = useRef<(() => void) | null>(null);
+  const backgroundSessionMessagesRef = useRef<AgUiMessage[] | null>(null);
+  const backgroundSessionApprovalsRef = useRef<
+    BackgroundExecutionView["pendingToolApprovals"] | null
+  >(null);
   const activeRunIdRef = useRef<string | null>(null);
   const toolCallNamesRef = useRef(new Map<string, string>());
+  const backgroundExecutionEnabled = useInAppAgentBackgroundExecutionEnabled();
+  const [backgroundRunStatus, setBackgroundRunStatus] =
+    useState<BackgroundExecutionView["currentRun"]>(null);
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const runInFlightRef = useRef(false);
-  const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
+  const subscriptionRef = useRef<ReturnType<AbstractAgent["subscribe"]> | null>(
     null,
   );
 
@@ -335,6 +364,10 @@ function InAppAiAgentProviderInner({
   const deleteConversationMutation =
     api.inAppAgent.deleteConversation.useMutation();
   const feedbackMutation = api.inAppAgent.submitFeedback.useMutation();
+  const startRunMutation = api.inAppAgent.startRun.useMutation();
+  const cancelRunMutation = api.inAppAgent.cancelRun.useMutation();
+  const decideToolApprovalMutation =
+    api.inAppAgent.decideToolApproval.useMutation();
   const isSelectedConversationNotFound =
     conversationQuery.error?.data?.code === "NOT_FOUND";
   const selectedConversationId = isSelectedConversationNotFound
@@ -351,6 +384,51 @@ function InAppAiAgentProviderInner({
   const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
   const selectedConversationIsWriteLocked =
     conversationQuery.data?.conversation.isWriteLocked ?? false;
+
+  const persistedToolApprovals = useMemo(
+    () =>
+      conversationQuery.data?.conversation.id === selectedConversationId
+        ? conversationQuery.data.pendingToolApprovals
+        : [],
+    [
+      conversationQuery.data?.conversation.id,
+      conversationQuery.data?.pendingToolApprovals,
+      selectedConversationId,
+    ],
+  );
+
+  // Union persisted approvals with newer local events and submission state.
+  const effectivePendingToolApprovals = useMemo(() => {
+    if (!backgroundExecutionEnabled) {
+      return pendingToolApprovals;
+    }
+
+    const localById = new Map(
+      pendingToolApprovals.map((approval) => [approval.id, approval]),
+    );
+
+    const hydrated = persistedToolApprovals.map(
+      ({ runId, approvalRequest }): InAppAgentPendingToolApproval => ({
+        id: approvalRequest.toolCallId,
+        approvalRequest,
+        status: localById.get(approvalRequest.toolCallId)?.status ?? "pending",
+        runId,
+      }),
+    );
+
+    const hydratedIds = new Set(hydrated.map((approval) => approval.id));
+
+    return [
+      ...hydrated,
+      ...pendingToolApprovals.filter(
+        (approval) => !hydratedIds.has(approval.id),
+      ),
+    ];
+  }, [
+    backgroundExecutionEnabled,
+    pendingToolApprovals,
+    persistedToolApprovals,
+  ]);
   const currentMessages = useMemo(() => {
     if (isSelectedConversationNotFound) {
       return EMPTY_MESSAGES;
@@ -497,6 +575,13 @@ function InAppAiAgentProviderInner({
   const publishAgentMessages = useCallback(
     (agentMessages: readonly unknown[]) => {
       const nextMessages = agentMessages.filter(isAgentConversationMessage);
+      backgroundSessionMessagesRef.current = nextMessages;
+      if (
+        backgroundSessionRef.current instanceof
+        BackgroundExecutionSessionController
+      ) {
+        backgroundSessionRef.current.observeMessages(nextMessages);
+      }
       setDisplayState((currentState) =>
         recordInAppAgentMessagesForDisplay(currentState, nextMessages),
       );
@@ -517,15 +602,24 @@ function InAppAiAgentProviderInner({
 
     subscriptionRef.current?.unsubscribe();
     subscriptionRef.current = null;
-    agentRef.current?.abortRun();
+    backgroundSessionUnsubscribeRef.current?.();
+    backgroundSessionUnsubscribeRef.current = null;
+    backgroundSessionRef.current?.detach();
+    backgroundSessionRef.current = null;
+    backgroundSessionMessagesRef.current = null;
+    backgroundSessionApprovalsRef.current = null;
+    if (!backgroundExecutionEnabled) {
+      agentRef.current?.abortRun();
+    }
     agentRef.current = null;
     activeRunIdRef.current = null;
     toolCallNamesRef.current.clear();
+    setBackgroundRunStatus(null);
     setDisplayState(createInAppAgentDisplayState());
     pendingToolApprovalsRef.current = [];
     setPendingToolApprovals([]);
     clearLoadingEvents();
-  }, [clearLoadingEvents]);
+  }, [backgroundExecutionEnabled, clearLoadingEvents]);
 
   useEffect(() => {
     return () => {
@@ -562,7 +656,7 @@ function InAppAiAgentProviderInner({
   }, [rateLimitRetryAt]);
 
   const ensureSubscription = useCallback(
-    (agent: HttpAgent) => {
+    (agent: AbstractAgent) => {
       if (subscriptionRef.current) {
         return;
       }
@@ -649,6 +743,17 @@ function InAppAiAgentProviderInner({
             status: "pending",
           };
 
+          if (
+            backgroundSessionRef.current instanceof
+            BackgroundExecutionSessionController
+          ) {
+            backgroundSessionRef.current.observeApproval({
+              runId: approvalRequest.runId,
+              approvalRequest,
+            });
+            return;
+          }
+
           updatePendingToolApprovals((currentApprovals) => {
             const existingIndex = currentApprovals.findIndex(
               (currentApproval) => currentApproval.id === approval.id,
@@ -675,6 +780,14 @@ function InAppAiAgentProviderInner({
                 );
               },
             );
+          }
+
+          if (
+            backgroundSessionRef.current instanceof
+            BackgroundExecutionSessionController
+          ) {
+            backgroundSessionRef.current.resolveApproval(event.toolCallId);
+            return;
           }
 
           updatePendingToolApprovals((currentApprovals) =>
@@ -709,6 +822,11 @@ function InAppAiAgentProviderInner({
     ],
   );
 
+  const releaseSubmitLock = useCallback(() => {
+    submitInFlightRef.current = false;
+    setIsSubmitting(false);
+  }, []);
+
   const getOrCreateAgent = useCallback(
     (
       conversationId: string,
@@ -721,34 +839,217 @@ function InAppAiAgentProviderInner({
 
       resetAgent();
 
-      const agent = new HttpAgent({
-        url: getInAppAgentUrl(),
-        threadId: conversationId,
-        initialMessages,
-        initialState: getConversationAgentState(
-          projectId,
-          conversationId,
-          isNewConversation,
-        ),
-      });
+      const initialState = getConversationAgentState(
+        projectId,
+        conversationId,
+        isNewConversation,
+      );
+
+      let backgroundSession: BackgroundExecutionSessionController | null = null;
+      const initialCursor =
+        conversationQuery.data?.conversation.id === conversationId
+          ? conversationQuery.data.eventCursor
+          : -1;
+      const initialRun =
+        conversationQuery.data?.conversation.id === conversationId &&
+        conversationQuery.data.latestRun
+          ? {
+              id: conversationQuery.data.latestRun.id,
+              status: conversationQuery.data.latestRun.status,
+              errorCode: conversationQuery.data.latestRun.errorCode,
+              cancelRequested: conversationQuery.data.latestRun.cancelRequested,
+            }
+          : null;
+
+      const agent = backgroundExecutionEnabled
+        ? new InAppAgentBackgroundClient({
+            projectId,
+            conversationId,
+            threadId: conversationId,
+            initialMessages,
+            initialState,
+            cursor: initialCursor,
+            startRun: (params) =>
+              startRunMutation.mutateAsync({
+                projectId,
+                conversationId,
+                message: params.message,
+                context: [...params.context],
+              }),
+          })
+        : new HttpAgent({
+            url: getInAppAgentUrl(),
+            threadId: conversationId,
+            initialMessages,
+            initialState,
+          });
 
       agentRef.current = agent;
 
+      if (agent instanceof InAppAgentBackgroundClient) {
+        const syncSessionView = () => {
+          if (!backgroundSession) {
+            return;
+          }
+
+          const view = backgroundSession.getSnapshot();
+          activeRunIdRef.current = view.currentRun?.id ?? null;
+          const executionActive =
+            view.isAttached ||
+            Boolean(
+              view.currentRun &&
+              isActiveInAppAgentRunStatus(view.currentRun.status),
+            );
+          setIsRunning(executionActive);
+          runInFlightRef.current = executionActive;
+          setBackgroundRunStatus(view.currentRun);
+
+          if (backgroundSessionMessagesRef.current !== view.messages) {
+            backgroundSessionMessagesRef.current = view.messages;
+            setMessages(view.messages);
+          }
+
+          if (
+            backgroundSessionApprovalsRef.current !== view.pendingToolApprovals
+          ) {
+            backgroundSessionApprovalsRef.current = view.pendingToolApprovals;
+            const approvals = view.pendingToolApprovals.map(
+              ({ runId, approvalRequest }) => ({
+                id: approvalRequest.toolCallId,
+                runId,
+                approvalRequest,
+                status: "pending" as const,
+              }),
+            );
+            pendingToolApprovalsRef.current = approvals;
+            setPendingToolApprovals(approvals);
+          }
+        };
+
+        backgroundSession = new BackgroundExecutionSessionController({
+          agent,
+          initialView: {
+            messages: initialMessages,
+            eventCursor: initialCursor,
+            currentRun: initialRun,
+          },
+          hydrate: async () => {
+            const snapshot = await utils.inAppAgent.getConversation.fetch({
+              projectId,
+              conversationId,
+            });
+
+            return {
+              messages: snapshot.messages.filter(isAgentConversationMessage),
+              eventCursor: snapshot.eventCursor,
+              currentRun: snapshot.latestRun
+                ? {
+                    id: snapshot.latestRun.id,
+                    status: snapshot.latestRun.status,
+                    errorCode: snapshot.latestRun.errorCode,
+                    cancelRequested: snapshot.latestRun.cancelRequested,
+                  }
+                : null,
+              pendingToolApprovals: snapshot.pendingToolApprovals,
+            } satisfies Omit<BackgroundExecutionView, "isAttached">;
+          },
+          cancelRun: (runId) =>
+            cancelRunMutation.mutateAsync({
+              projectId,
+              conversationId,
+              runId,
+            }),
+          decideApproval: (input) =>
+            decideToolApprovalMutation.mutateAsync({
+              projectId,
+              conversationId,
+              runId: input.runId,
+              toolCallId: input.toolCallId,
+              approved: input.approved,
+            }),
+          onError: (error) => {
+            setError(getInAppAgentError(error));
+            console.error("In-app agent background session error", error);
+          },
+          onSettled: () => {
+            const runId = activeRunIdRef.current;
+            clearLoadingEvents();
+            publishLiveMessages(
+              attachActiveRunIdToAssistantMessages(
+                agent.messages.filter(isAgentConversationMessage),
+                runId,
+              ),
+            );
+            utils.inAppAgent.listConversations.invalidate({ projectId });
+            utils.inAppAgent.getConversation.invalidate({
+              projectId,
+              conversationId,
+            });
+            releaseSubmitLock();
+            activeRunIdRef.current = null;
+            intentionalAbortRef.current = false;
+          },
+        });
+        backgroundSessionRef.current = backgroundSession;
+        backgroundSessionUnsubscribeRef.current =
+          backgroundSession.subscribe(syncSessionView);
+        syncSessionView();
+      }
+
       return agent;
     },
-    [projectId, resetAgent],
+    [
+      backgroundExecutionEnabled,
+      cancelRunMutation,
+      clearLoadingEvents,
+      conversationQuery.data,
+      decideToolApprovalMutation,
+      projectId,
+      publishLiveMessages,
+      releaseSubmitLock,
+      resetAgent,
+      startRunMutation,
+      utils.inAppAgent.getConversation,
+      utils.inAppAgent.listConversations,
+    ],
   );
 
-  const releaseSubmitLock = useCallback(() => {
-    submitInFlightRef.current = false;
-    setIsSubmitting(false);
-  }, []);
+  const createRunInput = useCallback(
+    (
+      runParameters?: AgentInput,
+      quickActionAttribution?: InAppAgentQuickActionAttribution,
+      messageEntryPoint?: InAppAgentMessageEntryPoint,
+    ): AgentInput => ({
+      ...runParameters,
+      context: createInAppAgentScreenContext({
+        currentUrl: window.location.href,
+      }).concat(
+        createInAppAgentUserContext({
+          userName: session.data?.user?.name,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          languages:
+            navigator.languages.length > 0
+              ? Array.from(navigator.languages)
+              : [navigator.language],
+        }),
+        quickActionAttribution
+          ? createInAppAgentQuickActionAttributionContext(
+              quickActionAttribution,
+            )
+          : [],
+        messageEntryPoint
+          ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
+          : [],
+      ),
+    }),
+    [session.data?.user?.name],
+  );
 
   const runAgent = useCallback(
     (
-      agent: HttpAgent,
+      agent: AbstractAgent,
       conversationId: string,
-      runParameters?: Parameters<HttpAgent["runAgent"]>[0],
+      runParameters?: Parameters<AbstractAgent["runAgent"]>[0],
       quickActionAttribution?: InAppAgentQuickActionAttribution,
       messageEntryPoint?: InAppAgentMessageEntryPoint,
     ) => {
@@ -761,29 +1062,13 @@ function InAppAiAgentProviderInner({
       setIsRunning(true);
       return (async () => {
         try {
-          await agent.runAgent({
-            ...runParameters,
-            context: createInAppAgentScreenContext({
-              currentUrl: window.location.href,
-            }).concat(
-              createInAppAgentUserContext({
-                userName: session.data?.user?.name,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                languages:
-                  navigator.languages.length > 0
-                    ? Array.from(navigator.languages)
-                    : [navigator.language],
-              }),
-              quickActionAttribution
-                ? createInAppAgentQuickActionAttributionContext(
-                    quickActionAttribution,
-                  )
-                : [],
-              messageEntryPoint
-                ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
-                : [],
+          await agent.runAgent(
+            createRunInput(
+              runParameters,
+              quickActionAttribution,
+              messageEntryPoint,
             ),
-          });
+          );
           return true;
         } catch (error) {
           if (intentionalAbortRef.current) {
@@ -822,9 +1107,9 @@ function InAppAiAgentProviderInner({
     [
       projectId,
       clearLoadingEvents,
+      createRunInput,
       publishLiveMessages,
       releaseSubmitLock,
-      session.data?.user?.name,
       utils.inAppAgent.getConversation,
       utils.inAppAgent.listConversations,
     ],
@@ -948,9 +1233,14 @@ function InAppAiAgentProviderInner({
           conversationQuery.data?.conversation.id === conversationId
             ? conversationQuery.data.messages
             : undefined;
-        const initialMessages = !isNewConversation
-          ? getHydratedMessages(messages, storedMessages)
-          : [];
+        const initialMessages = isNewConversation
+          ? []
+          : backgroundExecutionEnabled
+            ? // Persisted state is the render source on the background path, so
+              // prefer it over the in-memory transcript.
+              (storedMessages?.filter(isAgentConversationMessage) ??
+              getHydratedMessages(messages, storedMessages))
+            : getHydratedMessages(messages, storedMessages);
         // TODO: Avoid hydrating the full history once the agent client can send
         // only the latest user turn; the server rebuilds history from persistence.
         const agent = getOrCreateAgent(
@@ -961,6 +1251,12 @@ function InAppAiAgentProviderInner({
 
         if (agent.isRunning) {
           return false;
+        }
+
+        // Start background turns from the persisted transcript and cursor.
+        if (agent instanceof InAppAgentBackgroundClient && !isNewConversation) {
+          agent.setMessages(initialMessages);
+          setMessages(initialMessages);
         }
 
         ensureSubscription(agent);
@@ -979,13 +1275,26 @@ function InAppAiAgentProviderInner({
         }
         capture("in_app_agent:new_chat_turn", { entryPoint });
         startedRun = true;
-        runAgent(
-          agent,
-          conversationId,
-          undefined,
-          options?.quickAction,
-          entryPoint,
-        );
+        if (backgroundExecutionEnabled) {
+          const backgroundSession = backgroundSessionRef.current;
+
+          if (!backgroundSession) {
+            throw new Error("Background execution session is unavailable");
+          }
+
+          clearLoadingEvents();
+          backgroundSession
+            .run(createRunInput(undefined, options?.quickAction, entryPoint))
+            .catch(() => undefined);
+        } else {
+          runAgent(
+            agent,
+            conversationId,
+            undefined,
+            options?.quickAction,
+            entryPoint,
+          );
+        }
         return true;
       } catch (error) {
         setError(getInAppAgentError(error));
@@ -998,10 +1307,13 @@ function InAppAiAgentProviderInner({
       }
     },
     [
+      backgroundExecutionEnabled,
       conversationQuery.data,
       capture,
+      clearLoadingEvents,
       ensureSubscription,
       error,
+      createRunInput,
       getOrCreateAgent,
       isSelectedConversationHydrating,
       isRunning,
@@ -1070,6 +1382,54 @@ function InAppAiAgentProviderInner({
     ],
   );
 
+  // Hydrate transcript and cursor from one snapshot before observing its tail.
+  const attachToConversation = useCallback(
+    async (conversationId: string) => {
+      if (!backgroundExecutionEnabled || runInFlightRef.current) {
+        return;
+      }
+
+      const initialMessages =
+        conversationQuery.data?.conversation.id === conversationId
+          ? conversationQuery.data.messages.filter(isAgentConversationMessage)
+          : [];
+      const agent = getOrCreateAgent(conversationId, initialMessages, false);
+
+      if (!(agent instanceof InAppAgentBackgroundClient)) {
+        return;
+      }
+
+      ensureSubscription(agent);
+      await backgroundSessionRef.current?.hydrateAndAttach();
+    },
+    [
+      backgroundExecutionEnabled,
+      conversationQuery.data,
+      ensureSubscription,
+      getOrCreateAgent,
+    ],
+  );
+
+  const hydratedActiveRunId =
+    backgroundExecutionEnabled &&
+    conversationQuery.data?.conversation.id === selectedConversationId &&
+    conversationQuery.data.latestRun &&
+    isActiveInAppAgentRunStatus(conversationQuery.data.latestRun.status)
+      ? conversationQuery.data.latestRun.id
+      : null;
+
+  // Reattach after refresh once the persisted active run is known.
+  useEffect(() => {
+    if (!hydratedActiveRunId || !selectedConversationId) {
+      return;
+    }
+
+    attachToConversation(selectedConversationId).catch((error: unknown) => {
+      setError(getInAppAgentError(error));
+      console.error("Failed to attach to background assistant run", error);
+    });
+  }, [attachToConversation, hydratedActiveRunId, selectedConversationId]);
+
   const setAgentOpen = useCallback<Dispatch<SetStateAction<boolean>>>(
     (action) => {
       const nextOpen = evaluateSetStateAction(action, open);
@@ -1077,11 +1437,30 @@ function InAppAiAgentProviderInner({
       if (!nextOpen) {
         // Collapse the drawer when closing
         setIsExpanded(false);
+
+        if (backgroundExecutionEnabled) {
+          backgroundSessionRef.current?.detach();
+          releaseSubmitLock();
+        }
+      }
+
+      if (nextOpen && backgroundExecutionEnabled && selectedConversationId) {
+        attachToConversation(selectedConversationId).catch((error: unknown) => {
+          setError(getInAppAgentError(error));
+          console.error("Failed to attach to background assistant run", error);
+        });
       }
 
       setOpen(nextOpen);
     },
-    [open, setOpen],
+    [
+      attachToConversation,
+      backgroundExecutionEnabled,
+      open,
+      releaseSubmitLock,
+      selectedConversationId,
+      setOpen,
+    ],
   );
 
   const openAssistant = useCallback(
@@ -1099,6 +1478,143 @@ function InAppAiAgentProviderInner({
     [capture, organization, setAgentOpen],
   );
 
+  const currentBackgroundRun = useMemo(() => {
+    if (!backgroundExecutionEnabled) {
+      return null;
+    }
+
+    if (backgroundRunStatus) {
+      return backgroundRunStatus;
+    }
+
+    const hydrated = conversationQuery.data?.latestRun;
+
+    return hydrated
+      ? {
+          id: hydrated.id,
+          status: hydrated.status,
+          errorCode: hydrated.errorCode,
+          cancelRequested: hydrated.cancelRequested,
+        }
+      : null;
+  }, [
+    backgroundExecutionEnabled,
+    backgroundRunStatus,
+    conversationQuery.data?.latestRun,
+  ]);
+
+  const isCancellingRun = Boolean(
+    cancelRunMutation.isPending ||
+    (currentBackgroundRun &&
+      isActiveInAppAgentRunStatus(currentBackgroundRun.status) &&
+      currentBackgroundRun.cancelRequested),
+  );
+
+  const cancelRun = useCallback(() => {
+    const run = currentBackgroundRun;
+
+    if (
+      !selectedConversationId ||
+      !run ||
+      !isCancellableBackgroundRun(run.status) ||
+      run.cancelRequested
+    ) {
+      return;
+    }
+
+    const initialMessages =
+      conversationQuery.data?.conversation.id === selectedConversationId
+        ? conversationQuery.data.messages.filter(isAgentConversationMessage)
+        : [];
+    const agent = getOrCreateAgent(
+      selectedConversationId,
+      initialMessages,
+      false,
+    );
+    ensureSubscription(agent);
+    const backgroundSession = backgroundSessionRef.current;
+
+    if (!backgroundSession) {
+      return;
+    }
+
+    backgroundSession.cancel().catch((error: unknown) => {
+      showErrorToast("Failed to stop the run", getAgentErrorMessage(error));
+    });
+  }, [
+    conversationQuery.data,
+    currentBackgroundRun,
+    ensureSubscription,
+    getOrCreateAgent,
+    selectedConversationId,
+  ]);
+
+  const decideBackgroundToolApproval = useCallback(
+    async (params: {
+      approval: InAppAgentPendingToolApproval;
+      approved: boolean;
+      conversationId: string;
+    }) => {
+      const runId =
+        params.approval.runId ?? params.approval.approvalRequest.runId;
+
+      updatePendingToolApprovals((currentApprovals) =>
+        currentApprovals.map((currentApproval) =>
+          currentApproval.id === params.approval.id
+            ? { ...currentApproval, status: "submitting" }
+            : currentApproval,
+        ),
+      );
+      setError(null);
+
+      try {
+        const initialMessages =
+          conversationQuery.data?.conversation.id === params.conversationId
+            ? conversationQuery.data.messages.filter(isAgentConversationMessage)
+            : [];
+        const agent = getOrCreateAgent(
+          params.conversationId,
+          initialMessages,
+          false,
+        );
+        ensureSubscription(agent);
+        const backgroundSession = backgroundSessionRef.current;
+
+        if (!backgroundSession) {
+          throw new Error("Background execution session is unavailable");
+        }
+
+        await backgroundSession.decide({
+          runId,
+          toolCallId: params.approval.approvalRequest.toolCallId,
+          approved: params.approved,
+        });
+
+        updatePendingToolApprovals((currentApprovals) =>
+          currentApprovals.filter(
+            (currentApproval) => currentApproval.id !== params.approval.id,
+          ),
+        );
+      } catch (error) {
+        updatePendingToolApprovals((currentApprovals) =>
+          currentApprovals.map((currentApproval) =>
+            currentApproval.id === params.approval.id
+              ? { ...currentApproval, status: "pending" }
+              : currentApproval,
+          ),
+        );
+        setError(getInAppAgentError(error));
+        console.error("Failed to decide in-app agent tool approval", error);
+      }
+    },
+    [
+      conversationQuery.data,
+      ensureSubscription,
+      getOrCreateAgent,
+      updatePendingToolApprovals,
+    ],
+  );
+
   const resumeToolApproval = useCallback(
     async (approvalId: string, approved: boolean) => {
       if (selectedConversationIsWriteLocked) {
@@ -1109,7 +1625,7 @@ function InAppAiAgentProviderInner({
         return;
       }
 
-      const approval = pendingToolApprovals.find(
+      const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
       );
 
@@ -1120,6 +1636,15 @@ function InAppAiAgentProviderInner({
         runInFlightRef.current ||
         isInAppAgentRateLimited(error)
       ) {
+        return;
+      }
+
+      if (backgroundExecutionEnabled) {
+        await decideBackgroundToolApproval({
+          approval,
+          approved,
+          conversationId: selectedConversationId,
+        });
         return;
       }
 
@@ -1199,16 +1724,44 @@ function InAppAiAgentProviderInner({
       }
     },
     [
+      backgroundExecutionEnabled,
+      decideBackgroundToolApproval,
+      effectivePendingToolApprovals,
       ensureSubscription,
       error,
       isRunning,
-      pendingToolApprovals,
       runAgent,
       selectedConversationId,
       selectedConversationIsWriteLocked,
       updatePendingToolApprovals,
     ],
   );
+
+  const backgroundRunNotice = useMemo(() => {
+    const run = currentBackgroundRun;
+
+    if (!run) {
+      return null;
+    }
+
+    if (isActiveInAppAgentRunStatus(run.status) && run.cancelRequested) {
+      return "Stopping the run…";
+    }
+
+    if (run.status === InAppAgentRunStatus.QUEUED) {
+      return "Waiting for a worker to pick this up. You can close this; the run continues in the background.";
+    }
+
+    if (run.status === InAppAgentRunStatus.RUNNING) {
+      return "You can close this; the run continues in the background.";
+    }
+
+    if (run.status === InAppAgentRunStatus.FAILED) {
+      return getBackgroundRunFailureMessage(run.errorCode ?? null);
+    }
+
+    return null;
+  }, [currentBackgroundRun]);
 
   const approveToolCall = useCallback(
     (approvalId: string) => resumeToolApproval(approvalId, true),
@@ -1232,8 +1785,17 @@ function InAppAiAgentProviderInner({
       isSubmitting,
       pendingToolApprovals: isSelectedConversationNotFound
         ? []
-        : pendingToolApprovals,
+        : effectivePendingToolApprovals,
       isSelectedConversationHydrating,
+      backgroundExecutionEnabled,
+      backgroundRunNotice,
+      isCancellingRun,
+      cancelRun:
+        backgroundExecutionEnabled &&
+        currentBackgroundRun &&
+        isCancellableBackgroundRun(currentBackgroundRun.status)
+          ? cancelRun
+          : undefined,
       error,
       messages: messagesWithUiState,
       liveMessageVersion,
@@ -1269,7 +1831,12 @@ function InAppAiAgentProviderInner({
       messagesWithUiState,
       open,
       openAssistant,
-      pendingToolApprovals,
+      backgroundExecutionEnabled,
+      backgroundRunNotice,
+      cancelRun,
+      currentBackgroundRun,
+      isCancellingRun,
+      effectivePendingToolApprovals,
       rejectToolCall,
       setAgentOpen,
       invalidateConversations,
