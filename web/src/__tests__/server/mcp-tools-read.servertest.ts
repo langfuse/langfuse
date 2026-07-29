@@ -2069,10 +2069,13 @@ describe("MCP Read Tools", () => {
   });
 
   maybeEventsTable("getObservationFilterValues tool", () => {
-    it("should expose read-only semantic-root inputs", () => {
+    it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getObservationFilterValuesTool, {
         readOnlyHint: true,
       });
+    });
+
+    it("should expose semantic-root inputs", () => {
       const properties = getObservationFilterValuesTool.inputSchema
         .properties as Record<string, unknown>;
 

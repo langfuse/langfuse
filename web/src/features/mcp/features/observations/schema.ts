@@ -33,10 +33,9 @@ type ObservationMcpFieldType =
   | "string"
   | "unknown";
 
-const OBSERVATION_MCP_FIELDS: ObservationMcpField[] =
-  OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap(
-    (group) => OBSERVATION_FIELD_GROUP_FIELD_NAMES[group],
-  );
+const OBSERVATION_MCP_FIELDS = OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap(
+  (group) => OBSERVATION_FIELD_GROUP_FIELD_NAMES[group],
+);
 
 const OBSERVATION_MCP_FIELD_SET = new Set<string>(OBSERVATION_MCP_FIELDS);
 
