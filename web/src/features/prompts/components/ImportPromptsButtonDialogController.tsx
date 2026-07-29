@@ -53,19 +53,12 @@ type ImportState =
   | { step: "done"; results: ImportResult[] };
 
 const ImportPromptsDialogContent: React.FC<{
-  projectId: string;
+  isImportPending: boolean;
   onClose: () => void;
-}> = ({ projectId, onClose }) => {
+  onImport: (items: ImportItem[]) => Promise<{ results: ImportResult[] }>;
+}> = ({ isImportPending, onClose, onImport }) => {
   const capture = usePostHogClientCapture();
   const [state, setState] = useState<ImportState>({ step: "idle" });
-
-  const utils = api.useUtils();
-  const importMutation = api.prompts.importBulk.useMutation({
-    onSuccess: (data) => {
-      setState({ step: "done", results: data.results });
-      utils.prompts.invalidate();
-    },
-  });
 
   const handleFiles = (files: File[]) => {
     const file = files[0];
@@ -92,10 +85,11 @@ const ImportPromptsDialogContent: React.FC<{
     reader.readAsText(file);
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (state.step !== "parsed") return;
     capture("prompts:bulk_import_submit", { count: state.items.length });
-    importMutation.mutate({ projectId, prompts: state.items });
+    const data = await onImport(state.items).catch(() => null);
+    if (data) setState({ step: "done", results: data.results });
   };
 
   if (state.step === "done") {
@@ -159,7 +153,7 @@ const ImportPromptsDialogContent: React.FC<{
         </p>
         <Dropzone
           accept={{ "application/json": [".json"] }}
-          isDisabled={importMutation.isPending}
+          isDisabled={isImportPending}
           maxFiles={1}
           maxSize={undefined}
           minSize={undefined}
@@ -182,10 +176,10 @@ const ImportPromptsDialogContent: React.FC<{
       <DialogFooter>
         <Button
           onClick={handleImport}
-          disabled={!parsedItems || importMutation.isPending}
+          disabled={!parsedItems || isImportPending}
           className="w-full"
         >
-          {importMutation.isPending ? (
+          {isImportPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Importing…
@@ -214,6 +208,10 @@ export function ImportPromptsButtonDialogController({
     projectId,
     scope: "prompts:CUD",
   });
+  const utils = api.useUtils();
+  const importMutation = api.prompts.importBulk.useMutation({
+    onSuccess: () => utils.prompts.invalidate(),
+  });
 
   const disabled = hasAccess
     ? undefined
@@ -225,16 +223,25 @@ export function ImportPromptsButtonDialogController({
     setOpen(true);
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && importMutation.isPending) return;
+
+    setOpen(nextOpen);
+  };
+
   return (
-    <Dialog open={hasAccess && open} onOpenChange={setOpen}>
+    <Dialog open={hasAccess && open} onOpenChange={handleOpenChange}>
       {children({ disabled, openDialog })}
       <DialogContent className="max-h-[90vh] min-h-0 sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Import prompts</DialogTitle>
         </DialogHeader>
         <ImportPromptsDialogContent
-          projectId={projectId}
-          onClose={() => setOpen(false)}
+          isImportPending={importMutation.isPending}
+          onClose={() => handleOpenChange(false)}
+          onImport={(items) =>
+            importMutation.mutateAsync({ projectId, prompts: items })
+          }
         />
       </DialogContent>
     </Dialog>
