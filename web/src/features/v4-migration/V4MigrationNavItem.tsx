@@ -30,7 +30,7 @@ export function V4MigrationNavItem() {
   });
   const label =
     readiness === "ready"
-      ? "Migrated"
+      ? "Up to date"
       : readiness === "checking"
         ? "Checking"
         : readiness === "unavailable"
