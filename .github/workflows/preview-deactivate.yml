@@ -127,7 +127,7 @@ jobs:
             const pull_number = context.payload.pull_request.number;
             const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
             const body = pr.body ?? "";
-            const strayRe = new RegExp(`(^|\\r?\\n)${START}[\\s\\S]*?${END}(?:\\r?\\n)*`, "g");
+            const strayRe = new RegExp(`(^|\\r?\\n)(?:${START}[\\s\\S]*?${END}(?:\\r?\\n)*)+`, "g");
             const next = body.replace(strayRe, "$1").replace(/^(?:\r?\n)+/, "");
             if (next === body) {
               core.info("No preview pin in the PR description; nothing to remove.");

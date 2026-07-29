@@ -436,7 +436,7 @@ jobs:
             // is acceptable for one machine-managed line every build rewrites.
             const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
             const body = pr.body ?? "";
-            const strayRe = new RegExp(`(^|\\r?\\n)${START}[\\s\\S]*?${END}(?:\\r?\\n)*`, "g");
+            const strayRe = new RegExp(`(^|\\r?\\n)(?:${START}[\\s\\S]*?${END}(?:\\r?\\n)*)+`, "g");
             const next = block + body.replace(strayRe, "$1").replace(/^(?:\r?\n)+/, "");
             if (next.length > 65536) {
               // Degrade to a warning: a huge description should not fail

@@ -159,7 +159,7 @@ jobs:
                   try {
                     const START = "<!-- aws-preview-pin:start -->";
                     const END = "<!-- aws-preview-pin:end -->";
-                    const strayRe = new RegExp(`(^|\\r?\\n)${START}[\\s\\S]*?${END}(?:\\r?\\n)*`, "g");
+                    const strayRe = new RegExp(`(^|\\r?\\n)(?:${START}[\\s\\S]*?${END}(?:\\r?\\n)*)+`, "g");
                     const { data: fresh } = await github.rest.pulls.get({
                       owner,
                       repo,
