@@ -2,9 +2,8 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { ArrowRight, Copy } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Card } from "@/src/components/ui/card";
 import {
   Table,
@@ -504,11 +503,6 @@ function V4MigrationStatusPageContent() {
   const isChecking =
     session.status === "loading" ||
     readiness.some((state) => state === "checking");
-  const projectsNeedingAction = readiness.filter(
-    (state) => state === "action-needed",
-  ).length;
-  const shouldShowUpdateAllButton =
-    !isChecking && totalProjects > 0 && projectsNeedingAction > 0;
 
   return (
     <ContainerPage
@@ -543,14 +537,6 @@ function V4MigrationStatusPageContent() {
               )}
             </div>
           </div>
-          {shouldShowUpdateAllButton && (
-            <RainbowButton onClick={handleCopyPrompt}>
-              <Copy className="mr-1.5 h-4 w-4 shrink-0" />
-              <span className="min-w-0 truncate" title="Update all with agents">
-                Update all with agents
-              </span>
-            </RainbowButton>
-          )}
         </Card>
 
         {orgs.map((org) => (

@@ -271,9 +271,14 @@ export const handleBatchExportJob = async (
     partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
   });
 
+  // asAttachment must be explicit: S3 defaults it to true, but GCS and Azure
+  // don't — and the web tier's downloadUrl fallback returns this stored URL
+  // for same-tab navigation, so without a Content-Disposition header the
+  // browser would render the export instead of downloading it.
   const signedUrl = await storageService.getSignedUrl(
     fileName,
     expiresInSeconds,
+    true,
   );
 
   logger.info(`[BATCH EXPORT] Batch export file ${fileName} uploaded`);
@@ -300,12 +305,20 @@ export const handleBatchExportJob = async (
   });
 
   if (user?.email) {
+    // Link to the exports page rather than the signed URL: the page mints a
+    // fresh download URL on click, while a URL signed with temporary
+    // credentials (e.g. IAM role sessions) can die well before expiresAt.
+    const exportsPageUrl = env.NEXTAUTH_URL
+      ? `${env.NEXTAUTH_URL}/project/${projectId}/settings/exports`
+      : undefined;
+
     await sendBatchExportSuccessEmail({
       env,
       receiverEmail: user.email,
-      downloadLink: signedUrl,
+      downloadLink: exportsPageUrl ?? signedUrl,
       userName: user?.name || "",
       batchExportName: jobDetails.name,
+      downloadWindowHours: env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS,
     });
 
     logger.info(

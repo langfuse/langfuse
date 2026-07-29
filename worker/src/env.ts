@@ -219,6 +219,11 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  // Off by default until the background-execution rollout: the consumer needs
+  // Bedrock/MCP/sandbox config the worker deployment may not carry yet.
+  QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -581,6 +586,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(10),
+  LANGFUSE_IN_APP_AGENT_RUN_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()

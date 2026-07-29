@@ -40,6 +40,11 @@ export const getBlobStorageByProjectId = (
     params: {
       projectId,
     },
+    clickhouseConfigs: {
+      clickhouse_settings: {
+        max_execution_time: 0,
+      },
+    },
     tags: { projectId },
   });
 };

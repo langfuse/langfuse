@@ -194,7 +194,7 @@ const AgUiToolSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-const AgUiContextSchema = z.object({
+export const AgUiContextSchema = z.object({
   description: z.string(),
   value: z.string(),
 });

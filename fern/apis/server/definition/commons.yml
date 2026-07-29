@@ -247,12 +247,19 @@ types:
         docs: The project ID this observation belongs to
       parentObservationId:
         type: nullable<string>
-        docs: The parent observation ID
+        docs: |
+          The physical parent observation ID, if present.
+          Observations marked as app roots by the SDK may retain a non-null parent ID.
       type:
         type: string
         docs: The type of the observation (e.g. GENERATION, SPAN, EVENT)
 
       # Basic fields (field group: basic)
+      isRootObservation:
+        type: optional<boolean>
+        docs: |
+          Whether this observation is a logical root.
+          This is true for observations without a physical parent and observations marked as app roots by the SDK.
       name:
         type: optional<nullable<string>>
         docs: The name of the observation

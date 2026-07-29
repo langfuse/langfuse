@@ -1,3 +1,4 @@
+import { eventsTableIsRootObservationSql } from "../../eventsTable";
 import { filterOperators } from "../../interfaces/filters";
 import {
   FilterList,
@@ -7,6 +8,7 @@ import {
   CategoryOptionsFilter,
   StringFilter,
   NumberFilter,
+  BooleanFilter,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
 import { z } from "zod";
@@ -192,6 +194,16 @@ export function createPublicApiObservationsColumnMapping(
       clickhouseTable: tableName,
       clickhousePrefix: tablePrefix,
     },
+    ...(tableName === "events_proto"
+      ? [
+          {
+            id: "isRootObservation",
+            clickhouseSelect: eventsTableIsRootObservationSql,
+            filterType: "BooleanFilter",
+            clickhouseTable: tableName,
+          },
+        ]
+      : []),
     {
       id: "fromStartTime",
       clickhouseSelect: "start_time",
@@ -342,6 +354,17 @@ export function convertApiProvidedFilterToClickhouseFilter(
           }
           break;
         }
+        case "BooleanFilter":
+          if (typeof value === "boolean") {
+            filterInstance = new BooleanFilter({
+              clickhouseTable: columnMapping.clickhouseTable,
+              field: columnMapping.clickhouseSelect,
+              operator: "=",
+              value,
+              tablePrefix: columnMapping.clickhousePrefix,
+            });
+          }
+          break;
       }
 
       filterInstance && filterList.push(filterInstance);

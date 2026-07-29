@@ -94,7 +94,6 @@ import {
 import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
   getObservationByIdFromObservationsTable,
-  ObservationsTableQueryResult,
   ObservationTableQuery,
 } from "./observations";
 import { convertEventsObservation } from "./observations_converters";
@@ -168,10 +167,10 @@ const applyBatchIOStringRendering = (
     | null;
 };
 
-type ObservationsTableQueryResultWitouhtTraceFields = Omit<
-  ObservationsTableQueryResult,
-  "trace_tags" | "trace_name" | "trace_user_id"
->;
+type EventsObservationQueryResult = EventsObservationRecordReadType & {
+  latency?: string;
+  time_to_first_token?: string;
+};
 
 /**
  * Extra row fields present when the query ran with an `ioSizeCap`
@@ -216,19 +215,19 @@ export type ObservationIOSizeFields = {
  * @param requestedFields - Field groups for V2 API (null = V1 API, returns complete observations)
  */
 async function enrichObservationsWithModelData(
-  observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
+  observationRecords: Array<EventsObservationQueryResult>,
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: ObservationFieldGroupPublicApi[],
 ): Promise<Array<EventsObservationPublic>>;
 async function enrichObservationsWithModelData(
-  observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
+  observationRecords: Array<EventsObservationQueryResult>,
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: null,
 ): Promise<Array<EventsObservation & ObservationPriceFields>>;
 async function enrichObservationsWithModelData(
-  observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
+  observationRecords: Array<EventsObservationQueryResult>,
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: ObservationFieldGroupPublicApi[] | null,
@@ -446,18 +445,16 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   }
 
   const records =
-    await getObservationsFromEventsTableInternal<ObservationsTableQueryResultWitouhtTraceFields>(
-      {
-        projectId,
-        filter,
-        orderBy: { column: "startTime", order: "ASC" },
-        limit: MAX_OBSERVATIONS_PER_TRACE + 1,
-        offset: 0,
-        select: "rows",
-        selectIOAndMetadata,
-        selectToolData,
-      },
-    );
+    await getObservationsFromEventsTableInternal<EventsObservationQueryResult>({
+      projectId,
+      filter,
+      orderBy: { column: "startTime", order: "ASC" },
+      limit: MAX_OBSERVATIONS_PER_TRACE + 1,
+      offset: 0,
+      select: "rows",
+      selectIOAndMetadata,
+      selectToolData,
+    });
 
   const totalCount = records.length;
 
@@ -519,7 +516,7 @@ export async function getObservationsWithModelDataFromEventsTable(
   opts: ObservationTableQuery,
 ): Promise<FullEventsObservations> {
   const observationRecords = await getObservationsFromEventsTableInternal<
-    ObservationsTableQueryResultWitouhtTraceFields & Partial<IOSizeCapRowFields>
+    EventsObservationQueryResult & Partial<IOSizeCapRowFields>
   >({
     ...opts,
     select: "rows",
@@ -1302,6 +1299,7 @@ type PublicApiObservationsQuery = {
   type?: string;
   level?: string;
   parentObservationId?: string;
+  isRootObservation?: boolean;
   fromStartTime?: string;
   toStartTime?: string;
   version?: string;
@@ -1585,7 +1583,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
   });
 
   const observationRecords =
-    await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
+    await getObservationsRowsFromBuilder<EventsObservationQueryResult>(
       projectId,
       queryBuilder,
     );
@@ -1611,9 +1609,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
  * This avoids expensive full-table scans on events_full.
  */
 export const getObservationsV2FromEventsTableForPublicApi = async (
-  opts: PublicApiObservationsQuery & {
-    fields: ObservationFieldGroupPublicApi[];
-  },
+  opts: PublicApiObservationsQuery,
   options: BuildObservationsQueryComponentsOptions = {},
 ): Promise<Array<EventsObservationPublic>> => {
   const { projectId, expandMetadataKeys } = opts;
@@ -1686,7 +1682,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   }
 
   const records =
-    await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
+    await getObservationsRowsFromBuilder<EventsObservationQueryResult>(
       projectId,
       builder,
     );
@@ -1695,7 +1691,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     records,
     projectId,
     false, // V2 API: IO fields are always returned as raw strings
-    opts.fields, // V2 API: field groups specified, return partial observations
+    requestedFields,
   );
 };
 

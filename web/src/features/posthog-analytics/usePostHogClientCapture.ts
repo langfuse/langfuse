@@ -319,6 +319,7 @@ export const events = {
   ],
   v4_migration: [
     "in_app_agent_opened",
+    "coding_agent_prompt_viewed",
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
     "project_chip_clicked",
@@ -327,6 +328,10 @@ export const events = {
     "status_row_clicked",
     "update_required_badge_clicked",
     "migrate_evals_with_agent_clicked",
+    "overview_banner_status_clicked",
+    "overview_banner_docs_clicked",
+    "panel_status_link_clicked",
+    "panel_docs_link_clicked",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
