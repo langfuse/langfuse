@@ -48,7 +48,7 @@ type ImportResult = {
 
 type ImportState =
   | { step: "idle" }
-  | { step: "parsed"; file: File; items: ImportItem[] }
+  | { step: "parsed"; file: File; items: ImportItem[]; importError?: string }
   | { step: "error"; file?: File; error: string }
   | { step: "done"; results: ImportResult[] };
 
@@ -88,8 +88,19 @@ const ImportPromptsDialogContent: React.FC<{
   const handleImport = async () => {
     if (state.step !== "parsed") return;
     capture("prompts:bulk_import_submit", { count: state.items.length });
-    const data = await onImport(state.items).catch(() => null);
-    if (data) setState({ step: "done", results: data.results });
+    const parsedState = state;
+    setState({ ...parsedState, importError: undefined });
+
+    try {
+      const data = await onImport(parsedState.items);
+      setState({ step: "done", results: data.results });
+    } catch (error) {
+      setState({
+        ...parsedState,
+        importError:
+          error instanceof Error ? error.message : "Failed to import prompts.",
+      });
+    }
   };
 
   if (state.step === "done") {
@@ -138,7 +149,12 @@ const ImportPromptsDialogContent: React.FC<{
   const selectedFile =
     state.step === "parsed" || state.step === "error" ? state.file : undefined;
   const parsedItems = state.step === "parsed" ? state.items : null;
-  const parseError = state.step === "error" ? state.error : null;
+  const error =
+    state.step === "error"
+      ? state.error
+      : state.step === "parsed"
+        ? state.importError
+        : undefined;
 
   return (
     <>
@@ -163,7 +179,11 @@ const ImportPromptsDialogContent: React.FC<{
           variant="panel"
         />
 
-        {parseError && <p className="text-destructive text-sm">{parseError}</p>}
+        {error && (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        )}
 
         {parsedItems && (
           <p className="text-muted-foreground text-sm">
