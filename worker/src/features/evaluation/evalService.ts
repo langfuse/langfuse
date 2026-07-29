@@ -1271,9 +1271,48 @@ export async function extractVariablesFromTracingData({
   datasetItemValidFrom?: Date;
 }): Promise<ExtractedVariable[]> {
   // Internal cache for this function call to avoid duplicate database lookups.
-  // We do not cache dataset items as Postgres is cheaper than ClickHouse.
   const traceCache = new Map<string, TraceDomain | null>();
   const observationCache = new Map<string, Observation | null>();
+
+  // Every dataset_item variable reads the same row (same id, project and version) and only
+  // differs in which column it selects, so the lookup below runs once for the whole call and
+  // selects the union of the mapped columns. Selecting only the mapped columns matters: the
+  // dataset item payload columns can be large.
+  const datasetItemColumns = new Set<string>();
+  if (datasetItemId) {
+    for (const variable of variables) {
+      const mapping = variableMapping.find(
+        (m) => m.templateVariable === variable,
+      );
+      if (mapping?.langfuseObject !== "dataset_item") continue;
+
+      const column = availableDatasetEvalVariables
+        .find((o) => o.id === "dataset_item")
+        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+      if (column?.id) datasetItemColumns.add(snakeToCamel(column.id));
+    }
+  }
+
+  let datasetItemRow: Record<string, unknown> | null = null;
+  let datasetItemFetched = false;
+  const getDatasetItem = async () => {
+    if (datasetItemFetched) return datasetItemRow;
+    datasetItemFetched = true;
+
+    datasetItemRow = await prisma.datasetItem.findFirst({
+      select: Object.fromEntries([...datasetItemColumns].map((c) => [c, true])),
+      where: {
+        id: datasetItemId,
+        projectId,
+        // Conditional: exact match if version known, otherwise latest
+        ...(datasetItemValidFrom
+          ? { validFrom: datasetItemValidFrom }
+          : { validTo: null }),
+      },
+    });
+
+    return datasetItemRow;
+  };
 
   const results: ExtractedVariable[] = [];
 
@@ -1313,18 +1352,7 @@ export async function extractVariablesFromTracingData({
         continue;
       }
 
-      const prismaField = snakeToCamel(safeInternalColumn.id);
-      const datasetItem = await prisma.datasetItem.findFirst({
-        select: { [prismaField]: true },
-        where: {
-          id: datasetItemId,
-          projectId,
-          // Conditional: exact match if version known, otherwise latest
-          ...(datasetItemValidFrom
-            ? { validFrom: datasetItemValidFrom }
-            : { validTo: null }),
-        },
-      });
+      const datasetItem = await getDatasetItem();
 
       // user facing errors
       if (!datasetItem) {
