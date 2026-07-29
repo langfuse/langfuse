@@ -60,6 +60,11 @@
   --color-primary-accent: hsl(var(--primary-accent));
   --color-link: hsl(var(--link));
   --color-link-hover: hsl(var(--link-hover));
+  --color-preview-banner: hsl(var(--preview-banner));
+  --color-preview-banner-foreground: hsl(var(--preview-banner-foreground));
+  --color-preview-banner-border: hsl(var(--preview-banner-border));
+  --color-preview-banner-link: hsl(var(--preview-banner-link));
+  --color-preview-banner-link-hover: hsl(var(--preview-banner-link-hover));
   --color-control-fill: hsl(var(--control-fill));
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
@@ -292,6 +297,14 @@
        loudest thing on a light page — with a clearly darker hover step. */
     --link: 246 40% 50%;
     --link-hover: 246 55% 36%;
+    /* Preview-deployment strip (PR previews only): soft blue tint with text
+       darker than the fill, links a step brighter than body text. Values are
+       the blue-100/950/200/700/800 ramp. */
+    --preview-banner: 214 95% 93%;
+    --preview-banner-foreground: 226 57% 21%;
+    --preview-banner-border: 213 97% 87%;
+    --preview-banner-link: 224 76% 48%;
+    --preview-banner-link-hover: 226 71% 40%;
     /* Checked selection controls (checkbox/switch): monochrome in BOTH
        modes — dark fill + light glyph in light, muted-white fill + dark
        glyph in dark. Deliberately dimmer than --primary in dark so checked
@@ -454,6 +467,14 @@
     --primary-accent: 246 55% 70%;
     --link: 246 55% 70%;
     --link-hover: 246 95% 85%;
+    /* Preview-deployment strip: blue-500/25 and blue-300/20 precomposed over
+       the 6% canvas — the strip needs an opaque fill. Body text stays on the
+       neutral foreground tier; links are blue-400/300. */
+    --preview-banner: 217 47% 19%;
+    --preview-banner-foreground: 0 0% 70%;
+    --preview-banner-border: 215 37% 31%;
+    --preview-banner-link: 213 94% 68%;
+    --preview-banner-link-hover: 212 96% 78%;
     --control-fill: 0 0% 78%;
     --control-track: 0 0% 24%;
     /* Matches --border-contrast: unchecked checkboxes/radios read by their

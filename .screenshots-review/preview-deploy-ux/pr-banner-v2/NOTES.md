@@ -10,3 +10,5 @@ the text, and compared background colors.
 5. `5-final-violet-dark.png` — final, dark mode: dim desaturated wash (bg-violet-500/10, text-violet-200) per fills-quieter-than-text; first solid violet-950 attempt was rejected as too heavy.
 
 Links inside the strip use `text-link` (blue). PR # and author remain links.
+6. `6-dark-neutral-text.png` — dark-mode text fix: body text `dark:text-foreground`
+   (neutral) instead of violet-200; only the background keeps the violet tint.
