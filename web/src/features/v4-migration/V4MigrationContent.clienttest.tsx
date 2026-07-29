@@ -204,4 +204,19 @@ describe("V4MigrationHeaderContent", () => {
       screen.queryByText(/This project still uses the previous setup/),
     ).not.toBeInTheDocument();
   });
+
+  it("reserves a close-button gutter on the title row when the host asks", () => {
+    // The modal host floats the dialog's fallback close button over the
+    // body's top-right corner; without the gutter it overlaps the
+    // right-aligned status link.
+    render(
+      <V4MigrationHeaderContent
+        projectId="project-1"
+        titleRowClassName="pr-6"
+      />,
+    );
+    const link = screen.getByRole("link", { name: "View Status" });
+    expect(link).toHaveAttribute("href", "/v4-migration");
+    expect(link.parentElement).toHaveClass("pr-6");
+  });
 });
