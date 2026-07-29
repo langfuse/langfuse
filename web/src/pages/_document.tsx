@@ -15,9 +15,9 @@ export default function Document() {
     // language — WCAG 2.1 SC 3.1.1.
     // next-themes mutates class/style on <html> before hydration; suppress the
     // expected mismatch one level deep (React 19 logs it and can re-render).
-    <Html lang="en" suppressHydrationWarning style={{ zoom: 2 }}>
+    <Html lang="en" suppressHydrationWarning>
       <Head />
-      <body>
+      <body style={{ zoom: 2 }}>
         <Main />
         <div data-overlay-root>
           {LAYER_ORDER.map((name) => (
