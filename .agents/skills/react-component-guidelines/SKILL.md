@@ -12,6 +12,13 @@ Components are useful because they act as an encapsulated unit and therefore pro
 - Avoid optional props
 - No conflicting props (e.g. having both `onClick` & `onSelect`)
 
+## Composition
+
+- Avoid polymorphic components:
+  - **Presentation:** A component should own one concrete presentation. When an action needs different presentations across contexts (e.g. sometimes a button, sometimes an icon), keep them separate rather than selecting between them with mode props or flags.
+  - **Behavior:** A component should own one cohesive workflow. When a prop selects fundamentally different workflows, split them into separate behavior-owning components. For example, prefer dedicated create, update, and delete dialog controllers over one action component whose `mode` changes the entire interaction.
+- Extract only what is shared across call sites. Reuse a presentational component when the presentation is shared; when only state or behavior is shared, encapsulate it in a wrapper/render-prop component and let each call site provide its own presentation.
+
 ## Explicit States
 
 - Always prefer `Pick<>` over `Omit<>` for prop types as this is more explicit.

@@ -2,10 +2,13 @@ import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
   CTEQueryBuilder,
+  createFilterFromFilterState,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  eventsTableUiColumnDefinitions,
   ExperimentsAggregationQueryBuilder,
 } from "@langfuse/shared/src/server";
+import { eventsTableCols } from "@langfuse/shared";
 
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
   it("builds one events_core scan for multiple filter option columns", () => {
@@ -186,6 +189,44 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       limit: 10,
       offset: 20,
     });
+  });
+
+  it("builds API key filter options from ingestion attribution", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "ingestionApiKey",
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("'ingestionApiKey' AS column");
+    expect(built.query).toContain("toString(e.ingestion_api_key) AS value");
+    expect(built.query).toContain("length(e.ingestion_api_key) > 0");
+    expect(built.query).not.toContain("FINAL");
+  });
+
+  it("maps API key filters to the ingestion attribution column", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "ingestionApiKey",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["pk-lf-test"],
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    const applied = filter.apply();
+    expect(applied.query).toContain('e."ingestion_api_key" IN');
+    expect(Object.values(applied.params)).toContainEqual(["pk-lf-test"]);
   });
 
   it("builds a direct grouped query for one boolean filter option column", () => {

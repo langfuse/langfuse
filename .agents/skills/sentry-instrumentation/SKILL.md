@@ -1,16 +1,8 @@
 ---
 name: sentry-instrumentation
 description: |
-  Capture errors in Langfuse with Sentry deliberately, and decide whether a new
-  error path should report at all. Use when (1) adding or touching any
-  `captureException`, `console.error`, error boundary, `catch` block, Worker
-  `onerror`, or tRPC/REST error handler in `web/**` — pause and decide capture
-  before finishing; (2) adding or reviewing a Sentry `beforeSend` filter,
-  denylist rule, `ignoreErrors`, `denyUrls`, or any noise-suppression change
-  (MANDATORY here — the review question is "does this rule hide a real
-  error?"); (3) asked to reduce Sentry noise, triage a Sentry issue, or answer
-  "why is X / isn't X in Sentry"; (4) rendering user-supplied content (URLs,
-  hrefs) through a framework primitive that may reject it and log an error.
+  Decide whether and how errors report to Sentry. Use when touching capture or
+  error-handling paths in `web/**`, triaging Sentry noise, or changing Sentry settings.
 ---
 
 # Sentry Instrumentation

@@ -3,16 +3,17 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItemWithSecondaryAction,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { useState, useCallback } from "react";
-import { Bot, FlaskConical, MoreVertical } from "lucide-react";
+import { Bot, Edit, FlaskConical, LockIcon, MoreVertical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
@@ -305,57 +306,66 @@ export default function Dataset() {
               }
               listKey="datasets"
             />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                <DropdownMenuItem asChild>
-                  <DatasetActionButton
-                    mode="update"
-                    projectId={projectId}
-                    datasetId={datasetId}
-                    datasetName={dataset.data?.name ?? ""}
-                    datasetDescription={dataset.data?.description ?? undefined}
-                    datasetMetadata={dataset.data?.metadata}
-                    datasetInputSchema={dataset.data?.inputSchema ?? undefined}
-                    datasetExpectedOutputSchema={
-                      dataset.data?.expectedOutputSchema ?? undefined
-                    }
-                  />
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <DuplicateDatasetButton
-                    datasetId={datasetId}
-                    projectId={projectId}
-                  />
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  asChild
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    return false;
-                  }}
-                >
-                  <DeleteDatasetButton
-                    itemId={datasetId}
-                    projectId={projectId}
-                    redirectUrl={`/project/${projectId}/datasets`}
-                    deleteConfirmation={dataset.data?.name}
-                  />
-                </DropdownMenuItem>
-                {hasReadAccess && (
-                  <DropdownMenuItem asChild>
-                    <Link href={`/project/${projectId}/evals?target=dataset`}>
-                      <Bot className="mr-2 ml-1 h-4 w-4" />
-                      Manage Evaluators
-                    </Link>
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <UpdateDatasetDialogController
+              projectId={projectId}
+              datasetId={datasetId}
+              datasetName={dataset.data?.name ?? ""}
+              datasetDescription={dataset.data?.description ?? undefined}
+              datasetMetadata={dataset.data?.metadata}
+              datasetInputSchema={dataset.data?.inputSchema ?? undefined}
+              datasetExpectedOutputSchema={
+                dataset.data?.expectedOutputSchema ?? undefined
+              }
+              source="dataset"
+            >
+              {({ disabled, openDialog }) => (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
+                    <DropdownMenuItemWithSecondaryAction
+                      disabled={disabled}
+                      icon={disabled === undefined ? Edit : LockIcon}
+                      title="Edit"
+                      onClick={openDialog}
+                    />
+                    <DropdownMenuItem asChild>
+                      <DuplicateDatasetButton
+                        datasetId={datasetId}
+                        projectId={projectId}
+                      />
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      asChild
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        return false;
+                      }}
+                    >
+                      <DeleteDatasetButton
+                        itemId={datasetId}
+                        projectId={projectId}
+                        redirectUrl={`/project/${projectId}/datasets`}
+                        deleteConfirmation={dataset.data?.name}
+                      />
+                    </DropdownMenuItem>
+                    {hasReadAccess && (
+                      <DropdownMenuItem asChild>
+                        <Link
+                          href={`/project/${projectId}/evals?target=dataset`}
+                        >
+                          <Bot className="mr-2 ml-1 h-4 w-4" />
+                          Manage Evaluators
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </UpdateDatasetDialogController>
           </>
         ),
       }}

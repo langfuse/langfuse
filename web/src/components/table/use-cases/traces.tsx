@@ -30,7 +30,7 @@ import {
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   formatAsLabel,
-  LevelColors,
+  getLevelColors,
   LevelSymbols,
 } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
@@ -1074,8 +1074,8 @@ export default function TracesTable({
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              LevelColors[value].bg,
-              LevelColors[value].text,
+              getLevelColors(value).bg,
+              getLevelColors(value).text,
             )}
           >
             {value}
