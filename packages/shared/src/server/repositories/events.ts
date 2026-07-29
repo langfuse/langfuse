@@ -1609,9 +1609,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
  * This avoids expensive full-table scans on events_full.
  */
 export const getObservationsV2FromEventsTableForPublicApi = async (
-  opts: PublicApiObservationsQuery & {
-    fields: ObservationFieldGroupPublicApi[];
-  },
+  opts: PublicApiObservationsQuery,
   options: BuildObservationsQueryComponentsOptions = {},
 ): Promise<Array<EventsObservationPublic>> => {
   const { projectId, expandMetadataKeys } = opts;
@@ -1693,7 +1691,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     records,
     projectId,
     false, // V2 API: IO fields are always returned as raw strings
-    opts.fields, // V2 API: field groups specified, return partial observations
+    requestedFields,
   );
 };
 

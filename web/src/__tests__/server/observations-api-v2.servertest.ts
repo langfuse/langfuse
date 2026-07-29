@@ -202,6 +202,38 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
     });
 
+    it("returns core and basic fields when fields is omitted", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "default-fields-observation",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toContainEqual(
+        expect.objectContaining({
+          id: observationId,
+          name: "default-fields-observation",
+          level: "DEFAULT",
+          isRootObservation: true,
+        }),
+      );
+    });
+
     it("should respect limit parameter with default of 50", async () => {
       const timestamp = Date.now() * 1000;
       const observations = Array.from({ length: 6 }, (_, index) => {
