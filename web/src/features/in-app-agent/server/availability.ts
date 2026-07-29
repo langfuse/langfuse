@@ -4,7 +4,7 @@ import { BaseError, ForbiddenError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
 import { env } from "@/src/env.mjs";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 export async function assertInAppAgentAvailable({
   prisma,
@@ -24,11 +24,17 @@ export async function assertInAppAgentAvailable({
     );
   }
 
-  throwIfNoEntitlement({
-    entitlement: "in-app-agent",
-    sessionUser: user,
-    projectId,
-  });
+  if (
+    !hasEntitlement({
+      entitlement: "in-app-agent",
+      sessionUser: user,
+      projectId,
+    })
+  ) {
+    throw new ForbiddenError(
+      "Unauthorized, user does not have access to entitlement: in-app-agent",
+    );
+  }
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
