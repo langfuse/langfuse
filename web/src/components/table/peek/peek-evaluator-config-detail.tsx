@@ -21,10 +21,7 @@ import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
-import {
-  isLegacyEvalTarget,
-  requiresLegacyMigrationAction,
-} from "@/src/features/evals/utils/typeHelpers";
+import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
@@ -72,15 +69,10 @@ const PeekViewEvaluatorConfigDetail = ({
           <span className="max-h-fit text-lg font-bold">Configuration</span>
           <div className="flex items-center gap-2">
             <StatusBadge type={displayStatus.toLowerCase()} isLive />
-            {/* Quick-deactivate is a migration aid: only shown where legacy
-                evals can no longer be set up (cloud), consistent with the
-                read-only edit gate. */}
-            {isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy && (
-              <DeactivateEvalConfig
-                projectId={projectId}
-                evalConfig={evalConfig}
-              />
-            )}
+            <DeactivateEvalConfig
+              projectId={projectId}
+              evalConfig={evalConfig}
+            />
           </div>
         </div>
         <div className="flex items-center gap-2">
