@@ -3,8 +3,9 @@ name: AWS preview build
 # Build the PR's web + worker images and push them to ECR as pr-<n>-<sha>.
 # The Argo CD ApplicationSet in the infrastructure repo deploys whichever image
 # tag exists for a labeled PR; this workflow only builds and pushes, then posts
-# the preview URL on the PR — as the marker-tagged status comment and as a
-# native GitHub deployment (the "View deployment" button). All PR deployments
+# the preview URL on the PR — as the marker-tagged status comment, as a native
+# GitHub deployment (the "View deployment" button), and as a machine-managed
+# block pinned atop the PR description. All PR deployments
 # share one GitHub environment; Argo CD still owns the real preview lifecycle.
 #
 # The two images are independent artifacts pushed to two independent ECR repos
@@ -301,68 +302,6 @@ jobs:
 
             Synthetic preview data only. Never add production data to public accounts.
 
-      # Pin the preview URL to the very top of the PR description, where it
-      # stays visible no matter how long the discussion below grows (GitHub has
-      # no pinned comments for PRs). The block is machine-managed between
-      # hidden markers; the author's own text below it is never touched.
-      - name: Pin preview link to the PR description
-        if: needs.build.result == 'success'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
-        with:
-          script: |
-            // Markers must stay byte-identical to the removal snippets in
-            // preview-deactivate.yml and preview-stale-cleanup.yml, or a
-            // torn-down preview keeps advertising a dead URL at the top of
-            // the PR forever.
-            const START = "<!-- aws-preview-pin:start -->";
-            const END = "<!-- aws-preview-pin:end -->";
-            const { owner, repo } = context.repo;
-            const pull_number = context.payload.pull_request.number;
-            const host = process.env.PREVIEW_HOST;
-
-            // Deep-link the credentials mention to the authoritative status
-            // comment when it exists (same marker the preview-comment action
-            // manages); fall back to a plain mention on the first build where
-            // pagination may race the comment upsert.
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number: pull_number,
-              per_page: 100,
-            });
-            const statusComment = comments.find(
-              (comment) =>
-                comment.user?.login === "github-actions[bot]" &&
-                comment.body?.includes("<!-- aws-preview -->"),
-            );
-            const credentials = statusComment
-              ? `login + API keys are in the [preview status comment](${statusComment.html_url})`
-              : "login + API keys are in the preview status comment below";
-
-            const updated = `${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`;
-            const block = [
-              START,
-              "> [!IMPORTANT]",
-              `> ### 🔭 Live preview: [\`${host}\`](https://${host})`,
-              `> Synthetic data only · ${credentials} · updated ${updated}`,
-              END,
-              "",
-              "",
-            ].join("\n");
-
-            // Upsert at the very top. Last-writer-wins against a concurrent
-            // manual description edit is acceptable for one machine-managed
-            // block that every subsequent build rewrites anyway.
-            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
-            const body = pr.body ?? "";
-            const blockRe = new RegExp(`${START}[\\s\\S]*?${END}\\n*`);
-            const next = blockRe.test(body) ? body.replace(blockRe, block) : block + body;
-            if (next !== body) {
-              await github.rest.pulls.update({ owner, repo, pull_number, body: next });
-            }
-
       # GitHub environments are durable configuration objects, so all PRs share
       # one `PR Preview` environment instead of creating an unbounded `pr-<n>`
       # environment per PR. The PR-specific task lets cleanup query only this
@@ -452,6 +391,56 @@ jobs:
             core.info(`Deleted ${previousDeployments.length - failures} of ${previousDeployments.length} previous deployment(s) for ${task}.`);
             if (failures) {
               core.setFailed(`${failures} of ${previousDeployments.length} previous deployment(s) could not be deleted.`);
+            }
+
+      # Pin the preview URL to the very top of the PR description, where it
+      # stays visible no matter how long the discussion below grows (GitHub has
+      # no pinned comments for PRs). The block is machine-managed between
+      # hidden markers; the author's own text below it is never touched. Runs
+      # after the deployment record on purpose: a pin failure still fails the
+      # job loudly, but can no longer skip the more functional artifact.
+      - name: Pin preview link to the PR description
+        if: needs.build.result == 'success'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
+        with:
+          script: |
+            // Markers + regex must stay byte-identical to the removal snippets
+            // in preview-deactivate.yml and preview-stale-cleanup.yml, or a
+            // torn-down preview keeps advertising a dead URL at the top of
+            // the PR forever.
+            const START = "<!-- aws-preview-pin:start -->";
+            const END = "<!-- aws-preview-pin:end -->";
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const host = process.env.PREVIEW_HOST;
+
+            // Exactly one plain line, by request — the markdown link is needed
+            // because a schemeless hostname does not auto-link.
+            const block = [
+              START,
+              `Live preview: [${host}](https://${host})`,
+              END,
+              "",
+              "",
+            ].join("\n");
+
+            // Upsert at the very top. The ^ anchor is load-bearing: the block
+            // is always prepended, so anchoring guarantees an author QUOTING
+            // the marker strings mid-description is never matched or clobbered.
+            // Last-writer-wins against a concurrent manual description edit is
+            // acceptable for one machine-managed block every build rewrites.
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            const body = pr.body ?? "";
+            const blockRe = new RegExp(`^${START}[\\s\\S]*?${END}\\n*`);
+            const next = blockRe.test(body) ? body.replace(blockRe, block) : block + body;
+            if (next.length > 65536) {
+              core.warning("PR body would exceed GitHub's 65536-char limit; leaving it unchanged.");
+              return;
+            }
+            if (next !== body) {
+              await github.rest.pulls.update({ owner, repo, pull_number, body: next });
             }
 
       # Two distinct failure paths, each keyed on `== 'failure'` (NOT

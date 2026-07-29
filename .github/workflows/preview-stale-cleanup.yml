@@ -12,8 +12,9 @@ name: AWS preview stale cleanup
 # freshly labeled PR is never immediately reaped.
 #
 # Safe triggers only: `schedule` + `workflow_dispatch`. No checkout, no PR-code
-# execution, no cloud credentials — only PR label/comment mutations — so it
-# stays off zizmor's dangerous-triggers list.
+# execution, no cloud credentials — only PR label/comment/description and
+# deployment-record mutations — so it stays off zizmor's dangerous-triggers
+# list.
 on:
   schedule:
     - cron: "0 6 * * *" # daily 06:00 UTC
@@ -146,20 +147,30 @@ jobs:
 
                   // Remove the preview pin from the PR description so the
                   // reaped preview's URL stops being advertised at the top of
-                  // the PR. Markers must stay byte-identical to
-                  // preview-build.yml's pin step and preview-deactivate.yml.
-                  // Failure is isolated like the deployment loop above — the
-                  // label removal (the actual teardown) already succeeded.
+                  // the PR. Markers + regex must stay byte-identical to
+                  // preview-build.yml's pin step and preview-deactivate.yml
+                  // (^ anchor: never match author-quoted markers mid-body).
+                  // The body is re-fetched because the pulls.list snapshot can
+                  // be minutes old on a large sweep — writing it back would
+                  // silently revert a concurrent description edit. Failure is
+                  // isolated like the deployment loop above — the label
+                  // removal (the actual teardown) already succeeded.
                   try {
                     const START = "<!-- aws-preview-pin:start -->";
                     const END = "<!-- aws-preview-pin:end -->";
-                    const blockRe = new RegExp(`${START}[\\s\\S]*?${END}\\n*`);
-                    if (pr.body && blockRe.test(pr.body)) {
+                    const blockRe = new RegExp(`^${START}[\\s\\S]*?${END}\\n*`);
+                    const { data: fresh } = await github.rest.pulls.get({
+                      owner,
+                      repo,
+                      pull_number: pr.number,
+                    });
+                    const body = fresh.body ?? "";
+                    if (blockRe.test(body)) {
                       await github.rest.pulls.update({
                         owner,
                         repo,
                         pull_number: pr.number,
-                        body: pr.body.replace(blockRe, ""),
+                        body: body.replace(blockRe, ""),
                       });
                     }
                   } catch (e) {
