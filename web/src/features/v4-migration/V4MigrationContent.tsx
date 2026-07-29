@@ -448,7 +448,8 @@ export function V4MigrationDetailsContent({
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-base font-bold">
-                <LibraryBig className="h-4 w-4" /> Want to review first?
+                <LibraryBig className="h-4 w-4 shrink-0" /> Want to review
+                first?
               </div>
               <V4PreviewToggleRow projectId={projectId} />
             </div>
@@ -471,8 +472,8 @@ export function V4MigrationDetailsContent({
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-base font-bold">
-            <TriangleAlert className="h-4 w-4" /> What happens if I don&apos;t
-            update?
+            <TriangleAlert className="h-4 w-4 shrink-0" /> What happens if I
+            don&apos;t update?
           </div>
           <a
             href={V4_DOCS_URL}
@@ -679,7 +680,7 @@ export function V4MigrationDetailsContent({
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 text-base font-bold">
-          <LifeBuoy className="h-4 w-4" /> Contact us
+          <LifeBuoy className="h-4 w-4 shrink-0" /> Contact us
         </div>
         <p className="text-muted-foreground text-sm">
           Need a hand with the update? We&apos;re here to help!
