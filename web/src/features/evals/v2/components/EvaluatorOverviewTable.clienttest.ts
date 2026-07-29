@@ -1,4 +1,4 @@
-import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import { decodeFiltersGeneric } from "@langfuse/shared";
 import { getEvaluatorScoresHref } from "./EvaluatorOverviewTable";
 
 describe("getEvaluatorScoresHref", () => {

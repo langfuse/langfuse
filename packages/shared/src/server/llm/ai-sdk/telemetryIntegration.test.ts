@@ -170,6 +170,10 @@ describe("AI SDK telemetry integration", () => {
       publicKey: "",
       sdkName: "langfuse-internal-ai-sdk",
       sdkVersion: "unknown",
+      // Mirrors production: publishInternalOtelSpans flags internal batches,
+      // and the queue passes the flag through to the processor. Without it,
+      // extractEnvironment applies the public schema and strips "langfuse-".
+      isLangfuseInternal: true,
     });
     // The seen-traces dedup cache is Redis-backed; CI runs shared tests
     // without a Redis service, so the lookup would hang until test timeout.
@@ -267,6 +271,9 @@ describe("AI SDK telemetry integration", () => {
       publicKey: "",
       sdkName: "langfuse-internal-ai-sdk",
       sdkVersion: "unknown",
+      // Mirrors production: internal batches reach the queue processor with
+      // this flag set, keeping the reserved "langfuse-*" environment intact.
+      isLangfuseInternal: true,
     }).processToEvent(resourceSpans);
 
     const roots = eventInputs.filter((input: any) => !input.parentSpanId);

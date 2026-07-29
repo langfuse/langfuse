@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
-import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import { decodeFiltersGeneric } from "@langfuse/shared";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
 
 const mocks = vi.hoisted(() => ({

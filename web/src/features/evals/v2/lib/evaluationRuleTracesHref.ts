@@ -3,7 +3,7 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 
-import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import { encodeFiltersGeneric } from "@langfuse/shared";
 
 export function getEvaluationRuleTracesHref({
   projectId,

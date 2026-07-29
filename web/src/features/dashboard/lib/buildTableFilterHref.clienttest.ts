@@ -2,15 +2,13 @@ import {
   type FilterState,
   observationsTableCols,
   tracesTableCols,
+  decodeFiltersGeneric,
+  MAX_URL_FILTER_QUERY_LENGTH,
 } from "@langfuse/shared";
 import {
   buildTableFilterHref,
   buildViewAsTableHint,
 } from "./buildTableFilterHref";
-import {
-  decodeFiltersGeneric,
-  MAX_URL_FILTER_QUERY_LENGTH,
-} from "@/src/features/filters/lib/filter-query-encoding";
 
 const DATE_RANGE = {
   from: new Date("2026-07-01T00:00:00.000Z"),

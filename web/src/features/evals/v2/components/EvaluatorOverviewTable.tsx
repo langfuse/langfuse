@@ -31,7 +31,7 @@ import {
 import { EvaluationRuleExecutionTraceStatusHistory } from "@/src/features/evals/v2/components/EvaluationRuleExecutionStatusHistory";
 import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
-import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import { encodeFiltersGeneric } from "@langfuse/shared";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { api, type RouterOutputs } from "@/src/utils/api";

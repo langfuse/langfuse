@@ -211,6 +211,30 @@ describe("default-model-prices.json", () => {
     }
   });
 
+  it("should match AWS geographic inference profiles for Claude Haiku 4.5", () => {
+    const claudeModel = defaultModelPrices.find(
+      (model) => model.modelName === "claude-haiku-4-5-20251001",
+    );
+    expect(claudeModel).toBeDefined();
+
+    expect(claudeModel!.matchPattern).toContain(
+      "(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0",
+    );
+  });
+
+  it("should consistently support JP and AU prefixes for Anthropic Bedrock models", () => {
+    const bedrockModels = defaultModelPrices.filter((model) =>
+      model.matchPattern.includes("anthropic\\.claude"),
+    );
+    expect(bedrockModels.length).toBeGreaterThan(0);
+
+    for (const model of bedrockModels) {
+      expect(model.matchPattern, model.modelName).toContain(
+        "(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude",
+      );
+    }
+  });
+
   it("should correctly match claude-sonnet-4-5 model with tiered pricing", () => {
     const claudeModel = defaultModelPrices.find(
       (m) => m.id === "c5qmrqolku82tra3vgdixmys",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
+import { LANGFUSE_IN_APP_AGENT_SKILLS } from "@langfuse/shared/in-app-agent/server";
 
 describe("in-app agent skills", () => {
   it("registers the evaluator design flow with its required project context", () => {

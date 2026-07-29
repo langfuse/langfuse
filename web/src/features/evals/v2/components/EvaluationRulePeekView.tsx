@@ -52,7 +52,7 @@ import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
 import { ruleTimeRangeFilter } from "@/src/features/evals/v2/lib/useRuleMatchCount";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
-import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import { encodeFiltersGeneric } from "@langfuse/shared";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";

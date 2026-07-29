@@ -1,4 +1,4 @@
-import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import { decodeFiltersGeneric } from "@langfuse/shared";
 import { getEvaluationRuleTracesHref } from "./evaluationRuleTracesHref";
 
 describe("getEvaluationRuleTracesHref", () => {
