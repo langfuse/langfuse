@@ -1,6 +1,6 @@
 import { EventType } from "@ag-ui/core";
 
-import { InAppAgentRunStatus } from "../../index";
+import { InAppAgentRunStatusSchema } from "../../index";
 import { Prisma, type PrismaClient } from "../../db";
 import {
   isActiveInAppAgentRunStatus,
@@ -109,7 +109,7 @@ export async function* watchConversationFrames(params: {
       yield {
         type: "event",
         sequenceNumber: row.sequenceNumber,
-        event: toPublicEvent(event) as unknown as Record<string, unknown>,
+        event: toPublicEvent(event),
       };
 
       if (
@@ -123,12 +123,18 @@ export async function* watchConversationFrames(params: {
     }
 
     // Legacy rows may have no status and cannot be watched as active runs.
-    if (!latestRun?.status) {
+    if (!latestRun) {
       yield { type: "done" };
       return;
     }
 
-    const status = latestRun.status as InAppAgentRunStatus;
+    const parsedStatus = InAppAgentRunStatusSchema.safeParse(latestRun.status);
+    if (!parsedStatus.success) {
+      yield { type: "done" };
+      return;
+    }
+
+    const status = parsedStatus.data;
     const cancelRequested = Boolean(latestRun.cancelRequestedAt);
     const statusKey = `${latestRun.id}:${status}:${cancelRequested}`;
 
@@ -190,6 +196,6 @@ function syntheticFrame(
   return {
     type: "event",
     sequenceNumber: cursor,
-    event: event as unknown as Record<string, unknown>,
+    event,
   };
 }

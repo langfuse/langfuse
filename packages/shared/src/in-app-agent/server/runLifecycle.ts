@@ -1,6 +1,7 @@
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  InAppAgentRunStatusSchema,
   LangfuseConflictError,
 } from "../../index";
 import { Prisma } from "../../db";
@@ -11,6 +12,8 @@ import type { AgUiEvent } from "../schema";
 import type { InAppAgentRunRequest } from "../../features/inAppAgent/types";
 import {
   ACTIVE_RUN_CONFLICT_MESSAGE,
+  FOREGROUND_RUN_STALE_AFTER_MS,
+  FOREGROUND_RUN_STALE_ERROR_MESSAGE,
   lockConversation,
   type InAppAgentTx,
 } from "./persistence";
@@ -319,63 +322,87 @@ export async function requestRunCancellation(params: {
       select: { status: true },
     });
 
-    if (!run?.status) {
+    const parsedStatus = InAppAgentRunStatusSchema.safeParse(run?.status);
+    if (!parsedStatus.success) {
       return { cancelledImmediately: false, status: null };
     }
+    const runStatus = parsedStatus.data;
 
     const immediateCancel =
-      run.status === InAppAgentRunStatus.QUEUED
+      runStatus === InAppAgentRunStatus.QUEUED
         ? {
             errorCode: InAppAgentRunErrorCode.CANCELLED,
             errorMessage: "Cancelled before a worker picked the run up",
           }
-        : run.status === InAppAgentRunStatus.AWAITING_APPROVAL
+        : runStatus === InAppAgentRunStatus.AWAITING_APPROVAL
           ? {
               errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
               errorMessage: "Approval cancelled",
             }
           : null;
 
-    if (!immediateCancel) {
-      if (run.status !== InAppAgentRunStatus.RUNNING) {
-        return {
-          cancelledImmediately: false,
-          status: run.status as InAppAgentRunStatus,
-        };
-      }
-
+    if (immediateCancel) {
       const { count } = await tx.inAppAgentRun.updateMany({
         where: {
           id: params.runId,
           projectId: params.projectId,
-          status: InAppAgentRunStatus.RUNNING,
+          status: runStatus,
         },
-        data: { cancelRequestedAt: new Date() },
+        data: {
+          status: InAppAgentRunStatus.CANCELLED,
+          finishedAt: new Date(),
+          cancelRequestedAt: new Date(),
+          ...immediateCancel,
+        },
       });
 
+      if (count > 0) {
+        return {
+          cancelledImmediately: true,
+          status: InAppAgentRunStatus.CANCELLED,
+        };
+      }
+    } else if (runStatus !== InAppAgentRunStatus.RUNNING) {
       return {
         cancelledImmediately: false,
-        status: count > 0 ? InAppAgentRunStatus.RUNNING : null,
+        status: runStatus,
       };
     }
 
-    const { count } = await tx.inAppAgentRun.updateMany({
+    // A worker can claim QUEUED between the read and immediate-cancel CAS.
+    // Signal the newly RUNNING worker instead of losing that cancel request.
+    const signalled = await tx.inAppAgentRun.updateMany({
       where: {
         id: params.runId,
         projectId: params.projectId,
-        status: run.status,
+        status: InAppAgentRunStatus.RUNNING,
       },
-      data: {
-        status: InAppAgentRunStatus.CANCELLED,
-        finishedAt: new Date(),
-        cancelRequestedAt: new Date(),
-        ...immediateCancel,
-      },
+      data: { cancelRequestedAt: new Date() },
     });
 
+    if (signalled.count > 0) {
+      return {
+        cancelledImmediately: false,
+        status: InAppAgentRunStatus.RUNNING,
+      };
+    }
+
+    const current = await tx.inAppAgentRun.findFirst({
+      where: {
+        id: params.runId,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+      },
+      select: { status: true },
+    });
+
+    const parsedCurrentStatus = InAppAgentRunStatusSchema.safeParse(
+      current?.status,
+    );
+
     return {
-      cancelledImmediately: count > 0,
-      status: count > 0 ? InAppAgentRunStatus.CANCELLED : null,
+      cancelledImmediately: false,
+      status: parsedCurrentStatus.success ? parsedCurrentStatus.data : null,
     };
   });
 }
@@ -439,7 +466,17 @@ async function reconcileConversationRunsInTransaction(params: {
     if (!failure) continue;
 
     const { count } = await tx.inAppAgentRun.updateMany({
-      where: { id: run.id, projectId, status: run.status },
+      where: {
+        id: run.id,
+        projectId,
+        status: run.status,
+        ...(failure.errorCode === InAppAgentRunErrorCode.WORKER_LOST
+          ? {
+              claimedAt: run.claimedAt,
+              heartbeatAt: run.heartbeatAt,
+            }
+          : {}),
+      },
       data: {
         status: InAppAgentRunStatus.FAILED,
         finishedAt: new Date(),
@@ -476,6 +513,17 @@ function classifyStaleRun(
   }
 
   if (run.status === InAppAgentRunStatus.RUNNING) {
+    if (
+      !run.claimedAt &&
+      !run.heartbeatAt &&
+      now - run.createdAt.getTime() > FOREGROUND_RUN_STALE_AFTER_MS
+    ) {
+      return {
+        errorCode: InAppAgentRunErrorCode.STALE,
+        errorMessage: FOREGROUND_RUN_STALE_ERROR_MESSAGE,
+      };
+    }
+
     // Duration wins because a hung tool may keep renewing its heartbeat.
     if (
       run.claimedAt &&

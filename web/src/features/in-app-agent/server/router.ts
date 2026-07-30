@@ -226,11 +226,20 @@ export const inAppAgentRouter = createTRPCRouter({
   decideToolApproval: protectedProjectProcedureWithoutTracing
     .input(DecideToolApprovalInput)
     .mutation(async ({ ctx, input }) => {
-      await assertInAppAgentAvailable({
+      const projectAvailability = await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
         user: ctx.session.user,
       });
+
+      await assertInAppAgentRateLimit(
+        getInAppAgentApiAccessScope(
+          ctx.session.user,
+          input.projectId,
+          projectAvailability,
+        ),
+        "in-app-agent-run",
+      );
 
       return decideBackgroundApproval({
         prisma: ctx.prisma,

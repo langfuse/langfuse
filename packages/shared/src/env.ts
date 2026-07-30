@@ -507,6 +507,51 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
     .string()
     .optional(),
+  LANGFUSE_IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5_000),
+  LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60_000),
+  LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5 * 60_000),
+  LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15 * 60_000),
+  LANGFUSE_IN_APP_AGENT_APPROVAL_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(24 * 60 * 60_000),
+  LANGFUSE_IN_APP_AGENT_WATCH_TAIL_POLL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(1_000),
+  LANGFUSE_IN_APP_AGENT_WATCH_KEEPALIVE_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15_000),
+  LANGFUSE_IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5_000),
+  LANGFUSE_IN_APP_AGENT_WATCH_MAX_CONNECTION_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(90_000),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

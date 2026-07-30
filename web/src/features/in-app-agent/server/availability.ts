@@ -15,6 +15,7 @@ export async function assertInAppAgentAvailable({
   projectId: string;
   user: NonNullable<Session["user"]>;
 }) {
+  // TODO(LFE-14555): Remove this guard once the OSS release strategy is ready.
   if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     throw new BaseError(
       "PreconditionFailedError",

@@ -38,10 +38,10 @@ import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./tools";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.
-const ACTIVE_RUN_STALE_AFTER_MS = 150 * 1000;
+export const FOREGROUND_RUN_STALE_AFTER_MS = 150 * 1000;
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
-const STALE_RUN_ERROR_MESSAGE =
+export const FOREGROUND_RUN_STALE_ERROR_MESSAGE =
   "Run was marked stale before starting a new run";
 const SANDBOX_CONVERSATION_WRITE_WINDOW_MS = 8 * 60 * 60 * 1000;
 
@@ -177,7 +177,7 @@ export async function createRun(params: {
   mcpApiKeyId?: string;
 }) {
   const now = new Date();
-  const staleBefore = new Date(now.getTime() - ACTIVE_RUN_STALE_AFTER_MS);
+  const staleBefore = new Date(now.getTime() - FOREGROUND_RUN_STALE_AFTER_MS);
 
   return params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
@@ -205,7 +205,7 @@ export async function createRun(params: {
         status: InAppAgentRunStatus.FAILED,
         finishedAt: now,
         errorCode: InAppAgentRunErrorCode.STALE,
-        errorMessage: STALE_RUN_ERROR_MESSAGE,
+        errorMessage: FOREGROUND_RUN_STALE_ERROR_MESSAGE,
       },
     });
 
@@ -297,22 +297,53 @@ export async function appendRunEvents(params: {
   conversationId: string;
   runId: string;
   events: readonly AgUiEvent[];
+  finish?: {
+    status:
+      | InAppAgentRunStatus.SUCCEEDED
+      | InAppAgentRunStatus.FAILED
+      | InAppAgentRunStatus.CANCELLED
+      | InAppAgentRunStatus.AWAITING_APPROVAL;
+    errorCode?: InAppAgentRunErrorCode;
+    errorMessage?: string;
+  };
 }): Promise<boolean> {
   return params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
-    const activeRun = await tx.inAppAgentRun.findFirst({
-      where: {
-        id: params.runId,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        status: InAppAgentRunStatus.RUNNING,
-      },
-      select: { id: true },
-    });
+    if (params.finish) {
+      const finished = await tx.inAppAgentRun.updateMany({
+        where: {
+          id: params.runId,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          status: InAppAgentRunStatus.RUNNING,
+          finishedAt: null,
+        },
+        data: {
+          status: params.finish.status,
+          finishedAt: new Date(),
+          errorCode: params.finish.errorCode ?? null,
+          errorMessage: params.finish.errorMessage ?? null,
+        },
+      });
 
-    if (!activeRun) {
-      return false;
+      if (finished.count === 0) {
+        return false;
+      }
+    } else {
+      const activeRun = await tx.inAppAgentRun.findFirst({
+        where: {
+          id: params.runId,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          status: InAppAgentRunStatus.RUNNING,
+        },
+        select: { id: true },
+      });
+
+      if (!activeRun) {
+        return false;
+      }
     }
 
     const latestEvent = await tx.inAppAgentEvent.findFirst({
@@ -743,10 +774,11 @@ export async function flushPendingRunEvents(params: {
   conversationId: string;
   runId: string;
   pendingEvents: AgUiEvent[];
+  finish?: Parameters<typeof appendRunEvents>[0]["finish"];
 }) {
   const pendingEventCount = params.pendingEvents.length;
 
-  if (pendingEventCount === 0) {
+  if (pendingEventCount === 0 && !params.finish) {
     return;
   }
 
@@ -754,13 +786,14 @@ export async function flushPendingRunEvents(params: {
     params.pendingEvents.slice(0, pendingEventCount),
   );
 
-  if (eventsToAppend.length > 0) {
+  if (eventsToAppend.length > 0 || params.finish) {
     const appended = await appendRunEvents({
       prisma: params.prisma,
       projectId: params.projectId,
       conversationId: params.conversationId,
       runId: params.runId,
       events: eventsToAppend,
+      finish: params.finish,
     });
 
     if (!appended) {

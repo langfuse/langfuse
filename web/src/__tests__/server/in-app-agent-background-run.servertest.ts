@@ -33,6 +33,10 @@ const enqueuedJobs: Array<{ name: string; payload: unknown; jobId?: string }> =
   [];
 let enqueueShouldFail = false;
 
+const rateLimitMocks = vi.hoisted(() => ({
+  rateLimitRequest: vi.fn(),
+}));
+
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual<typeof SharedServerModule>(
     "@langfuse/shared/src/server",
@@ -55,6 +59,14 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
+  RateLimitService: {
+    getInstance: () => ({
+      rateLimitRequest: rateLimitMocks.rateLimitRequest,
+    }),
+  },
+}));
+
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
 }));
@@ -68,6 +80,10 @@ describe("in-app agent background runs", () => {
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
     enqueuedJobs.length = 0;
     enqueueShouldFail = false;
+    rateLimitMocks.rateLimitRequest.mockResolvedValue({
+      isRateLimited: () => false,
+      res: undefined,
+    });
   });
 
   afterEach(() => {
@@ -371,6 +387,42 @@ describe("in-app agent background runs", () => {
     ).toBe(1);
   });
 
+  it("rate-limits approval continuations before persisting or enqueueing them", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "rate-limited-tool-call",
+    });
+
+    enqueuedJobs.length = 0;
+    rateLimitMocks.rateLimitRequest.mockResolvedValue({
+      isRateLimited: () => true,
+      res: { msBeforeNext: 60_000 },
+    });
+
+    await expect(
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "rate-limited-tool-call",
+        approved: true,
+      }),
+    ).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+
+    await expect(
+      prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: parkedRunId, projectId },
+      }),
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.AWAITING_APPROVAL,
+    });
+    expect(enqueuedJobs).toEqual([]);
+  });
+
   it("persists approval expiry before rejecting a late decision", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -523,79 +575,78 @@ describe("in-app agent background runs", () => {
     expect(afterSupersede.pendingToolApprovals).toEqual([]);
   });
 
-  it("reconciles dead runs on read with the right typed error code", async () => {
+  it.each([
+    {
+      name: "worker_lost",
+      expected: InAppAgentRunErrorCode.WORKER_LOST,
+      data: {
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: new Date(Date.now() - 120_000),
+        heartbeatAt: new Date(Date.now() - 90_000),
+      },
+    },
+    {
+      name: "run_timeout",
+      expected: InAppAgentRunErrorCode.RUN_TIMEOUT,
+      data: {
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: new Date(Date.now() - 16 * 60_000),
+        heartbeatAt: new Date(),
+      },
+    },
+    {
+      name: "foreground_stale",
+      expected: InAppAgentRunErrorCode.STALE,
+      data: { status: InAppAgentRunStatus.RUNNING },
+      createdAt: new Date(Date.now() - 3 * 60_000),
+    },
+    {
+      name: "queue_timeout",
+      expected: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
+      data: { status: InAppAgentRunStatus.QUEUED },
+      createdAt: new Date(Date.now() - 6 * 60_000),
+    },
+    {
+      name: "approval_expired",
+      expected: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+      data: {
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        finishedAt: new Date(Date.now() - 25 * 60 * 60_000),
+      },
+    },
+  ])("reconciles $name on read with its typed error code", async (testCase) => {
     const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const runId = createInAppAgentRunId();
 
-    const cases = [
-      {
-        name: "worker_lost",
-        expected: InAppAgentRunErrorCode.WORKER_LOST,
-        data: {
-          status: InAppAgentRunStatus.RUNNING,
-          claimedAt: new Date(Date.now() - 120_000),
-          heartbeatAt: new Date(Date.now() - 90_000),
-        },
-      },
-      {
-        name: "run_timeout",
-        expected: InAppAgentRunErrorCode.RUN_TIMEOUT,
-        data: {
-          status: InAppAgentRunStatus.RUNNING,
-          claimedAt: new Date(Date.now() - 16 * 60_000),
-          // A hung tool keeps the heartbeat healthy; the duration backstop is
-          // what has to fire here.
-          heartbeatAt: new Date(),
-        },
-      },
-      {
-        name: "queue_timeout",
-        expected: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
-        data: { status: InAppAgentRunStatus.QUEUED },
-        createdAt: new Date(Date.now() - 6 * 60_000),
-      },
-      {
-        name: "approval_expired",
-        expected: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
-        data: {
-          status: InAppAgentRunStatus.AWAITING_APPROVAL,
-          finishedAt: new Date(Date.now() - 25 * 60 * 60_000),
-        },
-      },
-    ];
-
-    for (const testCase of cases) {
-      const conversation = await createConversation({ projectId, userId });
-      const runId = createInAppAgentRunId();
-
-      await prisma.inAppAgentRun.create({
-        data: {
-          id: runId,
-          projectId,
-          conversationId: conversation.id,
-          triggeredByUserId: userId,
-          request: { kind: "userMessage", context: [] },
-          ...testCase.data,
-        },
-      });
-
-      if (testCase.createdAt) {
-        await prisma.inAppAgentRun.update({
-          where: { id_projectId: { id: runId, projectId } },
-          data: { createdAt: testCase.createdAt },
-        });
-      }
-
-      const result = await caller.getConversation({
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: runId,
         projectId,
         conversationId: conversation.id,
-      });
+        triggeredByUserId: userId,
+        request: { kind: "userMessage", context: [] },
+        ...testCase.data,
+      },
+    });
 
-      expect(result.latestRun, testCase.name).toMatchObject({
-        id: runId,
-        status: InAppAgentRunStatus.FAILED,
-        errorCode: testCase.expected,
+    if (testCase.createdAt) {
+      await prisma.inAppAgentRun.update({
+        where: { id_projectId: { id: runId, projectId } },
+        data: { createdAt: testCase.createdAt },
       });
     }
+
+    const result = await caller.getConversation({
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    expect(result.latestRun).toMatchObject({
+      id: runId,
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: testCase.expected,
+    });
   });
 
   it("fails the committed run when the enqueue fails", async () => {
