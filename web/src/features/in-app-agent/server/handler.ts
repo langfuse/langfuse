@@ -10,8 +10,12 @@ import {
 import {
   getInAppAgentMessageEntryPointTraceMetadata,
   getInAppAgentQuickActionTraceMetadata,
-  sanitizeInAppAgentContext,
 } from "@/src/features/in-app-agent/context";
+import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
+import {
+  checkInAppAgentRateLimit,
+  getInAppAgentApiAccessScope,
+} from "@/src/features/in-app-agent/server/rateLimit";
 import { getInAppAgentInstrumentationTraceId } from "@langfuse/shared/in-app-agent";
 import {
   AgUiRunAgentInputSchema,
@@ -57,19 +61,14 @@ import {
 } from "@langfuse/shared/in-app-agent/server/sandbox/config";
 import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import { getAuthOptions } from "@/src/server/auth";
-import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import {
-  createHttpHeaderFromRateLimit,
-  RateLimitService,
-} from "@/src/features/public-api/server/RateLimitService";
+import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
+import { createHttpHeaderFromRateLimit } from "@/src/features/public-api/server/RateLimitService";
+import type { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import {
   getLangfuseAITraceSinkParams,
-  parseSavedViewFromURL,
   addUserToSpan,
   logger,
   redis,
-  TableViewService,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
@@ -78,14 +77,10 @@ import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
   ForbiddenError,
-  type FilterState,
   InAppAgentRunErrorCode,
   InvalidRequestError,
-  LangfuseNotFoundError,
   type RateLimitResult,
-  TableViewPresetTableName,
   UnauthorizedError,
-  CloudConfigSchema,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -123,15 +118,6 @@ export default async function handler(request: Request) {
       userId,
       email: user.email ?? undefined,
     });
-
-    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-      throw new BaseError(
-        "PreconditionFailedError",
-        412,
-        "Assistant is not available in self-hosted deployments.",
-        true,
-      );
-    }
 
     const bodyResult = await readBoundedJsonBody(
       request,
@@ -190,35 +176,11 @@ export default async function handler(request: Request) {
       throw new ForbiddenError("User is not a member of this project");
     }
 
-    if (
-      !hasEntitlement({
-        entitlement: "in-app-agent",
-        sessionUser: user,
-        projectId,
-      })
-    ) {
-      throw new ForbiddenError("Assistant is not enabled for this plan");
-    }
-
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: {
-        organization: {
-          select: {
-            id: true,
-            cloudConfig: true,
-            aiFeaturesEnabled: true,
-            aiTelemetryEnabled: true,
-          },
-        },
-      },
+    const organization = await assertInAppAgentAvailable({
+      prisma,
+      projectId,
+      user,
     });
-
-    if (!project?.organization.aiFeaturesEnabled) {
-      throw new ForbiddenError(
-        "Assistant is not enabled for this organization",
-      );
-    }
 
     const sanitizedInput = await prepareAgentInput(
       input,
@@ -264,7 +226,7 @@ export default async function handler(request: Request) {
     const rateLimitScope = getInAppAgentApiAccessScope(
       user,
       projectId,
-      project.organization,
+      organization,
     );
 
     addUserToSpan({
@@ -508,8 +470,7 @@ export default async function handler(request: Request) {
                       projectId,
                       conversationId: conversation.id,
                       userId,
-                      aiTelemetryEnabled:
-                        project.organization.aiTelemetryEnabled,
+                      aiTelemetryEnabled: organization.aiTelemetryEnabled,
                     });
                   }),
               onAbort: () =>
@@ -557,7 +518,7 @@ export default async function handler(request: Request) {
               langfuseClient,
               useLocalPrompt,
               langfuseTracing: (() => {
-                if (!project.organization.aiTelemetryEnabled) {
+                if (!organization.aiTelemetryEnabled) {
                   return undefined;
                 }
 
@@ -690,65 +651,15 @@ function getInAppAgentUserAccess(
   };
 }
 
-function getInAppAgentApiAccessScope(
-  user: SessionUser,
-  projectId: string,
-  projectOrganization: {
-    id: string;
-    cloudConfig: unknown;
-  },
-): ApiAccessScope {
-  const organization = user.organizations.find((org) =>
-    org.projects.some((project) => project.id === projectId),
-  );
-
-  if (!organization) {
-    if (user.admin === true) {
-      const cloudConfig = projectOrganization.cloudConfig
-        ? CloudConfigSchema.parse(projectOrganization.cloudConfig)
-        : undefined;
-
-      return {
-        orgId: projectOrganization.id,
-        plan: getOrganizationPlanServerSide(cloudConfig),
-        projectId,
-        accessLevel: "project",
-        rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
-        apiKeyId: "in-app-agent-session",
-        publicKey: "in-app-agent-session",
-        isIngestionSuspended: false,
-      };
-    }
-
-    throw new ForbiddenError("User is not a member of this project");
-  }
-
-  return {
-    orgId: organization.id,
-    plan: organization.plan,
-    projectId,
-    accessLevel: "project",
-    rateLimitOverrides: organization.cloudConfig?.rateLimitOverrides ?? [],
-    apiKeyId: "in-app-agent-session",
-    publicKey: "in-app-agent-session",
-    isIngestionSuspended: false,
-  };
-}
-
 async function rateLimitInAppAgentRequest(
   scope: ApiAccessScope,
   resource: Parameters<RateLimitService["rateLimitRequest"]>[1],
 ): Promise<Response | undefined> {
-  const rateLimit = await RateLimitService.getInstance().rateLimitRequest(
-    scope,
-    resource,
-  );
+  const rateLimitRes = await checkInAppAgentRateLimit(scope, resource);
 
-  if (!rateLimit.isRateLimited() || !rateLimit.res) {
-    return undefined;
-  }
-
-  return createInAppAgentRateLimitResponse(rateLimit.res);
+  return rateLimitRes
+    ? createInAppAgentRateLimitResponse(rateLimitRes)
+    : undefined;
 }
 
 function createInAppAgentRateLimitResponse(rateLimitRes: RateLimitResult) {
@@ -910,47 +821,11 @@ async function prepareAgentInput(
     throw new InvalidRequestError("Invalid forwarded props");
   }
 
-  const currentUrlContext = input.context.find(
-    (item) => item.description === "current_url",
-  );
-  const selectedSavedView = currentUrlContext
-    ? parseSavedViewFromURL(currentUrlContext.value, isV4Enabled)
-    : undefined;
-  let viewFilters: FilterState | undefined;
-
-  if (selectedSavedView) {
-    try {
-      const { filters, tableName } =
-        await TableViewService.getTableViewPresetsById(
-          selectedSavedView.viewId,
-          projectId,
-        );
-
-      if (
-        tableName === selectedSavedView.tableName ||
-        (selectedSavedView.tableName ===
-          TableViewPresetTableName.ObservationsEvents &&
-          tableName === TableViewPresetTableName.Observations)
-      ) {
-        viewFilters = filters;
-      }
-    } catch (error) {
-      // Saved views can be deleted while their URLs remain open or shared.
-      if (!(error instanceof LangfuseNotFoundError)) {
-        logger.warn("Failed to resolve saved view for in-app agent context", {
-          error,
-          projectId,
-          savedViewId: selectedSavedView.viewId,
-        });
-      }
-    }
-  }
-
-  const context = sanitizeInAppAgentContext(
-    input.context,
+  const context = await resolveInAppAgentRunContext({
+    context: input.context,
     projectId,
-    viewFilters,
-  );
+    isV4Enabled,
+  });
 
   if (forwardedProps && "command" in forwardedProps) {
     const resumeForwardedProps =
