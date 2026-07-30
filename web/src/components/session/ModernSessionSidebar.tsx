@@ -41,7 +41,7 @@ import { cn } from "@/src/utils/tailwind";
 const OBSERVATION_LIST_OVERSCAN = 5;
 const EMPTY_TRACES: EventSessionTrace[] = [];
 
-export type ModernSessionObservationFilterControls = {
+export type ModernSessionSidebarFilterControls = {
   activeFilterCount: number;
   activeViewName: string | undefined;
   selectedViewId: string | null;
@@ -148,7 +148,7 @@ const TurnCard = React.memo(
 );
 TurnCard.displayName = "TurnCard";
 
-export function ModernSessionObservationList(
+export function ModernSessionSidebar(
   props:
     | { state: "loading" }
     | {
@@ -156,7 +156,7 @@ export function ModernSessionObservationList(
         traces: EventSessionTrace[];
         activeTraceId: string | undefined;
         selectedTraceId: string | undefined;
-        filterControls: ModernSessionObservationFilterControls;
+        filterControls: ModernSessionSidebarFilterControls;
         renderObservationRows: ObservationListRowsRenderer;
         onSelect: (index: number) => void;
       },

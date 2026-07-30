@@ -3,13 +3,13 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
-import { ConnectedModernSessionObservationList } from "@/src/components/session/ConnectedModernSessionObservationList";
+import { ConnectedModernSessionSidebar } from "@/src/components/session/ConnectedModernSessionSidebar";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
 import { type ModernSessionObservationIdentity } from "@/src/components/session/modernSessionObservationFilters";
-import { type ModernSessionObservationFilterControls } from "@/src/components/session/ModernSessionObservationList";
+import { type ModernSessionSidebarFilterControls } from "@/src/components/session/ModernSessionSidebar";
 
 const MODERN_SESSION_OVERSCAN = 5;
 const EMPTY_TRACES: EventSessionTrace[] = [];
@@ -29,7 +29,7 @@ type ModernSessionProps = {
   viewLabel: string | null;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
-  observationFilterControls: ModernSessionObservationFilterControls;
+  sidebarFilterControls: ModernSessionSidebarFilterControls;
   onExcludeObservation: (observation: ModernSessionObservationIdentity) => void;
 };
 
@@ -44,7 +44,7 @@ export function ModernSession({
   viewLabel,
   showInlineToolCalls,
   showSystemPrompt,
-  observationFilterControls,
+  sidebarFilterControls,
   onExcludeObservation,
 }: ModernSessionProps) {
   const traces =
@@ -73,7 +73,7 @@ export function ModernSession({
 
   return (
     <div className="bg-background dark:bg-header relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden pb-4 pl-4 lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
-      <ConnectedModernSessionObservationList
+      <ConnectedModernSessionSidebar
         state={
           tracesState.type === "loading"
             ? { type: "loading" }
@@ -88,7 +88,7 @@ export function ModernSession({
         projectId={projectId}
         sessionId={sessionId}
         filterState={filterState}
-        filterControls={observationFilterControls}
+        filterControls={sidebarFilterControls}
         onExcludeObservation={onExcludeObservation}
       />
       <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px] border-l">

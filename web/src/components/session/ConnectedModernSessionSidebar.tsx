@@ -2,9 +2,9 @@ import { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import {
-  ModernSessionObservationList,
-  type ModernSessionObservationFilterControls,
-} from "@/src/components/session/ModernSessionObservationList";
+  ModernSessionSidebar,
+  type ModernSessionSidebarFilterControls,
+} from "@/src/components/session/ModernSessionSidebar";
 import {
   ObservationListRows,
   type ObservationListRowsRenderer,
@@ -82,7 +82,7 @@ function ConnectedObservationRows({
   );
 }
 
-export function ConnectedModernSessionObservationList({
+export function ConnectedModernSessionSidebar({
   state,
   projectId,
   sessionId,
@@ -102,17 +102,17 @@ export function ConnectedModernSessionObservationList({
   projectId: string;
   sessionId: string;
   filterState: FilterState;
-  filterControls: ModernSessionObservationFilterControls;
+  filterControls: ModernSessionSidebarFilterControls;
   onExcludeObservation: (observation: ModernSessionObservationIdentity) => void;
 }) {
   if (state.type === "loading") {
-    return <ModernSessionObservationList state="loading" />;
+    return <ModernSessionSidebar state="loading" />;
   }
 
   const { traces, activeTraceId, selectedTraceId, onSelect } = state;
 
   return (
-    <ModernSessionObservationList
+    <ModernSessionSidebar
       state="loaded"
       traces={traces}
       activeTraceId={activeTraceId}

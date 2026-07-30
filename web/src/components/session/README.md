@@ -8,12 +8,12 @@ feature-flagged choice between the existing card layout and Modern Session.
 - `TraceRow.tsx`: legacy trace card and lazy-load boundary.
 - `TraceEventsRow.tsx`: events-backed trace content for card and Modern Session
   feed surfaces.
-- `ModernSession.tsx`: span-list integration, scroll-spy derivation, smooth
+- `ModernSession.tsx`: sidebar integration, scroll-spy derivation, smooth
   navigation, and the continuous virtualized feed.
-- `ModernSessionObservationList.tsx`: virtualized, collapsible turn groups with
+- `ModernSessionSidebar.tsx`: virtualized, collapsible turn groups with
   span search and idle-gap separators.
-- `ConnectedModernSessionObservationList.tsx`: tRPC-backed observation rows for
-  `ModernSessionObservationList`.
+- `ConnectedModernSessionSidebar.tsx`: tRPC-backed observation rows for
+  `ModernSessionSidebar`.
 - `SessionVirtualizedRow.tsx` + `useStableVirtualRowMeasurement.ts`: translated
   DOM-safe dynamic row measurement.
 - `src/hooks/useVirtualizedScrollSpy.ts`: reusable active-item derivation,

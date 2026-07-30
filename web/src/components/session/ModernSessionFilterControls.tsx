@@ -18,7 +18,7 @@ import {
   type ModernSessionObservationIdentity,
 } from "@/src/components/session/modernSessionObservationFilters";
 import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/components/session/session-detail-presets";
-import { type ModernSessionObservationFilterControls } from "@/src/components/session/ModernSessionObservationList";
+import { type ModernSessionSidebarFilterControls } from "@/src/components/session/ModernSessionSidebar";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
@@ -63,7 +63,7 @@ type ModernSessionFilterControlsProps = {
     columnVisibility: VisibilityState;
     searchQuery: string;
   };
-  children: (controls: ModernSessionObservationFilterControls) => ReactNode;
+  children: (controls: ModernSessionSidebarFilterControls) => ReactNode;
 };
 
 const normalizeFilters = (filters: FilterState) =>

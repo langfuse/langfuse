@@ -2,7 +2,7 @@ import preview from "../../../.storybook/preview";
 import { fn } from "storybook/test";
 import { type ComponentProps } from "react";
 
-import { ModernSessionObservationList } from "@/src/components/session/ModernSessionObservationList";
+import { ModernSessionSidebar } from "@/src/components/session/ModernSessionSidebar";
 import {
   ObservationListRows,
   type ObservationListRowsRenderer,
@@ -131,16 +131,16 @@ const loadedArgs = {
   renderObservationRows,
   onSelect: fn(),
 } satisfies Extract<
-  ComponentProps<typeof ModernSessionObservationList>,
+  ComponentProps<typeof ModernSessionSidebar>,
   { state: "loaded" }
 >;
 
 const meta = preview.meta({
-  component: ModernSessionObservationList,
+  component: ModernSessionSidebar,
   parameters: { layout: "fullscreen" },
   render: (args) => (
     <div className="bg-background h-screen w-[296px]">
-      <ModernSessionObservationList {...args} />
+      <ModernSessionSidebar {...args} />
     </div>
   ),
 });

@@ -1756,7 +1756,7 @@ const LoadedSessionEventsPage: React.FC<{
                 searchQuery: "",
               }}
             >
-              {(observationFilterControls) => (
+              {(sidebarFilterControls) => (
                 <ModernSession
                   tracesState={
                     isTracesSuccess
@@ -1772,7 +1772,7 @@ const LoadedSessionEventsPage: React.FC<{
                   viewLabel={viewLabel}
                   showInlineToolCalls={showInlineToolCalls}
                   showSystemPrompt={showSystemPrompt}
-                  observationFilterControls={observationFilterControls}
+                  sidebarFilterControls={sidebarFilterControls}
                   onExcludeObservation={excludeModernSessionObservation}
                 />
               )}
