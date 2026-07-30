@@ -449,10 +449,7 @@ export function ModernSessionSidebar(
           </div>
         ) : null}
       </div>
-      <div
-        ref={listRef}
-        className="min-h-0 flex-1 overflow-y-auto px-1 pt-0.5 pb-4"
-      >
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto pt-0.5 pb-4">
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,
@@ -477,13 +474,13 @@ export function ModernSessionSidebar(
                 {gap !== null &&
                 gap !== undefined &&
                 gap >= IDLE_GAP_THRESHOLD_SECONDS ? (
-                  <div className="my-0.5 mb-2 flex items-center rounded-sm bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-2 py-[5px]">
+                  <div className="my-0.5 mb-2 flex items-center bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-3 py-[5px]">
                     <span className="text-muted-foreground font-mono text-[11px] whitespace-nowrap">
                       +{formatIdleGap(gap)} idle
                     </span>
                   </div>
                 ) : null}
-                <div className="pb-2">
+                <div className="px-1 pb-2">
                   <TurnCard
                     trace={trace}
                     index={virtualItem.index}
