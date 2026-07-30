@@ -3,11 +3,13 @@ import {
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
   booleanFilter,
   eventsTableCols,
+  eventsTableSingleFilter,
+  eventsTableStringFilter,
+  eventsTableStringObjectFilter,
   filterOperators,
   numberFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
-  singleFilter,
   stringFilter,
   stringObjectFilter,
   stringOptionsFilter,
@@ -77,6 +79,11 @@ const OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON = JSON.stringify(
   OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE,
 );
 
+const OBSERVATION_MCP_INDEXED_MATCH_STRING_COLUMNS = new Set([
+  "input",
+  "output",
+]);
+
 const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
   datetime: (column: string, requireType = false) =>
     timeFilter.omit({ type: true, column: true }).extend({
@@ -86,10 +93,17 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
       column: z.literal(column),
     }),
   string: (column: string, requireType = false) =>
-    stringFilter.omit({ type: true, column: true }).extend({
-      type: requireType ? z.literal("string") : z.literal("string").optional(),
-      column: z.literal(column),
-    }),
+    (OBSERVATION_MCP_INDEXED_MATCH_STRING_COLUMNS.has(column)
+      ? eventsTableStringFilter
+      : stringFilter
+    )
+      .omit({ type: true, column: true })
+      .extend({
+        type: requireType
+          ? z.literal("string")
+          : z.literal("string").optional(),
+        column: z.literal(column),
+      }),
   stringOptions: (column: string, requireType = false) =>
     stringOptionsFilter.omit({ type: true, column: true }).extend({
       type: requireType
@@ -112,12 +126,14 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
       column: z.literal(column),
     }),
   stringObject: (column: string, requireType = false) =>
-    stringObjectFilter.omit({ type: true, column: true }).extend({
-      type: requireType
-        ? z.literal("stringObject")
-        : z.literal("stringObject").optional(),
-      column: z.literal(column),
-    }),
+    (column === "metadata" ? eventsTableStringObjectFilter : stringObjectFilter)
+      .omit({ type: true, column: true })
+      .extend({
+        type: requireType
+          ? z.literal("stringObject")
+          : z.literal("stringObject").optional(),
+        column: z.literal(column),
+      }),
   boolean: (column: string, requireType = false) =>
     booleanFilter.omit({ type: true, column: true }).extend({
       type: requireType
@@ -200,7 +216,7 @@ const ObservationMcpFilterSchema = z
     const type =
       filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
-    return singleFilter.parse(
+    return eventsTableSingleFilter.parse(
       filter.column === "tags"
         ? { ...filter, type, column: "traceTags" }
         : { ...filter, type },
