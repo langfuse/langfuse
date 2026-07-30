@@ -16,6 +16,7 @@ import {
   normalizePublicDashboardWidgetInput,
   validatePublicDashboardWidgetInput,
 } from "@/src/features/widgets/server/public-dashboard-widget-service";
+import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
 const baseInput = {
   name: "API widget",
@@ -68,5 +69,34 @@ describe("public dashboard widget minVersion", () => {
     envMock.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
 
     expect(normalizePublicDashboardWidgetInput(baseInput).minVersion).toBe(2);
+  });
+
+  it("only suggests dimensions that widget validation accepts", () => {
+    envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    const normalized = normalizePublicDashboardWidgetInput({
+      ...baseInput,
+      dimensions: [{ field: "notAViewDimension" }],
+    });
+
+    let validationError: unknown;
+    try {
+      validatePublicDashboardWidgetInput(normalized);
+    } catch (error) {
+      validationError = error;
+    }
+
+    expect(validationError).toBeInstanceOf(UnstablePublicApiError);
+    const allowedValues = (validationError as UnstablePublicApiError).details
+      ?.allowedValues;
+    expect(allowedValues?.length).toBeGreaterThan(0);
+
+    for (const field of allowedValues ?? []) {
+      expect(() =>
+        validatePublicDashboardWidgetInput({
+          ...normalized,
+          dimensions: [{ field }],
+        }),
+      ).not.toThrow();
+    }
   });
 });
