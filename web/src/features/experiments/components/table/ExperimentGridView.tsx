@@ -35,6 +35,8 @@ type ExperimentGridViewProps = {
   baselineExperimentId: string;
   comparisonExperimentIds: string[];
   useExperimentColors?: boolean;
+  /** Render I/O cells as single-line text (true) or JSON tree (false). */
+  singleLine: boolean;
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   rowHeight: RowHeight;
@@ -65,6 +67,7 @@ export const ExperimentGridView = ({
   baselineExperimentId,
   comparisonExperimentIds,
   useExperimentColors = true,
+  singleLine,
   rows,
   isLoading,
   rowHeight,
@@ -162,6 +165,7 @@ export const ExperimentGridView = ({
               baselineLatencyMs={baselineData?.latencyMs}
               observationId={expData.observationId}
               traceId={expData.traceId}
+              singleLine={singleLine}
               scores={expData.observationScores ?? {}}
               traceScores={expData.traceScores ?? {}}
               observationScoreOrder={observationScoreOrder}
@@ -187,6 +191,7 @@ export const ExperimentGridView = ({
     showScoreLevelLabels,
     columnVisibility,
     useExperimentColors,
+    singleLine,
   ]);
 
   // Build all columns: Select, Input, Expected Output, then experiment columns
@@ -203,7 +208,7 @@ export const ExperimentGridView = ({
           <MemoizedIOTableCell
             isLoading={isLoading}
             data={row.original.input ?? null}
-            singleLine={false}
+            singleLine={singleLine}
             enableExpandOnHover
           />
         ),
@@ -217,7 +222,7 @@ export const ExperimentGridView = ({
           <MemoizedIOTableCell
             isLoading={isLoading}
             data={row.original.expectedOutput ?? null}
-            singleLine={false}
+            singleLine={singleLine}
             className="bg-accent-light-green"
             enableExpandOnHover
           />
@@ -225,7 +230,7 @@ export const ExperimentGridView = ({
       },
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading, selectActionColumn],
+    [experimentColumns, isLoading, selectActionColumn, singleLine],
   );
 
   return (

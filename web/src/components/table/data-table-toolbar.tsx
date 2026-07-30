@@ -135,6 +135,9 @@ interface DataTableToolbarProps<TData, TValue> {
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   rowHeight?: RowHeight;
   setRowHeight?: Dispatch<SetStateAction<RowHeight>>;
+  /** Extra display controls rendered next to the row-height switch (right side),
+   *  e.g. an I/O JSON/text render-mode toggle. */
+  displayControls?: React.ReactNode;
   columnsWithCustomSelect?: string[];
   timeRange?: TimeRange;
   setTimeRange?: (timeRange: TimeRange) => void;
@@ -214,6 +217,7 @@ export function DataTableToolbar<TData, TValue>({
   setColumnOrder,
   rowHeight,
   setRowHeight,
+  displayControls,
   columnsWithCustomSelect,
   timeRange,
   setTimeRange,
@@ -506,6 +510,7 @@ export function DataTableToolbar<TData, TValue>({
               setRowHeight={setRowHeight}
             />
           )}
+          {displayControls}
           {actionButtons}
         </div>
       </div>

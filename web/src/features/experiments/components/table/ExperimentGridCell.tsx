@@ -50,6 +50,7 @@ type ExperimentGridCellProps = {
   projectId: string;
   itemId: string;
   output: unknown;
+  outputPotentiallyTruncated: boolean;
   level: string;
   startTime: Date;
   totalCost?: number | null;
@@ -58,6 +59,8 @@ type ExperimentGridCellProps = {
   baselineLatencyMs?: number | null;
   observationId: string;
   traceId: string;
+  /** Render the output cell as single-line text (true) or JSON tree (false). */
+  singleLine: boolean;
   scores: ScoreAggregate;
   traceScores: ScoreAggregate;
   observationScoreOrder: string[];
@@ -399,6 +402,7 @@ export const ExperimentGridCell = ({
   baselineLatencyMs,
   observationId,
   traceId,
+  singleLine,
   scores,
   traceScores,
   observationScoreOrder,
@@ -484,6 +488,7 @@ export const ExperimentGridCell = ({
     projectId,
     itemId,
     output,
+    outputPotentiallyTruncated,
     level,
     startTime,
     totalCost,
@@ -521,7 +526,7 @@ export const ExperimentGridCell = ({
               canExpandOutput ? setIsOutputExpanded : undefined
             }
             className="bg-accent-light-green min-h-8"
-            singleLine={false}
+            singleLine={singleLine}
             enableExpandOnHover={canExpandOutput}
           />
         ),
@@ -656,6 +661,7 @@ export const ExperimentGridCell = ({
       orderedTraceKeys,
       outputPotentiallyTruncated,
       showScoreLevelLabels,
+      singleLine,
     ],
   );
 

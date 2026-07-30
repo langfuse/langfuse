@@ -29,6 +29,10 @@ import {
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  DataTableIoRenderModeSwitch,
+  useIoRenderModeLocalStorage,
+} from "@/src/components/table/data-table-io-render-mode-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
@@ -50,6 +54,11 @@ import {
   getExperimentColorStyles,
 } from "./types";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import {
+  IO_TABLE_CHAR_LIMIT,
+  stringifyJsonNode,
+} from "@/src/components/ui/CodeJsonViewer";
+import { api } from "@/src/utils/api";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
@@ -163,16 +172,96 @@ const StackedExperimentCell = ({
 };
 
 /**
+ * A single experiment's output within the stacked list cell. Mirrors the grid
+ * cell's expand behaviour: hover previews the value and, when the preview may be
+ * truncated, lazily fetches the full value from events_full on open.
+ */
+const StackedOutputRow = ({
+  projectId,
+  output,
+  outputPotentiallyTruncated,
+  experimentData,
+  markerClass,
+  singleLine,
+}: {
+  projectId: string;
+  output: string;
+  outputPotentiallyTruncated: boolean;
+  experimentData?: ExperimentItemData;
+  markerClass: string;
+  singleLine: boolean;
+}) => {
+  const observationId = experimentData?.observationId;
+  const traceId = experimentData?.traceId;
+  const startTime = experimentData?.startTime;
+
+  const outputExceedsTableLimit =
+    (stringifyJsonNode(output)?.length ?? 0) > IO_TABLE_CHAR_LIMIT;
+  const canExpand = outputPotentiallyTruncated || outputExceedsTableLimit;
+
+  const [isExpanded, setIsExpanded] = useState(false);
+  const fullOutputQuery = api.events.experimentBatchIO.useQuery(
+    {
+      projectId,
+      observations: [{ id: observationId ?? "", traceId: traceId ?? "" }],
+      // startTime is always defined when the query is enabled (see `enabled`);
+      // the epoch fallback only satisfies the required Date type while disabled.
+      minStartTime: startTime ?? new Date(0),
+      maxStartTime: startTime ?? new Date(0),
+      truncated: false,
+    },
+    {
+      enabled:
+        isExpanded &&
+        outputPotentiallyTruncated &&
+        Boolean(observationId && traceId && startTime),
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+    },
+  );
+  const expandedOutput = fullOutputQuery.data?.find(
+    (event) => event.id === observationId,
+  )?.output;
+
+  return (
+    <div className="flex min-w-0 items-start">
+      <span
+        className={cn(
+          "mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full",
+          markerClass,
+        )}
+      />
+      <MemoizedIOTableCell
+        isLoading={false}
+        data={output}
+        expandedData={expandedOutput}
+        isExpandedDataLoading={
+          isExpanded && outputPotentiallyTruncated && fullOutputQuery.isLoading
+        }
+        onExpandOpenChange={canExpand ? setIsExpanded : undefined}
+        enableExpandOnHover={canExpand}
+        singleLine={singleLine}
+        className="bg-accent-light-green"
+      />
+    </div>
+  );
+};
+
+/**
  * Cell component that renders stacked output values for each experiment.
  */
 const StackedOutputCell = ({
+  projectId,
   outputs,
+  experiments,
   allExperimentIds,
   colorExperimentIds,
   singleLine,
   isLoading,
 }: {
+  projectId: string;
   outputs: ExperimentOutputData[];
+  experiments: ExperimentItemData[];
   allExperimentIds: string[];
   colorExperimentIds?: string[];
   singleLine: boolean;
@@ -181,6 +270,10 @@ const StackedOutputCell = ({
   const outputsByExperimentId = useMemo(
     () => new Map(outputs.map((out) => [out.experimentId, out])),
     [outputs],
+  );
+  const experimentsById = useMemo(
+    () => new Map(experiments.map((exp) => [exp.experimentId, exp])),
+    [experiments],
   );
 
   return (
@@ -211,20 +304,14 @@ const StackedOutputCell = ({
                 />
               </div>
             ) : out?.output ? (
-              <div className="flex min-w-0 items-start">
-                <span
-                  className={cn(
-                    "mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full",
-                    colorStyles.markerClass,
-                  )}
-                />
-                <MemoizedIOTableCell
-                  isLoading={false}
-                  data={out.output}
-                  singleLine={singleLine}
-                  className="bg-accent-light-green"
-                />
-              </div>
+              <StackedOutputRow
+                projectId={projectId}
+                output={out.output}
+                outputPotentiallyTruncated={out.outputPotentiallyTruncated}
+                experimentData={experimentsById.get(experimentId)}
+                markerClass={colorStyles.markerClass}
+                singleLine={singleLine}
+              />
             ) : (
               <span className="text-muted-foreground px-2 py-1">—</span>
             )}
@@ -312,6 +399,13 @@ export default function ExperimentItemsTable({
     "experiment-items",
     "l",
   );
+  // Global I/O rendering mode for the experiment views: JSON tree vs plain-text
+  // single-line. Controls IOTableCell `singleLine` across grid + list.
+  const [ioRenderMode, setIoRenderMode] = useIoRenderModeLocalStorage(
+    "experiment-items",
+    "json",
+  );
+  const ioSingleLine = ioRenderMode === "text";
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "startTime",
@@ -829,7 +923,7 @@ export default function ExperimentItemsTable({
           <MemoizedIOTableCell
             isLoading={ioLoading}
             data={row.original.input ?? null}
-            singleLine={rowHeight === "s"}
+            singleLine={ioSingleLine}
           />
         );
       },
@@ -845,7 +939,7 @@ export default function ExperimentItemsTable({
           <MemoizedIOTableCell
             isLoading={ioLoading}
             data={row.original.expectedOutput ?? ""}
-            singleLine={rowHeight === "s"}
+            singleLine={ioSingleLine}
             className="bg-accent-light-green"
           />
         );
@@ -861,10 +955,12 @@ export default function ExperimentItemsTable({
         const outputs = row.original.outputs ?? [];
         return (
           <StackedOutputCell
+            projectId={projectId}
             outputs={outputs}
+            experiments={row.original.experiments ?? []}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            singleLine={rowHeight === "s"}
+            singleLine={ioSingleLine}
             isLoading={ioLoading}
           />
         );
@@ -1085,6 +1181,12 @@ export default function ExperimentItemsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
+            displayControls={
+              <DataTableIoRenderModeSwitch
+                ioRenderMode={ioRenderMode}
+                setIoRenderMode={setIoRenderMode}
+              />
+            }
             multiSelect={{
               selectAll,
               setSelectAll,
@@ -1153,6 +1255,7 @@ export default function ExperimentItemsTable({
                   baselineExperimentId={fallbackBaselineId ?? ""}
                   comparisonExperimentIds={comparisonIdsWithoutFallbackBaseline}
                   useExperimentColors={hasBaseline}
+                  singleLine={ioSingleLine}
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
                   rowHeight={rowHeight}
