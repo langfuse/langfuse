@@ -1,4 +1,10 @@
-import { render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -6,14 +12,25 @@ import {
   V4MigrationHeaderContent,
 } from "./V4MigrationContent";
 import { type MigrationCountState } from "./migrationData";
+import { type V4MigrationSdkState } from "./sdkVersionStatus";
 
 const mocks = vi.hoisted(() => ({
+  routerPush: vi.fn(),
+  setAgentOpen: vi.fn(),
+  submitAgentMessage: vi.fn(),
+  upgradePlan: {
+    canUseAssistant: true,
+    mode: "evals-ready" as const,
+    showAssistantButton: true,
+    assistantPrompt: "eval-upgrade-prompt",
+  },
   migrationData: {
     sdk: {
       status: "latest" as const,
       sdkUsageSeries: [],
       upgradeRequiredCount: 0,
-    },
+      delayedOtelIngestionCount: 0,
+    } as V4MigrationSdkState,
     evals: { status: "loaded", count: 0 } as MigrationCountState,
     apis: { status: "loaded", count: 1 } as MigrationCountState,
     exports: { status: "loaded", count: 3 } as MigrationCountState,
@@ -24,7 +41,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ query: { projectId: "project-1" } }),
+  useRouter: () => ({
+    query: { projectId: "project-1" },
+    push: mocks.routerPush,
+  }),
 }));
 
 vi.mock("@/src/features/support-chat/SupportDrawerProvider", () => ({
@@ -48,17 +68,15 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
 // The plan hook queries tRPC internally; mock it so tests need no provider.
 vi.mock("@/src/features/v4-migration/useV4UpgradeAssistantSupport", () => ({
   V4_CODING_AGENT_PROMPT: "coding-agent-prompt",
-  useEvalUpgradeAssistantPlan: () => ({
-    canUseAssistant: false,
-    mode: "outside",
-    showAssistantButton: false,
-    assistantPrompt: "",
-  }),
+  useEvalUpgradeAssistantPlan: () => mocks.upgradePlan,
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useCanUseInAppAgent: () => false,
-  useInAppAiAgent: () => ({ setOpen: vi.fn(), submit: vi.fn() }),
+  useCanUseInAppAgent: () => true,
+  useInAppAiAgent: () => ({
+    setOpen: mocks.setAgentOpen,
+    submit: mocks.submitAgentMessage,
+  }),
 }));
 
 // The toggle row pulls in session + tRPC state via useV4Beta; stub it so the
@@ -86,7 +104,12 @@ vi.mock("@/src/components/ui/collapsible", () => ({
 
 describe("V4MigrationDetailsContent", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.routerPush.mockResolvedValue(true);
+    mocks.submitAgentMessage.mockResolvedValue(undefined);
+    mocks.migrationData.evals = { status: "loaded", count: 0 };
     mocks.canToggleV4 = true;
+    mocks.migrationData.sdk.status = "latest";
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
     mocks.migrationData.apiUsage = [
@@ -156,6 +179,18 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows no detected ingestion data without asking for SDK review", () => {
+    mocks.migrationData.sdk.status = "no_data";
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("No data detected")).toBeInTheDocument();
+    expect(
+      screen.getByText(/No ingestion data was detected in the last 14 days/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Needs review")).not.toBeInTheDocument();
+  });
+
   it("shows the preview-toggle section only when the session can toggle v4", () => {
     const { unmount } = render(
       <V4MigrationDetailsContent projectId="project-1" />,
@@ -173,10 +208,51 @@ describe("V4MigrationDetailsContent", () => {
       screen.queryByText(/Use this toggle to compare both views/),
     ).not.toBeInTheDocument();
   });
+
+  it("navigates to evals when migrating with the assistant", async () => {
+    mocks.migrationData.evals = { status: "loaded", count: 1 };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Migrate with assistant" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.routerPush).toHaveBeenCalledWith("/project/project-1/evals");
+    });
+    expect(mocks.setAgentOpen).toHaveBeenCalledWith(true);
+    expect(mocks.submitAgentMessage).toHaveBeenCalledWith(
+      "eval-upgrade-prompt",
+      { newConversation: true },
+    );
+  });
+
+  it("opens the assistant when navigation to evals is interrupted", async () => {
+    mocks.migrationData.evals = { status: "loaded", count: 1 };
+    mocks.routerPush.mockRejectedValueOnce(
+      new Error("Abort fetching component for route"),
+    );
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Migrate with assistant" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.setAgentOpen).toHaveBeenCalledWith(true);
+    });
+    expect(mocks.submitAgentMessage).toHaveBeenCalledWith(
+      "eval-upgrade-prompt",
+      { newConversation: true },
+    );
+  });
 });
 
 describe("V4MigrationHeaderContent", () => {
   beforeEach(() => {
+    mocks.migrationData.evals = { status: "loaded", count: 0 };
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
   });

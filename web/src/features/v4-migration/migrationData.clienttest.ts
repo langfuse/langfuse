@@ -24,13 +24,13 @@ const migrationStatus = (
 });
 
 describe("v4 migration data", () => {
-  it("uses a stable seven-day range aligned to the hour", () => {
+  it("uses a stable fourteen-day range aligned to the hour", () => {
     const range = createV4MigrationDetectionRange(
       new Date("2026-07-23T10:42:31.000Z").getTime(),
     );
 
     expect(range).toEqual({
-      fromTimestamp: new Date("2026-07-16T11:00:00.000Z"),
+      fromTimestamp: new Date("2026-07-09T11:00:00.000Z"),
       toTimestamp: new Date("2026-07-23T11:00:00.000Z"),
     });
   });
@@ -58,6 +58,16 @@ describe("v4 migration data", () => {
           sdk: {
             ...migrationStatus().sdk,
             status: "otel_realtime",
+          },
+        }),
+      ),
+    ).toBe("ready");
+    expect(
+      getProjectMigrationReadiness(
+        migrationStatus({
+          sdk: {
+            ...migrationStatus().sdk,
+            status: "no_data",
           },
         }),
       ),

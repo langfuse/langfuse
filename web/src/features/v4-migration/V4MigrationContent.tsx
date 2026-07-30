@@ -180,14 +180,14 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
       <Chip variant="success">Up to date</Chip>
     ) : sdk.status === "otel_realtime" ? (
       <Chip variant="success">OTel real-time</Chip>
+    ) : sdk.status === "no_data" ? (
+      <Chip variant="success">No data detected</Chip>
     ) : sdk.status === "checking" ? (
       <Chip variant="warning">Checking</Chip>
     ) : sdk.status === "otel_header_required" ? (
       <Chip variant="warning">OTel header required</Chip>
     ) : sdk.status === "unknown" ? (
-      <Chip variant="warning">
-        {detectedSdkSeries.length > 0 ? "Needs review" : "Not detected"}
-      </Chip>
+      <Chip variant="warning">Needs review</Chip>
     ) : sdk.status === "error" ? (
       <Chip variant="warning">Check failed</Chip>
     ) : (
@@ -212,16 +212,10 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
           </>
         ) : sdk.status === "otel_realtime" ? (
           "OTel data is using real-time ingestion. No ingestion header update is required."
+        ) : sdk.status === "no_data" ? (
+          `No ingestion data was detected in the last ${V4_MIGRATION_LOOKBACK_DAYS} days.`
         ) : sdk.status === "unknown" ? (
-          detectedSdkSeries.length > 0 ? (
-            "We could not recognize every detected SDK version. Verify that these SDKs are up to date."
-          ) : (
-            <>
-              We could not detect an attributed Langfuse SDK in traces from the
-              last 7 days. If this project uses one, verify that it is up to
-              date.
-            </>
-          )
+          "We could not recognize every detected SDK version. Verify that these SDKs are up to date."
         ) : sdk.status === "error" ? (
           "We could not check the latest traces for this project. Try again later."
         ) : sdk.status === "latest" ? (
@@ -423,16 +417,19 @@ export function V4MigrationDetailsContent({
     orgId: organization?.id,
     enabled: Boolean(projectId),
   });
+  const evalsUrl =
+    typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
   const handleMigrateEvalsWithAgent = async () => {
     capture("v4_migration:migrate_evals_with_agent_clicked");
     onNavigate?.();
+    if (evalsUrl) {
+      await router.push(evalsUrl).catch(() => undefined);
+    }
     setAgentOpen(true);
     await submitAgentMessage(upgradePlan.assistantPrompt, {
       newConversation: true,
     });
   };
-  const evalsUrl =
-    typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
   const integrationsUrl =
     typeof projectId === "string"
       ? `/project/${projectId}/settings/integrations`

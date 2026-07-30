@@ -3,8 +3,9 @@ name: AWS preview build
 # Build the PR's web + worker images and push them to ECR as pr-<n>-<sha>.
 # The Argo CD ApplicationSet in the infrastructure repo deploys whichever image
 # tag exists for a labeled PR; this workflow only builds and pushes, then posts
-# the preview URL on the PR — as the marker-tagged status comment and as a
-# native GitHub deployment (the "View deployment" button). All PR deployments
+# the preview URL on the PR — as the marker-tagged status comment, as a native
+# GitHub deployment (the "View deployment" button), and as a machine-managed
+# block pinned atop the PR description. All PR deployments
 # share one GitHub environment; Argo CD still owns the real preview lifecycle.
 #
 # The two images are independent artifacts pushed to two independent ECR repos
@@ -200,6 +201,12 @@ jobs:
           DOCKERFILE: ${{ matrix.dockerfile }}
           # Static, workflow-defined literal (per-target flags) — no user input.
           EXTRA_BUILD_ARGS: ${{ matrix.extra_build_args }}
+          TARGET: ${{ matrix.target }}
+          # PR metadata for the preview strip the web app renders (a link back
+          # to the PR + its author). Passed via env, never interpolated into
+          # the script body.
+          PR_HTML_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
 
@@ -230,12 +237,28 @@ jobs:
           fi
 
           echo "${IMAGE} not found — building and pushing."
+
+          # Bake PR metadata into the web client bundle so previews render a
+          # top-of-page strip linking back to the PR (NEXT_PUBLIC_* is inlined
+          # at build time; the worker has no client bundle). The timestamp is
+          # the build time of this head commit, i.e. when the preview content
+          # last changed.
+          preview_meta_args=()
+          if [ "${TARGET}" = "web" ]; then
+            preview_meta_args+=(
+              --build-arg "NEXT_PUBLIC_PREVIEW_PR_URL=${PR_HTML_URL}"
+              --build-arg "NEXT_PUBLIC_PREVIEW_PR_AUTHOR=${PR_AUTHOR}"
+              --build-arg "NEXT_PUBLIC_PREVIEW_LAST_UPDATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            )
+          fi
+
           # EXTRA_BUILD_ARGS is a trusted workflow literal and must word-split
           # into separate flags, so it is intentionally left unquoted.
           # shellcheck disable=SC2086
           docker build \
             --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
             ${EXTRA_BUILD_ARGS} \
+            "${preview_meta_args[@]}" \
             -f "${DOCKERFILE}" \
             -t "${IMAGE}" \
             .
@@ -390,6 +413,61 @@ jobs:
             core.info(`Deleted ${previousDeployments.length - failures} of ${previousDeployments.length} previous deployment(s) for ${task}.`);
             if (failures) {
               core.setFailed(`${failures} of ${previousDeployments.length} previous deployment(s) could not be deleted.`);
+            }
+
+      # Pin the preview URL to the very top of the PR description, where it
+      # stays visible no matter how long the discussion below grows (GitHub has
+      # no pinned comments for PRs). The block is machine-managed between
+      # hidden markers; the author's own text below it is never touched. Runs
+      # after the deployment record on purpose: a pin API failure still fails
+      # the job loudly, but can no longer skip the more functional artifact.
+      - name: Pin preview link to the PR description
+        if: needs.build.result == 'success'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
+        with:
+          script: |
+            // Markers + regex must stay byte-identical to the removal snippets
+            // in preview-deactivate.yml and preview-stale-cleanup.yml, or a
+            // torn-down preview keeps advertising a dead URL at the top of
+            // the PR forever.
+            const START = "<!-- aws-preview-pin:start -->";
+            const END = "<!-- aws-preview-pin:end -->";
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const host = process.env.PREVIEW_HOST;
+
+            // Exactly one bold line, by request — the markdown link is needed
+            // because a schemeless hostname does not auto-link.
+            const block = [
+              START,
+              `🟡 **Live preview: [${host}](https://${host})**`,
+              END,
+              "",
+              "",
+            ].join("\n");
+
+            // Sweep every existing block (line-anchored, so a block displaced
+            // by a manual description edit can't duplicate or outlive the
+            // preview; inline mentions of the markers mid-sentence are never
+            // matched — only a full quoted block with markers on their own
+            // lines would be swept), then prepend the fresh block at the top.
+            // The (?:\r?\n)* tail matters: web-UI edits resubmit bodies with
+            // CRLF endings. Last-writer-wins against a concurrent manual edit
+            // is acceptable for one machine-managed line every build rewrites.
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            const body = pr.body ?? "";
+            const strayRe = new RegExp(`(^|\\r?\\n)(?:${START}[\\s\\S]*?${END}(?:\\r?\\n)*)+`, "g");
+            const next = block + body.replace(strayRe, "$1").replace(/^(?:\r?\n)+/, "");
+            if (next.length > 65536) {
+              // Degrade to a warning: a huge description should not fail
+              // preview builds (a real API failure below still fails loudly).
+              core.warning("PR body would exceed GitHub's 65536-char limit; leaving it unchanged.");
+              return;
+            }
+            if (next !== body) {
+              await github.rest.pulls.update({ owner, repo, pull_number, body: next });
             }
 
       # Two distinct failure paths, each keyed on `== 'failure'` (NOT

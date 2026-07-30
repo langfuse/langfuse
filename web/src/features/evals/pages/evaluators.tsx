@@ -14,7 +14,6 @@ import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/Suppo
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { EvaluatorGalleryDialog } from "@/src/features/evals/v2/components/EvaluatorGalleryDialog";
-import { V4MigrationModal } from "@/src/features/v4-migration/V4MigrationModal";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function EvaluatorsPage() {
@@ -92,7 +91,6 @@ export default function EvaluatorsPage() {
 
   return (
     <>
-      <V4MigrationModal />
       <Page
         headerProps={{
           title: "Evaluators",

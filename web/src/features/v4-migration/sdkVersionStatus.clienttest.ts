@@ -119,7 +119,7 @@ describe("v4 migration SDK status", () => {
     ).toMatchObject({ status: "unknown" });
   });
 
-  it("distinguishes loading, errors, and a loaded empty result", () => {
+  it("distinguishes loading, errors, and a loaded result with no data", () => {
     expect(
       getV4MigrationSdkState({
         summary: undefined,
@@ -134,7 +134,7 @@ describe("v4 migration SDK status", () => {
         isError: true,
       }).status,
     ).toBe("error");
-    expect(getLoadedSdkState().status).toBe("unknown");
+    expect(getLoadedSdkState().status).toBe("no_data");
   });
 
   it("formats detected SDK versions for migration copy", () => {

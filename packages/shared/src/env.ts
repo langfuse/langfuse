@@ -27,6 +27,8 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
+const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
+
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   // Dev-only override: set to an ISO datetime string to shift the legacy blob
@@ -484,7 +486,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(120_000), // 2 minutes
+    .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
@@ -507,6 +509,51 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
     .string()
     .optional(),
+  LANGFUSE_IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5_000),
+  LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60_000),
+  LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5 * 60_000),
+  LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15 * 60_000),
+  LANGFUSE_IN_APP_AGENT_APPROVAL_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(24 * 60 * 60_000),
+  LANGFUSE_IN_APP_AGENT_WATCH_TAIL_POLL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(1_000),
+  LANGFUSE_IN_APP_AGENT_WATCH_KEEPALIVE_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15_000),
+  LANGFUSE_IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5_000),
+  LANGFUSE_IN_APP_AGENT_WATCH_MAX_CONNECTION_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(90_000),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

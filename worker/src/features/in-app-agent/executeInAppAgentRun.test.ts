@@ -8,9 +8,7 @@ import {
   createInAppAgentRunId,
 } from "@langfuse/shared/in-app-agent";
 
-// Env knobs must be set before any import evaluates the shared env/tunables.
 vi.hoisted(() => {
-  process.env.LANGFUSE_IN_APP_AGENT_HEARTBEAT_INTERVAL_MS = "50";
   process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ??= "DEV";
   process.env.NEXTAUTH_URL ??= "http://localhost:3000";
   process.env.LANGFUSE_AWS_BEDROCK_REGION ??= "eu-central-1";
@@ -50,6 +48,7 @@ vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
 
   return {
     ...actual,
+    IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: 50,
     createAgUiStream: async (params: {
       input: never;
       signal: AbortSignal;

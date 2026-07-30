@@ -56,6 +56,10 @@ import {
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
+import {
+  performToolSideEffects,
+  shouldPerformToolSideEffects,
+} from "@/src/features/in-app-agent/components/utils/side-effects";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -304,6 +308,7 @@ function InAppAiAgentProviderInner({
   const [error, setError] = useState<InAppAgentError | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
+  const toolCallNamesRef = useRef(new Map<string, string>());
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const runInFlightRef = useRef(false);
@@ -506,7 +511,6 @@ function InAppAiAgentProviderInner({
     },
     [publishLiveMessages],
   );
-
   const resetAgent = useCallback(() => {
     if (agentRef.current?.isRunning) {
       intentionalAbortRef.current = true;
@@ -517,6 +521,7 @@ function InAppAiAgentProviderInner({
     agentRef.current?.abortRun();
     agentRef.current = null;
     activeRunIdRef.current = null;
+    toolCallNamesRef.current.clear();
     setDisplayState(createInAppAgentDisplayState());
     pendingToolApprovalsRef.current = [];
     setPendingToolApprovals([]);
@@ -605,6 +610,7 @@ function InAppAiAgentProviderInner({
           }
 
           if (event.type === EventType.TOOL_CALL_START) {
+            toolCallNamesRef.current.set(event.toolCallId, event.toolCallName);
             setDisplayState((currentState) =>
               recordInAppAgentToolCallForDisplay(
                 currentState,
@@ -659,6 +665,19 @@ function InAppAiAgentProviderInner({
           });
         },
         onToolCallResultEvent: ({ event }) => {
+          const toolName = toolCallNamesRef.current.get(event.toolCallId);
+          toolCallNamesRef.current.delete(event.toolCallId);
+          if (toolName && shouldPerformToolSideEffects(event.error)) {
+            performToolSideEffects({ toolName, utils }).catch(
+              (error: unknown) => {
+                console.error(
+                  "Failed to invalidate tRPC routes after in-app agent tool call",
+                  { error, toolName },
+                );
+              },
+            );
+          }
+
           updatePendingToolApprovals((currentApprovals) =>
             currentApprovals.filter(
               (approval) =>
@@ -685,6 +704,7 @@ function InAppAiAgentProviderInner({
     [
       clearLoadingEvents,
       publishAgentMessages,
+      utils,
       updateLoadingEvent,
       updatePendingToolApprovals,
     ],
