@@ -1084,29 +1084,43 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(runItemBoth.status).toBe(200);
   }, 90000);
 
-  // events_only mode is exercised against the helper directly: makeAPICall hits
-  // a real HTTP server whose write mode we cannot flip from the test process.
-  it("events_only returns a stable experiment id per run without persisting", async () => {
-    const dataset = await makeZodVerifiedAPICall(
-      PostDatasetsV1Response,
-      "POST",
-      "/api/public/datasets",
-      { name: "events-only-dataset" },
-      auth,
-    );
-    await makeZodVerifiedAPICall(
-      PostDatasetItemsV1Response,
-      "POST",
-      "/api/public/dataset-items",
-      {
-        datasetName: "events-only-dataset",
-        id: "events-only-item",
-        input: { key: "value" },
-      },
-      auth,
-    );
+  // The experiment id is what the SDK reuses across every item POST of a run,
+  // so it must be identical for the same (projectId, datasetId, runName) and
+  // carry the SDK's seeded id shape (16 hex chars).
+  it("createStableExperimentId is deterministic and matches the SDK id shape", () => {
+    const args = {
+      projectId: "p-1",
+      datasetId: "d-1",
+      runName: "run-1",
+    };
+    const id = createStableExperimentId(args);
 
-    const datasetId = dataset.body.id;
+    expect(id).toMatch(/^[0-9a-f]{16}$/);
+    expect(createStableExperimentId(args)).toBe(id);
+    expect(createStableExperimentId({ ...args, runName: "run-2" })).not.toBe(
+      id,
+    );
+    expect(createStableExperimentId({ ...args, datasetId: "d-2" })).not.toBe(
+      id,
+    );
+  });
+
+  // events_only is exercised against the helper directly: makeAPICall hits a
+  // real HTTP server whose write mode we cannot flip from the test process.
+  it("events_only returns a stable experiment id per run without persisting", async () => {
+    const datasetId = v4();
+    await prisma.dataset.create({
+      data: { id: datasetId, name: "events-only-dataset", projectId },
+    });
+    const itemResult = await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { key: "value" },
+      validateOpts: { normalizeUndefinedToNull: true },
+    });
+    if (!itemResult.success) throw new Error(itemResult.message);
+    const datasetItemId = itemResult.datasetItem.id;
+
     const runName = "events-only-run";
     // The helper only reads auth.scope.projectId.
     const helperAuth = { scope: { projectId } } as any;
@@ -1114,18 +1128,16 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const first = await buildStableDatasetRunItemResponseEventsOnly({
       auth: helperAuth,
       body: {
-        datasetItemId: "events-only-item",
-        traceId: traceId,
+        datasetItemId,
+        traceId,
         runName,
         metadata: { key: "value" },
       } as any,
     });
 
     expect(first.datasetRunName).toBe(runName);
-    expect(first.datasetItemId).toBe("events-only-item");
+    expect(first.datasetItemId).toBe(datasetItemId);
     expect(first.traceId).toBe(traceId);
-    // Matches the SDK's seeded id shape (16 hex chars) and our own algorithm.
-    expect(first.datasetRunId).toMatch(/^[0-9a-f]{16}$/);
     expect(first.datasetRunId).toBe(
       createStableExperimentId({ projectId, datasetId, runName }),
     );
@@ -1133,15 +1145,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     // Stable across separate POSTs of the same run, even with a different trace.
     const second = await buildStableDatasetRunItemResponseEventsOnly({
       auth: helperAuth,
-      body: {
-        datasetItemId: "events-only-item",
-        traceId: v4(),
-        runName,
-      } as any,
+      body: { datasetItemId, traceId: v4(), runName } as any,
     });
     expect(second.datasetRunId).toBe(first.datasetRunId);
 
-    // Nothing is persisted: no legacy dataset run row is created in Postgres.
+    // Nothing is persisted: no dataset run row is created in Postgres.
     const dbRun = await prisma.datasetRuns.findFirst({
       where: { projectId, name: runName },
     });
@@ -1152,11 +1160,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     await expect(
       buildStableDatasetRunItemResponseEventsOnly({
         auth: helperAuth,
-        body: {
-          datasetItemId: "does-not-exist",
-          traceId: traceId,
-          runName,
-        } as any,
+        body: { datasetItemId: "does-not-exist", traceId, runName } as any,
       }),
     ).rejects.toThrow("Dataset item not found");
   });

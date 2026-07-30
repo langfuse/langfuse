@@ -753,7 +753,10 @@ export const createStableExperimentId = ({
   runName: string;
 }): string =>
   createHash("sha256")
-    .update(JSON.stringify(["langfuse-experiment-v1", projectId, datasetId, runName]), "utf8")
+    .update(
+      JSON.stringify(["langfuse-experiment-v1", projectId, datasetId, runName]),
+      "utf8",
+    )
     .digest("hex")
     .slice(0, 16);
 

@@ -28,7 +28,10 @@ export default withMiddlewares({
     // experiment span attributes on ingestion instead.
     fn: async ({ body, auth, res }) => {
       if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only") {
-        return await buildStableDatasetRunItemResponseEventsOnly({ body, auth });
+        return await buildStableDatasetRunItemResponseEventsOnly({
+          body,
+          auth,
+        });
       }
       return await createDatasetRunItemForApi({ body, auth, res });
     },
