@@ -60,6 +60,15 @@ import { decryptAndParseExtraHeaders } from "./utils";
 type RuntimeContext = Record<string, unknown>;
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
 
+const CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_CAP_MS = 95_000;
+
+// Finish client-initiated non-streaming calls before the 102-second load balancer timeout.
+export const getClientInitiatedNonStreamingLlmTimeoutMs = () =>
+  Math.min(
+    env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS,
+    CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_CAP_MS,
+  );
+
 export type LLMModelRef = {
   adapter: LLMAdapter;
   id: string;
