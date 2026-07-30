@@ -62,6 +62,9 @@ export async function applyObservationFieldOverflow(
         );
 
         span.setAttributes({
+          "langfuse.project.id": eventRecord.project_id,
+          "langfuse.trace.id": eventRecord.trace_id,
+          "langfuse.observation.id": eventRecord.span_id,
           "langfuse.ingestion.observation_field_overflow.candidates":
             candidates.length,
           "langfuse.ingestion.observation_field_overflow.fields":

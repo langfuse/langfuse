@@ -128,6 +128,9 @@ describe("applyObservationFieldOverflow", () => {
       expect.any(Function),
     );
     expect(mocks.span.setAttributes).toHaveBeenCalledWith({
+      "langfuse.project.id": "project-id",
+      "langfuse.trace.id": "trace-id",
+      "langfuse.observation.id": "observation-id",
       "langfuse.ingestion.observation_field_overflow.candidates": 3,
       "langfuse.ingestion.observation_field_overflow.fields": [
         "input",
