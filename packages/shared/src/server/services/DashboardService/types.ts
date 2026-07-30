@@ -1,6 +1,25 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
 import { singleFilter } from "../../../";
+import { type views } from "../../../features/query";
+
+/** Maps the persisted Prisma enum to the query model's public view id. */
+export const dashboardWidgetViewToQueryView = {
+  [DashboardWidgetViews.TRACES]: "traces",
+  [DashboardWidgetViews.OBSERVATIONS]: "observations",
+  [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
+  [DashboardWidgetViews.SCORES_BOOLEAN]: "scores-boolean",
+  [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
+} as const satisfies Record<DashboardWidgetViews, z.infer<typeof views>>;
+
+/** Maps the query model's public view id to the persisted Prisma enum. */
+export const queryViewToDashboardWidgetView = {
+  traces: DashboardWidgetViews.TRACES,
+  observations: DashboardWidgetViews.OBSERVATIONS,
+  "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
+  "scores-boolean": DashboardWidgetViews.SCORES_BOOLEAN,
+  "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
+} as const satisfies Record<z.infer<typeof views>, DashboardWidgetViews>;
 
 export const BaseTimeSeriesChartConfig = z.object({});
 export const BaseTotalValueChartConfig = z.object({

@@ -13,18 +13,11 @@ import {
   DashboardDomainSchema,
   WidgetDomainSchema,
   DashboardDefinitionSchema,
+  dashboardWidgetViewToQueryView,
 } from "./types";
 import { z } from "zod";
 import { singleFilter } from "../../../";
 import { resolveWidgetMinVersion } from "../../../features/query";
-
-const queryViewByDashboardWidgetView: Record<string, string> = {
-  TRACES: "traces",
-  OBSERVATIONS: "observations",
-  SCORES_NUMERIC: "scores-numeric",
-  SCORES_BOOLEAN: "scores-boolean",
-  SCORES_CATEGORICAL: "scores-categorical",
-};
 
 export class DashboardService {
   /**
@@ -305,7 +298,7 @@ export class DashboardService {
     userId?: string,
   ): Promise<WidgetDomain> {
     const minVersion = resolveWidgetMinVersion({
-      view: queryViewByDashboardWidgetView[input.view],
+      view: dashboardWidgetViewToQueryView[input.view],
       dimensions: input.dimensions,
       measures: input.metrics,
       filters: input.filters,
@@ -372,7 +365,7 @@ export class DashboardService {
       select: { minVersion: true },
     });
     const minVersion = resolveWidgetMinVersion({
-      view: queryViewByDashboardWidgetView[input.view],
+      view: dashboardWidgetViewToQueryView[input.view],
       dimensions: input.dimensions,
       measures: input.metrics,
       filters: input.filters,
@@ -489,7 +482,7 @@ export class DashboardService {
           chartType: sourceWidget.chartType,
           chartConfig: sourceWidget.chartConfig ?? {},
           minVersion: resolveWidgetMinVersion({
-            view: queryViewByDashboardWidgetView[sourceWidgetDomain.view],
+            view: dashboardWidgetViewToQueryView[sourceWidgetDomain.view],
             dimensions: sourceWidgetDomain.dimensions,
             measures: sourceWidgetDomain.metrics,
             filters: sourceWidgetDomain.filters,

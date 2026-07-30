@@ -1,10 +1,9 @@
 import type { z } from "zod";
-import {
-  DashboardWidgetChartType,
-  DashboardWidgetViews,
-} from "@langfuse/shared/src/db";
+import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,
+  dashboardWidgetViewToQueryView,
+  queryViewToDashboardWidgetView,
   type WidgetDomain,
 } from "@langfuse/shared/src/server";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
@@ -12,7 +11,6 @@ import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
   resolveWidgetMinVersion,
-  type views,
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -39,26 +37,6 @@ type NormalizedWidgetInput = Omit<
   z.infer<typeof PostUnstableDashboardWidgetResponse>,
   "id" | "createdAt" | "updatedAt"
 > & { minVersion: number };
-
-const viewMapping: Record<DashboardWidgetViewOutputType, DashboardWidgetViews> =
-  {
-    observations: DashboardWidgetViews.OBSERVATIONS,
-    "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
-    "scores-boolean": DashboardWidgetViews.SCORES_BOOLEAN,
-    "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
-    traces: DashboardWidgetViews.TRACES,
-  };
-
-const reverseViewMapping: Record<
-  DashboardWidgetViews,
-  z.infer<typeof views>
-> = {
-  [DashboardWidgetViews.TRACES]: "traces",
-  [DashboardWidgetViews.OBSERVATIONS]: "observations",
-  [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
-  [DashboardWidgetViews.SCORES_BOOLEAN]: "scores-boolean",
-  [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
-};
 
 const throwInvalidWidget = (params: {
   message: string;
@@ -288,7 +266,7 @@ export function toApiDashboardWidget(widget: WidgetDomain) {
     updatedAt: widget.updatedAt,
     name: widget.name,
     description: widget.description,
-    view: reverseViewMapping[widget.view],
+    view: dashboardWidgetViewToQueryView[widget.view],
     dimensions: widget.dimensions,
     metrics: widget.metrics,
     filters: widget.filters,
@@ -307,7 +285,7 @@ export async function createPublicDashboardWidget(params: {
 
   const widget = await DashboardService.createWidget(params.projectId, {
     ...input,
-    view: viewMapping[input.view],
+    view: queryViewToDashboardWidgetView[input.view],
   });
 
   await auditLog({
@@ -407,7 +385,7 @@ export async function updatePublicDashboardWidget(params: {
   const updated = await DashboardService.updateWidget(
     params.projectId,
     params.widgetId,
-    { ...input, view: viewMapping[input.view] },
+    { ...input, view: queryViewToDashboardWidgetView[input.view] },
   );
   const result = toApiDashboardWidget(updated);
   await auditLog({

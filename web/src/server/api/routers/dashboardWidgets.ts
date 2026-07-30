@@ -5,15 +5,14 @@ import {
 } from "@/src/server/api/trpc";
 import { orderBy, singleFilter, optionalPaginationZod } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  DashboardWidgetChartType,
-  DashboardWidgetViews,
-} from "@langfuse/shared/src/db";
+import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,
   DimensionSchema,
   MetricSchema,
   ChartConfigSchema,
+  dashboardWidgetViewToQueryView,
+  queryViewToDashboardWidgetView,
 } from "@langfuse/shared/src/server";
 import {
   getValidAggregationsForMeasureType,
@@ -66,26 +65,6 @@ const GetDashboardWidgetInput = z.object({
   projectId: z.string(),
   widgetId: z.string(),
 });
-
-const viewMapping: Record<string, DashboardWidgetViews> = {
-  traces: DashboardWidgetViews.TRACES,
-  observations: DashboardWidgetViews.OBSERVATIONS,
-  "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
-  "scores-boolean": DashboardWidgetViews.SCORES_BOOLEAN,
-  "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
-};
-
-// Reverse mapping for client-side use
-const reverseViewMapping: Record<
-  DashboardWidgetViews,
-  z.infer<typeof views>
-> = {
-  [DashboardWidgetViews.TRACES]: "traces",
-  [DashboardWidgetViews.OBSERVATIONS]: "observations",
-  [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
-  [DashboardWidgetViews.SCORES_BOOLEAN]: "scores-boolean",
-  [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
-};
 
 function validateMetricAggregations(params: {
   view: string;
@@ -191,7 +170,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
         input.projectId,
         {
           ...input,
-          view: viewMapping[input.view],
+          view: queryViewToDashboardWidgetView[input.view],
           minVersion: effectiveMinVersion,
         },
         ctx.session.user?.id,
@@ -245,7 +224,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
 
       return {
         ...widget,
-        view: reverseViewMapping[widget.view],
+        view: dashboardWidgetViewToQueryView[widget.view],
         metrics: widget.metrics,
         owner: widget.owner,
       };
@@ -288,7 +267,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
         {
           name: input.name,
           description: input.description,
-          view: viewMapping[input.view],
+          view: queryViewToDashboardWidgetView[input.view],
           dimensions: input.dimensions,
           metrics: input.metrics,
           filters: input.filters,
@@ -327,7 +306,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
       );
       if (sourceWidget) {
         validateWidgetVersionAvailability({
-          view: reverseViewMapping[sourceWidget.view],
+          view: dashboardWidgetViewToQueryView[sourceWidget.view],
           dimensions: sourceWidget.dimensions,
           metrics: sourceWidget.metrics,
           filters: sourceWidget.filters,
