@@ -551,21 +551,24 @@ export const ExperimentGridCell = ({
           },
           {
             accessorKey: "latencyMs",
-            cell: ({ data }) =>
-              data.latencyMs != null ? (
-                <MetadataItem label="Latency">
-                  <span className="inline-flex items-center gap-1 text-xs">
-                    {latencyFormatter(data.latencyMs)}
-                    {data.latencyDiff && (
-                      <DiffLabel
-                        diff={data.latencyDiff}
-                        preferNegativeDiff
-                        formatValue={(value) => latencyFormatter(value)}
-                      />
-                    )}
-                  </span>
-                </MetadataItem>
-              ) : undefined,
+            cell: ({ data }) => (
+              <MetadataItem label="Latency">
+                <span className="inline-flex items-center gap-1 text-xs">
+                  {data.latencyMs != null ? (
+                    latencyFormatter(data.latencyMs)
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                  {data.latencyDiff && (
+                    <DiffLabel
+                      diff={data.latencyDiff}
+                      preferNegativeDiff
+                      formatValue={(value) => latencyFormatter(value)}
+                    />
+                  )}
+                </span>
+              </MetadataItem>
+            ),
           },
         ],
       },

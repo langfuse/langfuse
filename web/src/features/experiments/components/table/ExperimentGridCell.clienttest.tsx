@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { VisibilityState } from "@tanstack/react-table";
 import { ExperimentGridCell } from "./ExperimentGridCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 
@@ -15,7 +16,10 @@ vi.mock("@/src/utils/api", () => ({
 const observationScoreKey = "quality-API-NUMERIC";
 const traceScoreKey = "correctness-API-NUMERIC";
 
-const renderGridCell = (showScoreLevelLabels: boolean) =>
+const renderGridCell = (
+  showScoreLevelLabels: boolean,
+  columnVisibility: VisibilityState = { output: false, metadata: false },
+) =>
   render(
     <TooltipProvider>
       <ExperimentGridCell
@@ -43,7 +47,7 @@ const renderGridCell = (showScoreLevelLabels: boolean) =>
         observationScoreOrder={[observationScoreKey]}
         traceScoreOrder={[traceScoreKey]}
         isBaseline
-        columnVisibility={{ output: false, metadata: false }}
+        columnVisibility={columnVisibility}
         showScoreLevelLabels={showScoreLevelLabels}
       />
     </TooltipProvider>,
@@ -64,5 +68,11 @@ describe("ExperimentGridCell score level labels", () => {
     expect(screen.queryByText("Trace")).not.toBeInTheDocument();
     expect(screen.getByText("quality")).toBeInTheDocument();
     expect(screen.getByText("correctness")).toBeInTheDocument();
+  });
+
+  it("renders the latency row when no latency value is available", () => {
+    renderGridCell(false, { output: false });
+
+    expect(screen.getByText("Latency")).toBeInTheDocument();
   });
 });
