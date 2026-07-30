@@ -8,7 +8,6 @@ import {
   LibraryBig,
   LifeBuoy,
   TriangleAlert,
-  Loader2,
 } from "lucide-react";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
@@ -349,9 +348,12 @@ export function V4MigrationHeaderContent({
     getProjectMigrationReadiness(migrationData) === "action-needed";
 
   const [generatedKeys, setGeneratedKeys] = useState<{
+    projectId: string;
     secretKey: string;
     publicKey: string;
   } | null>(null);
+  const generatedKeysForProject =
+    generatedKeys?.projectId === projectId ? generatedKeys : null;
 
   const utils = api.useUtils();
   const mutCreateProjectApiKey = api.projectApiKeys.create.useMutation({
@@ -365,7 +367,12 @@ export function V4MigrationHeaderContent({
   const handleShowPrompt = () => {
     capture("v4_migration:coding_agent_prompt_viewed");
     setPromptVisible(true);
-    if (!projectId || !hasApiKeyCreateAccess) return;
+    if (
+      !projectId ||
+      !hasApiKeyCreateAccess ||
+      mutCreateProjectApiKey.isPending
+    )
+      return;
 
     mutCreateProjectApiKey
       .mutateAsync({
@@ -374,6 +381,7 @@ export function V4MigrationHeaderContent({
       })
       .then(({ secretKey, publicKey }) => {
         setGeneratedKeys({
+          projectId,
           secretKey,
           publicKey,
         });
@@ -442,24 +450,26 @@ export function V4MigrationHeaderContent({
         </RainbowButton>
         {promptVisible &&
           projectId &&
-          (generatedKeys ? (
+          hasApiKeyCreateAccess &&
+          generatedKeysForProject && (
             <div className="mt-1 flex flex-col gap-2">
               <p className="text-muted-foreground text-sm leading-relaxed">
                 If you are setting up the Langfuse CLI or skills for the first
                 time, use these project API keys.
               </p>
               <div className="flex flex-col gap-2">
-                <ApiKeyCopyField label="PK" value={generatedKeys.publicKey} />
+                <ApiKeyCopyField
+                  label="PK"
+                  value={generatedKeysForProject.publicKey}
+                />
                 <ApiKeyCopyField
                   label="SK"
-                  value={generatedKeys.secretKey}
+                  value={generatedKeysForProject.secretKey}
                   masked
                 />
               </div>
             </div>
-          ) : (
-            <Loader2 className="h-4 w-4 shrink-0" />
-          ))}
+          )}
       </div>
     </>
   );
