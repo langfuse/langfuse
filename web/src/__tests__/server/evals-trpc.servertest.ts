@@ -39,6 +39,8 @@ import { randomUUID } from "crypto";
 import {
   createEvent,
   createEventsCh,
+  createObservation,
+  createObservationsCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import {
@@ -51,6 +53,7 @@ import {
 import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type { Session } from "next-auth";
+import { env } from "@/src/env.mjs";
 
 beforeEach(() => {
   runCodeEvalTestForJobConfigMock.mockReset();
@@ -484,6 +487,13 @@ describe("evals trpc", () => {
           parent_span_id: evaluatorSpanId,
           cost_details: { total: 0.02 },
         }),
+        createEvent({
+          project_id: project.id,
+          trace_id: traceId,
+          parent_span_id: evaluatorSpanId,
+          cost_details: { total: 0.5 },
+          is_deleted: 1,
+        }),
       ]);
 
       const response = await caller.evals.costByEvaluatorIds({
@@ -494,6 +504,35 @@ describe("evals trpc", () => {
       expect(response).toEqual({
         [evaluatorId]: 0.02,
       });
+    });
+
+    it("returns total evaluator costs from observations in legacy write mode", async () => {
+      const { project, caller } = await prepare();
+      const evaluatorId = randomUUID();
+      const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+      Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", "legacy");
+
+      try {
+        await createObservationsCh([
+          createObservation({
+            project_id: project.id,
+            metadata: { job_configuration_id: evaluatorId },
+            total_cost: 0.03,
+          }),
+        ]);
+
+        const response = await caller.evals.costByEvaluatorIds({
+          projectId: project.id,
+          evaluatorIds: [evaluatorId],
+        });
+
+        expect(response).toEqual({
+          [evaluatorId]: 0.03,
+        });
+      } finally {
+        Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalWriteMode);
+      }
     });
   });
 

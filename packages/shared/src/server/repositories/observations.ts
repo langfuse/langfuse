@@ -2000,6 +2000,40 @@ export const getObservationCountsByProjectAndDay = async ({
   }));
 };
 
+export const getCostByEvaluatorIds = async (
+  projectId: string,
+  evaluatorIds: string[],
+) => {
+  if (evaluatorIds.length === 0) return [];
+
+  const rows = await queryClickhouse<{
+    evaluator_id: string;
+    total_cost: string;
+  }>({
+    query: `
+      SELECT
+        metadata['job_configuration_id'] as evaluator_id,
+        sum(total_cost) as total_cost
+      FROM observations FINAL
+      WHERE project_id = {projectId: String}
+        AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
+        AND type = 'GENERATION'
+        AND start_time > today() - 7
+      GROUP BY metadata['job_configuration_id']
+    `,
+    params: {
+      projectId,
+      evaluatorIds,
+    },
+    tags: { projectId },
+  });
+
+  return rows.map((row) => ({
+    evaluatorId: row.evaluator_id,
+    totalCost: Number(row.total_cost),
+  }));
+};
+
 // ─── Public-API observation query helpers ─────────────────────────────────────
 
 export const generateObservationsForPublicApi = async ({

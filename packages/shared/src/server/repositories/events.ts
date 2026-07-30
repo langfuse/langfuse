@@ -3341,6 +3341,7 @@ const getEvaluatorCostMetricsByIds = async <
     ].join(", "),
   })
     .whereRaw("e.start_time > today() - 7")
+    .whereRaw("e.is_deleted = 0")
     .havingRaw("evaluator_id IN ({evaluatorIds: Array(String)})", {
       evaluatorIds,
     });
