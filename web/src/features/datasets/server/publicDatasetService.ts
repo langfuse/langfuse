@@ -1,5 +1,6 @@
 import type { NextApiResponse } from "next";
-import { v4, v5 } from "uuid";
+import { createHash } from "node:crypto";
+import { v4 } from "uuid";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
@@ -728,26 +729,48 @@ export const deleteDatasetItemForApi = async ({
   };
 };
 
-// Stable namespace for experiment/run ids minted in events_only mode. Keep this
-// constant: changing it would change every id we return for the same input.
-const EVENTS_ONLY_DATASET_RUN_NAMESPACE =
-  "6f8b2c9a-3d4e-4f1a-b2c7-8e5d1a2b3c4d";
+/**
+ * Deterministic, stable experiment id (== dataset run id) for a
+ * (projectId, datasetId, runName) triple.
+ *
+ * The Langfuse experiment runner calls POST /dataset-run-items once per dataset
+ * item and uses the returned dataset run id as the experiment id shared by every
+ * item of the run (see langfuse-python client.py: `experiment_id = dataset_run_id
+ * or fallback`). So the value MUST be identical across the separate, stateless
+ * POST requests that make up one run — hashing the run's identity gives us that
+ * without persisting anything.
+ *
+ * We take the first 8 bytes of a sha256 digest (16 hex chars), matching the
+ * shape of the SDK's own seeded id helper (`sha256(seed).digest()[:8].hex()`).
+ */
+export const createStableExperimentId = ({
+  projectId,
+  datasetId,
+  runName,
+}: {
+  projectId: string;
+  datasetId: string;
+  runName: string;
+}): string =>
+  createHash("sha256")
+    .update(JSON.stringify(["langfuse-experiment-v1", projectId, datasetId, runName]), "utf8")
+    .digest("hex")
+    .slice(0, 16);
 
 /**
  * events_only deployments no longer write dataset run items into the legacy
  * dataset_run_items ClickHouse table, so the full createDatasetRunItemForApi
- * flow has nothing to persist. Legacy SDK callers of POST /dataset-run-items
- * still expect a 200 with an id they can hold onto, so we mint a *stable*
- * experiment id (== dataset run id) deterministically from (projectId, runName).
- * Repeated calls for the same run return the same id, and every item of a run
- * shares one experiment id.
+ * flow has nothing to persist. The experiment runner still calls POST
+ * /dataset-run-items per item and expects a dataset run id it can reuse as the
+ * experiment id across the whole run, so we resolve the item's dataset and
+ * return a stable experiment id derived from (projectId, datasetId, runName).
  *
  * In v4 the trace ↔ experiment link is established through OTel experiment span
- * attributes instead, so here we only echo the caller's identifiers and skip
- * all legacy side effects (dataset item / trace lookups, ClickHouse ingestion,
- * eval enqueue).
+ * attributes instead, so beyond the dataset-item lookup (needed for datasetId
+ * and to 404 on genuinely missing items) we skip every legacy side effect:
+ * the observation→trace lookup, ClickHouse ingestion, and the eval enqueue.
  */
-export const buildStableDatasetRunItemResponseEventsOnly = ({
+export const buildStableDatasetRunItemResponseEventsOnly = async ({
   body,
   auth,
 }: Pick<CreateDatasetRunItemInput, "body" | "auth">) => {
@@ -759,18 +782,29 @@ export const buildStableDatasetRunItemResponseEventsOnly = ({
     );
   }
 
-  const experimentId = v5(
-    JSON.stringify(["dataset-run", projectId, body.runName]),
-    EVENTS_ONLY_DATASET_RUN_NAMESPACE,
-  );
-  const runItemId = v4();
+  const datasetItem = await getDatasetItemById({
+    projectId,
+    datasetItemId: body.datasetItemId,
+    status: "ACTIVE",
+    version: body.datasetVersion ?? undefined,
+  });
+
+  if (!datasetItem) {
+    throw new LangfuseNotFoundError("Dataset item not found");
+  }
+
+  const experimentId = createStableExperimentId({
+    projectId,
+    datasetId: datasetItem.datasetId,
+    runName: body.runName,
+  });
   const createdAt = body.createdAt ? new Date(body.createdAt) : new Date();
 
   const datasetRunItem: APIDatasetRunItem = {
-    id: runItemId,
+    id: v4(),
     datasetRunId: experimentId,
     datasetRunName: body.runName,
-    datasetItemId: body.datasetItemId,
+    datasetItemId: datasetItem.id,
     // events_only skips the observation→trace lookup; echo whatever the caller
     // provided (the body schema requires traceId or observationId).
     traceId: body.traceId ?? "",

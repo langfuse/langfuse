@@ -23,12 +23,12 @@ export default withMiddlewares({
     // Writes a dataset-run-item event into the legacy dataset_run_items
     // ClickHouse table. events_only deployments no longer populate that table,
     // so instead of writing anything we return a stable experiment id (== the
-    // dataset run id) minted deterministically from (projectId, runName). The
-    // trace ↔ experiment link is established through OTel experiment span
-    // attributes on ingestion instead.
+    // dataset run id) derived deterministically from (projectId, datasetId,
+    // runName). The trace ↔ experiment link is established through OTel
+    // experiment span attributes on ingestion instead.
     fn: async ({ body, auth, res }) => {
       if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only") {
-        return buildStableDatasetRunItemResponseEventsOnly({ body, auth });
+        return await buildStableDatasetRunItemResponseEventsOnly({ body, auth });
       }
       return await createDatasetRunItemForApi({ body, auth, res });
     },

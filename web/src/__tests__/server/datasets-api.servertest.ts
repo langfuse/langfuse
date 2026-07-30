@@ -4,7 +4,10 @@ process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "@/src/env.mjs";
+import {
+  buildStableDatasetRunItemResponseEventsOnly,
+  createStableExperimentId,
+} from "@/src/features/datasets/server/publicDatasetService";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -1081,61 +1084,81 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(runItemBoth.status).toBe(200);
   }, 90000);
 
-  it("POST /dataset-run-items returns a stable experiment id without persisting in events_only mode", async () => {
-    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
-    try {
-      const runName = `events-only-run-${v4()}`;
-      const datasetItemId = `events-only-item-${v4()}`;
-      const eventsOnlyTraceId = v4();
+  // events_only mode is exercised against the helper directly: makeAPICall hits
+  // a real HTTP server whose write mode we cannot flip from the test process.
+  it("events_only returns a stable experiment id per run without persisting", async () => {
+    const dataset = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { name: "events-only-dataset" },
+      auth,
+    );
+    await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "events-only-dataset",
+        id: "events-only-item",
+        input: { key: "value" },
+      },
+      auth,
+    );
 
-      const first = await makeZodVerifiedAPICall(
-        PostDatasetRunItemsV1Response,
-        "POST",
-        "/api/public/dataset-run-items",
-        {
-          datasetItemId,
-          traceId: eventsOnlyTraceId,
+    const datasetId = dataset.body.id;
+    const runName = "events-only-run";
+    // The helper only reads auth.scope.projectId.
+    const helperAuth = { scope: { projectId } } as any;
+
+    const first = await buildStableDatasetRunItemResponseEventsOnly({
+      auth: helperAuth,
+      body: {
+        datasetItemId: "events-only-item",
+        traceId: traceId,
+        runName,
+        metadata: { key: "value" },
+      } as any,
+    });
+
+    expect(first.datasetRunName).toBe(runName);
+    expect(first.datasetItemId).toBe("events-only-item");
+    expect(first.traceId).toBe(traceId);
+    // Matches the SDK's seeded id shape (16 hex chars) and our own algorithm.
+    expect(first.datasetRunId).toMatch(/^[0-9a-f]{16}$/);
+    expect(first.datasetRunId).toBe(
+      createStableExperimentId({ projectId, datasetId, runName }),
+    );
+
+    // Stable across separate POSTs of the same run, even with a different trace.
+    const second = await buildStableDatasetRunItemResponseEventsOnly({
+      auth: helperAuth,
+      body: {
+        datasetItemId: "events-only-item",
+        traceId: v4(),
+        runName,
+      } as any,
+    });
+    expect(second.datasetRunId).toBe(first.datasetRunId);
+
+    // Nothing is persisted: no legacy dataset run row is created in Postgres.
+    const dbRun = await prisma.datasetRuns.findFirst({
+      where: { projectId, name: runName },
+    });
+    expect(dbRun).toBeNull();
+
+    // A genuinely missing dataset item still 404s (not the "endpoint
+    // unavailable" 404 we removed).
+    await expect(
+      buildStableDatasetRunItemResponseEventsOnly({
+        auth: helperAuth,
+        body: {
+          datasetItemId: "does-not-exist",
+          traceId: traceId,
           runName,
-          metadata: { key: "value" },
-        },
-        auth,
-      );
-
-      expect(first.status).toBe(200);
-      expect(first.body).toMatchObject({
-        datasetRunName: runName,
-        datasetItemId,
-        traceId: eventsOnlyTraceId,
-        observationId: null,
-      });
-      expect(first.body.datasetRunId).toEqual(expect.any(String));
-      expect(first.body.id).toEqual(expect.any(String));
-
-      // Stable: repeating the call for the same run returns the same experiment
-      // id (datasetRunId), even with a different item and traceId.
-      const second = await makeZodVerifiedAPICall(
-        PostDatasetRunItemsV1Response,
-        "POST",
-        "/api/public/dataset-run-items",
-        {
-          datasetItemId: `events-only-item-${v4()}`,
-          traceId: v4(),
-          runName,
-        },
-        auth,
-      );
-      expect(second.body.datasetRunId).toBe(first.body.datasetRunId);
-
-      // Nothing is persisted: no legacy dataset run row is created in Postgres
-      // and no dataset item lookup is required.
-      const dbRun = await prisma.datasetRuns.findFirst({
-        where: { projectId, name: runName },
-      });
-      expect(dbRun).toBeNull();
-    } finally {
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
-    }
+        } as any,
+      }),
+    ).rejects.toThrow("Dataset item not found");
   });
 
   it("GET /api/public/datasets/{datasetName}/runs", async () => {
