@@ -220,12 +220,16 @@ tools:
     # The gateway tags `resource:actions_list` secrecy=private even though this
     # repo and its CI data are public. With a public safe-outputs sink the
     # agent's clearance must stay empty, so every Actions read was filtered and
-    # the analyst could not do its job at all (#15640, #15647). This exempts
-    # only the github server from sink-visibility enforcement; allowed-repos
-    # above is the compensating control, since the agent cannot reach any repo
-    # other than this public one. Drop this once gh-aw stops labelling a public
+    # the analyst could not do its job at all (#15640, #15647).
+    # "allow" rather than the selective ["github"] form: the selective form only
+    # rewrites the sink's `accept` list, and `sink-visibility: "public"` is a
+    # hard override that ignores `accept` entirely — so it cannot help here.
+    # Only the blanket form disables sink-visibility enforcement.
+    # allowed-repos above is the compensating control: the agent cannot reach
+    # any repo but this public one, so the private-to-public flow this guards
+    # against does not arise. Drop this once gh-aw stops labelling a public
     # repo's own Actions data as private.
-    private-to-public-flows: ["github"]
+    private-to-public-flows: allow
   bash:
     [
       "pnpm:*",
