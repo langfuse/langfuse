@@ -816,7 +816,7 @@ export const buildStableDatasetRunItemResponseEventsOnly = async ({
     updatedAt: createdAt,
   };
 
-  return PostDatasetRunItemsV1Response.parse(datasetRunItem);
+  return datasetRunItem;
 };
 
 export const createDatasetRunItemForApi = async ({
