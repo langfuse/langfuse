@@ -86,18 +86,20 @@ const throwActionableDashboardWidgetError = (
       : []);
   const fieldLabel = field?.startsWith("dimensions")
     ? "dimensions"
-    : field?.startsWith("metrics")
-      ? "metric values"
-      : field === "filters"
-        ? "filter columns"
-        : "values";
+    : field?.endsWith(".agg")
+      ? "aggregations"
+      : field?.endsWith(".measure")
+        ? "measures"
+        : field === "filters"
+          ? "filter columns"
+          : "values";
   const supportedValuesHint =
     allowedValues.length > 0
       ? ` Supported ${fieldLabel} for "${input.view}": ${allowedValues.join(", ")}.`
       : "";
 
   throw new InvalidRequestError(
-    `${error.message}.${supportedValuesHint} Call getMetricsSchema with view "${input.view}" before creating the widget.`,
+    `${error.message}.${supportedValuesHint} Call getMetricsSchema with view "${input.view}" for broader query schema details; use the widget-compatible values listed above when present.`,
   );
 };
 
