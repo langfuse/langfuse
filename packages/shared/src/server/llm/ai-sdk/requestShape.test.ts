@@ -596,6 +596,16 @@ describe("AI SDK request shapes", () => {
     expect(request.body.inferenceConfig).toMatchObject({ maxTokens: 64 });
   });
 
+  it("Bedrock: application inference profile ARN stays in one URL segment", async () => {
+    const model =
+      "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-id";
+    const { request } = await runBedrockCompletion({ model });
+
+    expect(request.url).toBe(
+      `https://bedrock-runtime.us-east-1.amazonaws.com/model/${encodeURIComponent(model)}/converse`,
+    );
+  });
+
   it("Bedrock: Sonnet 5 structured output falls back to the JSON tool", async () => {
     const schema = {
       type: "object",
