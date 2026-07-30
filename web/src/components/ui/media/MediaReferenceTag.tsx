@@ -44,13 +44,14 @@ function LangfuseRefMediaTag({
       contentType={descriptor.contentType}
       status={status}
       url={url}
-      label={isOversizedField ? "Field over size limit" : undefined}
+      label={isOversizedField ? "Full value attached" : undefined}
       description={
         isOversizedField
-          ? "This field exceeded the configured storage limit. Open the file to view the original content."
+          ? "This field was too large to process inline, so Langfuse saved the complete original value as an attachment at ingestion."
           : undefined
       }
-      warning={isOversizedField}
+      openActionLabel={isOversizedField ? "Open original" : undefined}
+      intent={isOversizedField ? "attachment" : undefined}
       onOpenChange={(open) => {
         if (open) setArmed(true);
       }}

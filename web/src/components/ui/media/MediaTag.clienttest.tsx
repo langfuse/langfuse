@@ -79,30 +79,33 @@ describe("MediaTag", () => {
     expect(await screen.findByText("Failed to load media")).toBeInTheDocument();
   });
 
-  it("renders an oversized-field warning with download context", () => {
+  it("renders an attachment with an explicit open action", () => {
     render(
       <MediaTag
         contentType="text/plain"
         status="ready"
         url="https://example.com/oversized.txt"
-        label="Field over size limit"
-        description="This field exceeded the configured storage limit. Open the file to view the original content."
-        warning
+        label="Full value attached"
+        description="This field was too large to process inline, so Langfuse saved the complete original value as an attachment at ingestion."
+        openActionLabel="Open original"
+        intent="attachment"
         open
       />,
     );
 
     expect(
-      screen.getByRole("button", { name: "Field over size limit media" }),
+      screen.getByRole("button", { name: "Full value attached media" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "This field exceeded the configured storage limit. Open the file to view the original content.",
+        "This field was too large to process inline, so Langfuse saved the complete original value as an attachment at ingestion.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByTitle("Open in new tab")).toHaveAttribute(
+    const openOriginal = screen.getByRole("link", { name: "Open original" });
+    expect(openOriginal).toHaveAttribute(
       "href",
       "https://example.com/oversized.txt",
     );
+    expect(openOriginal).toHaveClass("gap-1.5");
   });
 });
