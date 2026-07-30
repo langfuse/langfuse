@@ -141,36 +141,28 @@ export function createPublicApiObservationsColumnMapping(
   // the events_proto path filters directly without joining the traces CTE.
   // The legacy observations table does not carry either field, so that path
   // still joins traces.
-  const userIdMapping: ApiColumnMapping =
+  const traceFieldMapping =
     tableName === "events_proto"
       ? {
-          id: "userId",
-          clickhouseSelect: 'e."user_id"',
-          filterType: "StringFilter",
           clickhouseTable: tableName,
+          clickhousePrefix: tablePrefix,
         }
       : {
-          id: "userId",
-          clickhouseSelect: 't."user_id"',
-          filterType: "StringFilter",
           clickhouseTable: "traces",
+          clickhousePrefix: "t",
         };
-  const sessionIdMapping: ApiColumnMapping =
-    tableName === "events_proto"
-      ? {
-          id: "sessionId",
-          // Keep the field representation aligned with the events table UI
-          // mapping so advanced filters take precedence over this parameter.
-          clickhouseSelect: 'e."session_id"',
-          filterType: "StringFilter",
-          clickhouseTable: tableName,
-        }
-      : {
-          id: "sessionId",
-          clickhouseSelect: 't."session_id"',
-          filterType: "StringFilter",
-          clickhouseTable: "traces",
-        };
+  const userIdMapping: ApiColumnMapping = {
+    id: "userId",
+    clickhouseSelect: "user_id",
+    filterType: "StringFilter",
+    ...traceFieldMapping,
+  };
+  const sessionIdMapping: ApiColumnMapping = {
+    id: "sessionId",
+    clickhouseSelect: "session_id",
+    filterType: "StringFilter",
+    ...traceFieldMapping,
+  };
   return [
     userIdMapping,
     sessionIdMapping,
@@ -421,12 +413,16 @@ export function deriveFilters<T extends BaseQueryType>(
     filterParamsMapping,
   );
 
-  // Advanced filter takes precedence. Remove all simple filters that are also in advanced filter
-  const advancedFilterColumns = new Set<string>();
-  filterList.forEach((f) => advancedFilterColumns.add(f.field));
-
+  // tablePrefix is a query alias, not part of a physical column identity.
   simpleFilters
-    .filter((sf) => !advancedFilterColumns.has(sf.field))
+    .filter(
+      (simpleFilter) =>
+        !filterList.some(
+          (advancedFilter) =>
+            advancedFilter.clickhouseTable === simpleFilter.clickhouseTable &&
+            advancedFilter.field === simpleFilter.field,
+        ),
+    )
     .forEach((f) => filterList.push(f));
 
   // Return merged filters

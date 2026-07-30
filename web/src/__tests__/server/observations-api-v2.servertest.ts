@@ -300,15 +300,17 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.level).toBe("WARNING");
     });
 
-    it("should filter observations by sessionId", async () => {
+    it("should filter observations by sessionId and prefer advanced filters", async () => {
       const sessionId = `session-${randomUUID()}`;
       const otherSessionId = `session-${randomUUID()}`;
       const userId = `user-${randomUUID()}`;
       const otherUserId = `user-${randomUUID()}`;
+      const environment = `environment-${randomUUID()}`;
+      const otherEnvironment = `environment-${randomUUID()}`;
       const observations = [
-        [sessionId, userId],
-        [otherSessionId, otherUserId],
-      ].map(([value, observationUserId]) => {
+        [sessionId, userId, environment],
+        [otherSessionId, otherUserId, otherEnvironment],
+      ].map(([value, observationUserId, observationEnvironment]) => {
         const observationId = randomUUID();
         return createEvent({
           id: observationId,
@@ -320,6 +322,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
           level: "DEFAULT",
           session_id: value,
           user_id: observationUserId,
+          environment: observationEnvironment,
           start_time: Date.now() * 1000,
         });
       });
@@ -404,6 +407,42 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(userFilterResponse.status).toBe(200);
       expect(userFilterResponse.body.data).toHaveLength(1);
       expect(userFilterResponse.body.data[0]?.id).toBe(
+        observations[1]?.span_id,
+      );
+
+      const nameAdvancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "name",
+          operator: "=",
+          value: observations[1]!.name,
+        },
+      ]);
+      const nameFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&name=${encodeURIComponent(observations[0]!.name)}&filter=${encodeURIComponent(nameAdvancedFilter)}`,
+      );
+
+      expect(nameFilterResponse.status).toBe(200);
+      expect(nameFilterResponse.body.data).toHaveLength(1);
+      expect(nameFilterResponse.body.data[0]?.id).toBe(
+        observations[1]?.span_id,
+      );
+
+      const environmentAdvancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "traceEnvironment",
+          operator: "=",
+          value: otherEnvironment,
+        },
+      ]);
+      const environmentFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&environment=${encodeURIComponent(environment)}&filter=${encodeURIComponent(environmentAdvancedFilter)}`,
+      );
+
+      expect(environmentFilterResponse.status).toBe(200);
+      expect(environmentFilterResponse.body.data).toHaveLength(1);
+      expect(environmentFilterResponse.body.data[0]?.id).toBe(
         observations[1]?.span_id,
       );
     });
