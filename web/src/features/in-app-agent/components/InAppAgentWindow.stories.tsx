@@ -588,6 +588,7 @@ const meta = preview.meta({
   ],
   args: {
     error: null,
+    executionUi: { type: "foreground" as const },
     isExpanded: false,
     isInputDisabled: false,
     conversations,

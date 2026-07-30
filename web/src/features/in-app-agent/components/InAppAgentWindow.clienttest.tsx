@@ -23,6 +23,7 @@ function windowElement(
   const props: InAppAgentWindowProps = {
     conversations: [],
     error: null,
+    executionUi: { type: "foreground" },
     hasMoreConversations: false,
     isAssistantTurnInProgress: false,
     isExpanded: false,
@@ -61,11 +62,55 @@ function selectTab(name: string) {
   });
 }
 
+describe("InAppAgentWindow execution controls", () => {
+  it("keeps background status and Stop available while execution is active", () => {
+    const onStop = vi.fn();
+    const { rerender } = render(
+      windowElement({
+        executionUi: {
+          type: "background",
+          notice: "You can close this; the run continues in the background.",
+          stop: { status: "available", onStop },
+        },
+        isAssistantTurnInProgress: true,
+        isInputDisabled: true,
+      }),
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "You can close this; the run continues in the background.",
+    );
+
+    const stopButton = screen.getByRole("button", { name: "Stop run" });
+    expect(stopButton).toBeEnabled();
+    fireEvent.click(stopButton);
+    expect(onStop).toHaveBeenCalledOnce();
+
+    rerender(
+      windowElement({
+        executionUi: {
+          type: "background",
+          notice: "Stopping the run…",
+          stop: { status: "stopping", onStop },
+        },
+        isAssistantTurnInProgress: true,
+        isInputDisabled: true,
+      }),
+    );
+
+    expect(screen.getByRole("button", { name: "Stopping run" })).toBeDisabled();
+  });
+});
+
 describe("InAppAgentWindow quick actions", () => {
   it("switches tabs, resets on route change, and submits the action prompt with attribution", async () => {
     const onSubmit = vi.fn().mockResolvedValue(true);
     const { rerender } = render(windowElement({ onSubmit }));
 
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /stop run/i }),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Observability",
       "Prompts",

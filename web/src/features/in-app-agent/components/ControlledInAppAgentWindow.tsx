@@ -3,7 +3,10 @@
 import { useMemo } from "react";
 import { useRouter } from "next/router";
 import { InAppAgentWindow } from "./InAppAgentWindow";
-import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
+import type {
+  InAppAgentWindowConversation,
+  InAppAgentWindowExecutionUi,
+} from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 import { getDrawerMessages } from "./utils/utils";
@@ -12,9 +15,42 @@ import {
   getInAppAgentFocusedQuickActions,
   getInAppAgentQuickActionContext,
 } from "@/src/features/in-app-agent/quickActions";
+import {
+  getBackgroundRunFailureMessage,
+  isCancellableBackgroundRun,
+  type BackgroundExecutionRunView,
+} from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
+import { InAppAgentRunStatus } from "@langfuse/shared";
+import { isActiveInAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
+
+function getBackgroundRunNotice(
+  run: BackgroundExecutionRunView | null,
+): string | null {
+  if (!run) {
+    return null;
+  }
+
+  if (isActiveInAppAgentRunStatus(run.status) && run.cancelRequested) {
+    return "Stopping the run…";
+  }
+
+  if (run.status === InAppAgentRunStatus.QUEUED) {
+    return "Waiting for a worker to pick this up. You can close this; the run continues in the background.";
+  }
+
+  if (run.status === InAppAgentRunStatus.RUNNING) {
+    return "You can close this; the run continues in the background.";
+  }
+
+  if (run.status === InAppAgentRunStatus.FAILED) {
+    return getBackgroundRunFailureMessage(run.errorCode ?? null);
+  }
+
+  return null;
+}
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -46,9 +82,7 @@ export function ControlledInAppAgentWindow(
     isLoadingMoreConversations,
     isRunning,
     isSelectedConversationHydrating,
-    backgroundRunNotice,
-    cancelRun,
-    isCancellingRun,
+    execution,
     isSubmitting,
     invalidateConversations,
     loadMoreConversations,
@@ -63,6 +97,8 @@ export function ControlledInAppAgentWindow(
     submit,
     submitFeedback,
   } = useInAppAiAgent();
+  const isCancellingRun =
+    execution.type === "background" && execution.isCancelling;
   const {
     finishAnimation,
     isAnimating,
@@ -80,12 +116,23 @@ export function ControlledInAppAgentWindow(
     // already CANCELLED server-side.
     shouldFlush: error !== null || isCancellingRun,
   });
-  const stopRun = cancelRun
-    ? () => {
-        finishAnimation();
-        cancelRun();
-      }
-    : undefined;
+  const windowExecutionUi: InAppAgentWindowExecutionUi =
+    execution.type === "foreground"
+      ? execution
+      : {
+          type: "background",
+          notice: getBackgroundRunNotice(execution.run),
+          stop:
+            execution.run && isCancellableBackgroundRun(execution.run.status)
+              ? {
+                  status: execution.isCancelling ? "stopping" : "available",
+                  onStop: () => {
+                    finishAnimation();
+                    execution.cancel();
+                  },
+                }
+              : null,
+        };
   const isInputDisabled =
     isRunning ||
     isAnimating ||
@@ -163,9 +210,7 @@ export function ControlledInAppAgentWindow(
       }}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
-      backgroundRunNotice={backgroundRunNotice}
-      isCancellingRun={isCancellingRun}
-      onCancelRun={stopRun}
+      executionUi={windowExecutionUi}
       onApproveToolCall={approveToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}

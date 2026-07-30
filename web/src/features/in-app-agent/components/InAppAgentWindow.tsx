@@ -256,10 +256,22 @@ type InAppAgentWindowCloseButtonProps =
       onClose: () => void;
     };
 
+export type InAppAgentWindowExecutionUi =
+  | { type: "foreground" }
+  | {
+      type: "background";
+      notice: string | null;
+      stop: {
+        status: "available" | "stopping";
+        onStop: () => void;
+      } | null;
+    };
+
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
   disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
+  executionUi: InAppAgentWindowExecutionUi;
   hasMoreConversations: boolean;
   isAssistantTurnInProgress: boolean;
   isHeaderDragHandleEnabled?: boolean;
@@ -275,16 +287,6 @@ export type InAppAgentWindowProps = {
   onRejectToolCall: (approvalId: string) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
-  /**
-   * Lifecycle copy for a worker-executed run: that the user may close the
-   * drawer while it works, or why the last run ended badly. Null on the
-   * foreground path, where a run cannot outlive the tab.
-   */
-  backgroundRunNotice?: string | null;
-  /** Present only when a run can outlive the browser and so needs stopping. */
-  onCancelRun?: () => void;
-  /** A stop is already in flight; the run is winding down cooperatively. */
-  isCancellingRun?: boolean;
   onSubmit: (
     input: string,
     options?: InAppAgentSubmitOptions,
@@ -371,6 +373,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     conversations,
     disablePendingToolApprovalActions = false,
     error,
+    executionUi,
     hasMoreConversations,
     isAssistantTurnInProgress,
     isHeaderDragHandleEnabled = false,
@@ -387,9 +390,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
-    backgroundRunNotice,
-    onCancelRun,
-    isCancellingRun = false,
     onSubmitFeedback,
     focusedQuickActions,
     quickActionContext,
@@ -405,9 +405,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isMobile = useIsMobile();
   const isRateLimited = isInAppAgentRateLimited(error);
   const isInputDisabled = baseIsInputDisabled || isRateLimited;
-  // Stopping only makes sense while something is actually executing, and only
-  // where a run outlives the tab — otherwise closing the drawer is the stop.
-  const canStopRun = Boolean(onCancelRun) && isAssistantTurnInProgress;
+  const backgroundNotice =
+    executionUi.type === "background" ? executionUi.notice : null;
+  const executionStop =
+    executionUi.type === "background" ? executionUi.stop : null;
+  const canStopRun = executionStop !== null && isAssistantTurnInProgress;
+  const isCancellingRun = executionStop?.status === "stopping";
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
@@ -871,22 +874,27 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   {screenContextNotice}
                 </span>
               </p>
-              {backgroundRunNotice && (
-                <p
-                  className={cn(
-                    "border-border bg-muted/60 text-foreground-secondary flex w-full items-center gap-1 rounded-lg border px-2 py-1",
-                    isExpanded ? "text-sm" : "text-xs",
-                  )}
-                >
-                  <Info aria-hidden="true" className="size-3 shrink-0" />
-                  <span className="min-w-0" title={backgroundRunNotice}>
-                    {backgroundRunNotice}
-                  </span>
-                </p>
-              )}
             </div>
           </div>
         </div>
+        {backgroundNotice ? (
+          <div className="shrink-0 px-2 pb-2">
+            <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
+              <p
+                role="status"
+                className={cn(
+                  "border-border bg-muted/60 text-foreground-tertiary flex w-full items-center gap-1 rounded-lg border px-2 py-1",
+                  isExpanded ? "text-sm" : "text-xs",
+                )}
+              >
+                <Info aria-hidden="true" className="size-3 shrink-0" />
+                <span className="min-w-0" title={backgroundNotice}>
+                  {backgroundNotice}
+                </span>
+              </p>
+            </div>
+          </div>
+        ) : null}
         {error?.type === "rate_limit" && (
           <div
             className={cn(
@@ -986,7 +994,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   variant="outline"
                   disabled={isCancellingRun}
                   onClick={() => {
-                    onCancelRun?.();
+                    executionStop?.onStop();
                   }}
                 >
                   <Square className="h-3 w-3" />
@@ -1015,7 +1023,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     disabled={isCancellingRun}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onCancelRun?.();
+                      executionStop?.onStop();
                     }}
                   >
                     {isCancellingRun ? "Stopping" : "Stop"}

@@ -27,6 +27,7 @@ export type BackgroundExecutionRunView = {
 export type BackgroundExecutionApprovalView = {
   runId: string;
   approvalRequest: InAppAgentToolApprovalRequest;
+  status: "pending" | "submitting";
 };
 
 export type BackgroundExecutionAttachment =
@@ -41,6 +42,7 @@ export type BackgroundExecutionView = {
   eventCursor: number;
   currentRun: BackgroundExecutionRunView | null;
   pendingToolApprovals: BackgroundExecutionApprovalView[];
+  cancelStatus: "idle" | "submitting";
   attachment: BackgroundExecutionAttachment;
 };
 
@@ -76,12 +78,17 @@ type BackgroundExecutionAgent = {
 
 type BackgroundExecutionHydration = Omit<
   BackgroundExecutionView,
-  "attachment" | "liveMessageRevision"
+  "attachment" | "cancelStatus" | "liveMessageRevision"
 >;
 
 type BackgroundExecutionAgentSubscriber = Pick<
   AgentSubscriber,
-  "onRunStartedEvent" | "onEvent" | "onToolCallResultEvent" | "onRunErrorEvent"
+  | "onRunStartedEvent"
+  | "onEvent"
+  | "onMessagesChanged"
+  | "onStateChanged"
+  | "onToolCallResultEvent"
+  | "onRunErrorEvent"
 >;
 
 export class BackgroundExecutionSessionController implements BackgroundExecutionSession {
@@ -121,6 +128,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       eventCursor: -1,
       currentRun: null,
       pendingToolApprovals: [],
+      cancelStatus: "idle",
       attachment: { status: "detached" },
       ...config.initialView,
     };
@@ -140,14 +148,16 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     });
     this.agentSubscription = this.agent.subscribe({
       ...config.subscriber,
-      onMessagesChanged: ({ messages }) => {
+      onMessagesChanged: (params) => {
         if (!this.isReplacingMessages) {
-          this.observeMessages(messages);
+          this.observeMessages(params.messages);
+          return config.subscriber?.onMessagesChanged?.(params);
         }
       },
-      onStateChanged: ({ messages }) => {
+      onStateChanged: (params) => {
         if (!this.isReplacingMessages) {
-          this.observeMessages(messages);
+          this.observeMessages(params.messages);
+          return config.subscriber?.onStateChanged?.(params);
         }
       },
       onCustomEvent: ({ event }) => {
@@ -156,6 +166,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
           this.observeApproval({
             runId: approvalRequest.runId,
             approvalRequest,
+            status: "pending",
           });
         }
       },
@@ -243,18 +254,33 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       return;
     }
 
-    await this.cancelRun(run.id);
+    this.setView({ ...this.view, cancelStatus: "submitting" });
+    try {
+      await this.cancelRun(run.id);
+    } catch (error) {
+      this.setView({ ...this.view, cancelStatus: "idle" });
+      throw error;
+    }
     this.setView({
       ...this.view,
       currentRun: { ...run, cancelRequested: true },
+      cancelStatus: "idle",
     });
-    await this.hydrateAndAttach();
+    this.detach();
+    await this.refreshAttachmentAfterCommand();
   }
 
   async decide(input: ApprovalDecision): Promise<void> {
-    await this.decideApproval(input);
+    this.setApprovalStatus(input.toolCallId, "submitting");
+    try {
+      await this.decideApproval(input);
+    } catch (error) {
+      this.setApprovalStatus(input.toolCallId, "pending");
+      throw error;
+    }
+    this.resolveApproval(input.toolCallId);
     this.detach();
-    await this.hydrateAndAttach();
+    await this.refreshAttachmentAfterCommand();
   }
 
   detach(): void {
@@ -310,6 +336,20 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       ...this.view,
       pendingToolApprovals: this.view.pendingToolApprovals.filter(
         (pending) => pending.approvalRequest.toolCallId !== toolCallId,
+      ),
+    });
+  }
+
+  private setApprovalStatus(
+    toolCallId: string,
+    status: BackgroundExecutionApprovalView["status"],
+  ): void {
+    this.setView({
+      ...this.view,
+      pendingToolApprovals: this.view.pendingToolApprovals.map((pending) =>
+        pending.approvalRequest.toolCallId === toolCallId
+          ? { ...pending, status }
+          : pending,
       ),
     });
   }
@@ -378,10 +418,20 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.setView({
       ...hydrated,
       liveMessageRevision: this.view.liveMessageRevision,
+      cancelStatus: "idle",
       attachment: { status: "detached" },
     });
 
     return true;
+  }
+
+  private async refreshAttachmentAfterCommand(): Promise<void> {
+    try {
+      await this.hydrateAndAttach();
+    } catch {
+      // The durable command already succeeded. Attachment failures are exposed
+      // through the session snapshot and must not change the command outcome.
+    }
   }
 
   private setAttachmentError(error: unknown): void {

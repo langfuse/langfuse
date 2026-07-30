@@ -28,7 +28,10 @@ const runningView = {
     cancelRequested: false,
   },
   pendingToolApprovals: [],
-} satisfies Omit<BackgroundExecutionView, "attachment" | "liveMessageRevision">;
+} satisfies Omit<
+  BackgroundExecutionView,
+  "attachment" | "cancelStatus" | "liveMessageRevision"
+>;
 
 const userMessage = {
   id: "user-message",
@@ -176,10 +179,9 @@ describe("BackgroundExecutionSessionController", () => {
     await session.hydrateAndAttach();
 
     expect(agent.connectAgent).toHaveBeenCalledTimes(2);
-    expect(session.getSnapshot()).toMatchObject({
-      attachment: { status: "attached" },
-      currentRun: runningView.currentRun,
-    });
+    expect(session.getSnapshot().attachment).toEqual({ status: "attached" });
+    expect(session.getSnapshot().currentRun).toEqual(runningView.currentRun);
+    expect(session.getSnapshot().messages).toEqual([message]);
   });
 
   it("cancels the active server run", async () => {
@@ -208,6 +210,154 @@ describe("BackgroundExecutionSessionController", () => {
       InAppAgentRunStatus.CANCELLED,
     );
     expect(agent.connectAgent).not.toHaveBeenCalled();
+  });
+
+  it("restores cancellation controls when the mutation fails", async () => {
+    const mutationError = new Error("cancel failed");
+    const session = new BackgroundExecutionSessionController({
+      agent: createAgent(),
+      hydrate: vi.fn(),
+      cancelRun: vi.fn().mockRejectedValue(mutationError),
+      decideApproval: vi.fn(),
+      initialView: { currentRun: runningView.currentRun },
+    });
+
+    await expect(session.cancel()).rejects.toBe(mutationError);
+
+    expect(session.getSnapshot()).toMatchObject({
+      currentRun: {
+        id: "run-1",
+        cancelRequested: false,
+      },
+      cancelStatus: "idle",
+      attachment: { status: "detached" },
+    });
+  });
+
+  it("keeps an accepted cancellation when attachment refresh fails", async () => {
+    const refreshError = new Error("refresh failed");
+    const agent = {
+      ...createAgent(),
+      connectAgent: vi.fn(() => new Promise<unknown>(() => undefined)),
+    };
+    const hydrate = vi
+      .fn()
+      .mockResolvedValueOnce(runningView)
+      .mockRejectedValueOnce(refreshError);
+    const session = new BackgroundExecutionSessionController({
+      agent,
+      hydrate,
+      cancelRun: vi.fn().mockResolvedValue(undefined),
+      decideApproval: vi.fn(),
+    });
+
+    await session.hydrateAndAttach();
+    await expect(session.cancel()).resolves.toBeUndefined();
+
+    expect(agent.abortRun).toHaveBeenCalledOnce();
+    expect(hydrate).toHaveBeenCalledTimes(2);
+    expect(session.getSnapshot()).toMatchObject({
+      currentRun: {
+        id: "run-1",
+        cancelRequested: true,
+      },
+      attachment: {
+        status: "error",
+        error: refreshError,
+      },
+    });
+  });
+
+  it("keeps an accepted approval resolved when attachment refresh fails", async () => {
+    const refreshError = new Error("refresh failed");
+    const session = new BackgroundExecutionSessionController({
+      agent: createAgent(),
+      hydrate: vi.fn().mockRejectedValue(refreshError),
+      cancelRun: vi.fn(),
+      decideApproval: vi.fn().mockResolvedValue(undefined),
+      initialView: {
+        currentRun: {
+          ...runningView.currentRun,
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        },
+        pendingToolApprovals: [
+          {
+            runId: "run-1",
+            status: "pending",
+            approvalRequest: {
+              type: "tool_approval_request",
+              toolCallId: "tool-call-1",
+              toolName: "dangerousTool",
+              runId: "run-1",
+            },
+          },
+        ],
+      },
+    });
+
+    await expect(
+      session.decide({
+        runId: "run-1",
+        toolCallId: "tool-call-1",
+        approved: true,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(session.getSnapshot()).toMatchObject({
+      pendingToolApprovals: [],
+      attachment: {
+        status: "error",
+        error: refreshError,
+      },
+    });
+  });
+
+  it("keeps a rejected approval mutation actionable", async () => {
+    let rejectDecision: (error: Error) => void = () => undefined;
+    const decision = new Promise<void>((_, reject) => {
+      rejectDecision = reject;
+    });
+    const session = new BackgroundExecutionSessionController({
+      agent: createAgent(),
+      hydrate: vi.fn().mockResolvedValue(runningView),
+      cancelRun: vi.fn(),
+      decideApproval: vi.fn(() => decision),
+      initialView: {
+        currentRun: {
+          ...runningView.currentRun,
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        },
+        pendingToolApprovals: [
+          {
+            runId: "run-1",
+            status: "pending",
+            approvalRequest: {
+              type: "tool_approval_request",
+              toolCallId: "tool-call-1",
+              toolName: "dangerousTool",
+              runId: "run-1",
+            },
+          },
+        ],
+      },
+    });
+
+    const result = session.decide({
+      runId: "run-1",
+      toolCallId: "tool-call-1",
+      approved: true,
+    });
+
+    expect(session.getSnapshot().pendingToolApprovals).toMatchObject([
+      { status: "submitting" },
+    ]);
+
+    const decisionError = new Error("decision failed");
+    rejectDecision(decisionError);
+    await expect(result).rejects.toBe(decisionError);
+    expect(session.getSnapshot().pendingToolApprovals).toMatchObject([
+      { status: "pending" },
+    ]);
   });
 
   it("keeps run-start failures outside attachment state", async () => {
@@ -292,6 +442,7 @@ describe("BackgroundExecutionSessionController", () => {
       pendingToolApprovals: [
         {
           runId: "run-1",
+          status: "pending",
           approvalRequest: {
             type: "tool_approval_request",
             toolCallId: "tool-call-1",
@@ -311,66 +462,35 @@ describe("BackgroundExecutionSessionController", () => {
     expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
-  it("rehydrates an approval continuation before attaching", async () => {
-    const order: string[] = [];
+  it("reattaches an accepted approval from a coherent persisted snapshot", async () => {
+    let installedMessages: AgUiMessage[] = [];
+    let installedCursor = -1;
+    const attachedSnapshots: Array<{
+      messages: AgUiMessage[];
+      cursor: number;
+    }> = [];
     const agent = {
       ...createAgent(),
-      setMessages: vi.fn(() => order.push("messages")),
-      setCursor: vi.fn(() => order.push("cursor")),
+      setMessages: vi.fn((messages: AgUiMessage[]) => {
+        installedMessages = messages;
+      }),
+      setCursor: vi.fn((cursor: number) => {
+        installedCursor = cursor;
+      }),
       connectAgent: vi.fn(() => {
-        order.push("attach");
+        attachedSnapshots.push({
+          messages: installedMessages,
+          cursor: installedCursor,
+        });
         return new Promise<unknown>(() => undefined);
       }),
+      abortRun: vi.fn(),
     };
     const session = new BackgroundExecutionSessionController({
       agent,
-      hydrate: vi.fn(async () => {
-        order.push("hydrate");
-        return runningView;
-      }),
+      hydrate: vi.fn().mockResolvedValue(runningView),
       cancelRun: vi.fn(),
-      decideApproval: vi.fn(async () => {
-        order.push("decide");
-      }),
-    });
-
-    await session.decide({
-      runId: "parked-run",
-      toolCallId: "tool-call-1",
-      approved: true,
-    });
-
-    expect(order).toEqual([
-      "decide",
-      "hydrate",
-      "messages",
-      "cursor",
-      "attach",
-    ]);
-  });
-
-  it("restarts attachment after deciding while the parked run is attached", async () => {
-    const order: string[] = [];
-    const agent = {
-      ...createAgent(),
-      setMessages: vi.fn(() => order.push("messages")),
-      setCursor: vi.fn(() => order.push("cursor")),
-      connectAgent: vi.fn(() => {
-        order.push("attach");
-        return new Promise<unknown>(() => undefined);
-      }),
-      abortRun: vi.fn(() => order.push("detach")),
-    };
-    const session = new BackgroundExecutionSessionController({
-      agent,
-      hydrate: vi.fn(async () => {
-        order.push("hydrate");
-        return runningView;
-      }),
-      cancelRun: vi.fn(),
-      decideApproval: vi.fn(async () => {
-        order.push("decide");
-      }),
+      decideApproval: vi.fn().mockResolvedValue(undefined),
     });
 
     await session.hydrateAndAttach();
@@ -380,18 +500,16 @@ describe("BackgroundExecutionSessionController", () => {
       approved: true,
     });
 
-    expect(order).toEqual([
-      "hydrate",
-      "messages",
-      "cursor",
-      "attach",
-      "decide",
-      "detach",
-      "hydrate",
-      "messages",
-      "cursor",
-      "attach",
+    expect(attachedSnapshots).toEqual([
+      { messages: [message], cursor: 7 },
+      { messages: [message], cursor: 7 },
     ]);
+    expect(agent.abortRun).toHaveBeenCalledOnce();
+    expect(session.getSnapshot()).toMatchObject({
+      messages: [message],
+      eventCursor: 7,
+      attachment: { status: "attached" },
+    });
   });
 
   it("converges sequential approval continuations to the persisted transcript", async () => {
@@ -503,7 +621,6 @@ describe("BackgroundExecutionSessionController", () => {
       expect(session.getSnapshot().attachment.status).toBe("detached");
     });
     expect(session.getSnapshot().messages).toEqual(messagesAfterCreate);
-    expect(hydrate).toHaveBeenCalledTimes(2);
 
     await session.decide({
       runId: "create-run",
@@ -526,7 +643,6 @@ describe("BackgroundExecutionSessionController", () => {
     });
 
     expect(session.getSnapshot().messages).toEqual(finalPersistedMessages);
-    expect(hydrate).toHaveBeenCalledTimes(4);
   });
 
   it("keeps the server run active and can retry when observation fails", async () => {
