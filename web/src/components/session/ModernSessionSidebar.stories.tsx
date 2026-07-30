@@ -138,7 +138,7 @@ const meta = preview.meta({
   component: ModernSessionSidebar,
   parameters: { layout: "fullscreen" },
   render: (args) => (
-    <div className="bg-background h-screen w-[296px]">
+    <div className="h-screen w-[296px]">
       <ModernSessionSidebar {...args} />
     </div>
   ),

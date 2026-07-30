@@ -188,7 +188,7 @@ export function ModernSessionSidebar(
         role="complementary"
         aria-label="Session spans"
         aria-busy="true"
-        className="relative flex h-full min-h-0 flex-col"
+        className="bg-background dark:bg-header relative flex h-full min-h-0 flex-col border-r"
       >
         <div className="flex shrink-0 items-center border-b px-2 py-2.5">
           <div className="bg-muted h-7 flex-1 animate-pulse rounded-sm" />
@@ -225,7 +225,7 @@ export function ModernSessionSidebar(
     <div
       role="complementary"
       aria-label="Session spans"
-      className="relative flex h-full min-h-0 flex-col"
+      className="bg-background dark:bg-header relative flex h-full min-h-0 flex-col border-r"
     >
       <div className="shrink-0 border-b">
         <div className="flex items-center gap-1 px-2 py-2.5">

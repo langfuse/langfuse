@@ -88,7 +88,7 @@ export function ModernSession({
         filterControls={sidebarFilterControls}
         onExcludeObservation={onExcludeObservation}
       />
-      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px] border-l">
+      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px]">
         <div
           ref={feedRef}
           className="h-full min-h-0 overflow-y-auto scroll-smooth"
