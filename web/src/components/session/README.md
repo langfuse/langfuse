@@ -35,9 +35,8 @@ card layout without a page-level layout control. The preview toggle is disabled
 unless the V4 Preview toggle selects this events-backed page.
 
 Server/query state remains in tRPC and React Query. Active Modern Session state
-is derived from TanStack Virtual's current scroll offset unless the user
-explicitly selects a turn for smooth navigation. User scrolling restores
-scroll-spy ownership; no effect mirrors either state. The scroll-spy anchor
+is always derived from TanStack Virtual's current scroll offset, including
+while a sidebar click smoothly scrolls to a turn. The scroll-spy anchor
 moves from the feed's top edge to 20% of its visible height over the first 20%
 of viewport scrolling, remains there through the middle, then moves to the
 bottom edge over the final 20%. The feed keeps its natural height without

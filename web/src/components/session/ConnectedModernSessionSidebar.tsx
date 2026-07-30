@@ -96,7 +96,6 @@ export function ConnectedModernSessionSidebar({
         type: "loaded";
         traces: EventSessionTrace[];
         activeTraceId: string | undefined;
-        selectedTraceId: string | undefined;
         onSelect: (index: number) => void;
       };
   projectId: string;
@@ -109,14 +108,13 @@ export function ConnectedModernSessionSidebar({
     return <ModernSessionSidebar state="loading" />;
   }
 
-  const { traces, activeTraceId, selectedTraceId, onSelect } = state;
+  const { traces, activeTraceId, onSelect } = state;
 
   return (
     <ModernSessionSidebar
       state="loaded"
       traces={traces}
       activeTraceId={activeTraceId}
-      selectedTraceId={selectedTraceId}
       filterControls={filterControls}
       renderObservationRows={(props) => (
         <ConnectedObservationRows

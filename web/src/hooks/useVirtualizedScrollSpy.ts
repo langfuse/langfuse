@@ -1,4 +1,4 @@
-import { useCallback, useState, type RefObject } from "react";
+import { useCallback, type RefObject } from "react";
 import { type Virtualizer } from "@tanstack/react-virtual";
 
 /**
@@ -75,11 +75,9 @@ function getScrollSpyAnchor({
 /**
  * Coordinates scroll-spy state for a TanStack Virtual list.
  *
- * Automatic mode derives the active item from the virtual item containing a
- * viewport-relative anchor. Selecting an item temporarily overrides that
- * derived value and smoothly scrolls the item to the top. Call
- * `restoreScrollSpy` when the user manually interacts with the scroll area so
- * automatic active-item tracking resumes.
+ * The active item is derived from the virtual item containing a
+ * viewport-relative anchor. Selecting an item smoothly scrolls it to the top;
+ * active-item tracking continues to follow the scroll position throughout.
  *
  * The hook also returns the current `virtualItems` so the consumer renders the
  * same virtualizer snapshot used to derive `activeItemId`.
@@ -105,7 +103,6 @@ export function useVirtualizedScrollSpy<
   viewportHeight: number;
   viewportRatio: number;
 }) {
-  const [selectedItemId, setSelectedItemId] = useState<string>();
   const virtualItems = virtualizer.getVirtualItems();
   const scrollOffset = virtualizer.scrollOffset ?? 0;
   const scrollSpyAnchor = getScrollSpyAnchor({
@@ -123,12 +120,10 @@ export function useVirtualizedScrollSpy<
 
   const selectItem = useCallback(
     (index: number) => {
-      const item = items[index];
       const scrollElement = scrollElementRef.current;
       const offset = virtualizer.getOffsetForIndex(index, "start")?.[0];
-      if (!item || !scrollElement || offset === undefined) return;
+      if (!items[index] || !scrollElement || offset === undefined) return;
 
-      setSelectedItemId(item.id);
       // Native scrolling avoids TanStack's smooth-scroll retries against
       // dynamically measured rows stopping one row before the target.
       scrollElement.scrollTo({ top: offset, behavior: "smooth" });
@@ -136,13 +131,9 @@ export function useVirtualizedScrollSpy<
     [items, scrollElementRef, virtualizer],
   );
 
-  const restoreScrollSpy = useCallback(() => setSelectedItemId(undefined), []);
-
   return {
-    activeItemId: selectedItemId ?? scrollSpyItemId,
-    selectedItemId,
+    activeItemId: scrollSpyItemId,
     virtualItems,
     selectItem,
-    restoreScrollSpy,
   };
 }

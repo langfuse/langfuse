@@ -59,10 +59,8 @@ export function ModernSession({
   });
   const {
     activeItemId: activeTraceId,
-    selectedItemId: selectedTraceId,
     virtualItems,
     selectItem: selectTrace,
-    restoreScrollSpy,
   } = useVirtualizedScrollSpy({
     items: traces,
     virtualizer,
@@ -81,7 +79,6 @@ export function ModernSession({
                 type: "loaded",
                 traces,
                 activeTraceId,
-                selectedTraceId,
                 onSelect: selectTrace,
               }
         }
@@ -95,11 +92,6 @@ export function ModernSession({
         <div
           ref={feedRef}
           className="h-full min-h-0 overflow-y-auto scroll-smooth"
-          onWheel={restoreScrollSpy}
-          onTouchMove={restoreScrollSpy}
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) restoreScrollSpy();
-          }}
         >
           <div
             style={{

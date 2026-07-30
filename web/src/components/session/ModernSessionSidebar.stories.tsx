@@ -114,7 +114,6 @@ const loadedArgs = {
   state: "loaded",
   traces,
   activeTraceId: "turn-2",
-  selectedTraceId: undefined,
   filterControls: {
     activeFilterCount: 0,
     activeViewName: undefined,
@@ -148,13 +147,6 @@ const meta = preview.meta({
 export default meta;
 
 export const Default = meta.story({ args: loadedArgs });
-
-export const SelectedTurn = meta.story({
-  args: {
-    ...loadedArgs,
-    selectedTraceId: "turn-2",
-  },
-});
 
 export const ActiveFilters = meta.story({
   args: {

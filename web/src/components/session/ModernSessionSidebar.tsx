@@ -64,7 +64,6 @@ const TurnCard = React.memo(
     trace,
     index,
     isActive,
-    isSelected,
     isCollapsed,
     onToggleCollapse,
     onSelect,
@@ -74,7 +73,6 @@ const TurnCard = React.memo(
     trace: EventSessionTrace;
     index: number;
     isActive: boolean;
-    isSelected: boolean;
     isCollapsed: boolean;
     onToggleCollapse: (traceId: string) => void;
     onSelect: (index: number) => void;
@@ -84,7 +82,7 @@ const TurnCard = React.memo(
     <div
       className={cn(
         "group hover:bg-foreground/[0.03] rounded-sm border border-transparent p-2 transition-colors duration-150",
-        isActive && !isSelected && "bg-foreground/5",
+        isActive && "bg-foreground/5",
       )}
       data-observation-list-active={isActive}
     >
@@ -119,14 +117,7 @@ const TurnCard = React.memo(
             strokeWidth={1.6}
           />
         </span>
-        <span
-          className={cn(
-            "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]",
-            isSelected
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-tertiary text-foreground",
-          )}
-        >
+        <span className="border-border bg-tertiary text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]">
           {index + 1}
         </span>
         <span
@@ -155,7 +146,6 @@ export function ModernSessionSidebar(
         state: "loaded";
         traces: EventSessionTrace[];
         activeTraceId: string | undefined;
-        selectedTraceId: string | undefined;
         filterControls: ModernSessionSidebarFilterControls;
         renderObservationRows: ObservationListRowsRenderer;
         onSelect: (index: number) => void;
@@ -223,13 +213,8 @@ export function ModernSessionSidebar(
     );
   }
 
-  const {
-    activeTraceId,
-    selectedTraceId,
-    filterControls,
-    renderObservationRows,
-    onSelect,
-  } = props;
+  const { activeTraceId, filterControls, renderObservationRows, onSelect } =
+    props;
 
   return (
     <div
@@ -406,7 +391,6 @@ export function ModernSessionSidebar(
                     trace={trace}
                     index={virtualItem.index}
                     isActive={trace.id === activeTraceId}
-                    isSelected={trace.id === selectedTraceId}
                     isCollapsed={isCollapsed}
                     onToggleCollapse={toggleCollapse}
                     onSelect={onSelect}

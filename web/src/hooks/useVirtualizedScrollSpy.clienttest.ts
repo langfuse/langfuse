@@ -49,21 +49,15 @@ describe("useVirtualizedScrollSpy", () => {
     expect(renderScrollSpy(9_000).result.current.activeItemId).toBe("99");
   });
 
-  it("owns selection until scroll-spy control is restored", () => {
+  it("keeps the active item derived from scroll position when selecting", () => {
     const { result, scrollElement } = renderScrollSpy(5_000);
 
     act(() => result.current.selectItem(10));
 
-    expect(result.current.activeItemId).toBe("10");
-    expect(result.current.selectedItemId).toBe("10");
+    expect(result.current.activeItemId).toBe("52");
     expect(scrollElement.scrollTo).toHaveBeenCalledWith({
       top: 1_000,
       behavior: "smooth",
     });
-
-    act(() => result.current.restoreScrollSpy());
-
-    expect(result.current.activeItemId).toBe("52");
-    expect(result.current.selectedItemId).toBeUndefined();
   });
 });
