@@ -130,7 +130,7 @@ describe("evaluator preflight", () => {
     expect(mockGetLLMErrorInfo).not.toHaveBeenCalled();
   });
 
-  describe("live provider call failures", () => {
+  describe("live provider calls", () => {
     // The preflight skips the provider call in test-like environments;
     // stub these so the mocked testModelCall is actually reached.
     beforeEach(() => {
@@ -140,6 +140,21 @@ describe("evaluator preflight", () => {
 
     afterEach(() => {
       vi.unstubAllEnvs();
+    });
+
+    it("limits the non-streaming model call to 95 seconds", async () => {
+      const result = await getEvaluatorDefinitionPreflightError({
+        projectId: "project_test",
+        template: {
+          name: "Answer correctness",
+          outputDefinition: numericOutputDefinition,
+        },
+      });
+
+      expect(result).toBeNull();
+      expect(mockTestModelCall).toHaveBeenCalledWith(
+        expect.objectContaining({ timeout: 95_000 }),
+      );
     });
 
     it("returns a clean model-not-found message when the provider responds with 404", async () => {
