@@ -1320,7 +1320,7 @@ export class IngestionService {
             } catch (error) {
               // No synchronous fallback: payloads that make the worker thread
               // exceed its timeout would block the event loop for minutes if
-              // re-tokenized on the main thread (LFE-9339). Absent counts are
+              // re-tokenized on the main thread. Absent counts are
               // detectable by users, unlike a 0 or a bytes-based estimate.
               logger.warn(
                 `Async tokenization failed for observation ${observationRecord.id} in project ${observationRecord.project_id}. Skipping token counts.`,

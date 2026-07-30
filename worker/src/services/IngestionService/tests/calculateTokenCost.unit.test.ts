@@ -1411,8 +1411,8 @@ describe("Token Cost Calculation", () => {
   describe("async tokenization failure handling", () => {
     // Multi-megabyte payloads make the tokenization worker thread exceed its
     // 30s timeout. The former synchronous fallback re-tokenized the same
-    // payload on the main thread and blocked the event loop for minutes
-    // (LFE-9339). On failure, token counts must be skipped entirely — absent
+    // payload on the main thread and blocked the event loop for minutes.
+    // On failure, token counts must be skipped entirely — absent
     // values are detectable by users, unlike a 0 or a bytes-based estimate.
 
     afterEach(() => {
