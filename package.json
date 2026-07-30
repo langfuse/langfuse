@@ -93,6 +93,7 @@
     },
     "github": {
       "release": true,
+      "makeLatest": false,
       "web": true,
       "autoGenerate": true,
       "releaseName": "v${version}",
