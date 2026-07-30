@@ -55,6 +55,7 @@ import {
   buildTraceUrl,
 } from "@langfuse/shared/src/server";
 import { ScoreConfigDataType } from "@langfuse/shared";
+import { viewDeclarations } from "@langfuse/shared/query";
 import { MonitorService } from "@langfuse/shared/monitors/server";
 import {
   createMcpTestSetup,
@@ -1961,6 +1962,29 @@ describe("MCP Read Tools", () => {
       );
       expect(views["scores-boolean"].dimensions.value).toBeUndefined();
       expect(Reflect.get(Object(views), "traces")).toBeUndefined();
+
+      for (const viewName of Object.keys(views) as Array<
+        keyof (typeof viewDeclarations)["v2"]
+      >) {
+        const typedDimensions = Object.entries(
+          viewDeclarations.v2[viewName].dimensions,
+        )
+          .filter(([, definition]) => definition.type !== undefined)
+          .map(([name]) => name);
+        const filterableColumns = new Set(
+          views[viewName].filterableColumns.map(
+            (column: { column: string }) => column.column,
+          ),
+        );
+        const undiscoveredDimensions = typedDimensions.filter(
+          (dimension) => !filterableColumns.has(dimension),
+        );
+
+        expect(
+          undiscoveredDimensions,
+          `${viewName} contains typed dimensions without MCP filter metadata`,
+        ).toEqual([]);
+      }
     });
 
     it("should return one requested metrics view", async () => {

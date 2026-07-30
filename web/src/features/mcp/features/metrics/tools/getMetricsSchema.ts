@@ -12,6 +12,24 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 const HIGH_CARDINALITY_CONSTRAINT =
   "When used in dimensions, requires explicit config.row_limit and orderBy descending on a measure selected in the query; incompatible with timeDimension and with combining entityDimension with an additional high-cardinality dimension. The default row_limit is applied after validation and does not satisfy this requirement. When used as entityDimension, requires a same-field '=' filter with a non-empty value or an 'any of' filter with 1-50 non-empty values.";
 
+// Unknown shared dimension types remain safe to ignore at runtime. The MCP
+// response test requires every declared, typed dimension to be mapped here.
+const FILTER_TYPE_BY_DIMENSION_TYPE = {
+  string: "string",
+  stringOptions: "stringOptions",
+  "string[]": "arrayOptions",
+  arrayString: "arrayOptions",
+  integer: "number",
+  decimal: "number",
+  number: "number",
+  boolean: "boolean",
+} as const satisfies Record<string, keyof typeof filterOperators>;
+
+const isFilterableDimensionType = (
+  type: string,
+): type is keyof typeof FILTER_TYPE_BY_DIMENSION_TYPE =>
+  Object.hasOwn(FILTER_TYPE_BY_DIMENSION_TYPE, type);
+
 const getFilterMetadata = (
   column: string,
   type: string | undefined,
@@ -22,43 +40,16 @@ const getFilterMetadata = (
       operators: readonly string[];
     }
   | undefined => {
-  switch (type) {
-    case "string":
-      return {
-        column,
-        filterType: "string",
-        operators: filterOperators.string,
-      };
-    case "stringOptions":
-      return {
-        column,
-        filterType: "stringOptions",
-        operators: filterOperators.stringOptions,
-      };
-    case "string[]":
-    case "arrayString":
-      return {
-        column,
-        filterType: "arrayOptions",
-        operators: filterOperators.arrayOptions,
-      };
-    case "integer":
-    case "decimal":
-    case "number":
-      return {
-        column,
-        filterType: "number",
-        operators: filterOperators.number,
-      };
-    case "boolean":
-      return {
-        column,
-        filterType: "boolean",
-        operators: filterOperators.boolean,
-      };
-    default:
-      return undefined;
+  if (!type || !isFilterableDimensionType(type)) {
+    return undefined;
   }
+
+  const filterType = FILTER_TYPE_BY_DIMENSION_TYPE[type];
+  return {
+    column,
+    filterType,
+    operators: filterOperators[filterType],
+  };
 };
 
 const GetMetricsSchemaInput = z.object({
