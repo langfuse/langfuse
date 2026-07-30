@@ -271,6 +271,7 @@ describe("applyObservationFieldOverflow", () => {
     const result = await applyObservationFieldOverflow(eventRecord);
 
     expect(result).toBe(eventRecord);
+    expect(mocks.instrumentAsync).not.toHaveBeenCalled();
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
     expect(mocks.logger.warn).toHaveBeenCalledOnce();
     expect(mocks.logger.warn).toHaveBeenCalledWith(
