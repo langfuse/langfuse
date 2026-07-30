@@ -1328,6 +1328,62 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.total).toBeUndefined();
   });
 
+  it("should skip tokenization and leave usage details blank when cost details are provided", async () => {
+    const generationUsage1 = {
+      model: modelName,
+      input: "hello world",
+      output: "whassup",
+      usage: null,
+      costDetails: {
+        input: 1,
+        output: 2,
+      },
+    };
+
+    const events = [
+      {
+        id: uuidv4(),
+        type: "generation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          startTime: new Date().toISOString(),
+          ...generationUsage1,
+        },
+      },
+    ];
+
+    await (mockIngestionService as any).processObservationEventList({
+      projectId,
+      entityId: generationId,
+      createdAtTimestamp: new Date(),
+      observationEventList: events,
+    });
+
+    expect(mockAddToClickhouseWriter).toHaveBeenCalled();
+    const args = mockAddToClickhouseWriter.mock.calls[0];
+    const tableName = args[0];
+    const generation = args[1];
+
+    expect(tableName).toBe("observations");
+    expect(generation.type).toBe("GENERATION");
+    expect(generation.internal_model_id).toBe(tokenModelData.id);
+
+    // Provided costs are authoritative (calculateUsageCosts ignores computed
+    // usage once any cost point is provided)
+    expect(generation.provided_cost_details).toEqual({ input: 1, output: 2 });
+    expect(generation.cost_details).toEqual({ input: 1, output: 2, total: 3 });
+    expect(generation.total_cost).toBe(3);
+
+    // Tokenization must not run: usage details stay blank
+    expect(generation.usage_details).toEqual({});
+    expect(generation.provided_usage_details).toEqual({});
+
+    // No pricing tier gets stamped from an empty usage vector
+    expect(generation.usage_pricing_tier_id).toBeNull();
+    expect(generation.usage_pricing_tier_name).toBeNull();
+  });
+
   describe("string to number conversion in getUsageUnits", () => {
     // These tests verify that usage_details values are correctly converted to numbers
     // even when they come in as strings (which can happen when reading from ClickHouse,
