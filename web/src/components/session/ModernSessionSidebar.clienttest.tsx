@@ -31,7 +31,6 @@ const traces = Array.from({ length: 3 }, (_, index) => ({
 const filterControls = {
   activeFilterCount: 0,
   activeFilters: [],
-  activeExclusions: [],
   activeViewName: undefined,
   selectedViewId: null,
   matchingSystemPresetId: undefined,

@@ -86,11 +86,6 @@ import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualiz
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
 import { ModernSession } from "@/src/components/session/ModernSession";
 import { ModernSessionFilterControls } from "@/src/components/session/ModernSessionFilterControls";
-import {
-  addModernSessionObservationExclusion,
-  MODERN_SESSION_OBSERVATION_IDENTITY_COLUMN,
-  type ModernSessionObservationIdentity,
-} from "@/src/components/session/modernSessionObservationFilters";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
@@ -987,16 +982,6 @@ const LoadedSessionEventsPage: React.FC<{
     }),
     [],
   );
-  const observationTypeAndNameColumn: ColumnDefinition = React.useMemo(
-    () => ({
-      name: "Observation Type and Name",
-      id: MODERN_SESSION_OBSERVATION_IDENTITY_COLUMN,
-      type: "stringOptions",
-      internal: MODERN_SESSION_OBSERVATION_IDENTITY_COLUMN,
-      options: [],
-    }),
-    [],
-  );
   const sessionEventsFilterConfig = React.useMemo(() => {
     return {
       ...observationEventsFilterConfig,
@@ -1004,18 +989,13 @@ const LoadedSessionEventsPage: React.FC<{
       columnDefinitions: [
         ...observationEventsFilterConfig.columnDefinitions,
         positionInTraceColumn,
-        observationTypeAndNameColumn,
       ],
       facets: observationEventsFilterConfig.facets.filter(
         (facet) =>
           facet.column !== "sessionId" && facet.column !== "environment",
       ),
     };
-  }, [
-    observationTypeAndNameColumn,
-    positionInTraceColumn,
-    sessionEventsTableName,
-  ]);
+  }, [positionInTraceColumn, sessionEventsTableName]);
   const [urlFiltersQuery] = useQueryParam("filter", StringParam);
   const filtersQuery = React.useMemo(
     () =>
@@ -1067,8 +1047,7 @@ const LoadedSessionEventsPage: React.FC<{
           column.id !== "traceId" &&
           column.id !== "traceName" &&
           column.id !== "traceTags" &&
-          column.id !== "userId" &&
-          column.id !== MODERN_SESSION_OBSERVATION_IDENTITY_COLUMN,
+          column.id !== "userId",
       )
       .map((column) => {
         if (column.type === "stringOptions" || column.type === "arrayOptions") {
@@ -1291,18 +1270,33 @@ const LoadedSessionEventsPage: React.FC<{
     !isModernSessionEnabled ||
     Boolean(session.users?.length || session.scores.length);
   const excludeModernSessionObservation = useCallback(
-    (observation: ModernSessionObservationIdentity) => {
-      const nextFilters = addModernSessionObservationExclusion(
-        queryFilter.filterState,
-        observation,
+    (name: string) => {
+      const existingFilter = queryFilter.filterState.find(
+        (filter) =>
+          filter.column === "name" &&
+          filter.type === "stringOptions" &&
+          filter.operator === "none of",
       );
-      if (nextFilters === queryFilter.filterState) return;
+      if (existingFilter?.value.includes(name)) return;
+
+      const nextFilters = existingFilter
+        ? queryFilter.filterState.map((filter) =>
+            filter === existingFilter
+              ? { ...existingFilter, value: [...existingFilter.value, name] }
+              : filter,
+          )
+        : queryFilter.filterState.concat({
+            column: "name",
+            type: "stringOptions",
+            operator: "none of",
+            value: [name],
+          });
 
       queryFilter.setFilterState(nextFilters);
       capture("filters:applied", {
         surface: "filter_builder",
         tableName: "session-detail",
-        column: MODERN_SESSION_OBSERVATION_IDENTITY_COLUMN,
+        column: "name",
         filterType: "stringOptions",
         operator: "none of",
         valueCount: 1,

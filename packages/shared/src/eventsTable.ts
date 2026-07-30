@@ -16,9 +16,6 @@ export const isRootObservation = ({
 // absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
 export const eventsTableHasInputSql = "e.input != ''";
 export const eventsTableHasOutputSql = "e.output != ''";
-export const eventsTableObservationTypeAndNameSql =
-  "concat(toString(length(e.type)), ':', e.type, toString(length(ifNull(e.name, ''))), ':', ifNull(e.name, ''))";
-
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
   : T extends object

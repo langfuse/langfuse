@@ -7,7 +7,6 @@ import {
   eventsTableIsRootObservationSql,
   eventsTableHasInputSql,
   eventsTableHasOutputSql,
-  eventsTableObservationTypeAndNameSql,
 } from "../../eventsTable";
 
 export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
@@ -30,12 +29,6 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect: "type",
     queryPrefix: "e",
-  },
-  {
-    uiTableName: "Observation Type and Name",
-    uiTableId: "observationTypeAndName",
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: eventsTableObservationTypeAndNameSql,
   },
   {
     uiTableName: "ID",

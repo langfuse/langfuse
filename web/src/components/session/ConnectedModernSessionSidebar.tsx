@@ -12,7 +12,6 @@ import {
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { type SessionTraceObservation } from "@/src/components/session/SessionObservationIO";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { type ModernSessionObservationIdentity } from "@/src/components/session/modernSessionObservationFilters";
 
 type ObservationsResponse =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"];
@@ -37,7 +36,7 @@ function ConnectedObservationRows({
   projectId: string;
   sessionId: string;
   filterState: FilterState;
-  onExcludeObservation: (observation: ModernSessionObservationIdentity) => void;
+  onExcludeObservation: (name: string) => void;
 }) {
   const observationsQuery =
     api.sessions.observationsForTraceFromEvents.useQuery(
@@ -102,7 +101,7 @@ export function ConnectedModernSessionSidebar({
   sessionId: string;
   filterState: FilterState;
   filterControls: ModernSessionSidebarFilterControls;
-  onExcludeObservation: (observation: ModernSessionObservationIdentity) => void;
+  onExcludeObservation: (name: string) => void;
 }) {
   if (state.type === "loading") {
     return <ModernSessionSidebar state="loading" />;

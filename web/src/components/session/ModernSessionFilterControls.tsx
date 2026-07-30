@@ -1,5 +1,4 @@
 import { type ReactNode, useState } from "react";
-import { X } from "lucide-react";
 import {
   type ColumnDefinition,
   type FilterState,
@@ -12,11 +11,6 @@ import {
 } from "@tanstack/react-table";
 import isEqual from "lodash/isEqual";
 
-import {
-  combineModernSessionObservationFilters,
-  splitModernSessionObservationFilters,
-  type ModernSessionObservationIdentity,
-} from "@/src/components/session/modernSessionObservationFilters";
 import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/components/session/session-detail-presets";
 import { type ModernSessionSidebarFilterControls } from "@/src/components/session/ModernSessionSidebar";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
@@ -87,13 +81,8 @@ export function ModernSessionFilterControls({
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [manageViewsOpen, setManageViewsOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<FilterState>([]);
-  const [draftExclusions, setDraftExclusions] = useState<
-    ModernSessionObservationIdentity[]
-  >([]);
   const [viewName, setViewName] = useState("");
-  const { regularFilters, exclusions } =
-    splitModernSessionObservationFilters(filterState);
-  const activeFilterCount = regularFilters.length + exclusions.length;
+  const activeFilterCount = filterState.length;
   const { TableViewPresetsList } = useViewData({
     tableName: TableViewPresetTableName.SessionDetail,
     projectId,
@@ -120,9 +109,7 @@ export function ModernSessionFilterControls({
   const activeViewName = matchingSystemPreset?.name ?? matchingSavedView?.name;
 
   const openFilterDialog = () => {
-    const split = splitModernSessionObservationFilters(filterState);
-    setDraftFilters(split.regularFilters);
-    setDraftExclusions(split.exclusions);
+    setDraftFilters(filterState);
     setViewName("");
     setFilterDialogOpen(true);
     capture("table:filter_builder_open", {
@@ -132,10 +119,7 @@ export function ModernSessionFilterControls({
   };
 
   const applyFilters = () => {
-    const nextFilters = combineModernSessionObservationFilters(
-      draftFilters,
-      draftExclusions,
-    );
+    const nextFilters = draftFilters;
     if (isEqual(normalizeFilters(nextFilters), normalizeFilters(filterState))) {
       setFilterDialogOpen(false);
       return;
@@ -176,10 +160,6 @@ export function ModernSessionFilterControls({
   const saveView = () => {
     const name = viewName.trim();
     if (!name) return;
-    const nextFilters = combineModernSessionObservationFilters(
-      draftFilters,
-      draftExclusions,
-    );
 
     capture("saved_views:create", {
       tableName: TableViewPresetTableName.SessionDetail,
@@ -189,7 +169,7 @@ export function ModernSessionFilterControls({
       tableName: TableViewPresetTableName.SessionDetail,
       projectId,
       orderBy: null,
-      filters: nextFilters,
+      filters: draftFilters,
       columnOrder: currentViewState.columnOrder,
       columnVisibility: currentViewState.columnVisibility,
       searchQuery: "",
@@ -246,8 +226,7 @@ export function ModernSessionFilterControls({
     <>
       {children({
         activeFilterCount,
-        activeFilters: regularFilters,
-        activeExclusions: exclusions,
+        activeFilters: filterState,
         activeViewName,
         selectedViewId: viewControllers.selectedViewId,
         matchingSystemPresetId: matchingSystemPreset?.id,
@@ -292,39 +271,6 @@ export function ModernSessionFilterControls({
               onChange={setDraftFilters}
               columnsWithCustomSelect={filterColumnsWithCustomSelect}
             />
-            {draftExclusions.length > 0 ? (
-              <div className="space-y-2">
-                <h3 className="text-sm font-bold">Excluded observations</h3>
-                <div className="flex flex-wrap gap-2">
-                  {draftExclusions.map((exclusion) => {
-                    const key = `${exclusion.type}:${exclusion.name}`;
-                    return (
-                      <span
-                        key={key}
-                        className="bg-muted flex items-center gap-1 rounded-sm px-2 py-1 text-xs"
-                      >
-                        {exclusion.type}: {exclusion.name}
-                        <button
-                          type="button"
-                          aria-label={`Remove ${exclusion.type} ${exclusion.name} exclusion`}
-                          onClick={() =>
-                            setDraftExclusions((current) =>
-                              current.filter(
-                                (item) =>
-                                  item.type !== exclusion.type ||
-                                  item.name !== exclusion.name,
-                              ),
-                            )
-                          }
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
           </DialogBody>
           <DialogFooter>
             <Button

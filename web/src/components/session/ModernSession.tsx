@@ -8,7 +8,6 @@ import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualiz
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
-import { type ModernSessionObservationIdentity } from "@/src/components/session/modernSessionObservationFilters";
 import { type ModernSessionSidebarFilterControls } from "@/src/components/session/ModernSessionSidebar";
 
 const MODERN_SESSION_OVERSCAN = 5;
@@ -30,7 +29,7 @@ type ModernSessionProps = {
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
   sidebarFilterControls: ModernSessionSidebarFilterControls;
-  onExcludeObservation: (observation: ModernSessionObservationIdentity) => void;
+  onExcludeObservation: (name: string) => void;
 };
 
 export function ModernSession({

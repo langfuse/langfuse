@@ -16,7 +16,6 @@ import { type FilterState, type TableViewPresetState } from "@langfuse/shared";
 import { type ObservationListRowsRenderer } from "@/src/components/session/ObservationListRows";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
-import { type ModernSessionObservationIdentity } from "@/src/components/session/modernSessionObservationFilters";
 import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   SESSION_DETAIL_VIEW_TRIGGER_ID,
@@ -45,7 +44,6 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
-import { FilterToken } from "@/src/features/filters/components/FilterToken";
 import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -57,7 +55,6 @@ const EMPTY_TRACES: EventSessionTrace[] = [];
 export type ModernSessionSidebarFilterControls = {
   activeFilterCount: number;
   activeFilters: FilterState;
-  activeExclusions: ModernSessionObservationIdentity[];
   activeViewName: string | undefined;
   selectedViewId: string | null;
   matchingSystemPresetId: string | undefined;
@@ -301,9 +298,7 @@ export function ModernSessionSidebar(
     filterControls.activeFilters,
   );
   const hasFilterRepresentation = Boolean(
-    activeFilterQuery.text ||
-    activeFilterQuery.skippedFilters.length > 0 ||
-    filterControls.activeExclusions.length > 0,
+    activeFilterQuery.text || activeFilterQuery.skippedFilters.length > 0,
   );
 
   return (
@@ -429,25 +424,6 @@ export function ModernSessionSidebar(
                         filterState={activeFilterQuery.skippedFilters}
                         className="m-0"
                       />
-                      {filterControls.activeExclusions.map((exclusion) => (
-                        <span
-                          key={`${exclusion.type}:${exclusion.name}`}
-                          className="text-xs whitespace-nowrap"
-                        >
-                          <FilterToken deactivated={false} title={undefined}>
-                            <span className="text-muted-foreground">
-                              Exclude{" "}
-                            </span>
-                            <span className="text-qlang-field">
-                              {exclusion.type}
-                            </span>
-                            <span className="text-muted-foreground">: </span>
-                            <span className="text-qlang-value">
-                              {exclusion.name}
-                            </span>
-                          </FilterToken>
-                        </span>
-                      ))}
                     </div>
                   ) : (
                     <span className="text-muted-foreground text-xs">

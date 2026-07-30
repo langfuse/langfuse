@@ -2,7 +2,6 @@ import { type ReactNode } from "react";
 import { MoreHorizontal } from "lucide-react";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
-import { type ModernSessionObservationIdentity } from "@/src/components/session/modernSessionObservationFilters";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
@@ -37,9 +36,7 @@ export function ObservationListRows({
   | {
       state: Extract<ObservationListRowsState, { type: "loaded" }>;
       onSelectTurn: () => void;
-      onExcludeObservation?: (
-        observation: ModernSessionObservationIdentity,
-      ) => void;
+      onExcludeObservation?: (name: string) => void;
     }) {
   if (state.type === "loading") {
     return (
@@ -99,10 +96,7 @@ export function ObservationListRows({
               <DropdownMenuContent align="end" sideOffset={0}>
                 <DropdownMenuItem
                   onSelect={() =>
-                    onExcludeObservation({
-                      type: observation.type,
-                      name: observation.name as string,
-                    })
+                    onExcludeObservation(observation.name as string)
                   }
                 >
                   Exclude similar observations

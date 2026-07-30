@@ -262,7 +262,6 @@ const loadedArgs = {
   filterControls: {
     activeFilterCount: 0,
     activeFilters: [],
-    activeExclusions: [],
     activeViewName: undefined,
     selectedViewId: null,
     matchingSystemPresetId: undefined,
