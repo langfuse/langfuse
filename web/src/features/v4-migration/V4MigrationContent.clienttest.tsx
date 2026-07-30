@@ -32,7 +32,13 @@ const mocks = vi.hoisted(() => ({
     evals: { status: "loaded", count: 0 } as MigrationCountState,
     apis: { status: "loaded", count: 1 } as MigrationCountState,
     exports: { status: "loaded", count: 3 } as MigrationCountState,
-    apiUsage: [{ endpoint: "GET /api/public/traces", count: 42 }],
+    apiUsage: [
+      {
+        endpoint: "GET /api/public/traces",
+        count: 42,
+        lastSeen: "2026-07-23T10:37:00Z",
+      },
+    ],
     legacyIntegrations: ["PostHog", "Mixpanel", "Blob Storage"],
   },
   canToggleV4: true,
@@ -110,7 +116,11 @@ describe("V4MigrationDetailsContent", () => {
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
     mocks.migrationData.apiUsage = [
-      { endpoint: "GET /api/public/traces", count: 42 },
+      {
+        endpoint: "GET /api/public/traces",
+        count: 42,
+        lastSeen: "2026-07-23T10:37:00Z",
+      },
     ];
     mocks.migrationData.legacyIntegrations = [
       "PostHog",
@@ -132,6 +142,10 @@ describe("V4MigrationDetailsContent", () => {
     ).toHaveAttribute(
       "href",
       "https://langfuse.com/faq/all/deprecated-api-migration",
+    );
+    expect(screen.getByText(/42 calls · last seen/)).toHaveAttribute(
+      "title",
+      "Last seen at 2026-07-23T10:37:00Z",
     );
 
     const expectedIntegrationGuides = {

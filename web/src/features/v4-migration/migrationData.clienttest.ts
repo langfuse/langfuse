@@ -91,19 +91,28 @@ describe("v4 migration data", () => {
           time: "2026-07-23T09:00:00Z",
           entrypoint: "publicapi: GET /api/public/traces",
           count: 2,
+          lastSeen: "2026-07-23T09:42:00Z",
         },
         {
           time: "2026-07-23T10:00:00Z",
           entrypoint: "publicapi: GET /api/public/traces",
           count: 3,
+          lastSeen: "2026-07-23T10:37:00Z",
         },
         {
           time: "2026-07-23T10:00:00Z",
           entrypoint: "",
           count: 0,
+          lastSeen: null,
         },
       ]),
-    ).toEqual([{ endpoint: "GET /api/public/traces", count: 5 }]);
+    ).toEqual([
+      {
+        endpoint: "GET /api/public/traces",
+        count: 5,
+        lastSeen: "2026-07-23T10:37:00Z",
+      },
+    ]);
   });
 
   it("returns only enabled legacy integration labels", () => {
