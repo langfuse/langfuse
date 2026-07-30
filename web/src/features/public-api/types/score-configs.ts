@@ -147,6 +147,20 @@ export const PutScoreConfigBodyWithoutArchived = z
 
 export const PutScoreConfigResponse = APIScoreConfig;
 
+// DELETE /score-configs/{configId}
+// Soft-archives the config (sets isArchived: true), mirroring the MCP
+// `deleteScoreConfig` tool's existing semantic. Hard delete is intentionally
+// out of scope — see https://github.com/langfuse/langfuse/issues/15642.
+export const DeleteScoreConfigV1Query = z.object({
+  configId: z.string(),
+});
+
+export const DeleteScoreConfigV1Response = z
+  .object({
+    message: z.string(),
+  })
+  .strict();
+
 // GET /score-configs
 export const GetScoreConfigsQuery = z.object({
   ...publicApiPaginationZod,

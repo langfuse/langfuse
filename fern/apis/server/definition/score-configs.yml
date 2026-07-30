@@ -46,12 +46,24 @@ service:
           docs: The unique langfuse identifier of a score config
       request: UpdateScoreConfigRequest
       response: commons.ScoreConfig
+    delete:
+      docs: Archive a score config. Mirrors the MCP `deleteScoreConfig` tool's existing semantic — the row is soft-archived (isArchived=true), not removed from Postgres. Idempotent: a second call on an already-archived config returns 200 without rewriting the row.
+      method: DELETE
+      path: /score-configs/{configId}
+      path-parameters:
+        configId:
+          type: string
+          docs: The unique langfuse identifier of a score config
+      response: DeleteScoreConfigResponse
 
 types:
   ScoreConfigs:
     properties:
       data: list<commons.ScoreConfig>
       meta: pagination.MetaResponse
+  DeleteScoreConfigResponse:
+    properties:
+      message: string
   CreateScoreConfigRequest:
     properties:
       name:
