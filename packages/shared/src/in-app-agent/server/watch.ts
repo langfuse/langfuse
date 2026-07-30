@@ -8,6 +8,7 @@ import {
 } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
 import { reconcileConversationRuns } from "./runLifecycle";
+import { getPublicInAppAgentMcpToolResultContent } from "./tools";
 import {
   IN_APP_AGENT_HEARTBEAT_STALE_MS,
   IN_APP_AGENT_WATCH_KEEPALIVE_MS,
@@ -227,16 +228,27 @@ function isStaleClaimedRun(
   return now - lastSign.getTime() > IN_APP_AGENT_HEARTBEAT_STALE_MS;
 }
 
-/** Match foreground streaming by withholding persisted replay input. */
+/** Match foreground streaming by withholding private persisted event payloads. */
 function toPublicEvent(event: AgUiEvent): AgUiEvent {
-  if (event.type !== EventType.RUN_STARTED || event.input === undefined) {
-    return event;
+  if (event.type === EventType.RUN_STARTED && event.input !== undefined) {
+    const publicEvent = { ...event };
+    delete publicEvent.input;
+
+    return publicEvent;
   }
 
-  const publicEvent = { ...event };
-  delete publicEvent.input;
+  if (event.type === EventType.TOOL_CALL_RESULT) {
+    if (typeof event.content !== "string") {
+      return event;
+    }
 
-  return publicEvent;
+    return {
+      ...event,
+      content: getPublicInAppAgentMcpToolResultContent(event.content),
+    };
+  }
+
+  return event;
 }
 
 function syntheticFrame(
