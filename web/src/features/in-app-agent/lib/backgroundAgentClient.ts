@@ -12,6 +12,7 @@ import {
 
 import { env } from "@/src/env.mjs";
 import { parseSSEBuffer } from "@/src/hooks/useSSEDashboardQuery";
+import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 
 export type InAppAgentRunStatusUpdate = Extract<
   InAppAgentWatchFrame,
@@ -20,6 +21,12 @@ export type InAppAgentRunStatusUpdate = Extract<
 
 const WATCH_RECONNECT_ATTEMPTS = 5;
 const WATCH_RECONNECT_BASE_DELAY_MS = 500;
+
+class InvalidWatchFrameError extends BackgroundExecutionConnectionError {
+  constructor() {
+    super("Assistant watch returned an invalid frame", { retryable: false });
+  }
+}
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -51,6 +58,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   private readonly conversationId: string;
   private readonly startRun: StartRunFn;
   private onStatus?: (status: InAppAgentRunStatusUpdate) => void;
+  private onCursor?: (cursor: number) => void;
   private cursor: number;
   private abortController = new AbortController();
 
@@ -147,9 +155,13 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   }
 
   setStatusListener(
-    listener: (status: InAppAgentRunStatusUpdate) => void,
+    listener?: (status: InAppAgentRunStatusUpdate) => void,
   ): void {
     this.onStatus = listener;
+  }
+
+  setCursorListener(listener?: (cursor: number) => void): void {
+    this.onCursor = listener;
   }
 
   private resetAbortController(): AbortController {
@@ -178,12 +190,22 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
           break;
         }
 
+        if (
+          error instanceof BackgroundExecutionConnectionError &&
+          !error.retryable
+        ) {
+          throw error;
+        }
+
         consecutiveFailures += 1;
 
         // Give up only once retrying has stopped looking like a blip;
         // the run itself keeps executing regardless of the browser.
         if (consecutiveFailures > WATCH_RECONNECT_ATTEMPTS) {
-          throw error;
+          throw new BackgroundExecutionConnectionError(getErrorMessage(error), {
+            retryable: true,
+            cause: error,
+          });
         }
 
         await sleep(
@@ -205,7 +227,10 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
 
       consecutiveFailures += 1;
       if (consecutiveFailures > WATCH_RECONNECT_ATTEMPTS) {
-        throw new Error("Assistant watch closed repeatedly without progress");
+        throw new BackgroundExecutionConnectionError(
+          "Assistant watch closed repeatedly without progress",
+          { retryable: true },
+        );
       }
 
       await sleep(WATCH_RECONNECT_BASE_DELAY_MS * consecutiveFailures, signal);
@@ -235,7 +260,18 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     });
 
     if (!response.ok) {
-      throw new Error(await readErrorMessage(response));
+      const message = await readErrorMessage(response);
+      if (
+        response.status >= 400 &&
+        response.status < 500 &&
+        response.status !== 408 &&
+        response.status !== 429
+      ) {
+        throw new BackgroundExecutionConnectionError(message, {
+          retryable: false,
+        });
+      }
+      throw new Error(message);
     }
 
     const reader = response.body?.getReader();
@@ -259,11 +295,16 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
       buffer = remaining;
 
       for (const sseEvent of events) {
-        const payload: unknown = JSON.parse(sseEvent.data);
+        let payload: unknown;
+        try {
+          payload = JSON.parse(sseEvent.data) as unknown;
+        } catch {
+          throw new InvalidWatchFrameError();
+        }
         const frame = InAppAgentWatchFrameSchema.safeParse(payload);
 
         if (!frame.success) {
-          continue;
+          throw new InvalidWatchFrameError();
         }
 
         if (frame.data.type === "done") {
@@ -284,12 +325,19 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
         }
 
         this.cursor = frame.data.sequenceNumber;
+        this.onCursor?.(this.cursor);
         subscriber.next(frame.data.event as unknown as BaseEvent);
       }
     }
 
     return false;
   }
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error
+    ? error.message
+    : "Assistant watch connection failed";
 }
 
 function getLastUserMessageContent(

@@ -10,10 +10,14 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { EventType, HttpAgent, type AbstractAgent } from "@ag-ui/client";
+import {
+  EventType,
+  HttpAgent,
+  type AbstractAgent,
+  type AgentSubscriber,
+} from "@ag-ui/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { z } from "zod";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
@@ -39,6 +43,7 @@ import {
   BackgroundExecutionSessionController,
   getBackgroundRunFailureMessage,
   isCancellableBackgroundRun,
+  parseInAppAgentInterruptEvent,
   type AgentInput,
   type BackgroundExecutionSession,
   type BackgroundExecutionView,
@@ -85,14 +90,6 @@ export type InAppAgentEntryPoint =
   | "top_nav"
   | "keyboard_shortcut"
   | "dashboard_widget";
-
-const MastraSuspendEventSchema = z.object({
-  type: z.literal("mastra_suspend"),
-  toolCallId: z.string().min(1),
-  toolName: z.string().min(1),
-  args: z.unknown().optional(),
-  runId: z.string().min(1),
-});
 
 const getConversationAgentState = (
   projectId: string,
@@ -328,10 +325,6 @@ function InAppAiAgentProviderInner({
   const agentRef = useRef<AbstractAgent | null>(null);
   const backgroundSessionRef = useRef<BackgroundExecutionSession | null>(null);
   const backgroundSessionUnsubscribeRef = useRef<(() => void) | null>(null);
-  const backgroundSessionMessagesRef = useRef<AgUiMessage[] | null>(null);
-  const backgroundSessionApprovalsRef = useRef<
-    BackgroundExecutionView["pendingToolApprovals"] | null
-  >(null);
   const activeRunIdRef = useRef<string | null>(null);
   const toolCallNamesRef = useRef(new Map<string, string>());
   const backgroundExecutionEnabled = useInAppAgentBackgroundExecutionEnabled();
@@ -575,13 +568,6 @@ function InAppAiAgentProviderInner({
   const publishAgentMessages = useCallback(
     (agentMessages: readonly unknown[]) => {
       const nextMessages = agentMessages.filter(isAgentConversationMessage);
-      backgroundSessionMessagesRef.current = nextMessages;
-      if (
-        backgroundSessionRef.current instanceof
-        BackgroundExecutionSessionController
-      ) {
-        backgroundSessionRef.current.observeMessages(nextMessages);
-      }
       setDisplayState((currentState) =>
         recordInAppAgentMessagesForDisplay(currentState, nextMessages),
       );
@@ -604,10 +590,8 @@ function InAppAiAgentProviderInner({
     subscriptionRef.current = null;
     backgroundSessionUnsubscribeRef.current?.();
     backgroundSessionUnsubscribeRef.current = null;
-    backgroundSessionRef.current?.detach();
+    backgroundSessionRef.current?.dispose();
     backgroundSessionRef.current = null;
-    backgroundSessionMessagesRef.current = null;
-    backgroundSessionApprovalsRef.current = null;
     if (!backgroundExecutionEnabled) {
       agentRef.current?.abortRun();
     }
@@ -655,13 +639,9 @@ function InAppAiAgentProviderInner({
     };
   }, [rateLimitRetryAt]);
 
-  const ensureSubscription = useCallback(
-    (agent: AbstractAgent) => {
-      if (subscriptionRef.current) {
-        return;
-      }
-
-      subscriptionRef.current = agent.subscribe({
+  const createSharedAgentSubscriber = useCallback(
+    () =>
+      ({
         onRunStartedEvent: ({
           event,
           messages: runMessages,
@@ -730,6 +710,43 @@ function InAppAiAgentProviderInner({
             clearLoadingEvents();
           }
         },
+        onToolCallResultEvent: ({ event }) => {
+          const toolName = toolCallNamesRef.current.get(event.toolCallId);
+          toolCallNamesRef.current.delete(event.toolCallId);
+          if (toolName && shouldPerformToolSideEffects(event.error)) {
+            performToolSideEffects({ toolName, utils }).catch(
+              (error: unknown) => {
+                console.error(
+                  "Failed to invalidate tRPC routes after in-app agent tool call",
+                  { error, toolName },
+                );
+              },
+            );
+          }
+        },
+        onRunErrorEvent: ({ event }) => {
+          if (intentionalAbortRef.current) {
+            return;
+          }
+
+          setError(getInAppAgentError(event));
+          console.error("In-app agent drawer run error", event);
+        },
+      }) satisfies AgentSubscriber,
+    [clearLoadingEvents, updateLoadingEvent, utils],
+  );
+  const ensureSubscription = useCallback(
+    (agent: AbstractAgent) => {
+      if (
+        subscriptionRef.current ||
+        agent instanceof InAppAgentBackgroundClient
+      ) {
+        return;
+      }
+
+      const sharedSubscriber = createSharedAgentSubscriber();
+      subscriptionRef.current = agent.subscribe({
+        ...sharedSubscriber,
         onCustomEvent: ({ event }) => {
           const approvalRequest = parseInAppAgentInterruptEvent(event);
 
@@ -742,17 +759,6 @@ function InAppAiAgentProviderInner({
             approvalRequest,
             status: "pending",
           };
-
-          if (
-            backgroundSessionRef.current instanceof
-            BackgroundExecutionSessionController
-          ) {
-            backgroundSessionRef.current.observeApproval({
-              runId: approvalRequest.runId,
-              approvalRequest,
-            });
-            return;
-          }
 
           updatePendingToolApprovals((currentApprovals) => {
             const existingIndex = currentApprovals.findIndex(
@@ -768,42 +774,14 @@ function InAppAiAgentProviderInner({
             return nextApprovals;
           });
         },
-        onToolCallResultEvent: ({ event }) => {
-          const toolName = toolCallNamesRef.current.get(event.toolCallId);
-          toolCallNamesRef.current.delete(event.toolCallId);
-          if (toolName && shouldPerformToolSideEffects(event.error)) {
-            performToolSideEffects({ toolName, utils }).catch(
-              (error: unknown) => {
-                console.error(
-                  "Failed to invalidate tRPC routes after in-app agent tool call",
-                  { error, toolName },
-                );
-              },
-            );
-          }
-
-          if (
-            backgroundSessionRef.current instanceof
-            BackgroundExecutionSessionController
-          ) {
-            backgroundSessionRef.current.resolveApproval(event.toolCallId);
-            return;
-          }
-
+        onToolCallResultEvent: (params) => {
+          sharedSubscriber.onToolCallResultEvent(params);
           updatePendingToolApprovals((currentApprovals) =>
             currentApprovals.filter(
               (approval) =>
-                approval.approvalRequest.toolCallId !== event.toolCallId,
+                approval.approvalRequest.toolCallId !== params.event.toolCallId,
             ),
           );
-        },
-        onRunErrorEvent: ({ event }) => {
-          if (intentionalAbortRef.current) {
-            return;
-          }
-
-          setError(getInAppAgentError(event));
-          console.error("In-app agent drawer run error", event);
         },
         onMessagesChanged: ({ messages }) => {
           publishAgentMessages(messages);
@@ -814,10 +792,8 @@ function InAppAiAgentProviderInner({
       });
     },
     [
-      clearLoadingEvents,
+      createSharedAgentSubscriber,
       publishAgentMessages,
-      utils,
-      updateLoadingEvent,
       updatePendingToolApprovals,
     ],
   );
@@ -887,6 +863,12 @@ function InAppAiAgentProviderInner({
       agentRef.current = agent;
 
       if (agent instanceof InAppAgentBackgroundClient) {
+        let publishedMessages: AgUiMessage[] | null = null;
+        let publishedApprovals:
+          | BackgroundExecutionView["pendingToolApprovals"]
+          | null = null;
+        let publishedLiveMessageRevision = 0;
+        let hasPublishedConnectionError = false;
         const syncSessionView = () => {
           if (!backgroundSession) {
             return;
@@ -895,7 +877,8 @@ function InAppAiAgentProviderInner({
           const view = backgroundSession.getSnapshot();
           activeRunIdRef.current = view.currentRun?.id ?? null;
           const executionActive =
-            view.isAttached ||
+            view.attachment.status === "attaching" ||
+            view.attachment.status === "attached" ||
             Boolean(
               view.currentRun &&
               isActiveInAppAgentRunStatus(view.currentRun.status),
@@ -904,15 +887,26 @@ function InAppAiAgentProviderInner({
           runInFlightRef.current = executionActive;
           setBackgroundRunStatus(view.currentRun);
 
-          if (backgroundSessionMessagesRef.current !== view.messages) {
-            backgroundSessionMessagesRef.current = view.messages;
-            setMessages(view.messages);
+          if (view.attachment.status === "error") {
+            hasPublishedConnectionError = true;
+            setError(getInAppAgentError(view.attachment.error));
+          } else if (hasPublishedConnectionError) {
+            hasPublishedConnectionError = false;
+            setError(null);
           }
 
-          if (
-            backgroundSessionApprovalsRef.current !== view.pendingToolApprovals
-          ) {
-            backgroundSessionApprovalsRef.current = view.pendingToolApprovals;
+          if (publishedMessages !== view.messages) {
+            publishedMessages = view.messages;
+            if (publishedLiveMessageRevision === view.liveMessageRevision) {
+              setMessages(view.messages);
+            } else {
+              publishAgentMessages(view.messages);
+            }
+          }
+          publishedLiveMessageRevision = view.liveMessageRevision;
+
+          if (publishedApprovals !== view.pendingToolApprovals) {
+            publishedApprovals = view.pendingToolApprovals;
             const approvals = view.pendingToolApprovals.map(
               ({ runId, approvalRequest }) => ({
                 id: approvalRequest.toolCallId,
@@ -928,6 +922,7 @@ function InAppAiAgentProviderInner({
 
         backgroundSession = new BackgroundExecutionSessionController({
           agent,
+          subscriber: createSharedAgentSubscriber(),
           initialView: {
             messages: initialMessages,
             eventCursor: initialCursor,
@@ -951,7 +946,10 @@ function InAppAiAgentProviderInner({
                   }
                 : null,
               pendingToolApprovals: snapshot.pendingToolApprovals,
-            } satisfies Omit<BackgroundExecutionView, "isAttached">;
+            } satisfies Omit<
+              BackgroundExecutionView,
+              "attachment" | "liveMessageRevision"
+            >;
           },
           cancelRun: (runId) =>
             cancelRunMutation.mutateAsync({
@@ -1003,8 +1001,10 @@ function InAppAiAgentProviderInner({
       cancelRunMutation,
       clearLoadingEvents,
       conversationQuery.data,
+      createSharedAgentSubscriber,
       decideToolApprovalMutation,
       projectId,
+      publishAgentMessages,
       publishLiveMessages,
       releaseSubmitLock,
       resetAgent,
@@ -1385,7 +1385,7 @@ function InAppAiAgentProviderInner({
   // Hydrate transcript and cursor from one snapshot before observing its tail.
   const attachToConversation = useCallback(
     async (conversationId: string) => {
-      if (!backgroundExecutionEnabled || runInFlightRef.current) {
+      if (!backgroundExecutionEnabled) {
         return;
       }
 
@@ -2176,40 +2176,6 @@ export function projectInAppAgentMessagesForDisplay(
         .map(({ message: placedMessage }) => placedMessage),
     ];
   });
-}
-
-function parseInAppAgentInterruptEvent(event: unknown) {
-  if (!event || typeof event !== "object") {
-    return null;
-  }
-
-  if (!("name" in event) || event.name !== "on_interrupt") {
-    return null;
-  }
-
-  const value = "value" in event ? event.value : undefined;
-  const parsedValue = typeof value === "string" ? parseJson(value) : value;
-  const interrupt = MastraSuspendEventSchema.safeParse(parsedValue);
-
-  if (!interrupt.success) {
-    return null;
-  }
-
-  return {
-    type: "tool_approval_request" as const,
-    toolCallId: interrupt.data.toolCallId,
-    toolName: interrupt.data.toolName,
-    args: interrupt.data.args,
-    runId: interrupt.data.runId,
-  } satisfies InAppAgentToolApprovalRequest;
-}
-
-function parseJson(value: string) {
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
 }
 
 function getInAppAgentUrl() {
