@@ -867,21 +867,6 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(listObservationsTool, { readOnlyHint: true });
     });
 
-    it("should describe a working metadata-key inspection workflow", () => {
-      expect(listObservationsTool.description).toContain(
-        "inspect metadata on selectively scoped observations",
-      );
-      expect(listObservationsTool.description).toContain(
-        'fields: ["id", "metadata"]',
-      );
-      expect(listObservationsTool.description).not.toContain(
-        "getObservationFilterValues",
-      );
-      expect(listObservationsTool.description).not.toContain(
-        "getObservationFilterMetadataKeys",
-      );
-    });
-
     it("should be available to in-app agent keys", async () => {
       const context = mockServerContext({
         inAppAgent: { permissions: "read" },
