@@ -1,5 +1,6 @@
 import type { Span } from "@opentelemetry/api";
 import { InvalidRequestError } from "@langfuse/shared";
+import { z } from "zod";
 import type { ServerContext } from "@/src/features/mcp/types";
 
 const { addUserToSpanMock, fakeSpan, instrumentAsyncMock } = vi.hoisted(() => {
@@ -51,6 +52,11 @@ describe("runMcpTool outcome telemetry", () => {
       execute: async () => {
         throw new InvalidRequestError("invalid input");
       },
+      expectedOutcome: "request_error",
+    },
+    {
+      name: "in-handler schema validation error",
+      execute: async () => z.string().parse(42),
       expectedOutcome: "request_error",
     },
     {

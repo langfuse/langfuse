@@ -1,6 +1,7 @@
 import { BaseError } from "@langfuse/shared";
 import { addUserToSpan, instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind, type Span } from "@opentelemetry/api";
+import { ZodError } from "zod";
 
 import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
@@ -47,7 +48,11 @@ export const runMcpTool = async <TResult>({
         span.setAttribute("mcp.outcome", "success");
         return result;
       } catch (error) {
+        // Keep telemetry aligned with formatErrorForUser, which reports Zod
+        // validation failures as InvalidParams. Response validators should
+        // wrap schema-drift failures in a server-side BaseError.
         const isRequestError =
+          error instanceof ZodError ||
           isUserInputError(error) ||
           (error instanceof BaseError && error.httpCode < 500);
 
