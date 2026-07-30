@@ -41,6 +41,7 @@ import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
   createRun,
   ensureOwnedConversation,
+  getConversationEvents,
   finishRun,
   getConversationMessagesForReplay,
   maybeInferAndPersistConversationTitle,
@@ -1459,6 +1460,84 @@ describe("in-app agent persistence", () => {
         toolCallId: "paired-tool-call",
       },
     ]);
+  });
+
+  it("redacts silent MCP output from replayed conversation history", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "user-1",
+      content: "search observations silently",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "tool-call-1",
+      toolCallName: "langfuse_listObservations",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "tool-call-1",
+      delta: JSON.stringify({ silent: true, traceId: "trace-1" }),
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "tool-call-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "tool-call-1",
+      content: JSON.stringify({
+        type: "silent-mcp-output",
+        output: { data: [{ id: "observation-1" }] },
+      }),
+      role: "tool",
+    });
+
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toContainEqual({
+      id: "tool-result-1",
+      role: "tool",
+      content: "Output saved to /workspace/tool_calls",
+      toolCallId: "tool-call-1",
+    });
+
+    const persistedEvents = await getConversationEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+    });
+    expect(persistedEvents).toContainEqual(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: EventType.TOOL_CALL_ARGS,
+          delta: JSON.stringify({ silent: true, traceId: "trace-1" }),
+        }),
+      }),
+    );
   });
 
   it("drops assistant tool calls without results from loaded conversation history", async () => {

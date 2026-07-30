@@ -187,9 +187,11 @@ describe("in-app agent sandbox", () => {
       path: "tool_calls/2026-07-02T12-00-00.000Z_langfuse_listObservations_tool-call-1.json",
     });
 
-    expect((result as { content: string | null }).content).toContain(
-      "observation-1",
-    );
+    expect(JSON.parse((result as { content: string }).content)).toEqual({
+      request: { silent: true },
+      response: { data: [{ id: "observation-1" }] },
+      error: null,
+    });
   });
 
   it("exports prior non-sandbox tool calls into tool_calls files", () => {

@@ -40,6 +40,7 @@ import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
 import {
   getPublicInAppAgentMcpToolResultContent,
+  getSandboxInAppAgentMcpToolResultContent,
   IN_APP_AGENT_SANDBOX_TOOL_NAMES,
 } from "./tools";
 
@@ -483,7 +484,10 @@ export function getSandboxToolCallFiles(
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
-          response: parseSandboxToolCallValue(getString(event, "content")),
+          response: parseSandboxToolCallValue(
+            getString(event, "content"),
+            getSandboxInAppAgentMcpToolResultContent,
+          ),
           error: getString(event, "error") ?? null,
         },
         null,
@@ -713,9 +717,31 @@ function sanitizeConversationMessagesForReplay(
   const messagesWithoutOrphanToolCalls = dropUnpairedAssistantToolCalls(
     messagesWithoutRedirectActions,
   );
-  return stripAssistantRunIds(
-    dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
+  const messagesWithoutSilentToolOutput = redactSilentToolMessages(
+    messagesWithoutOrphanToolCalls,
   );
+  return stripAssistantRunIds(
+    dropEmptyAssistantMessages(messagesWithoutSilentToolOutput),
+  );
+}
+
+function redactSilentToolMessages(messages: readonly AgUiMessage[]) {
+  let changed = false;
+  const sanitizedMessages = messages.map((message): AgUiMessage => {
+    if (message.role !== "tool") {
+      return message;
+    }
+
+    const content = getPublicInAppAgentMcpToolResultContent(message.content);
+    if (content === message.content) {
+      return message;
+    }
+
+    changed = true;
+    return { ...message, content };
+  });
+
+  return changed ? sanitizedMessages : messages;
 }
 
 export function shouldFlushPersistedEvent(event: AgUiEvent) {
@@ -1538,9 +1564,20 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
   ) as T;
 }
 
-function parseSandboxToolCallValue(value: string | undefined) {
+function parseSandboxToolCallValue(
+  value: string | undefined,
+  transform?: (value: string) => unknown,
+) {
   if (!value) {
     return null;
+  }
+
+  if (transform) {
+    try {
+      return transform(value);
+    } catch {
+      return value;
+    }
   }
 
   const parsed = safeJsonParse(value);

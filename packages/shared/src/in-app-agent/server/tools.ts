@@ -622,6 +622,12 @@ export function getPublicInAppAgentMcpToolResultContent(content: string) {
   }
 }
 
+export function getSandboxInAppAgentMcpToolResultContent(content: string) {
+  const parsed = JSON.parse(content) as unknown;
+
+  return isSilentMcpToolOutput(parsed) ? parsed.output : parsed;
+}
+
 function isSilentMcpToolOutput(value: unknown): value is SilentMcpToolOutput {
   return (
     typeof value === "object" &&
