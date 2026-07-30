@@ -732,6 +732,8 @@ describe("MCP Read Tools", () => {
             default: boolean;
             expensive: boolean;
             sensitive: boolean;
+            requiresScope?: boolean;
+            scopeRequirement?: string;
             description?: string;
           }
         >;
@@ -762,7 +764,13 @@ describe("MCP Read Tools", () => {
       expect(result.fields.costDetails.type).toBe("map<string, number>");
       expect(result.fields.input.expensive).toBe(true);
       expect(result.fields.input.sensitive).toBe(true);
+      expect(result.fields.input.requiresScope).toBe(true);
+      expect(result.fields.input.scopeRequirement).toMatch(
+        /traceId.*id filter.*fromStartTime.*toStartTime/i,
+      );
+      expect(result.fields.output.requiresScope).toBe(true);
       expect(result.fields.metadata.expensive).toBe(true);
+      expect(result.fields.metadata.requiresScope).toBe(true);
       expect(result.fields.metadata.description).toContain(
         "truncated to 200 UTF-8 characters per key",
       );

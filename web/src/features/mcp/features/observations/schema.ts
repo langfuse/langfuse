@@ -12,6 +12,8 @@ type ObservationMcpFieldMetadata = {
   default?: boolean;
   expensive?: boolean;
   sensitive?: boolean;
+  requiresScope?: boolean;
+  scopeRequirement?: string;
   description?: string;
 };
 
@@ -32,6 +34,9 @@ type ObservationMcpFieldType =
   | "record"
   | "string"
   | "unknown";
+
+const EXPENSIVE_FIELD_SCOPE_REQUIREMENT =
+  "Requires traceId, an exact id filter, or both fromStartTime and toStartTime.";
 
 const OBSERVATION_MCP_FIELDS = OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap(
   (group) => OBSERVATION_FIELD_GROUP_FIELD_NAMES[group],
@@ -68,12 +73,26 @@ const OBSERVATION_MCP_FIELD_METADATA: Record<
   completionStartTime: { type: "datetime", nullable: true },
   createdAt: { type: "datetime" },
   updatedAt: { type: "datetime" },
-  input: { type: "unknown", expensive: true, sensitive: true },
-  output: { type: "unknown", expensive: true, sensitive: true },
+  input: {
+    type: "unknown",
+    expensive: true,
+    sensitive: true,
+    requiresScope: true,
+    scopeRequirement: EXPENSIVE_FIELD_SCOPE_REQUIREMENT,
+  },
+  output: {
+    type: "unknown",
+    expensive: true,
+    sensitive: true,
+    requiresScope: true,
+    scopeRequirement: EXPENSIVE_FIELD_SCOPE_REQUIREMENT,
+  },
   metadata: {
     type: "record",
     expensive: true,
     sensitive: true,
+    requiresScope: true,
+    scopeRequirement: EXPENSIVE_FIELD_SCOPE_REQUIREMENT,
     description:
       "Metadata values are truncated to 200 UTF-8 characters per key by default. When requesting metadata explicitly, pass expandMetadataKeys with the keys that may need full values.",
   },
