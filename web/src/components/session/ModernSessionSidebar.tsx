@@ -106,6 +106,15 @@ const TurnCard = React.memo(
         className="flex w-full items-center gap-2 text-left"
         aria-current={isActive ? "true" : undefined}
       >
+        <span className="border-border bg-tertiary text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]">
+          {index + 1}
+        </span>
+        <span
+          className="min-w-0 flex-1 truncate text-[13px] font-bold"
+          title={trace.name ?? "Trace"}
+        >
+          {trace.name ?? "Trace"}
+        </span>
         <span
           role="button"
           tabIndex={0}
@@ -121,7 +130,7 @@ const TurnCard = React.memo(
               onToggleCollapse(trace.id);
             }
           }}
-          className="text-muted-foreground flex h-3.5 w-3.5 shrink-0 items-center justify-center"
+          className="text-muted-foreground -m-2 flex h-8 w-8 shrink-0 items-center justify-center"
         >
           <ChevronDown
             className={cn(
@@ -130,15 +139,6 @@ const TurnCard = React.memo(
             )}
             strokeWidth={1.6}
           />
-        </span>
-        <span className="border-border bg-tertiary text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]">
-          {index + 1}
-        </span>
-        <span
-          className="min-w-0 flex-1 truncate text-[13px] font-bold"
-          title={trace.name ?? "Trace"}
-        >
-          {trace.name ?? "Trace"}
         </span>
       </button>
       {!isCollapsed

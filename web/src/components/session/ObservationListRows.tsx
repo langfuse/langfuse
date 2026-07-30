@@ -43,7 +43,7 @@ export function ObservationListRows({
     }) {
   if (state.type === "loading") {
     return (
-      <div className="flex flex-col gap-1 py-2 pl-4">
+      <div className="-mx-1 flex flex-col gap-1 px-1 py-2">
         <div className="bg-muted h-3 w-3/4 animate-pulse rounded-sm" />
         <div className="bg-muted h-3 w-1/2 animate-pulse rounded-sm" />
       </div>
@@ -52,23 +52,23 @@ export function ObservationListRows({
 
   if (state.type === "empty") {
     return (
-      <p className="text-muted-foreground py-2 pl-4 text-xs">
+      <p className="text-muted-foreground -mx-1 px-1 py-2 text-xs">
         {state.hasFilters ? "No matching spans" : "No observations"}
       </p>
     );
   }
 
   return (
-    <div className="mt-2 ml-4 flex flex-col">
+    <div className="mt-2 flex flex-col">
       {state.rows.map((observation) => (
         <div
           key={observation.id}
-          className="group/observation hover:bg-foreground/10 -mr-2 flex items-center rounded-sm transition-colors duration-150"
+          className="group/observation hover:bg-foreground/10 -mr-2 -ml-1 flex items-center rounded-sm transition-colors duration-150"
         >
           <button
             type="button"
             onClick={onSelectTurn}
-            className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left"
+            className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left"
           >
             {renderFilterIcon(observation.type)}
             <span
