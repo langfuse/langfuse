@@ -1,7 +1,4 @@
-import {
-  OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
-  removeEmptyEnvVariables,
-} from "@langfuse/shared";
+import { removeEmptyEnvVariables } from "@langfuse/shared";
 import { langfuseS3EventKeyMaxSegmentBytesSchema } from "@langfuse/shared/src/env";
 import { z } from "zod";
 
@@ -375,7 +372,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(OBSERVATION_FIELD_SIZE_LIMIT_BYTES),
+    .default(2 * 1024 * 1024),
 
   // Metering data Postgres export - Langfuse Cloud
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z

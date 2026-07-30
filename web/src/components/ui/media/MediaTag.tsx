@@ -168,7 +168,7 @@ function PeekBody({
  * popover with a preview and an "open in new tab" action.
  *
  * It receives the resolved `url` + `status` as props and never fetches — the
- * owning container (`JsonMediaTag`) gates a lazy fetch on `onOpenChange`.
+ * owning container (`MediaReferenceTag`) gates a lazy fetch on `onOpenChange`.
  */
 export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
   (

@@ -25,7 +25,7 @@ import {
   Video,
   Volume2,
 } from "lucide-react";
-import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
@@ -114,7 +114,7 @@ export const LangfuseMediaView = ({
 
   if (isOversizedField && mediaData.referenceString) {
     return (
-      <JsonMediaTag
+      <MediaReferenceTag
         descriptor={{
           kind: "langfuseRef",
           contentType: mediaData.type,

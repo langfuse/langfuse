@@ -11,7 +11,11 @@ type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
  * arms the lazy fetch the first time the peek opens (hover/focus) and keeps it
  * armed so re-hovers read from the query cache instead of re-fetching.
  */
-export function JsonMediaTag({ descriptor }: { descriptor: MediaDescriptor }) {
+export function MediaReferenceTag({
+  descriptor,
+}: {
+  descriptor: MediaDescriptor;
+}) {
   if (descriptor.kind !== "langfuseRef") {
     return (
       <MediaTag

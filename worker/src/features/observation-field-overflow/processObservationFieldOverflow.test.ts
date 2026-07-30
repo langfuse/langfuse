@@ -3,7 +3,7 @@ import type { EventRecordInsertType } from "@langfuse/shared/src/server";
 
 const mocks = vi.hoisted(() => ({
   env: {
-    LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket",
+    LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket" as string | undefined,
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "media/",
     LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "true",
     LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: 10,
@@ -26,47 +26,104 @@ vi.mock("../../env", () => ({
   env: mocks.env,
 }));
 
-import {
-  applyObservationFieldOverflow,
-  processObservationFieldOverflow,
-} from "./processObservationFieldOverflow";
+import { applyObservationFieldOverflow } from "./processObservationFieldOverflow";
 
-describe("processObservationFieldOverflow", () => {
+const createEventRecord = (
+  fields: Partial<EventRecordInsertType> = {},
+): EventRecordInsertType =>
+  ({
+    project_id: "project-id",
+    trace_id: "trace-id",
+    span_id: "observation-id",
+    metadata_values: [],
+    ...fields,
+  }) as EventRecordInsertType;
+
+const mediaReference = (id: string) =>
+  `@@@langfuseMedia:type=text/plain|id=${id}|source=field_size_limit@@@`;
+
+describe("applyObservationFieldOverflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.uploadMediaForTrace.mockReset();
+    mocks.recordDistribution.mockReset();
+    mocks.recordIncrement.mockReset();
+    mocks.env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET = "media-bucket";
     mocks.env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED = "true";
+    mocks.env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES = 10;
   });
 
   it("returns the original event record when overflow is disabled", async () => {
     mocks.env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED = "false";
-    const eventRecord = {
-      project_id: "project-id",
-      trace_id: "trace-id",
-      span_id: "observation-id",
-      input: "x".repeat(11),
-    } as EventRecordInsertType;
+    const eventRecord = createEventRecord({ input: "x".repeat(11) });
 
     const result = await applyObservationFieldOverflow(eventRecord);
 
     expect(result).toBe(eventRecord);
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
-    expect(mocks.recordIncrement).not.toHaveBeenCalled();
-    expect(mocks.recordDistribution).not.toHaveBeenCalled();
   });
 
-  it("logs an upload failure and persists the original oversized field", async () => {
-    const originalInput = "x".repeat(11);
-    const uploadError = new Error("S3 unavailable");
-    mocks.uploadMediaForTrace.mockRejectedValue(uploadError);
-
-    const result = await processObservationFieldOverflow({
-      projectId: "project-id",
-      traceId: "trace-id",
-      observationId: "observation-id",
-      fields: { input: originalInput },
+  it("replaces oversized input, output, and metadata values by UTF-8 byte size", async () => {
+    mocks.uploadMediaForTrace
+      .mockResolvedValueOnce({ mediaId: "input-media", outcome: "uploaded" })
+      .mockResolvedValueOnce({ mediaId: "output-media", outcome: "reused" })
+      .mockResolvedValueOnce({
+        mediaId: "metadata-media",
+        outcome: "uploaded",
+      });
+    const eventRecord = createEventRecord({
+      input: "x".repeat(11),
+      output: "🔥🔥🔥",
+      metadata_values: ["1234567890", "y".repeat(11)],
     });
 
-    expect(result.fields.input).toBe(originalInput);
+    const result = await applyObservationFieldOverflow(eventRecord);
+
+    expect(result).toMatchObject({
+      input: mediaReference("input-media"),
+      output: mediaReference("output-media"),
+      metadata_values: ["1234567890", mediaReference("metadata-media")],
+    });
+    expect(eventRecord).toMatchObject({
+      input: "x".repeat(11),
+      output: "🔥🔥🔥",
+      metadata_values: ["1234567890", "y".repeat(11)],
+    });
+    expect(mocks.uploadMediaForTrace).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        field: "output",
+        contentBytes: Buffer.from("🔥🔥🔥"),
+      }),
+    );
+    expect(mocks.recordIncrement).toHaveBeenCalledTimes(3);
+  });
+
+  it("applies the limit to each metadata value rather than their aggregate size", async () => {
+    const eventRecord = createEventRecord({
+      metadata_values: ["123456", "123456"],
+    });
+
+    const result = await applyObservationFieldOverflow(eventRecord);
+
+    expect(result.metadata_values).toEqual(["123456", "123456"]);
+    expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
+  });
+
+  it("keeps an individual field when its upload fails and continues processing", async () => {
+    const uploadError = new Error("S3 unavailable");
+    mocks.uploadMediaForTrace
+      .mockRejectedValueOnce(uploadError)
+      .mockResolvedValueOnce({ mediaId: "output-media", outcome: "uploaded" });
+    const eventRecord = createEventRecord({
+      input: "x".repeat(11),
+      output: "y".repeat(11),
+    });
+
+    const result = await applyObservationFieldOverflow(eventRecord);
+
+    expect(result.input).toBe(eventRecord.input);
+    expect(result.output).toBe(mediaReference("output-media"));
     expect(mocks.logger.warn).toHaveBeenCalledWith(
       "Oversized observation field upload failed; persisting original field",
       {
@@ -85,81 +142,58 @@ describe("processObservationFieldOverflow", () => {
     );
   });
 
-  it("records a successful overflow and returns a field-limit media reference", async () => {
-    const oversizedOutput = "x".repeat(100);
-    const mediaReference =
-      "@@@langfuseMedia:type=text/plain|id=media-id|source=field_size_limit@@@";
-    mocks.uploadMediaForTrace.mockResolvedValue({
-      mediaId: "media-id",
-      outcome: "uploaded",
-    });
-
-    const result = await processObservationFieldOverflow({
-      projectId: "project-id",
-      traceId: "trace-id",
-      observationId: "observation-id",
-      fields: { output: oversizedOutput },
-    });
-
-    expect(result.fields.output).toBe(mediaReference);
-    expect(mocks.uploadMediaForTrace).toHaveBeenCalledWith(
-      expect.objectContaining({
-        projectId: "project-id",
-        traceId: "trace-id",
-        observationId: "observation-id",
-        field: "output",
-        mediaBucket: "media-bucket",
-        mediaPrefix: "media/",
-      }),
+  it("logs once and returns the original oversized record when media storage is not configured", async () => {
+    mocks.env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET = undefined;
+    await applyObservationFieldOverflow(
+      createEventRecord({ input: "within cap" }),
     );
-    expect(mocks.recordIncrement).toHaveBeenCalledWith(
-      "langfuse.ingestion.observation_field_overflow",
-      1,
-      { field: "output", outcome: "uploaded" },
-    );
-    expect(mocks.recordDistribution).toHaveBeenCalledOnce();
-    expect(mocks.recordDistribution).toHaveBeenCalledWith(
-      "langfuse.ingestion.observation_field_overflow.bytes_removed",
-      Buffer.byteLength(oversizedOutput) - Buffer.byteLength(mediaReference),
-      { field: "output", outcome: "uploaded" },
-    );
-  });
+    expect(mocks.logger.warn).not.toHaveBeenCalled();
 
-  it("returns an overflowed event record without mutating the enriched record", async () => {
-    mocks.uploadMediaForTrace
-      .mockResolvedValueOnce({
-        mediaId: "input-media",
-        outcome: "uploaded",
-      })
-      .mockResolvedValueOnce({
-        mediaId: "metadata-media",
-        outcome: "uploaded",
-      });
-    const eventRecord = {
-      project_id: "project-id",
-      trace_id: "trace-id",
-      span_id: "observation-id",
+    const eventRecord = createEventRecord({
       input: "x".repeat(11),
-      output: "small",
-      metadata_values: ["small", "y".repeat(11)],
-    } as EventRecordInsertType;
+      output: "y".repeat(11),
+    });
 
     const result = await applyObservationFieldOverflow(eventRecord);
 
-    expect(result).not.toBe(eventRecord);
-    expect(result).toMatchObject({
-      input:
-        "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
-      output: "small",
-      metadata_values: [
-        "small",
-        "@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@",
-      ],
+    expect(result).toBe(eventRecord);
+    expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
+    expect(mocks.logger.warn).toHaveBeenCalledOnce();
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      "Observation field overflow processing failed; persisting original record",
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: "Media upload bucket is not configured",
+        }),
+        projectId: "project-id",
+        traceId: "trace-id",
+        observationId: "observation-id",
+      }),
+    );
+  });
+
+  it("returns the original record when the processor fails outside an upload", async () => {
+    const processorError = new Error("metrics unavailable");
+    mocks.uploadMediaForTrace.mockResolvedValue({
+      mediaId: "input-media",
+      outcome: "uploaded",
     });
-    expect(eventRecord).toMatchObject({
-      input: "x".repeat(11),
-      output: "small",
-      metadata_values: ["small", "y".repeat(11)],
+    mocks.recordIncrement.mockImplementationOnce(() => {
+      throw processorError;
     });
+    const eventRecord = createEventRecord({ input: "x".repeat(11) });
+
+    const result = await applyObservationFieldOverflow(eventRecord);
+
+    expect(result).toBe(eventRecord);
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      "Observation field overflow processing failed; persisting original record",
+      {
+        error: processorError,
+        projectId: "project-id",
+        traceId: "trace-id",
+        observationId: "observation-id",
+      },
+    );
   });
 });

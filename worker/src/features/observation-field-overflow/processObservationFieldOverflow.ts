@@ -1,14 +1,15 @@
 import {
   type EventRecordInsertType,
-  type ObservationFieldsForOverflow,
-  type ObservationFieldOverflowOutcome,
   logger,
   recordDistribution,
   recordIncrement,
-  replaceOversizedObservationFieldsWithMedia,
   uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
-import { MediaContentType } from "@langfuse/shared";
+import {
+  MediaContentType,
+  type MediaField,
+  OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
+} from "@langfuse/shared";
 
 import { env } from "../../env";
 
@@ -19,88 +20,119 @@ export async function applyObservationFieldOverflow(
     return eventRecord;
   }
 
-  const overflowResult = await processObservationFieldOverflow({
+  try {
+    const mediaBucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
+    const input =
+      eventRecord.input == null
+        ? eventRecord.input
+        : await overflowValue(
+            eventRecord,
+            "input",
+            eventRecord.input,
+            mediaBucket,
+          );
+    const output =
+      eventRecord.output == null
+        ? eventRecord.output
+        : await overflowValue(
+            eventRecord,
+            "output",
+            eventRecord.output,
+            mediaBucket,
+          );
+    const metadataValues: string[] = [];
+    for (const value of eventRecord.metadata_values) {
+      metadataValues.push(
+        await overflowValue(eventRecord, "metadata", value, mediaBucket),
+      );
+    }
+
+    return {
+      ...eventRecord,
+      input,
+      output,
+      metadata_values: metadataValues,
+    };
+  } catch (error) {
+    logger.warn(
+      "Observation field overflow processing failed; persisting original record",
+      {
+        error,
+        projectId: eventRecord.project_id,
+        traceId: eventRecord.trace_id,
+        observationId: eventRecord.span_id,
+      },
+    );
+    return eventRecord;
+  }
+}
+
+async function overflowValue(
+  eventRecord: EventRecordInsertType,
+  field: MediaField,
+  value: string,
+  mediaBucket: string | undefined,
+): Promise<string> {
+  const originalBytes = Buffer.byteLength(value, "utf8");
+  if (originalBytes <= env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES) {
+    return value;
+  }
+  if (!mediaBucket) {
+    throw new Error("Media upload bucket is not configured");
+  }
+
+  const uploadResult = await uploadMediaForTrace({
     projectId: eventRecord.project_id,
     traceId: eventRecord.trace_id,
     observationId: eventRecord.span_id,
-    fields: {
-      input: eventRecord.input,
-      output: eventRecord.output,
-      metadata: eventRecord.metadata_values,
-    },
-  });
-  const persistedMetadataValues = Array.isArray(overflowResult.fields.metadata)
-    ? overflowResult.fields.metadata
-    : [];
-
-  return {
-    ...eventRecord,
-    input: overflowResult.fields.input ?? undefined,
-    output: overflowResult.fields.output ?? undefined,
-    metadata_values: persistedMetadataValues.map((value) =>
-      typeof value === "string"
-        ? value
-        : (JSON.stringify(value) ?? String(value)),
-    ),
-  };
-}
-
-export async function processObservationFieldOverflow(params: {
-  projectId: string;
-  traceId: string;
-  observationId: string;
-  fields: ObservationFieldsForOverflow;
-}): Promise<{
-  fields: ObservationFieldsForOverflow;
-  outcomes: ObservationFieldOverflowOutcome[];
-}> {
-  const { projectId, traceId, observationId, fields } = params;
-
-  const result = await replaceOversizedObservationFieldsWithMedia({
-    fields,
-    maxFieldBytes: env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
-    upload: async ({ field, contentBytes }) => {
-      if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
-        throw new Error("Media upload bucket is not configured");
-      }
-
-      return uploadMediaForTrace({
-        projectId,
-        traceId,
-        observationId,
+    field,
+    contentType: MediaContentType.TXT,
+    contentBytes: Buffer.from(value, "utf8"),
+    mediaBucket,
+    mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+  }).catch((error) => {
+    logger.warn(
+      "Oversized observation field upload failed; persisting original field",
+      {
+        error,
+        projectId: eventRecord.project_id,
+        traceId: eventRecord.trace_id,
+        observationId: eventRecord.span_id,
         field,
-        contentType: MediaContentType.TXT,
-        contentBytes,
-        mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-        mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
-      });
-    },
-    onUploadError: ({ error, field, originalBytes }) => {
-      logger.warn(
-        "Oversized observation field upload failed; persisting original field",
-        {
-          error,
-          projectId,
-          traceId,
-          observationId,
-          field,
-          originalBytes,
-        },
-      );
-    },
-  });
-
-  for (const outcome of result.outcomes) {
-    recordIncrement("langfuse.ingestion.observation_field_overflow", 1, {
-      field: outcome.field,
-      outcome: outcome.outcome,
-    });
+        originalBytes,
+      },
+    );
+    const metricTags = { field, outcome: "failed" };
+    recordIncrement(
+      "langfuse.ingestion.observation_field_overflow",
+      1,
+      metricTags,
+    );
     recordDistribution(
       "langfuse.ingestion.observation_field_overflow.bytes_removed",
-      outcome.bytesRemoved,
-      { field: outcome.field, outcome: outcome.outcome },
+      0,
+      metricTags,
     );
-  }
 
-  return result;
+    return null;
+  });
+  if (!uploadResult) return value;
+
+  const mediaReference =
+    `@@@langfuseMedia:type=text/plain|id=${uploadResult.mediaId}` +
+    `|source=${OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE}@@@`;
+  const metricTags = { field, outcome: uploadResult.outcome };
+
+  recordIncrement(
+    "langfuse.ingestion.observation_field_overflow",
+    1,
+    metricTags,
+  );
+  recordDistribution(
+    "langfuse.ingestion.observation_field_overflow.bytes_removed",
+    Math.max(originalBytes - Buffer.byteLength(mediaReference, "utf8"), 0),
+    metricTags,
+  );
+
+  return mediaReference;
 }
