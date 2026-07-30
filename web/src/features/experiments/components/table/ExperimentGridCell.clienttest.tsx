@@ -30,18 +30,23 @@ vi.mock("@/src/utils/api", () => ({
 
 vi.mock("@/src/components/ui/IOTableCell", () => ({
   MemoizedIOTableCell: ({
+    enableExpandOnHover,
     onExpandOpenChange,
   }: {
+    enableExpandOnHover?: boolean;
     onExpandOpenChange?: (open: boolean) => void;
-  }) => (
-    <button
-      type="button"
-      onClick={() => onExpandOpenChange?.(true)}
-      aria-label="Expand output"
-    >
-      IO cell
-    </button>
-  ),
+  }) =>
+    enableExpandOnHover ? (
+      <button
+        type="button"
+        onClick={() => onExpandOpenChange?.(true)}
+        aria-label="Expand output"
+      >
+        IO cell
+      </button>
+    ) : (
+      <div>IO cell</div>
+    ),
 }));
 
 const observationScoreKey = "quality-EVAL-NUMERIC";
@@ -50,6 +55,7 @@ const traceScoreKey = "correctness-API-NUMERIC";
 const renderGridCell = (
   showScoreLevelLabels: boolean,
   columnVisibility: VisibilityState = { output: false, metadata: false },
+  outputPotentiallyTruncated = false,
 ) =>
   render(
     <TooltipProvider>
@@ -57,6 +63,7 @@ const renderGridCell = (
         projectId="project-id"
         itemId="item-id"
         output={null}
+        outputPotentiallyTruncated={outputPotentiallyTruncated}
         level="GENERATION"
         startTime={new Date("2026-07-30T10:00:00.000Z")}
         observationId="observation-id"
@@ -120,7 +127,7 @@ describe("ExperimentGridCell", () => {
 
   it("loads full output only when the output hover opens", () => {
     experimentBatchIOUseQueryMock.mockClear();
-    renderGridCell(false, { metadata: false });
+    renderGridCell(false, { metadata: false }, true);
 
     expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
       expect.any(Object),
@@ -132,6 +139,19 @@ describe("ExperimentGridCell", () => {
     expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
       expect.any(Object),
       expect.objectContaining({ enabled: true }),
+    );
+  });
+
+  it("does not enable output expansion for complete previews", () => {
+    experimentBatchIOUseQueryMock.mockClear();
+    renderGridCell(false, { metadata: false });
+
+    expect(
+      screen.queryByRole("button", { name: "Expand output" }),
+    ).not.toBeInTheDocument();
+    expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ enabled: false }),
     );
   });
 

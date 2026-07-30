@@ -130,9 +130,9 @@ export const ExperimentGridView = ({
           const expData = row.original.experiments.find(
             (e) => e.experimentId === expId,
           );
-          const output = row.original.outputs?.find(
+          const outputData = row.original.outputs?.find(
             (o) => o.experimentId === expId,
-          )?.output;
+          );
 
           if (!expData) {
             return <ExperimentGridCellEmpty />;
@@ -150,7 +150,10 @@ export const ExperimentGridView = ({
             <ExperimentGridCell
               projectId={projectId}
               itemId={row.original.itemId}
-              output={output}
+              output={outputData?.output}
+              outputPotentiallyTruncated={
+                outputData?.outputPotentiallyTruncated ?? false
+              }
               level={expData.level}
               startTime={expData.startTime}
               totalCost={expData.totalCost}

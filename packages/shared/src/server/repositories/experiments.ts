@@ -1155,6 +1155,7 @@ const IO_TRUNCATE_LENGTH = 1000;
 export type ExperimentOutputData = {
   experimentId: string;
   output: string | null;
+  outputPotentiallyTruncated: boolean;
 };
 
 /**
@@ -1262,6 +1263,9 @@ export const getExperimentItemsBatchIO = async (props: {
     item.outputs.push({
       experimentId: row.experiment_id,
       output: row.output,
+      outputPotentiallyTruncated:
+        row.output !== null &&
+        Array.from(row.output).length >= env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
     });
   }
 

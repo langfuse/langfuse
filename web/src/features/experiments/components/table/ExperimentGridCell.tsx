@@ -46,6 +46,7 @@ type ExperimentGridCellProps = {
   projectId: string;
   itemId: string;
   output: unknown;
+  outputPotentiallyTruncated: boolean;
   level: string;
   startTime: Date;
   totalCost?: number | null;
@@ -74,6 +75,7 @@ type GridCellData = {
   projectId: string;
   itemId: string;
   output: unknown;
+  outputPotentiallyTruncated: boolean;
   level: string;
   startTime: Date;
   totalCost?: number | null;
@@ -385,6 +387,7 @@ export const ExperimentGridCell = ({
   projectId,
   itemId,
   output,
+  outputPotentiallyTruncated,
   level,
   startTime,
   totalCost,
@@ -471,6 +474,7 @@ export const ExperimentGridCell = ({
     projectId,
     itemId,
     output,
+    outputPotentiallyTruncated,
     level,
     startTime,
     totalCost,
@@ -502,10 +506,12 @@ export const ExperimentGridCell = ({
             isExpandedDataLoading={
               isOutputExpanded && fullOutputQuery.isLoading
             }
-            onExpandOpenChange={setIsOutputExpanded}
+            onExpandOpenChange={
+              data.outputPotentiallyTruncated ? setIsOutputExpanded : undefined
+            }
             className="bg-accent-light-green min-h-8"
             singleLine={false}
-            enableExpandOnHover
+            enableExpandOnHover={data.outputPotentiallyTruncated}
           />
         ),
       },
