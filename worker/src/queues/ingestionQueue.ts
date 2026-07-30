@@ -29,6 +29,7 @@ import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
+import { getEarliestFileCreatedAt } from "./getEarliestFileCreatedAt";
 
 export const ingestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
@@ -226,10 +227,9 @@ export const ingestionQueueProcessorBuilder = (
       );
 
       const firstS3WriteTime =
-        eventFiles
-          .map((fileRef) => fileRef.createdAt)
-          .sort()
-          .shift() ?? new Date();
+        getEarliestFileCreatedAt(
+          eventFiles.map((fileRef) => fileRef.createdAt),
+        ) ?? new Date();
 
       if (events.length === 0) {
         logger.warn(
