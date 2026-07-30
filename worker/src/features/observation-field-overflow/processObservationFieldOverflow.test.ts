@@ -119,7 +119,7 @@ describe("applyObservationFieldOverflow", () => {
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
   });
 
-  it("uploads at most two oversized fields concurrently and preserves field order", async () => {
+  it("uploads at most three oversized fields concurrently and preserves field order", async () => {
     const uploads = Array.from({ length: 5 }, () =>
       createDeferred<{ mediaId: string; outcome: "uploaded" }>(),
     );
@@ -143,24 +143,19 @@ describe("applyObservationFieldOverflow", () => {
     const resultPromise = applyObservationFieldOverflow(eventRecord);
 
     await vi.waitFor(() =>
-      expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(2),
+      expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(3),
     );
-    expect(maxActiveUploads).toBe(2);
+    expect(maxActiveUploads).toBe(3);
 
     uploads[0].resolve({ mediaId: "input-media", outcome: "uploaded" });
     uploads[1].resolve({ mediaId: "output-media", outcome: "uploaded" });
-    await vi.waitFor(() =>
-      expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(4),
-    );
-    expect(maxActiveUploads).toBe(2);
-
     uploads[2].resolve({ mediaId: "metadata-one", outcome: "uploaded" });
-    uploads[3].resolve({ mediaId: "metadata-two", outcome: "uploaded" });
     await vi.waitFor(() =>
       expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(5),
     );
-    expect(maxActiveUploads).toBe(2);
+    expect(maxActiveUploads).toBe(3);
 
+    uploads[3].resolve({ mediaId: "metadata-two", outcome: "uploaded" });
     uploads[4].resolve({ mediaId: "metadata-three", outcome: "uploaded" });
 
     await expect(resultPromise).resolves.toMatchObject({

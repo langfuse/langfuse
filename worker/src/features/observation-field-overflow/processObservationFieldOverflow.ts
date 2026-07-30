@@ -7,19 +7,25 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   MediaContentType,
-  type MediaField,
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
 } from "@langfuse/shared";
 
 import { env } from "../../env";
 
-const OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE = 2;
+const OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE = 3;
 
-type OverflowCandidate = {
-  field: MediaField;
+type OverflowTarget =
+  | { field: "input" | "output" }
+  | { field: "metadata"; metadataIndex: number };
+
+type OverflowCandidate = OverflowTarget & {
   value: string;
   originalBytes: number;
-  apply: (overflowedValue: string) => void;
+};
+
+type OverflowResult = {
+  candidate: OverflowCandidate;
+  overflowedValue: string;
 };
 
 export async function applyObservationFieldOverflow(
@@ -31,37 +37,7 @@ export async function applyObservationFieldOverflow(
 
   try {
     const mediaBucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
-    let input = eventRecord.input;
-    let output = eventRecord.output;
-    const metadataValues = [...eventRecord.metadata_values];
-    const candidates: OverflowCandidate[] = [];
-    const addCandidate = (
-      field: MediaField,
-      value: string,
-      apply: OverflowCandidate["apply"],
-    ) => {
-      const originalBytes = Buffer.byteLength(value, "utf8");
-      if (originalBytes <= env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES) {
-        return;
-      }
-      candidates.push({ field, value, originalBytes, apply });
-    };
-
-    if (input != null) {
-      addCandidate("input", input, (overflowedValue) => {
-        input = overflowedValue;
-      });
-    }
-    if (output != null) {
-      addCandidate("output", output, (overflowedValue) => {
-        output = overflowedValue;
-      });
-    }
-    metadataValues.forEach((value, index) => {
-      addCandidate("metadata", value, (overflowedValue) => {
-        metadataValues[index] = overflowedValue;
-      });
-    });
+    const candidates = collectOverflowCandidates(eventRecord);
 
     if (candidates.length === 0) {
       return eventRecord;
@@ -70,36 +46,13 @@ export async function applyObservationFieldOverflow(
       throw new Error("Media upload bucket is not configured");
     }
 
-    // Bound the additional buffers retained by concurrent uploads per event.
-    for (
-      let start = 0;
-      start < candidates.length;
-      start += OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE
-    ) {
-      const batch = candidates.slice(
-        start,
-        start + OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE,
-      );
-      const results = await Promise.allSettled(
-        batch.map((candidate) =>
-          overflowValue(eventRecord, candidate, mediaBucket),
-        ),
-      );
+    const results = await uploadOverflowCandidates(
+      eventRecord,
+      candidates,
+      mediaBucket,
+    );
 
-      for (const [index, result] of results.entries()) {
-        if (result.status === "rejected") {
-          throw result.reason;
-        }
-        batch[index].apply(result.value);
-      }
-    }
-
-    return {
-      ...eventRecord,
-      input,
-      output,
-      metadata_values: metadataValues,
-    };
+    return applyOverflowResults(eventRecord, results);
   } catch (error) {
     logger.warn(
       "Observation field overflow processing failed; persisting original record",
@@ -114,11 +67,99 @@ export async function applyObservationFieldOverflow(
   }
 }
 
-async function overflowValue(
+function collectOverflowCandidates(
+  eventRecord: EventRecordInsertType,
+): OverflowCandidate[] {
+  const candidates: OverflowCandidate[] = [];
+  const addCandidate = (target: OverflowTarget, value: string) => {
+    const originalBytes = Buffer.byteLength(value, "utf8");
+    if (originalBytes > env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES) {
+      candidates.push({ ...target, value, originalBytes });
+    }
+  };
+
+  if (eventRecord.input != null) {
+    addCandidate({ field: "input" }, eventRecord.input);
+  }
+  if (eventRecord.output != null) {
+    addCandidate({ field: "output" }, eventRecord.output);
+  }
+  eventRecord.metadata_values.forEach((value, metadataIndex) => {
+    addCandidate({ field: "metadata", metadataIndex }, value);
+  });
+
+  return candidates;
+}
+
+async function uploadOverflowCandidates(
+  eventRecord: EventRecordInsertType,
+  candidates: OverflowCandidate[],
+  mediaBucket: string,
+): Promise<OverflowResult[]> {
+  const overflowResults: OverflowResult[] = [];
+
+  // Bound the additional buffers retained by concurrent uploads per event.
+  for (
+    let start = 0;
+    start < candidates.length;
+    start += OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE
+  ) {
+    const batch = candidates.slice(
+      start,
+      start + OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE,
+    );
+    const settledBatch = await Promise.allSettled(
+      batch.map((candidate) =>
+        uploadOverflowCandidate(eventRecord, candidate, mediaBucket),
+      ),
+    );
+
+    for (const result of settledBatch) {
+      if (result.status === "rejected") {
+        throw result.reason;
+      }
+      overflowResults.push(result.value);
+    }
+  }
+
+  return overflowResults;
+}
+
+function applyOverflowResults(
+  eventRecord: EventRecordInsertType,
+  results: OverflowResult[],
+): EventRecordInsertType {
+  let input = eventRecord.input;
+  let output = eventRecord.output;
+  const metadataValues = eventRecord.metadata_values.slice();
+
+  for (const { candidate, overflowedValue } of results) {
+    switch (candidate.field) {
+      case "input":
+        input = overflowedValue;
+        break;
+      case "output":
+        output = overflowedValue;
+        break;
+      case "metadata":
+        metadataValues[candidate.metadataIndex] = overflowedValue;
+        break;
+    }
+  }
+
+  return {
+    ...eventRecord,
+    input,
+    output,
+    metadata_values: metadataValues,
+  };
+}
+
+async function uploadOverflowCandidate(
   eventRecord: EventRecordInsertType,
   candidate: OverflowCandidate,
   mediaBucket: string,
-): Promise<string> {
+): Promise<OverflowResult> {
   const { field, value, originalBytes } = candidate;
 
   const uploadResult = await uploadMediaForTrace({
@@ -156,7 +197,9 @@ async function overflowValue(
 
     return null;
   });
-  if (!uploadResult) return value;
+  if (!uploadResult) {
+    return { candidate, overflowedValue: value };
+  }
 
   const mediaReference =
     `@@@langfuseMedia:type=text/plain|id=${uploadResult.mediaId}` +
@@ -174,5 +217,5 @@ async function overflowValue(
     metricTags,
   );
 
-  return mediaReference;
+  return { candidate, overflowedValue: mediaReference };
 }
