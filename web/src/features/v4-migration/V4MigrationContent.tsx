@@ -154,21 +154,19 @@ function ExternalLink({
 function ApiKeyCopyField({
   label,
   value,
-  masked = false,
 }: {
-  label: "PK" | "SK";
+  label: "Public key" | "Secret key";
   value: string;
-  masked?: boolean;
 }) {
+  const truncatedValue = `${value.slice(0, 8)}…${value.slice(-4)}`;
+
   return (
     <div className="flex min-w-0 items-stretch overflow-hidden rounded-md border">
-      <div className="bg-muted text-muted-foreground flex w-10 shrink-0 items-center justify-center border-r font-mono text-xs font-bold">
+      <div className="bg-muted text-muted-foreground flex w-24 shrink-0 items-center justify-center border-r text-xs font-bold">
         {label}
       </div>
       <CodeView
-        content={
-          masked ? value.slice(0, 4) + "••••••••••••••••••••••••" : value
-        }
+        content={truncatedValue}
         originalContent={value}
         className="min-w-0 flex-1 [&>div]:rounded-none [&>div]:border-0"
         lineWrap={false}
@@ -459,13 +457,12 @@ export function V4MigrationHeaderContent({
               </p>
               <div className="flex flex-col gap-2">
                 <ApiKeyCopyField
-                  label="PK"
+                  label="Public key"
                   value={generatedKeysForProject.publicKey}
                 />
                 <ApiKeyCopyField
-                  label="SK"
+                  label="Secret key"
                   value={generatedKeysForProject.secretKey}
-                  masked
                 />
               </div>
             </div>

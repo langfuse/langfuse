@@ -270,7 +270,7 @@ describe("V4MigrationHeaderContent", () => {
       note: "v4-migration-key",
     });
     await waitFor(() =>
-      expect(screen.getByText("pk-lf-project-1")).toBeInTheDocument(),
+      expect(screen.getByText("pk-lf-pr…ct-1")).toBeInTheDocument(),
     );
   });
 
@@ -298,19 +298,19 @@ describe("V4MigrationHeaderContent", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText("pk-lf-project-1")).toBeInTheDocument(),
+      expect(screen.getByText("pk-lf-pr…ct-1")).toBeInTheDocument(),
     );
 
     rerender(
       <V4MigrationHeaderContent key="project-2" projectId="project-2" />,
     );
 
-    expect(screen.queryByText("pk-lf-project-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("pk-lf-pr…ct-1")).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Update SDK with agents" }),
     );
     await waitFor(() =>
-      expect(screen.getByText("pk-lf-project-2")).toBeInTheDocument(),
+      expect(screen.getByText("pk-lf-pr…ct-2")).toBeInTheDocument(),
     );
     expect(mocks.createProjectApiKey).toHaveBeenLastCalledWith({
       projectId: "project-2",
