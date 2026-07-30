@@ -1644,6 +1644,55 @@ describe("MCP Read Tools", () => {
       expect(Number(rows[0].count_count)).toBe(3);
     });
 
+    it("should coerce an exact string tags filter", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingTag = `mcp-metrics-tag-${nanoid()}`;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          traceId,
+          tags: [matchingTag],
+          startTime: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+        createObservationEvent({
+          projectId,
+          traceId,
+          tags: [`mcp-metrics-tag-miss-${nanoid()}`],
+          startTime: new Date("2026-01-01T00:01:00.000Z"),
+        }),
+      ]);
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+              {
+                type: "string",
+                column: "tags",
+                operator: "=",
+                value: matchingTag,
+              },
+            ],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      );
+
+      expect(rows).toHaveLength(1);
+      expect(Number(rows[0].count_count)).toBe(1);
+    });
+
     it("should accept raw metric names in orderBy", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
