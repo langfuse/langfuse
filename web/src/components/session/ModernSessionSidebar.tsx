@@ -1,25 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  Check,
-  ChevronDown,
-  Filter,
-  ListFilter,
-  Pencil,
-  Save,
-  Search,
-  Settings2,
-  X,
-} from "lucide-react";
-import { type FilterState, type TableViewPresetState } from "@langfuse/shared";
+import { ChevronDown, ListFilter, Pencil, Save, Search, X } from "lucide-react";
+import { type FilterState } from "@langfuse/shared";
 
 import { type ObservationListRowsRenderer } from "@/src/components/session/ObservationListRows";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import {
-  SESSION_DETAIL_SYSTEM_PRESETS,
-  SESSION_DETAIL_VIEW_TRIGGER_ID,
-} from "@/src/components/session/session-detail-presets";
+  ModernSessionViewDropdownMenu,
+  type ModernSessionViewDropdownMenuControls,
+} from "@/src/components/session/ModernSessionViewDropdownMenu";
+import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
 import {
   computeIdleGapSeconds,
   formatIdleGap,
@@ -29,13 +20,6 @@ import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import {
@@ -52,24 +36,14 @@ const OBSERVATION_LIST_OVERSCAN = 5;
 const SIDEBAR_AUTO_FOLLOW_IDLE_MS = 750;
 const EMPTY_TRACES: EventSessionTrace[] = [];
 
-export type ModernSessionSidebarFilterControls = {
-  activeFilterCount: number;
-  activeFilters: FilterState;
-  activeViewName: string | undefined;
-  selectedViewId: string | null;
-  matchingSystemPresetId: string | undefined;
-  matchingSavedViewId: string | undefined;
-  savedViews: Array<TableViewPresetState & { id: string; name: string }>;
-  onApplyPreset: (
-    preset: (typeof SESSION_DETAIL_SYSTEM_PRESETS)[number],
-  ) => void;
-  onApplySavedView: (
-    view: TableViewPresetState & { id: string; name: string },
-  ) => void;
-  onManageViews: () => void;
-  onOpenFilterDialog: () => void;
-  onClearFilters: () => void;
-};
+export type ModernSessionSidebarFilterControls =
+  ModernSessionViewDropdownMenuControls & {
+    activeFilterCount: number;
+    activeFilters: FilterState;
+    activeViewName: string | undefined;
+    selectedViewId: string | null;
+    onClearFilters: () => void;
+  };
 
 const TurnCard = React.memo(
   ({
@@ -335,66 +309,7 @@ export function ModernSessionSidebar(
                 <ListFilter className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-72">
-              <DropdownMenuLabel>Presets</DropdownMenuLabel>
-              {SESSION_DETAIL_SYSTEM_PRESETS.map((preset) => (
-                <DropdownMenuItem
-                  key={preset.id}
-                  onSelect={() => filterControls.onApplyPreset(preset)}
-                  className="items-start gap-2"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm">{preset.name}</span>
-                    {preset.description ? (
-                      <span className="text-muted-foreground block text-xs">
-                        {preset.description}
-                      </span>
-                    ) : null}
-                  </span>
-                  {filterControls.matchingSystemPresetId === preset.id ? (
-                    <Check className="mt-0.5 h-4 w-4 shrink-0" />
-                  ) : null}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Save className="mr-2 h-4 w-4" />
-                  Saved Views
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-56">
-                  {filterControls.savedViews.map((view) => (
-                    <DropdownMenuItem
-                      key={view.id}
-                      onSelect={() => filterControls.onApplySavedView(view)}
-                    >
-                      <span
-                        className="min-w-0 flex-1 truncate"
-                        title={view.name}
-                      >
-                        {view.name}
-                      </span>
-                      {filterControls.matchingSavedViewId === view.id ? (
-                        <Check className="ml-2 h-4 w-4 shrink-0" />
-                      ) : null}
-                    </DropdownMenuItem>
-                  ))}
-                  {filterControls.savedViews.length === 0 ? (
-                    <DropdownMenuItem disabled>No saved views</DropdownMenuItem>
-                  ) : null}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={filterControls.onManageViews}>
-                    <Settings2 className="mr-2 h-4 w-4" />
-                    Manage Views
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={filterControls.onOpenFilterDialog}>
-                <Filter className="mr-2 h-4 w-4" />
-                Apply custom filter
-              </DropdownMenuItem>
-            </DropdownMenuContent>
+            <ModernSessionViewDropdownMenu controls={filterControls} />
           </DropdownMenu>
         </div>
         {showFilterSummary ? (
