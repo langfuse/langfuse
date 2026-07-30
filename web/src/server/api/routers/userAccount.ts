@@ -102,9 +102,9 @@ export const userAccountRouter = createTRPCRouter({
       z.object({
         // Allowlist of user-toggleable Feature Preview flags (the Feature
         // Preview modal). Keep in sync with the modal's preview registry.
-        // `modernSession` is the active preview. `searchBar` is retired — the
-        // bar is now GA on v4 events tables — but remains as rollback plumbing.
-        flag: z.enum(["modernSession", "searchBar"]),
+        // `searchBar` is retired — the bar is now GA on v4 events tables —
+        // but remains as rollback plumbing.
+        flag: z.enum(["modernSession", "searchBar", "v4UpgradeUi"]),
         enabled: z.boolean(),
       }),
     )
