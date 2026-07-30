@@ -42,6 +42,7 @@ import {
   UsageCostType,
   findModel,
   matchPricingTier,
+  resolveUsageKeyAlias,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
@@ -1521,7 +1522,18 @@ export class IngestionService {
     const finalCostEntries: [string, number][] = [];
 
     for (const [key, units] of Object.entries(usageUnits)) {
-      const price = modelPrices?.find((price) => price.usageType === key);
+      // Try exact match first, then fall back to canonical alias resolution.
+      // Different ingestion paths emit different key names for the same token
+      // bucket (e.g. `output_reasoning` vs `output_reasoning_tokens` vs
+      // `reasoning.output_tokens`), and users may configure pricing tiers
+      // using any of these names.  Resolving both sides to their canonical
+      // form ensures cost is computed regardless of which variant is used.
+      const price =
+        modelPrices?.find((p) => p.usageType === key) ??
+        modelPrices?.find(
+          (p) =>
+            resolveUsageKeyAlias(p.usageType) === resolveUsageKeyAlias(key),
+        );
 
       if (units != null && price) {
         finalCostEntries.push([key, price.price.mul(units).toNumber()]);

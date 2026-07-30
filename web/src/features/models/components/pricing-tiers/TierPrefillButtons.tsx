@@ -28,6 +28,9 @@ export function TierPrefillButtons({
             form.setValue(`pricingTiers.${tierIndex}.prices`, {
               input: 0,
               output: 0,
+              // Canonical key names matching OTEL/SDK ingestion output.
+              // Aliases (e.g. cache_read_input_tokens) are resolved at cost
+              // calculation time — see resolveUsageKeyAlias.
               input_cached_tokens: 0,
               output_reasoning_tokens: 0,
               ...prices,
@@ -43,11 +46,12 @@ export function TierPrefillButtons({
           onClick={() => {
             form.setValue(`pricingTiers.${tierIndex}.prices`, {
               input: 0,
-              input_tokens: 0,
               output: 0,
-              output_tokens: 0,
-              cache_creation_input_tokens: 0,
-              cache_read_input_tokens: 0,
+              // Canonical key names matching OTEL/SDK ingestion output.
+              // Aliases (e.g. cache_creation_input_tokens) are resolved at
+              // cost calculation time — see resolveUsageKeyAlias.
+              input_cached_tokens: 0,
+              input_cache_creation: 0,
               input_cache_creation_5m: 0,
               input_cache_creation_1h: 0,
               ...prices,

@@ -1290,6 +1290,163 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.total).toBeUndefined();
   });
 
+  describe("usage key alias resolution in calculateUsageCosts", () => {
+    // https://github.com/langfuse/langfuse/issues/12531
+    // Different ingestion paths emit different key names for the same logical
+    // token bucket.  calculateUsageCosts must match prices regardless of which
+    // variant is used in usage_details or in the pricing tier definition.
+
+    it("should match output_reasoning alias to output_reasoning_tokens price (Gemini reasoning)", () => {
+      const prices = [
+        { usageType: "input", price: new Decimal(0.001) },
+        { usageType: "output", price: new Decimal(0.002) },
+        { usageType: "output_reasoning_tokens", price: new Decimal(0.012) },
+      ];
+
+      // Genkit ingestion produces `output_reasoning`, not `output_reasoning_tokens`
+      const usageUnits = {
+        input: 1000,
+        output: 500,
+        output_reasoning: 495,
+      };
+
+      const costs = (IngestionService as any).calculateUsageCosts(
+        prices as any,
+        { provided_cost_details: {} },
+        usageUnits,
+      );
+
+      expect(costs.cost_details.input).toBe(1.0); // 1000 * 0.001
+      expect(costs.cost_details.output).toBe(1.0); // 500 * 0.002
+      expect(costs.cost_details.output_reasoning).toBe(5.94); // 495 * 0.012
+      expect(costs.total_cost).toBeCloseTo(7.94);
+    });
+
+    it("should match reasoning.output_tokens alias to output_reasoning_tokens price (OpenInference)", () => {
+      const prices = [
+        { usageType: "output_reasoning_tokens", price: new Decimal(0.012) },
+      ];
+
+      // OpenInference google_genai produces `reasoning.output_tokens`
+      const usageUnits = {
+        "reasoning.output_tokens": 320,
+      };
+
+      const costs = (IngestionService as any).calculateUsageCosts(
+        prices as any,
+        { provided_cost_details: {} },
+        usageUnits,
+      );
+
+      expect(costs.cost_details["reasoning.output_tokens"]).toBe(3.84); // 320 * 0.012
+    });
+
+    it("should match cache_read_input_tokens alias to input_cached_tokens price (Anthropic cache read)", () => {
+      const prices = [
+        { usageType: "input", price: new Decimal(0.003) },
+        { usageType: "input_cached_tokens", price: new Decimal(0.0003) },
+        { usageType: "input_cache_creation", price: new Decimal(0.00375) },
+        { usageType: "output", price: new Decimal(0.015) },
+      ];
+
+      // AI SDK ingestion produces `input_cached_tokens` but Anthropic prefill
+      // template uses `cache_read_input_tokens`
+      const usageUnits = {
+        input: 3,
+        input_cached_tokens: 2421,
+        input_cache_creation: 2078,
+        output: 2048,
+      };
+
+      const costs = (IngestionService as any).calculateUsageCosts(
+        prices as any,
+        { provided_cost_details: {} },
+        usageUnits,
+      );
+
+      expect(costs.cost_details.input).toBeCloseTo(0.000009);
+      expect(costs.cost_details.input_cached_tokens).toBeCloseTo(0.7263);
+      expect(costs.cost_details.input_cache_creation).toBeCloseTo(7.7925);
+      expect(costs.cost_details.output).toBeCloseTo(0.03072);
+    });
+
+    it("should match when pricing tier uses alias but usage_details uses canonical key", () => {
+      const prices = [
+        // User configured pricing using Anthropic-style key
+        { usageType: "cache_read_input_tokens", price: new Decimal(0.0003) },
+      ];
+
+      // But ingestion produced canonical key
+      const usageUnits = {
+        input_cached_tokens: 10000,
+      };
+
+      const costs = (IngestionService as any).calculateUsageCosts(
+        prices as any,
+        { provided_cost_details: {} },
+        usageUnits,
+      );
+
+      expect(costs.cost_details.input_cached_tokens).toBe(3.0); // 10000 * 0.0003
+    });
+
+    it("should match completion_details.reasoning alias (Gemini via OpenInference)", () => {
+      const prices = [
+        { usageType: "output_reasoning_tokens", price: new Decimal(0.012) },
+      ];
+
+      const usageUnits = {
+        "completion_details.reasoning": 500,
+      };
+
+      const costs = (IngestionService as any).calculateUsageCosts(
+        prices as any,
+        { provided_cost_details: {} },
+        usageUnits,
+      );
+
+      expect(costs.cost_details["completion_details.reasoning"]).toBe(6.0);
+    });
+
+    it("should prefer exact match over alias match", () => {
+      const prices = [
+        { usageType: "output_reasoning", price: new Decimal(0.01) },
+        { usageType: "output_reasoning_tokens", price: new Decimal(0.02) },
+      ];
+
+      const usageUnits = {
+        output_reasoning: 100,
+      };
+
+      const costs = (IngestionService as any).calculateUsageCosts(
+        prices as any,
+        { provided_cost_details: {} },
+        usageUnits,
+      );
+
+      // Exact match should win: output_reasoning × 0.01
+      expect(costs.cost_details.output_reasoning).toBe(1.0);
+    });
+
+    it("should return undefined cost for unknown keys with no alias match", () => {
+      const prices = [{ usageType: "input", price: new Decimal(0.001) }];
+
+      const usageUnits = {
+        input: 100,
+        completely_unknown_key: 500,
+      };
+
+      const costs = (IngestionService as any).calculateUsageCosts(
+        prices as any,
+        { provided_cost_details: {} },
+        usageUnits,
+      );
+
+      expect(costs.cost_details.input).toBe(0.1);
+      expect(costs.cost_details.completely_unknown_key).toBeUndefined();
+    });
+  });
+
   describe("string to number conversion in getUsageUnits", () => {
     // These tests verify that usage_details values are correctly converted to numbers
     // even when they come in as strings (which can happen when reading from ClickHouse,
