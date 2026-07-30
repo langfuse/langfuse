@@ -1,21 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventRecordInsertType } from "@langfuse/shared/src/server";
 
-const mocks = vi.hoisted(() => ({
-  env: {
-    LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket" as string | undefined,
-    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "media/",
-    LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "true",
-    LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: 10,
-  },
-  logger: { warn: vi.fn() },
-  recordDistribution: vi.fn(),
-  recordIncrement: vi.fn(),
-  uploadMediaForTrace: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const span = { setAttributes: vi.fn() };
+  return {
+    env: {
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket" as string | undefined,
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "media/",
+      LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "true",
+      LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: 10,
+    },
+    instrumentAsync: vi.fn(
+      async (
+        _context: unknown,
+        callback: (activeSpan: typeof span) => Promise<unknown>,
+      ): Promise<unknown> => callback(span),
+    ),
+    logger: { warn: vi.fn() },
+    recordDistribution: vi.fn(),
+    recordIncrement: vi.fn(),
+    span,
+    uploadMediaForTrace: vi.fn(),
+  };
+});
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  instrumentAsync: mocks.instrumentAsync,
   logger: mocks.logger,
   recordDistribution: mocks.recordDistribution,
   recordIncrement: mocks.recordIncrement,
@@ -69,10 +80,14 @@ describe("applyObservationFieldOverflow", () => {
     const result = await applyObservationFieldOverflow(eventRecord);
 
     expect(result).toBe(eventRecord);
+    expect(mocks.instrumentAsync).not.toHaveBeenCalled();
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
   });
 
   it("replaces oversized input, output, and metadata values by UTF-8 byte size", async () => {
+    const input = "x".repeat(100);
+    const output = "🔥".repeat(30);
+    const metadata = "y".repeat(100);
     mocks.uploadMediaForTrace
       .mockResolvedValueOnce({ mediaId: "input-media", outcome: "uploaded" })
       .mockResolvedValueOnce({ mediaId: "output-media", outcome: "reused" })
@@ -81,9 +96,9 @@ describe("applyObservationFieldOverflow", () => {
         outcome: "uploaded",
       });
     const eventRecord = createEventRecord({
-      input: "x".repeat(11),
-      output: "🔥🔥🔥",
-      metadata_values: ["1234567890", "y".repeat(11)],
+      input,
+      output,
+      metadata_values: ["1234567890", metadata],
     });
 
     const result = await applyObservationFieldOverflow(eventRecord);
@@ -94,18 +109,44 @@ describe("applyObservationFieldOverflow", () => {
       metadata_values: ["1234567890", mediaReference("metadata-media")],
     });
     expect(eventRecord).toMatchObject({
-      input: "x".repeat(11),
-      output: "🔥🔥🔥",
-      metadata_values: ["1234567890", "y".repeat(11)],
+      input,
+      output,
+      metadata_values: ["1234567890", metadata],
     });
     expect(mocks.uploadMediaForTrace).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         field: "output",
-        contentBytes: Buffer.from("🔥🔥🔥"),
+        contentBytes: Buffer.from(output),
       }),
     );
     expect(mocks.recordIncrement).toHaveBeenCalledTimes(3);
+    expect(mocks.instrumentAsync).toHaveBeenCalledWith(
+      {
+        name: "langfuse.ingestion.observation_field_overflow.process",
+      },
+      expect.any(Function),
+    );
+    expect(mocks.span.setAttributes).toHaveBeenCalledWith({
+      "langfuse.project.id": "project-id",
+      "langfuse.trace.id": "trace-id",
+      "langfuse.observation.id": "observation-id",
+      "langfuse.ingestion.observation_field_overflow.candidates": 3,
+      "langfuse.ingestion.observation_field_overflow.fields": [
+        "input",
+        "output",
+        "metadata",
+      ],
+      "langfuse.ingestion.observation_field_overflow.uploaded": 2,
+      "langfuse.ingestion.observation_field_overflow.reused": 1,
+      "langfuse.ingestion.observation_field_overflow.failed": 0,
+      "langfuse.ingestion.observation_field_overflow.bytes_processed": 320,
+      "langfuse.ingestion.observation_field_overflow.bytes_removed":
+        320 -
+        Buffer.byteLength(mediaReference("input-media")) -
+        Buffer.byteLength(mediaReference("output-media")) -
+        Buffer.byteLength(mediaReference("metadata-media")),
+    });
   });
 
   it("applies the limit to each metadata value rather than their aggregate size", async () => {
@@ -116,6 +157,7 @@ describe("applyObservationFieldOverflow", () => {
     const result = await applyObservationFieldOverflow(eventRecord);
 
     expect(result.metadata_values).toEqual(["123456", "123456"]);
+    expect(mocks.instrumentAsync).not.toHaveBeenCalled();
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
   });
 
@@ -199,6 +241,19 @@ describe("applyObservationFieldOverflow", () => {
       1,
       { field: "input", outcome: "failed" },
     );
+    expect(mocks.span.setAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "langfuse.ingestion.observation_field_overflow.fields": [
+          "input",
+          "output",
+        ],
+        "langfuse.ingestion.observation_field_overflow.uploaded": 1,
+        "langfuse.ingestion.observation_field_overflow.reused": 0,
+        "langfuse.ingestion.observation_field_overflow.failed": 1,
+        "langfuse.ingestion.observation_field_overflow.bytes_processed": 22,
+        "langfuse.ingestion.observation_field_overflow.bytes_removed": 0,
+      }),
+    );
   });
 
   it("logs once and returns the original oversized record when media storage is not configured", async () => {
@@ -216,6 +271,7 @@ describe("applyObservationFieldOverflow", () => {
     const result = await applyObservationFieldOverflow(eventRecord);
 
     expect(result).toBe(eventRecord);
+    expect(mocks.instrumentAsync).not.toHaveBeenCalled();
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
     expect(mocks.logger.warn).toHaveBeenCalledOnce();
     expect(mocks.logger.warn).toHaveBeenCalledWith(
