@@ -65,7 +65,7 @@ export function ModernSession({
     virtualizer,
     scrollElementRef: feedRef,
     viewportHeight: feedSize?.height ?? 0,
-    viewportRatio: 0.2,
+    endTransitionRatio: 0.2,
   });
 
   return (
