@@ -92,7 +92,15 @@ type GridCellData = {
 /**
  * Component to show score comment on hover
  */
-const ScoreCommentPeek = ({ comment }: { comment: string }) => {
+const ScoreCommentPeek = ({
+  comment,
+  executionTraceId,
+  projectId,
+}: {
+  comment: string;
+  executionTraceId?: string | null;
+  projectId: string;
+}) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -104,8 +112,14 @@ const ScoreCommentPeek = ({ comment }: { comment: string }) => {
 
   return (
     <HoverCard>
-      <HoverCardTrigger className="inline-flex cursor-pointer">
-        <MessageCircleMore size={12} className="text-muted-foreground" />
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex cursor-pointer"
+          aria-label="View score comment"
+        >
+          <MessageCircleMore size={12} className="text-muted-foreground" />
+        </button>
       </HoverCardTrigger>
       <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
         <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-end px-1">
@@ -125,6 +139,18 @@ const ScoreCommentPeek = ({ comment }: { comment: string }) => {
         </div>
         <div className="max-h-[40vh] overflow-y-auto p-3 pt-0">
           <p className="whitespace-pre-wrap">{comment}</p>
+          {executionTraceId && (
+            <Link
+              href={`/project/${projectId}/traces/${encodeURIComponent(executionTraceId)}`}
+              className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <ExternalLink className="h-3 w-3" />
+              View execution trace
+            </Link>
+          )}
         </div>
       </HoverCardContent>
     </HoverCard>
@@ -258,7 +284,13 @@ const ScoreItem = ({
             {displayValue}
           </Badge>
         )}
-        {hasComment && <ScoreCommentPeek comment={aggregate.comment!} />}
+        {hasComment && (
+          <ScoreCommentPeek
+            comment={aggregate.comment!}
+            executionTraceId={aggregate.executionTraceId}
+            projectId={projectId}
+          />
+        )}
         {hasMetadata && (
           <ScoreMetadataPeek scoreId={aggregate.id!} projectId={projectId} />
         )}
@@ -400,6 +432,25 @@ export const ExperimentGridCell = ({
     [baselineLatencyMs, isBaseline, latencyMs],
   );
 
+  const [isOutputExpanded, setIsOutputExpanded] = useState(false);
+  const fullOutputQuery = api.events.experimentBatchIO.useQuery(
+    {
+      projectId,
+      observations: [{ id: observationId, traceId }],
+      minStartTime: startTime,
+      maxStartTime: startTime,
+      truncated: false,
+    },
+    {
+      enabled: isOutputExpanded && Boolean(observationId && traceId),
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+    },
+  );
+  const expandedOutput = fullOutputQuery.data?.find(
+    (event) => event.id === observationId,
+  )?.output;
+
   const orderedObservationKeys = useMemo(
     () =>
       observationScoreOrder.length > 0
@@ -447,6 +498,11 @@ export const ExperimentGridCell = ({
           <MemoizedIOTableCell
             isLoading={data.isLoading}
             data={data.output ?? null}
+            expandedData={expandedOutput}
+            isExpandedDataLoading={
+              isOutputExpanded && fullOutputQuery.isLoading
+            }
+            onExpandOpenChange={setIsOutputExpanded}
             className="bg-accent-light-green min-h-8"
             singleLine={false}
             enableExpandOnHover
@@ -575,6 +631,9 @@ export const ExperimentGridCell = ({
     ],
     [
       columnVisibility,
+      expandedOutput,
+      fullOutputQuery.isLoading,
+      isOutputExpanded,
       orderedObservationKeys,
       orderedTraceKeys,
       showScoreLevelLabels,

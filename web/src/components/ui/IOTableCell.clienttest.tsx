@@ -33,6 +33,9 @@ const renderCell = (props: {
   data: unknown;
   singleLine: boolean;
   enableExpandOnHover?: boolean;
+  expandedData?: unknown;
+  isExpandedDataLoading?: boolean;
+  onExpandOpenChange?: (open: boolean) => void;
 }) =>
   render(
     <MarkdownContextProvider>
@@ -105,6 +108,31 @@ describe("IOTableCell native title suppression", () => {
 
     expect(document.body.textContent).not.toContain("...expand");
     expect(document.body.textContent).toContain("-end");
+  });
+
+  it("expand-on-hover: renders separately fetched full data", async () => {
+    const { container } = renderCell({
+      data: "truncated output",
+      expandedData: "full output ending",
+      singleLine: false,
+      enableExpandOnHover: true,
+    });
+
+    const trigger = container.querySelector(".group\\/io-cell");
+    fireEvent.pointerEnter(trigger!);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 750));
+    });
+
+    const hoverContent = await waitFor(() => {
+      const content = document.querySelector(
+        "[data-radix-popper-content-wrapper]",
+      );
+      expect(content).not.toBeNull();
+      return content;
+    });
+
+    expect(hoverContent).toHaveTextContent("full output ending");
   });
 });
 

@@ -1,7 +1,17 @@
-import { render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { VisibilityState } from "@tanstack/react-table";
 import { ExperimentGridCell } from "./ExperimentGridCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+
+const experimentBatchIOUseQueryMock = vi.hoisted(() =>
+  vi.fn(() => ({ data: undefined, isLoading: false })),
+);
 
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -10,14 +20,31 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => ({ data: undefined }),
       },
     },
+    events: {
+      experimentBatchIO: {
+        useQuery: experimentBatchIOUseQueryMock,
+      },
+    },
   },
 }));
 
 vi.mock("@/src/components/ui/IOTableCell", () => ({
-  MemoizedIOTableCell: () => <div>IO cell</div>,
+  MemoizedIOTableCell: ({
+    onExpandOpenChange,
+  }: {
+    onExpandOpenChange?: (open: boolean) => void;
+  }) => (
+    <button
+      type="button"
+      onClick={() => onExpandOpenChange?.(true)}
+      aria-label="Expand output"
+    >
+      IO cell
+    </button>
+  ),
 }));
 
-const observationScoreKey = "quality-API-NUMERIC";
+const observationScoreKey = "quality-EVAL-NUMERIC";
 const traceScoreKey = "correctness-API-NUMERIC";
 
 const renderGridCell = (
@@ -39,6 +66,8 @@ const renderGridCell = (
             type: "NUMERIC",
             values: [0.8],
             average: 0.8,
+            comment: "Evaluator comment",
+            executionTraceId: "execution-trace-id",
           },
         }}
         traceScores={{
@@ -87,5 +116,42 @@ describe("ExperimentGridCell", () => {
       screen.getByText("Output").parentElement?.nextElementSibling;
 
     expect(outputContent).toHaveClass("h-16", "overflow-hidden");
+  });
+
+  it("loads full output only when the output hover opens", () => {
+    experimentBatchIOUseQueryMock.mockClear();
+    renderGridCell(false, { metadata: false });
+
+    expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ enabled: false }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand output" }));
+
+    expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ enabled: true }),
+    );
+  });
+
+  it("links evaluator score comments to their execution trace", async () => {
+    renderGridCell(false);
+
+    fireEvent.pointerEnter(
+      screen.getByRole("button", { name: "View score comment" }),
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 750));
+    });
+
+    const executionTraceLink = await waitFor(() =>
+      screen.getByRole("link", { name: "View execution trace" }),
+    );
+
+    expect(executionTraceLink).toHaveAttribute(
+      "href",
+      "/project/project-id/traces/execution-trace-id",
+    );
   });
 });
