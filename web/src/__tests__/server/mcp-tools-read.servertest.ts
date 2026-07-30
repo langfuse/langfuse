@@ -1936,7 +1936,7 @@ describe("MCP Read Tools", () => {
               traceId: {
                 highCardinality: true,
                 constraints: expect.stringMatching(
-                  /explicit config\.row_limit.*orderBy.*incompatible with timeDimension/i,
+                  /explicit config\.row_limit.*orderBy descending on a measure selected in the query.*incompatible with timeDimension.*combining entityDimension/i,
                 ),
               },
             },
@@ -1958,6 +1958,9 @@ describe("MCP Read Tools", () => {
           },
         },
       });
+      expect(views.observations.orderByFields).not.toContain(
+        "histogram_totalCost",
+      );
       expect(views["scores-boolean"].dimensions.value).toBeUndefined();
       expect(Reflect.get(Object(views), "traces")).toBeUndefined();
     });

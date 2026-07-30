@@ -10,7 +10,7 @@ import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const HIGH_CARDINALITY_CONSTRAINT =
-  "Requires explicit config.row_limit and orderBy descending on a measure; incompatible with timeDimension. The default row_limit is applied after validation and does not satisfy this requirement.";
+  "Requires explicit config.row_limit and orderBy descending on a measure selected in the query; incompatible with timeDimension and with combining entityDimension with an additional high-cardinality dimension. The default row_limit is applied after validation and does not satisfy this requirement.";
 
 const getFilterMetadata = (
   column: string,
@@ -92,30 +92,30 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
           views: Object.fromEntries(
             selectedViews.map((viewName) => {
               const view = viewDeclarations.v2[viewName];
-              const filterableColumns = Object.entries(view.dimensions)
-                .map(([name, definition]) =>
-                  getFilterMetadata(name, definition.type),
-                )
-                .filter((item) => item !== undefined)
-                .concat([
-                  {
-                    column: view.timeDimension,
-                    filterType: "datetime" as const,
-                    operators: filterOperators.datetime,
-                  },
-                  {
-                    column: "metadata",
-                    filterType: "stringObject" as const,
-                    operators: filterOperators.stringObject,
-                    requiresKey: true as const,
-                  },
-                ]);
+              const filterableColumns = [
+                ...Object.entries(view.dimensions)
+                  .map(([name, definition]) =>
+                    getFilterMetadata(name, definition.type),
+                  )
+                  .filter((item) => item !== undefined),
+                {
+                  column: view.timeDimension,
+                  filterType: "datetime" as const,
+                  operators: filterOperators.datetime,
+                },
+                {
+                  column: "metadata",
+                  filterType: "stringObject" as const,
+                  operators: filterOperators.stringObject,
+                  requiresKey: true as const,
+                },
+              ];
               const orderByFields = Object.keys(view.dimensions)
                 .concat(
                   Object.entries(view.measures).flatMap(([name, definition]) =>
-                    getValidAggregationsForMeasureType(definition.type).map(
-                      (aggregation) => `${aggregation}_${name}`,
-                    ),
+                    getValidAggregationsForMeasureType(definition.type)
+                      .filter((aggregation) => aggregation !== "histogram")
+                      .map((aggregation) => `${aggregation}_${name}`),
                   ),
                 )
                 .concat("time_dimension");
