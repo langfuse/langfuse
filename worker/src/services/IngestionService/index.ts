@@ -1275,7 +1275,12 @@ export class IngestionService {
   private async getUsageUnits(
     observationRecord: Pick<
       ObservationRecordInsertType,
-      "provided_usage_details" | "level" | "input" | "output" | "id"
+      | "provided_usage_details"
+      | "provided_cost_details"
+      | "level"
+      | "input"
+      | "output"
+      | "id"
     >,
     model: Model | null | undefined,
   ): Promise<
@@ -1288,10 +1293,19 @@ export class IngestionService {
       observationRecord.provided_usage_details,
     );
 
+    // Provided costs are authoritative: calculateUsageCosts ignores computed
+    // usage once any cost point is provided, so tokenised counts could never
+    // affect costs — leave usage_details blank instead of paying for
+    // tokenisation (LFE-9339).
+    const hasProvidedCostDetails = Object.values(
+      observationRecord.provided_cost_details ?? {},
+    ).some((value) => value != null);
+
     if (
-      // Manual tokenisation when no user provided usage and generation has not status ERROR
+      // Manual tokenisation when no user provided usage or cost and generation has not status ERROR
       model &&
       Object.keys(providedUsageDetails).length === 0 &&
+      !hasProvidedCostDetails &&
       observationRecord.level !== ObservationLevel.ERROR
     ) {
       try {
