@@ -2000,20 +2000,35 @@ export const getObservationCountsByProjectAndDay = async ({
   }));
 };
 
-export const getCostByEvaluatorIds = async (
+const evaluatorCostFields = {
+  avgCost: {
+    select: "avg(total_cost) as avg_cost",
+    column: "avg_cost",
+  },
+  totalCost: {
+    select: "sum(total_cost) as total_cost",
+    column: "total_cost",
+  },
+  executionCount: {
+    select: "count(*) as execution_count",
+    column: "execution_count",
+  },
+} as const;
+
+const getEvaluatorCostMetricsByIds = async <
+  const TFields extends readonly (keyof typeof evaluatorCostFields)[],
+>(
   projectId: string,
   evaluatorIds: string[],
+  fields: TFields,
 ) => {
   if (evaluatorIds.length === 0) return [];
 
-  const rows = await queryClickhouse<{
-    evaluator_id: string;
-    total_cost: string;
-  }>({
+  const rows = await queryClickhouse<Record<string, string>>({
     query: `
       SELECT
         metadata['job_configuration_id'] as evaluator_id,
-        sum(total_cost) as total_cost
+        ${fields.map((field) => evaluatorCostFields[field].select).join(",\n        ")}
       FROM observations FINAL
       WHERE project_id = {projectId: String}
         AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
@@ -2028,11 +2043,31 @@ export const getCostByEvaluatorIds = async (
     tags: { projectId },
   });
 
-  return rows.map((row) => ({
-    evaluatorId: row.evaluator_id,
-    totalCost: Number(row.total_cost),
-  }));
+  return rows.map((row) => {
+    const metrics = Object.fromEntries(
+      fields.map((field) => [
+        field,
+        Number(row[evaluatorCostFields[field].column]),
+      ]),
+    ) as Record<TFields[number], number>;
+
+    return { evaluatorId: row.evaluator_id, ...metrics };
+  });
 };
+
+export const getCostByEvaluatorIds = async (
+  projectId: string,
+  evaluatorIds: string[],
+) => getEvaluatorCostMetricsByIds(projectId, evaluatorIds, ["totalCost"]);
+
+export const getAvgCostByEvaluatorIdsFromObservations = async (
+  projectId: string,
+  evaluatorIds: string[],
+) =>
+  getEvaluatorCostMetricsByIds(projectId, evaluatorIds, [
+    "avgCost",
+    "executionCount",
+  ]);
 
 // ─── Public-API observation query helpers ─────────────────────────────────────
 

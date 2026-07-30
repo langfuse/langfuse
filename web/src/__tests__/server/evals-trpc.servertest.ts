@@ -506,7 +506,7 @@ describe("evals trpc", () => {
       });
     });
 
-    it("returns total evaluator costs from observations in legacy write mode", async () => {
+    it("returns evaluator cost metrics from observations in legacy write mode", async () => {
       const { project, caller } = await prepare();
       const evaluatorId = randomUUID();
       const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
@@ -520,15 +520,32 @@ describe("evals trpc", () => {
             metadata: { job_configuration_id: evaluatorId },
             total_cost: 0.03,
           }),
+          createObservation({
+            project_id: project.id,
+            metadata: { job_configuration_id: evaluatorId },
+            total_cost: 0.01,
+          }),
         ]);
 
-        const response = await caller.evals.costByEvaluatorIds({
-          projectId: project.id,
-          evaluatorIds: [evaluatorId],
-        });
+        const [totalCosts, avgCosts] = await Promise.all([
+          caller.evals.costByEvaluatorIds({
+            projectId: project.id,
+            evaluatorIds: [evaluatorId],
+          }),
+          caller.evals.avgCostByEvaluatorIds({
+            projectId: project.id,
+            evaluatorIds: [evaluatorId],
+          }),
+        ]);
 
-        expect(response).toEqual({
-          [evaluatorId]: 0.03,
+        expect(totalCosts).toEqual({
+          [evaluatorId]: 0.04,
+        });
+        expect(avgCosts).toEqual({
+          [evaluatorId]: {
+            avgCost: 0.02,
+            executionCount: 2,
+          },
         });
       } finally {
         Reflect.set(env, "LANGFUSE_MIGRATION_V4_WRITE_MODE", originalWriteMode);
