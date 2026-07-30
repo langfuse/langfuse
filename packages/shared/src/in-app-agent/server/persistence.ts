@@ -30,6 +30,7 @@ import {
   type AgUiEvent,
   type AgUiMessage,
 } from "../schema";
+import { assertConversationAccess } from "./access";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
@@ -37,10 +38,10 @@ import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./tools";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.
-const ACTIVE_RUN_STALE_AFTER_MS = 150 * 1000;
-const ACTIVE_RUN_CONFLICT_MESSAGE =
+export const FOREGROUND_RUN_STALE_AFTER_MS = 150 * 1000;
+export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
-const STALE_RUN_ERROR_MESSAGE =
+export const FOREGROUND_RUN_STALE_ERROR_MESSAGE =
   "Run was marked stale before starting a new run";
 const SANDBOX_CONVERSATION_WRITE_WINDOW_MS = 8 * 60 * 60 * 1000;
 
@@ -56,6 +57,13 @@ export type PersistedConversationEvent = {
   event: AgUiEvent;
   runId: string;
   createdAt: Date;
+  /**
+   * Per-conversation monotonic position. This is the watch cursor: the
+   * hydration snapshot's high-water mark is definitionally the maximum over
+   * the events it returned, so attaching the tail with `> cursor` is
+   * gap-free and duplicate-free by construction.
+   */
+  sequenceNumber: number;
 };
 
 export function serializeConversation(
@@ -76,7 +84,7 @@ export function serializeConversation(
 
 export function isInAppAgentConversationWriteLocked(params: {
   conversation: Pick<InAppAgentConversation, "createdAt">;
-  events: readonly PersistedConversationEvent[];
+  events: readonly Pick<PersistedConversationEvent, "event">[];
   now?: Date;
 }) {
   const now = params.now ?? new Date();
@@ -110,14 +118,17 @@ export async function getOwnedConversationOrThrow(params: {
     where: {
       id: params.conversationId,
       projectId: params.projectId,
-      createdByUserId: params.userId,
-      deletedAt: null,
     },
   });
 
   if (!conversation) {
     throw new LangfuseNotFoundError("Agent conversation not found");
   }
+
+  assertConversationAccess({
+    conversation,
+    userId: params.userId,
+  });
 
   return conversation;
 }
@@ -138,9 +149,10 @@ export async function ensureOwnedConversation(params: {
   });
 
   if (existing) {
-    if (existing.createdByUserId !== params.userId || existing.deletedAt) {
-      throw new LangfuseNotFoundError("Agent conversation not found");
-    }
+    assertConversationAccess({
+      conversation: existing,
+      userId: params.userId,
+    });
 
     return existing;
   }
@@ -165,25 +177,35 @@ export async function createRun(params: {
   mcpApiKeyId?: string;
 }) {
   const now = new Date();
-  const staleBefore = new Date(now.getTime() - ACTIVE_RUN_STALE_AFTER_MS);
+  const staleBefore = new Date(now.getTime() - FOREGROUND_RUN_STALE_AFTER_MS);
 
   return params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
-    // The v1 agent is foreground-only. If a stream dies before finishRun runs,
-    // lazily mark the old run stale so it does not block the conversation forever.
+    // If a foreground stream dies before finishRun runs, lazily mark the old
+    // run stale so it does not block the conversation forever.
+    //
+    // `claimedAt`/`heartbeatAt` must stay NULL here: only the background
+    // worker sets them, and a background run legitimately runs for up to
+    // RUN_MAX_DURATION. Without this guard a foreground submit (flag off)
+    // would stale-close a healthy background run at 150s and fence its
+    // worker — execution mode is not sticky per conversation, so that mix is
+    // a normal state. An unclaimed QUEUED run stays sweepable, which is what
+    // we want: it unblocks the conversation and reconcile-on-read agrees.
     await tx.inAppAgentRun.updateMany({
       where: {
         projectId: params.projectId,
         conversationId: params.conversationId,
         finishedAt: null,
         createdAt: { lt: staleBefore },
+        claimedAt: null,
+        heartbeatAt: null,
       },
       data: {
         status: InAppAgentRunStatus.FAILED,
         finishedAt: now,
         errorCode: InAppAgentRunErrorCode.STALE,
-        errorMessage: STALE_RUN_ERROR_MESSAGE,
+        errorMessage: FOREGROUND_RUN_STALE_ERROR_MESSAGE,
       },
     });
 
@@ -275,22 +297,53 @@ export async function appendRunEvents(params: {
   conversationId: string;
   runId: string;
   events: readonly AgUiEvent[];
+  finish?: {
+    status:
+      | InAppAgentRunStatus.SUCCEEDED
+      | InAppAgentRunStatus.FAILED
+      | InAppAgentRunStatus.CANCELLED
+      | InAppAgentRunStatus.AWAITING_APPROVAL;
+    errorCode?: InAppAgentRunErrorCode;
+    errorMessage?: string;
+  };
 }): Promise<boolean> {
   return params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
-    const activeRun = await tx.inAppAgentRun.findFirst({
-      where: {
-        id: params.runId,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        status: InAppAgentRunStatus.RUNNING,
-      },
-      select: { id: true },
-    });
+    if (params.finish) {
+      const finished = await tx.inAppAgentRun.updateMany({
+        where: {
+          id: params.runId,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          status: InAppAgentRunStatus.RUNNING,
+          finishedAt: null,
+        },
+        data: {
+          status: params.finish.status,
+          finishedAt: new Date(),
+          errorCode: params.finish.errorCode ?? null,
+          errorMessage: params.finish.errorMessage ?? null,
+        },
+      });
 
-    if (!activeRun) {
-      return false;
+      if (finished.count === 0) {
+        return false;
+      }
+    } else {
+      const activeRun = await tx.inAppAgentRun.findFirst({
+        where: {
+          id: params.runId,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          status: InAppAgentRunStatus.RUNNING,
+        },
+        select: { id: true },
+      });
+
+      if (!activeRun) {
+        return false;
+      }
     }
 
     const latestEvent = await tx.inAppAgentEvent.findFirst({
@@ -344,13 +397,19 @@ export async function getConversationEvents(params: {
       conversationId: params.conversationId,
     },
     orderBy: { sequenceNumber: "asc" },
-    select: { event: true, runId: true, createdAt: true },
+    select: {
+      event: true,
+      runId: true,
+      createdAt: true,
+      sequenceNumber: true,
+    },
   });
 
-  return events.map(({ event, runId, createdAt }) => ({
+  return events.map(({ event, runId, createdAt, sequenceNumber }) => ({
     event: event as unknown as AgUiEvent,
     runId,
     createdAt,
+    sequenceNumber,
   }));
 }
 
@@ -359,7 +418,7 @@ export async function getConversationEvents(params: {
  * calls so each sandbox session can mount the same context.
  */
 export function getSandboxToolCallFiles(
-  events: readonly PersistedConversationEvent[],
+  events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
 ) {
   const drafts = new Map<
     string,
@@ -442,7 +501,15 @@ export async function getConversationMessagesForDisplay(params: {
   projectId: string;
   conversationId: string;
 }) {
-  const messages = await getConversationMessages(params);
+  return getConversationMessagesForDisplayFromEvents(
+    await getConversationEvents(params),
+  );
+}
+
+export function getConversationMessagesForDisplayFromEvents(
+  events: readonly PersistedConversationEvent[],
+) {
+  const messages = getMessagesFromPersistedEvents(events);
   return dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages));
 }
 
@@ -707,10 +774,11 @@ export async function flushPendingRunEvents(params: {
   conversationId: string;
   runId: string;
   pendingEvents: AgUiEvent[];
+  finish?: Parameters<typeof appendRunEvents>[0]["finish"];
 }) {
   const pendingEventCount = params.pendingEvents.length;
 
-  if (pendingEventCount === 0) {
+  if (pendingEventCount === 0 && !params.finish) {
     return;
   }
 
@@ -718,13 +786,14 @@ export async function flushPendingRunEvents(params: {
     params.pendingEvents.slice(0, pendingEventCount),
   );
 
-  if (eventsToAppend.length > 0) {
+  if (eventsToAppend.length > 0 || params.finish) {
     const appended = await appendRunEvents({
       prisma: params.prisma,
       projectId: params.projectId,
       conversationId: params.conversationId,
       runId: params.runId,
       events: eventsToAppend,
+      finish: params.finish,
     });
 
     if (!appended) {
@@ -1272,9 +1341,14 @@ function stripAssistantRunIds(messages: readonly AgUiMessage[]) {
   return changed ? sanitizedMessages : messages;
 }
 
-type InAppAgentTx = Prisma.TransactionClient;
+export type InAppAgentTx = Prisma.TransactionClient;
 
-async function lockConversation(
+/**
+ * Serializes every run-creating and approval-consuming mutation on one row.
+ * The partial unique index on active runs is only the backstop; this lock is
+ * what turns a race into a clean conflict error instead of a 500.
+ */
+export async function lockConversation(
   tx: InAppAgentTx,
   projectId: string,
   conversationId: string,

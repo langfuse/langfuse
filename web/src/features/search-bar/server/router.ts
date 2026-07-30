@@ -25,6 +25,7 @@ import {
   LangfuseInternalTraceEnvironment,
   logger,
   generateLangfuseAIText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
@@ -201,6 +202,7 @@ export const searchBarRouter = createTRPCRouter({
           messages,
           model,
           maxTokens: 2048,
+          timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
                 traceId,

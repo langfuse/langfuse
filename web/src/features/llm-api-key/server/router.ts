@@ -33,6 +33,7 @@ import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
   generateLLMText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   LLMAdapter,
   logger,
   mapLegacyLLMCompletionParams,
@@ -162,6 +163,7 @@ async function testLLMConnection(
         messages: testMessages,
       }),
       maxRetries: 1,
+      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
     });
 
     return { success: true };

@@ -14,7 +14,11 @@ catalog:
   "@aws-sdk/lib-storage": 3.1074.0
   "@aws-sdk/s3-request-presigner": 3.1074.0
   eslint: ^10.8.0
-  typescript: ^6.0.3
+  # The official TS 6 side-by-side wrapper (resolves to typescript 6.0.3):
+  # provides the JS compiler API for typescript-eslint/next/tsx consumers but
+  # ships no `tsc` bin, so package scripts fall through to the workspace-root
+  # ts7 alias and build/typecheck with the native TypeScript 7 compiler.
+  typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.

@@ -5,7 +5,7 @@ import {
   JSONView,
 } from "@/src/components/ui/CodeJsonViewer";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
-import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useRef, useState } from "react";
 import {
@@ -57,7 +57,7 @@ function renderStringWithMediaReferences(value: string) {
 
   return segments.map((segment, index) =>
     segment.type === "media" ? (
-      <JsonMediaTag
+      <MediaReferenceTag
         key={`${segment.value}-${index}`}
         descriptor={segment.descriptor}
       />

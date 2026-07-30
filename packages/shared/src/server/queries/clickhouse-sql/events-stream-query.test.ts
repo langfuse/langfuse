@@ -1,4 +1,5 @@
 import type { FilterCondition } from "../../../types";
+import type { OrderByState } from "../../../interfaces/orderBy";
 import { InvalidRequestError } from "../../../errors";
 import { describe, expect, it } from "vitest";
 import {
@@ -18,13 +19,27 @@ const nativeFilter: FilterCondition = {
   value: ["GENERATION"],
   type: "stringOptions",
 };
+const scoreFilter: FilterCondition = {
+  type: "numberObject",
+  column: "scores_avg",
+  operator: ">",
+  key: "quality",
+  value: 0.5,
+};
 
 const normalizeSql = (query: string) => query.replace(/\s+/g, " ").trim();
 
-const buildSelection = ({ filter }: { filter: FilterCondition[] }) => {
+const buildSelection = ({
+  filter,
+  orderBy,
+}: {
+  filter: FilterCondition[];
+  orderBy?: OrderByState;
+}) => {
   const selection = buildEventsObservationRowSelection({
     projectId,
     filter,
+    orderBy,
   });
 
   const built = selection.queryBuilder
@@ -51,6 +66,7 @@ describe("buildEventsStreamQuery", () => {
 
     expect(query).toContain("e.project_id = {projectId: String}");
     expect(query).toContain("e.is_deleted = 0");
+    expect(query).toContain('e.is_app_root as "is_app_root"');
 
     const orderIndex = query.lastIndexOf("ORDER BY ");
     const deduplicationIndex = query.lastIndexOf("LIMIT 1 BY ");
@@ -122,13 +138,7 @@ describe("buildEventsStreamQuery", () => {
           operator: ">=",
           value: new Date("2025-01-02T03:04:05.678Z"),
         },
-        {
-          type: "numberObject",
-          column: "scores_avg",
-          operator: ">",
-          key: "quality",
-          value: 0.5,
-        },
+        scoreFilter,
       ],
       rowLimit: 7,
     });
@@ -147,6 +157,7 @@ describe("buildEventsStreamQuery", () => {
     expect(query).toContain(
       "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 1 HOUR",
     );
+    expect(query).not.toContain("name IN ({");
   });
 
   it("exports trace-level scores alongside observation-level ones (LFE-10596)", () => {
@@ -224,6 +235,11 @@ describe("buildEventsObservationRowSelection", () => {
     expect(filterGroups.traceScores).toHaveLength(1);
     expect(Object.values(params)).toContain("observation-quality");
     expect(Object.values(params)).toContain("trace-quality");
+    expect(Object.values(params)).toContainEqual([
+      "observation-quality",
+      "trace-quality",
+    ]);
+    expect(query.match(/\bname IN \(\{/g)).toHaveLength(2);
     expect(query).toContain(
       "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 1 HOUR",
     );
@@ -254,6 +270,26 @@ describe("buildEventsObservationRowSelection", () => {
 
     expect(startTimeFrom).toBeNull();
     expect(query).not.toContain("AND timestamp >=");
+  });
+
+  it("keeps complete score data when ordering by a score", () => {
+    const { query } = buildSelection({
+      filter: [scoreFilter],
+      orderBy: { column: "scores_avg", order: "DESC" },
+    });
+
+    expect(query).not.toContain("name IN ({");
+
+    for (const [column, expectedJoin] of [
+      ["scores_avg", "LEFT JOIN scores_agg AS s"],
+      ["trace_scores_avg", "LEFT JOIN trace_scores_agg AS ts"],
+    ] as const) {
+      const scoreOrderQuery = buildSelection({
+        filter: [],
+        orderBy: { column, order: "DESC" },
+      }).query;
+      expect(scoreOrderQuery).toContain(expectedJoin);
+    }
   });
 
   it.each([

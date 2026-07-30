@@ -56,7 +56,6 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
-import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import {
   convertJsonSchemaToRecord,
@@ -67,6 +66,7 @@ import {
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
+import { applyObservationFieldOverflow } from "../../features/observation-field-overflow/processObservationFieldOverflow";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -430,6 +430,8 @@ export class IngestionService {
   /**
    * Writes an event record directly to the events_full table.
    * A materialized view auto-populates events_core from events_full.
+   * Legacy observation writes and staging-based dual writes intentionally do
+   * not use field overflow.
    * Use createEventRecord() first to get the record, then call this to write.
    *
    * Enqueues a new record whose `event_bytes` describes the final normalized
@@ -438,10 +440,14 @@ export class IngestionService {
    *
    * @param eventRecord - The event record to write
    */
-  public writeEventRecord(eventRecord: EventRecordInsertType): void {
+  public async writeEventRecord(
+    eventRecord: EventRecordInsertType,
+  ): Promise<void> {
+    const persistedRecord = await applyObservationFieldOverflow(eventRecord);
+
     this.clickHouseWriter.addToQueue(
       TableName.EventsFull,
-      withSerializedEventByteLength(eventRecord),
+      withSerializedEventByteLength(persistedRecord),
     );
   }
 
@@ -1275,7 +1281,12 @@ export class IngestionService {
   private async getUsageUnits(
     observationRecord: Pick<
       ObservationRecordInsertType,
-      "provided_usage_details" | "level" | "input" | "output" | "id"
+      | "project_id"
+      | "provided_usage_details"
+      | "level"
+      | "input"
+      | "output"
+      | "id"
     >,
     model: Model | null | undefined,
   ): Promise<
@@ -1314,18 +1325,30 @@ export class IngestionService {
                 }),
               ]);
             } catch (error) {
+              // No synchronous fallback: payloads that make the worker thread
+              // exceed its timeout would block the event loop for minutes if
+              // re-tokenized on the main thread. Absent counts are
+              // detectable by users, unlike a 0 or a bytes-based estimate.
               logger.warn(
-                `Async tokenization has failed. Falling back to synchronous tokenization`,
-                error,
+                `Async tokenization failed for observation ${observationRecord.id} in project ${observationRecord.project_id}. Skipping token counts.`,
+                {
+                  projectId: observationRecord.project_id,
+                  observationId: observationRecord.id,
+                  modelId: model.id,
+                  tokenizerId: model.tokenizerId,
+                  inputBytes:
+                    typeof observationRecord.input === "string"
+                      ? observationRecord.input.length
+                      : undefined,
+                  outputBytes:
+                    typeof observationRecord.output === "string"
+                      ? observationRecord.output.length
+                      : undefined,
+                  error,
+                },
               );
-              newInputCount = tokenCount({
-                text: observationRecord.input,
-                model,
-              });
-              newOutputCount = tokenCount({
-                text: observationRecord.output,
-                model,
-              });
+              span.setAttribute("langfuse.tokenization.skipped", true);
+              recordIncrement("langfuse.tokenisation.skipped", 1);
             }
 
             // Tracing
