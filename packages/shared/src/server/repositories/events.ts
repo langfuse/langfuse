@@ -3317,51 +3317,93 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
   });
 };
 
-export const getAvgCostByEvaluatorIds = async (
+const evaluatorCostFields = {
+  avgCost: {
+    select: "avg(tc.trace_total_cost) as avg_cost",
+    column: "avg_cost",
+  },
+  totalCost: {
+    select: "sum(tc.trace_total_cost) as total_cost",
+    column: "total_cost",
+  },
+  executionCount: {
+    select: "count(*) as execution_count",
+    column: "execution_count",
+  },
+} as const;
+
+const getEvaluatorCostMetricsByIds = async <
+  const TFields extends readonly (keyof typeof evaluatorCostFields)[],
+>(
   projectId: string,
   evaluatorIds: string[],
-): Promise<
-  Array<{ evaluatorId: string; avgCost: number; executionCount: number }>
-> => {
+  fields: TFields,
+) => {
   if (evaluatorIds.length === 0) return [];
 
-  const builder = new EventsAggQueryBuilder({
+  // Evaluator metadata lives on the parent span while cost lives on child
+  // events, so rebuild complete trace totals before filtering evaluators.
+  const traceCostsBuilder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn:
-      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['job_configuration_id']",
+    groupByColumn: "e.trace_id",
     selectExpression: [
-      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['job_configuration_id'] as evaluator_id",
-      "avg(e.total_cost) as avg_cost",
-      "count(*) as execution_count",
+      "e.trace_id as trace_id",
+      "anyIf(arrayElement(e.metadata_values, indexOf(e.metadata_names, 'job_configuration_id')), has(e.metadata_names, 'job_configuration_id')) as evaluator_id",
+      "sum(e.total_cost) as trace_total_cost",
     ].join(", "),
   })
-    .whereRaw("e.type = 'GENERATION'")
-    .whereRaw("has(e.metadata_names, 'job_configuration_id')")
-    .whereRaw(
-      "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['job_configuration_id'] IN ({evaluatorIds: Array(String)})",
-      { evaluatorIds },
+    .whereRaw("e.start_time > today() - 7")
+    .whereRaw("e.is_deleted = 0")
+    .havingRaw("evaluator_id IN ({evaluatorIds: Array(String)})", {
+      evaluatorIds,
+    });
+
+  const traceCosts = traceCostsBuilder.buildWithParams();
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTE("trace_costs", {
+      ...traceCosts,
+      schema: ["trace_id", "evaluator_id", "trace_total_cost"] as const,
+    })
+    .from("trace_costs", "tc")
+    .select(
+      "tc.evaluator_id as evaluator_id",
+      ...fields.map((field) => evaluatorCostFields[field].select),
     )
-    .whereRaw("e.start_time > today() - 7");
+    .groupBy("tc.evaluator_id");
 
-  const { query, params } = builder.buildWithParams();
-
-  const rows = await queryClickhouse<{
-    evaluator_id: string;
-    avg_cost: string;
-    execution_count: string;
-  }>({
+  const { query, params } = queryBuilder.buildWithParams();
+  const rows = await queryClickhouse<Record<string, string>>({
     query,
     params,
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return rows.map((row) => ({
-    evaluatorId: row.evaluator_id,
-    avgCost: Number(row.avg_cost),
-    executionCount: Number(row.execution_count),
-  }));
+  return rows.map((row) => {
+    const metrics = Object.fromEntries(
+      fields.map((field) => [
+        field,
+        Number(row[evaluatorCostFields[field].column]),
+      ]),
+    ) as Record<TFields[number], number>;
+
+    return { evaluatorId: row.evaluator_id, ...metrics };
+  });
 };
+
+export const getAvgCostByEvaluatorIds = async (
+  projectId: string,
+  evaluatorIds: string[],
+) =>
+  getEvaluatorCostMetricsByIds(projectId, evaluatorIds, [
+    "avgCost",
+    "executionCount",
+  ]);
+
+export const getTotalCostByEvaluatorIds = async (
+  projectId: string,
+  evaluatorIds: string[],
+) => getEvaluatorCostMetricsByIds(projectId, evaluatorIds, ["totalCost"]);
 
 export const getSessionMetricsFromEvents = async (props: {
   projectId: string;
