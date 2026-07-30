@@ -46,6 +46,7 @@ export const useModelParams = (
     },
     { enabled: Boolean(projectId) },
   );
+  const hasLoadedLlmConnections = availableLLMApiKeys.data !== undefined;
 
   // Generate window-specific localStorage keys
   const modelNameKey = getModelNameKey(windowId ?? "");
@@ -200,7 +201,7 @@ export const useModelParams = (
   ]);
 
   useEffect(() => {
-    if (availableModels.length === 0) return;
+    if (!hasLoadedLlmConnections) return;
 
     if (
       !modelParams.model.value ||
@@ -213,6 +214,7 @@ export const useModelParams = (
       }
     }
   }, [
+    hasLoadedLlmConnections,
     availableModels,
     modelParams.model.value,
     updateModelParamValue,
