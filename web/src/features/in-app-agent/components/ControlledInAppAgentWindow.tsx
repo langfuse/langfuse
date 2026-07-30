@@ -64,6 +64,7 @@ export function ControlledInAppAgentWindow(
     submitFeedback,
   } = useInAppAiAgent();
   const {
+    finishAnimation,
     isAnimating,
     messages: displayedMessages,
     pendingToolApprovals: displayedPendingToolApprovals,
@@ -79,6 +80,12 @@ export function ControlledInAppAgentWindow(
     // already CANCELLED server-side.
     shouldFlush: error !== null || isCancellingRun,
   });
+  const stopRun = cancelRun
+    ? () => {
+        finishAnimation();
+        cancelRun();
+      }
+    : undefined;
   const isInputDisabled =
     isRunning ||
     isAnimating ||
@@ -158,7 +165,7 @@ export function ControlledInAppAgentWindow(
       onSubmit={submit}
       backgroundRunNotice={backgroundRunNotice}
       isCancellingRun={isCancellingRun}
-      onCancelRun={cancelRun}
+      onCancelRun={stopRun}
       onApproveToolCall={approveToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}

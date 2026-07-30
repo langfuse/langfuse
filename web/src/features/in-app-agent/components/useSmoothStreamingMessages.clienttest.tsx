@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
 
 import type { InAppAgentPendingToolApproval } from "./InAppAiAgentProvider";
@@ -149,6 +149,9 @@ function TestConsumer({
       </span>
       <span data-testid="tool-call-ids">{toolCallIds.join(",")}</span>
       <span data-testid="tool-result-ids">{toolResultIds.join(",")}</span>
+      <button type="button" onClick={smoothStreaming.finishAnimation}>
+        Stop display
+      </button>
     </>
   );
 }
@@ -271,6 +274,29 @@ describe("useSmoothStreamingMessages", () => {
     expect(screen.getByTestId("animating")).toHaveTextContent("true");
 
     runAllAnimationFrames();
+
+    expect(screen.getByTestId("content")).toHaveTextContent(content);
+    expect(screen.getByTestId("animating")).toHaveTextContent("false");
+  });
+
+  it("finishes the local reveal immediately when the user stops a completed server run", () => {
+    const content =
+      "The server has already completed this response while the drawer is still revealing it.";
+    const { rerender } = render(
+      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+    );
+
+    rerender(
+      <TestConsumer
+        liveMessageVersion={1}
+        messages={[userMessage, assistantMessage(content)]}
+      />,
+    );
+
+    expect(screen.getByTestId("content")).not.toHaveTextContent(content);
+    expect(screen.getByTestId("animating")).toHaveTextContent("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop display" }));
 
     expect(screen.getByTestId("content")).toHaveTextContent(content);
     expect(screen.getByTestId("animating")).toHaveTextContent("false");

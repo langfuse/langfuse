@@ -155,8 +155,12 @@ export function useSmoothStreamingMessages({
     state.toolDisplayById,
   );
   const runningToolCallIds = getRunningToolCallIds(state.toolDisplayById);
+  const finishAnimation = () => {
+    dispatch({ type: "finish", nowMs: performance.now() });
+  };
 
   return {
+    finishAnimation,
     isAnimating,
     pendingToolApprovals: state.displayedToolApprovals,
     runningToolCallIds,
