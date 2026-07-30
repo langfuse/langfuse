@@ -12,7 +12,8 @@ const mocks = vi.hoisted(() => ({
       | "latest"
       | "legacy"
       | "otel_realtime"
-      | "otel_header_required",
+      | "otel_header_required"
+      | "no_data",
     sdkUsageSeries: [],
     upgradeRequiredCount: 0,
     delayedOtelIngestionCount: 0,
@@ -126,7 +127,7 @@ describe("V4MigrationStatusPage", () => {
   it("shows migration readiness to project members", () => {
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("Migrated")).toBeInTheDocument();
     expect(screen.getByText("of 1 projects migrated")).toBeInTheDocument();
   });
 
@@ -204,8 +205,22 @@ describe("V4MigrationStatusPage", () => {
 
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("Migrated")).toBeInTheDocument();
     expect(screen.getByText("OTel real-time")).toBeInTheDocument();
     expect(screen.queryByText("Latest")).not.toBeInTheDocument();
+  });
+
+  it("shows no detected data while considering the project migrated", () => {
+    mocks.sdk = {
+      status: "no_data",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("Migrated")).toBeInTheDocument();
+    expect(screen.getByText("No data detected")).toBeInTheDocument();
   });
 });
