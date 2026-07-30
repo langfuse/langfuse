@@ -435,9 +435,7 @@ export const MultiStepExperimentForm = ({
 
   const invalidRequiredStepLabels = steps
     .filter((step) => ["prompt", "dataset", "details"].includes(step.id))
-    .filter(
-      (step) => step.id !== "dataset" || !isDatasetValidationPending,
-    )
+    .filter((step) => step.id !== "dataset" || !isDatasetValidationPending)
     .filter((step) => !isStepValid(step.id))
     .map((step) => step.label);
   const reviewErrorMessage =
