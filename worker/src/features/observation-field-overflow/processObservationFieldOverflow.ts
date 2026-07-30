@@ -54,39 +54,48 @@ export async function applyObservationFieldOverflow(
         name: "langfuse.ingestion.observation_field_overflow.process",
       },
       async (span) => {
-        const results = await uploadOverflowCandidates(
-          eventRecord,
-          candidates,
-          mediaBucket,
-        );
+        const startedAt = Date.now();
 
-        span.setAttributes({
-          "langfuse.project.id": eventRecord.project_id,
-          "langfuse.trace.id": eventRecord.trace_id,
-          "langfuse.observation.id": eventRecord.span_id,
-          "langfuse.ingestion.observation_field_overflow.candidates":
-            candidates.length,
-          "langfuse.ingestion.observation_field_overflow.fields":
-            candidates.map(({ field }) => field),
-          "langfuse.ingestion.observation_field_overflow.uploaded":
-            results.filter(({ outcome }) => outcome === "uploaded").length,
-          "langfuse.ingestion.observation_field_overflow.reused":
-            results.filter(({ outcome }) => outcome === "reused").length,
-          "langfuse.ingestion.observation_field_overflow.failed":
-            results.filter(({ outcome }) => outcome === "failed").length,
-          "langfuse.ingestion.observation_field_overflow.bytes_processed":
-            candidates.reduce(
-              (total, { originalBytes }) => total + originalBytes,
-              0,
-            ),
-          "langfuse.ingestion.observation_field_overflow.bytes_removed":
-            results.reduce(
-              (total, { bytesRemoved }) => total + bytesRemoved,
-              0,
-            ),
-        });
+        try {
+          const results = await uploadOverflowCandidates(
+            eventRecord,
+            candidates,
+            mediaBucket,
+          );
 
-        return applyOverflowResults(eventRecord, results);
+          span.setAttributes({
+            "langfuse.project.id": eventRecord.project_id,
+            "langfuse.trace.id": eventRecord.trace_id,
+            "langfuse.observation.id": eventRecord.span_id,
+            "langfuse.ingestion.observation_field_overflow.candidates":
+              candidates.length,
+            "langfuse.ingestion.observation_field_overflow.fields":
+              candidates.map(({ field }) => field),
+            "langfuse.ingestion.observation_field_overflow.uploaded":
+              results.filter(({ outcome }) => outcome === "uploaded").length,
+            "langfuse.ingestion.observation_field_overflow.reused":
+              results.filter(({ outcome }) => outcome === "reused").length,
+            "langfuse.ingestion.observation_field_overflow.failed":
+              results.filter(({ outcome }) => outcome === "failed").length,
+            "langfuse.ingestion.observation_field_overflow.bytes_processed":
+              candidates.reduce(
+                (total, { originalBytes }) => total + originalBytes,
+                0,
+              ),
+            "langfuse.ingestion.observation_field_overflow.bytes_removed":
+              results.reduce(
+                (total, { bytesRemoved }) => total + bytesRemoved,
+                0,
+              ),
+          });
+
+          return applyOverflowResults(eventRecord, results);
+        } finally {
+          recordDistribution(
+            "langfuse.ingestion.observation_field_overflow.processing_duration_ms",
+            Date.now() - startedAt,
+          );
+        }
       },
     );
   } catch (error) {
