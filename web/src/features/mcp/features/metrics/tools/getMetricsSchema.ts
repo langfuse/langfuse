@@ -85,6 +85,7 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
               const view = viewDeclarations.v2[viewName];
               const filterableColumns = [
                 ...Object.entries(view.dimensions)
+                  .filter(([, definition]) => !definition.pairExpand)
                   .map(([name, definition]) =>
                     getFilterMetadata(name, definition.type),
                   )
