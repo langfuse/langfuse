@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Check,
@@ -51,6 +51,7 @@ import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-sta
 import { cn } from "@/src/utils/tailwind";
 
 const OBSERVATION_LIST_OVERSCAN = 5;
+const SIDEBAR_AUTO_FOLLOW_IDLE_MS = 750;
 const EMPTY_TRACES: EventSessionTrace[] = [];
 
 export type ModernSessionSidebarFilterControls = {
@@ -166,7 +167,12 @@ export function ModernSessionSidebar(
       },
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
+  const activeTraceId =
+    props.state === "loaded" ? props.activeTraceId : undefined;
   const listRef = useRef<HTMLDivElement>(null);
+  const isManualSidebarScrollRef = useRef(false);
+  const isSidebarPointerDownRef = useRef(false);
+  const autoFollowResumeTimeoutRef = useRef<number | undefined>(undefined);
   const [search, setSearch] = useState("");
   const [collapsedTurns, setCollapsedTurns] = useState<Record<string, true>>(
     {},
@@ -195,6 +201,61 @@ export function ModernSessionSidebar(
     overscan: OBSERVATION_LIST_OVERSCAN,
     getItemKey: (index) => traces[index]?.id ?? index,
   });
+  const activeTraceIndex = activeTraceId
+    ? traces.findIndex((trace) => trace.id === activeTraceId)
+    : -1;
+
+  useEffect(() => {
+    if (activeTraceIndex === -1 || isManualSidebarScrollRef.current) return;
+
+    // `auto` moves the minimum distance and does nothing while the row is visible.
+    virtualizer.scrollToIndex(activeTraceIndex, { align: "auto" });
+  }, [activeTraceIndex, virtualizer]);
+
+  useEffect(
+    () => () => {
+      if (autoFollowResumeTimeoutRef.current !== undefined) {
+        window.clearTimeout(autoFollowResumeTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  const pauseSidebarAutoFollow = () => {
+    isManualSidebarScrollRef.current = true;
+    if (autoFollowResumeTimeoutRef.current !== undefined) {
+      window.clearTimeout(autoFollowResumeTimeoutRef.current);
+      autoFollowResumeTimeoutRef.current = undefined;
+    }
+  };
+
+  const resumeSidebarAutoFollowAfterIdle = () => {
+    if (autoFollowResumeTimeoutRef.current !== undefined) {
+      window.clearTimeout(autoFollowResumeTimeoutRef.current);
+    }
+    autoFollowResumeTimeoutRef.current = window.setTimeout(() => {
+      autoFollowResumeTimeoutRef.current = undefined;
+      if (isSidebarPointerDownRef.current) return;
+      // Restore ownership without snapping back after the user browsed elsewhere.
+      // The next active-turn change resumes following the main view.
+      isManualSidebarScrollRef.current = false;
+    }, SIDEBAR_AUTO_FOLLOW_IDLE_MS);
+  };
+
+  const handleTransientSidebarScroll = () => {
+    pauseSidebarAutoFollow();
+    resumeSidebarAutoFollowAfterIdle();
+  };
+
+  const handleSidebarPointerDown = () => {
+    isSidebarPointerDownRef.current = true;
+    pauseSidebarAutoFollow();
+  };
+
+  const handleSidebarPointerEnd = () => {
+    isSidebarPointerDownRef.current = false;
+    resumeSidebarAutoFollowAfterIdle();
+  };
 
   if (props.state === "loading") {
     return (
@@ -227,8 +288,7 @@ export function ModernSessionSidebar(
     );
   }
 
-  const { activeTraceId, filterControls, renderObservationRows, onSelect } =
-    props;
+  const { filterControls, renderObservationRows, onSelect } = props;
   const showFilterSummary = Boolean(
     filterControls.activeFilterCount > 0 ||
     filterControls.activeViewName ||
@@ -449,7 +509,18 @@ export function ModernSessionSidebar(
           </div>
         ) : null}
       </div>
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto pt-0.5 pb-4">
+      <div
+        ref={listRef}
+        role="region"
+        aria-label="Session turns"
+        className="min-h-0 flex-1 overflow-y-auto pt-0.5 pb-4"
+        onWheel={handleTransientSidebarScroll}
+        onTouchMove={handleTransientSidebarScroll}
+        onPointerDown={handleSidebarPointerDown}
+        onPointerUp={handleSidebarPointerEnd}
+        onPointerCancel={handleSidebarPointerEnd}
+        onPointerLeave={handleSidebarPointerEnd}
+      >
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,

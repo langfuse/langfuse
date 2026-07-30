@@ -41,6 +41,9 @@ moves from the feed's top edge to 20% of its visible height over the first 20%
 of viewport scrolling, remains there through the middle, then moves to the
 bottom edge over the final 20%. The feed keeps its natural height without
 trailing scroll padding.
+The sidebar minimally scrolls its active turn into view. Direct wheel, touch,
+or pointer interaction temporarily gives the user ownership; skipped active
+changes do not snap back when that manual-scroll pause expires.
 Modern Session observation filters remain one URL-backed `FilterState`. The
 rail menu edits that state through presets, saved views, or a staged custom
 filter dialog. Row-level type-and-name exclusions are encoded as one hidden
