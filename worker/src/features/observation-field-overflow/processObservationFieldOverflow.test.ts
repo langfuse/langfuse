@@ -147,6 +147,10 @@ describe("applyObservationFieldOverflow", () => {
         Buffer.byteLength(mediaReference("output-media")) -
         Buffer.byteLength(mediaReference("metadata-media")),
     });
+    expect(mocks.recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.observation_field_overflow.processing_duration_ms",
+      expect.any(Number),
+    );
   });
 
   it("applies the limit to each metadata value rather than their aggregate size", async () => {
@@ -323,6 +327,10 @@ describe("applyObservationFieldOverflow", () => {
     outputUpload.resolve({ mediaId: "output-media", outcome: "uploaded" });
 
     await expect(resultPromise).resolves.toBe(eventRecord);
+    expect(mocks.recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.observation_field_overflow.processing_duration_ms",
+      expect.any(Number),
+    );
     expect(mocks.logger.warn).toHaveBeenCalledWith(
       "Observation field overflow processing failed; persisting original record",
       {
