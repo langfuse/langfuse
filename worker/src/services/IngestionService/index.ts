@@ -1324,7 +1324,21 @@ export class IngestionService {
               // detectable by users, unlike a 0 or a bytes-based estimate.
               logger.warn(
                 `Async tokenization failed for observation ${observationRecord.id} in project ${observationRecord.project_id}. Skipping token counts.`,
-                error,
+                {
+                  projectId: observationRecord.project_id,
+                  observationId: observationRecord.id,
+                  modelId: model.id,
+                  tokenizerId: model.tokenizerId,
+                  inputBytes:
+                    typeof observationRecord.input === "string"
+                      ? observationRecord.input.length
+                      : undefined,
+                  outputBytes:
+                    typeof observationRecord.output === "string"
+                      ? observationRecord.output.length
+                      : undefined,
+                  error,
+                },
               );
               span.setAttribute("langfuse.tokenization.skipped", true);
               recordIncrement("langfuse.tokenisation.skipped", 1);

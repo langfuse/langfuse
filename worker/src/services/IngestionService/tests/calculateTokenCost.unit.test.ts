@@ -1421,6 +1421,7 @@ describe("Token Cost Calculation", () => {
     });
 
     it("should skip token counts instead of falling back to synchronous tokenization when async tokenization times out", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
       tokenisationMocks.tokenCountAsyncOverride = () =>
         Promise.reject(
           new Error("Token count operation timed out after 30000ms"),
@@ -1451,6 +1452,21 @@ describe("Token Cost Calculation", () => {
 
       // The event loop must never run tokenization on the main thread
       expect(tokenisationMocks.syncTokenCountSpy).not.toHaveBeenCalled();
+
+      // Exactly one structured warn identifies the affected tenant and payload
+      const skipWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("Skipping token counts"),
+      );
+      expect(skipWarnings).toHaveLength(1);
+      expect(skipWarnings[0][1]).toMatchObject({
+        projectId,
+        observationId: generationId,
+        modelId: tokenModelData.id,
+        tokenizerId: "openai",
+        inputBytes: expect.any(Number),
+        outputBytes: expect.any(Number),
+        error: expect.any(Error),
+      });
 
       expect(mockAddToClickhouseWriter).toHaveBeenCalled();
       const [tableName, generation] = mockAddToClickhouseWriter.mock.calls[0];
