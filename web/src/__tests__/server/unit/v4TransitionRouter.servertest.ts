@@ -244,7 +244,7 @@ describe("v4TransitionRouter", () => {
         time: "2026-06-24T12:00:00Z",
         entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: "0.6666666666666666",
-        lastSeen: "2026-06-24T12:34:56.789Z",
+        lastSeen: "2026-06-24T12:34:56.789123Z",
       },
     ]);
   });
@@ -281,7 +281,7 @@ describe("v4TransitionRouter", () => {
       time: "2026-06-24T12:00:00Z",
       entrypoint: "publicapi: GET /api/public/traces/{id}",
       count: 0.6666666666666666,
-      lastSeen: "2026-06-24T12:34:56.789Z",
+      lastSeen: "2026-06-24T12:34:56.789123Z",
     });
     expect(rows[24]).toEqual({
       time: "2026-06-24T23:00:00Z",
@@ -305,7 +305,7 @@ describe("v4TransitionRouter", () => {
       "sum(1.0 / clickhouse_queries_per_api_call) AS count",
     );
     expect(clickhouseQuery?.query).toContain(
-      "formatDateTime(max(event_time_microseconds)",
+      "formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen",
     );
     expect(clickhouseQuery?.query).toContain(
       "SETTINGS skip_unavailable_shards = 1",

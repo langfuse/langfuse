@@ -1263,7 +1263,7 @@ SELECT
   formatDateTime(bucket_time, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time,
   concat('publicapi: ', legacy_route) AS entrypoint,
   sum(1.0 / clickhouse_queries_per_api_call) AS count,
-  formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen
+  formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen
 FROM classified
 WHERE legacy_route IS NOT NULL
   AND clickhouse_queries_per_api_call IS NOT NULL
