@@ -69,7 +69,7 @@ const GetDashboardWidgetInput = z.object({
 function validateMetricAggregations(params: {
   view: string;
   metrics: Array<{ measure: string; agg: string }>;
-  minVersion?: number;
+  persistedMinVersion?: number;
 }): void {
   const version: ViewVersion = (params.minVersion ?? 1) >= 2 ? "v2" : "v1";
   const viewDecl = getViewDeclaration(
@@ -127,7 +127,7 @@ function validateWidgetVersionAvailability(params: {
   };
   const effectiveMinVersion = resolveWidgetMinVersion({
     ...shape,
-    requestedMinVersion: params.minVersion,
+    persistedMinVersion: params.persistedMinVersion,
   });
 
   if (deploymentMinWidgetVersion() < 2 && effectiveMinVersion >= 2) {
@@ -245,7 +245,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
       );
       const effectiveMinVersion = validateWidgetVersionAvailability({
         ...input,
-        minVersion: input.minVersion ?? existingWidget?.minVersion,
+        persistedMinVersion: input.minVersion ?? existingWidget?.minVersion,
       });
 
       validateMetricAggregations({
@@ -310,7 +310,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
           dimensions: sourceWidget.dimensions,
           metrics: sourceWidget.metrics,
           filters: sourceWidget.filters,
-          minVersion: sourceWidget.minVersion,
+          persistedMinVersion: sourceWidget.minVersion,
         });
       }
 

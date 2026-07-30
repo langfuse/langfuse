@@ -341,7 +341,7 @@ export function deriveWidgetBaseMinVersion(
       measure: metric.measure,
     })) ?? [{ measure: initialValues.measure }],
     filters: initialValues.filters ?? [],
-    requestedMinVersion: initialValues.minVersion,
+    persistedMinVersion: initialValues.minVersion,
   });
 }
 
@@ -367,7 +367,7 @@ export function resolveWidgetViewVersion(params: {
     dimensions: params.shape?.dimensions ?? [],
     measures: params.shape?.measures ?? [],
     filters: params.shape?.filters ?? [],
-    requestedMinVersion: params.baseMinVersion,
+    persistedMinVersion: params.baseMinVersion,
   });
   if (minVersion >= 2) return "v2";
   if (params.view === "traces") return "v1";

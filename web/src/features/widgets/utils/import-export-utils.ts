@@ -488,7 +488,7 @@ export function parseImportedWidgetJson(params: {
       measure: metric.measure,
     })),
     filters: normalizedWidget.filters,
-    requestedMinVersion: normalizedWidget.minVersion,
+    persistedMinVersion: normalizedWidget.minVersion,
   });
   const widgetWithMinimumVersion =
     resolvedMinVersion > (normalizedWidget.minVersion ?? 1)

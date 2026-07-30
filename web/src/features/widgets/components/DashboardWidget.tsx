@@ -143,7 +143,7 @@ export function DashboardWidget({
     measures:
       widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
     filters: widget.data?.filters ?? [],
-    requestedMinVersion: widget.data?.minVersion,
+    persistedMinVersion: widget.data?.minVersion,
   });
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.

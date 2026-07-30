@@ -122,7 +122,7 @@ export function useWidgetQuery({
       dimensions: widgetConfig.dimensions,
       measures: widgetConfig.metrics.map((m) => ({ measure: m.measure })),
       filters: widgetConfig.filters,
-      requestedMinVersion: widgetConfig.minVersion,
+      persistedMinVersion: widgetConfig.minVersion,
     });
 
     // If widget requires v2 features (minVersion >= 2), must use v2.

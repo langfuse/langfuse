@@ -1523,15 +1523,23 @@ export type WidgetQueryShape = {
   filters?: { column: string }[];
 };
 
+/** Return the query version required by the widget shape itself. */
+export function requiredWidgetMinVersion(params: WidgetQueryShape): number {
+  return requiresV2(params) ? 2 : 1;
+}
+
 /**
- * Resolve the minimum query version required by a widget shape and an
- * optional persisted/requested lower bound. The requested version is never a
- * substitute for inspecting the shape: v2-only fields always promote it.
+ * Resolve the effective query version while preserving an explicitly persisted
+ * lower bound. A persisted v1 value can never downgrade a shape that requires
+ * v2; a persisted v2 value keeps a v1-compatible widget on v2.
  */
 export function resolveWidgetMinVersion(
-  params: WidgetQueryShape & { requestedMinVersion?: number },
+  params: WidgetQueryShape & { persistedMinVersion?: number },
 ): number {
-  return Math.max(params.requestedMinVersion ?? 1, requiresV2(params) ? 2 : 1);
+  return Math.max(
+    params.persistedMinVersion ?? 1,
+    requiredWidgetMinVersion(params),
+  );
 }
 
 /**

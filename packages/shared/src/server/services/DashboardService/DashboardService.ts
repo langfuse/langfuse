@@ -302,7 +302,7 @@ export class DashboardService {
       dimensions: input.dimensions,
       measures: input.metrics,
       filters: input.filters,
-      requestedMinVersion: input.minVersion,
+      persistedMinVersion: input.minVersion,
     });
     const newWidget = await prisma.dashboardWidget.create({
       data: {
@@ -369,7 +369,7 @@ export class DashboardService {
       dimensions: input.dimensions,
       measures: input.metrics,
       filters: input.filters,
-      requestedMinVersion: input.minVersion ?? existingWidget?.minVersion,
+      persistedMinVersion: input.minVersion ?? existingWidget?.minVersion,
     });
     const updatedWidget = await prisma.dashboardWidget.update({
       where: {
@@ -486,7 +486,7 @@ export class DashboardService {
             dimensions: sourceWidgetDomain.dimensions,
             measures: sourceWidgetDomain.metrics,
             filters: sourceWidgetDomain.filters,
-            requestedMinVersion: sourceWidgetDomain.minVersion,
+            persistedMinVersion: sourceWidgetDomain.minVersion,
           }),
           projectId, // project owned
           createdBy: userId,
