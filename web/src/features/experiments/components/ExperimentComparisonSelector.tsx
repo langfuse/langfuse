@@ -78,6 +78,7 @@ export function ExperimentComparisonSelector({
             : "Search experiments..."
         }
         disabled={isMaxReached}
+        singleLine
         getItemKey={(item) => item.experimentId}
         renderItem={(item, isSelected, onToggle) => (
           <button
@@ -123,12 +124,6 @@ export function ExperimentComparisonSelector({
           </Badge>
         )}
       />
-      {selectedIds.length > 0 && (
-        <p className="text-muted-foreground text-xs">
-          {selectedIds.length} of {MAX_EXPERIMENT_COMPARISONS} comparisons
-          selected
-        </p>
-      )}
     </div>
   );
 }

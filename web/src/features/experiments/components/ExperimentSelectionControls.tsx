@@ -34,8 +34,10 @@ export function ExperimentSelectionControls({
         />
       </div>
 
-      <div className="w-80 min-w-0">
-        <div className="text-muted-foreground mb-1 text-xs">Compare with</div>
+      <div className="w-56 min-w-0">
+        <div className="text-muted-foreground mb-1 text-xs">
+          Experiment selection
+        </div>
         <ExperimentComparisonSelector
           projectId={projectId}
           baselineExperimentId={baselineId}

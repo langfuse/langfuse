@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { Search, X, MoreHorizontal } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 
 interface MultiSelectComboboxProps<T> {
   selectedItems: T[];
@@ -23,6 +24,7 @@ interface MultiSelectComboboxProps<T> {
   onOpenChange?: (open: boolean) => void;
   showSelectedItemsInInput?: boolean;
   dropdownClassName?: string;
+  singleLine?: boolean;
 }
 
 export function MultiSelectCombobox<T>({
@@ -41,6 +43,7 @@ export function MultiSelectCombobox<T>({
   onOpenChange,
   showSelectedItemsInInput = true,
   dropdownClassName,
+  singleLine = false,
 }: MultiSelectComboboxProps<T>) {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -70,9 +73,13 @@ export function MultiSelectCombobox<T>({
   // Auto-scroll to input when items are added/removed
   useEffect(() => {
     if (inputRef.current && containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      if (singleLine) {
+        containerRef.current.scrollLeft = containerRef.current.scrollWidth;
+      } else {
+        containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      }
     }
-  }, [selectedItems.length]);
+  }, [selectedItems.length, singleLine]);
 
   // Update previous results when new data arrives (not loading)
   useEffect(() => {
@@ -136,14 +143,27 @@ export function MultiSelectCombobox<T>({
       <div className="relative">
         <div
           ref={containerRef}
-          className="border-input bg-background flex max-h-14 min-h-9 w-full overflow-y-auto rounded-md border text-xs"
+          className={cn(
+            "border-input bg-background flex min-h-9 w-full rounded-md border text-xs",
+            singleLine
+              ? "h-9 max-h-9 overflow-x-auto overflow-y-hidden"
+              : "max-h-14 overflow-y-auto",
+          )}
         >
           <Search className="text-muted-foreground absolute top-2.5 left-2 z-10 h-4 w-4" />
-          <div className="flex max-h-full flex-1 flex-wrap items-center gap-1 pl-8">
+          <div
+            className={cn(
+              "flex max-h-full flex-1 items-center gap-1 pl-8",
+              singleLine ? "flex-nowrap" : "flex-wrap",
+            )}
+          >
             {/* Selected Items Pills */}
             {showSelectedItemsInInput
               ? selectedItems.map((item) => (
-                  <div key={getItemKey(item)}>
+                  <div
+                    key={getItemKey(item)}
+                    className={cn(singleLine && "shrink-0")}
+                  >
                     {renderSelectedItem(item, () => handleItemRemove(item))}
                   </div>
                 ))
