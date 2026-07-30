@@ -168,10 +168,6 @@ export function ModernSessionObservationList(
     {},
   );
 
-  const totalSpanCount = useMemo(
-    () => traces.reduce((sum, trace) => sum + (trace.observationCount ?? 0), 0),
-    [traces],
-  );
   const idleGapSeconds = useMemo(
     () =>
       traces.map((trace, index) =>
@@ -204,9 +200,6 @@ export function ModernSessionObservationList(
         aria-busy="true"
         className="relative flex h-full min-h-0 flex-col"
       >
-        <div className="flex shrink-0 justify-end px-1 pt-4 pb-[7px]">
-          <div className="bg-muted h-2.5 w-24 animate-pulse rounded-sm" />
-        </div>
         <div className="flex shrink-0 items-center border-b px-1 pt-2.5 pb-3">
           <div className="bg-muted h-7 flex-1 animate-pulse rounded-sm" />
         </div>
@@ -244,14 +237,6 @@ export function ModernSessionObservationList(
       aria-label="Session spans"
       className="relative flex h-full min-h-0 flex-col"
     >
-      <div className="flex shrink-0 justify-end px-1 pt-4 pb-[7px]">
-        <span
-          className="text-foreground-tertiary font-mono text-[10px]"
-          title={`${traces.length} traces, ${totalSpanCount} spans`}
-        >
-          {traces.length} traces, {totalSpanCount} spans
-        </span>
-      </div>
       <div className="flex shrink-0 flex-wrap items-center gap-1 border-b px-1 pt-2.5 pb-3">
         <div className="relative min-w-0 flex-1">
           <Search
