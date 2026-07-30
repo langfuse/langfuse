@@ -30,6 +30,12 @@ import {
   type AgUiEvent,
   type AgUiMessage,
 } from "../schema";
+import {
+  createInAppAgentDisplayState,
+  projectInAppAgentMessagesForDisplay,
+  recordInAppAgentMessagesForDisplay,
+  recordInAppAgentToolCallForDisplay,
+} from "../display";
 import { assertConversationAccess } from "./access";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
@@ -509,8 +515,56 @@ export async function getConversationMessagesForDisplay(params: {
 export function getConversationMessagesForDisplayFromEvents(
   events: readonly PersistedConversationEvent[],
 ) {
-  const messages = getMessagesFromPersistedEvents(events);
-  return dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages));
+  const accumulator = createConversationMessageAccumulator([]);
+  let displayState = createInAppAgentDisplayState();
+  const deferredToolCallParents = new Map<string, string | undefined>();
+
+  for (const { event, runId } of events) {
+    if (event.type === EventType.TOOL_CALL_START) {
+      const toolCallId = getString(event, "toolCallId");
+      if (toolCallId) {
+        const parentMessageId = getString(event, "parentMessageId");
+        if (
+          parentMessageId &&
+          accumulator
+            .getMessages()
+            .some((message) => message.id === parentMessageId)
+        ) {
+          displayState = recordInAppAgentToolCallForDisplay(
+            displayState,
+            toolCallId,
+            parentMessageId,
+          );
+        } else {
+          deferredToolCallParents.set(toolCallId, parentMessageId);
+        }
+      }
+    }
+
+    if (accumulator.processEvent(event, runId)) {
+      displayState = recordInAppAgentMessagesForDisplay(
+        displayState,
+        accumulator.getMessages(),
+      );
+    }
+
+    if (event.type === EventType.TOOL_CALL_END) {
+      const toolCallId = getString(event, "toolCallId");
+      if (toolCallId && deferredToolCallParents.has(toolCallId)) {
+        displayState = recordInAppAgentToolCallForDisplay(
+          displayState,
+          toolCallId,
+          deferredToolCallParents.get(toolCallId),
+        );
+        deferredToolCallParents.delete(toolCallId);
+      }
+    }
+  }
+
+  const messages = dropEmptyAssistantMessages(
+    dropUnpairedAssistantToolCalls(accumulator.getMessages()),
+  );
+  return projectInAppAgentMessagesForDisplay(messages, displayState);
 }
 
 export async function getConversationMessagesForReplay(params: {
@@ -1120,6 +1174,12 @@ export function createConversationMessageAccumulator(
       if (draft) {
         draft.content += delta;
         draft.runId ??= runId;
+        return upsertMessage({
+          id: draft.id,
+          role: "assistant",
+          content: draft.content,
+          ...(draft.runId ? { runId: draft.runId } : {}),
+        });
       }
       return false;
     }

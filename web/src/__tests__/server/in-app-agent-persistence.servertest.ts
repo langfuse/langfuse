@@ -1000,6 +1000,116 @@ describe("in-app agent persistence", () => {
     ).resolves.toEqual(expectedReplayMessages);
   });
 
+  it("preserves reasoning order when hydrating an assistant message that continues afterward", async () => {
+    const { projectId, userId, caller } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events: [
+        {
+          type: EventType.RUN_STARTED,
+          threadId: conversation.id,
+          runId: run.id,
+          input: {
+            threadId: conversation.id,
+            runId: run.id,
+            state: null,
+            messages: [
+              {
+                id: "interleaved-user",
+                role: "user",
+                content: "Investigate this",
+              },
+            ],
+            tools: [],
+            context: [],
+            forwardedProps: {},
+          },
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CHUNK,
+          messageId: "interleaved-assistant",
+          role: "assistant",
+          delta: "Initial answer.",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_START,
+          messageId: "interleaved-reasoning",
+          role: "reasoning",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_CONTENT,
+          messageId: "interleaved-reasoning",
+          delta: "A later thought.",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: "interleaved-reasoning",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CHUNK,
+          messageId: "interleaved-assistant",
+          role: "assistant",
+          delta: " Final answer.",
+        },
+      ],
+    });
+
+    await expect(
+      caller.getConversation({ projectId, conversationId: conversation.id }),
+    ).resolves.toMatchObject({
+      messages: [
+        {
+          id: "interleaved-user",
+          role: "user",
+          content: "Investigate this",
+        },
+        {
+          id: "interleaved-assistant",
+          role: "assistant",
+          content: "Initial answer.",
+        },
+        {
+          id: "interleaved-reasoning",
+          role: "reasoning",
+          content: "A later thought.",
+        },
+        {
+          id: "display-text-interleaved-assistant-1",
+          role: "assistant",
+          content: " Final answer.",
+        },
+      ],
+    });
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual([
+      {
+        id: "interleaved-user",
+        role: "user",
+        content: "Investigate this",
+      },
+      {
+        id: "interleaved-assistant",
+        role: "assistant",
+        content: "Initial answer. Final answer.",
+      },
+    ]);
+  });
+
   it("stores only compact events and skips raw adapter payloads", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
