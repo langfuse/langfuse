@@ -201,6 +201,12 @@ jobs:
           DOCKERFILE: ${{ matrix.dockerfile }}
           # Static, workflow-defined literal (per-target flags) — no user input.
           EXTRA_BUILD_ARGS: ${{ matrix.extra_build_args }}
+          TARGET: ${{ matrix.target }}
+          # PR metadata for the preview strip the web app renders (a link back
+          # to the PR + its author). Passed via env, never interpolated into
+          # the script body.
+          PR_HTML_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
 
@@ -231,12 +237,28 @@ jobs:
           fi
 
           echo "${IMAGE} not found — building and pushing."
+
+          # Bake PR metadata into the web client bundle so previews render a
+          # top-of-page strip linking back to the PR (NEXT_PUBLIC_* is inlined
+          # at build time; the worker has no client bundle). The timestamp is
+          # the build time of this head commit, i.e. when the preview content
+          # last changed.
+          preview_meta_args=()
+          if [ "${TARGET}" = "web" ]; then
+            preview_meta_args+=(
+              --build-arg "NEXT_PUBLIC_PREVIEW_PR_URL=${PR_HTML_URL}"
+              --build-arg "NEXT_PUBLIC_PREVIEW_PR_AUTHOR=${PR_AUTHOR}"
+              --build-arg "NEXT_PUBLIC_PREVIEW_LAST_UPDATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            )
+          fi
+
           # EXTRA_BUILD_ARGS is a trusted workflow literal and must word-split
           # into separate flags, so it is intentionally left unquoted.
           # shellcheck disable=SC2086
           docker build \
             --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
             ${EXTRA_BUILD_ARGS} \
+            "${preview_meta_args[@]}" \
             -f "${DOCKERFILE}" \
             -t "${IMAGE}" \
             .
