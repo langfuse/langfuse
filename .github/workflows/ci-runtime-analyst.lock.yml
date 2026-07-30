@@ -45,7 +45,7 @@
 #   - actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (source v9)
 #   - actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
 #   - actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-#   - docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 650006c6eb7dba73a995cc03b0b2d7f5ca915bee
+#   - docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # 650006c6eb7dba73a995cc03b0b2d7f5ca915bee
 #   - github/gh-aw-actions/setup@f3ca20900e2363607992fb61b46fc687d4b56ba3 # v0.84.0
 #   - pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
 #
@@ -558,7 +558,7 @@ jobs:
           version: 11.10.0
       - continue-on-error: true
         name: Login to Docker Hub (avoids anonymous pull rate limits; mirrors pipeline.yml)
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # 650006c6eb7dba73a995cc03b0b2d7f5ca915bee
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # 650006c6eb7dba73a995cc03b0b2d7f5ca915bee
         with:
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
