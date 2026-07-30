@@ -586,7 +586,7 @@ export function V4MigrationDetailsContent({
                   {migrationData.apiUsage.map((usage) => (
                     <div
                       key={usage.endpoint}
-                      className="flex items-center justify-between gap-2 py-0.5"
+                      className="flex flex-wrap items-baseline justify-between gap-x-2 py-0.5"
                     >
                       <ExternalLink
                         href={DEPRECATED_API_MIGRATION_URL}
@@ -594,8 +594,12 @@ export function V4MigrationDetailsContent({
                       >
                         {usage.endpoint}
                       </ExternalLink>
-                      <span className="text-muted-foreground text-xs whitespace-nowrap">
-                        {numberFormatter(usage.count, 0, 2)} calls
+                      <span
+                        className="text-muted-foreground text-xs whitespace-nowrap"
+                        title={`Last seen at ${usage.lastSeen}`}
+                      >
+                        {numberFormatter(usage.count, 0, 2)} calls · last seen{" "}
+                        {formatCompactRelativeTime(new Date(usage.lastSeen))}
                       </span>
                     </div>
                   ))}
