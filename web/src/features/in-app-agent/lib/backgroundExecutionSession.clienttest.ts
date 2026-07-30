@@ -30,6 +30,70 @@ const runningView = {
   pendingToolApprovals: [],
 } satisfies Omit<BackgroundExecutionView, "attachment" | "liveMessageRevision">;
 
+const userMessage = {
+  id: "user-message",
+  role: "user",
+  content: "Add a cost widget to this dashboard",
+} satisfies AgUiMessage;
+
+const explanationMessage = {
+  id: "assistant-explanation",
+  role: "assistant",
+  content: "I will create the widget and then add it to the dashboard.",
+} satisfies AgUiMessage;
+
+const createWidgetMessage = {
+  id: "create-widget-call",
+  role: "assistant",
+  content: "",
+  toolCalls: [
+    {
+      id: "create-widget",
+      type: "function",
+      function: {
+        name: "langfuse_createDashboardWidget",
+        arguments: '{"name":"Cost by Model"}',
+      },
+    },
+  ],
+} satisfies AgUiMessage;
+
+const createWidgetResult = {
+  id: "create-widget-result",
+  role: "tool",
+  toolCallId: "create-widget",
+  content: '{"id":"widget-1"}',
+} satisfies AgUiMessage;
+
+const addPlacementMessage = {
+  id: "add-placement-call",
+  role: "assistant",
+  content: "",
+  toolCalls: [
+    {
+      id: "add-placement",
+      type: "function",
+      function: {
+        name: "langfuse_addDashboardPlacement",
+        arguments: '{"widgetId":"widget-1"}',
+      },
+    },
+  ],
+} satisfies AgUiMessage;
+
+const addPlacementResult = {
+  id: "add-placement-result",
+  role: "tool",
+  toolCallId: "add-placement",
+  content: '{"id":"placement-1"}',
+} satisfies AgUiMessage;
+
+const finalMessage = {
+  id: "assistant-final",
+  role: "assistant",
+  content: "Done. I created and placed the Cost by Model widget.",
+} satisfies AgUiMessage;
+
 function createAgent() {
   return {
     messages: [],
@@ -253,8 +317,9 @@ describe("BackgroundExecutionSessionController", () => {
       ...createAgent(),
       setMessages: vi.fn(() => order.push("messages")),
       setCursor: vi.fn(() => order.push("cursor")),
-      connectAgent: vi.fn(async () => {
+      connectAgent: vi.fn(() => {
         order.push("attach");
+        return new Promise<unknown>(() => undefined);
       }),
     };
     const session = new BackgroundExecutionSessionController({
@@ -327,6 +392,141 @@ describe("BackgroundExecutionSessionController", () => {
       "cursor",
       "attach",
     ]);
+  });
+
+  it("converges sequential approval continuations to the persisted transcript", async () => {
+    let subscriber: AgentSubscriber | undefined;
+    let resolveCreateRun: () => void = () => undefined;
+    let resolvePlacementRun: () => void = () => undefined;
+    const createRun = new Promise<void>((resolve) => {
+      resolveCreateRun = resolve;
+    });
+    const placementRun = new Promise<void>((resolve) => {
+      resolvePlacementRun = resolve;
+    });
+    const messagesBeforeApproval = [userMessage, explanationMessage];
+    const messagesAfterCreate = [
+      ...messagesBeforeApproval,
+      createWidgetMessage,
+      createWidgetResult,
+    ];
+    const finalPersistedMessages = [
+      ...messagesAfterCreate,
+      addPlacementMessage,
+      addPlacementResult,
+      finalMessage,
+    ];
+    let phase:
+      | "before-create"
+      | "creating"
+      | "awaiting-placement"
+      | "placing"
+      | "complete" = "before-create";
+    const hydrate = vi.fn(async () => {
+      if (phase === "creating") {
+        return {
+          ...runningView,
+          messages: messagesBeforeApproval,
+          currentRun: { ...runningView.currentRun, id: "create-run" },
+        };
+      }
+
+      if (phase === "awaiting-placement") {
+        return {
+          ...runningView,
+          messages: messagesAfterCreate,
+          currentRun: {
+            ...runningView.currentRun,
+            id: "create-run",
+            status: InAppAgentRunStatus.AWAITING_APPROVAL,
+          },
+        };
+      }
+
+      if (phase === "placing") {
+        return {
+          ...runningView,
+          messages: messagesAfterCreate,
+          currentRun: { ...runningView.currentRun, id: "placement-run" },
+        };
+      }
+
+      return {
+        ...runningView,
+        messages: finalPersistedMessages,
+        currentRun: {
+          ...runningView.currentRun,
+          id: "placement-run",
+          status: InAppAgentRunStatus.SUCCEEDED,
+        },
+      };
+    });
+    const agent = {
+      ...createAgent(),
+      subscribe: vi.fn((nextSubscriber: AgentSubscriber) => {
+        subscriber = nextSubscriber;
+        return { unsubscribe: vi.fn() };
+      }),
+      connectAgent: vi
+        .fn()
+        .mockImplementationOnce(() => createRun)
+        .mockImplementationOnce(() => placementRun),
+    };
+    const session = new BackgroundExecutionSessionController({
+      agent,
+      hydrate,
+      cancelRun: vi.fn(),
+      decideApproval: vi.fn(async ({ toolCallId }) => {
+        phase = toolCallId === "create-widget" ? "creating" : "placing";
+      }),
+      initialView: {
+        messages: messagesBeforeApproval,
+        currentRun: {
+          ...runningView.currentRun,
+          id: "approval-run",
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        },
+      },
+    });
+
+    await session.decide({
+      runId: "approval-run",
+      toolCallId: "create-widget",
+      approved: true,
+    });
+    await subscriber?.onMessagesChanged?.({
+      messages: messagesAfterCreate,
+    } as never);
+    phase = "awaiting-placement";
+    resolveCreateRun();
+    await vi.waitFor(() => {
+      expect(session.getSnapshot().attachment.status).toBe("detached");
+    });
+    expect(session.getSnapshot().messages).toEqual(messagesAfterCreate);
+    expect(hydrate).toHaveBeenCalledTimes(2);
+
+    await session.decide({
+      runId: "create-run",
+      toolCallId: "add-placement",
+      approved: true,
+    });
+    await subscriber?.onMessagesChanged?.({
+      // Reproduce the live-only loss of the previously completed create call.
+      messages: [
+        ...messagesBeforeApproval,
+        addPlacementMessage,
+        addPlacementResult,
+        finalMessage,
+      ],
+    } as never);
+    phase = "complete";
+    resolvePlacementRun();
+    await vi.waitFor(() => {
+      expect(session.getSnapshot().attachment.status).toBe("detached");
+    });
+
+    expect(session.getSnapshot().messages).toEqual(finalPersistedMessages);
+    expect(hydrate).toHaveBeenCalledTimes(4);
   });
 
   it("keeps the server run active and can retry when observation fails", async () => {

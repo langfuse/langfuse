@@ -178,26 +178,12 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.setView({ ...this.view, attachment: { status: "attaching" } });
 
     try {
-      const hydrated = await this.hydrate();
-
-      if (generation !== this.attachGeneration) {
+      const replaced = await this.replaceWithHydratedSnapshot(generation);
+      if (!replaced) {
         return;
       }
 
-      this.isReplacingMessages = true;
-      try {
-        this.agent.setMessages(hydrated.messages);
-      } finally {
-        this.isReplacingMessages = false;
-      }
-      this.agent.setCursor(hydrated.eventCursor);
-      this.setView({
-        ...hydrated,
-        liveMessageRevision: this.view.liveMessageRevision,
-        attachment: { status: "detached" },
-      });
-
-      if (!isExecutingRun(hydrated.currentRun)) {
+      if (!isExecutingRun(this.view.currentRun)) {
         return;
       }
 
@@ -227,12 +213,10 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       currentRun: null,
       attachment: { status: "attached" },
     });
-    let failed = false;
 
     try {
       await this.agent.runAgent(input);
     } catch (error) {
-      failed = true;
       if (generation !== this.attachGeneration) {
         return;
       }
@@ -246,18 +230,11 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
         });
       }
       this.onError?.(error);
+      this.onSettled?.();
       throw error;
-    } finally {
-      if (generation === this.attachGeneration) {
-        if (!failed) {
-          this.setView({
-            ...this.view,
-            attachment: { status: "detached" },
-          });
-        }
-        this.onSettled?.();
-      }
     }
+
+    await this.convergeAfterExecution(generation);
   }
 
   async cancel(): Promise<void> {
@@ -342,17 +319,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     generation: number,
   ): void {
     execution.then(
-      () => {
-        if (generation !== this.attachGeneration) {
-          return;
-        }
-
-        this.setView({
-          ...this.view,
-          attachment: { status: "detached" },
-        });
-        this.onSettled?.();
-      },
+      () => this.convergeAfterExecution(generation),
       (error: unknown) => {
         if (generation !== this.attachGeneration) {
           return;
@@ -362,6 +329,59 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
         this.onError?.(error);
       },
     );
+  }
+
+  private async convergeAfterExecution(generation: number): Promise<void> {
+    if (generation !== this.attachGeneration) {
+      return;
+    }
+
+    try {
+      await this.replaceWithHydratedSnapshot(generation);
+    } catch (error) {
+      if (generation !== this.attachGeneration) {
+        return;
+      }
+
+      const connectionError =
+        error instanceof BackgroundExecutionConnectionError
+          ? error
+          : new BackgroundExecutionConnectionError(
+              "Failed to refresh the completed assistant transcript",
+              { retryable: true, cause: error },
+            );
+      this.setAttachmentError(connectionError);
+      this.onError?.(connectionError);
+    } finally {
+      if (generation === this.attachGeneration) {
+        this.onSettled?.();
+      }
+    }
+  }
+
+  private async replaceWithHydratedSnapshot(
+    generation: number,
+  ): Promise<boolean> {
+    const hydrated = await this.hydrate();
+
+    if (generation !== this.attachGeneration) {
+      return false;
+    }
+
+    this.isReplacingMessages = true;
+    try {
+      this.agent.setMessages(hydrated.messages);
+    } finally {
+      this.isReplacingMessages = false;
+    }
+    this.agent.setCursor(hydrated.eventCursor);
+    this.setView({
+      ...hydrated,
+      liveMessageRevision: this.view.liveMessageRevision,
+      attachment: { status: "detached" },
+    });
+
+    return true;
   }
 
   private setAttachmentError(error: unknown): void {
