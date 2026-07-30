@@ -39,6 +39,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { FilterToken } from "@/src/features/filters/components/FilterToken";
 import {
   type WipFilterState,
   type WipFilterCondition,
@@ -334,36 +335,53 @@ export function InlineFilterState({
   className?: string;
 }) {
   return filterState.map((filter, i) => {
+    const column = `${filter.column}${
+      filter.type === "stringObject" ||
+      filter.type === "numberObject" ||
+      filter.type === "booleanObject"
+        ? `.${filter.key}`
+        : ""
+    }`;
+    const value =
+      filter.type === "positionInTrace"
+        ? formatSessionPositionInTraceFilterValue(filter)
+        : filter.type === "datetime"
+          ? new Date(filter.value).toLocaleString()
+          : filter.type === "stringOptions" || filter.type === "arrayOptions"
+            ? filter.value.length > 2
+              ? `${filter.value.length} selected`
+              : filter.value.join(", ")
+            : filter.type === "number" || filter.type === "numberObject"
+              ? filter.value
+              : filter.type === "boolean" || filter.type === "booleanObject"
+                ? `${filter.value}`
+                : filter.type === "null"
+                  ? ""
+                  : `"${filter.value}"`;
+    const numericValue =
+      value !== "" && /^-?\d+(\.\d+)?$/.test(String(value).trim());
+
     return (
       <span
         key={i}
-        className={cn(
-          "bg-input ml-2 rounded-md px-2 py-1 text-xs whitespace-nowrap",
-          className,
-        )}
+        className={cn("ml-2 inline-block text-xs whitespace-nowrap", className)}
       >
-        {filter.column}
-        {filter.type === "stringObject" ||
-        filter.type === "numberObject" ||
-        filter.type === "booleanObject"
-          ? `.${filter.key}`
-          : ""}{" "}
-        {filter.operator}{" "}
-        {filter.type === "positionInTrace"
-          ? formatSessionPositionInTraceFilterValue(filter)
-          : filter.type === "datetime"
-            ? new Date(filter.value).toLocaleString()
-            : filter.type === "stringOptions" || filter.type === "arrayOptions"
-              ? filter.value.length > 2
-                ? `${filter.value.length} selected`
-                : filter.value.join(", ")
-              : filter.type === "number" || filter.type === "numberObject"
-                ? filter.value
-                : filter.type === "boolean" || filter.type === "booleanObject"
-                  ? `${filter.value}`
-                  : filter.type === "null"
-                    ? ""
-                    : `"${filter.value}"`}
+        <FilterToken deactivated={false} title={undefined}>
+          <span className="text-qlang-field">{column}</span>{" "}
+          <span className="text-muted-foreground">{filter.operator}</span>
+          {value !== "" ? (
+            <>
+              {" "}
+              <span
+                className={
+                  numericValue ? "text-qlang-number" : "text-qlang-value"
+                }
+              >
+                {value}
+              </span>
+            </>
+          ) : null}
+        </FilterToken>
       </span>
     );
   });

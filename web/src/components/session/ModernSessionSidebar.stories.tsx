@@ -8,6 +8,7 @@ import {
   type ObservationListRowsRenderer,
 } from "@/src/components/session/ObservationListRows";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import { type FilterState } from "@langfuse/shared";
 
 const traces = [
   {
@@ -110,12 +111,29 @@ const renderObservationRows: ObservationListRowsRenderer = ({
   );
 };
 
+const activeFilters = [
+  {
+    column: "type",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["GENERATION", "SPAN"],
+  },
+  {
+    column: "environment",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["production"],
+  },
+] satisfies FilterState;
+
 const loadedArgs = {
   state: "loaded",
   traces,
   activeTraceId: "turn-2",
   filterControls: {
     activeFilterCount: 0,
+    activeFilters: [],
+    activeExclusions: [],
     activeViewName: undefined,
     selectedViewId: null,
     matchingSystemPresetId: undefined,
@@ -154,6 +172,7 @@ export const ActiveFilters = meta.story({
     filterControls: {
       ...loadedArgs.filterControls,
       activeFilterCount: 2,
+      activeFilters,
     },
   },
 });
@@ -164,6 +183,7 @@ export const ActiveView = meta.story({
     filterControls: {
       ...loadedArgs.filterControls,
       activeFilterCount: 2,
+      activeFilters,
       activeViewName: "All observations with I/O",
       selectedViewId: "__langfuse_with_io__",
       matchingSystemPresetId: "__langfuse_with_io__",

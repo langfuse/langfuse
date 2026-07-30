@@ -5,15 +5,18 @@ import {
   ChevronDown,
   Filter,
   ListFilter,
+  Pencil,
   Save,
   Search,
   Settings2,
+  X,
 } from "lucide-react";
-import { type TableViewPresetState } from "@langfuse/shared";
+import { type FilterState, type TableViewPresetState } from "@langfuse/shared";
 
 import { type ObservationListRowsRenderer } from "@/src/components/session/ObservationListRows";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import { type ModernSessionObservationIdentity } from "@/src/components/session/modernSessionObservationFilters";
 import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   SESSION_DETAIL_VIEW_TRIGGER_ID,
@@ -36,6 +39,15 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { FilterToken } from "@/src/features/filters/components/FilterToken";
+import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 
 const OBSERVATION_LIST_OVERSCAN = 5;
@@ -43,6 +55,8 @@ const EMPTY_TRACES: EventSessionTrace[] = [];
 
 export type ModernSessionSidebarFilterControls = {
   activeFilterCount: number;
+  activeFilters: FilterState;
+  activeExclusions: ModernSessionObservationIdentity[];
   activeViewName: string | undefined;
   selectedViewId: string | null;
   matchingSystemPresetId: string | undefined;
@@ -220,6 +234,17 @@ export function ModernSessionSidebar(
     filterControls.activeViewName ||
     filterControls.selectedViewId,
   );
+  const filterSummaryLabel = filterControls.activeViewName
+    ? `View: ${filterControls.activeViewName}`
+    : `${filterControls.activeFilterCount} active filters`;
+  const activeFilterQuery = filterStateToQueryText(
+    filterControls.activeFilters,
+  );
+  const hasFilterRepresentation = Boolean(
+    activeFilterQuery.text ||
+    activeFilterQuery.skippedFilters.length > 0 ||
+    filterControls.activeExclusions.length > 0,
+  );
 
   return (
     <div
@@ -253,11 +278,6 @@ export function ModernSessionSidebar(
                 aria-label="Filter observations"
               >
                 <ListFilter className="h-3.5 w-3.5" />
-                {filterControls.activeFilterCount > 0 ? (
-                  <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 font-mono text-[9px]">
-                    {filterControls.activeFilterCount}
-                  </span>
-                ) : null}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
@@ -324,44 +344,106 @@ export function ModernSessionSidebar(
         </div>
         {showFilterSummary ? (
           <div className="border-t px-2 py-2.5">
-            <div className="border-border/80 bg-muted/30 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-2.5 py-2">
-              <div className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5">
-                <Filter className="h-3 w-3 shrink-0" />
-                <span
-                  className="min-w-0 truncate font-mono text-[10px]"
-                  title={
-                    filterControls.activeViewName ??
-                    `${filterControls.activeFilterCount} active filters`
-                  }
-                >
-                  {filterControls.activeViewName ??
-                    `${filterControls.activeFilterCount} active filters`}
-                </span>
-              </div>
-              <div className="text-muted-foreground ml-auto flex shrink-0 items-center gap-2 font-mono text-[10px]">
-                {!filterControls.activeViewName ? (
-                  <button
-                    type="button"
-                    className="hover:text-foreground"
-                    onClick={filterControls.onOpenFilterDialog}
+            <div className="border-border/80 bg-muted/30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 rounded-md border py-2 pr-1 pl-2.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className="text-muted-foreground min-w-0 overflow-hidden font-mono text-[10px] text-ellipsis whitespace-nowrap"
+                    tabIndex={0}
                   >
-                    Save as view
-                  </button>
+                    {filterSummaryLabel}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-80 p-2">
+                  {hasFilterRepresentation ? (
+                    <div className="flex flex-wrap gap-1">
+                      {activeFilterQuery.text ? (
+                        <span className="min-w-0 font-mono text-xs leading-6">
+                          <ComposerTokens
+                            draft={activeFilterQuery.text}
+                            showDiagnostics={false}
+                          />
+                        </span>
+                      ) : null}
+                      <InlineFilterState
+                        filterState={activeFilterQuery.skippedFilters}
+                        className="m-0"
+                      />
+                      {filterControls.activeExclusions.map((exclusion) => (
+                        <span
+                          key={`${exclusion.type}:${exclusion.name}`}
+                          className="text-xs whitespace-nowrap"
+                        >
+                          <FilterToken deactivated={false} title={undefined}>
+                            <span className="text-muted-foreground">
+                              Exclude{" "}
+                            </span>
+                            <span className="text-qlang-field">
+                              {exclusion.type}
+                            </span>
+                            <span className="text-muted-foreground">: </span>
+                            <span className="text-qlang-value">
+                              {exclusion.name}
+                            </span>
+                          </FilterToken>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">
+                      No filters
+                    </span>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+              <div className="flex shrink-0 items-center">
+                {!filterControls.activeViewName ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="text-muted-foreground hover:text-foreground h-5 w-5"
+                        aria-label="Save filters as view"
+                        onClick={filterControls.onOpenFilterDialog}
+                      >
+                        <Save className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Save as view</TooltipContent>
+                  </Tooltip>
                 ) : null}
-                <button
-                  type="button"
-                  className="hover:text-foreground"
-                  onClick={filterControls.onOpenFilterDialog}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  className="hover:text-foreground"
-                  onClick={filterControls.onClearFilters}
-                >
-                  Clear
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-muted-foreground hover:text-foreground h-5 w-5"
+                      aria-label="Edit filters"
+                      onClick={filterControls.onOpenFilterDialog}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit filters</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-muted-foreground hover:text-foreground h-5 w-5"
+                      aria-label="Clear filters"
+                      onClick={filterControls.onClearFilters}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Clear filters</TooltipContent>
+                </Tooltip>
               </div>
             </div>
           </div>

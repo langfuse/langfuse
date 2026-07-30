@@ -246,6 +246,8 @@ export function ModernSessionFilterControls({
     <>
       {children({
         activeFilterCount,
+        activeFilters: regularFilters,
+        activeExclusions: exclusions,
         activeViewName,
         selectedViewId: viewControllers.selectedViewId,
         matchingSystemPresetId: matchingSystemPreset?.id,
