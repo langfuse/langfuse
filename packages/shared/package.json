@@ -113,7 +113,7 @@
     "@ag-ui/client": "^0.0.52",
     "@ag-ui/core": "^0.0.52",
     "@ag-ui/mastra": "1.1.1",
-    "@ai-sdk/amazon-bedrock": "^5.0.24",
+    "@ai-sdk/amazon-bedrock": "^5.0.25",
     "@ai-sdk/anthropic": "^4.0.5",
     "@ai-sdk/azure": "^4.0.5",
     "@ai-sdk/google": "^4.0.6",
