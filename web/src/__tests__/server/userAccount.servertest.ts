@@ -41,6 +41,29 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
   });
 
+  it("enables the V4 migration UI preview, leaving other flags intact", async () => {
+    const { caller, userId } = await createCaller({
+      featureFlags: ["templateFlag"],
+    });
+
+    const result = await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "v4UpgradeUi",
+      enabled: true,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      flag: "v4UpgradeUi",
+      enabled: true,
+    });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { featureFlags: true },
+    });
+    expect(user.featureFlags).toEqual(["templateFlag", "v4UpgradeUi"]);
+  });
+
   it("disables a preview flag without touching the others", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag", "modernSession"],
@@ -153,6 +176,7 @@ async function createCaller({
         modernSession: featureFlags.includes("modernSession"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
+        v4UpgradeUi: featureFlags.includes("v4UpgradeUi"),
         excludeClickhouseRead: false,
         observationEvals: false,
         v4BetaToggleVisible: false,

@@ -55,6 +55,7 @@ import {
   buildTraceUrl,
 } from "@langfuse/shared/src/server";
 import { ScoreConfigDataType } from "@langfuse/shared";
+import { viewDeclarations } from "@langfuse/shared/query";
 import { MonitorService } from "@langfuse/shared/monitors/server";
 import {
   createMcpTestSetup,
@@ -731,6 +732,8 @@ describe("MCP Read Tools", () => {
             default: boolean;
             expensive: boolean;
             sensitive: boolean;
+            requiresScope?: boolean;
+            scopeRequirement?: string;
             description?: string;
           }
         >;
@@ -761,7 +764,13 @@ describe("MCP Read Tools", () => {
       expect(result.fields.costDetails.type).toBe("map<string, number>");
       expect(result.fields.input.expensive).toBe(true);
       expect(result.fields.input.sensitive).toBe(true);
+      expect(result.fields.input.requiresScope).toBe(true);
+      expect(result.fields.input.scopeRequirement).toMatch(
+        /traceId.*id filter.*fromStartTime.*toStartTime/i,
+      );
+      expect(result.fields.output.requiresScope).toBe(true);
       expect(result.fields.metadata.expensive).toBe(true);
+      expect(result.fields.metadata.requiresScope).toBe(true);
       expect(result.fields.metadata.description).toContain(
         "truncated to 200 UTF-8 characters per key",
       );
@@ -1958,8 +1967,35 @@ describe("MCP Read Tools", () => {
         },
         views: {
           observations: {
+            filterableColumns: expect.arrayContaining([
+              {
+                column: "tags",
+                filterType: "arrayOptions",
+                operators: ["any of", "none of", "all of"],
+              },
+              {
+                column: "metadata",
+                filterType: "stringObject",
+                operators: [
+                  "=",
+                  "contains",
+                  "does not contain",
+                  "starts with",
+                  "ends with",
+                ],
+                requiresKey: true,
+              },
+            ]),
+            orderByFields: expect.arrayContaining([
+              "sum_totalCost",
+              "traceId",
+              "time_dimension",
+            ]),
             dimensions: {
-              traceId: { highCardinality: true },
+              traceId: {
+                highCardinality: true,
+                constraints: expect.any(String),
+              },
             },
             measures: {
               count: {
@@ -1979,8 +2015,31 @@ describe("MCP Read Tools", () => {
           },
         },
       });
+      expect(views.observations.orderByFields).not.toContain(
+        "histogram_totalCost",
+      );
       expect(views["scores-boolean"].dimensions.value).toBeUndefined();
       expect(Reflect.get(Object(views), "traces")).toBeUndefined();
+
+      for (const viewName of Object.keys(views) as Array<
+        keyof (typeof viewDeclarations)["v2"]
+      >) {
+        const declaredDimensions = viewDeclarations.v2[viewName].dimensions;
+        const expectedFilterableDimensions = Object.entries(declaredDimensions)
+          .filter(
+            ([, definition]) =>
+              definition.type !== undefined && !definition.pairExpand,
+          )
+          .map(([name]) => name);
+        const discoveredDimensions = views[viewName].filterableColumns
+          .map((column: { column: string }) => column.column)
+          .filter((column: string) => column in declaredDimensions);
+
+        expect(
+          discoveredDimensions.sort(),
+          `${viewName} MCP filter metadata must match filterable dimensions`,
+        ).toEqual(expectedFilterableDimensions.sort());
+      }
     });
 
     it("should return one requested metrics view", async () => {
