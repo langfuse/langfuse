@@ -21,6 +21,7 @@ export function getCodeEvalCapabilities(): CodeEvalCapabilities {
 
   switch (env.LANGFUSE_CODE_EVAL_DISPATCHER) {
     case "aws-lambda":
+    case "external":
       return {
         enabled: true,
         supportedSourceCodeLanguages: ALL_CODE_EVAL_SOURCE_LANGUAGES,

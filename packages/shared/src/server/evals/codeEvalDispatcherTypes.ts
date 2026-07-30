@@ -150,6 +150,7 @@ export const CodeEvalDispatcherErrorCode = z.enum([
   "TIMEOUT",
   "UNSUPPORTED_RUNTIME",
   "USER_CODE_ERROR",
+  "EXTERNAL_INVOCATION_ERROR",
   "LAMBDA_CONCURRENCY_LIMIT",
   "LAMBDA_CONFIGURATION_ERROR",
   "LAMBDA_INVOCATION_ERROR",
@@ -181,7 +182,10 @@ export class CodeEvalDispatcherError extends Error {
   }
 }
 
-export type CodeEvalDispatcherName = "insecure-local" | "aws-lambda";
+export type CodeEvalDispatcherName =
+  | "insecure-local"
+  | "aws-lambda"
+  | "external";
 
 export function assertDispatchInputWithinLimits(input: DispatchInput): string {
   const sourceBytes = Buffer.byteLength(input.code.source, "utf8");
