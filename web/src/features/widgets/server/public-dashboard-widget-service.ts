@@ -11,6 +11,7 @@ import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
+  resolveWidgetMinVersion,
   type views,
   type ViewVersion,
 } from "@langfuse/shared/query";
@@ -26,11 +27,11 @@ import {
   getWidgetImportFilterConfig,
   partitionStoredUiTableFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { env } from "@/src/env.mjs";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
+import { deploymentMinWidgetVersion } from "@/src/features/widgets/server/widget-version";
 
 // The widget shape used internally after input normalization: the public
 // body with chartConfig fully resolved plus the internal minVersion.
@@ -103,24 +104,16 @@ type PublicDashboardWidgetInput = Omit<
 > & { view: DashboardWidgetViewOutputType };
 
 /**
- * v2 widgets read the `events_*` tables, which the worker only writes in `dual`
- * and `events_only` mode. Under `legacy` they stay empty — and on a v3
- * deployment they do not exist at all — so a v2 query cannot succeed there.
+ * Normalize a public widget against the query tables available in this
+ * deployment. V2 widgets read the `events_*` tables, which the worker only
+ * writes in `dual` and `events_only` mode; preview opt-in controls whether the
+ * UI offers v4, not whether those tables contain data.
  *
- * `LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN` is deliberately not consulted:
- * it gates whether users are *offered* the v4 read path, not whether the data
- * is there. The same write-mode-only test is what ships Monitors, whose charts
- * are v2-only (`web/src/components/layouts/routes.tsx` → `show`).
- */
-function deploymentMinWidgetVersion(): number {
-  return env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? 1 : 2;
-}
-
-/**
  * `requestedMinVersion` is capped to what the deployment can actually query, so
  * the API never persists a widget that can never render (LFE-14581). Omit it to
- * take the deployment's own default, as create does. The cap never promotes, so
- * a legacy v1 widget stays v1 on a v4 deployment.
+ * take the deployment's own default, as create does. Shape-required v2 fields
+ * are promoted; otherwise an explicit legacy v1 widget stays v1 on a v4
+ * deployment.
  */
 export function normalizePublicDashboardWidgetInput(
   input: PublicDashboardWidgetInput,
@@ -174,18 +167,33 @@ export function normalizePublicDashboardWidgetInput(
   }
 
   const deploymentMinVersion = deploymentMinWidgetVersion();
+  const normalizedFilters = mappedFilters.map((filter) => ({
+    ...filter,
+    column: columnAliases[filter.column] ?? filter.column,
+  }));
+  const requiredMinVersion = resolveWidgetMinVersion({
+    view: input.view,
+    dimensions: input.dimensions,
+    measures: input.metrics.map((metric) => ({ measure: metric.measure })),
+    filters: normalizedFilters,
+    requestedMinVersion: 1,
+  });
+  if (requiredMinVersion > deploymentMinVersion) {
+    return throwInvalidWidget({
+      message:
+        "This widget uses v2-only fields, but the current deployment only supports legacy widget queries",
+    });
+  }
+  const requestedVersion = requestedMinVersion ?? deploymentMinVersion;
 
   return {
     ...input,
-    filters: mappedFilters.map((filter) => ({
-      ...filter,
-      column: columnAliases[filter.column] ?? filter.column,
-    })),
+    filters: normalizedFilters,
     chartConfig: chartConfig.data,
-    minVersion:
-      requestedMinVersion === undefined
-        ? deploymentMinVersion
-        : Math.min(requestedMinVersion, deploymentMinVersion),
+    minVersion: Math.max(
+      Math.min(requestedVersion, deploymentMinVersion),
+      requiredMinVersion,
+    ),
   };
 }
 

@@ -44,14 +44,12 @@ describe("public dashboard widget minVersion", () => {
     });
 
     it("rejects a widget that genuinely needs v2 instead of persisting it unrenderable", () => {
-      const normalized = normalizePublicDashboardWidgetInput({
-        ...baseInput,
-        metrics: [{ measure: "traceId", agg: "uniq" as const }],
-      });
-
-      expect(() => validatePublicDashboardWidgetInput(normalized)).toThrow(
-        /Measure "traceId" is not available for view "observations" in version "v1"/,
-      );
+      expect(() =>
+        normalizePublicDashboardWidgetInput({
+          ...baseInput,
+          metrics: [{ measure: "traceId", agg: "uniq" as const }],
+        }),
+      ).toThrow(/v2-only fields/i);
     });
 
     it("caps a stored v2 widget back to v1 so a patch heals it", () => {
@@ -98,5 +96,20 @@ describe("public dashboard widget minVersion", () => {
         }),
       ).not.toThrow();
     }
+  });
+
+  it("promotes a v2-required shape despite a persisted v1 lower bound", () => {
+    envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+
+    const normalized = normalizePublicDashboardWidgetInput(
+      {
+        ...baseInput,
+        metrics: [{ measure: "traceId", agg: "uniq" as const }],
+      },
+      1,
+    );
+
+    expect(normalized.minVersion).toBe(2);
+    expect(() => validatePublicDashboardWidgetInput(normalized)).not.toThrow();
   });
 });

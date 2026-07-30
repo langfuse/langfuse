@@ -18,11 +18,13 @@ import {
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
+  resolveWidgetMinVersion,
   views,
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { TRPCError } from "@trpc/server";
 import { LangfuseConflictError } from "@langfuse/shared";
+import { deploymentMinWidgetVersion } from "@/src/features/widgets/server/widget-version";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),
@@ -131,6 +133,35 @@ function validateUiHiddenDimensions(params: {
   }
 }
 
+function validateWidgetVersionAvailability(params: {
+  view: string;
+  dimensions: Array<{ field: string }>;
+  metrics: Array<{ measure: string }>;
+  filters: Array<{ column: string }>;
+  minVersion?: number;
+}): number {
+  const shape = {
+    view: params.view,
+    dimensions: params.dimensions,
+    measures: params.metrics,
+    filters: params.filters,
+  };
+  const effectiveMinVersion = resolveWidgetMinVersion({
+    ...shape,
+    requestedMinVersion: params.minVersion,
+  });
+
+  if (deploymentMinWidgetVersion() < 2 && effectiveMinVersion >= 2) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "This widget uses v2-only fields, but the current deployment only supports legacy widget queries",
+    });
+  }
+
+  return effectiveMinVersion;
+}
+
 export const dashboardWidgetRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateDashboardWidgetInput)
@@ -141,16 +172,18 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
+      const effectiveMinVersion = validateWidgetVersionAvailability(input);
+
       validateMetricAggregations({
         view: input.view,
         metrics: input.metrics,
-        minVersion: input.minVersion,
+        minVersion: effectiveMinVersion,
       });
 
       validateUiHiddenDimensions({
         view: input.view,
         dimensions: input.dimensions,
-        minVersion: input.minVersion,
+        minVersion: effectiveMinVersion,
       });
 
       // Create the widget using the DashboardService
@@ -159,7 +192,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
         {
           ...input,
           view: viewMapping[input.view],
-          minVersion: input.minVersion ?? 1,
+          minVersion: effectiveMinVersion,
         },
         ctx.session.user?.id,
       );
@@ -227,16 +260,25 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
+      const existingWidget = await DashboardService.getWidget(
+        input.widgetId,
+        input.projectId,
+      );
+      const effectiveMinVersion = validateWidgetVersionAvailability({
+        ...input,
+        minVersion: input.minVersion ?? existingWidget?.minVersion,
+      });
+
       validateMetricAggregations({
         view: input.view,
         metrics: input.metrics,
-        minVersion: input.minVersion,
+        minVersion: effectiveMinVersion,
       });
 
       validateUiHiddenDimensions({
         view: input.view,
         dimensions: input.dimensions,
-        minVersion: input.minVersion,
+        minVersion: effectiveMinVersion,
       });
 
       // Update the widget using the DashboardService
@@ -252,7 +294,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
           filters: input.filters,
           chartType: input.chartType,
           chartConfig: input.chartConfig,
-          minVersion: input.minVersion,
+          minVersion: effectiveMinVersion,
         },
         ctx.session.user?.id,
       );
@@ -278,6 +320,20 @@ export const dashboardWidgetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "dashboards:CUD",
       });
+
+      const sourceWidget = await DashboardService.getWidget(
+        input.widgetId,
+        input.projectId,
+      );
+      if (sourceWidget) {
+        validateWidgetVersionAvailability({
+          view: reverseViewMapping[sourceWidget.view],
+          dimensions: sourceWidget.dimensions,
+          metrics: sourceWidget.metrics,
+          filters: sourceWidget.filters,
+          minVersion: sourceWidget.minVersion,
+        });
+      }
 
       const newWidgetId = await DashboardService.copyWidgetToProject({
         sourceWidgetId: input.widgetId,

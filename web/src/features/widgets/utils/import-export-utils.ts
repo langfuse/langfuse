@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   getValidAggregationsForMeasureType,
   metricAggregations,
+  resolveWidgetMinVersion,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -480,19 +481,36 @@ export function parseImportedWidgetJson(params: {
   });
 
   const normalizedWidget = normalizeImportedWidgetVersion(importedWidget);
-  const importedMinVersion = normalizedWidget.minVersion ?? 1;
+  const resolvedMinVersion = resolveWidgetMinVersion({
+    view: normalizedWidget.view,
+    dimensions: normalizedWidget.dimensions,
+    measures: normalizedWidget.metrics.map((metric) => ({
+      measure: metric.measure,
+    })),
+    filters: normalizedWidget.filters,
+    requestedMinVersion: normalizedWidget.minVersion,
+  });
+  const widgetWithMinimumVersion =
+    resolvedMinVersion > (normalizedWidget.minVersion ?? 1)
+      ? { ...normalizedWidget, minVersion: resolvedMinVersion }
+      : normalizedWidget;
+  const importedMinVersion = widgetWithMinimumVersion.minVersion ?? 1;
   const importedViewVersion: ViewVersion =
-    (params.isBetaEnabled && normalizedWidget.view !== "traces") ||
+    (params.isBetaEnabled && widgetWithMinimumVersion.view !== "traces") ||
     importedMinVersion >= 2
       ? "v2"
       : "v1";
 
   validateImportedWidget({
-    widget: normalizedWidget,
+    widget: widgetWithMinimumVersion,
     importedViewVersion,
   });
 
-  return { widget: normalizedWidget, removedValues, removedFilters };
+  return {
+    widget: widgetWithMinimumVersion,
+    removedValues,
+    removedFilters,
+  };
 }
 
 export async function importWidgetFile(params: {

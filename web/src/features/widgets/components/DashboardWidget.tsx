@@ -4,7 +4,7 @@ import {
   buildWidgetOrderBy,
   getResultUnit,
   isV2BreakdownChart,
-  requiresV2,
+  resolveWidgetMinVersion,
   toQueryChartConfig,
   validateQuery,
   type QueryType,
@@ -137,17 +137,18 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
-  const widgetRequiresV2 = requiresV2({
+  const minVersion = resolveWidgetMinVersion({
     view: widget.data?.view ?? "traces",
     dimensions: widget.data?.dimensions ?? [],
     measures:
       widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
     filters: widget.data?.filters ?? [],
+    requestedMinVersion: widget.data?.minVersion,
   });
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.
   const metricsVersion: ViewVersion =
-    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
+    minVersion >= 2
       ? "v2"
       : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
         ? "v2"

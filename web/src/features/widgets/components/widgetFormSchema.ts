@@ -9,7 +9,7 @@ import {
 import {
   getValidAggregationsForMeasureType,
   metricAggregations,
-  requiresV2,
+  resolveWidgetMinVersion,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -330,7 +330,7 @@ export type WidgetSavePayload = {
 export function deriveWidgetBaseMinVersion(
   initialValues: WidgetInitialValues,
 ): number {
-  const initialWidgetRequiresV2 = requiresV2({
+  return resolveWidgetMinVersion({
     view: initialValues.view,
     dimensions:
       initialValues.dimensions ??
@@ -341,25 +341,38 @@ export function deriveWidgetBaseMinVersion(
       measure: metric.measure,
     })) ?? [{ measure: initialValues.measure }],
     filters: initialValues.filters ?? [],
+    requestedMinVersion: initialValues.minVersion,
   });
-  return initialWidgetRequiresV2 ? 2 : (initialValues.minVersion ?? 1);
 }
 
 /**
- * Derives the effective view version (query-engine v1/v2) from the current view
- * plus the frozen base minVersion and the beta flag. Mirrors the legacy
- * `initialWidgetRequiresV2 || widgetMinVersion >= 2 || (isBetaEnabled && view
- * !== "traces")`. Traces has no v2-only fields, so beta never promotes it.
+ * Derives the effective view version (query-engine v1/v2) from the current view,
+ * selected query shape, frozen initial minimum, and beta flag. An explicitly
+ * persisted v2 widget remains v2 even when its current view is traces; only
+ * automatic shape/beta promotion skips traces because that view has no v2-only
+ * fields.
  */
 export function resolveWidgetViewVersion(params: {
   view: z.infer<typeof views>;
   baseMinVersion: number;
   isBetaEnabled: boolean;
+  shape?: {
+    dimensions: { field: string }[];
+    measures: { measure: string }[];
+    filters: { column: string }[];
+  };
 }): ViewVersion {
-  return params.baseMinVersion >= 2 ||
-    (params.isBetaEnabled && params.view !== "traces")
-    ? "v2"
-    : "v1";
+  const minVersion = resolveWidgetMinVersion({
+    view: params.view,
+    dimensions: params.shape?.dimensions ?? [],
+    measures: params.shape?.measures ?? [],
+    filters: params.shape?.filters ?? [],
+    requestedMinVersion: params.baseMinVersion,
+  });
+  if (minVersion >= 2) return "v2";
+  if (params.view === "traces") return "v1";
+
+  return params.isBetaEnabled ? "v2" : "v1";
 }
 
 /** Sanitized pivot default sort for the current metric/dimension selection, or undefined when the stored sort no longer applies. */
@@ -617,7 +630,7 @@ export function toDefaultValues(
  * `handleSaveWidget` produced (WidgetForm.tsx :1430-1471), byte for byte:
  * name/description fall back to the live suggestions, filters are mapped into
  * view space, the per-type chartConfig is rebuilt, and `minVersion` is derived
- * from the query shape via `requiresV2`.
+ * from the query shape through the shared resolver.
  */
 export function toSavePayload(
   values: WidgetFormValues,
@@ -680,14 +693,12 @@ export function toSavePayload(
     filters: normalizedFilters,
     chartType,
     chartConfig,
-    minVersion: requiresV2({
+    minVersion: resolveWidgetMinVersion({
       view: values.view,
       dimensions: saveDimensions,
       measures: saveMetrics.map((m) => ({ measure: m.measure })),
       filters: normalizedFilters,
-    })
-      ? 2
-      : 1,
+    }),
   };
 }
 

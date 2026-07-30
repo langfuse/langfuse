@@ -25,7 +25,7 @@ import {
   mapWidgetUiTableFilterToView,
   partitionWidgetUiTableFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   useController,
   useForm,
@@ -262,12 +262,11 @@ export function WidgetForm({
   const { isBetaEnabled } = useV4Beta();
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  // The widget's frozen, view-shape-derived base minVersion. It is a pure
-  // function of `initialValues`, so it is mount-stable; the edit page remounts
-  // via `key={widgetId}` while the create page does NOT remount on a beta
-  // toggle (viewVersion re-derives reactively from isBetaEnabled + view). No
-  // widgetMinVersion state, no sync effect.
-  const baseMinVersion = deriveWidgetBaseMinVersion(initialValues);
+  // The initial widget's persisted minimum is frozen at mount. The resolver
+  // and live viewVersion additionally derive v2 from the current form shape.
+  const [baseMinVersion] = useState(() =>
+    deriveWidgetBaseMinVersion(initialValues),
+  );
 
   // The auto-suggestions change on every keystroke; a ref keeps the resolver
   // closure from being rebuilt on each one (the filled name/description do not
@@ -288,10 +287,10 @@ export function WidgetForm({
     [],
   );
   // The schema version is derived INSIDE the resolver from the (mapped) view
-  // being validated — not from a render-written ref — so it is never a render
-  // stale after a version-flipping view change. baseMinVersion is mount-stable
-  // and isBetaEnabled is read live; both are in the dep list so a beta toggle
-  // rebuilds the closure (react-hook-form re-reads control._options each render).
+  // being validated — not from a render-written ref — so it is never render
+  // stale after a version-flipping view or import. baseMinVersion and
+  // isBetaEnabled are in the dep list so either promotion rebuilds the closure
+  // (react-hook-form re-reads control._options each render).
   const resolver = useMemo<Resolver<WidgetFormValues>>(() => {
     return (values, context, options) => {
       const v = values as WidgetFormValues;
@@ -312,6 +311,13 @@ export function WidgetForm({
         view: mapped.view,
         baseMinVersion,
         isBetaEnabled,
+        shape: {
+          dimensions: mapped.dimensions,
+          measures: mapped.metrics.map((metric) => ({
+            measure: metric.measure,
+          })),
+          filters: mapped.filters,
+        },
       });
       return resolversByVersion[version](mapped as any, context, options);
     };
@@ -341,6 +347,13 @@ export function WidgetForm({
     view: selectedView,
     baseMinVersion,
     isBetaEnabled,
+    shape: {
+      dimensions: values.dimensions,
+      measures: values.metrics.map((metric) => ({
+        measure: metric.measure,
+      })),
+      filters: mapWidgetUiTableFilterToView(selectedView, values.filters),
+    },
   });
   const suggestions = deriveWidgetSuggestions(values);
   const effectiveSort = deriveEffectiveSort(values);
@@ -871,6 +884,13 @@ export function WidgetForm({
       view: newView,
       baseMinVersion,
       isBetaEnabled,
+      shape: {
+        dimensions: values.dimensions,
+        measures: values.metrics.map((metric) => ({
+          measure: metric.measure,
+        })),
+        filters: mapWidgetUiTableFilterToView(newView, values.filters),
+      },
     });
     const newViewDeclaration = viewDeclarations[newViewVersion][newView];
 

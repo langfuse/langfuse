@@ -11,6 +11,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
 import { requiresV2 } from "@langfuse/shared/query";
+import { env } from "@/src/env.mjs";
 import {
   mapLegacyUiTableFilterToView,
   mapWidgetUiTableFilterToView,
@@ -172,6 +173,92 @@ describe("dashboard widget minVersion", () => {
     );
   });
 
+  it("rejects v2 widget shapes at the tRPC boundary on a legacy deployment", async () => {
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    const v2Metric = { measure: "traceId", agg: "uniq" as const };
+
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+    try {
+      const caller = makeCaller();
+      await expect(
+        caller.dashboardWidgets.create({
+          ...baseWidgetInput,
+          view: "observations",
+          projectId,
+          metrics: [v2Metric],
+          minVersion: 1,
+        }),
+      ).rejects.toThrow(/v2-only fields/i);
+
+      const existing = await DashboardService.createWidget(
+        projectId,
+        {
+          ...baseWidgetInput,
+          view: DashboardWidgetViews.OBSERVATIONS,
+          minVersion: 1,
+        },
+        userId,
+      );
+
+      await expect(
+        caller.dashboardWidgets.update({
+          ...baseWidgetInput,
+          view: "observations",
+          projectId,
+          widgetId: existing.id,
+          metrics: [v2Metric],
+          minVersion: 1,
+        }),
+      ).rejects.toThrow(/v2-only fields/i);
+
+      const staleV2Widget = await DashboardService.createWidget(
+        projectId,
+        {
+          ...baseWidgetInput,
+          view: DashboardWidgetViews.OBSERVATIONS,
+          minVersion: 2,
+        },
+        userId,
+      );
+
+      await expect(
+        caller.dashboardWidgets.update({
+          ...baseWidgetInput,
+          view: "observations",
+          projectId,
+          widgetId: staleV2Widget.id,
+          filters: [],
+        }),
+      ).rejects.toThrow(/v2-only fields/i);
+
+      const copySource = await prisma.dashboardWidget.create({
+        data: {
+          name: "Legacy copy source",
+          description: "v2-only managed widget",
+          view: DashboardWidgetViews.OBSERVATIONS,
+          dimensions: [{ field: "name" }],
+          metrics: [v2Metric],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+          minVersion: 2,
+          projectId: null,
+        },
+      });
+
+      await expect(
+        caller.dashboardWidgets.copyToProject({
+          projectId,
+          widgetId: copySource.id,
+          dashboardId: uuidv4(),
+          placementId: uuidv4(),
+        }),
+      ).rejects.toThrow(/v2-only fields/i);
+    } finally {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    }
+  });
+
   describe("observations release filter mapping", () => {
     it("keeps legacy observations Release filters on traceRelease for v1 compatibility", () => {
       expect(
@@ -225,6 +312,20 @@ describe("dashboard widget minVersion", () => {
       );
 
       expect(widget.minVersion).toBe(1);
+    });
+
+    it("derives the persisted version from a v2-required shape", async () => {
+      const widget = await DashboardService.createWidget(
+        projectId,
+        {
+          ...baseWidgetInput,
+          metrics: [{ measure: "traceId", agg: "uniq" }],
+          minVersion: 1,
+        },
+        userId,
+      );
+
+      expect(widget.minVersion).toBe(2);
     });
 
     it("should persist minVersion=2 when explicitly provided", async () => {

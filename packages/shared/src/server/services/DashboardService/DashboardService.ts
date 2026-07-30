@@ -16,6 +16,15 @@ import {
 } from "./types";
 import { z } from "zod";
 import { singleFilter } from "../../../";
+import { resolveWidgetMinVersion } from "../../../features/query";
+
+const queryViewByDashboardWidgetView: Record<string, string> = {
+  TRACES: "traces",
+  OBSERVATIONS: "observations",
+  SCORES_NUMERIC: "scores-numeric",
+  SCORES_BOOLEAN: "scores-boolean",
+  SCORES_CATEGORICAL: "scores-categorical",
+};
 
 export class DashboardService {
   /**
@@ -295,6 +304,13 @@ export class DashboardService {
     input: CreateWidgetInput,
     userId?: string,
   ): Promise<WidgetDomain> {
+    const minVersion = resolveWidgetMinVersion({
+      view: queryViewByDashboardWidgetView[input.view],
+      dimensions: input.dimensions,
+      measures: input.metrics,
+      filters: input.filters,
+      requestedMinVersion: input.minVersion,
+    });
     const newWidget = await prisma.dashboardWidget.create({
       data: {
         name: input.name,
@@ -306,7 +322,7 @@ export class DashboardService {
         filters: input.filters,
         chartType: input.chartType,
         chartConfig: input.chartConfig,
-        minVersion: input.minVersion ?? 1,
+        minVersion,
         createdBy: userId,
         updatedBy: userId,
       },
@@ -351,6 +367,17 @@ export class DashboardService {
     input: CreateWidgetInput,
     userId?: string,
   ): Promise<WidgetDomain> {
+    const existingWidget = await prisma.dashboardWidget.findFirst({
+      where: { id: widgetId, projectId },
+      select: { minVersion: true },
+    });
+    const minVersion = resolveWidgetMinVersion({
+      view: queryViewByDashboardWidgetView[input.view],
+      dimensions: input.dimensions,
+      measures: input.metrics,
+      filters: input.filters,
+      requestedMinVersion: input.minVersion ?? existingWidget?.minVersion,
+    });
     const updatedWidget = await prisma.dashboardWidget.update({
       where: {
         id: widgetId,
@@ -365,9 +392,7 @@ export class DashboardService {
         filters: input.filters,
         chartType: input.chartType,
         chartConfig: input.chartConfig,
-        ...(input.minVersion !== undefined
-          ? { minVersion: input.minVersion }
-          : {}),
+        minVersion,
         updatedBy: userId,
       },
     });
@@ -445,6 +470,10 @@ export class DashboardService {
         `Source widget ${sourceWidgetId} not found`,
       );
     }
+    const sourceWidgetDomain = WidgetDomainSchema.parse({
+      ...sourceWidget,
+      owner: "LANGFUSE",
+    });
 
     // Duplicate widget and update dashboard definition atomically
     return prisma.$transaction(async (tx) => {
@@ -459,7 +488,13 @@ export class DashboardService {
           filters: sourceWidget.filters ?? [],
           chartType: sourceWidget.chartType,
           chartConfig: sourceWidget.chartConfig ?? {},
-          minVersion: sourceWidget.minVersion,
+          minVersion: resolveWidgetMinVersion({
+            view: queryViewByDashboardWidgetView[sourceWidgetDomain.view],
+            dimensions: sourceWidgetDomain.dimensions,
+            measures: sourceWidgetDomain.metrics,
+            filters: sourceWidgetDomain.filters,
+            requestedMinVersion: sourceWidgetDomain.minVersion,
+          }),
           projectId, // project owned
           createdBy: userId,
           updatedBy: userId,

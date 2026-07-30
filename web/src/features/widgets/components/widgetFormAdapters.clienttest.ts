@@ -399,6 +399,23 @@ describe("widget form adapters round-trip parity", () => {
   });
 });
 
+describe("widget form view version", () => {
+  it("promotes a legacy widget when its current shape requires v2", () => {
+    expect(
+      resolveWidgetViewVersion({
+        view: "observations",
+        baseMinVersion: 1,
+        isBetaEnabled: false,
+        shape: {
+          dimensions: [{ field: "experimentName" }],
+          measures: [{ measure: "count" }],
+          filters: [],
+        },
+      }),
+    ).toBe("v2");
+  });
+});
+
 describe("toDefaultValues normalizes malformed stored/imported widgets", () => {
   it("heals a HISTOGRAM on the count measure to NUMBER (matches the old mount effect)", () => {
     const iv: WidgetInitialValues = {

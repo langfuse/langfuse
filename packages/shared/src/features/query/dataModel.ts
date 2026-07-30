@@ -1516,6 +1516,24 @@ export function requiresV2(params: {
   );
 }
 
+export type WidgetQueryShape = {
+  view: string;
+  dimensions: { field: string }[];
+  measures: { measure: string }[];
+  filters?: { column: string }[];
+};
+
+/**
+ * Resolve the minimum query version required by a widget shape and an
+ * optional persisted/requested lower bound. The requested version is never a
+ * substitute for inspecting the shape: v2-only fields always promote it.
+ */
+export function resolveWidgetMinVersion(
+  params: WidgetQueryShape & { requestedMinVersion?: number },
+): number {
+  return Math.max(params.requestedMinVersion ?? 1, requiresV2(params) ? 2 : 1);
+}
+
 /**
  * Returns the declared unit for a measure in a given view/version, or undefined
  * if the view or measure is not found. Use this to drive display formatting
