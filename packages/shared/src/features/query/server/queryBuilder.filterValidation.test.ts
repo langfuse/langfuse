@@ -168,4 +168,35 @@ describe("queryBuilder filter type validation", () => {
     expect(query).toContain("toBool(scores_boolean.value) = {booleanFilter");
     expect(query).toContain(": Boolean}");
   });
+
+  it("lowers the semantic-root observation filter only in the v2 events view", async () => {
+    const { query } = await buildQueryWithFilter(
+      {
+        column: "isRootObservation",
+        operator: "=",
+        value: true,
+        type: "boolean",
+      },
+      undefined,
+      "v2",
+    );
+
+    expect(query).toContain(
+      "toBool((events_observations.parent_span_id = '' OR events_observations.is_app_root = true)) = {booleanFilter",
+    );
+    expect(query).toContain(": Boolean}");
+
+    await expect(
+      buildQueryWithFilter(
+        {
+          column: "isRootObservation",
+          operator: "=",
+          value: true,
+          type: "boolean",
+        },
+        undefined,
+        "v1",
+      ),
+    ).rejects.toThrow(/Invalid filter column isRootObservation/);
+  });
 });
