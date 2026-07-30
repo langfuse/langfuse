@@ -1,4 +1,16 @@
-import { expect, describe, it, vi } from "vitest";
+import { beforeEach, expect, describe, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  applyObservationFieldOverflow: vi.fn(),
+}));
+
+vi.mock(
+  "../../../features/observation-field-overflow/processObservationFieldOverflow",
+  () => ({
+    applyObservationFieldOverflow: mocks.applyObservationFieldOverflow,
+  }),
+);
+
 import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
@@ -9,6 +21,13 @@ import {
 import { TableName } from "../../ClickhouseWriter";
 
 describe("IngestionService unit tests", () => {
+  beforeEach(() => {
+    mocks.applyObservationFieldOverflow.mockReset();
+    mocks.applyObservationFieldOverflow.mockImplementation(
+      async (eventRecord) => eventRecord,
+    );
+  });
+
   it("writes the final serialized event size instead of the raw OTEL span size", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
@@ -40,7 +59,7 @@ describe("IngestionService unit tests", () => {
 
     expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
 
-    ingestionService.writeEventRecord(eventRecord);
+    await ingestionService.writeEventRecord(eventRecord);
 
     expect(addToQueue).toHaveBeenCalledOnce();
     const queuedRecord = addToQueue.mock.calls[0]?.[1];
@@ -52,6 +71,125 @@ describe("IngestionService unit tests", () => {
       Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
     );
     expect(eventBytes).toBeLessThan(rawOtelSpanBytes);
+  });
+
+  it("overflows only the direct events_full copy and preserves the enriched record", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        parentSpanId: "",
+        name: "overflow-copy",
+        type: "SPAN",
+        environment: "default",
+        startTimeISO: "2026-07-22T00:00:00.000Z",
+        endTimeISO: "2026-07-22T00:00:01.000Z",
+        input: "original input",
+        output: "original output",
+        metadata: { keep: "small", large: { nested: "large" } },
+        source: "otel",
+        eventBytes: 1234,
+      },
+      "raw-event.json",
+    );
+    mocks.applyObservationFieldOverflow.mockResolvedValueOnce({
+      ...eventRecord,
+      input:
+        "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
+      metadata_values: [
+        "small",
+        "@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@",
+      ],
+    });
+
+    await ingestionService.writeEventRecord(eventRecord);
+
+    expect(mocks.applyObservationFieldOverflow).toHaveBeenCalledWith(
+      eventRecord,
+    );
+    expect(eventRecord.input).toBe("original input");
+    expect(eventRecord.metadata_names).toEqual(["keep", "large.nested"]);
+    expect(addToQueue).toHaveBeenCalledOnce();
+    expect(addToQueue.mock.calls[0]?.[1]).toMatchObject({
+      input: expect.stringContaining("input-media"),
+      metadata_names: ["keep", "large.nested"],
+      metadata_values: ["small", expect.stringContaining("metadata-media")],
+    });
+  });
+
+  it("does not overflow legacy observation or dual-write staging records", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2026-07-22T00:00:00.000Z";
+    const input = "x".repeat(11);
+    const output = "y".repeat(11);
+    const metadataValue = "z".repeat(11);
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "generation-create",
+        body: {
+          id: "observation-id",
+          traceId: "trace-id",
+          startTime: timestamp,
+          input,
+          output,
+          metadata: { large: metadataValue },
+          environment: "default",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+    vi.spyOn(ingestionService as any, "getGenerationUsage").mockResolvedValue(
+      {},
+    );
+
+    await (ingestionService as any).processObservationEventList({
+      projectId: "project-id",
+      entityId: "observation-id",
+      createdAtTimestamp: new Date(timestamp),
+      observationEventList,
+      writeToStagingTables: true,
+      attribution: {
+        ingestionApiKey: "api-key",
+        ingestionSdkName: "sdk",
+        ingestionSdkVersion: "1.0.0",
+      },
+    });
+
+    expect(mocks.applyObservationFieldOverflow).not.toHaveBeenCalled();
+    for (const table of [
+      TableName.Observations,
+      TableName.ObservationsBatchStaging,
+    ]) {
+      expect(
+        addToQueue.mock.calls.find(
+          ([queuedTable]) => queuedTable === table,
+        )?.[1],
+      ).toMatchObject({
+        input,
+        output,
+        metadata: { large: metadataValue },
+      });
+    }
   });
 
   it("correctly sorts events in ascending order by timestamp", async () => {

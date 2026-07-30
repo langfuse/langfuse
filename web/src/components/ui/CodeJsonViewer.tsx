@@ -20,7 +20,7 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
-import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import {
   renderRichPromptContent,
@@ -153,7 +153,7 @@ export function JSONView(props: {
               customizeNode={({ node }) => {
                 const descriptor = classifyMediaValue(node);
                 return descriptor ? (
-                  <JsonMediaTag descriptor={descriptor} />
+                  <MediaReferenceTag descriptor={descriptor} />
                 ) : undefined;
               }}
               customizeCopy={(node) => stringifyJsonNode(node)}
