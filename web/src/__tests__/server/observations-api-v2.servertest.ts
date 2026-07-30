@@ -303,7 +303,12 @@ describe("/api/public/v2/observations API Endpoint", () => {
     it("should filter observations by sessionId", async () => {
       const sessionId = `session-${randomUUID()}`;
       const otherSessionId = `session-${randomUUID()}`;
-      const observations = [sessionId, otherSessionId].map((value) => {
+      const userId = `user-${randomUUID()}`;
+      const otherUserId = `user-${randomUUID()}`;
+      const observations = [
+        [sessionId, userId],
+        [otherSessionId, otherUserId],
+      ].map(([value, observationUserId]) => {
         const observationId = randomUUID();
         return createEvent({
           id: observationId,
@@ -314,6 +319,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
           type: "GENERATION",
           level: "DEFAULT",
           session_id: value,
+          user_id: observationUserId,
           start_time: Date.now() * 1000,
         });
       });
@@ -381,6 +387,24 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(advancedFilterResponse.body.data).toHaveLength(1);
       expect(advancedFilterResponse.body.data[0]?.sessionId).toBe(
         otherSessionId,
+      );
+
+      const userAdvancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "userId",
+          operator: "=",
+          value: otherUserId,
+        },
+      ]);
+      const userFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&userId=${encodeURIComponent(userId)}&filter=${encodeURIComponent(userAdvancedFilter)}`,
+      );
+
+      expect(userFilterResponse.status).toBe(200);
+      expect(userFilterResponse.body.data).toHaveLength(1);
+      expect(userFilterResponse.body.data[0]?.id).toBe(
+        observations[1]?.span_id,
       );
     });
 

@@ -145,17 +145,15 @@ export function createPublicApiObservationsColumnMapping(
     tableName === "events_proto"
       ? {
           id: "userId",
-          clickhouseSelect: "user_id",
+          clickhouseSelect: 'e."user_id"',
           filterType: "StringFilter",
           clickhouseTable: tableName,
-          clickhousePrefix: tablePrefix,
         }
       : {
           id: "userId",
-          clickhouseSelect: "user_id",
+          clickhouseSelect: 't."user_id"',
           filterType: "StringFilter",
           clickhouseTable: "traces",
-          clickhousePrefix: "t",
         };
   const sessionIdMapping: ApiColumnMapping =
     tableName === "events_proto"
