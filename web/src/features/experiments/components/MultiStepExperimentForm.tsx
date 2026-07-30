@@ -326,7 +326,7 @@ export const MultiStepExperimentForm = ({
       selectedPromptVersion,
       selectedDataset.name,
     );
-    form.setValue("name", defaultName);
+    form.setValue("name", defaultName, { shouldValidate: true });
 
     const defaultDescription = generateDefaultExperimentDescription(
       selectedPromptName,
@@ -366,6 +366,8 @@ export const MultiStepExperimentForm = ({
     selectedPromptToolConfig,
     structuredOutputEnabled,
   );
+  const isDatasetValidationPending =
+    Boolean(promptIdFromHook && datasetId) && validationResult.isPending;
 
   // Step validation function
   const isStepValid = (stepId: string): boolean => {
@@ -408,6 +410,10 @@ export const MultiStepExperimentForm = ({
   };
 
   const renderStepStatusIcon = (stepId: string, stepLabel: string) => {
+    if (stepId === "dataset" && isDatasetValidationPending) {
+      return null;
+    }
+
     if (isStepValid(stepId)) {
       return <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />;
     }
@@ -429,6 +435,9 @@ export const MultiStepExperimentForm = ({
 
   const invalidRequiredStepLabels = steps
     .filter((step) => ["prompt", "dataset", "details"].includes(step.id))
+    .filter(
+      (step) => step.id !== "dataset" || !isDatasetValidationPending,
+    )
     .filter((step) => !isStepValid(step.id))
     .map((step) => step.label);
   const reviewErrorMessage =
@@ -644,12 +653,7 @@ export const MultiStepExperimentForm = ({
                 ) : (
                   <Button
                     type="submit"
-                    disabled={
-                      (Boolean(promptIdFromHook && datasetId) &&
-                        !validationResult.data?.isValid) ||
-                      hasToolStructuredOutputConflict ||
-                      !!form.formState.errors.name
-                    }
+                    disabled={!isStepValid("review")}
                     loading={form.formState.isSubmitting}
                   >
                     Run Experiment
