@@ -210,22 +210,22 @@ steps:
 tools:
   github:
     toolsets: [actions, pull_requests]
-    # Declare the repo scope explicitly. Left unset, gh-aw's automatic
-    # lockdown resolves it per-run, but the gateway still labelled this
-    # public repo's own PRs and Actions runs `secrecy: ["private"]`; with an
-    # empty agent clearance and a public safe-outputs sink, every
-    # actions_get/actions_list/list_pull_requests result was filtered and the
-    # analyst could read nothing (#15640). An explicit constraint is never
-    # relaxed by the gateway, so this narrows access to exactly the one repo
-    # the agent reads rather than turning a protection off.
-    # Array form, not the bare string: the gateway only accepts 'all' or
-    # 'public' as a string and rejects a resolved owner/repo at startup,
-    # despite the schema listing ${{ github.repository }} as a string enum.
+    # Array form is required: as a string the gateway accepts only 'all' or
+    # 'public' and rejects a resolved owner/repo at startup, despite the
+    # schema listing ${{ github.repository }} as a valid string enum.
     allowed-repos: ["${{ github.repository }}"]
-    # Required by the compiler once allowed-repos is explicit. 'approved' is
-    # the value automatic lockdown already picked for this public repo, so
-    # integrity enforcement is unchanged.
+    # Required by the compiler once allowed-repos is set; same value automatic
+    # lockdown already picked for this public repo.
     min-integrity: approved
+    # The gateway tags `resource:actions_list` secrecy=private even though this
+    # repo and its CI data are public. With a public safe-outputs sink the
+    # agent's clearance must stay empty, so every Actions read was filtered and
+    # the analyst could not do its job at all (#15640, #15647). This exempts
+    # only the github server from sink-visibility enforcement; allowed-repos
+    # above is the compensating control, since the agent cannot reach any repo
+    # other than this public one. Drop this once gh-aw stops labelling a public
+    # repo's own Actions data as private.
+    private-to-public-flows: ["github"]
   bash:
     [
       "pnpm:*",
