@@ -210,6 +210,19 @@ steps:
 tools:
   github:
     toolsets: [actions, pull_requests]
+    # Declare the repo scope explicitly. Left unset, gh-aw's automatic
+    # lockdown resolves it per-run, but the gateway still labelled this
+    # public repo's own PRs and Actions runs `secrecy: ["private"]`; with an
+    # empty agent clearance and a public safe-outputs sink, every
+    # actions_get/actions_list/list_pull_requests result was filtered and the
+    # analyst could read nothing (#15640). An explicit constraint is never
+    # relaxed by the gateway, so this narrows access to exactly the one repo
+    # the agent reads rather than turning a protection off.
+    allowed-repos: "${{ github.repository }}"
+    # Required by the compiler once allowed-repos is explicit. 'approved' is
+    # the value automatic lockdown already picked for this public repo, so
+    # integrity enforcement is unchanged.
+    min-integrity: approved
   bash:
     [
       "pnpm:*",
