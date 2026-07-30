@@ -11,22 +11,17 @@ import {
 } from "@tanstack/react-table";
 import isEqual from "lodash/isEqual";
 
+import {
+  ModernSessionFilterDialogContent,
+  type ModernSessionFilterDialogViewActions,
+} from "@/src/components/session/ModernSessionFilterDialogContent";
+import { ModernSessionSaveViewDialogContent } from "@/src/components/session/ModernSessionSaveViewDialogContent";
 import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/components/session/session-detail-presets";
 import { type ModernSessionSidebarFilterControls } from "@/src/components/session/ModernSessionSidebar";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
-import { Button } from "@/src/components/ui/button";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import { Input } from "@/src/components/ui/input";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { Dialog } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -79,9 +74,9 @@ export function ModernSessionFilterControls({
 }: ModernSessionFilterControlsProps) {
   const capture = usePostHogClientCapture();
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [saveViewDialogOpen, setSaveViewDialogOpen] = useState(false);
   const [manageViewsOpen, setManageViewsOpen] = useState(false);
-  const [draftFilters, setDraftFilters] = useState<FilterState>([]);
-  const [viewName, setViewName] = useState("");
+  const [filtersToSave, setFiltersToSave] = useState<FilterState>([]);
   const activeFilterCount = filterState.length;
   const { TableViewPresetsList } = useViewData({
     tableName: TableViewPresetTableName.SessionDetail,
@@ -91,7 +86,7 @@ export function ModernSessionFilterControls({
     projectId,
     scope: "TableViewPresets:CUD",
   });
-  const { createMutation } = useViewMutations({
+  const { createMutation, updateConfigMutation } = useViewMutations({
     handleSetViewId: viewControllers.handleSetViewId,
     applyViewState: viewControllers.applyViewState,
   });
@@ -106,11 +101,12 @@ export function ModernSessionFilterControls({
       view.id === viewControllers.selectedViewId &&
       isEqual(normalizeFilters(view.filters), normalizeFilters(filterState)),
   );
+  const matchingUserView = matchingSavedView?.isSystem
+    ? undefined
+    : matchingSavedView;
   const activeViewName = matchingSystemPreset?.name ?? matchingSavedView?.name;
 
   const openFilterDialog = () => {
-    setDraftFilters(filterState);
-    setViewName("");
     setFilterDialogOpen(true);
     capture("table:filter_builder_open", {
       tableName: "session-detail",
@@ -118,8 +114,7 @@ export function ModernSessionFilterControls({
     });
   };
 
-  const applyFilters = () => {
-    const nextFilters = draftFilters;
+  const applyFilters = (nextFilters: FilterState) => {
     if (isEqual(normalizeFilters(nextFilters), normalizeFilters(filterState))) {
       setFilterDialogOpen(false);
       return;
@@ -157,10 +152,7 @@ export function ModernSessionFilterControls({
     setFilterDialogOpen(false);
   };
 
-  const saveView = () => {
-    const name = viewName.trim();
-    if (!name) return;
-
+  const saveView = (name: string) => {
     capture("saved_views:create", {
       tableName: TableViewPresetTableName.SessionDetail,
     });
@@ -169,12 +161,54 @@ export function ModernSessionFilterControls({
       tableName: TableViewPresetTableName.SessionDetail,
       projectId,
       orderBy: null,
-      filters: draftFilters,
+      filters: filtersToSave,
       columnOrder: currentViewState.columnOrder,
       columnVisibility: currentViewState.columnVisibility,
       searchQuery: "",
     });
+    setSaveViewDialogOpen(false);
+  };
+
+  const updateCurrentView = (filters: FilterState) => {
+    if (!matchingUserView) return;
+
+    capture("saved_views:update_config", {
+      tableName: TableViewPresetTableName.SessionDetail,
+      viewId: matchingUserView.id,
+      name: matchingUserView.name,
+    });
+
+    const viewWasApplied =
+      viewControllers.appliedViewId === matchingUserView.id;
+    updateConfigMutation.mutate(
+      {
+        projectId,
+        name: matchingUserView.name,
+        id: matchingUserView.id,
+        tableName: TableViewPresetTableName.SessionDetail,
+        orderBy: null,
+        filters,
+        columnOrder: viewWasApplied
+          ? currentViewState.columnOrder
+          : matchingUserView.columnOrder,
+        columnVisibility: viewWasApplied
+          ? currentViewState.columnVisibility
+          : matchingUserView.columnVisibility,
+        searchQuery: "",
+      },
+      {
+        onSuccess: () => {
+          onChange(filters);
+          setFilterDialogOpen(false);
+        },
+      },
+    );
+  };
+
+  const openSaveViewDialog = (filters: FilterState) => {
+    setFiltersToSave(filters);
     setFilterDialogOpen(false);
+    setSaveViewDialogOpen(true);
   };
 
   const applyPreset = (
@@ -222,6 +256,24 @@ export function ModernSessionFilterControls({
     });
   };
 
+  let filterDialogViewActions: ModernSessionFilterDialogViewActions = {
+    type: "none",
+  };
+  if (hasWriteAccess && matchingUserView) {
+    filterDialogViewActions = {
+      type: "update",
+      viewName: matchingUserView.name,
+      isUpdating: updateConfigMutation.isPending,
+      onCreate: openSaveViewDialog,
+      onUpdate: updateCurrentView,
+    };
+  } else if (hasWriteAccess) {
+    filterDialogViewActions = {
+      type: "create",
+      onCreate: openSaveViewDialog,
+    };
+  }
+
   return (
     <>
       {children({
@@ -243,54 +295,29 @@ export function ModernSessionFilterControls({
       })}
 
       <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
-        <DialogContent size="lg">
-          <DialogHeader>
-            <DialogTitle>Filter observations</DialogTitle>
-          </DialogHeader>
-          <DialogBody className="space-y-5 overflow-y-auto">
-            <div className="space-y-2">
-              <label
-                htmlFor="modern-session-view-name"
-                className="text-sm font-bold"
-              >
-                View name{" "}
-                <span className="text-muted-foreground font-normal">
-                  (optional)
-                </span>
-              </label>
-              <Input
-                id="modern-session-view-name"
-                value={viewName}
-                onChange={(event) => setViewName(event.target.value)}
-                placeholder="Name this filter view"
-              />
-            </div>
-            <InlineFilterBuilder
-              columns={filterColumns}
-              filterState={draftFilters}
-              onChange={setDraftFilters}
-              columnsWithCustomSelect={filterColumnsWithCustomSelect}
-            />
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setFilterDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              onClick={saveView}
-              disabled={
-                !viewName.trim() || !hasWriteAccess || createMutation.isPending
-              }
-            >
-              Save as view
-            </Button>
-            <Button onClick={applyFilters}>Apply filters</Button>
-          </DialogFooter>
-        </DialogContent>
+        {filterDialogOpen ? (
+          <ModernSessionFilterDialogContent
+            initialFilters={filterState}
+            filterColumns={filterColumns}
+            filterColumnsWithCustomSelect={filterColumnsWithCustomSelect}
+            viewActions={filterDialogViewActions}
+            onCancel={() => setFilterDialogOpen(false)}
+            onApplyFilters={applyFilters}
+          />
+        ) : null}
+      </Dialog>
+
+      <Dialog open={saveViewDialogOpen} onOpenChange={setSaveViewDialogOpen}>
+        {saveViewDialogOpen ? (
+          <ModernSessionSaveViewDialogContent
+            isSaving={createMutation.isPending}
+            onCancel={() => {
+              setSaveViewDialogOpen(false);
+              setFilterDialogOpen(true);
+            }}
+            onSave={saveView}
+          />
+        ) : null}
       </Dialog>
 
       <TableViewPresetsDrawer
