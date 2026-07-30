@@ -1229,12 +1229,18 @@ export class IngestionService {
       internalModel,
     );
 
-    // Match pricing tier based on usage_details
+    // Match pricing tier based on usage_details. Skip when usage is empty
+    // (e.g. tokenization skipped because costs were provided, or ERROR-level
+    // generations): matching {} would stamp a tier chosen against a fabricated
+    // all-zero usage vector instead of leaving the tier unset.
     let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
     let usage_pricing_tier_id: string | null = null;
     let usage_pricing_tier_name: string | null = null;
 
-    if (pricingTiers.length > 0 && final_usage_details.usage_details) {
+    if (
+      pricingTiers.length > 0 &&
+      Object.keys(final_usage_details.usage_details ?? {}).length > 0
+    ) {
       const matchedTier = matchPricingTier(
         pricingTiers,
         final_usage_details.usage_details,

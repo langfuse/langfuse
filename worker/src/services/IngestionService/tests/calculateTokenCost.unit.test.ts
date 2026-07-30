@@ -1378,6 +1378,10 @@ describe("Token Cost Calculation", () => {
     // Tokenization must not run: usage details stay blank
     expect(generation.usage_details).toEqual({});
     expect(generation.provided_usage_details).toEqual({});
+
+    // No pricing tier gets stamped from an empty usage vector
+    expect(generation.usage_pricing_tier_id).toBeNull();
+    expect(generation.usage_pricing_tier_name).toBeNull();
   });
 
   describe("string to number conversion in getUsageUnits", () => {
