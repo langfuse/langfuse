@@ -6,16 +6,29 @@ import { z } from "zod";
  */
 export const InstanceLink = z.object({
   name: z.string().min(1),
-  url: z.url(),
+  // Restricted to http(s): the URL is handed to window.open, where a
+  // javascript:/data:/file: entry would run in the app's context rather
+  // than open another Langfuse deployment.
+  url: z.url({ protocol: /^https?$/ }),
 });
 
 export type InstanceLink = z.infer<typeof InstanceLink>;
+
+// Names must be unique: they are the only thing distinguishing entries in
+// the menu, and the sidebar keys its items by name.
+const InstanceLinks = z
+  .array(InstanceLink)
+  .min(1)
+  .refine((links) => new Set(links.map((l) => l.name)).size === links.length, {
+    message: "Instance link names must be unique",
+  });
 
 /**
  * Parse LANGFUSE_UI_INSTANCE_LINKS into the instance links rendered as an
  * instance switcher in the sidebar user menu.
  *
- * Expects a JSON array of { name, url } objects, e.g.
+ * Expects a JSON array of { name, url } objects with unique names and
+ * http(s) URLs, e.g.
  * [{"name":"Staging","url":"https://langfuse-staging.example.com"}]
  *
  * Invalid configuration disables the switcher (returns null) instead of
@@ -34,10 +47,13 @@ export function parseInstanceLinks(raw?: string): InstanceLink[] | null {
     return null;
   }
 
-  const result = z.array(InstanceLink).min(1).safeParse(parsed);
+  const result = InstanceLinks.safeParse(parsed);
   if (!result.success) {
+    const issues = result.error.issues
+      .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+      .join("; ");
     console.warn(
-      "LANGFUSE_UI_INSTANCE_LINKS is invalid. Expected a non-empty JSON array of {name, url} objects with valid URLs. The instance switcher is disabled.",
+      `LANGFUSE_UI_INSTANCE_LINKS is invalid, so the instance switcher is disabled. Expected a non-empty JSON array of {name, url} objects with unique names and http(s) URLs. ${issues}`,
     );
     return null;
   }

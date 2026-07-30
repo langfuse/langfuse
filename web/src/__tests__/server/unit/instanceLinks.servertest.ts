@@ -44,6 +44,33 @@ describe("parseInstanceLinks", () => {
     expect(parseInstanceLinks("[]")).toBeNull();
     expect(warn).toHaveBeenCalledTimes(5);
   });
+
+  it("rejects non-http(s) URL schemes, which window.open would run in-app", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const url of [
+      "javascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "file:///etc/passwd",
+      "mailto:ops@example.com",
+      "ftp://langfuse.example.com",
+    ]) {
+      expect(
+        parseInstanceLinks(JSON.stringify([{ name: "A", url }])),
+      ).toBeNull();
+    }
+    expect(warn).toHaveBeenCalledTimes(5);
+  });
+
+  it("rejects duplicate names, which are ambiguous in the menu", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const raw = JSON.stringify([
+      { name: "Staging", url: "https://staging-a.example.com" },
+      { name: "Staging", url: "https://staging-b.example.com" },
+    ]);
+    expect(parseInstanceLinks(raw)).toBeNull();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]?.[0]).toContain("names must be unique");
+  });
 });
 
 describe("findCurrentInstance", () => {
