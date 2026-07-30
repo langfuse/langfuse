@@ -50,6 +50,7 @@ export function MultiSelectCombobox<T>({
   const [previousResults, setPreviousResults] = useState<T[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Handle focus/blur for dropdown visibility
@@ -72,11 +73,13 @@ export function MultiSelectCombobox<T>({
 
   // Auto-scroll to input when items are added/removed
   useEffect(() => {
-    if (inputRef.current && containerRef.current) {
+    if (inputRef.current && scrollContainerRef.current) {
       if (singleLine) {
-        containerRef.current.scrollLeft = containerRef.current.scrollWidth;
+        scrollContainerRef.current.scrollLeft =
+          scrollContainerRef.current.scrollWidth;
       } else {
-        containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        scrollContainerRef.current.scrollTop =
+          scrollContainerRef.current.scrollHeight;
       }
     }
   }, [selectedItems.length, singleLine]);
@@ -143,18 +146,16 @@ export function MultiSelectCombobox<T>({
       <div className="relative">
         <div
           ref={containerRef}
-          className={cn(
-            "border-input bg-background flex min-h-9 w-full rounded-md border text-xs",
-            singleLine
-              ? "h-9 max-h-9 overflow-x-auto overflow-y-hidden"
-              : "max-h-14 overflow-y-auto",
-          )}
+          className="border-input bg-background flex min-h-9 w-full overflow-hidden rounded-md border text-xs"
         >
-          <Search className="text-muted-foreground absolute top-2.5 left-2 z-10 h-4 w-4" />
+          <Search className="text-muted-foreground mt-2.5 ml-2 h-4 w-4 shrink-0" />
           <div
+            ref={scrollContainerRef}
             className={cn(
-              "flex max-h-full flex-1 items-center gap-1 pl-8",
-              singleLine ? "flex-nowrap" : "flex-wrap",
+              "flex min-w-0 flex-1 items-center gap-1",
+              singleLine
+                ? "h-9 flex-nowrap overflow-x-auto overflow-y-hidden"
+                : "max-h-14 flex-wrap overflow-y-auto",
             )}
           >
             {/* Selected Items Pills */}
@@ -191,7 +192,7 @@ export function MultiSelectCombobox<T>({
             <Button
               variant="ghost"
               size="sm"
-              className="absolute top-1 right-2 h-7 w-7 p-0"
+              className="mr-1 h-7 w-7 shrink-0 self-start p-0"
               onClick={() => onSearchChange("")}
             >
               <X className="h-3 w-3" />
