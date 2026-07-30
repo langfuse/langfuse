@@ -1303,7 +1303,7 @@ export class IngestionService {
     // Provided costs are authoritative: calculateUsageCosts ignores computed
     // usage once any cost point is provided, so tokenised counts could never
     // affect costs — leave usage_details blank instead of paying for
-    // tokenisation (LFE-9339).
+    // tokenisation.
     const hasProvidedCostDetails = Object.values(
       observationRecord.provided_cost_details ?? {},
     ).some((value) => value != null);
