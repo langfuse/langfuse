@@ -49,6 +49,10 @@ import {
   ObservationPriceFields,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
+import {
+  planScoreFilterPushdown,
+  resolveScoreDataRequirement,
+} from "../queries/clickhouse-sql/score-filter-pushdown";
 import type { EventsTableFilterState, FilterState } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
 import {
@@ -770,6 +774,7 @@ async function getObservationsFromEventsTableInternal<T>(
     filter: baseFilter,
     searchQuery: opts.searchQuery,
     searchType: opts.searchType,
+    orderBy,
   });
 
   if (opts.select === "count") {
@@ -1775,6 +1780,12 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
       f.field === "s.score_categories" ||
       f.field === "s.score_booleans",
   );
+  const scoreRowsFilter = planScoreFilterPushdown({
+    filters: tracesFilter,
+    scoreDataRequirement: resolveScoreDataRequirement({
+      selectsScoreData: opts.select === "rows" && includeScores,
+    }),
+  });
 
   // Build traces CTE using eventsTracesAggregation WITHOUT filters
   // Filters must be applied AFTER aggregation to ensure filters on aggregated
@@ -1797,6 +1808,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
       projectId,
       startTimeFrom,
       hasScoreAggregationFilters,
+      scoreRowsFilter,
     });
     queryBuilder = queryBuilder
       .withCTE("score_stats", {
