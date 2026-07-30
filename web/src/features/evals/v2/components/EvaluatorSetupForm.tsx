@@ -341,6 +341,8 @@ export function EvaluatorSetupForm({
   const [selectedObservationId, setSelectedObservationId] = useState<
     string | null
   >(null);
+  const [previewColumnsPickerEl, setPreviewColumnsPickerEl] =
+    useState<HTMLDivElement | null>(null);
 
   // Test mutations live here so the trigger and result surface share state.
   const testRun = useTestRunMutation();
@@ -362,11 +364,6 @@ export function EvaluatorSetupForm({
     }),
     [peekNavigationProps],
   );
-
-  // Portal rule: the preview table renders its columns picker here, next to
-  // the Preview label instead of inside its own bordered container.
-  const [previewColumnsPickerEl, setPreviewColumnsPickerEl] =
-    useState<HTMLDivElement | null>(null);
 
   // Variable mapping: per-variable field/path against the sample observation.
   // Variables present in the initial (curated) prompt get heuristic defaults;
@@ -1448,7 +1445,7 @@ export function EvaluatorSetupForm({
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
                         <LabelWithTooltip tooltip="The dot picks the sample the mapping and test use; clicking a row also opens it.">
                           Matching observations
                           {ruleMatchCount.count !== null && (
@@ -1459,12 +1456,17 @@ export function EvaluatorSetupForm({
                             </span>
                           )}
                         </LabelWithTooltip>
-                        <div ref={setPreviewColumnsPickerEl} />
                       </div>
-                      <p className="text-muted-foreground text-sm">
-                        Select one observation to test the prompt and verify the
-                        variable mapping against real data.
-                      </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-muted-foreground text-sm">
+                          Select an observation to test and verify the variable
+                          mapping.
+                        </p>
+                        <div
+                          className="shrink-0"
+                          ref={setPreviewColumnsPickerEl}
+                        />
+                      </div>
                       <EvaluationRulePreviewTable
                         projectId={projectId}
                         filterState={filterState}
@@ -1587,8 +1589,8 @@ export function EvaluatorSetupForm({
         <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
       ) : null}
 
-      {/* Fixed action bar: cancel abandons setup; save persists the evaluator
-          before the optional live-data activation flow. */}
+      {/* Fixed action bar: the secondary action leaves the form; save persists
+          the evaluator before the optional live-data activation flow. */}
       <div className="bg-background flex shrink-0 items-center justify-end gap-2 border-t px-4 py-2">
         <Button
           type="button"
@@ -1596,7 +1598,7 @@ export function EvaluatorSetupForm({
           disabled={isSaving}
           onClick={handleCancel}
         >
-          Cancel
+          {mode === "edit" && !hasEvaluatorChanges ? "Close" : "Cancel"}
         </Button>
         <Button
           type="button"

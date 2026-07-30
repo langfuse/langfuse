@@ -503,6 +503,9 @@ describe("CreateEvaluationRuleDialog", () => {
     expect(
       screen.getByRole("list", { name: "Selected evaluators" }),
     ).toHaveTextContent("Correctness");
+    expect(
+      screen.queryByRole("button", { name: "Attach evaluator" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Step 2: Set sampling rate" }),
     );

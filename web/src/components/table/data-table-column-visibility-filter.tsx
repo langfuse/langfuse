@@ -12,9 +12,9 @@ import {
 import {
   ChevronDown,
   ChevronRight,
+  Columns3,
   Component,
   Menu,
-  Settings2,
   X,
 } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -410,7 +410,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
             aria-label={iconOnly ? "Configure columns" : undefined}
           >
             {iconOnly ? (
-              <Settings2 className="h-3.5 w-3.5" />
+              <Columns3 className="h-3.5 w-3.5" />
             ) : (
               <>
                 <span>Columns</span>

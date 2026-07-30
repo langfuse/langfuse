@@ -56,7 +56,7 @@ export function EvaluationRulePreviewTable({
   selectedObservationId?: string | null;
   /** Reports the loaded preview rows, e.g. to derive sample candidates. */
   onRowsChange?: (rows: EventsTableRow[]) => void;
-  /** Where to render the columns picker (e.g. next to the section label). */
+  /** Where to render the columns picker beside the preview description. */
   columnsPickerContainer?: HTMLElement | null;
 }) {
   // EventsTable ignores externalDateRange for the rows query when an external

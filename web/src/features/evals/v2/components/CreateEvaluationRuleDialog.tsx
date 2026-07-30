@@ -101,6 +101,7 @@ export function CreateEvaluationRuleDialog({
   const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<string[]>(
     () => [...new Set(initialEvaluatorIds)],
   );
+  const isEvaluatorOriginFlow = initialEvaluatorIds.length > 0;
   const [mappingOverrides, setMappingOverrides] = useState<
     Record<string, ObservationVariableMapping[]>
   >({});
@@ -374,49 +375,51 @@ export function CreateEvaluationRuleDialog({
                   <EvaluationRuleFieldLabel tooltip="Choose what should run on observations matched by this rule.">
                     Evaluators
                   </EvaluationRuleFieldLabel>
-                  <Popover
-                    open={evaluatorPickerOpen}
-                    onOpenChange={setEvaluatorPickerOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0"
-                        aria-label="Attach evaluator"
-                      >
-                        Attach evaluator
-                        <Link2 className="ml-1.5 h-3.5 w-3.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-80 p-0">
-                      <Command>
-                        <CommandInput placeholder="Find an evaluator..." />
-                        <CommandList>
-                          <CommandEmpty>
-                            No unattached evaluator found.
-                          </CommandEmpty>
-                          <CommandGroup heading="Available evaluators">
-                            {unattachedEvaluators.map((evaluator) => (
-                              <CommandItem
-                                key={evaluator.id}
-                                value={`${evaluator.scoreName} ${evaluator.id}`}
-                                onSelect={() => toggleEvaluator(evaluator.id)}
-                              >
-                                <span
-                                  className="truncate"
-                                  title={evaluator.scoreName}
+                  {isEvaluatorOriginFlow ? null : (
+                    <Popover
+                      open={evaluatorPickerOpen}
+                      onOpenChange={setEvaluatorPickerOpen}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          aria-label="Attach evaluator"
+                        >
+                          Attach evaluator
+                          <Link2 className="ml-1.5 h-3.5 w-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-80 p-0">
+                        <Command>
+                          <CommandInput placeholder="Find an evaluator..." />
+                          <CommandList>
+                            <CommandEmpty>
+                              No unattached evaluator found.
+                            </CommandEmpty>
+                            <CommandGroup heading="Available evaluators">
+                              {unattachedEvaluators.map((evaluator) => (
+                                <CommandItem
+                                  key={evaluator.id}
+                                  value={`${evaluator.scoreName} ${evaluator.id}`}
+                                  onSelect={() => toggleEvaluator(evaluator.id)}
                                 >
-                                  {evaluator.scoreName}
-                                </span>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                                  <span
+                                    className="truncate"
+                                    title={evaluator.scoreName}
+                                  >
+                                    {evaluator.scoreName}
+                                  </span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  )}
                 </div>
                 <EvaluationRuleEvaluatorList
                   projectId={projectId}

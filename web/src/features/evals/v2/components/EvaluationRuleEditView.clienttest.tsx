@@ -193,12 +193,14 @@ describe("EvaluationRuleEditView", () => {
 
     const saveButton = screen.getByRole("button", { name: "Save changes" });
     expect(saveButton).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Step 4: Name rule" }));
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Production traces" },
     });
     expect(saveButton).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
   it("uses the edit form as a read-only rule view", () => {

@@ -23,11 +23,6 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { EvaluationRuleExecutionTraceStatusHistory } from "@/src/features/evals/v2/components/EvaluationRuleExecutionStatusHistory";
 import { EvaluatorOverviewAttachToRuleButton } from "@/src/features/evals/v2/components/EvaluatorOverviewAttachToRuleButton";
 import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar";
@@ -301,7 +296,7 @@ export function EvaluatorOverviewTable({
         enableSorting: false,
         cell: ({ row }) => (
           <div
-            className="flex justify-end gap-1"
+            className="flex w-full justify-end gap-1"
             onClick={(event) => event.stopPropagation()}
           >
             {row.original.activeRules.length > 0 ? (
@@ -328,27 +323,6 @@ export function EvaluatorOverviewTable({
                 hasWriteAccess={hasWriteAccess}
               />
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="View traces"
-                  onClick={() =>
-                    router.push(
-                      getEvaluationRuleTracesHref({
-                        projectId,
-                        evaluatorId: row.original.id,
-                      }),
-                    )
-                  }
-                >
-                  <ListTree className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>View traces</TooltipContent>
-            </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -361,6 +335,19 @@ export function EvaluatorOverviewTable({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() =>
+                    router.push(
+                      getEvaluationRuleTracesHref({
+                        projectId,
+                        evaluatorId: row.original.id,
+                      }),
+                    )
+                  }
+                >
+                  <ListTree className="mr-2 h-4 w-4" />
+                  View traces
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={!hasWriteAccess}
                   onSelect={() =>

@@ -227,7 +227,7 @@ export function EvaluationRuleEditView({
           disabled={updateRule.isPending}
           onClick={onCancel}
         >
-          Cancel
+          {hasChanges ? "Cancel" : "Close"}
         </Button>
         <Button
           type="button"
