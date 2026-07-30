@@ -17,13 +17,13 @@ import {
   createLLMOutput,
   createLLMToolSet,
   generateLLMText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   getLLMErrorInfo,
   logger,
   contextWithLangfuseProps,
   mapLegacyLLMCompletionParams,
   streamLLMText,
 } from "@langfuse/shared/src/server";
-import { CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_MS } from "@langfuse/shared/src/env";
 import * as opentelemetry from "@opentelemetry/api";
 
 export default async function chatCompletionHandler(req: NextRequest) {
@@ -113,7 +113,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
       });
       const nonStreamingCompletionParams = {
         ...completionParams,
-        timeout: CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_MS,
+        timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
       };
 
       if (structuredOutputSchema) {

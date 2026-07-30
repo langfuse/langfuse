@@ -9,6 +9,7 @@ import {
 import {
   CODE_EVAL_SOURCE_MAX_BYTES,
   DefaultEvalModelService,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   testModelCall,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
@@ -17,7 +18,6 @@ import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
-import { CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_MS } from "@langfuse/shared/src/env";
 
 const CreateEvalTemplateIntentSchema = z.discriminatedUnion("intent", [
   z.object({ intent: z.literal("new") }),
@@ -127,7 +127,7 @@ async function validateLlmAsJudgeTemplateModel(
       structuredOutputSchema: compilePersistedEvalOutputDefinition(
         input.outputDefinition,
       ).outputResultSchema,
-      timeout: CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_MS,
+      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

@@ -28,8 +28,6 @@ export const redisSocketTimeoutMsSchema = z.coerce
   .default(30_000);
 
 const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
-// Finish client-initiated non-streaming calls before the 102-second load balancer timeout.
-export const CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_MS = 95_000;
 
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
