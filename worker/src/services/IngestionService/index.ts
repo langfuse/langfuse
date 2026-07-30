@@ -56,7 +56,6 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
-import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import {
   convertJsonSchemaToRecord,
@@ -1275,7 +1274,12 @@ export class IngestionService {
   private async getUsageUnits(
     observationRecord: Pick<
       ObservationRecordInsertType,
-      "provided_usage_details" | "level" | "input" | "output" | "id"
+      | "project_id"
+      | "provided_usage_details"
+      | "level"
+      | "input"
+      | "output"
+      | "id"
     >,
     model: Model | null | undefined,
   ): Promise<
@@ -1314,18 +1318,16 @@ export class IngestionService {
                 }),
               ]);
             } catch (error) {
+              // No synchronous fallback: payloads that make the worker thread
+              // exceed its timeout would block the event loop for minutes if
+              // re-tokenized on the main thread (LFE-9339). Absent counts are
+              // detectable by users, unlike a 0 or a bytes-based estimate.
               logger.warn(
-                `Async tokenization has failed. Falling back to synchronous tokenization`,
+                `Async tokenization failed for observation ${observationRecord.id} in project ${observationRecord.project_id}. Skipping token counts.`,
                 error,
               );
-              newInputCount = tokenCount({
-                text: observationRecord.input,
-                model,
-              });
-              newOutputCount = tokenCount({
-                text: observationRecord.output,
-                model,
-              });
+              span.setAttribute("langfuse.tokenization.skipped", true);
+              recordIncrement("langfuse.tokenisation.skipped", 1);
             }
 
             // Tracing
