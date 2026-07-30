@@ -194,6 +194,9 @@ export function validatePublicDashboardWidgetInput(
 ): void {
   const viewVersion = getWidgetViewVersion(widget);
   const viewDeclaration = getPublicDashboardWidgetViewDeclaration(widget);
+  const widgetCompatibleDimensions = Object.entries(
+    viewDeclaration.dimensions,
+  ).flatMap(([field, definition]) => (definition.uiHidden ? [] : [field]));
 
   for (const [index, dimension] of widget.dimensions.entries()) {
     const dimensionDefinition = viewDeclaration.dimensions[dimension.field];
@@ -202,7 +205,7 @@ export function validatePublicDashboardWidgetInput(
       throwInvalidWidget({
         message: `Dimension "${dimension.field}" is not available for view "${widget.view}" in version "${viewVersion}"`,
         field: `dimensions[${index}].field`,
-        allowedValues: Object.keys(viewDeclaration.dimensions),
+        allowedValues: widgetCompatibleDimensions,
       });
     }
 
@@ -210,6 +213,7 @@ export function validatePublicDashboardWidgetInput(
       throwInvalidWidget({
         message: `Dimension "${dimension.field}" is not available for widgets`,
         field: `dimensions[${index}].field`,
+        allowedValues: widgetCompatibleDimensions,
       });
     }
   }
