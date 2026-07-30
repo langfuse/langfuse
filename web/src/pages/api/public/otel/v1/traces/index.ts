@@ -1,6 +1,7 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
+  getCurrentSpan,
   logger,
   markProjectIngestFailure,
   OtelIngestionProcessor,
@@ -86,6 +87,8 @@ export default withMiddlewares({
           resourceSpans =
             $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.toObject(
               parsed,
+              // OTLP JSON encodes int64 fields as decimal strings.
+              { longs: String },
             ).resourceSpans;
         } catch (e) {
           logger.error(`Failed to parse OTel Protobuf`, e);
@@ -132,6 +135,12 @@ export default withMiddlewares({
         req.headers,
         "x-langfuse-ingestion-version",
       );
+      if (ingestionVersion) {
+        getCurrentSpan()?.setAttribute(
+          "langfuse.ingestion.version",
+          ingestionVersion,
+        );
+      }
 
       // Reject unsupported future ingestion versions (> 4)
       // Lower versions are valid but use dual write (path A)

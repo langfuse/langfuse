@@ -51,7 +51,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
   return (
     <div className="mt-1 flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-base font-semibold">
+        <div className="flex items-center gap-2 text-base font-bold">
           <Sparkles className="h-4 w-4" /> Ask AI
         </div>
         <p className="text-muted-foreground mt-1 text-sm">
@@ -73,7 +73,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
       <Separator />
 
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-base font-semibold">
+        <div className="flex items-center gap-2 text-base font-bold">
           <LibraryBig className="h-4 w-4" /> Docs
         </div>
         <p className="text-muted-foreground text-sm">
@@ -99,7 +99,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
       {supportType === "custom" && (
         <>
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 text-base font-semibold">
+            <div className="flex items-center gap-2 text-base font-bold">
               <LifeBuoy className="h-4 w-4" /> Support
             </div>
             <p className="text-muted-foreground text-sm">
@@ -157,7 +157,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
       {supportType === "in-app-support" && (
         <>
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 text-base font-semibold">
+            <div className="flex items-center gap-2 text-base font-bold">
               <LifeBuoy className="h-4 w-4" /> Email a Support Engineer
             </div>
             <p className="text-muted-foreground text-sm">
@@ -176,7 +176,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
       {supportType === "community" && (
         <>
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 text-base font-semibold">
+            <div className="flex items-center gap-2 text-base font-bold">
               <LifeBuoy className="h-4 w-4" /> Community Support
             </div>
             <p className="text-muted-foreground text-sm">
@@ -218,7 +218,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
 
       {supportType !== "custom" && (
         <div>
-          <div className="flex items-center gap-2 text-base font-semibold">
+          <div className="flex items-center gap-2 text-base font-bold">
             <SiGithub className="h-4 w-4" /> Community & Resources
           </div>
           <p className="text-muted-foreground mt-1 text-sm">

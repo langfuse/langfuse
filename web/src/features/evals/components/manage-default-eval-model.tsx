@@ -43,7 +43,7 @@ export function ManageDefaultEvalModel({
       {defaultModel ? (
         <span
           className={cn(
-            "text-sm font-medium",
+            "text-sm font-bold",
             variant === "color-coded" && "text-dark-green",
             className,
           )}
@@ -54,7 +54,7 @@ export function ManageDefaultEvalModel({
       ) : (
         <span
           className={cn(
-            "text-sm font-medium",
+            "text-sm font-bold",
             variant === "color-coded" && "text-dark-yellow",
             className,
           )}

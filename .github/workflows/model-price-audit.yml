@@ -2,10 +2,9 @@ name: Default Model Price Audit
 
 on:
   schedule:
-    # Tuesday and Friday evening in San Francisco.
+    # Every evening in San Francisco.
     # 02:17 UTC is 19:17 PDT and 18:17 PST.
-    - cron: "17 2 * * 3"
-    - cron: "17 2 * * 6"
+    - cron: "17 2 * * *"
   workflow_dispatch:
     inputs:
       claude_model:

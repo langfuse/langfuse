@@ -301,6 +301,12 @@ const getPlanBasedRateLimitConfig = (
             points: 100,
             durationInSec: 60,
           };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
+            points: 100,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
@@ -336,6 +342,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "in-app-agent-run",
             points: 100,
             durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;
@@ -391,6 +403,12 @@ const getPlanBasedRateLimitConfig = (
             points: 1000, // temporary: using pro limit
             durationInSec: 60,
           };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
@@ -428,6 +446,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "in-app-agent-run",
             points: 1000,
             durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;
@@ -479,6 +503,12 @@ const getPlanBasedRateLimitConfig = (
             points: 1000,
             durationInSec: 60,
           };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
@@ -514,6 +544,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "in-app-agent-run",
             points: 1000,
             durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;

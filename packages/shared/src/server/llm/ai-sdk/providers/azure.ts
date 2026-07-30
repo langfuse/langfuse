@@ -1,12 +1,9 @@
 import { createAzure } from "@ai-sdk/azure";
 import type { LanguageModel } from "ai";
 
-import type { ModelParams } from "../../types";
 import { trimTrailingSlashes } from "./utils";
 
-// Pinned to the version the LangChain engine sends
-// (`AzureChatOpenAI.azureOpenAIApiVersion`) so both engines hit the identical
-// Azure API surface.
+// Pinned to the API version used by existing Langfuse Azure connections.
 const AZURE_OPENAI_API_VERSION = "2025-02-01-preview";
 
 export type AzureBaseURLTranslation =
@@ -14,13 +11,19 @@ export type AzureBaseURLTranslation =
   | { ok: false; reason: string };
 
 /**
- * Langfuse stores the LangChain `azureOpenAIBasePath`, documented as
- * `https://{instance}.openai.azure.com/openai/deployments`; LangChain appends
- * `/{deployment}/chat/completions?api-version=...`. The AI SDK's
- * `useDeploymentBasedUrls` mode appends `/deployments/{deployment}{path}` to
- * its `baseURL`, so the stored URL maps by stripping the trailing
- * `/deployments` segment. Any other shape has no AI SDK equivalent (the
- * request URL would silently change), so the dispatcher declines to LangChain.
+ * Langfuse historically passed Azure base paths directly to LangChain as
+ * `azureOpenAIBasePath`. Existing connections therefore contain several valid
+ * shapes:
+ *
+ * - `https://{instance}.openai.azure.com/openai`
+ * - `https://{instance}.openai.azure.com/openai/deployments`
+ * - `https://{instance}.openai.azure.com/openai/deployments/{deployment}`
+ * - a proxy-specific prefix that is not an Azure resource URL
+ *
+ * The AI SDK's deployment-based mode appends
+ * `/deployments/{deployment}{path}` to its `baseURL`, so any persisted URL that
+ * already contains `/deployments` is normalized back to its parent prefix.
+ * Unknown custom prefixes are passed through for proxy compatibility.
  */
 export function translateAzureBaseURL(
   baseURL: string | null | undefined,
@@ -30,18 +33,25 @@ export function translateAzureBaseURL(
   }
 
   const trimmed = trimTrailingSlashes(baseURL);
-  if (!trimmed.endsWith("/deployments")) {
+  const [pathWithoutQuery] = trimmed.split(/[?#]/, 1);
+  const pathSegments = pathWithoutQuery.split("/");
+  const deploymentsIndex = pathSegments.findIndex(
+    (segment) => segment === "deployments",
+  );
+  if (deploymentsIndex >= 0) {
     return {
-      ok: false,
-      reason: "Azure base URL does not end with /deployments",
+      ok: true,
+      value: trimTrailingSlashes(
+        pathSegments.slice(0, deploymentsIndex).join("/"),
+      ),
     };
   }
 
-  return { ok: true, value: trimmed.slice(0, -"/deployments".length) };
+  return { ok: true, value: trimmed };
 }
 
 export function buildAzureModel(params: {
-  modelParams: ModelParams;
+  modelId: string;
   apiKey: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
@@ -49,8 +59,8 @@ export function buildAzureModel(params: {
 }): LanguageModel {
   const baseUrlTranslation = translateAzureBaseURL(params.baseURL);
   if (!baseUrlTranslation.ok) {
-    // The dispatcher only selects the AI SDK engine for translatable base
-    // URLs, so this is a defensive guard against drift.
+    // Configuration validation runs before model construction; keep this
+    // defensive guard so the provider cannot be built from an invalid URL.
     throw new Error(baseUrlTranslation.reason);
   }
 
@@ -63,7 +73,6 @@ export function buildAzureModel(params: {
     fetch: params.fetch,
   });
 
-  // Chat Completions to match `AzureChatOpenAI`; the model name is the Azure
-  // deployment name.
-  return provider.chat(params.modelParams.model);
+  // Azure connections use Chat Completions; the model name is the deployment.
+  return provider.chat(params.modelId);
 }

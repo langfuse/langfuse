@@ -35,7 +35,7 @@ const ScoreDetailRow = ({
   value: React.ReactNode;
 }) => (
   <div className="flex justify-between gap-2">
-    <span className="text-muted-foreground w-14 font-medium">{label}</span>
+    <span className="text-muted-foreground w-14 font-bold">{label}</span>
     <div className="min-w-0 flex-1 text-right">
       {typeof value === "string" ? (
         <span className="wrap-break-word">{value}</span>
@@ -57,7 +57,7 @@ const ScoreValueSection = ({
     <div className="flex shrink-0 items-center gap-1">
       {aggregate ? (
         <>
-          <span className="line-clamp-1 font-medium">
+          <span className="line-clamp-1 font-bold">
             {resolveScoreValue(aggregate)}
           </span>
           {diff && (
@@ -125,7 +125,7 @@ export const ScoreRow = ({
   return (
     <HoverCard openDelay={700} closeDelay={100} onOpenChange={setIsHovered}>
       <div className="flex h-6 w-full items-center gap-2">
-        <span className="w-32 shrink-0 truncate font-medium" title={name}>
+        <span className="w-32 shrink-0 truncate font-bold" title={name}>
           {name}
         </span>
         <HoverCardTrigger asChild>
@@ -140,7 +140,7 @@ export const ScoreRow = ({
         align="start"
       >
         <div className="cursor-pointer space-y-3">
-          <h4 className="text-sm font-medium">{name}</h4>
+          <h4 className="text-sm font-bold">{name}</h4>
 
           <div className="space-y-2 text-xs">
             <ScoreDetailRow

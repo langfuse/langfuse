@@ -21,15 +21,6 @@ export const OBSERVATION_VARIABLES = [
   },
 ];
 
-export const COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION = new Set([
-  "release",
-  "traceName",
-  "traceTags",
-  "userId",
-  "sessionId",
-  "tags",
-]);
-
 export const OUTPUT_MAPPING = [
   "generation",
   "output",
@@ -78,9 +69,9 @@ export const DEFAULT_OBSERVATION_FILTER = [
 // Default filter when remapping an evaluator from trace-level to observation-level
 export const DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING = [
   {
-    column: "parentObservationId",
-    operator: "is null" as const,
-    value: "",
-    type: "null" as const,
+    column: "isRootObservation",
+    operator: "=" as const,
+    value: true,
+    type: "boolean" as const,
   },
 ];

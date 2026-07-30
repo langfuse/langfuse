@@ -99,7 +99,7 @@ export function MentionAutocomplete({
                         </AvatarFallback>
                       </Avatar>
                       <div className="text-foreground flex-1 overflow-hidden">
-                        <div className="truncate font-medium" title={userLabel}>
+                        <div className="truncate font-bold" title={userLabel}>
                           {userLabel}
                         </div>
                         {user.email && (

@@ -98,7 +98,7 @@ export function TracePage({
     )
   ) : undefined;
   const sharedBadge = showPublicIndicators ? (
-    <Badge variant="outline" className="text-xs font-medium">
+    <Badge variant="outline" className="text-xs font-bold">
       Public
     </Badge>
   ) : undefined;
@@ -155,6 +155,21 @@ export function TracePage({
               deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
             />
           </>
+        ),
+        // Mobile compact header: the same trace actions as full-width labeled
+        // menu rows (Bookmark / Share / Delete) for the `⋯` overflow, instead
+        // of the inline icon toolbar. Trace-to-trace nav is desktop-only.
+        actionButtonsMenu: (
+          <TraceDetailActions
+            traceId={trace.data.id}
+            projectId={trace.data.projectId}
+            bookmarked={trace.data.bookmarked}
+            isPublic={trace.data.public}
+            name={trace.data.name}
+            timestamp={timestamp}
+            deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+            layout="menu"
+          />
         ),
       }}
     >

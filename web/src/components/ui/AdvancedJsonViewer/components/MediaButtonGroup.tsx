@@ -247,7 +247,7 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
             >
               <group.icon className="h-3.5 w-3.5" />
               {group.items.length > 1 && (
-                <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] font-medium">
+                <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] font-bold">
                   {group.items.length}
                 </span>
               )}

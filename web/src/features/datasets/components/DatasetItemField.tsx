@@ -111,7 +111,7 @@ export const DatasetItemField = ({
         {isFormField ? (
           <FormLabel>{label}</FormLabel>
         ) : (
-          <label className="text-sm font-medium">{label}</label>
+          <label className="text-sm font-bold">{label}</label>
         )}
         {schema && schemaType && (
           <DatasetSchemaHoverCard

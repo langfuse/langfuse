@@ -353,4 +353,180 @@ describe("parseGeneratedFilters — score-name validation", () => {
     const { unknownScoreNames } = parseGeneratedFilters(completion, scoreNames);
     expect(unknownScoreNames).toEqual(["ghost_score"]);
   });
+
+  const booleanScoreFilter = (column: string, key: string) => ({
+    type: "booleanObject",
+    column,
+    key,
+    operator: "=",
+    value: true,
+  });
+
+  it("corrects a separator variant of a boolean score name in place", () => {
+    // Same dead-filter class as numeric/categorical: a boolean score addressed
+    // by a misspelled name round-trips cleanly and matches nothing. The
+    // observed set (`score_booleans`) lets us correct it.
+    const completion = JSON.stringify([
+      booleanScoreFilter("score_booleans", "is_flagged"),
+    ]);
+    const { filters, droppedCount, unknownScoreNames } = parseGeneratedFilters(
+      completion,
+      { ...scoreNames, booleans: ["is-flagged"] },
+    );
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({
+      column: "score_booleans",
+      key: "is-flagged",
+    });
+    expect(droppedCount).toBe(0);
+    expect(unknownScoreNames).toEqual([]);
+  });
+
+  it("drops an unknown trace-boolean score name and reports it", () => {
+    const completion = JSON.stringify([
+      booleanScoreFilter("trace_score_booleans", "ghost_flag"),
+    ]);
+    const { filters, droppedCount, unknownScoreNames } = parseGeneratedFilters(
+      completion,
+      { ...scoreNames, traceBooleans: ["is-reviewed"] },
+    );
+    expect(filters).toHaveLength(0);
+    expect(droppedCount).toBe(1);
+    expect(unknownScoreNames).toEqual(["ghost_flag"]);
+  });
+
+  it("passes a boolean score filter through when its set was not provided", () => {
+    // No `booleans` set loaded → no enforcement for that column (a boolean
+    // score filter must never be dropped just because the set is absent).
+    const completion = JSON.stringify([
+      booleanScoreFilter("score_booleans", "anything_goes"),
+    ]);
+    const { filters, unknownScoreNames } = parseGeneratedFilters(completion, {
+      numeric: ["accuracy"],
+    });
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({ key: "anything_goes" });
+    expect(unknownScoreNames).toEqual([]);
+  });
+});
+
+describe("parseGeneratedFilters — extraction robustness", () => {
+  const levelFilter = (value: string) => ({
+    type: "stringOptions",
+    column: "level",
+    operator: "any of",
+    value: [value],
+  });
+
+  it("applies the model's self-corrected array, not the earlier draft", () => {
+    // The model drafts an array, second-guesses itself in prose, then emits a
+    // corrected array. A greedy first-`[`..last-`]` match spans BOTH arrays plus
+    // the prose between them and fails to JSON.parse — losing a correct answer.
+    // The parser must return the LAST (corrected) array.
+    const completion = [
+      "Here is a first attempt:",
+      JSON.stringify([levelFilter("DEBUG")]),
+      "On reflection you asked for errors, not debug logs. Corrected filters:",
+      JSON.stringify([levelFilter("ERROR")]),
+    ].join("\n");
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({ column: "level", value: ["ERROR"] });
+    expect(droppedCount).toBe(0);
+  });
+
+  it("parses a single array embedded in prose unchanged", () => {
+    const completion = [
+      "Sure — here you go:",
+      JSON.stringify([levelFilter("WARNING")]),
+    ].join("\n");
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({ column: "level", value: ["WARNING"] });
+    expect(droppedCount).toBe(0);
+  });
+
+  it("does not let a `]` inside a string value break balance tracking", () => {
+    // The closing bracket lives inside a metadata value string; naive depth
+    // tracking would close the array early and fail to parse.
+    const completion = [
+      "Filters:",
+      JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "note",
+          operator: "=",
+          value: "arr]end",
+        },
+      ]),
+      "Let me know if that works.",
+    ].join("\n");
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({
+      column: "metadata",
+      key: "note",
+      value: "arr]end",
+    });
+    expect(droppedCount).toBe(0);
+  });
+
+  it("returns the empty result when brackets appear but no array is valid JSON", () => {
+    const completion =
+      "Use the [level] and [environment] fields to build that filter.";
+    const { filters, queryText, droppedCount } =
+      parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(0);
+    expect(queryText).toBe("");
+    expect(droppedCount).toBe(0);
+  });
+
+  it("honors an explicit `[]` retraction over an earlier drafted filter", () => {
+    // The prompt asks for `[]` when no filter applies. If the model drafts a
+    // filter, reconsiders in prose, then emits `[]` as its FINAL answer, we must
+    // honor the retraction — NOT apply the draft it explicitly walked back.
+    const completion =
+      "Attempt: " +
+      JSON.stringify([
+        {
+          type: "stringOptions",
+          column: "level",
+          operator: "any of",
+          value: ["ERROR"],
+        },
+      ]) +
+      " Actually that cannot be expressed here. No filter applies: []";
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(0);
+    expect(droppedCount).toBe(0);
+  });
+
+  it("reports the LARGEST all-malformed array's size when nothing validates", () => {
+    // Reversed candidate iteration visits the trailing stray array first. When
+    // NO candidate yields a valid filter, `droppedCount` must reflect the
+    // largest array the model emitted (the one it most plausibly intended), not
+    // whichever was visited first. Here a 4-element all-malformed filter array
+    // precedes a stray 2-element prose list; the count must be 4, not 2.
+    const malformed = (column: string) => ({
+      type: "stringOptions",
+      column,
+      operator: "equals", // not a valid stringOptions operator → fails singleFilter
+      value: "x",
+    });
+    const completion = [
+      "My first attempt (four filters):",
+      JSON.stringify([
+        malformed("level"),
+        malformed("environment"),
+        malformed("name"),
+        malformed("userId"),
+      ]),
+      "Actually, ignore those and just consider these two tags:",
+      JSON.stringify(["a", "b"]),
+    ].join("\n");
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(0);
+    expect(droppedCount).toBe(4);
+  });
 });

@@ -75,8 +75,9 @@ jobs:
           # (could not find the right option to prevent this in generation step)
           rm -rf langfuse/api/tests
 
-          # Install dependencies and format
+          # Install dependencies, preserve backwards-compatible score creation aliases, and format
           uv sync --all-extras --frozen
+          uv run python scripts/patch_generated_score_compat.py
           uv run ruff format langfuse/api
 
           # Check for changes and show diff for debugging
@@ -87,7 +88,7 @@ jobs:
           fi
 
           # Create new branch and commit changes
-          BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
+          BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH_NAME"
           git add .
           git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}"
@@ -122,6 +123,9 @@ jobs:
           # Copy generated TypeScript SDK files
           cp -r ../langfuse/generated/typescript/* packages/core/src/api/
 
+          # Preserve backwards-compatible score creation aliases
+          node scripts/patch-generated-score-create-alias.mjs
+
           # Patch compilation error inducing output
           # Without this patch, the JS SDK will not build due to
           # "Error: packages/core build: src/api/core/auth/index.ts(1,10): error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'."
@@ -145,7 +149,7 @@ jobs:
           fi
 
           # Create new branch and commit changes
-          BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}"
+          BRANCH_NAME="api-spec-bot-${GITHUB_SHA::7}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH_NAME"
           git add .
           git commit -m "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" --no-verify
@@ -190,13 +194,6 @@ jobs:
           "$GIT_BIN" -C "$PUSH_REPO" init -q
           "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags "$BUNDLE_PATH" "$BRANCH_NAME:refs/heads/$BRANCH_NAME"
 
-          # Close existing api-spec-bot PRs
-          "$GH_BIN" pr list --repo langfuse/langfuse-python --author langfuse-bot --state open --json number --jq '.[].number' | while read -r pr_number; do
-            if [ -n "$pr_number" ]; then
-              "$GH_BIN" pr close --repo langfuse/langfuse-python "$pr_number"
-            fi
-          done
-
           # Resolve the reviewer before pushing so a transient GitHub API failure cannot orphan a branch.
           ORIGINAL_AUTHOR="$("$GH_BIN" api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
           REVIEWER_ARGS=()
@@ -212,12 +209,20 @@ jobs:
             -c core.hooksPath=/dev/null \
             push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-python.git" "$BRANCH_NAME"
 
-          "$GH_BIN" pr create \
+          NEW_PR_URL="$("$GH_BIN" pr create \
             --repo langfuse/langfuse-python \
             --head "$BRANCH_NAME" \
             --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" \
             --body "" \
-            "${REVIEWER_ARGS[@]}"
+            "${REVIEWER_ARGS[@]}")"
+          NEW_PR_NUMBER="${NEW_PR_URL##*/}"
+
+          # Only retire stale bot PRs after their replacement exists.
+          "$GH_BIN" pr list --repo langfuse/langfuse-python --author langfuse-bot --state open --json number --jq '.[].number' | while read -r pr_number; do
+            if [ -n "$pr_number" ] && [ "$pr_number" != "$NEW_PR_NUMBER" ]; then
+              "$GH_BIN" pr close --repo langfuse/langfuse-python "$pr_number"
+            fi
+          done
 
   push-typescript-sdk:
     needs: generate-sdk-api-specs
@@ -246,13 +251,6 @@ jobs:
           "$GIT_BIN" -C "$PUSH_REPO" init -q
           "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags "$BUNDLE_PATH" "$BRANCH_NAME:refs/heads/$BRANCH_NAME"
 
-          # Close existing api-spec-bot PRs
-          "$GH_BIN" pr list --repo langfuse/langfuse-js --author langfuse-bot --state open --json number --jq '.[].number' | while read -r pr_number; do
-            if [ -n "$pr_number" ]; then
-              "$GH_BIN" pr close --repo langfuse/langfuse-js "$pr_number"
-            fi
-          done
-
           # Resolve the reviewer before pushing so a transient GitHub API failure cannot orphan a branch.
           ORIGINAL_AUTHOR="$("$GH_BIN" api "repos/langfuse/langfuse/commits/${GITHUB_SHA}" --jq '.author.login // empty')"
           REVIEWER_ARGS=()
@@ -268,12 +266,20 @@ jobs:
             -c core.hooksPath=/dev/null \
             push "https://x-access-token:${GH_TOKEN}@github.com/langfuse/langfuse-js.git" "$BRANCH_NAME"
 
-          "$GH_BIN" pr create \
+          NEW_PR_URL="$("$GH_BIN" pr create \
             --repo langfuse/langfuse-js \
             --head "$BRANCH_NAME" \
             --title "feat(api): update API spec from langfuse/langfuse ${GITHUB_SHA::7}" \
             --body "" \
-            "${REVIEWER_ARGS[@]}"
+            "${REVIEWER_ARGS[@]}")"
+          NEW_PR_NUMBER="${NEW_PR_URL##*/}"
+
+          # Only retire stale bot PRs after their replacement exists.
+          "$GH_BIN" pr list --repo langfuse/langfuse-js --author langfuse-bot --state open --json number --jq '.[].number' | while read -r pr_number; do
+            if [ -n "$pr_number" ] && [ "$pr_number" != "$NEW_PR_NUMBER" ]; then
+              "$GH_BIN" pr close --repo langfuse/langfuse-js "$pr_number"
+            fi
+          done
 
   notify-slack-on-failure:
     needs:
@@ -284,6 +290,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

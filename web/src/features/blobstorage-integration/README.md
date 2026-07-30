@@ -113,7 +113,7 @@ worker picks up the job and sets `runStartedAt`.
 | --------------------------------------------------------------------------- | ------------------------------------------------- |
 | `deriveSyncStatus.ts`                                                       | Derives display status from DB fields             |
 | `types.ts`                                                                  | Form zod schema, `BlobStorageSyncStatus` type     |
-| `exportSource.ts`                                                           | Export-source availability/options helpers (pure) |
+| `../analytics-integrations/exportSource.ts`                                 | Export-source option/alert UI adapters (pure); policy in `packages/shared/.../export-source-policy.ts` |
 | `service.ts`                                                                | Upsert logic (web save path)                      |
 | `blobstorage-integration-router.ts`                                         | tRPC router (save, runNow)                        |
 | `worker/src/features/blobstorage/handleBlobStorageIntegrationProjectJob.ts` | Worker job handler                                |
@@ -134,7 +134,7 @@ feature components below.
 
 | File                                  | Role                                                                                                                                     |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `BlobStorageIntegrationContainer.tsx` | State layer: availability derivation, the four mutations, entity-action buttons (Validate / Run Now / Reset), loading gate, identity key |
+| `BlobStorageIntegrationContainer.tsx` | State layer: export-source policy context assembly, the four mutations, entity-action buttons (Validate / Run Now / Reset), loading gate, identity key |
 | `BlobStorageIntegrationForm.tsx`      | Disposable draft layer: `useForm` + schema, fields, Save; no tRPC                                                                        |
 | `formValues.ts`                       | Pure `buildBlobStorageFormValues()` + shared `BlobStorageFormControl` type                                                               |
 | `StorageProviderFields.tsx`           | Provider select + provider-dependent connection fields                                                                                   |

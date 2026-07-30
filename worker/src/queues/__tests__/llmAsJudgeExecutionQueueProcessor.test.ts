@@ -84,7 +84,7 @@ vi.mock("@langfuse/shared/src/server", () => {
     LLMAsJudgeExecutionQueue: {
       getInstance: getQueueInstance,
     },
-    isLLMCompletionError: vi.fn(),
+    classifyEvaluatorLlmError: vi.fn(),
   };
 });
 
@@ -107,11 +107,21 @@ import { prisma } from "@langfuse/shared/src/db";
 import { processObservationEval } from "../../features/evaluation/observationEval";
 import {
   LLMAsJudgeExecutionQueue,
-  isLLMCompletionError,
+  classifyEvaluatorLlmError,
   traceException,
 } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "../../features/utils";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
+
+function mockLlmError(error: Error, isRetryable: boolean): void {
+  vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
+    kind: "provider",
+    message: error.message,
+    isRetryable,
+    error,
+    blockReason: null,
+  });
+}
 
 describe("llmAsJudgeExecutionQueueProcessor", () => {
   const projectId = "test-project-123";
@@ -155,7 +165,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(isLLMCompletionError).mockReturnValue(false);
+    vi.mocked(classifyEvaluatorLlmError).mockReturnValue(null);
     vi.mocked(isUnrecoverableError).mockReturnValue(false);
   });
 
@@ -201,10 +211,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     it("should schedule retry and set DELAYED status for retryable LLM errors", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
       (processObservationEval as Mock).mockRejectedValue(rateLimitError);
-      vi.mocked(isLLMCompletionError).mockReturnValue(true);
-      // Mark as retryable
-      (rateLimitError as unknown as { isRetryable: boolean }).isRetryable =
-        true;
+      mockLlmError(rateLimitError, true);
       (retryLLMRateLimitError as Mock).mockResolvedValue({
         outcome: "scheduled",
       });
@@ -238,10 +245,8 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
     it("should not rethrow error after scheduling retry", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
-      (rateLimitError as unknown as { isRetryable: boolean }).isRetryable =
-        true;
       (processObservationEval as Mock).mockRejectedValue(rateLimitError);
-      vi.mocked(isLLMCompletionError).mockReturnValue(true);
+      mockLlmError(rateLimitError, true);
       (retryLLMRateLimitError as Mock).mockResolvedValue({
         outcome: "scheduled",
       });
@@ -257,9 +262,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     it("should set ERROR when retryable LLM errors are not re-enqueued", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
       (processObservationEval as Mock).mockRejectedValue(rateLimitError);
-      vi.mocked(isLLMCompletionError).mockReturnValue(true);
-      (rateLimitError as unknown as { isRetryable: boolean }).isRetryable =
-        true;
+      mockLlmError(rateLimitError, true);
       (retryLLMRateLimitError as Mock).mockResolvedValue({
         outcome: "skipped",
         reason: "too_old",
@@ -285,9 +288,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     it("should set ERROR when the retry queue is unavailable", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
       (processObservationEval as Mock).mockRejectedValue(rateLimitError);
-      vi.mocked(isLLMCompletionError).mockReturnValue(true);
-      (rateLimitError as unknown as { isRetryable: boolean }).isRetryable =
-        true;
+      mockLlmError(rateLimitError, true);
       (retryLLMRateLimitError as Mock).mockResolvedValue({
         outcome: "queue_unavailable",
       });
@@ -313,9 +314,8 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   describe("LLM completion errors (non-retryable)", () => {
     it("should set ERROR status for non-retryable LLM errors", async () => {
       const llmError = new Error("Invalid API key");
-      (llmError as unknown as { isRetryable: boolean }).isRetryable = false;
       (processObservationEval as Mock).mockRejectedValue(llmError);
-      vi.mocked(isLLMCompletionError).mockReturnValue(true);
+      mockLlmError(llmError, false);
 
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
@@ -336,9 +336,8 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
     it("should not rethrow non-retryable LLM errors", async () => {
       const llmError = new Error("Invalid API key");
-      (llmError as unknown as { isRetryable: boolean }).isRetryable = false;
       (processObservationEval as Mock).mockRejectedValue(llmError);
-      vi.mocked(isLLMCompletionError).mockReturnValue(true);
+      mockLlmError(llmError, false);
 
       const job = createMockJob();
 

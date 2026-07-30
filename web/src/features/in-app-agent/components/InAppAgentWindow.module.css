@@ -1,0 +1,29 @@
+@property --in-app-agent-loading-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.loadingGradient {
+  background: conic-gradient(
+    from var(--in-app-agent-loading-angle),
+    transparent 90deg,
+    var(--color-2) 145deg,
+    var(--color-3) 215deg,
+    transparent 270deg
+  );
+  filter: drop-shadow(0 0 2rem var(--color-3));
+  animation: rotate-loading-gradient 2s linear infinite alternate;
+}
+
+@keyframes rotate-loading-gradient {
+  to {
+    --in-app-agent-loading-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingGradient {
+    animation: none;
+  }
+}

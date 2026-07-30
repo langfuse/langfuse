@@ -349,7 +349,7 @@ import {
   redis,
   clickhouseClient,
   StorageService,
-  fetchLLMCompletion,
+  generateLLMText,
   filterToPrisma,
 } from "@langfuse/shared/src/server";
 

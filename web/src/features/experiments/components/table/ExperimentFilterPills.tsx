@@ -96,7 +96,7 @@ function FilterPillWithTarget({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
-            className="flex shrink-0 items-center gap-0.5 font-medium hover:underline"
+            className="flex shrink-0 items-center gap-0.5 font-bold hover:underline"
             title={experimentName}
           >
             <span className="max-w-[100px] truncate" title={experimentName}>
@@ -106,7 +106,7 @@ function FilterPillWithTarget({
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-[200px] p-1" align="start">
-          <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
+          <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
             Target Experiment
           </div>
           <div className="space-y-0.5">

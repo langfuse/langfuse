@@ -70,7 +70,7 @@ export function IssueBanner({
       <div className="flex items-start gap-2">
         <Icon className="mt-0.5 h-4 w-4 shrink-0" />
         <div className="space-y-1">
-          <p className="text-sm font-medium">{title}</p>
+          <p className="text-sm font-bold">{title}</p>
           {description && <p className="text-xs opacity-80">{description}</p>}
           {children}
         </div>
@@ -95,7 +95,7 @@ export function IssueList({
         issueChromeVariants({ variant }),
       )}
     >
-      <p className="mb-1 text-xs font-medium">{title}</p>
+      <p className="mb-1 text-xs font-bold">{title}</p>
       <ul className="space-y-0.5">{children}</ul>
     </div>
   );

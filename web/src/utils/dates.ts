@@ -39,7 +39,7 @@ export const formatIntervalSeconds = (seconds: number, scale = 2) => {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  const pad = (num: number) => `00${num}`.slice(2);
+  const pad = (num: number) => String(num).padStart(2, "0");
 
   if (hrs > 0) return `${hrs}h ${pad(mins)}m ${pad(secs)}s`;
   if (mins > 0) return `${mins}m ${pad(secs)}s`;
@@ -73,6 +73,21 @@ export const getTimezoneDetails = () => {
   const location = longLocalTz.replace(/_/g, " ");
   const utcDifference = -(new Date().getTimezoneOffset() / 60); // negative because TZ info is the opposite of UTC offset
   return `${location} (UTC${utcDifference >= 0 ? "+" : ""}${utcDifference})`;
+};
+
+// Compact relative time: "just now", "3m ago", "5h ago", "15d ago",
+// "2mo ago", "1y ago" — largest sensible unit, no live refresh implied.
+export const formatCompactRelativeTime = (timestamp: Date): string => {
+  const diffInSeconds = Math.max(0, (Date.now() - timestamp.getTime()) / 1000);
+  if (diffInSeconds < 60) return "just now";
+  const minutes = diffInSeconds / 60;
+  if (minutes < 60) return `${Math.floor(minutes)}m ago`;
+  const hours = minutes / 60;
+  if (hours < 24) return `${Math.floor(hours)}h ago`;
+  const days = hours / 24;
+  if (days < 30) return `${Math.floor(days)}d ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
 };
 
 export const getRelativeTimestampFromNow = (timestamp: Date): string => {

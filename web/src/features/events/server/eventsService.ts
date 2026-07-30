@@ -20,6 +20,7 @@ import {
   getScoresForTraces,
   logger,
   traceException,
+  EVENTS_APPROX_TOTAL_COUNT_MARKER,
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
@@ -43,16 +44,31 @@ const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
   },
 ];
 
-// Observation-level scores: written against a specific observation
-// (observation_id set). These are the scores the observation `scores_avg` /
-// `score_categories` columns aggregate and filter on (joined by span_id).
-// Trace-level scores (observation_id NULL) live under `trace_scores_avg` /
-// `trace_score_categories` instead, so they must NOT be offered here — filtering
-// a trace-level score name via the observation column can never match (LFE-10596).
 const OBSERVATION_SCORE_SCOPE_FILTER: FilterCondition[] = [
   {
     type: "null",
+    column: "traceId",
+    operator: "is not null",
+    value: "",
+  },
+  {
+    type: "null",
     column: "observationId",
+    operator: "is not null",
+    value: "",
+  },
+];
+
+// The level-agnostic "Scores" groups (`scores_avg` / `score_categories`) match a
+// score whether it sits at observation or trace level, but only if it rolls up
+// into a trace — i.e. `trace_id IS NOT NULL`. Session-level and dataset-run
+// scores (`trace_id IS NULL`) can never match the events union, so scope
+// discovery to trace-attached scores to keep offered-set == matchable-set
+// (LFE-10596). Mirrors `scoreFilters.forTraceScopedAggregates`.
+const TRACE_SCOPED_SCORE_FILTER: FilterCondition[] = [
+  {
+    type: "null",
+    column: "traceId",
     operator: "is not null",
     value: "",
   },
@@ -85,6 +101,23 @@ interface GetObservationsFilterOptionsParams {
   columns?: readonly EventFilterOptionsColumn[];
 }
 
+interface GetEventFilterOptionsParams extends GetObservationsFilterOptionsParams {
+  /**
+   * Full-text search is intentionally not part of facet refinement: repeating
+   * that scan for filter options is prohibitively expensive.
+   */
+  filter?: FilterState;
+  /**
+   * When true, the bulk facet query also returns the approximate total
+   * observation count matching `filter` (`uniq(span_id)` over the same facet
+   * scan) for the traces-table footer "Total ≈ X". The scan honors `filter`
+   * (incl. score filters) but not input/output/comment (dropped upstream, so
+   * `omitCounts` → the count is flagged partial) nor full-text search. Set only
+   * on the eager bulk request so the count is computed once.
+   */
+  includeApproxCount?: boolean;
+}
+
 type EventFilterValueOption = {
   value: string;
   count?: number;
@@ -104,6 +137,7 @@ const EVENT_FILTER_OPTION_COLUMNS = [
   "sessionId",
   "level",
   "environment",
+  "ingestionApiKey",
   "experimentDatasetId",
   "experimentId",
   "experimentName",
@@ -316,13 +350,23 @@ export async function getEventList(params: GetObservationsListParams) {
     }
   }
 
-  const observationsWithScores = observations.map((observation) => ({
-    ...observation,
-    scores: aggregateScores(scoresByObservationId.get(observation.id) ?? []),
-    traceScores: observation.traceId
-      ? aggregateScores(scoresByTraceId.get(observation.traceId) ?? [])
-      : {},
-  }));
+  const observationsWithScores = observations.map((observation) => {
+    const observationScores = scoresByObservationId.get(observation.id) ?? [];
+    const traceScores = observation.traceId
+      ? (scoresByTraceId.get(observation.traceId) ?? [])
+      : [];
+    return {
+      ...observation,
+      // Level-agnostic "Scores": roll up this observation's scores together with
+      // the trace's trace-level scores into a single aggregate, so a trace-level
+      // score (e.g. CSAT) shows in the one "Scores" column — matching the
+      // level-agnostic score filter (LFE-10596). aggregateScores groups by
+      // name/source/dataType, so a score present at both levels merges cleanly.
+      scores: aggregateScores([...observationScores, ...traceScores]),
+      // Trace-only aggregate, retained for callers that need the breakdown.
+      traceScores: aggregateScores(traceScores),
+    };
+  });
 
   return { observations: observationsWithScores, hasMore };
 }
@@ -366,6 +410,46 @@ const EVENT_FILTER_VALUE_ONLY_COLUMNS = new Set<EventFilterOptionColumn>([
   "calledToolNames",
 ]);
 
+const EVENT_FILTER_OPTIONS_NON_PARTICIPATING_COLUMNS = new Set([
+  "input",
+  "output",
+  "commentCount",
+  "commentContent",
+]);
+
+export const partitionEventFilterOptionsFilter = (
+  filter: FilterState = [],
+): {
+  participatingFilter: FilterState;
+  omitCounts: boolean;
+} => {
+  const participatingFilter: FilterState = [];
+  let omitCounts = false;
+
+  for (const filterItem of filter) {
+    // The dedicated startTimeFilter remains authoritative for the bounded
+    // facet query and its score lookback.
+    if (
+      filterItem.type === "datetime" &&
+      (filterItem.column === "startTime" || filterItem.column === "Start Time")
+    ) {
+      continue;
+    }
+
+    if (
+      filterItem.type === "positionInTrace" ||
+      EVENT_FILTER_OPTIONS_NON_PARTICIPATING_COLUMNS.has(filterItem.column)
+    ) {
+      omitCounts = true;
+      continue;
+    }
+
+    participatingFilter.push(filterItem);
+  }
+
+  return { participatingFilter, omitCounts };
+};
+
 type EventFilterOptionsByColumn = Record<
   (typeof EVENT_FILTER_OPTION_COLUMNS)[number],
   EventFilterValueOption[]
@@ -374,10 +458,11 @@ type EventFilterOptionsByColumn = Record<
 const toEventFilterValueOptions = (
   items: EventFilterOptionRow[],
   column: EventFilterOptionColumn,
+  omitCounts: boolean,
 ): EventFilterValueOption[] => {
   const options = toFilterValueOptions(items, column);
 
-  return EVENT_FILTER_VALUE_ONLY_COLUMNS.has(column)
+  return omitCounts || EVENT_FILTER_VALUE_ONLY_COLUMNS.has(column)
     ? options.map(({ value }) => ({ value }))
     : options;
 };
@@ -389,9 +474,10 @@ const toEventFilterValueOptions = (
 const toEventFilterOptionsByColumn = (
   items: EventFilterOptionRow[],
   columns: readonly (keyof EventFilterOptionsByColumn)[],
+  omitCounts: boolean,
 ): Partial<EventFilterOptionsByColumn> =>
   columns.reduce((acc, column) => {
-    acc[column] = toEventFilterValueOptions(items, column);
+    acc[column] = toEventFilterValueOptions(items, column, omitCounts);
     return acc;
   }, {} as Partial<EventFilterOptionsByColumn>);
 
@@ -463,6 +549,7 @@ export async function getEventFilterValuePage(
   params: GetObservationsFilterOptionsParams & {
     column:
       | "traceTags"
+      | "isRootObservation"
       | "hasParentObservation"
       | "providedModelName"
       | "modelId"
@@ -526,12 +613,16 @@ export async function getEventFilterNumericRange(
  * Get all available filter options for events table
  */
 export async function getEventFilterOptions(
-  params: GetObservationsFilterOptionsParams,
+  params: GetEventFilterOptionsParams,
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
   const { projectId, columns = EVENT_FILTER_OPTIONS_COLUMNS } = scopedParams;
+  const { participatingFilter, omitCounts } = partitionEventFilterOptionsFilter(
+    scopedParams.filter,
+  );
   const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
     getEventFilterOptionsScope(scopedParams);
+  const refinedEventsFilter = eventsFilter.concat(participatingFilter);
   const requestedColumns = new Set<EventFilterOptionsColumn>(columns);
   const eventColumns = EVENT_FILTER_OPTION_COLUMNS.filter((column) =>
     requestedColumns.has(column),
@@ -546,9 +637,20 @@ export async function getEventFilterOptions(
   const shouldLoadTraceScoreBooleans = requestedColumns.has(
     "trace_score_booleans",
   );
+  // Level provenance for the level-agnostic "Scores" groups: which level(s)
+  // each offered score name exists at, so the UI can tag every score option
+  // with its level (ScoreTag, LFE-10596). Loaded with the agnostic groups.
+  const shouldLoadScoreNameLevels =
+    shouldLoadScoresAvg || shouldLoadScoreCategories || shouldLoadScoreBooleans;
 
-  // Observation-scoped and trace-scoped discovery are kept separate so each
-  // score column only offers names its filter/join can actually match.
+  // The `scores_avg` / `score_categories` / `score_booleans` groups are
+  // level-agnostic (their filter matches observation- OR trace-level scores;
+  // see `toLevelAgnosticScoreFilter` in events-observation-row-selection.ts),
+  // so they offer every score that rolls up into a trace — matchable-set ==
+  // offered-set (LFE-10596). Scoping to trace-attached scores (`trace_id IS
+  // NOT NULL`) excludes session-/dataset-run scores the union can never match.
+  // The trace-scoped discovery below stays trace-only to back the search bar's
+  // `traceScores.` escape hatch.
   const [
     numericScoreNames,
     booleanScoreNames,
@@ -556,23 +658,25 @@ export async function getEventFilterOptions(
     traceScoreColumns,
     traceCategoricalScoreColumns,
     traceBooleanScoreColumns,
+    observationLevelScoreNames,
+    traceLevelScoreNames,
     eventFilterOptions,
   ] = await Promise.all([
     shouldLoadScoresAvg
       ? getNumericScoresGroupedByName(projectId, [
-          ...OBSERVATION_SCORE_SCOPE_FILTER,
+          ...TRACE_SCOPED_SCORE_FILTER,
           ...traceTimestampFilters,
         ])
       : Promise.resolve([]),
     shouldLoadScoreBooleans
       ? getBooleanScoresGroupedByName(projectId, [
-          ...OBSERVATION_SCORE_SCOPE_FILTER,
+          ...TRACE_SCOPED_SCORE_FILTER,
           ...traceTimestampFilters,
         ])
       : Promise.resolve([]),
     shouldLoadScoreCategories
       ? getCategoricalScoresGroupedByName(projectId, [
-          ...OBSERVATION_SCORE_SCOPE_FILTER,
+          ...TRACE_SCOPED_SCORE_FILTER,
           ...traceTimestampFilters,
         ])
       : Promise.resolve([]),
@@ -594,11 +698,30 @@ export async function getEventFilterOptions(
           ...traceTimestampFilters,
         ])
       : Promise.resolve([]),
+    shouldLoadScoreNameLevels
+      ? getScoresGroupedByNameSourceType({
+          projectId,
+          filter: [
+            ...OBSERVATION_SCORE_SCOPE_FILTER,
+            ...traceScoreTimestampFilters,
+          ],
+        })
+      : Promise.resolve([]),
+    shouldLoadScoreNameLevels
+      ? getScoresGroupedByNameSourceType({
+          projectId,
+          filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
+        })
+      : Promise.resolve([]),
     eventColumns.length > 0
       ? getEventsFilterOptionsForColumns({
           projectId,
-          filter: eventsFilter,
+          filter: refinedEventsFilter,
           columns: eventColumns,
+          // Only the eager bulk request sets includeApproxCount, so the
+          // approximate total is computed once (riding this scan), not per lazy
+          // facet. uniq(span_id) over this scan already honors refinedEventsFilter.
+          includeApproxCount: scopedParams.includeApproxCount,
         })
       : Promise.resolve([]),
   ]);
@@ -615,7 +738,53 @@ export async function getEventFilterOptions(
   const eventFilterOptionsByColumn = toEventFilterOptionsByColumn(
     eventFilterOptions,
     eventColumns,
+    omitCounts,
   );
+
+  // Approximate total observation count for the footer "Total ≈ X": the bulk
+  // facet query returns it as a sentinel row (only when includeApproxCount was
+  // set — i.e. the eager request). `null` when not requested.
+  const approxTotalCountRow = eventFilterOptions.find(
+    (row) => (row.column as string) === EVENTS_APPROX_TOTAL_COUNT_MARKER,
+  );
+  const approxTotalCount = approxTotalCountRow
+    ? Number(approxTotalCountRow.count)
+    : null;
+  // Partial scope: the facet scan omits input/output/comment filters
+  // (`omitCounts`), so the count over-counts vs the visible rows — the UI marks
+  // it and drops the "within a few percent" claim. Score filters ARE honored
+  // by the scan. (Full-text search isn't part of this query, so the client ORs
+  // in its own searchQuery signal.)
+  const approxTotalCountIsPartial = approxTotalCount !== null && omitCounts;
+
+  // name → the level(s) the name actually exists at, SPLIT PER DATA-TYPE
+  // class: a name can be reused across types at different levels (a NUMERIC
+  // observation-level "accuracy" next to an unrelated CATEGORICAL trace-level
+  // "accuracy"), and a name-only map would mislabel both. Each type-scoped
+  // facet reads its own map; the search bar's merged suggestion unions them.
+  // Discovery rows are grouped by (name, source, dataType) — dedupe per level.
+  const scoreNameLevelsByType = {
+    numeric: {} as Record<string, ("observation" | "trace")[]>,
+    categorical: {} as Record<string, ("observation" | "trace")[]>,
+    boolean: {} as Record<string, ("observation" | "trace")[]>,
+  };
+  const addScoreNameLevel = (
+    score: { name: string; dataType: string },
+    level: "observation" | "trace",
+  ): void => {
+    const typeClass =
+      score.dataType === "NUMERIC"
+        ? "numeric"
+        : score.dataType === "BOOLEAN"
+          ? "boolean"
+          : "categorical"; // CATEGORICAL + TEXT
+    const levels = (scoreNameLevelsByType[typeClass][score.name] ??= []);
+    if (!levels.includes(level)) levels.push(level);
+  };
+  observationLevelScoreNames.forEach((score) =>
+    addScoreNameLevel(score, "observation"),
+  );
+  traceLevelScoreNames.forEach((score) => addScoreNameLevel(score, "trace"));
 
   // Only include a score key when its column was requested, so an unrequested
   // (lazily-loadable) score facet stays absent from the payload rather than
@@ -625,6 +794,13 @@ export async function getEventFilterOptions(
   // column only offers names its filter can match (LFE-10596).
   return {
     ...eventFilterOptionsByColumn,
+    // Approximate total observation count for the footer "Total ≈ X". Included
+    // ONLY when requested (the eager bulk query), so callers that didn't ask —
+    // lazy per-column facet requests, the sidebar/search-bar option loaders —
+    // don't carry stray count keys (mirrors the conditional score keys below).
+    ...(scopedParams.includeApproxCount
+      ? { approxTotalCount, approxTotalCountIsPartial }
+      : {}),
     ...(shouldLoadScoresAvg
       ? { scores_avg: numericScoreNames.map((score) => score.name) }
       : {}),
@@ -645,6 +821,13 @@ export async function getEventFilterOptions(
           trace_score_booleans: traceBooleanScoreColumns.map(
             (score) => score.name,
           ),
+        }
+      : {}),
+    ...(shouldLoadScoreNameLevels
+      ? {
+          score_name_levels_numeric: scoreNameLevelsByType.numeric,
+          score_name_levels_categorical: scoreNameLevelsByType.categorical,
+          score_name_levels_boolean: scoreNameLevelsByType.boolean,
         }
       : {}),
   };

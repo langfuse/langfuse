@@ -65,14 +65,13 @@ import { transformToAnnotationScores } from "@/src/features/scores/lib/transform
 import { v4 as uuid } from "uuid";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
+import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
 import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import {
   hasBlockingOverlay,
   hasModifier,
 } from "@/src/features/scores/lib/keyboardShortcuts";
-import { useRouter } from "next/router";
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
@@ -234,7 +233,6 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   configControl,
 }: InnerAnnotationFormProps<Target>) {
   const capture = usePostHogClientCapture();
-  const router = useRouter();
   const { configs, allowManualSelection } = configControl;
 
   // Initialize form with initial data (never updates)
@@ -853,19 +851,16 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                   }),
                 }))}
               controlButtons={
-                <DropdownMenuItem
-                  onSelect={() => {
+                <DropdownMenuItemWithSecondaryAction
+                  title="Manage score configs"
+                  href={`/project/${scoreMetadata.projectId}/settings/scores`}
+                  onBeforeAction={() => {
                     capture(
                       "score_configs:manage_configs_item_click",
                       analyticsData,
                     );
-                    router.push(
-                      `/project/${scoreMetadata.projectId}/settings/scores`,
-                    );
                   }}
-                >
-                  Manage score configs
-                </DropdownMenuItem>
+                />
               }
             />
           </div>
@@ -921,7 +916,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                               <HoverCardTrigger asChild>
                                 <span
                                   className={cn(
-                                    "decoration-muted-gray line-clamp-2 min-w-0 text-xs font-medium wrap-break-word underline decoration-dashed underline-offset-2",
+                                    "decoration-muted-gray line-clamp-2 min-w-0 text-xs font-bold wrap-break-word underline decoration-dashed underline-offset-2",
                                     config.isArchived
                                       ? "text-foreground/40"
                                       : "",
@@ -937,7 +932,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                           ) : (
                             <span
                               className={cn(
-                                "line-clamp-2 min-w-0 text-xs font-medium wrap-break-word",
+                                "line-clamp-2 min-w-0 text-xs font-bold wrap-break-word",
                                 config.isArchived ? "text-foreground/40" : "",
                               )}
                               title={score.name}
@@ -1159,7 +1154,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                                   ) ?? -1) + 1;
                                                 return digit >= 1 &&
                                                   digit <= 9 ? (
-                                                  <KeyboardShortcut className="ml-0.5 hidden h-3.5 min-w-3.5 px-1 text-[9px] group-focus-within:inline-flex">
+                                                  <KeyboardShortcut className="ml-0.5 h-3.5 min-w-3.5 px-1 text-[9px] md:hidden md:group-focus-within:inline-flex">
                                                     {digit}
                                                   </KeyboardShortcut>
                                                 ) : null;
@@ -1189,7 +1184,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent>
-                                <h2 className="mb-3 font-semibold">
+                                <h2 className="mb-3 font-bold">
                                   Your score is archived
                                 </h2>
                                 <p className="mb-3 text-sm">
@@ -1236,7 +1231,11 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
             />
           </div>
           {rowCount > 0 && (
-            <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px]">
+            // This legend only exists to advertise keyboard shortcuts, so hide
+            // the whole strip on touch viewports rather than just the kbd
+            // chips inside it (LFE-11067) — the shortcuts themselves still
+            // work if a physical keyboard is attached.
+            <div className="text-muted-foreground hidden flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px] md:flex">
               {rowCount > 1 && (
                 <span className="flex items-center gap-1">
                   <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">

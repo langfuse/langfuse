@@ -8,7 +8,7 @@ import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
-import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import { projectRoleAccessRights } from "@langfuse/shared";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -16,7 +16,11 @@ export async function createProjectMembershipsOnSignup(
     email: string | null;
     name: string | null;
   },
-  options?: { userWasJustCreated?: boolean },
+  options?: {
+    userWasJustCreated?: boolean;
+    /** Google Ads click id, see getGclidFromRequest */
+    gclid?: string;
+  },
 ) {
   try {
     const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
@@ -161,13 +165,32 @@ export async function createProjectMembershipsOnSignup(
     // SFDC lead upsert (never throws; no-op when SfdcService is not
     // configured).
     // Must run BEFORE processMembershipInvitations below so the lead exists
-    // when setUserRole events fire for accepted invitations.
+    // when setUserRole events fire for accepted invitations — which is also
+    // why the invitation lookup for the lead source runs here, while the
+    // invitations still exist.
     if (options?.userWasJustCreated || isNewUser) {
-      await getSfdcService()?.upsertUser({
-        userId: user.id,
-        email: user.email,
-        name: user.name,
-      });
+      const sfdcService = getSfdcService();
+      if (sfdcService) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { createdAt: true },
+        });
+        const hasPendingInvitation = user.email
+          ? (await prisma.membershipInvitation.findFirst({
+              where: { email: user.email.toLowerCase() },
+              select: { id: true },
+            })) !== null
+          : false;
+        await sfdcService.upsertUser({
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+          createdAt: dbUser?.createdAt ?? new Date(),
+          leadSource: hasPendingInvitation
+            ? "Langfuse Cloud Invite"
+            : "Langfuse Cloud Signup",
+        });
+      }
     }
 
     // Invites do not work for users without emails (some future SSO users)
@@ -191,9 +214,8 @@ export async function createProjectMembershipsOnSignup(
         await getSfdcService()?.upsertOrg({
           orgId: starterOrg.organization.id,
           orgName: starterOrg.organization.name,
-          userId: user.id,
-          email: user.email,
-          role: "OWNER",
+          createdAt: starterOrg.organization.createdAt,
+          plan: "Hobby",
         });
         await getSfdcService()?.setUserRole({
           orgId: starterOrg.organization.id,
@@ -274,6 +296,8 @@ export async function createProjectMembershipsOnSignup(
             hasDemoAccess: demoProject !== undefined,
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
+            // Google Ads click id for ad conversion attribution
+            ...(options?.gclid ? { gclid: options.gclid } : {}),
           },
         });
         await posthog.shutdown();

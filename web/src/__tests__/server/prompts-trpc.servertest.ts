@@ -7,9 +7,19 @@ import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import waitForExpect from "wait-for-expect";
 
-async function prepare() {
-  const { project, org } = await createOrgProjectAndApiKey();
-
+function createCaller({
+  projectId,
+  orgId,
+  projectName = "Test project",
+  orgName = "Test organization",
+  admin = true,
+}: {
+  projectId: string;
+  orgId: string;
+  projectName?: string;
+  orgName?: string;
+  admin?: boolean;
+}) {
   const session: Session = {
     expires: "1",
     user: {
@@ -18,8 +28,8 @@ async function prepare() {
       name: "Demo User",
       organizations: [
         {
-          id: org.id,
-          name: org.name,
+          id: orgId,
+          name: orgName,
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
@@ -28,12 +38,12 @@ async function prepare() {
           aiTelemetryEnabled: false,
           projects: [
             {
-              id: project.id,
+              id: projectId,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
               hasTraces: false,
-              name: project.name,
+              name: projectName,
               metadata: {},
               createdAt: new Date().toISOString(),
             },
@@ -48,7 +58,7 @@ async function prepare() {
         observationEvals: false,
         experimentsV4Enabled: false,
       },
-      admin: true,
+      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -59,6 +69,18 @@ async function prepare() {
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
+  return { session, ctx, caller };
+}
+
+async function prepare() {
+  const { project, org } = await createOrgProjectAndApiKey();
+  const { session, ctx, caller } = createCaller({
+    projectId: project.id,
+    orgId: org.id,
+    projectName: project.name,
+    orgName: org.name,
+  });
+
   return { project, org, session, ctx, caller };
 }
 
@@ -66,6 +88,50 @@ describe("prompts trpc", () => {
   afterAll(async () => {
     await disconnectQueues();
   });
+  describe("prompts.all input validation", () => {
+    it.each([
+      {
+        caseName: "filter",
+        filter: [
+          {
+            column: "bogus_xyz",
+            type: "string" as const,
+            operator: "=" as const,
+            value: "test",
+          },
+        ],
+        orderBy: { column: "createdAt", order: "DESC" as const },
+      },
+      {
+        caseName: "order by",
+        filter: [],
+        orderBy: { column: "bogus_xyz", order: "DESC" as const },
+      },
+    ])(
+      "rejects an invalid $caseName column as BAD_REQUEST",
+      async ({ filter, orderBy }) => {
+        const projectId = v4();
+        const { caller } = createCaller({
+          projectId,
+          orgId: v4(),
+          admin: false,
+        });
+
+        await expect(
+          caller.prompts.all({
+            projectId,
+            page: 0,
+            limit: 10,
+            filter,
+            orderBy,
+          }),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+        });
+      },
+    );
+  });
+
   describe("prompts.allVersions", () => {
     it("returns comment counts for the requested prompt version page only", async () => {
       const { project, caller } = await prepare();

@@ -27,14 +27,14 @@ export function PricePreview({
     <div className="border-border bg-muted/30 rounded-lg border p-4">
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <h4 className="text-muted-foreground text-sm font-medium">
+          <h4 className="text-muted-foreground text-sm font-bold">
             Price Preview
           </h4>
         </div>
 
         {parsedPrices.success ? (
           <div className="space-y-2">
-            <div className="border-border text-muted-foreground grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 border-b pb-2 text-xs font-medium">
+            <div className="border-border text-muted-foreground grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 border-b pb-2 text-xs font-bold">
               <span>Usage Type</span>
               <span className="text-right">per unit</span>
               <span className="text-right">per 1K</span>
@@ -48,7 +48,7 @@ export function PricePreview({
                   key={usageType}
                   className="text-muted-foreground grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 rounded px-1 py-0.5 text-xs"
                 >
-                  <span className="font-medium break-all">{usageType}</span>
+                  <span className="font-bold break-all">{usageType}</span>
                   <span className="text-right font-mono">
                     $
                     {new Decimal(price).toFixed(

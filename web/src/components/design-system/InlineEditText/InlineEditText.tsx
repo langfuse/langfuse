@@ -29,14 +29,14 @@ export const InlineEditText = ({
 }: InlineEditTextProps) => {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(value);
-  const inputRef = React.useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
-    if (editing) {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    }
-  }, [editing]);
+  // Keep the callback ref stable so typing does not reattach it and reselect the input.
+  const focusInput = React.useCallback((input: HTMLInputElement | null) => {
+    if (!input) return;
+
+    input.focus();
+    input.select();
+  }, []);
 
   const commit = () => {
     setEditing(false);
@@ -58,7 +58,7 @@ export const InlineEditText = ({
   if (editing) {
     return (
       <input
-        ref={inputRef}
+        ref={focusInput}
         value={draft}
         placeholder={placeholder}
         aria-label={ariaLabel ?? "Edit text"}

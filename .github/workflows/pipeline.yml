@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - "main"
+      - "v3" # OSS maintenance branch — releases are cut from it like from main
     tags:
       - "v*"
   merge_group:
@@ -96,9 +97,7 @@ jobs:
           filters: |
             llm_connections:
               - 'packages/shared/package.json'
-              - 'packages/shared/src/server/llm/fetchLLMCompletion.ts'
-              - 'packages/shared/src/server/llm/secureLlmFetch.ts'
-              - 'packages/shared/src/server/llm/utils.ts'
+              - 'packages/shared/src/server/llm/**'
               - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
@@ -469,7 +468,7 @@ jobs:
     strategy:
       matrix:
         node-version: [24]
-        postgres-version: [12, 15]
+        postgres-version: [15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -631,7 +630,7 @@ jobs:
     strategy:
       matrix:
         node-version: [24]
-        postgres-version: [12, 15]
+        postgres-version: [15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -1030,6 +1029,9 @@ jobs:
         e2e-server-tests,
       ]
     if: always()
+    permissions:
+      contents: read
+      actions: read
     outputs:
       success: ${{ steps.set-success-output.outputs.success }}
     steps:
@@ -1050,11 +1052,11 @@ jobs:
         run: exit 1
         working-directory: .
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         uses: ./.github/actions/notify-slack-failure
         with:
           title: "❌ CI Failed"
@@ -1140,7 +1142,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v4') && !contains(github.ref, '-rc') }}
       - name: Build and push image by digest to GitHub Container Registry (${{ matrix.component }}, ${{ matrix.platform_tag }})
         id: build-ghcr
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
@@ -1238,7 +1240,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v4') && !contains(github.ref, '-rc') }}
       - name: Extract metadata (tags) for Docker Hub
         id: meta-dockerhub
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
@@ -1253,7 +1255,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v4') && !contains(github.ref, '-rc') }}
       - name: Publish multi-platform manifest to GitHub Container Registry
         env:
           STEPS_META_GHCR_OUTPUTS_TAGS: ${{ steps.meta-ghcr.outputs.tags }}
@@ -1281,7 +1283,20 @@ jobs:
             exit 1
           fi
 
-          docker buildx imagetools create "${ghcr_tags[@]}" "${ghcr_sources[@]}"
+          # Manifest publish occasionally times out on a transient runner/registry
+          # hiccup (e.g. the Blacksmith deadline_exceeded incident during the
+          # v3.223 release, see #lf-team-engineering) even though the underlying
+          # per-platform images already pushed fine. Retry before failing the job.
+          attempt=1
+          until docker buildx imagetools create "${ghcr_tags[@]}" "${ghcr_sources[@]}"; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "Publishing GHCR manifest failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Attempt $attempt failed, retrying in $((attempt * 15))s..." >&2
+            sleep $((attempt * 15))
+            attempt=$((attempt + 1))
+          done
       - name: Publish multi-platform manifest to Docker Hub
         env:
           STEPS_META_DOCKERHUB_OUTPUTS_TAGS: ${{ steps.meta-dockerhub.outputs.tags }}
@@ -1309,7 +1324,18 @@ jobs:
             exit 1
           fi
 
-          docker buildx imagetools create "${dockerhub_tags[@]}" "${dockerhub_sources[@]}"
+          # See the retry comment on the GHCR manifest publish step above — this
+          # is the exact step that timed out twice during the v3.223 release.
+          attempt=1
+          until docker buildx imagetools create "${dockerhub_tags[@]}" "${dockerhub_sources[@]}"; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "Publishing Docker Hub manifest failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Attempt $attempt failed, retrying in $((attempt * 15))s..." >&2
+            sleep $((attempt * 15))
+            attempt=$((attempt + 1))
+          done
       - name: Inspect published manifests
         run: |
           ghcr_first_tag="$(printf '%s\n' "${STEPS_META_GHCR_OUTPUTS_TAGS}" | sed -n '1p')"
@@ -1327,6 +1353,9 @@ jobs:
       - publish-docker-image-release
     if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: Fail when a release image job failed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
