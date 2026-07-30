@@ -1,4 +1,5 @@
 import type { NextApiResponse } from "next";
+import { createHash } from "node:crypto";
 import { v4 } from "uuid";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
@@ -726,6 +727,96 @@ export const deleteDatasetItemForApi = async ({
   return {
     message: "Dataset item successfully deleted" as const,
   };
+};
+
+/**
+ * Deterministic, stable experiment id (== dataset run id) for a
+ * (projectId, datasetId, runName) triple.
+ *
+ * The Langfuse experiment runner calls POST /dataset-run-items once per dataset
+ * item and uses the returned dataset run id as the experiment id shared by every
+ * item of the run (see langfuse-python client.py: `experiment_id = dataset_run_id
+ * or fallback`). So the value MUST be identical across the separate, stateless
+ * POST requests that make up one run — hashing the run's identity gives us that
+ * without persisting anything.
+ *
+ * We take the first 8 bytes of a sha256 digest (16 hex chars), matching the
+ * shape of the SDK's own seeded id helper (`sha256(seed).digest()[:8].hex()`).
+ */
+export const createStableExperimentId = ({
+  projectId,
+  datasetId,
+  runName,
+}: {
+  projectId: string;
+  datasetId: string;
+  runName: string;
+}): string =>
+  createHash("sha256")
+    .update(
+      JSON.stringify(["langfuse-experiment-v1", projectId, datasetId, runName]),
+      "utf8",
+    )
+    .digest("hex")
+    .slice(0, 16);
+
+/**
+ * events_only deployments no longer write dataset run items into the legacy
+ * dataset_run_items ClickHouse table, so the full createDatasetRunItemForApi
+ * flow has nothing to persist. The experiment runner still calls POST
+ * /dataset-run-items per item and expects a dataset run id it can reuse as the
+ * experiment id across the whole run, so we resolve the item's dataset and
+ * return a stable experiment id derived from (projectId, datasetId, runName).
+ *
+ * In v4 the trace ↔ experiment link is established through OTel experiment span
+ * attributes instead, so beyond the dataset-item lookup (needed for datasetId
+ * and to 404 on genuinely missing items) we skip every legacy side effect:
+ * the observation→trace lookup, ClickHouse ingestion, and the eval enqueue.
+ */
+export const buildStableDatasetRunItemResponseEventsOnly = async ({
+  body,
+  auth,
+}: Pick<CreateDatasetRunItemInput, "body" | "auth">) => {
+  const projectId = auth.scope.projectId;
+
+  if (!projectId) {
+    throw new UnauthorizedError(
+      "Missing projectId in scope. Are you using an organization key?",
+    );
+  }
+
+  const datasetItem = await getDatasetItemById({
+    projectId,
+    datasetItemId: body.datasetItemId,
+    status: "ACTIVE",
+    version: body.datasetVersion ?? undefined,
+  });
+
+  if (!datasetItem) {
+    throw new LangfuseNotFoundError("Dataset item not found");
+  }
+
+  const experimentId = createStableExperimentId({
+    projectId,
+    datasetId: datasetItem.datasetId,
+    runName: body.runName,
+  });
+  const createdAt = body.createdAt ? new Date(body.createdAt) : new Date();
+
+  const datasetRunItem: APIDatasetRunItem = {
+    id: v4(),
+    datasetRunId: experimentId,
+    datasetRunName: body.runName,
+    datasetItemId: datasetItem.id,
+    // events_only skips the observation→trace lookup; echo whatever the caller
+    // provided (the body schema requires traceId or observationId).
+    traceId: body.traceId ?? "",
+    observationId: body.observationId ?? null,
+    createdAt,
+    updatedAt: createdAt,
+  };
+
+  return datasetRunItem;
 };
 
 export const createDatasetRunItemForApi = async ({
