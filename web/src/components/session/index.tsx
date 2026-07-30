@@ -1287,6 +1287,9 @@ const LoadedSessionEventsPage: React.FC<{
       ? filterMatchedView
       : null;
   const viewLabel = matchedView?.name ?? null;
+  const hasSessionControls =
+    !isModernSessionEnabled ||
+    Boolean(session.users?.length || session.scores.length);
   const excludeModernSessionObservation = useCallback(
     (observation: ModernSessionObservationIdentity) => {
       const nextFilters = addModernSessionObservationExclusion(
@@ -1621,86 +1624,90 @@ const LoadedSessionEventsPage: React.FC<{
               : "flex h-full flex-col overflow-auto"
           }
         >
-          <SessionControlsBar
-            isMobile={isMobile && !isModernSessionEnabled}
-            desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
-            summary={
-              <>
-                <span className="text-sm font-bold">Session controls</span>
-                <span
-                  className="text-muted-foreground min-w-0 truncate text-xs"
-                  title={`${session.countTraces} traces · ${usdFormatter(
-                    session.totalCost ?? 0,
-                    2,
-                  )}`}
-                >
-                  {session.countTraces} traces ·{" "}
-                  {usdFormatter(session.totalCost ?? 0, 2)}
-                </span>
-              </>
-            }
-          >
-            {/* Saved Views */}
-            {!isModernSessionEnabled ? (
-              <TableViewPresetsDrawer
-                viewConfig={{
-                  tableName: TableViewPresetTableName.SessionDetail,
-                  projectId,
-                  controllers: viewControllers,
-                }}
-                currentState={{
-                  orderBy: null,
-                  filters: queryFilter.filterState,
-                  columnOrder,
-                  columnVisibility,
-                  searchQuery: "",
-                }}
-                systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
-                triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
-              />
-            ) : null}
+          {hasSessionControls ? (
+            <SessionControlsBar
+              isMobile={isMobile && !isModernSessionEnabled}
+              desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
+              summary={
+                <>
+                  <span className="text-sm font-bold">Session controls</span>
+                  <span
+                    className="text-muted-foreground min-w-0 truncate text-xs"
+                    title={`${session.countTraces} traces · ${usdFormatter(
+                      session.totalCost ?? 0,
+                      2,
+                    )}`}
+                  >
+                    {session.countTraces} traces ·{" "}
+                    {usdFormatter(session.totalCost ?? 0, 2)}
+                  </span>
+                </>
+              }
+            >
+              {/* Saved Views */}
+              {!isModernSessionEnabled ? (
+                <TableViewPresetsDrawer
+                  viewConfig={{
+                    tableName: TableViewPresetTableName.SessionDetail,
+                    projectId,
+                    controllers: viewControllers,
+                  }}
+                  currentState={{
+                    orderBy: null,
+                    filters: queryFilter.filterState,
+                    columnOrder,
+                    columnVisibility,
+                    searchQuery: "",
+                  }}
+                  systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+                  triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
+                />
+              ) : null}
 
-            {/* Refines the selected view by filtering observations within each
+              {/* Refines the selected view by filtering observations within each
                 trace (it does not filter the list of traces) — labelled to say
                 so (LFE-10520). */}
-            {!isModernSessionEnabled ? (
-              <PopoverFilterBuilder
-                columns={filterColumns}
-                filterState={visibleFilterState}
-                onChange={queryFilter.setFilterState}
-                columnsWithCustomSelect={filterColumnsWithCustomSelect}
-                label="Filter observations"
-                // Analytics (LFE-10781): session-detail observation refinement is a
-                // v3/legacy surface (the v4 events table filters via the grammar bar).
-                tableName="session-detail"
-                isV4={false}
-              />
-            ) : null}
+              {!isModernSessionEnabled ? (
+                <PopoverFilterBuilder
+                  columns={filterColumns}
+                  filterState={visibleFilterState}
+                  onChange={queryFilter.setFilterState}
+                  columnsWithCustomSelect={filterColumnsWithCustomSelect}
+                  label="Filter observations"
+                  // Analytics (LFE-10781): session-detail observation refinement is a
+                  // v3/legacy surface (the v4 events table filters via the grammar bar).
+                  tableName="session-detail"
+                  isV4={false}
+                />
+              ) : null}
 
-            {/* Separator */}
-            <Separator orientation="vertical" className="h-6" />
+              {/* Separator */}
+              {!isModernSessionEnabled ? (
+                <Separator orientation="vertical" className="h-6" />
+              ) : null}
 
-            {/* Stats stay in the toolbar for the existing card layout. Modern
+              {/* Stats stay in the toolbar for the existing card layout. Modern
                 Session shows trace count and cost in its minimap header. */}
-            {!isModernSessionEnabled ? (
-              <>
-                <Badge variant="outline">
-                  Total traces: {session.countTraces}
-                </Badge>
-                <Badge variant="outline">
-                  Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
-                </Badge>
-              </>
-            ) : null}
+              {!isModernSessionEnabled ? (
+                <>
+                  <Badge variant="outline">
+                    Total traces: {session.countTraces}
+                  </Badge>
+                  <Badge variant="outline">
+                    Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
+                  </Badge>
+                </>
+              ) : null}
 
-            {/* Users */}
-            {session.users?.length ? (
-              <SessionUsers projectId={projectId} users={session.users} />
-            ) : null}
+              {/* Users */}
+              {session.users?.length ? (
+                <SessionUsers projectId={projectId} users={session.users} />
+              ) : null}
 
-            {/* Scores */}
-            <SessionScores scores={session.scores} />
-          </SessionControlsBar>
+              {/* Scores */}
+              <SessionScores scores={session.scores} />
+            </SessionControlsBar>
+          ) : null}
           {!isModernSessionEnabled ? (
             <div ref={parentRef} className="flex-1 overflow-auto p-4">
               <div
