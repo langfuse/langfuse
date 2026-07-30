@@ -110,6 +110,7 @@ import {
   queryMetricsTool,
   handleQueryMetrics,
 } from "@/src/features/mcp/features/metrics/tools/queryMetrics";
+import { metricsFeature } from "@/src/features/mcp/features/metrics";
 import {
   getPromptTool,
   handleGetPrompt,
@@ -193,11 +194,15 @@ import {
 } from "@/src/features/mcp/features/datasets/schema";
 
 const maybeEventsTable =
-  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" &&
+  env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy"
     ? describe
     : describe.skip;
 const maybeEventsTableIt =
-  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" &&
+  env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy"
+    ? it
+    : it.skip;
 
 const createLlmEvaluatorForMcpReadTest = async (
   setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
@@ -1621,6 +1626,24 @@ describe("MCP Read Tools", () => {
     });
   });
 
+  it("enables Metrics MCP only when preview and events writes are available", async () => {
+    const originalPreviewOptIn = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+    try {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      await expect(metricsFeature.isEnabled()).resolves.toBe(false);
+
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      await expect(metricsFeature.isEnabled()).resolves.toBe(true);
+    } finally {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    }
+  });
+
   maybeEventsTable("queryMetrics tool", () => {
     const metricsWindow = {
       fromTimestamp: "2025-12-31T00:00:00.000Z",
@@ -2083,6 +2106,7 @@ describe("MCP Read Tools", () => {
                 highCardinality: true,
                 constraints: expect.any(String),
               },
+              isRootObservation: { type: "boolean" },
             },
             measures: {
               count: {
