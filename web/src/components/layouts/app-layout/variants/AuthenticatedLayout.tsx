@@ -38,6 +38,7 @@ import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/c
 import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { findCurrentInstance } from "@/src/ee/features/ui-customization/instanceLinks";
 import { api } from "@/src/utils/api";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { env } from "@/src/env.mjs";
@@ -112,6 +113,7 @@ export function AuthenticatedLayout({
   const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
   const router = useRouter();
   useProjectCookie(router);
+  const uiCustomization = useUiCustomization();
 
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
@@ -136,6 +138,23 @@ export function AuthenticatedLayout({
       },
     }),
   );
+
+  // Self-hosted instance switcher (EE): configured via
+  // LANGFUSE_UI_INSTANCE_LINKS, delivered through the uiCustomization query.
+  const instanceLinks = uiCustomization?.instanceLinks ?? null;
+  const currentInstance = instanceLinks
+    ? findCurrentInstance(
+        instanceLinks,
+        typeof window !== "undefined" ? window.location.host : undefined,
+      )
+    : undefined;
+  const instanceMenuItems = (instanceLinks ?? []).map((link) => ({
+    type: "action" as const,
+    name: link.name,
+    onClick: () => {
+      window.open(link.url, "_blank", "noopener,noreferrer");
+    },
+  }));
 
   const hasFeaturePreviews = isLangfuseCloud || user.v4BetaEnabled === true;
 
@@ -180,6 +199,23 @@ export function AuthenticatedLayout({
                 </div>
               </>
             ),
+          },
+        ]
+      : []),
+    ...(instanceMenuItems.length > 0
+      ? [
+          {
+            type: "submenu" as const,
+            name: "Instances",
+            subItems: instanceMenuItems,
+            content: currentInstance ? (
+              <>
+                Instances
+                <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
+                  Current: {currentInstance.name}
+                </div>
+              </>
+            ) : undefined,
           },
         ]
       : []),

@@ -335,6 +335,10 @@ export const env = createEnv({
     LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.url().optional(),
+    // JSON array of {name, url} objects; validated lazily in
+    // web/src/ee/features/ui-customization/instanceLinks.ts so a bad value
+    // disables the instance switcher instead of failing the deployment.
+    LANGFUSE_UI_INSTANCE_LINKS: z.string().optional(),
 
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
@@ -882,6 +886,7 @@ export const env = createEnv({
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
+    LANGFUSE_UI_INSTANCE_LINKS: process.env.LANGFUSE_UI_INSTANCE_LINKS,
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES:
       process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:
