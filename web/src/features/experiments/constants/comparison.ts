@@ -1,0 +1,1 @@
+export const MAX_EXPERIMENT_COMPARISONS = 10;

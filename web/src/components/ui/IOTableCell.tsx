@@ -245,6 +245,7 @@ export const IOTableCell = ({
           json={data}
           className="w-full"
           codeClassName="p-0 border-none"
+          collapseStringsAfterLength={null}
         />
       </HoverCardContent>
     </HoverCard>

@@ -53,6 +53,8 @@ function Harness() {
     baselineId,
     hasBaseline,
     comparisonIds,
+    setComparisonIds,
+    maxComparisons,
     clearBaseline,
     resolveBaselineOrFirstComparison,
   } = useExperimentResultsState();
@@ -62,9 +64,20 @@ function Harness() {
       <div data-testid="baseline">{baselineId ?? "null"}</div>
       <div data-testid="has-baseline">{hasBaseline ? "true" : "false"}</div>
       <div data-testid="comparisons">{comparisonIds.join(",")}</div>
+      <div data-testid="max-comparisons">{maxComparisons}</div>
       <div data-testid="resolved">
         {resolveBaselineOrFirstComparison() ?? "null"}
       </div>
+      <button
+        type="button"
+        onClick={() =>
+          setComparisonIds(
+            Array.from({ length: 12 }, (_, index) => `comp-${index}`),
+          )
+        }
+      >
+        set twelve comparisons
+      </button>
       <button type="button" onClick={clearBaseline}>
         clear
       </button>
@@ -124,5 +137,31 @@ describe("useExperimentResultsState", () => {
 
     expect(queryParamStore.has("baseline")).toBe(false);
     expect(queryParamStore.get("c")).toEqual(["comp-a", "baseline-run"]);
+  });
+
+  it("allows up to ten comparisons and clamps additional selections", () => {
+    render(<Harness />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "set twelve comparisons" }),
+    );
+
+    expect(screen.getByTestId("max-comparisons").textContent).toBe("10");
+    expect(screen.getByTestId("comparisons").textContent).toBe(
+      Array.from({ length: 10 }, (_, index) => `comp-${index}`).join(","),
+    );
+  });
+
+  it("clamps comparison IDs loaded from the URL", () => {
+    queryParamStore.set(
+      "c",
+      Array.from({ length: 12 }, (_, index) => `comp-${index}`),
+    );
+
+    render(<Harness />);
+
+    expect(screen.getByTestId("comparisons").textContent).toBe(
+      Array.from({ length: 10 }, (_, index) => `comp-${index}`).join(","),
+    );
   });
 });

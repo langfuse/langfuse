@@ -40,6 +40,7 @@ import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateS
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import Link from "next/link";
+import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -187,11 +188,13 @@ const ScoreItem = ({
   aggregate,
   diff,
   projectId,
+  level,
 }: {
   scoreKey: string;
   aggregate: AggregatedScoreData | null;
   diff?: BaselineDiff | null;
   projectId: string;
+  level: Extract<ScoreLevel, "observation" | "trace">;
 }) => {
   // Decompose the key to get name, source, and dataType
   const { name, source, dataType } = decomposeAggregateScoreKey(scoreKey);
@@ -218,29 +221,32 @@ const ScoreItem = ({
 
   return (
     <div className="flex items-center justify-between gap-1 text-xs">
-      <HoverCard>
-        <HoverCardTrigger className="max-w-[50%] cursor-default">
-          <span className="text-muted-foreground block truncate" title={name}>
-            {name}
-          </span>
-        </HoverCardTrigger>
-        <HoverCardContent
-          side="left"
-          className="w-auto p-2 text-xs"
-          align="start"
-        >
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Source:</span>
-              <span className="capitalize">{source.toLowerCase()}</span>
+      <div className="flex max-w-[50%] min-w-0 items-center gap-1">
+        <ScoreTag level={level} compact />
+        <HoverCard>
+          <HoverCardTrigger className="min-w-0 cursor-default">
+            <span className="text-muted-foreground block truncate" title={name}>
+              {name}
+            </span>
+          </HoverCardTrigger>
+          <HoverCardContent
+            side="left"
+            className="w-auto p-2 text-xs"
+            align="start"
+          >
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Source:</span>
+                <span className="capitalize">{source.toLowerCase()}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Type:</span>
+                <span className="capitalize">{dataType.toLowerCase()}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Type:</span>
-              <span className="capitalize">{dataType.toLowerCase()}</span>
-            </div>
-          </div>
-        </HoverCardContent>
-      </HoverCard>
+          </HoverCardContent>
+        </HoverCard>
+      </div>
       <div className="flex items-center gap-1">
         {displayValue === "-" ? (
           <span className="text-muted-foreground font-mono text-xs">-</span>
@@ -258,6 +264,28 @@ const ScoreItem = ({
     </div>
   );
 };
+
+const getScoreRowDefinition = (
+  scoreKey: string,
+  level: Extract<ScoreLevel, "observation" | "trace">,
+): CellRowDef<GridCellData> => ({
+  accessorKey: level === "trace" ? `Trace-${scoreKey}` : scoreKey,
+  cell: ({ data }) => (
+    <ScoreItem
+      scoreKey={scoreKey}
+      aggregate={
+        level === "trace" ? data.traceScores[scoreKey] : data.scores[scoreKey]
+      }
+      diff={
+        level === "trace"
+          ? data.traceScoreDiffs?.[scoreKey]
+          : data.scoreDiffs?.[scoreKey]
+      }
+      projectId={data.projectId}
+      level={level}
+    />
+  ),
+});
 
 /**
  * Simple key-value display for metadata fields
@@ -357,9 +385,7 @@ export const ExperimentGridCell = ({
 
   const totalCostDiff = useMemo(
     () =>
-      isBaseline
-        ? null
-        : calculateNumericDiff(totalCost, baselineTotalCost),
+      isBaseline ? null : calculateNumericDiff(totalCost, baselineTotalCost),
     [baselineTotalCost, isBaseline, totalCost],
   );
   const latencyDiff = useMemo(
@@ -404,7 +430,7 @@ export const ExperimentGridCell = ({
   };
 
   // Define cell rows declaratively - mirrors LangfuseColumnDef pattern
-  // Fixed order: output, scores, trace scores, metadata
+  // Fixed order: output, scores, metadata
   const cellRows: CellRowDef<GridCellData>[] = useMemo(
     () => [
       // Output section
@@ -421,37 +447,21 @@ export const ExperimentGridCell = ({
           />
         ),
       },
-      // Observation scores
+      // Keep all score levels together. Individual score visibility still
+      // follows the list-view columns, while ScoreTag carries the level.
       {
-        accessorKey: "observationScores",
+        accessorKey: "scores",
         header: "Scores",
-        children: orderedObservationKeys.map((key) => ({
-          accessorKey: key,
-          cell: ({ data }) => (
-            <ScoreItem
-              scoreKey={key}
-              aggregate={data.scores[key]}
-              diff={data.scoreDiffs?.[key]}
-              projectId={data.projectId}
-            />
-          ),
-        })),
-      },
-      // Trace scores
-      {
-        accessorKey: "traceScores",
-        header: "Trace Scores",
-        children: orderedTraceKeys.map((key) => ({
-          accessorKey: `Trace-${key}`,
-          cell: ({ data }) => (
-            <ScoreItem
-              scoreKey={key}
-              aggregate={data.traceScores[key]}
-              diff={data.traceScoreDiffs?.[key]}
-              projectId={data.projectId}
-            />
-          ),
-        })),
+        children: [
+          ...(columnVisibility.observationScores !== false
+            ? orderedObservationKeys.map((key) =>
+                getScoreRowDefinition(key, "observation"),
+              )
+            : []),
+          ...(columnVisibility.traceScores !== false
+            ? orderedTraceKeys.map((key) => getScoreRowDefinition(key, "trace"))
+            : []),
+        ],
       },
       // Metadata group - itemId, observationId, level, startTime
       {
@@ -483,7 +493,10 @@ export const ExperimentGridCell = ({
                   className="text-primary inline-flex max-w-full items-center gap-1 hover:underline"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <span className="truncate font-mono text-xs">
+                  <span
+                    className="truncate font-mono text-xs"
+                    title={data.traceId}
+                  >
                     {data.traceId}
                   </span>
                   <ExternalLink className="h-3 w-3 shrink-0" />
@@ -549,7 +562,7 @@ export const ExperimentGridCell = ({
         ],
       },
     ],
-    [orderedObservationKeys, orderedTraceKeys],
+    [columnVisibility, orderedObservationKeys, orderedTraceKeys],
   );
 
   // Filter and compute visible rows
@@ -629,7 +642,7 @@ export const ExperimentGridCell = ({
  */
 export const ExperimentGridCellEmpty = () => {
   return (
-    <div className="flex h-full min-w-0 w-full items-start justify-start p-2">
+    <div className="flex h-full w-full min-w-0 items-start justify-start p-2">
       <span className="text-muted-foreground text-xs">No data</span>
     </div>
   );

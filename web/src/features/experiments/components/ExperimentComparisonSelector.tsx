@@ -3,6 +3,7 @@ import { Check, X } from "lucide-react";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
+import { MAX_EXPERIMENT_COMPARISONS } from "@/src/features/experiments/constants/comparison";
 
 export type ExperimentOption = {
   experimentId: string;
@@ -14,7 +15,6 @@ type ExperimentComparisonSelectorProps = {
   baselineExperimentId?: string;
   selectedIds: string[];
   onSelectedIdsChange: (ids: string[]) => void;
-  maxSelections?: number;
 };
 
 export function ExperimentComparisonSelector({
@@ -22,7 +22,6 @@ export function ExperimentComparisonSelector({
   baselineExperimentId,
   selectedIds,
   onSelectedIdsChange,
-  maxSelections = 4,
 }: ExperimentComparisonSelectorProps) {
   const {
     searchResults,
@@ -58,11 +57,11 @@ export function ExperimentComparisonSelector({
   const handleItemsChange = (items: ExperimentOption[]) => {
     const newIds = items
       .map((item) => item.experimentId)
-      .slice(0, maxSelections);
+      .slice(0, MAX_EXPERIMENT_COMPARISONS);
     onSelectedIdsChange(newIds);
   };
 
-  const isMaxReached = selectedIds.length >= maxSelections;
+  const isMaxReached = selectedIds.length >= MAX_EXPERIMENT_COMPARISONS;
 
   return (
     <div className="space-y-2">
@@ -75,7 +74,7 @@ export function ExperimentComparisonSelector({
         isLoading={isLoading}
         placeholder={
           isMaxReached
-            ? `Max ${maxSelections} comparisons`
+            ? `Max ${MAX_EXPERIMENT_COMPARISONS} comparisons`
             : "Search experiments..."
         }
         disabled={isMaxReached}
@@ -126,7 +125,8 @@ export function ExperimentComparisonSelector({
       />
       {selectedIds.length > 0 && (
         <p className="text-muted-foreground text-xs">
-          {selectedIds.length} of {maxSelections} comparisons selected
+          {selectedIds.length} of {MAX_EXPERIMENT_COMPARISONS} comparisons
+          selected
         </p>
       )}
     </div>

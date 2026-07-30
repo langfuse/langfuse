@@ -5,8 +5,7 @@ import {
   ArrayParam,
   StringParam,
 } from "use-query-params";
-
-const MAX_COMPARISONS = 4;
+import { MAX_EXPERIMENT_COMPARISONS } from "@/src/features/experiments/constants/comparison";
 
 export function useExperimentResultsState() {
   const [state, setState] = useQueryParams({
@@ -22,9 +21,9 @@ export function useExperimentResultsState() {
 
   // Parse comparison IDs - filter out null values and cast to string[]
   const rawIds = state.c as (string | null)[] | undefined;
-  const comparisonIds: string[] = (rawIds ?? []).filter(
-    (id): id is string => typeof id === "string" && id.length > 0,
-  );
+  const comparisonIds: string[] = (rawIds ?? [])
+    .filter((id): id is string => typeof id === "string" && id.length > 0)
+    .slice(0, MAX_EXPERIMENT_COMPARISONS);
 
   // Set baseline with reconciliation: remove from comparison if present
   const setBaseline = (id: string | undefined) => {
@@ -48,10 +47,10 @@ export function useExperimentResultsState() {
   const clearBaseline = () => {
     if (!baselineId) return;
 
-    // Move current baseline to compare list (always add, regardless of MAX_COMPARISONS)
+    // Keep the former baseline selected while respecting the comparison cap.
     const newComparisonIds = comparisonIds.includes(baselineId)
       ? comparisonIds
-      : [...comparisonIds, baselineId];
+      : [...comparisonIds.slice(0, MAX_EXPERIMENT_COMPARISONS - 1), baselineId];
 
     setState({
       baseline: undefined,
@@ -63,12 +62,12 @@ export function useExperimentResultsState() {
   const setComparisonIds = (ids: string[]) => {
     // Filter out baseline if present
     const filtered = baselineId ? ids.filter((id) => id !== baselineId) : ids;
-    setState({ c: filtered.slice(0, MAX_COMPARISONS) });
+    setState({ c: filtered.slice(0, MAX_EXPERIMENT_COMPARISONS) });
   };
 
   const addComparisonId = (id: string) => {
     if (id === baselineId) return; // Can't compare baseline with itself
-    if (comparisonIds.length >= MAX_COMPARISONS) return;
+    if (comparisonIds.length >= MAX_EXPERIMENT_COMPARISONS) return;
     if (comparisonIds.includes(id)) return;
     setComparisonIds([...comparisonIds, id]);
   };
@@ -116,8 +115,8 @@ export function useExperimentResultsState() {
     setComparisonIds,
     addComparisonId,
     removeComparisonId,
-    maxComparisons: MAX_COMPARISONS,
-    canAddMore: comparisonIds.length < MAX_COMPARISONS,
+    maxComparisons: MAX_EXPERIMENT_COMPARISONS,
+    canAddMore: comparisonIds.length < MAX_EXPERIMENT_COMPARISONS,
 
     // All experiments (ordered: effective baseline first, then comparisons)
     allExperimentIds,

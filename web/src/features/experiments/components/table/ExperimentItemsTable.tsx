@@ -716,6 +716,7 @@ export default function ExperimentItemsTable({
       header: () =>
         renderExperimentSpecificHeader(getExperimentItemsColumnName("level")),
       size: 120,
+      defaultHidden: true,
       enableHiding: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
@@ -766,7 +767,6 @@ export default function ExperimentItemsTable({
           getExperimentItemsColumnName("latencyMs"),
         ),
       size: 120,
-      defaultHidden: true,
       enableHiding: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;

@@ -1,4 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
@@ -74,6 +80,31 @@ describe("IOTableCell native title suppression", () => {
     expect(container.querySelector("[title]")?.getAttribute("title")).toBe(
       text,
     );
+  });
+
+  it("expand-on-hover: shows long string values without truncating them", async () => {
+    const { container } = renderCell({
+      data: `start-${"x".repeat(600)}-end`,
+      singleLine: false,
+      enableExpandOnHover: true,
+    });
+
+    const trigger = container.querySelector(".group\\/io-cell");
+    expect(trigger).not.toBeNull();
+
+    fireEvent.pointerEnter(trigger!);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 750));
+    });
+
+    await waitFor(() => {
+      expect(
+        document.querySelector("[data-radix-popper-content-wrapper]"),
+      ).not.toBeNull();
+    });
+
+    expect(document.body.textContent).not.toContain("...expand");
+    expect(document.body.textContent).toContain("-end");
   });
 });
 

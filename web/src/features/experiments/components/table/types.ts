@@ -5,9 +5,9 @@ import { type ReactNode } from "react";
 // Shared font color palette for experiment rows/columns
 export const EXPERIMENT_COLOR_STYLES = [
   {
-    textClass: "text-dark-gray",
-    markerClass: "bg-muted-foreground",
-    badgeClass: "border-border-contrast/80 bg-muted/70 text-foreground/80",
+    textClass: "text-foreground",
+    markerClass: "bg-foreground",
+    badgeClass: "border-foreground bg-foreground text-background",
   }, // Baseline - index 0
   {
     textClass: "text-blue-700 dark:text-blue-300",
@@ -33,6 +33,42 @@ export const EXPERIMENT_COLOR_STYLES = [
     badgeClass:
       "border-amber-500/45 bg-amber-500/12 text-amber-700 dark:border-amber-400/45 dark:bg-amber-400/15 dark:text-amber-300",
   }, // Comparison 4
+  {
+    textClass: "text-rose-700 dark:text-rose-300",
+    markerClass: "bg-rose-500/80 dark:bg-rose-400/80",
+    badgeClass:
+      "border-rose-500/45 bg-rose-500/12 text-rose-700 dark:border-rose-400/45 dark:bg-rose-400/15 dark:text-rose-300",
+  }, // Comparison 5
+  {
+    textClass: "text-cyan-700 dark:text-cyan-300",
+    markerClass: "bg-cyan-500/80 dark:bg-cyan-400/80",
+    badgeClass:
+      "border-cyan-500/45 bg-cyan-500/12 text-cyan-700 dark:border-cyan-400/45 dark:bg-cyan-400/15 dark:text-cyan-300",
+  }, // Comparison 6
+  {
+    textClass: "text-lime-700 dark:text-lime-300",
+    markerClass: "bg-lime-500/80 dark:bg-lime-400/80",
+    badgeClass:
+      "border-lime-500/45 bg-lime-500/12 text-lime-700 dark:border-lime-400/45 dark:bg-lime-400/15 dark:text-lime-300",
+  }, // Comparison 7
+  {
+    textClass: "text-fuchsia-700 dark:text-fuchsia-300",
+    markerClass: "bg-fuchsia-500/80 dark:bg-fuchsia-400/80",
+    badgeClass:
+      "border-fuchsia-500/45 bg-fuchsia-500/12 text-fuchsia-700 dark:border-fuchsia-400/45 dark:bg-fuchsia-400/15 dark:text-fuchsia-300",
+  }, // Comparison 8
+  {
+    textClass: "text-orange-700 dark:text-orange-300",
+    markerClass: "bg-orange-500/80 dark:bg-orange-400/80",
+    badgeClass:
+      "border-orange-500/45 bg-orange-500/12 text-orange-700 dark:border-orange-400/45 dark:bg-orange-400/15 dark:text-orange-300",
+  }, // Comparison 9
+  {
+    textClass: "text-indigo-700 dark:text-indigo-300",
+    markerClass: "bg-indigo-500/80 dark:bg-indigo-400/80",
+    badgeClass:
+      "border-indigo-500/45 bg-indigo-500/12 text-indigo-700 dark:border-indigo-400/45 dark:bg-indigo-400/15 dark:text-indigo-300",
+  }, // Comparison 10
 ] as const;
 
 export type ExperimentColorStyle = (typeof EXPERIMENT_COLOR_STYLES)[number];

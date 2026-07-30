@@ -11,14 +11,13 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
-import { Button } from "@/src/components/ui/button";
-import { X } from "lucide-react";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import {
   EXPERIMENT_RUN_TABS,
   getExperimentRunTabs,
 } from "@/src/features/navigation/utils/experiment-run-tabs";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
 
 export default function ExperimentResults() {
   const router = useRouter();
@@ -40,7 +39,7 @@ export default function ExperimentResults() {
 
   const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
     "overview-panel-experiment-detail",
-    true,
+    false,
   );
 
   const [, setLastResultsUrl] = useSessionStorage<string | null>(
@@ -108,9 +107,7 @@ export default function ExperimentResults() {
   return (
     <Page
       headerProps={{
-        title: hasBaseline
-          ? (experiment?.name ?? baselineId ?? "Results")
-          : "Results",
+        title: "Results",
         itemType: "EXPERIMENT",
         breadcrumb: [
           { name: "Experiments", href: `/project/${projectId}/experiments` },
@@ -119,15 +116,19 @@ export default function ExperimentResults() {
           tabs: getExperimentRunTabs(projectId),
           activeTab: EXPERIMENT_RUN_TABS.RESULTS,
         },
+        actionButtonsLeft: (
+          <ExperimentSelectionControls
+            projectId={projectId}
+            baselineId={baselineId}
+            baselineName={experiment?.name}
+            comparisonIds={comparisonIds}
+            onBaselineChange={setBaseline}
+            onBaselineClear={clearBaseline}
+            onComparisonIdsChange={setComparisonIds}
+          />
+        ),
         actionButtonsRight: (
           <>
-            {hasBaseline && comparisonIds.length > 0 && (
-              <Button variant="outline" onClick={clearBaseline}>
-                <X className="h-4 w-4" />
-                <span className="ml-2 hidden md:inline">Clear baseline</span>
-              </Button>
-            )}
-
             <ExperimentDisplaySettings
               layout={layout}
               onLayoutChange={setLayout}
@@ -151,13 +152,9 @@ export default function ExperimentResults() {
         mainContent={<ExperimentItemsTable projectId={projectId} />}
         overviewContent={
           <ExperimentOverviewPanel
+            key={baselineId ?? "no-baseline"}
             projectId={projectId}
-            hasBaseline={hasBaseline}
             experiment={experiment ?? undefined}
-            comparisonIds={comparisonIds}
-            onComparisonIdsChange={setComparisonIds}
-            onBaselineChange={setBaseline}
-            onBaselineClear={clearBaseline}
           />
         }
         defaultPrimarySize={75}
