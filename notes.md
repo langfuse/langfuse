@@ -108,6 +108,32 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   back to full probing if a run ever succeeds, to confirm the blocker actually
   lifted before trusting fresh data again.
 
+## 2026-07-30 (run 10, `workflow_dispatch` — GitHub Actions MCP tools STILL BLOCKED, 22 days after last real data)
+
+- Fourth confirmation of the same-day blocker (ids `30553320896`, `30554268551`,
+  `30556553649`, `30558863960`): `actions_list` (`list_workflow_runs`) still
+  returns `[Filtered] ... filtered by secrecy policy ... not authorized to
+  access private-scoped data`. Per the prior run's guidance, did NOT re-probe
+  `actions_get`/`get_job_logs`/other methods — one `list_workflow_runs` call
+  was enough to confirm recurrence.
+- `search_pull_requests` still works and still returns `total_count: 0` for
+  `is:pr label:ci-performance` — ledger (`prs.json`) stays empty, confirmed
+  correct.
+- **Escalation: this run is 22 days after the last real checkpoint**
+  (`history/2026-W28-partial-0708.json`, dated 2026-07-08, trailing window
+  07-02..07-08). The chart window this run should cover is 2026-07-24..07-30
+  — entirely outside any data this workflow has ever captured. Reusing the
+  07-08 checkpoint numbers as "this week's chart" would misrepresent a stale
+  3-week-old snapshot as current; the report below states the gap explicitly
+  and does not plot fabricated recent days.
+- **If this recurs a 5th+ time**: this is no longer a transient/one-day
+  blocker — it has now spanned at least 22 days across two calendar months.
+  A human should check whether the workflow's GitHub App/token permissions
+  or the MCP server's secrecy-policy config changed, since in-run retries
+  cannot fix an authorization-scope issue. Keep doing the minimal
+  single-probe + noop pattern until either a probe succeeds or a human
+  intervenes.
+
 ## Tooling notes (for future runs)
 
 - The GitHub Actions MCP `list_workflow_runs` caps at ~30 runs/page regardless
