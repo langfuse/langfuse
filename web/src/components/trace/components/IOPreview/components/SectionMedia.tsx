@@ -17,7 +17,7 @@ export function SectionMedia({ media }: SectionMediaProps) {
   return (
     <>
       <div className="text-muted-foreground my-1 px-2 py-1 text-xs">Media</div>
-      <div className="flex flex-wrap gap-2 pt-1 pb-4">
+      <div className="flex flex-wrap gap-2 px-2 pt-1 pb-4">
         {media.map((m) => (
           <LangfuseMediaView
             mediaAPIReturnValue={m}
