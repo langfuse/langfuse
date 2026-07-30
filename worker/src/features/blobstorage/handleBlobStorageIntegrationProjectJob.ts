@@ -8,6 +8,7 @@ import {
   logger,
   StorageService,
   StorageServiceFactory,
+  requireAzureSharedKeyCredential,
   streamTransformations,
   getObservationsForBlobStorageExport,
   getObservationsForBlobStorageExportRaw,
@@ -352,6 +353,15 @@ const createBlobStorageService = (
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+    // The endpoint is user-supplied, so never fall through to the deployment's
+    // Azure identity — its bearer token would be sent there.
+    azureCredential:
+      config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE
+        ? requireAzureSharedKeyCredential({
+            accessKeyId: config.accessKeyId,
+            secretAccessKey: config.secretAccessKey,
+          })
+        : undefined,
     useGoogleCloudStorage: false, // Not supported in blob storage integration
     useOCIObjectStorage: false, // Not supported in blob storage integration
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
