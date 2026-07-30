@@ -619,7 +619,9 @@ export const ExperimentGridCell = ({
                 header={row.header}
                 markerClassName={isFirst ? markerClassName : undefined}
               >
-                {row.cell({ data: cellData })}
+                <div className="h-16 overflow-hidden">
+                  {row.cell({ data: cellData })}
+                </div>
               </GroupSection>
               {!isLast && <Separator />}
             </Fragment>

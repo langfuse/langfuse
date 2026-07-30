@@ -13,6 +13,10 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
+vi.mock("@/src/components/ui/IOTableCell", () => ({
+  MemoizedIOTableCell: () => <div>IO cell</div>,
+}));
+
 const observationScoreKey = "quality-API-NUMERIC";
 const traceScoreKey = "correctness-API-NUMERIC";
 
@@ -53,7 +57,7 @@ const renderGridCell = (
     </TooltipProvider>,
   );
 
-describe("ExperimentGridCell score level labels", () => {
+describe("ExperimentGridCell", () => {
   it("shows full labels for every score when both levels are present", () => {
     renderGridCell(true);
 
@@ -74,5 +78,14 @@ describe("ExperimentGridCell score level labels", () => {
     renderGridCell(false, { output: false });
 
     expect(screen.getByText("Latency")).toBeInTheDocument();
+  });
+
+  it("renders output in a fixed-height scroll area", () => {
+    renderGridCell(false, { metadata: false });
+
+    const outputContent =
+      screen.getByText("Output").parentElement?.nextElementSibling;
+
+    expect(outputContent).toHaveClass("h-16", "overflow-hidden");
   });
 });
