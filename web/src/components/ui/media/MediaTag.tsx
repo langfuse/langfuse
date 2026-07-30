@@ -4,11 +4,12 @@ import {
   File,
   Image as ImageIcon,
   ImageOff,
-  TriangleAlert,
+  Paperclip,
   Video,
   Volume2,
   type LucideIcon,
 } from "lucide-react";
+import { cva } from "class-variance-authority";
 
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -25,6 +26,7 @@ import {
  * itself never fetches, which keeps it pure and Storybook-able.
  */
 export type MediaTagStatus = "idle" | "loading" | "ready" | "error";
+export type MediaTagIntent = "default" | "attachment";
 
 export interface MediaTagProps {
   /**
@@ -43,8 +45,10 @@ export interface MediaTagProps {
   label?: string;
   /** Optional context shown above the preview in the peek popover. */
   description?: string;
-  /** Renders the chip as a warning rather than a generic media attachment. */
-  warning?: boolean;
+  /** Optional text label for the open action. The default is icon-only. */
+  openActionLabel?: string;
+  /** Visual framing for the collapsed chip. */
+  intent?: MediaTagIntent;
   /** Controlled open state of the peek popover (used by stories/tests). */
   open?: boolean;
   /**
@@ -76,6 +80,22 @@ const MEDIA_KIND_ICON = {
   video: Video,
   file: File,
 } satisfies Record<MediaKind, LucideIcon>;
+
+const mediaTagVariants = cva(
+  "focus-visible:ring-ring inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
+  {
+    variants: {
+      intent: {
+        default: "hover:bg-accent bg-background",
+        attachment:
+          "border-blue-500/40 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50",
+      },
+    },
+    defaultVariants: {
+      intent: "default",
+    },
+  },
+);
 
 function KindIcon({
   kind,
@@ -178,7 +198,8 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
       url,
       label,
       description,
-      warning = false,
+      openActionLabel,
+      intent,
       open,
       onOpenChange,
     },
@@ -218,11 +239,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             data-media-tag=""
             aria-label={`${chipLabel} media`}
             aria-expanded={isOpen}
-            className={
-              warning
-                ? "focus-visible:ring-ring inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border border-amber-500/60 bg-amber-50 px-1 py-0 align-middle text-xs leading-none text-amber-900 transition-colors hover:bg-amber-100 focus-visible:ring-2 focus-visible:outline-hidden dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/60"
-                : "hover:bg-accent focus-visible:ring-ring bg-background inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
-            }
+            className={mediaTagVariants({ intent })}
             onClick={openPeek}
             onPointerDown={(event) => {
               if (event.pointerType !== "mouse") {
@@ -231,8 +248,8 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               }
             }}
           >
-            {warning ? (
-              <TriangleAlert className="h-2.5 w-2.5 shrink-0" />
+            {intent === "attachment" ? (
+              <Paperclip className="h-2.5 w-2.5 shrink-0" />
             ) : (
               <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />
             )}
@@ -265,20 +282,24 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               <Button
                 asChild
                 variant="outline"
-                size="icon-xs"
+                size={openActionLabel ? "sm" : "icon-xs"}
+                className={openActionLabel ? "gap-1.5" : undefined}
                 title="Open in new tab"
               >
                 <a href={url} target="_blank" rel="noopener noreferrer">
+                  {openActionLabel ? <span>{openActionLabel}</span> : null}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </Button>
             ) : (
               <Button
                 variant="outline"
-                size="icon-xs"
+                size={openActionLabel ? "sm" : "icon-xs"}
+                className={openActionLabel ? "gap-1.5" : undefined}
                 disabled
                 title="Open in new tab"
               >
+                {openActionLabel ? <span>{openActionLabel}</span> : null}
                 <ExternalLink className="h-3 w-3" />
               </Button>
             )}

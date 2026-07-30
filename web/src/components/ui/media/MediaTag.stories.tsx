@@ -112,15 +112,16 @@ export const PreviewFile = meta.story({
   },
 });
 
-// Oversized observation fields use the media surface as a deliberate warning,
-// rather than looking like ordinary user-attached media.
+// Oversized observation fields are preserved as attachments rather than
+// looking like discarded data.
 export const OversizedField = meta.story({
   args: {
     contentType: "text/plain",
-    label: "Field over size limit",
+    label: "Full value attached",
     description:
-      "This field exceeded the configured storage limit. Open the file to view the original content.",
-    warning: true,
+      "This field was too large to process inline, so Langfuse saved the complete original value as an attachment at ingestion.",
+    openActionLabel: "Open original",
+    intent: "attachment",
     open: true,
     status: "ready",
     url: "data:text/plain,original%20oversized%20field",
