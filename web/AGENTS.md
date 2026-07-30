@@ -1,7 +1,4 @@
-# Codex Guidelines for `web`
-
-This file covers package-local guidance for this package.
-Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
+# Agent Guidelines for `web`
 
 ## Purpose
 
@@ -12,13 +9,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Maintenance Contract
 
-- `AGENTS.md` is a living document.
-- Update this file in the same PR when material web-local changes occur:
-  - new/renamed web entry points
-  - new API route families
-  - changed web-specific verification commands
-- If the change also affects monorepo workflows or other packages, update root
-  `AGENTS.md` too.
+- Update this file in the same PR when entry points, commands, or contracts
+  change.
 
 ## High-Signal Entry Points
 
@@ -103,11 +95,21 @@ Sentry instrumentation skill first and decide whether it should capture at all
   manifesto. It owns the data → preparer → visualiser contract: presentation
   decisions (formatting, colors, axis scale, overload) live in the preparer,
   not the chart components.
+- **When working on the search bar or any filtering UI/grammar, read
+  `src/features/search-bar/README.md` first.** It owns the grammar ↔
+  `FilterState` contract, the validate/lower parity invariants, and the
+  cross-view extension playbook — the bar is intended to become the primary
+  filter interface for every filterable view, so new filtering work extends it
+  through that contract rather than forking it.
+- When fixing an isolated styling issue in an individual component, create or
+  update a component story first, following
+  `../.agents/skills/storybook/SKILL.md`.
 - Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in
   `src/server/api/root.ts`.
-- Authentication and RBAC guidance lives in `src/features/rbac/README.md`.
+- RBAC lives in `src/features/rbac`: role definitions in `constants/`, access
+  checks in `utils/checkProjectAccess.ts` and `utils/checkOrganizationAccess.ts`.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.

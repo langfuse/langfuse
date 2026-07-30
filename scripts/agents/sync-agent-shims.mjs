@@ -17,6 +17,11 @@ const sourcePath = resolve(repoRoot, ".agents/config.json");
 const config = JSON.parse(readFileSync(sourcePath, "utf8"));
 const servers = config.mcpServers;
 const checkMode = process.argv.includes("--check");
+// Path validation is a lint concern, not an install concern. `postinstall` runs
+// this script without the flag so a stale doc path cannot fail `pnpm i` (and
+// with it every CI job that installs); the lint job opts in via
+// `pnpm run agents:check`.
+const checkPaths = process.argv.includes("--check-paths");
 
 const sortObject = (value) =>
   Object.fromEntries(
@@ -99,7 +104,9 @@ const formatCodexToml = () => {
       }
       if (server.env) {
         lines.push(`[mcp_servers.${name}.env]`);
-        for (const [envName, envValue] of Object.entries(sortObject(server.env))) {
+        for (const [envName, envValue] of Object.entries(
+          sortObject(server.env),
+        )) {
           lines.push(`${envName} = ${JSON.stringify(envValue)}`);
         }
       }
@@ -110,7 +117,9 @@ const formatCodexToml = () => {
         for (const [headerName, headerValue] of Object.entries(
           sortObject(server.headers),
         )) {
-          lines.push(`${JSON.stringify(headerName)} = ${JSON.stringify(headerValue)}`);
+          lines.push(
+            `${JSON.stringify(headerName)} = ${JSON.stringify(headerValue)}`,
+          );
         }
       }
     }
@@ -192,10 +201,56 @@ const skillsRoot = resolve(repoRoot, ".agents/skills");
 const sharedSkillNames = readdirSync(skillsRoot, { withFileTypes: true })
   .filter(
     (entry) =>
-      entry.isDirectory() && existsSync(resolve(skillsRoot, entry.name, "SKILL.md")),
+      entry.isDirectory() &&
+      existsSync(resolve(skillsRoot, entry.name, "SKILL.md")),
   )
   .map((entry) => entry.name)
   .sort((left, right) => left.localeCompare(right));
+
+// Directory names never worth walking into when discovering package-local
+// `AGENTS.md` files. Dot-directories are skipped separately, which also keeps
+// vendored skill bundles (for example `web/.agents/skills/*/AGENTS.md`) from
+// being treated as directory-scoped instructions.
+const ignoredDirectoryNames = new Set([
+  "node_modules",
+  "dist",
+  "build",
+  "generated",
+  "skills",
+]);
+
+const findDirectoriesWithAgentsFile = (startDirectory) => {
+  const directories = [];
+
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) {
+        continue;
+      }
+
+      if (entry.name.startsWith(".") || ignoredDirectoryNames.has(entry.name)) {
+        continue;
+      }
+
+      const child = resolve(directory, entry.name);
+
+      if (existsSync(resolve(child, "AGENTS.md"))) {
+        directories.push(child);
+      }
+
+      walk(child);
+    }
+  };
+
+  walk(startDirectory);
+
+  return directories.sort((left, right) => left.localeCompare(right));
+};
+
+// Every `AGENTS.md` below the repo root gets a sibling `CLAUDE.md` symlink so
+// Claude picks up package-local guidance when it reads a file in that
+// directory. The repo root is handled explicitly above.
+const packageAgentsDirectories = findDirectoriesWithAgentsFile(repoRoot);
 
 const symlinkOutputs = [
   {
@@ -206,11 +261,69 @@ const symlinkOutputs = [
     path: resolve(repoRoot, "CLAUDE.md"),
     target: resolve(repoRoot, "AGENTS.md"),
   },
+  ...packageAgentsDirectories.map((directory) => ({
+    path: resolve(directory, "CLAUDE.md"),
+    target: resolve(directory, "AGENTS.md"),
+  })),
   ...sharedSkillNames.map((name) => ({
     path: resolve(repoRoot, ".claude/skills", name),
     target: resolve(skillsRoot, name),
   })),
 ];
+
+const expectedClaudeShims = new Set(
+  symlinkOutputs
+    .filter((output) => output.path.endsWith("CLAUDE.md"))
+    .map((output) => output.path),
+);
+
+// A `CLAUDE.md` symlink whose `AGENTS.md` was deleted or moved would otherwise
+// linger and keep feeding stale guidance into context. Hand-written regular
+// `CLAUDE.md` files are left alone; only generated symlinks are swept.
+const isSymbolicLink = (path) => {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return false;
+    }
+
+    throw error;
+  }
+};
+
+const findStaleClaudeShims = (startDirectory) => {
+  const stale = [];
+
+  const visit = (directory) => {
+    const candidate = resolve(directory, "CLAUDE.md");
+
+    if (!expectedClaudeShims.has(candidate) && isSymbolicLink(candidate)) {
+      stale.push(candidate);
+    }
+
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) {
+        continue;
+      }
+
+      if (entry.name.startsWith(".") || ignoredDirectoryNames.has(entry.name)) {
+        continue;
+      }
+
+      visit(resolve(directory, entry.name));
+    }
+  };
+
+  visit(startDirectory);
+
+  return stale;
+};
 
 const managedDirectoryEntries = [
   {
@@ -218,6 +331,90 @@ const managedDirectoryEntries = [
     expectedChildren: new Set(sharedSkillNames),
   },
 ];
+
+// Agent guidance rots silently: a file gets moved and the instructions keep
+// pointing at the old path, which is worse than no pointer at all. These checks
+// resolve every concrete path an `AGENTS.md` cites.
+const markdownLinkPattern = /\[[^\]]*\]\(([^)]+)\)/g;
+const backtickedPathPattern =
+  /`([A-Za-z0-9_./-]+\.(?:ts|tsx|js|jsx|mjs|json|prisma|sql|md|mdx|css|yaml|yml))`/g;
+const placeholderPattern = /[*{}[\]<>?]/;
+
+const collectReferencedPaths = (filePath, contents) => {
+  const fileDirectory = dirname(filePath);
+  const references = [];
+
+  for (const [, target] of contents.matchAll(markdownLinkPattern)) {
+    const cleaned = target.split("#")[0].trim();
+
+    if (
+      !cleaned ||
+      cleaned.startsWith("http://") ||
+      cleaned.startsWith("https://") ||
+      cleaned.startsWith("mailto:") ||
+      placeholderPattern.test(cleaned)
+    ) {
+      continue;
+    }
+
+    references.push({
+      raw: target,
+      candidates: [resolve(fileDirectory, cleaned)],
+    });
+  }
+
+  for (const [, target] of contents.matchAll(backtickedPathPattern)) {
+    if (placeholderPattern.test(target) || !target.includes("/")) {
+      continue;
+    }
+
+    // Backticked paths are written either repo-relative or package-relative,
+    // and both conventions are in use. Accept whichever resolves.
+    references.push({
+      raw: target,
+      candidates: [resolve(repoRoot, target), resolve(fileDirectory, target)],
+    });
+  }
+
+  return references;
+};
+
+const findBrokenReferences = () => {
+  const broken = [];
+  const guidanceFiles = [
+    resolve(repoRoot, ".agents/AGENTS.md"),
+    ...packageAgentsDirectories.map((directory) =>
+      resolve(directory, "AGENTS.md"),
+    ),
+  ];
+
+  for (const filePath of guidanceFiles) {
+    const contents = readFileSync(filePath, "utf8");
+
+    for (const reference of collectReferencedPaths(filePath, contents)) {
+      if (reference.candidates.some((candidate) => existsSync(candidate))) {
+        continue;
+      }
+
+      // Only flag a reference whose parent directory exists. That is the
+      // signature of a file that was moved or renamed underneath the docs. A
+      // path with no existing ancestor is almost always an external checkout
+      // (for example `../langfuse-docs/**`) rather than repo rot, and this
+      // check deliberately does not try to police those.
+      if (
+        !reference.candidates.some((candidate) =>
+          existsSync(dirname(candidate)),
+        )
+      ) {
+        continue;
+      }
+
+      broken.push({ filePath, raw: reference.raw });
+    }
+  }
+
+  return broken;
+};
 
 const isMatchingSymlink = (path, target) => {
   const stats = lstatSync(path);
@@ -252,7 +449,12 @@ for (const output of fileOutputs) {
         continue;
       }
 
-      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
         hasMismatch = true;
         console.error(
           `Missing generated config: ${output.path}. Run "pnpm run agents:sync".`,
@@ -287,9 +489,16 @@ for (const output of symlinkOutputs) {
         console.error(`Out of sync symlink: ${output.path}`);
       }
     } catch (error) {
-      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
         hasMismatch = true;
-        console.error(`Missing symlink shim: ${output.path}. Run "pnpm run agents:sync".`);
+        console.error(
+          `Missing symlink shim: ${output.path}. Run "pnpm run agents:sync".`,
+        );
         continue;
       }
 
@@ -306,7 +515,14 @@ for (const output of symlinkOutputs) {
       continue;
     }
   } catch (error) {
-    if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
+    if (
+      !(
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      )
+    ) {
       throw error;
     }
   }
@@ -320,6 +536,19 @@ for (const output of symlinkOutputs) {
   console.log(`Linked ${output.path}`);
 }
 
+for (const staleShim of findStaleClaudeShims(repoRoot)) {
+  if (checkMode) {
+    hasMismatch = true;
+    console.error(
+      `Stale CLAUDE.md shim: ${staleShim}. Run "pnpm run agents:sync".`,
+    );
+    continue;
+  }
+
+  rmSync(staleShim, { force: true });
+  console.log(`Removed stale CLAUDE.md shim ${staleShim}`);
+}
+
 for (const directory of managedDirectoryEntries) {
   const unexpectedChildren = findUnexpectedChildren(directory);
 
@@ -330,7 +559,9 @@ for (const directory of managedDirectoryEntries) {
   if (checkMode) {
     hasMismatch = true;
     for (const child of unexpectedChildren) {
-      console.error(`Unexpected generated shim: ${resolve(directory.path, child)}`);
+      console.error(
+        `Unexpected generated shim: ${resolve(directory.path, child)}`,
+      );
     }
     continue;
   }
@@ -342,6 +573,15 @@ for (const directory of managedDirectoryEntries) {
   }
 }
 
-if (checkMode && hasMismatch) {
+if (checkPaths) {
+  for (const { filePath, raw } of findBrokenReferences()) {
+    hasMismatch = true;
+    console.error(
+      `Broken path reference in ${relative(repoRoot, filePath)}: ${raw} does not exist.`,
+    );
+  }
+}
+
+if (hasMismatch) {
   process.exitCode = 1;
 }

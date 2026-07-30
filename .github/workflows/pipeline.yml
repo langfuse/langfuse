@@ -140,6 +140,21 @@ jobs:
       - name: install dependencies
         run: |
           pnpm i
+      # postinstall regenerates the shims, so a repairable drift is silently
+      # fixed in the working tree rather than reported. Fail if that repair
+      # changed anything tracked or produced a missing shim, so the committed
+      # state has to be correct.
+      - name: agent shims are committed and current
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::Agent shims are stale. Run 'pnpm run agents:sync' and commit the result."
+            git status --porcelain
+            exit 1
+          fi
+      # postinstall runs shim verification only; this is where the paths cited
+      # by every AGENTS.md are resolved.
+      - name: agent guidance paths resolve
+        run: pnpm run agents:check
       - name: Load default env
         run: |
           cp .env.dev.example .env
