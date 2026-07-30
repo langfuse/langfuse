@@ -10,7 +10,7 @@ import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const HIGH_CARDINALITY_CONSTRAINT =
-  "Requires explicit config.row_limit and orderBy descending on a measure selected in the query; incompatible with timeDimension and with combining entityDimension with an additional high-cardinality dimension. The default row_limit is applied after validation and does not satisfy this requirement.";
+  "When used in dimensions, requires explicit config.row_limit and orderBy descending on a measure selected in the query; incompatible with timeDimension and with combining entityDimension with an additional high-cardinality dimension. The default row_limit is applied after validation and does not satisfy this requirement. When used as entityDimension, requires a same-field '=' filter with a non-empty value or an 'any of' filter with 1-50 non-empty values.";
 
 const getFilterMetadata = (
   column: string,
