@@ -9,6 +9,7 @@ import {
   PostUnstableDashboardWidgetResponse,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { UnstablePublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
+import { env } from "@/src/env.mjs";
 import { DashboardWidgetViews } from "@langfuse/shared/src/db";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -38,6 +39,18 @@ const legacyTracesWidgetInput = {
   chartConfig: { type: "NUMBER" as const },
   minVersion: 1,
 };
+
+// The API stamps new widgets with the version the deployment can actually query
+// rather than a hard-coded 2 (LFE-14581), so what this suite observes depends on
+// the write mode of the deployment under test. CI exercises both: `.env.dev.example`
+// sets `dual`, while the `-azure` and `-redis-cluster` matrix legs leave the
+// variable unset and so run as `legacy`.
+//
+// This derives the expectation from the raw env rather than calling the service's
+// own helper, so an inverted or broken mapping still fails here. The mapping itself
+// is owned by dashboard-widget-min-version.servertest.ts.
+const isLegacyDeployment = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy";
+const expectedApiMinVersion = isLegacyDeployment ? 1 : 2;
 
 const expectUnstableError = (
   response: Awaited<ReturnType<typeof makeAPICall>>,
@@ -82,8 +95,8 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       projectId,
       name: "API widget",
       view: "OBSERVATIONS",
-      // widgets created via the public API are always v2 internally
-      minVersion: 2,
+      // stamped from what the deployment can query, not hard-coded to v2
+      minVersion: expectedApiMinVersion,
     });
 
     await expect(
@@ -233,7 +246,8 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     const afterViewChange = await prisma.dashboardWidget.findUniqueOrThrow({
       where: { id: v1Widget.id, projectId },
     });
-    expect(afterViewChange.minVersion).toBe(2);
+    // changing the view re-stamps from the deployment; the cap never promotes
+    expect(afterViewChange.minVersion).toBe(expectedApiMinVersion);
   });
 
   it("rejects patching a widget into the legacy traces view", async () => {
@@ -296,7 +310,11 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       status: 400,
       code: "invalid_request",
     });
-    expect(body.details).toMatchObject({ field: "metrics[0].agg" });
+    // `uniqueUserIds` exists only on the v2 observations view, so a v1 deployment
+    // rejects the measure outright while a v2 one gets as far as the aggregation.
+    expect(body.details).toMatchObject({
+      field: isLegacyDeployment ? "metrics[0].measure" : "metrics[0].agg",
+    });
   });
 
   it("rejects filter columns that widget JSON import would remove", async () => {
