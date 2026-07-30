@@ -1,15 +1,13 @@
 import { type TableViewPresetState } from "@langfuse/shared";
-import { Check, Filter, Save, Settings2 } from "lucide-react";
+import { Check, Filter, Settings2 } from "lucide-react";
 
 import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/components/session/session-detail-presets";
 import {
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemWithSecondaryAction,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from "@/src/components/ui/dropdown-menu";
 
 export type ModernSessionViewDropdownMenuControls = {
@@ -33,61 +31,59 @@ export function ModernSessionViewDropdownMenu({
 }) {
   return (
     <DropdownMenuContent align="end" className="w-72">
-      <DropdownMenuLabel>Presets</DropdownMenuLabel>
-      {SESSION_DETAIL_SYSTEM_PRESETS.map((preset) => (
-        <DropdownMenuItem
+      <DropdownMenuLabel>System Presets</DropdownMenuLabel>
+      {SESSION_DETAIL_SYSTEM_PRESETS.filter(
+        (preset) => preset.filters.length > 0,
+      ).map((preset) => (
+        <DropdownMenuItemWithSecondaryAction
           key={preset.id}
-          onSelect={() => controls.onApplyPreset(preset)}
-          className="items-start gap-2"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm">{preset.name}</span>
-            {preset.description ? (
-              <span className="text-muted-foreground block text-xs">
-                {preset.description}
-              </span>
-            ) : null}
-          </span>
-          {controls.matchingSystemPresetId === preset.id ? (
-            <Check className="mt-0.5 h-4 w-4 shrink-0" />
-          ) : null}
-        </DropdownMenuItem>
+          title={preset.name}
+          onClick={() => controls.onApplyPreset(preset)}
+          // TODO: We are abusing the `secondaryAction` prop here to show a checkmark for the selected preset. This is not ideal, but it works for now. We should consider adding a `selected` prop to `DropdownMenuItemWithSecondaryAction` in the future.
+          secondaryAction={
+            controls.matchingSystemPresetId === preset.id
+              ? {
+                  icon: Check,
+                  ariaLabel: `${preset.name} selected`,
+                  onClick: () => controls.onApplyPreset(preset),
+                }
+              : undefined
+          }
+        />
       ))}
       <DropdownMenuSeparator />
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <Save className="mr-2 h-4 w-4" />
-          Saved Views
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="w-56">
-          {controls.savedViews.map((view) => (
-            <DropdownMenuItem
-              key={view.id}
-              onSelect={() => controls.onApplySavedView(view)}
-            >
-              <span className="min-w-0 flex-1 truncate" title={view.name}>
-                {view.name}
-              </span>
-              {controls.matchingSavedViewId === view.id ? (
-                <Check className="ml-2 h-4 w-4 shrink-0" />
-              ) : null}
-            </DropdownMenuItem>
-          ))}
-          {controls.savedViews.length === 0 ? (
-            <DropdownMenuItem disabled>No saved views</DropdownMenuItem>
-          ) : null}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={controls.onManageViews}>
-            <Settings2 className="mr-2 h-4 w-4" />
-            Manage Views
-          </DropdownMenuItem>
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
+      <DropdownMenuLabel>Saved Views</DropdownMenuLabel>
+      {controls.savedViews.map((view) => (
+        <DropdownMenuItemWithSecondaryAction
+          key={view.id}
+          title={view.name}
+          onClick={() => controls.onApplySavedView(view)}
+          secondaryAction={
+            controls.matchingSavedViewId === view.id
+              ? {
+                  icon: Check,
+                  ariaLabel: `${view.name} selected`,
+                  onClick: () => controls.onApplySavedView(view),
+                }
+              : undefined
+          }
+        />
+      ))}
+      {controls.savedViews.length === 0 ? (
+        <DropdownMenuItem disabled>No saved views</DropdownMenuItem>
+      ) : null}
       <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={controls.onOpenFilterDialog}>
-        <Filter className="mr-2 h-4 w-4" />
-        Apply custom filter
-      </DropdownMenuItem>
+      <DropdownMenuItemWithSecondaryAction
+        title="Manage Views"
+        icon={Settings2}
+        onClick={controls.onManageViews}
+      />
+      <DropdownMenuSeparator />
+      <DropdownMenuItemWithSecondaryAction
+        title="Apply custom filter"
+        icon={Filter}
+        onClick={controls.onOpenFilterDialog}
+      />
     </DropdownMenuContent>
   );
 }
