@@ -8,6 +8,7 @@ import {
   getLLMErrorInfo,
   testModelCall,
 } from "@langfuse/shared/src/server";
+import { CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_MS } from "@langfuse/shared/src/env";
 
 export type EvaluatorPreflightDefinition = {
   name: string;
@@ -73,6 +74,7 @@ export async function getEvaluatorDefinitionPreflightError(params: {
       apiKey: modelConfig.config.apiKey,
       modelConfig: modelConfig.config.modelParams,
       structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
+      timeout: CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_MS,
     });
   } catch (err) {
     const llmError = getLLMErrorInfo(err);

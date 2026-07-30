@@ -27,6 +27,10 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
+const DEFAULT_LLM_COMPLETION_TIMEOUT_MS = 120_000;
+// Finish client-initiated non-streaming calls before the 102-second load balancer timeout.
+export const CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_MS = 95_000;
+
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   // Dev-only override: set to an ISO datetime string to shift the legacy blob
@@ -484,7 +488,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(120_000), // 2 minutes
+    .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
