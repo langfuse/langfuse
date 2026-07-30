@@ -61,7 +61,11 @@ model: claude-sonnet-5
 
 engine:
   id: claude
-  max-turns: 120
+  # A full analysis now exhausts 120 turns and exits non-zero before pushing
+  # memory. Cost is no longer the binding constraint — the first working run
+  # spent 646 of the 3000 AI-credits ceiling ($6.46) — so max-ai-credits is the
+  # real backstop and turns can be looser.
+  max-turns: 200
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
