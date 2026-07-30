@@ -22,7 +22,7 @@ vi.mock("./media/useResolvedMedia", () => ({
 }));
 
 describe("LangfuseMediaView", () => {
-  it("renders a field-limit reference as an attachment chip", () => {
+  it("renders a field-limit reference as an attachment", () => {
     render(
       <LangfuseMediaView mediaReferenceString="@@@langfuseMedia:type=text/plain|id=oversized-field|source=field_size_limit@@@" />,
     );
