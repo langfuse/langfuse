@@ -1908,8 +1908,37 @@ describe("MCP Read Tools", () => {
         },
         views: {
           observations: {
+            filterableColumns: expect.arrayContaining([
+              {
+                column: "tags",
+                filterType: "arrayOptions",
+                operators: ["any of", "none of", "all of"],
+              },
+              {
+                column: "metadata",
+                filterType: "stringObject",
+                operators: [
+                  "=",
+                  "contains",
+                  "does not contain",
+                  "starts with",
+                  "ends with",
+                ],
+                requiresKey: true,
+              },
+            ]),
+            orderByFields: expect.arrayContaining([
+              "sum_totalCost",
+              "traceId",
+              "time_dimension",
+            ]),
             dimensions: {
-              traceId: { highCardinality: true },
+              traceId: {
+                highCardinality: true,
+                constraints: expect.stringMatching(
+                  /explicit config\.row_limit.*orderBy.*incompatible with timeDimension/i,
+                ),
+              },
             },
             measures: {
               count: {
