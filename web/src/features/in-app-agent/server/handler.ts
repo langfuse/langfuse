@@ -52,6 +52,7 @@ import {
   flushPendingRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
+  type PersistedConversationEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import { createInAppAgentSandbox } from "@langfuse/shared/in-app-agent/server/sandbox";
 import {
@@ -291,6 +292,9 @@ export default async function handler(request: Request) {
     const resumeApprovalRequest = isResumeAgentInput(sanitizedInput)
       ? sanitizedInput.forwardedProps.command.resume.approvalRequest
       : undefined;
+    const currentRunSandboxToolCallEvents: Array<
+      Omit<PersistedConversationEvent, "sequenceNumber">
+    > = [];
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
     const sandboxProvider =
       await getInAppAgentSandboxProvider(sandboxProviderType);
@@ -301,7 +305,10 @@ export default async function handler(request: Request) {
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
           getToolCallFiles: async () =>
-            getSandboxToolCallFiles(conversationEvents),
+            getSandboxToolCallFiles([
+              ...conversationEvents,
+              ...currentRunSandboxToolCallEvents,
+            ]),
           saveState: async (state) => {
             await prisma.inAppAgentConversation.update({
               where: {
@@ -444,6 +451,11 @@ export default async function handler(request: Request) {
                 }
 
                 pendingPersistedEvents.push(persistedEvent);
+                currentRunSandboxToolCallEvents.push({
+                  event: persistedEvent,
+                  runId: sanitizedInput.runId,
+                  createdAt: new Date(),
+                });
 
                 if (!shouldFlushPersistedEvent(persistedEvent)) {
                   return;

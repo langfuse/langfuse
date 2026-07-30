@@ -298,6 +298,9 @@ export async function executeInAppAgentRun(params: {
       );
     }
 
+    const currentRunSandboxToolCallEvents: Array<
+      Omit<PersistedConversationEvent, "sequenceNumber">
+    > = [];
     const sandboxState = sandboxProvider
       ? await createInAppAgentSandbox({
           conversationId: conversation.id,
@@ -305,7 +308,10 @@ export async function executeInAppAgentRun(params: {
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
           getToolCallFiles: async () =>
-            getSandboxToolCallFiles(conversationEvents),
+            getSandboxToolCallFiles([
+              ...conversationEvents,
+              ...currentRunSandboxToolCallEvents,
+            ]),
           saveState: async (state) => {
             await prisma.inAppAgentConversation.update({
               where: { id_projectId: { id: conversation.id, projectId } },
@@ -417,6 +423,11 @@ export async function executeInAppAgentRun(params: {
           }
 
           pendingPersistedEvents.push(persistedEvent);
+          currentRunSandboxToolCallEvents.push({
+            event: persistedEvent,
+            runId,
+            createdAt: new Date(),
+          });
 
           if (!shouldFlushPersistedEvent(persistedEvent)) {
             return;

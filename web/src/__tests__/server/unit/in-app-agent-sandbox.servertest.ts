@@ -108,6 +108,90 @@ describe("in-app agent sandbox", () => {
     });
   });
 
+  it("syncs same-turn silent tool output into sandbox tool-call files", async () => {
+    const files = new Map<string, string>();
+    let readonlyFiles = getSandboxToolCallFiles([]);
+    const sandbox = await createInAppAgentSandbox({
+      conversationId: "conversation-1",
+      projectId: "project-1",
+      provider: {
+        async ensureSession() {
+          return {
+            sessionId: "session-1",
+            sandbox: {
+              async syncReadonlyFiles({ files: nextFiles }) {
+                for (const key of Array.from(files.keys())) {
+                  if (key.startsWith("tool_calls/")) {
+                    files.delete(key);
+                  }
+                }
+
+                for (const file of nextFiles) {
+                  files.set(file.path, file.content);
+                }
+              },
+              async read({ path }) {
+                return { path, content: files.get(path) ?? null };
+              },
+              async write() {
+                return { path: "notes.txt", bytesWritten: 0 };
+              },
+              async edit() {
+                return { path: "notes.txt", replaced: false };
+              },
+              async bash() {
+                return { stdout: "", stderr: "", exitCode: 0 };
+              },
+            },
+          };
+        },
+      },
+      getToolCallFiles: async () => readonlyFiles,
+      saveState: async () => undefined,
+    });
+
+    readonlyFiles = getSandboxToolCallFiles([
+      {
+        createdAt: new Date("2026-07-02T12:00:00.000Z"),
+        runId: "run-1",
+        event: {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "tool-call-1",
+          toolCallName: "langfuse_listObservations",
+        },
+      },
+      {
+        createdAt: new Date("2026-07-02T12:00:00.100Z"),
+        runId: "run-1",
+        event: {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: "tool-call-1",
+          delta: '{"silent":true}',
+        },
+      },
+      {
+        createdAt: new Date("2026-07-02T12:00:00.200Z"),
+        runId: "run-1",
+        event: {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: "tool-call-1",
+          content: JSON.stringify({
+            type: "silent-mcp-output",
+            output: { data: [{ id: "observation-1" }] },
+          }),
+        },
+      },
+    ]);
+
+    const result = await sandbox.sandbox.read({
+      path: "tool_calls/2026-07-02T12-00-00.000Z_langfuse_listObservations_tool-call-1.json",
+    });
+
+    expect((result as { content: string | null }).content).toContain(
+      "observation-1",
+    );
+  });
+
   it("exports prior non-sandbox tool calls into tool_calls files", () => {
     const files = getSandboxToolCallFiles([
       {
