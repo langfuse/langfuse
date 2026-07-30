@@ -4,6 +4,7 @@ import { SpanKind, type Span } from "@opentelemetry/api";
 
 import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
+import { isUserInputError } from "./errors";
 import type { ServerContext } from "../types";
 
 type McpToolAttribute = string | number | boolean;
@@ -42,8 +43,19 @@ export const runMcpTool = async <TResult>({
       });
 
       try {
-        return await fn(span);
+        const result = await fn(span);
+        span.setAttribute("mcp.outcome", "success");
+        return result;
       } catch (error) {
+        const isRequestError =
+          isUserInputError(error) ||
+          (error instanceof BaseError && error.httpCode < 500);
+
+        span.setAttribute(
+          "mcp.outcome",
+          isRequestError ? "request_error" : "server_error",
+        );
+
         // Expose the error cause on the span so trace analyses can group by
         // cause instead of a single error class name.
         if (error instanceof BaseError) {
