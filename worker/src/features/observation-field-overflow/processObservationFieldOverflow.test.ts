@@ -42,6 +42,15 @@ const createEventRecord = (
 const mediaReference = (id: string) =>
   `@@@langfuseMedia:type=text/plain|id=${id}|source=field_size_limit@@@`;
 
+const createDeferred = <T>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+
+  return { promise, resolve };
+};
+
 describe("applyObservationFieldOverflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -110,6 +119,61 @@ describe("applyObservationFieldOverflow", () => {
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
   });
 
+  it("uploads at most two oversized fields concurrently and preserves field order", async () => {
+    const uploads = Array.from({ length: 5 }, () =>
+      createDeferred<{ mediaId: string; outcome: "uploaded" }>(),
+    );
+    let activeUploads = 0;
+    let maxActiveUploads = 0;
+    let uploadIndex = 0;
+    mocks.uploadMediaForTrace.mockImplementation(async () => {
+      const currentIndex = uploadIndex++;
+      activeUploads += 1;
+      maxActiveUploads = Math.max(maxActiveUploads, activeUploads);
+      const result = await uploads[currentIndex].promise;
+      activeUploads -= 1;
+      return result;
+    });
+    const eventRecord = createEventRecord({
+      input: "input-value",
+      output: "output-value",
+      metadata_values: ["metadata-one", "metadata-two", "metadata-three"],
+    });
+
+    const resultPromise = applyObservationFieldOverflow(eventRecord);
+
+    await vi.waitFor(() =>
+      expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(2),
+    );
+    expect(maxActiveUploads).toBe(2);
+
+    uploads[0].resolve({ mediaId: "input-media", outcome: "uploaded" });
+    uploads[1].resolve({ mediaId: "output-media", outcome: "uploaded" });
+    await vi.waitFor(() =>
+      expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(4),
+    );
+    expect(maxActiveUploads).toBe(2);
+
+    uploads[2].resolve({ mediaId: "metadata-one", outcome: "uploaded" });
+    uploads[3].resolve({ mediaId: "metadata-two", outcome: "uploaded" });
+    await vi.waitFor(() =>
+      expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(5),
+    );
+    expect(maxActiveUploads).toBe(2);
+
+    uploads[4].resolve({ mediaId: "metadata-three", outcome: "uploaded" });
+
+    await expect(resultPromise).resolves.toMatchObject({
+      input: mediaReference("input-media"),
+      output: mediaReference("output-media"),
+      metadata_values: [
+        mediaReference("metadata-one"),
+        mediaReference("metadata-two"),
+        mediaReference("metadata-three"),
+      ],
+    });
+  });
+
   it("keeps an individual field when its upload fails and continues processing", async () => {
     const uploadError = new Error("S3 unavailable");
     mocks.uploadMediaForTrace
@@ -172,20 +236,42 @@ describe("applyObservationFieldOverflow", () => {
     );
   });
 
-  it("returns the original record when the processor fails outside an upload", async () => {
+  it("waits for the active batch before returning the original record on an unexpected failure", async () => {
     const processorError = new Error("metrics unavailable");
-    mocks.uploadMediaForTrace.mockResolvedValue({
-      mediaId: "input-media",
-      outcome: "uploaded",
-    });
+    const outputUpload = createDeferred<{
+      mediaId: string;
+      outcome: "uploaded";
+    }>();
+    mocks.uploadMediaForTrace
+      .mockResolvedValueOnce({
+        mediaId: "input-media",
+        outcome: "uploaded",
+      })
+      .mockReturnValueOnce(outputUpload.promise);
     mocks.recordIncrement.mockImplementationOnce(() => {
       throw processorError;
     });
-    const eventRecord = createEventRecord({ input: "x".repeat(11) });
+    const eventRecord = createEventRecord({
+      input: "x".repeat(11),
+      output: "y".repeat(11),
+    });
 
-    const result = await applyObservationFieldOverflow(eventRecord);
+    let didSettle = false;
+    const resultPromise = applyObservationFieldOverflow(eventRecord).finally(
+      () => {
+        didSettle = true;
+      },
+    );
 
-    expect(result).toBe(eventRecord);
+    await vi.waitFor(() =>
+      expect(mocks.uploadMediaForTrace).toHaveBeenCalledTimes(2),
+    );
+    await Promise.resolve();
+    expect(didSettle).toBe(false);
+
+    outputUpload.resolve({ mediaId: "output-media", outcome: "uploaded" });
+
+    await expect(resultPromise).resolves.toBe(eventRecord);
     expect(mocks.logger.warn).toHaveBeenCalledWith(
       "Observation field overflow processing failed; persisting original record",
       {
