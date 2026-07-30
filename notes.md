@@ -161,6 +161,38 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   to Actions run/job data and individual PR reads for this workflow's
   identity.
 
+## 2026-07-30 (eighth run, workflow_dispatch — STILL BLOCKED, confirms restriction is persistent, not scoped to a single invocation)
+
+- **Re-tested the exact hypothesis the seventh run left open** ("check
+  whether it's scoped to this one invocation before assuming it's
+  permanent"). Answer: **it is NOT scoped to one invocation** — this run
+  (id `30554268551`, a week after the seventh run's `30553320896`) hit the
+  identical `[Filtered] ... filtered by secrecy policy ... not authorized to
+  access private-scoped data` error on both `actions_list.list_workflow_runs`
+  and `actions_get.get_workflow`, on the first real call, with only 3 total
+  probe calls made (within the "don't re-probe more than 2-3 calls" budget
+  from last time).
+  `search_pull_requests` (aggregate query `is:pr label:ci-performance`)
+  still works and returned `total_count: 0` — consistent with the ledger
+  being (and remaining) empty; zero `ci-performance` PRs exist.
+- **Conclusion: this workflow's GitHub identity/token cannot read Actions
+  run/job data at all, across at least two separate weekly runs one week
+  apart.** This is a standing infrastructure blocker, not run-to-run noise.
+  Every checklist item that depends on `pipeline.yml` run/job data (timing
+  metrics, segment medians, vitest log sampling, per-PR CI status for
+  assessment) is unexecutable until the GitHub MCP server's secrecy-policy
+  scoping is changed to grant this workflow read access to Actions data and
+  individual PR reads. Filed via `missing_tool` again; did not re-probe
+  beyond confirming persistence, and did not fabricate any timing numbers.
+- **Recommendation for whoever owns this workflow's MCP/token config**: the
+  restriction message names `resource:actions_list` / `resource:actions_get`
+  by name — that's a concrete permission/scope key to check against this
+  workflow's GitHub App or PAT configuration.
+- **Next run**: do not re-probe at all if this recurs a third time — the
+  pattern is now established across two independent runs a week apart.
+  Immediately check history/notes for this blocker, do one confirmatory
+  call (not three), and file `missing_tool` referencing this note.
+
 ## Tooling notes (for future runs)
 
 - The GitHub Actions MCP `list_workflow_runs` caps at ~30 runs/page regardless
