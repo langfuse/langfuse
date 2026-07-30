@@ -423,6 +423,66 @@ describe("in-app agent background runs", () => {
     expect(enqueuedJobs).toEqual([]);
   });
 
+  it("rejects approval continuations for write-locked conversations before mutating", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "write-locked-tool-call",
+    });
+
+    await prisma.inAppAgentConversation.update({
+      where: {
+        id_projectId: { id: conversation.id, projectId },
+      },
+      data: { createdAt: new Date(Date.now() - 9 * 60 * 60 * 1000) },
+    });
+    await prisma.inAppAgentEvent.create({
+      data: {
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        sequenceNumber: 1,
+        type: EventType.TOOL_CALL_START,
+        event: {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "sandbox-tool-call",
+          toolCallName: "bash",
+        },
+      },
+    });
+
+    await expect(
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "write-locked-tool-call",
+        approved: true,
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message:
+        "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.",
+    });
+
+    await expect(
+      prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: parkedRunId, projectId },
+      }),
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.AWAITING_APPROVAL,
+    });
+    await expect(
+      prisma.inAppAgentRun.count({
+        where: { projectId, conversationId: conversation.id },
+      }),
+    ).resolves.toBe(1);
+    expect(enqueuedJobs).toEqual([]);
+  });
+
   it("persists approval expiry before rejecting a late decision", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });

@@ -268,7 +268,7 @@ export async function decideBackgroundApproval(params: {
   userId: string;
   model: string | undefined;
 }) {
-  await getOwnedConversationOrThrow({
+  const conversation = await getOwnedConversationOrThrow({
     prisma: params.prisma,
     projectId: params.projectId,
     conversationId: params.conversationId,
@@ -280,6 +280,16 @@ export async function decideBackgroundApproval(params: {
     projectId: params.projectId,
     conversationId: params.conversationId,
   });
+
+  if (isInAppAgentConversationWriteLocked({ conversation, events })) {
+    throw new BaseError(
+      "PreconditionFailedError",
+      412,
+      SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      true,
+    );
+  }
+
   const approvalRequest = events.find(
     (persisted) =>
       persisted.runId === params.runId &&
