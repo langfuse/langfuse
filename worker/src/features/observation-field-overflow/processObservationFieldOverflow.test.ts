@@ -8,6 +8,12 @@ const mocks = vi.hoisted(() => ({
     LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "true",
     LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: 10,
   },
+  instrumentAsync: vi.fn(
+    async (
+      _context: unknown,
+      callback: () => Promise<unknown>,
+    ): Promise<unknown> => callback(),
+  ),
   logger: { warn: vi.fn() },
   recordDistribution: vi.fn(),
   recordIncrement: vi.fn(),
@@ -16,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  instrumentAsync: mocks.instrumentAsync,
   logger: mocks.logger,
   recordDistribution: mocks.recordDistribution,
   recordIncrement: mocks.recordIncrement,
@@ -69,6 +76,7 @@ describe("applyObservationFieldOverflow", () => {
     const result = await applyObservationFieldOverflow(eventRecord);
 
     expect(result).toBe(eventRecord);
+    expect(mocks.instrumentAsync).not.toHaveBeenCalled();
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
   });
 
@@ -106,6 +114,12 @@ describe("applyObservationFieldOverflow", () => {
       }),
     );
     expect(mocks.recordIncrement).toHaveBeenCalledTimes(3);
+    expect(mocks.instrumentAsync).toHaveBeenCalledWith(
+      {
+        name: "langfuse.ingestion.observation_field_overflow.process",
+      },
+      expect.any(Function),
+    );
   });
 
   it("applies the limit to each metadata value rather than their aggregate size", async () => {
@@ -116,6 +130,7 @@ describe("applyObservationFieldOverflow", () => {
     const result = await applyObservationFieldOverflow(eventRecord);
 
     expect(result.metadata_values).toEqual(["123456", "123456"]);
+    expect(mocks.instrumentAsync).not.toHaveBeenCalled();
     expect(mocks.uploadMediaForTrace).not.toHaveBeenCalled();
   });
 

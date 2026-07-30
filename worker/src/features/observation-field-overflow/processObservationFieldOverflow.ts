@@ -1,5 +1,6 @@
 import {
   type EventRecordInsertType,
+  instrumentAsync,
   logger,
   recordDistribution,
   recordIncrement,
@@ -42,17 +43,25 @@ export async function applyObservationFieldOverflow(
     if (candidates.length === 0) {
       return eventRecord;
     }
-    if (!mediaBucket) {
-      throw new Error("Media upload bucket is not configured");
-    }
 
-    const results = await uploadOverflowCandidates(
-      eventRecord,
-      candidates,
-      mediaBucket,
+    return await instrumentAsync(
+      {
+        name: "langfuse.ingestion.observation_field_overflow.process",
+      },
+      async () => {
+        if (!mediaBucket) {
+          throw new Error("Media upload bucket is not configured");
+        }
+
+        const results = await uploadOverflowCandidates(
+          eventRecord,
+          candidates,
+          mediaBucket,
+        );
+
+        return applyOverflowResults(eventRecord, results);
+      },
     );
-
-    return applyOverflowResults(eventRecord, results);
   } catch (error) {
     logger.warn(
       "Observation field overflow processing failed; persisting original record",
