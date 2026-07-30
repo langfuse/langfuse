@@ -56,10 +56,10 @@ operations.
 - Promote `main` to `production` without a release via
   `.github/workflows/promote-main-to-production.yml` or
   `pnpm run release:cloud` (both main-only).
-- At v4 GA, flip the latest-release markers: in `pipeline.yml`, move the
-  Docker `latest` tag gate from `refs/tags/v3` to `refs/tags/v4` on `main`
-  and disable it on the `v3` branch; set `release-it.github.makeLatest:
-  false` in the `v3` branch's root `package.json` so maintenance releases
-  stop claiming the GitHub "Latest release" badge.
+- The latest-release markers track the current major line on `main`. This
+  `v3` branch disables the Docker `latest` tag gate in `pipeline.yml` and
+  sets `release-it.github.makeLatest: false` in the root `package.json`, so
+  maintenance releases never claim the Docker `latest` tag or the GitHub
+  "Latest release" badge.
 - Do not change release/versioning flow without updating this skill and the
   impacted package guides.
