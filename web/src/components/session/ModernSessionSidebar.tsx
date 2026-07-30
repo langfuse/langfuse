@@ -190,7 +190,7 @@ export function ModernSessionSidebar(
         aria-busy="true"
         className="relative flex h-full min-h-0 flex-col"
       >
-        <div className="flex shrink-0 items-center border-b px-1 pt-2.5 pb-3">
+        <div className="flex shrink-0 items-center border-b px-2 py-2.5">
           <div className="bg-muted h-7 flex-1 animate-pulse rounded-sm" />
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-1 pt-0.5 pb-4">
@@ -215,6 +215,11 @@ export function ModernSessionSidebar(
 
   const { activeTraceId, filterControls, renderObservationRows, onSelect } =
     props;
+  const showFilterSummary = Boolean(
+    filterControls.activeFilterCount > 0 ||
+    filterControls.activeViewName ||
+    filterControls.selectedViewId,
+  );
 
   return (
     <div
@@ -222,133 +227,143 @@ export function ModernSessionSidebar(
       aria-label="Session spans"
       className="relative flex h-full min-h-0 flex-col"
     >
-      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b px-1 pt-2.5 pb-3">
-        <div className="relative min-w-0 flex-1">
-          <Search
-            className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
-            strokeWidth={1.6}
-          />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            aria-label="Search spans"
-            placeholder="Search spans"
-            className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
-          />
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              id={SESSION_DETAIL_VIEW_TRIGGER_ID}
-              type="button"
-              variant="outline"
-              size="icon"
-              className="relative h-7 w-7 shrink-0 rounded-sm"
-              aria-label="Filter observations"
-            >
-              <ListFilter className="h-3.5 w-3.5" />
-              {filterControls.activeFilterCount > 0 ? (
-                <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 font-mono text-[9px]">
-                  {filterControls.activeFilterCount}
-                </span>
-              ) : null}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72">
-            <DropdownMenuLabel>Presets</DropdownMenuLabel>
-            {SESSION_DETAIL_SYSTEM_PRESETS.map((preset) => (
-              <DropdownMenuItem
-                key={preset.id}
-                onSelect={() => filterControls.onApplyPreset(preset)}
-                className="items-start gap-2"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm">{preset.name}</span>
-                  {preset.description ? (
-                    <span className="text-muted-foreground block text-xs">
-                      {preset.description}
-                    </span>
-                  ) : null}
-                </span>
-                {filterControls.matchingSystemPresetId === preset.id ? (
-                  <Check className="mt-0.5 h-4 w-4 shrink-0" />
-                ) : null}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Save className="mr-2 h-4 w-4" />
-                Saved Views
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-56">
-                {filterControls.savedViews.map((view) => (
-                  <DropdownMenuItem
-                    key={view.id}
-                    onSelect={() => filterControls.onApplySavedView(view)}
-                  >
-                    <span className="min-w-0 flex-1 truncate" title={view.name}>
-                      {view.name}
-                    </span>
-                    {filterControls.matchingSavedViewId === view.id ? (
-                      <Check className="ml-2 h-4 w-4 shrink-0" />
-                    ) : null}
-                  </DropdownMenuItem>
-                ))}
-                {filterControls.savedViews.length === 0 ? (
-                  <DropdownMenuItem disabled>No saved views</DropdownMenuItem>
-                ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={filterControls.onManageViews}>
-                  <Settings2 className="mr-2 h-4 w-4" />
-                  Manage Views
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={filterControls.onOpenFilterDialog}>
-              <Filter className="mr-2 h-4 w-4" />
-              Apply custom filter
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {filterControls.activeFilterCount > 0 ||
-        filterControls.activeViewName ||
-        filterControls.selectedViewId ? (
-          <div className="text-muted-foreground flex basis-full items-center gap-2 overflow-hidden pt-1 font-mono text-[10px]">
-            <span
-              className="min-w-0 flex-1 truncate"
-              title={
-                filterControls.activeViewName ??
-                `${filterControls.activeFilterCount} active filters`
-              }
-            >
-              {filterControls.activeViewName ??
-                `${filterControls.activeFilterCount} active filters`}
-            </span>
-            {!filterControls.activeViewName ? (
-              <button
+      <div className="shrink-0 border-b">
+        <div className="flex items-center gap-1 px-2 py-2.5">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
+              strokeWidth={1.6}
+            />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="Search spans"
+              placeholder="Search spans"
+              className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
+            />
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                id={SESSION_DETAIL_VIEW_TRIGGER_ID}
                 type="button"
-                className="hover:text-foreground shrink-0"
-                onClick={filterControls.onOpenFilterDialog}
+                variant="outline"
+                size="icon"
+                className="relative h-7 w-7 shrink-0 rounded-sm"
+                aria-label="Filter observations"
               >
-                Save filters as view
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="hover:text-foreground shrink-0"
-              onClick={filterControls.onOpenFilterDialog}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              className="hover:text-foreground shrink-0"
-              onClick={filterControls.onClearFilters}
-            >
-              Clear
-            </button>
+                <ListFilter className="h-3.5 w-3.5" />
+                {filterControls.activeFilterCount > 0 ? (
+                  <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 font-mono text-[9px]">
+                    {filterControls.activeFilterCount}
+                  </span>
+                ) : null}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel>Presets</DropdownMenuLabel>
+              {SESSION_DETAIL_SYSTEM_PRESETS.map((preset) => (
+                <DropdownMenuItem
+                  key={preset.id}
+                  onSelect={() => filterControls.onApplyPreset(preset)}
+                  className="items-start gap-2"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm">{preset.name}</span>
+                    {preset.description ? (
+                      <span className="text-muted-foreground block text-xs">
+                        {preset.description}
+                      </span>
+                    ) : null}
+                  </span>
+                  {filterControls.matchingSystemPresetId === preset.id ? (
+                    <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                  ) : null}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Save className="mr-2 h-4 w-4" />
+                  Saved Views
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-56">
+                  {filterControls.savedViews.map((view) => (
+                    <DropdownMenuItem
+                      key={view.id}
+                      onSelect={() => filterControls.onApplySavedView(view)}
+                    >
+                      <span
+                        className="min-w-0 flex-1 truncate"
+                        title={view.name}
+                      >
+                        {view.name}
+                      </span>
+                      {filterControls.matchingSavedViewId === view.id ? (
+                        <Check className="ml-2 h-4 w-4 shrink-0" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  ))}
+                  {filterControls.savedViews.length === 0 ? (
+                    <DropdownMenuItem disabled>No saved views</DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={filterControls.onManageViews}>
+                    <Settings2 className="mr-2 h-4 w-4" />
+                    Manage Views
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={filterControls.onOpenFilterDialog}>
+                <Filter className="mr-2 h-4 w-4" />
+                Apply custom filter
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {showFilterSummary ? (
+          <div className="border-t px-2 py-2.5">
+            <div className="border-border/80 bg-muted/30 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-2.5 py-2">
+              <div className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5">
+                <Filter className="h-3 w-3 shrink-0" />
+                <span
+                  className="min-w-0 truncate font-mono text-[10px]"
+                  title={
+                    filterControls.activeViewName ??
+                    `${filterControls.activeFilterCount} active filters`
+                  }
+                >
+                  {filterControls.activeViewName ??
+                    `${filterControls.activeFilterCount} active filters`}
+                </span>
+              </div>
+              <div className="text-muted-foreground ml-auto flex shrink-0 items-center gap-2 font-mono text-[10px]">
+                {!filterControls.activeViewName ? (
+                  <button
+                    type="button"
+                    className="hover:text-foreground"
+                    onClick={filterControls.onOpenFilterDialog}
+                  >
+                    Save as view
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="hover:text-foreground"
+                  onClick={filterControls.onOpenFilterDialog}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="hover:text-foreground"
+                  onClick={filterControls.onClearFilters}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
       </div>
