@@ -1,5 +1,5 @@
 import type { NextApiResponse } from "next";
-import { v4 } from "uuid";
+import { v4, v5 } from "uuid";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
@@ -726,6 +726,60 @@ export const deleteDatasetItemForApi = async ({
   return {
     message: "Dataset item successfully deleted" as const,
   };
+};
+
+// Stable namespace for experiment/run ids minted in events_only mode. Keep this
+// constant: changing it would change every id we return for the same input.
+const EVENTS_ONLY_DATASET_RUN_NAMESPACE =
+  "6f8b2c9a-3d4e-4f1a-b2c7-8e5d1a2b3c4d";
+
+/**
+ * events_only deployments no longer write dataset run items into the legacy
+ * dataset_run_items ClickHouse table, so the full createDatasetRunItemForApi
+ * flow has nothing to persist. Legacy SDK callers of POST /dataset-run-items
+ * still expect a 200 with an id they can hold onto, so we mint a *stable*
+ * experiment id (== dataset run id) deterministically from (projectId, runName).
+ * Repeated calls for the same run return the same id, and every item of a run
+ * shares one experiment id.
+ *
+ * In v4 the trace ↔ experiment link is established through OTel experiment span
+ * attributes instead, so here we only echo the caller's identifiers and skip
+ * all legacy side effects (dataset item / trace lookups, ClickHouse ingestion,
+ * eval enqueue).
+ */
+export const createMockDatasetRunItemForApi = ({
+  body,
+  auth,
+}: Pick<CreateDatasetRunItemInput, "body" | "auth">) => {
+  const projectId = auth.scope.projectId;
+
+  if (!projectId) {
+    throw new UnauthorizedError(
+      "Missing projectId in scope. Are you using an organization key?",
+    );
+  }
+
+  const experimentId = v5(
+    JSON.stringify(["dataset-run", projectId, body.runName]),
+    EVENTS_ONLY_DATASET_RUN_NAMESPACE,
+  );
+  const runItemId = v4();
+  const createdAt = body.createdAt ? new Date(body.createdAt) : new Date();
+
+  const datasetRunItem: APIDatasetRunItem = {
+    id: runItemId,
+    datasetRunId: experimentId,
+    datasetRunName: body.runName,
+    datasetItemId: body.datasetItemId,
+    // events_only skips the observation→trace lookup; echo whatever the caller
+    // provided (the body schema requires traceId or observationId).
+    traceId: body.traceId ?? "",
+    observationId: body.observationId ?? null,
+    createdAt,
+    updatedAt: createdAt,
+  };
+
+  return PostDatasetRunItemsV1Response.parse(datasetRunItem);
 };
 
 export const createDatasetRunItemForApi = async ({
