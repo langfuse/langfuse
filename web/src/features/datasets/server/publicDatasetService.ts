@@ -30,7 +30,6 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import {
   ApiError,
-  areLegacyWritesActive,
   type JSONValue,
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -394,8 +393,8 @@ export const listDatasetsByProjectForApi = async ({
   page,
   limit,
 }: ListDatasetsV1Input) => {
-  const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-  const shouldReadLegacyDatasetRuns = areLegacyWritesActive(writeMode);
+  const shouldReadLegacyDatasetRuns =
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only";
   const datasets = await prisma.dataset.findMany({
     select: {
       name: true,
@@ -465,8 +464,8 @@ export const getDatasetByNameForApi = async ({
   projectId,
   name,
 }: GetDatasetV1Input) => {
-  const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-  const shouldReadLegacyDatasetRuns = areLegacyWritesActive(writeMode);
+  const shouldReadLegacyDatasetRuns =
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only";
   const dataset = await prisma.dataset.findFirst({
     where: {
       name,
