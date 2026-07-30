@@ -128,6 +128,39 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   the webhooks blocker is semantic, not verifiability — nothing to re-verify.
 - Ledger prs.json still empty; zero `ci-performance` PRs → no assessment work.
 
+## 2026-07-30 (seventh run, workflow_dispatch — BLOCKED, no analysis possible)
+
+- **Hard tool restriction this session: GitHub Actions MCP tools entirely
+  inaccessible.** `actions_list` (`list_workflow_runs`, `list_workflow_jobs`)
+  and `actions_get` (`get_workflow`, `get_workflow_run`) all return
+  `MCP error 0: [Filtered] ... filtered by secrecy policy ... not authorized
+  to access private-scoped data` — for EVERY method and EVERY resource_id
+  tried, including a bogus id (`1`) and this run's own real id
+  (`30553320896` from the github-context block). `get_job_logs` and
+  `list_workflow_jobs`/`get_workflow_run` calls with bogus id `1` returned a
+  normal 404 (tool itself reachable), but the real run id was blocked the
+  same as everything else — so the restriction is on real/private-scoped
+  resource data, not on the tool endpoint existing.
+- **`list_pull_requests` is also blocked per-item** (5/5 recent PRs filtered
+  by the identical secrecy-policy message) even though `search_pull_requests`
+  (aggregate query, e.g. `is:pr label:ci-performance`) still returns a bare
+  count. So even the ledger-assessment path (matching PRs by label) has no
+  usable per-PR detail this session.
+- **Net effect: none of this run's checklist items are executable.** No
+  timing metrics (perceived/execution/runner-wait/segments), no vitest log
+  sampling (needs `get_job_logs` on real job ids, same blocked class), no
+  ledger refresh beyond confirming zero `ci-performance` PRs exist (that one
+  aggregate count is all `search_pull_requests` will give). Filed via
+  `missing_tool` instead of guessing/fabricating numbers.
+- **Action for next run**: if this recurs, don't re-probe more than 2-3
+  calls to confirm — it reproduces on the very first real-id call every
+  time. Check whether it's scoped to this one invocation (e.g. a
+  misconfigured integration-token scope for this run) before assuming it's
+  permanent; if permanent, this workflow cannot function at all until the
+  GitHub MCP server's secrecy-policy scoping is fixed to allow read access
+  to Actions run/job data and individual PR reads for this workflow's
+  identity.
+
 ## Tooling notes (for future runs)
 
 - The GitHub Actions MCP `list_workflow_runs` caps at ~30 runs/page regardless
