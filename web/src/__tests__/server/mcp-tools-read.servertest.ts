@@ -1695,6 +1695,56 @@ describe("MCP Read Tools", () => {
       expect(Number(rows[1].count_count)).toBe(1);
     });
 
+    it("should accept reversed metric aliases in orderBy", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const highCostName = `mcp-metrics-cost-high-${nanoid()}`;
+      const lowCostName = `mcp-metrics-cost-low-${nanoid()}`;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: highCostName,
+          totalCost: 0.02,
+          startTime: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: lowCostName,
+          totalCost: 0.01,
+          startTime: new Date("2026-01-01T00:01:00.000Z"),
+        }),
+      ]);
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "totalCost", aggregation: "sum" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+            ],
+            orderBy: [{ field: "totalCost_sum", direction: "desc" }],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      );
+
+      expect(rows.map((row: { name: string }) => row.name)).toEqual([
+        highCostName,
+        lowCostName,
+      ]);
+    });
+
     it("should prefer dimension fields over matching raw metric names in orderBy", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
