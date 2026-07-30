@@ -127,7 +127,7 @@ steps:
     # continue-on-error: if the secrets are unavailable in this environment,
     # degrade to anonymous pulls instead of failing the run.
     continue-on-error: true
-    uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+    uses: docker/login-action@v4.2.0
     with:
       username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
       password: ${{ secrets.DOCKERHUB_TOKEN_READ }}

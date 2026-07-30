@@ -1,5 +1,10 @@
 {
   "entries": {
+    "docker/login-action@v4.2.0": {
+      "repo": "docker/login-action",
+      "version": "v4.2.0",
+      "sha": "650006c6eb7dba73a995cc03b0b2d7f5ca915bee"
+    },
     "github/gh-aw-actions/setup@v0.84.0": {
       "repo": "github/gh-aw-actions/setup",
       "version": "v0.84.0",
