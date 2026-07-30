@@ -157,55 +157,81 @@ const ObservationMcpFilterBaseSchema = z
     `Advanced observation filter object. Example: ${OBSERVATION_MCP_FILTER_EXAMPLE_JSON}. The explicit form ${OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON} is also accepted.`,
   );
 
-const ObservationMcpFilterSchema = z
-  .object({ column: z.string() })
-  .loose()
-  .superRefine((filter, ctx) => {
-    if (!OBSERVATION_MCP_FILTER_COLUMN_TYPES.has(filter.column)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["column"],
-        message: `Invalid observation filter column "${filter.column}". Call getObservationFilterSchema for accepted columns.`,
-      });
-      return;
-    }
+const normalizeExactObservationIdFilter = (filter: unknown) => {
+  if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
+    return filter;
+  }
 
-    const type = OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
+  const candidate = filter as Record<string, unknown>;
+  if (
+    candidate.column !== "id" ||
+    candidate.operator !== "=" ||
+    typeof candidate.value !== "string" ||
+    (candidate.type !== undefined && candidate.type !== "string")
+  ) {
+    return filter;
+  }
 
-    if (!type || !isObservationMcpFilterType(type)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["type"],
-        message: `Invalid observation filter type "${String(type)}" for column "${filter.column}".`,
-      });
-      return;
-    }
+  return {
+    ...candidate,
+    type: "stringOptions",
+    operator: "any of",
+    value: [candidate.value],
+  };
+};
 
-    const filterParseResult = OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](
-      filter.column,
-      Boolean(filter.type),
-    ).safeParse(filter);
-
-    if (!filterParseResult.success) {
-      for (const issue of filterParseResult.error.issues) {
+const ObservationMcpFilterSchema = z.preprocess(
+  normalizeExactObservationIdFilter,
+  z
+    .object({ column: z.string() })
+    .loose()
+    .superRefine((filter, ctx) => {
+      if (!OBSERVATION_MCP_FILTER_COLUMN_TYPES.has(filter.column)) {
         ctx.addIssue({
           code: "custom",
-          path: issue.path,
-          message: issue.message,
+          path: ["column"],
+          message: `Invalid observation filter column "${filter.column}". Call getObservationFilterSchema for accepted columns.`,
         });
+        return;
       }
-    }
-  })
-  .transform((filter) => {
-    const type =
-      filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
-    return singleFilter.parse(
-      filter.column === "tags"
-        ? { ...filter, type, column: "traceTags" }
-        : { ...filter, type },
-    );
-  });
+      const type = OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
+
+      if (!type || !isObservationMcpFilterType(type)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["type"],
+          message: `Invalid observation filter type "${String(type)}" for column "${filter.column}".`,
+        });
+        return;
+      }
+
+      const filterParseResult = OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](
+        filter.column,
+        Boolean(filter.type),
+      ).safeParse(filter);
+
+      if (!filterParseResult.success) {
+        for (const issue of filterParseResult.error.issues) {
+          ctx.addIssue({
+            code: "custom",
+            path: issue.path,
+            message: issue.message,
+          });
+        }
+      }
+    })
+    .transform((filter) => {
+      const type =
+        filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
+
+      return singleFilter.parse(
+        filter.column === "tags"
+          ? { ...filter, type, column: "traceTags" }
+          : { ...filter, type },
+      );
+    }),
+);
 
 const ListObservationsBaseSchema = z.object({
   fields: ObservationFieldsSchema,
