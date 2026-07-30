@@ -35,7 +35,7 @@ import {
 import {
   getQueue,
   getAvgCostByEvaluatorIds,
-  getCostByEvaluatorIds,
+  getTotalCostByEvaluatorIds,
   getEvaluatorExecutionStatusCountsByEvaluatorId,
   getScoresByIds,
   logger,
@@ -1986,7 +1986,7 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const costs = await getCostByEvaluatorIds(
+      const costs = await getTotalCostByEvaluatorIds(
         input.projectId,
         input.evaluatorIds,
       );

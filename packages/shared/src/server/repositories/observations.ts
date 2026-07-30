@@ -2000,49 +2000,6 @@ export const getObservationCountsByProjectAndDay = async ({
   }));
 };
 
-/**
- * Get total cost grouped by evaluator ID (job_configuration_id) for the last week.
- *
- * @param projectId - Project ID
- * @param evaluatorIds - Array of evaluator IDs (job_configuration_id from metadata)
- * @returns Array of { evaluatorId, totalCost } objects
- */
-export const getCostByEvaluatorIds = async (
-  projectId: string,
-  evaluatorIds: string[],
-): Promise<Array<{ evaluatorId: string; totalCost: number }>> => {
-  if (evaluatorIds.length === 0) return [];
-
-  const query = `
-    SELECT
-      metadata['job_configuration_id'] as evaluator_id,
-      sum(total_cost) as total_cost
-    FROM observations FINAL
-    WHERE project_id = {projectId: String}
-      AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
-      AND type = 'GENERATION'
-      AND start_time > today() - 7
-    GROUP BY metadata['job_configuration_id']
-  `;
-
-  const rows = await queryClickhouse<{
-    evaluator_id: string;
-    total_cost: string;
-  }>({
-    query,
-    params: {
-      projectId,
-      evaluatorIds,
-    },
-    tags: { projectId },
-  });
-
-  return rows.map((row) => ({
-    evaluatorId: row.evaluator_id,
-    totalCost: Number(row.total_cost),
-  }));
-};
-
 // ─── Public-API observation query helpers ─────────────────────────────────────
 
 export const generateObservationsForPublicApi = async ({

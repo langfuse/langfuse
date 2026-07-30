@@ -35,7 +35,12 @@ import {
   EvalTemplateType,
 } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
+import {
+  createEvent,
+  createEventsCh,
+  createOrgProjectAndApiKey,
+} from "@langfuse/shared/src/server";
 import {
   createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
@@ -451,6 +456,43 @@ describe("evals trpc", () => {
           }),
         ]),
         [evalJobConfig2.id]: [],
+      });
+    });
+  });
+
+  describe("evals.costByEvaluatorIds", () => {
+    it("returns total evaluator costs from events", async () => {
+      const { project, caller } = await prepare();
+      const evaluatorId = randomUUID();
+      const traceId = randomUUID();
+      const evaluatorSpanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: evaluatorSpanId,
+          span_id: evaluatorSpanId,
+          project_id: project.id,
+          trace_id: traceId,
+          type: "SPAN",
+          metadata_names: ["job_configuration_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 0 },
+        }),
+        createEvent({
+          project_id: project.id,
+          trace_id: traceId,
+          parent_span_id: evaluatorSpanId,
+          cost_details: { total: 0.02 },
+        }),
+      ]);
+
+      const response = await caller.evals.costByEvaluatorIds({
+        projectId: project.id,
+        evaluatorIds: [evaluatorId],
+      });
+
+      expect(response).toEqual({
+        [evaluatorId]: 0.02,
       });
     });
   });
