@@ -79,6 +79,7 @@ export function ExperimentComparisonSelector({
         }
         disabled={isMaxReached}
         singleLine
+        className="rounded-l-none border-l-0"
         getItemKey={(item) => item.experimentId}
         renderItem={(item, isSelected, onToggle) => (
           <button

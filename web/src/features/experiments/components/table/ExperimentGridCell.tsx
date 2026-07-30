@@ -35,7 +35,11 @@ import { Button } from "@/src/components/ui/button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import {
+  IO_TABLE_CHAR_LIMIT,
+  JSONView,
+  stringifyJsonNode,
+} from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
@@ -46,7 +50,6 @@ type ExperimentGridCellProps = {
   projectId: string;
   itemId: string;
   output: unknown;
-  outputPotentiallyTruncated: boolean;
   level: string;
   startTime: Date;
   totalCost?: number | null;
@@ -280,9 +283,9 @@ const ScoreItem = ({
       </div>
       <div className="flex items-center gap-1">
         {displayValue === "-" ? (
-          <span className="text-muted-foreground font-mono text-xs">-</span>
+          <span className="text-muted-foreground text-xs">-</span>
         ) : (
-          <Badge variant="secondary" className="font-mono text-xs">
+          <Badge variant="secondary" className="text-xs">
             {displayValue}
           </Badge>
         )}
@@ -435,6 +438,10 @@ export const ExperimentGridCell = ({
     [baselineLatencyMs, isBaseline, latencyMs],
   );
 
+  const outputExceedsTableLimit =
+    (stringifyJsonNode(output)?.length ?? 0) > IO_TABLE_CHAR_LIMIT;
+  const canExpandOutput = outputPotentiallyTruncated || outputExceedsTableLimit;
+
   const [isOutputExpanded, setIsOutputExpanded] = useState(false);
   const fullOutputQuery = api.events.experimentBatchIO.useQuery(
     {
@@ -445,7 +452,10 @@ export const ExperimentGridCell = ({
       truncated: false,
     },
     {
-      enabled: isOutputExpanded && Boolean(observationId && traceId),
+      enabled:
+        isOutputExpanded &&
+        outputPotentiallyTruncated &&
+        Boolean(observationId && traceId),
       refetchOnWindowFocus: false,
       staleTime: Infinity,
     },
@@ -474,7 +484,6 @@ export const ExperimentGridCell = ({
     projectId,
     itemId,
     output,
-    outputPotentiallyTruncated,
     level,
     startTime,
     totalCost,
@@ -504,14 +513,16 @@ export const ExperimentGridCell = ({
             data={data.output ?? null}
             expandedData={expandedOutput}
             isExpandedDataLoading={
-              isOutputExpanded && fullOutputQuery.isLoading
+              isOutputExpanded &&
+              outputPotentiallyTruncated &&
+              fullOutputQuery.isLoading
             }
             onExpandOpenChange={
-              data.outputPotentiallyTruncated ? setIsOutputExpanded : undefined
+              canExpandOutput ? setIsOutputExpanded : undefined
             }
             className="bg-accent-light-green min-h-8"
             singleLine={false}
-            enableExpandOnHover={data.outputPotentiallyTruncated}
+            enableExpandOnHover={canExpandOutput}
           />
         ),
       },
@@ -637,11 +648,13 @@ export const ExperimentGridCell = ({
     ],
     [
       columnVisibility,
+      canExpandOutput,
       expandedOutput,
       fullOutputQuery.isLoading,
       isOutputExpanded,
       orderedObservationKeys,
       orderedTraceKeys,
+      outputPotentiallyTruncated,
       showScoreLevelLabels,
     ],
   );

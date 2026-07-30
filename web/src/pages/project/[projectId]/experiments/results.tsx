@@ -107,7 +107,7 @@ export default function ExperimentResults() {
   return (
     <Page
       headerProps={{
-        title: "Results",
+        title: "",
         itemType: "EXPERIMENT",
         breadcrumb: [
           { name: "Experiments", href: `/project/${projectId}/experiments` },

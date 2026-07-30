@@ -70,6 +70,7 @@ export {
   type ExperimentsAggregationFieldSetName,
   type SessionEventsMetricsRow,
   type SplitQueryBuilder,
+  EVENTS_CORE_IO_TRUNCATION_LENGTH,
 } from "./clickhouse-sql/event-query-builder";
 export {
   buildEventsFilterOptionColumnQuery,

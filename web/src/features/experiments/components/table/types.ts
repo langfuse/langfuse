@@ -2,73 +2,73 @@ import { type FilterState, type ScoreAggregate } from "@langfuse/shared";
 import { type VisibilityState } from "@tanstack/react-table";
 import { type ReactNode } from "react";
 
-// Shared font color palette for experiment rows/columns
+// Disabled Tailwind color families in globals.css compile to no styles.
 export const EXPERIMENT_COLOR_STYLES = [
   {
     textClass: "text-foreground",
     markerClass: "bg-foreground",
     badgeClass: "border-foreground bg-foreground text-background",
-  }, // Baseline - index 0
+  }, // Baseline - black
+  {
+    textClass: "text-pink-600 dark:text-pink-300",
+    markerClass: "bg-pink-500/80 dark:bg-pink-400/80",
+    badgeClass:
+      "border-pink-500/45 bg-pink-500/12 text-pink-600 dark:border-pink-400/45 dark:bg-pink-400/15 dark:text-pink-300",
+  }, // Comparison 1 - pink
   {
     textClass: "text-teal-700 dark:text-teal-300",
     markerClass: "bg-teal-500/80 dark:bg-teal-400/80",
     badgeClass:
       "border-teal-500/45 bg-teal-500/12 text-teal-700 dark:border-teal-400/45 dark:bg-teal-400/15 dark:text-teal-300",
-  }, // Comparison 1
+  }, // Comparison 2 - teal
   {
     textClass: "text-amber-700 dark:text-amber-300",
     markerClass: "bg-amber-500/80 dark:bg-amber-400/80",
     badgeClass:
       "border-amber-500/45 bg-amber-500/12 text-amber-700 dark:border-amber-400/45 dark:bg-amber-400/15 dark:text-amber-300",
-  }, // Comparison 2
-  {
-    textClass: "text-rose-700 dark:text-rose-300",
-    markerClass: "bg-rose-500/80 dark:bg-rose-400/80",
-    badgeClass:
-      "border-rose-500/45 bg-rose-500/12 text-rose-700 dark:border-rose-400/45 dark:bg-rose-400/15 dark:text-rose-300",
-  }, // Comparison 3
-  {
-    textClass: "text-cyan-700 dark:text-cyan-300",
-    markerClass: "bg-cyan-500/80 dark:bg-cyan-400/80",
-    badgeClass:
-      "border-cyan-500/45 bg-cyan-500/12 text-cyan-700 dark:border-cyan-400/45 dark:bg-cyan-400/15 dark:text-cyan-300",
-  }, // Comparison 4
-  {
-    textClass: "text-lime-700 dark:text-lime-300",
-    markerClass: "bg-lime-500/80 dark:bg-lime-400/80",
-    badgeClass:
-      "border-lime-500/45 bg-lime-500/12 text-lime-700 dark:border-lime-400/45 dark:bg-lime-400/15 dark:text-lime-300",
-  }, // Comparison 5
-  {
-    textClass: "text-fuchsia-700 dark:text-fuchsia-300",
-    markerClass: "bg-fuchsia-500/80 dark:bg-fuchsia-400/80",
-    badgeClass:
-      "border-fuchsia-500/45 bg-fuchsia-500/12 text-fuchsia-700 dark:border-fuchsia-400/45 dark:bg-fuchsia-400/15 dark:text-fuchsia-300",
-  }, // Comparison 6
+  }, // Comparison 3 - amber
   {
     textClass: "text-orange-700 dark:text-orange-300",
     markerClass: "bg-orange-500/80 dark:bg-orange-400/80",
     badgeClass:
       "border-orange-500/45 bg-orange-500/12 text-orange-700 dark:border-orange-400/45 dark:bg-orange-400/15 dark:text-orange-300",
-  }, // Comparison 7
+  }, // Comparison 4 - orange
   {
-    textClass: "text-indigo-700 dark:text-indigo-300",
-    markerClass: "bg-indigo-500/80 dark:bg-indigo-400/80",
+    textClass: "text-emerald-700 dark:text-emerald-300",
+    markerClass: "bg-emerald-500/80 dark:bg-emerald-400/80",
     badgeClass:
-      "border-indigo-500/45 bg-indigo-500/12 text-indigo-700 dark:border-indigo-400/45 dark:bg-indigo-400/15 dark:text-indigo-300",
-  }, // Comparison 8
+      "border-emerald-500/45 bg-emerald-500/12 text-emerald-700 dark:border-emerald-400/45 dark:bg-emerald-400/15 dark:text-emerald-300",
+  }, // Comparison 5 - emerald
+  {
+    textClass: "text-yellow-700 dark:text-yellow-300",
+    markerClass: "bg-yellow-500/80 dark:bg-yellow-400/80",
+    badgeClass:
+      "border-yellow-500/45 bg-yellow-500/12 text-yellow-700 dark:border-yellow-400/45 dark:bg-yellow-400/15 dark:text-yellow-300",
+  }, // Comparison 6 - yellow
+  {
+    textClass: "text-green-700 dark:text-green-300",
+    markerClass: "bg-green-500/80 dark:bg-green-400/80",
+    badgeClass:
+      "border-green-500/45 bg-green-500/12 text-green-700 dark:border-green-400/45 dark:bg-green-400/15 dark:text-green-300",
+  }, // Comparison 7 - green
   {
     textClass: "text-blue-700 dark:text-blue-300",
     markerClass: "bg-blue-500/80 dark:bg-blue-400/80",
     badgeClass:
       "border-blue-500/45 bg-blue-500/12 text-blue-700 dark:border-blue-400/45 dark:bg-blue-400/15 dark:text-blue-300",
-  }, // Comparison 9
+  }, // Comparison 8 - blue
+  {
+    textClass: "text-purple-700 dark:text-purple-300",
+    markerClass: "bg-purple-500/80 dark:bg-purple-400/80",
+    badgeClass:
+      "border-purple-500/45 bg-purple-500/12 text-purple-700 dark:border-purple-400/45 dark:bg-purple-400/15 dark:text-purple-300",
+  }, // Comparison 9 - purple
   {
     textClass: "text-violet-700 dark:text-violet-300",
     markerClass: "bg-violet-500/80 dark:bg-violet-400/80",
     badgeClass:
       "border-violet-500/45 bg-violet-500/12 text-violet-700 dark:border-violet-400/45 dark:bg-violet-400/15 dark:text-violet-300",
-  }, // Comparison 10
+  }, // Comparison 10 - violet
 ] as const;
 
 export type ExperimentColorStyle = (typeof EXPERIMENT_COLOR_STYLES)[number];

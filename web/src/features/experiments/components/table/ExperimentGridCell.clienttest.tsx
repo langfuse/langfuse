@@ -8,6 +8,7 @@ import {
 import type { VisibilityState } from "@tanstack/react-table";
 import { ExperimentGridCell } from "./ExperimentGridCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { IO_TABLE_CHAR_LIMIT } from "@/src/components/ui/CodeJsonViewer";
 
 const experimentBatchIOUseQueryMock = vi.hoisted(() =>
   vi.fn(() => ({ data: undefined, isLoading: false })),
@@ -56,13 +57,14 @@ const renderGridCell = (
   showScoreLevelLabels: boolean,
   columnVisibility: VisibilityState = { output: false, metadata: false },
   outputPotentiallyTruncated = false,
+  output: unknown = null,
 ) =>
   render(
     <TooltipProvider>
       <ExperimentGridCell
         projectId="project-id"
         itemId="item-id"
-        output={null}
+        output={output}
         outputPotentiallyTruncated={outputPotentiallyTruncated}
         level="GENERATION"
         startTime={new Date("2026-07-30T10:00:00.000Z")}
@@ -149,6 +151,23 @@ describe("ExperimentGridCell", () => {
     expect(
       screen.queryByRole("button", { name: "Expand output" }),
     ).not.toBeInTheDocument();
+    expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("expands client-truncated output without fetching it again", () => {
+    experimentBatchIOUseQueryMock.mockClear();
+    renderGridCell(
+      false,
+      { metadata: false },
+      false,
+      "x".repeat(IO_TABLE_CHAR_LIMIT + 1),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand output" }));
+
     expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
       expect.any(Object),
       expect.objectContaining({ enabled: false }),
