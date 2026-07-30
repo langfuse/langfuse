@@ -218,7 +218,10 @@ tools:
     # analyst could read nothing (#15640). An explicit constraint is never
     # relaxed by the gateway, so this narrows access to exactly the one repo
     # the agent reads rather than turning a protection off.
-    allowed-repos: "${{ github.repository }}"
+    # Array form, not the bare string: the gateway only accepts 'all' or
+    # 'public' as a string and rejects a resolved owner/repo at startup,
+    # despite the schema listing ${{ github.repository }} as a string enum.
+    allowed-repos: ["${{ github.repository }}"]
     # Required by the compiler once allowed-repos is explicit. 'approved' is
     # the value automatic lockdown already picked for this public repo, so
     # integrity enforcement is unchanged.
