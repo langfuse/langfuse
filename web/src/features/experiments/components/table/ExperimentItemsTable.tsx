@@ -656,6 +656,10 @@ export default function ExperimentItemsTable({
     [traceScoreColumns],
   );
 
+  const showScoreLevelLabels =
+    scoreColumnDefs.observationScoreColumns.length > 0 &&
+    scoreColumnDefs.traceScoreColumns.length > 0;
+
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
     {
@@ -1155,6 +1159,7 @@ export default function ExperimentItemsTable({
                   pagination={pagination}
                   observationScoreOrder={observationScoreOrder}
                   traceScoreOrder={traceScoreOrder}
+                  showScoreLevelLabels={showScoreLevelLabels}
                   peekView={peekConfig}
                   columnVisibility={columnVisibility}
                   selectActionColumn={

@@ -64,6 +64,7 @@ type ExperimentGridCellProps = {
   isLoading?: boolean;
   columnVisibility?: VisibilityState;
   markerClassName?: string;
+  showScoreLevelLabels: boolean;
 };
 
 /**
@@ -189,12 +190,14 @@ const ScoreItem = ({
   diff,
   projectId,
   level,
+  showScoreLevelLabel,
 }: {
   scoreKey: string;
   aggregate: AggregatedScoreData | null;
   diff?: BaselineDiff | null;
   projectId: string;
   level: Extract<ScoreLevel, "observation" | "trace">;
+  showScoreLevelLabel: boolean;
 }) => {
   // Decompose the key to get name, source, and dataType
   const { name, source, dataType } = decomposeAggregateScoreKey(scoreKey);
@@ -222,7 +225,7 @@ const ScoreItem = ({
   return (
     <div className="flex items-center justify-between gap-1 text-xs">
       <div className="flex max-w-[50%] min-w-0 items-center gap-1">
-        <ScoreTag level={level} compact />
+        {showScoreLevelLabel && <ScoreTag level={level} />}
         <HoverCard>
           <HoverCardTrigger className="min-w-0 cursor-default">
             <span className="text-muted-foreground block truncate" title={name}>
@@ -268,6 +271,7 @@ const ScoreItem = ({
 const getScoreRowDefinition = (
   scoreKey: string,
   level: Extract<ScoreLevel, "observation" | "trace">,
+  showScoreLevelLabel: boolean,
 ): CellRowDef<GridCellData> => ({
   accessorKey: level === "trace" ? `Trace-${scoreKey}` : scoreKey,
   cell: ({ data }) => (
@@ -283,6 +287,7 @@ const getScoreRowDefinition = (
       }
       projectId={data.projectId}
       level={level}
+      showScoreLevelLabel={showScoreLevelLabel}
     />
   ),
 });
@@ -366,6 +371,7 @@ export const ExperimentGridCell = ({
   isLoading = false,
   columnVisibility = {},
   markerClassName,
+  showScoreLevelLabels,
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
@@ -448,18 +454,20 @@ export const ExperimentGridCell = ({
         ),
       },
       // Keep all score levels together. Individual score visibility still
-      // follows the list-view columns, while ScoreTag carries the level.
+      // follows the list-view columns.
       {
         accessorKey: "scores",
         header: "Scores",
         children: [
           ...(columnVisibility.observationScores !== false
             ? orderedObservationKeys.map((key) =>
-                getScoreRowDefinition(key, "observation"),
+                getScoreRowDefinition(key, "observation", showScoreLevelLabels),
               )
             : []),
           ...(columnVisibility.traceScores !== false
-            ? orderedTraceKeys.map((key) => getScoreRowDefinition(key, "trace"))
+            ? orderedTraceKeys.map((key) =>
+                getScoreRowDefinition(key, "trace", showScoreLevelLabels),
+              )
             : []),
         ],
       },
@@ -562,7 +570,12 @@ export const ExperimentGridCell = ({
         ],
       },
     ],
-    [columnVisibility, orderedObservationKeys, orderedTraceKeys],
+    [
+      columnVisibility,
+      orderedObservationKeys,
+      orderedTraceKeys,
+      showScoreLevelLabels,
+    ],
   );
 
   // Filter and compute visible rows

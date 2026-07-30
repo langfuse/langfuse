@@ -40,6 +40,7 @@ type ExperimentGridViewProps = {
   rowHeight: RowHeight;
   observationScoreOrder: string[];
   traceScoreOrder: string[];
+  showScoreLevelLabels: boolean;
   columnVisibility: VisibilityState;
   pagination: {
     totalCount: number | null;
@@ -69,6 +70,7 @@ export const ExperimentGridView = ({
   rowHeight,
   observationScoreOrder,
   traceScoreOrder,
+  showScoreLevelLabels,
   columnVisibility,
   pagination,
   noResultsMessage,
@@ -161,6 +163,7 @@ export const ExperimentGridView = ({
               traceScores={expData.traceScores ?? {}}
               observationScoreOrder={observationScoreOrder}
               traceScoreOrder={traceScoreOrder}
+              showScoreLevelLabels={showScoreLevelLabels}
               isBaseline={isBaseline}
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
@@ -178,6 +181,7 @@ export const ExperimentGridView = ({
     projectId,
     observationScoreOrder,
     traceScoreOrder,
+    showScoreLevelLabels,
     columnVisibility,
     useExperimentColors,
   ]);
