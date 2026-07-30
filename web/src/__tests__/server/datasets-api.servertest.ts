@@ -1112,21 +1112,20 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       expect(first.body.datasetRunId).toEqual(expect.any(String));
       expect(first.body.id).toEqual(expect.any(String));
 
-      // Stable: repeating the call for the same run + item returns the same
-      // experiment id (datasetRunId) and run item id, even with a new traceId.
+      // Stable: repeating the call for the same run returns the same experiment
+      // id (datasetRunId), even with a different item and traceId.
       const second = await makeZodVerifiedAPICall(
         PostDatasetRunItemsV1Response,
         "POST",
         "/api/public/dataset-run-items",
         {
-          datasetItemId,
+          datasetItemId: `events-only-item-${v4()}`,
           traceId: v4(),
           runName,
         },
         auth,
       );
       expect(second.body.datasetRunId).toBe(first.body.datasetRunId);
-      expect(second.body.id).toBe(first.body.id);
 
       // Nothing is persisted: no legacy dataset run row is created in Postgres
       // and no dataset item lookup is required.

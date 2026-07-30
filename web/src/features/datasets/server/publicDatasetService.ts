@@ -747,7 +747,7 @@ const EVENTS_ONLY_DATASET_RUN_NAMESPACE =
  * all legacy side effects (dataset item / trace lookups, ClickHouse ingestion,
  * eval enqueue).
  */
-export const createMockDatasetRunItemForApi = ({
+export const buildStableDatasetRunItemResponseEventsOnly = ({
   body,
   auth,
 }: Pick<CreateDatasetRunItemInput, "body" | "auth">) => {

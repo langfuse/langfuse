@@ -8,7 +8,7 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import {
   createDatasetRunItemForApi,
-  createMockDatasetRunItemForApi,
+  buildStableDatasetRunItemResponseEventsOnly,
   listDatasetRunItemsForApi,
 } from "@/src/features/datasets/server/publicDatasetService";
 import { DATASET_RUN_ITEMS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
@@ -28,7 +28,7 @@ export default withMiddlewares({
     // attributes on ingestion instead.
     fn: async ({ body, auth, res }) => {
       if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only") {
-        return createMockDatasetRunItemForApi({ body, auth });
+        return buildStableDatasetRunItemResponseEventsOnly({ body, auth });
       }
       return await createDatasetRunItemForApi({ body, auth, res });
     },
