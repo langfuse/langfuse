@@ -856,7 +856,10 @@ describe("MCP Read Tools", () => {
 
   maybeEventsTable("listObservations tool", () => {
     it("should have readOnlyHint annotation", () => {
-      verifyToolAnnotations(listObservationsTool, { readOnlyHint: true });
+      verifyToolAnnotations(listObservationsTool, {
+        readOnlyHint: true,
+        expensiveHint: true,
+      });
     });
 
     it("should be available to in-app agent keys", async () => {
@@ -1340,6 +1343,24 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).resolves.toMatchObject({ data: [] });
+    });
+
+    it("should reject expensive observation access over a window longer than 30 days", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListObservations(
+          {
+            fields: ["input"],
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-02-01T00:00:00.000Z",
+            limit: 100,
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        /maximum supported observation time window is 30 days/i,
+      );
     });
 
     it("should infer advanced filter type from the column", async () => {
@@ -2072,6 +2093,7 @@ describe("MCP Read Tools", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getObservationFilterValuesTool, {
         readOnlyHint: true,
+        expensiveHint: true,
       });
     });
 
@@ -2096,6 +2118,24 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).resolves.toBeDefined();
+    });
+
+    it("should reject filter-value windows longer than 30 days", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleGetObservationFilterValues(
+          {
+            column: "name",
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-02-01T00:00:00.000Z",
+            limit: 100,
+          },
+          context,
+        ),
+      ).rejects.toThrow(
+        /maximum supported observation time window is 30 days/i,
+      );
     });
 
     it("should return values for a dynamic filter column", async () => {
