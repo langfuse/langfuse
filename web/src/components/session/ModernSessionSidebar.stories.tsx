@@ -177,6 +177,7 @@ const largeSessionTraces = largeSessionData.map(({ trace }) => trace);
 const largeSessionObservationsByTraceId = Object.fromEntries(
   largeSessionData.map(({ trace, observations }) => [trace.id, observations]),
 );
+const onExcludeObservation = fn();
 
 const renderObservationRows: ObservationListRowsRenderer = ({
   traceId,
@@ -205,6 +206,7 @@ const renderObservationRows: ObservationListRowsRenderer = ({
     <ObservationListRows
       state={{ type: "loaded", rows }}
       onSelectTurn={onSelectTurn}
+      onExcludeObservation={onExcludeObservation}
     />
   );
 };
@@ -233,6 +235,7 @@ const renderLargeSessionObservationRows: ObservationListRowsRenderer = ({
     <ObservationListRows
       state={{ type: "loaded", rows }}
       onSelectTurn={onSelectTurn}
+      onExcludeObservation={onExcludeObservation}
     />
   );
 };

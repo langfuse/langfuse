@@ -63,7 +63,7 @@ export function ObservationListRows({
       {state.rows.map((observation) => (
         <div
           key={observation.id}
-          className="group/observation hover:bg-foreground/10 -mr-2 -ml-1 flex items-center rounded-sm transition-colors duration-150"
+          className="hover:bg-foreground/10 -mr-2 -ml-1 flex items-center rounded-sm transition-colors duration-150"
         >
           <button
             type="button"
@@ -90,13 +90,13 @@ export function ObservationListRows({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 shrink-0 opacity-100 sm:opacity-0 sm:group-hover/observation:opacity-100 sm:focus:opacity-100 sm:data-[state=open]:opacity-100"
+                  className="text-muted-foreground hover:text-muted-foreground -my-1 -mr-0.5 h-8 w-8 shrink-0 hover:bg-transparent"
                   aria-label={`Actions for ${observation.name}`}
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" sideOffset={0}>
                 <DropdownMenuItem
                   onSelect={() =>
                     onExcludeObservation({

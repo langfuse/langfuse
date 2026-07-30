@@ -131,7 +131,7 @@ const TurnCard = React.memo(
               onToggleCollapse(trace.id);
             }
           }}
-          className="text-muted-foreground -m-2 flex h-8 w-8 shrink-0 items-center justify-center"
+          className="text-muted-foreground -my-2 -mr-2.5 -ml-2 flex h-8 w-8 shrink-0 items-center justify-center"
         >
           <ChevronDown
             className={cn(
