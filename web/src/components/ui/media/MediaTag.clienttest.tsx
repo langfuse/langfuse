@@ -78,4 +78,31 @@ describe("MediaTag", () => {
 
     expect(await screen.findByText("Failed to load media")).toBeInTheDocument();
   });
+
+  it("renders an oversized-field warning with download context", () => {
+    render(
+      <MediaTag
+        contentType="text/plain"
+        status="ready"
+        url="https://example.com/oversized.txt"
+        label="Field over size limit"
+        description="This field exceeded the configured storage limit. Open the file to view the original content."
+        warning
+        open
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Field over size limit media" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This field exceeded the configured storage limit. Open the file to view the original content.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTitle("Open in new tab")).toHaveAttribute(
+      "href",
+      "https://example.com/oversized.txt",
+    );
+  });
 });

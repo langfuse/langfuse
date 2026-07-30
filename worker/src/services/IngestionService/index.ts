@@ -67,6 +67,7 @@ import {
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
+import { applyObservationFieldOverflow } from "../../features/observation-field-overflow/processObservationFieldOverflow";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -430,6 +431,8 @@ export class IngestionService {
   /**
    * Writes an event record directly to the events_full table.
    * A materialized view auto-populates events_core from events_full.
+   * Legacy observation writes and staging-based dual writes intentionally do
+   * not use field overflow.
    * Use createEventRecord() first to get the record, then call this to write.
    *
    * Enqueues a new record whose `event_bytes` describes the final normalized
@@ -438,10 +441,14 @@ export class IngestionService {
    *
    * @param eventRecord - The event record to write
    */
-  public writeEventRecord(eventRecord: EventRecordInsertType): void {
+  public async writeEventRecord(
+    eventRecord: EventRecordInsertType,
+  ): Promise<void> {
+    const persistedRecord = await applyObservationFieldOverflow(eventRecord);
+
     this.clickHouseWriter.addToQueue(
       TableName.EventsFull,
-      withSerializedEventByteLength(eventRecord),
+      withSerializedEventByteLength(persistedRecord),
     );
   }
 
