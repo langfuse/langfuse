@@ -415,6 +415,9 @@ export function convertEventsObservation(
       ...baseObservation,
       userId: record.user_id ?? null,
       sessionId: record.session_id ?? null,
+      ...(record.is_root_observation !== undefined && {
+        isRootObservation: record.is_root_observation,
+      }),
       traceName: record.trace_name ?? null,
       release: record.release ?? null,
       tags: record.tags ?? null,
@@ -432,6 +435,9 @@ export function convertEventsObservation(
     ...baseObservation,
     ...(record.user_id !== undefined && { userId: record.user_id }),
     ...(record.session_id !== undefined && { sessionId: record.session_id }),
+    ...(record.is_root_observation !== undefined && {
+      isRootObservation: record.is_root_observation,
+    }),
     ...(record.trace_name !== undefined && { traceName: record.trace_name }),
     ...(record.release !== undefined && { release: record.release }),
     ...(record.tags !== undefined && { tags: record.tags }),

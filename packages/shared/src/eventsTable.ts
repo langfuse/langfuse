@@ -67,6 +67,13 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "API Key",
+    id: "ingestionApiKey",
+    type: "stringOptions",
+    internal: "e.ingestion_api_key",
+    options: [], // to be added at runtime
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",
@@ -430,6 +437,7 @@ const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
   "output",
   "metadata",
   "traceTags",
+  "isRootObservation",
   "hasParentObservation",
 ] as const satisfies readonly EventsTableColumnId[];
 

@@ -30,6 +30,7 @@ import { env } from "@/src/env.mjs";
 import {
   type EventsTableFilterState,
   type FilterCondition,
+  type TimeFilter,
 } from "@langfuse/shared";
 import waitForExpect from "wait-for-expect";
 
@@ -948,6 +949,204 @@ describe("Clickhouse Events Repository Test", () => {
         expect(options.trace_scores_avg).toBeUndefined();
         expect(options.trace_score_categories).toBeUndefined();
         expect(options.trace_score_booleans).toBeUndefined();
+      });
+    });
+
+    it("refines bulk facets and omits counts for non-participating filters", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now();
+      const nameFilter: FilterCondition = {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: ["filtered-option-alpha"],
+      };
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "filtered-option-alpha",
+          level: "WARNING",
+          start_time: now * 1000,
+          event_ts: now * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "filtered-option-alpha",
+          level: "ERROR",
+          start_time: (now + 1) * 1000,
+          event_ts: (now + 1) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "filtered-option-beta",
+          level: "DEFAULT",
+          start_time: (now + 2) * 1000,
+          event_ts: (now + 2) * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const getOptions = (filter: FilterCondition[]) =>
+          getEventFilterOptions({
+            projectId: uniqueProjectId,
+            startTimeFilter: [
+              {
+                column: "startTime",
+                type: "datetime",
+                operator: ">=",
+                value: new Date(now - 60_000),
+              },
+            ],
+            filter,
+            columns: ["name", "level"],
+          });
+
+        const countedOptions = await getOptions([nameFilter]);
+        const countlessOptions = await getOptions([
+          nameFilter,
+          {
+            type: "string",
+            column: "input",
+            operator: "contains",
+            value: "expensive",
+          },
+        ]);
+
+        expect(countedOptions).toEqual({
+          name: [{ value: "filtered-option-alpha", count: 2 }],
+          level: [
+            { value: "ERROR", count: 1 },
+            { value: "WARNING", count: 1 },
+          ],
+        });
+        expect(countlessOptions.level).toEqual([
+          { value: "ERROR" },
+          { value: "WARNING" },
+        ]);
+      });
+    });
+
+    it("returns the approximate total observation count only when requested, filter-aware and flagged when partial", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now();
+      const alphaName = "approx-count-alpha";
+      const betaName = "approx-count-beta";
+      const nameFilter: FilterCondition = {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: [alphaName],
+      };
+      const startTimeFilter: TimeFilter[] = [
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: new Date(now - 60_000),
+        },
+      ];
+
+      // Two distinct observations named alpha, one named beta => 3 distinct span_ids.
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: alphaName,
+          level: "WARNING",
+          start_time: now * 1000,
+          event_ts: now * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: alphaName,
+          level: "ERROR",
+          start_time: (now + 1) * 1000,
+          event_ts: (now + 1) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: betaName,
+          level: "DEFAULT",
+          start_time: (now + 2) * 1000,
+          event_ts: (now + 2) * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        // Eager/bulk request: count present and equal to the distinct observations.
+        const eager = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["name", "level"],
+          includeApproxCount: true,
+        });
+        expect(eager.approxTotalCount).toBe(3);
+        expect(eager.approxTotalCountIsPartial).toBe(false);
+
+        // Lazy per-column request never asks for the count, so the keys stay absent.
+        const lazy = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["level"],
+        });
+        expect(lazy).not.toHaveProperty("approxTotalCount");
+        expect(lazy).not.toHaveProperty("approxTotalCountIsPartial");
+
+        // Filter-aware: an applied native (name) filter narrows the count to alpha.
+        const filtered = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["name", "level"],
+          filter: [nameFilter],
+          includeApproxCount: true,
+        });
+        expect(filtered.approxTotalCount).toBe(2);
+        expect(filtered.approxTotalCountIsPartial).toBe(false);
+
+        // A non-participating (input) filter is dropped from the facet scan, so the
+        // count over-counts vs the visible rows (still 2, ignoring input) and is
+        // flagged partial.
+        const partial = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["name", "level"],
+          filter: [
+            nameFilter,
+            {
+              type: "string",
+              column: "input",
+              operator: "contains",
+              value: "expensive",
+            },
+          ],
+          includeApproxCount: true,
+        });
+        expect(partial.approxTotalCount).toBe(2);
+        expect(partial.approxTotalCountIsPartial).toBe(true);
       });
     });
 
@@ -3705,6 +3904,41 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result.name).toBeUndefined();
       expect(result.version).toBeUndefined();
       expect(result.language).toBe("nodejs");
+    });
+
+    it("should ignore newer internal OTel writer events", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000,
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.7.0",
+          telemetry_sdk_language: "python",
+        }),
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          source: "otel",
+          ingestion_sdk_name: "langfuse-internal-otel-writer",
+          ingestion_sdk_version: "1.0.0",
+          telemetry_sdk_language: "nodejs",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result).toEqual({
+        isOtel: true,
+        name: "python",
+        version: "4.7.0",
+        language: "python",
+      });
     });
   });
 

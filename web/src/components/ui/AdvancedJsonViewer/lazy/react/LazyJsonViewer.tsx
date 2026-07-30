@@ -19,9 +19,68 @@ import { useStore } from "zustand";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { cn } from "@/src/utils/tailwind";
 import { LazyJsonList } from "./LazyJsonList";
-import { createRowModelStore } from "./rowModelStore";
+import { createRowModelStore, type LazyViewerMetric } from "./rowModelStore";
 import { TreeRowModel } from "../treeRowModel";
 import { sourceFromSerialized } from "../asyncJsonSource";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { reportError } from "@/src/utils/reportError";
+
+// Provisional main-thread budgets (LFE-14419) — the telemetry exists to LEARN
+// the right thresholds from prod, so treat these as starting guesses. An index
+// or expand slower than these means our size gate let through more than the main
+// thread handles comfortably.
+const MAIN_THREAD_INDEX_BUDGET_MS = 1000;
+const SLOW_EXPAND_BUDGET_MS = 500;
+
+// A main-thread build blowing its budget means the size gate is miscalibrated —
+// an actionable, our-code signal. This is the sentry skill's one allowed bend of
+// "expected states are not events": it fires only when our heuristic was wrong,
+// and is rate-limited to once per session (module scope) so it never floods.
+let miscalibrationReported = false;
+
+/** Turn the store's raw perf signals into analytics + a miscalibration alarm.
+ *  Metadata only — sizes/durations/counts, never payload content. */
+function handleMetric(
+  capture: ReturnType<typeof usePostHogClientCapture>,
+  sizeChars: number | undefined,
+  metric: LazyViewerMetric,
+): void {
+  if (metric.kind === "indexed") {
+    capture("json_viewer:indexed", {
+      buildMs: Math.round(metric.buildMs),
+      rowCount: metric.rowCount,
+      sizeChars,
+      tier: "main",
+    });
+    if (
+      metric.buildMs > MAIN_THREAD_INDEX_BUDGET_MS &&
+      !miscalibrationReported
+    ) {
+      miscalibrationReported = true;
+      reportError(
+        new Error("lazy JSON viewer: main-thread index exceeded budget"),
+        {
+          area: "json-viewer",
+          extra: {
+            buildMs: Math.round(metric.buildMs),
+            sizeChars,
+            rowCount: metric.rowCount,
+            budgetMs: MAIN_THREAD_INDEX_BUDGET_MS,
+          },
+        },
+      );
+    }
+    return;
+  }
+  // expand — capture only slow ones (budget-gated → naturally rare, not noise).
+  if (metric.ms > SLOW_EXPAND_BUDGET_MS) {
+    capture("json_viewer:slow_expand", {
+      expandMs: Math.round(metric.ms),
+      sizeChars,
+      tier: "main",
+    });
+  }
+}
 
 export interface LazyJsonViewerProps {
   /**
@@ -51,16 +110,25 @@ export function LazyJsonViewer({
   // document passed to init is that string (see below). `useState` reads props
   // once on mount, which is fine: a given mount is one mode.
   const usesSerialized = serialized !== undefined;
-  const [store] = useState(() =>
-    createRowModelStore(
-      usesSerialized
+  // `capture` is a stable useCallback, so capturing it once in the store's lazy
+  // initializer is safe (no stale-closure risk).
+  const capture = usePostHogClientCapture();
+  const [store] = useState(() => {
+    const sizeChars = usesSerialized
+      ? (serialized as string).length
+      : undefined;
+    const onMetric = (metric: LazyViewerMetric) =>
+      handleMetric(capture, sizeChars, metric);
+    return createRowModelStore({
+      ...(usesSerialized
         ? {
-            buildModel: (doc) =>
+            buildModel: (doc: unknown) =>
               TreeRowModel.create(sourceFromSerialized(doc as string)),
           }
-        : undefined,
-    ),
-  );
+        : {}),
+      onMetric,
+    });
+  });
 
   // The document identity re-init keys on: the serialized string, or the value.
   const doc = usesSerialized ? serialized : value;

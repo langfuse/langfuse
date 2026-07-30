@@ -44,6 +44,15 @@ import {
   createScoresCh,
   createSessionScore,
   createTraceScore,
+  buildDashboardUrl,
+  buildDashboardWidgetUrl,
+  buildEvaluatorUrl,
+  buildMonitorUrl,
+  buildExperimentUrl,
+  buildObservationUrl,
+  buildPromptUrl,
+  buildSessionUrl,
+  buildTraceUrl,
 } from "@langfuse/shared/src/server";
 import { ScoreConfigDataType } from "@langfuse/shared";
 import { MonitorService } from "@langfuse/shared/monitors/server";
@@ -58,17 +67,6 @@ import {
 import { env } from "@/src/env.mjs";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
-import {
-  buildDashboardUrl,
-  buildDashboardWidgetUrl,
-  buildEvaluatorUrl,
-  buildMonitorUrl,
-  buildExperimentUrl,
-  buildObservationUrl,
-  buildPromptUrl,
-  buildSessionUrl,
-  buildTraceUrl,
-} from "@/src/utils/product-url";
 import { handleCreateDashboardWidget } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
 import {
   getDashboardTool,
@@ -291,6 +289,7 @@ const createObservationEvent = (params: {
   type?: "GENERATION" | "SPAN" | "EVENT";
   startTime?: Date;
   parentObservationId?: string | null;
+  isAppRoot?: boolean;
   providedModelName?: string;
   input?: string;
   output?: string;
@@ -310,6 +309,7 @@ const createObservationEvent = (params: {
     span_id: observationId,
     trace_id: params.traceId ?? randomUUID(),
     parent_span_id: params.parentObservationId ?? null,
+    is_app_root: params.isAppRoot ?? false,
     project_id: params.projectId,
     name: params.name ?? `mcp-observation-${nanoid()}`,
     type: params.type ?? "GENERATION",
@@ -717,9 +717,10 @@ describe("MCP Read Tools", () => {
     });
 
     it("should return the observation projection field schema", async () => {
-      const { context } = await createMcpTestSetup();
-
-      const result = (await handleGetObservationFieldSchema({}, context)) as {
+      const result = (await handleGetObservationFieldSchema(
+        {},
+        mockServerContext(),
+      )) as {
         resource: string;
         defaultFields: string[];
         fields: Record<
@@ -756,6 +757,7 @@ describe("MCP Read Tools", () => {
       expect(result.fields.providedModelName.nullable).toBe(true);
       expect(result.fields.startTime.type).toBe("datetime");
       expect(result.fields.startTime.nullable).toBe(false);
+      expect(result.fields.isRootObservation.type).toBe("boolean");
       expect(result.fields.costDetails.type).toBe("map<string, number>");
       expect(result.fields.input.expensive).toBe(true);
       expect(result.fields.input.sensitive).toBe(true);
@@ -823,6 +825,7 @@ describe("MCP Read Tools", () => {
       ["modelId", "stringOptions", true],
       ["providedModelName", "stringOptions", true],
       ["tags", "arrayOptions", false],
+      ["isRootObservation", "boolean", false],
       ["hasParentObservation", "boolean", false],
     ])(
       "should expose the %s column used by observation filter values",
@@ -867,9 +870,13 @@ describe("MCP Read Tools", () => {
     });
 
     it("should expose object-shaped advanced filters in the tool schema", () => {
-      const filterSchema = (
-        listObservationsTool.inputSchema.properties as Record<string, unknown>
-      ).filter as
+      const properties = listObservationsTool.inputSchema.properties as Record<
+        string,
+        unknown
+      >;
+      expect(properties.isRootObservation).toMatchObject({ type: "boolean" });
+
+      const filterSchema = properties.filter as
         | {
             type?: string;
             items?: {
@@ -1017,6 +1024,7 @@ describe("MCP Read Tools", () => {
         name: observation.name,
         type: "GENERATION",
         level: "DEFAULT",
+        isRootObservation: true,
         providedModelName: "gpt-4o-mini",
         url: buildObservationUrl({
           projectId,
@@ -1162,6 +1170,68 @@ describe("MCP Read Tools", () => {
           observationId: result.data[0]!.id,
         }),
       });
+    });
+
+    it("should expose semantic roots across list and filter values", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const parentlessRoot = createObservationEvent({ projectId, traceId });
+      const appRoot = createObservationEvent({
+        projectId,
+        traceId,
+        parentObservationId: randomUUID(),
+        isAppRoot: true,
+      });
+      const child = createObservationEvent({
+        projectId,
+        traceId,
+        parentObservationId: appRoot.id,
+      });
+
+      await createEventsCh([parentlessRoot, appRoot, child]);
+
+      const rootResult = (await handleListObservations(
+        {
+          traceId,
+          isRootObservation: true,
+          fields: ["id", "parentObservationId", "isRootObservation"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<Record<string, unknown> & { id: string }> };
+
+      const getRootValues = async (isRootObservation?: boolean) =>
+        (await handleGetObservationFilterValues(
+          {
+            column: "isRootObservation",
+            isRootObservation,
+            limit: 100,
+          },
+          context,
+        )) as { values: Array<{ value: boolean; count?: number }> };
+      const [allRootValues, scopedRootValues] = await Promise.all([
+        getRootValues(),
+        getRootValues(true),
+      ]);
+
+      expect(new Set(rootResult.data.map(({ id }) => id))).toEqual(
+        new Set([parentlessRoot.id, appRoot.id]),
+      );
+      expect(rootResult.data.find(({ id }) => id === appRoot.id)).toMatchObject(
+        {
+          parentObservationId: appRoot.parent_span_id,
+          isRootObservation: true,
+        },
+      );
+      expect(
+        allRootValues.values.map(({ value, count }) => [value, count]),
+      ).toEqual([
+        [false, 1],
+        [true, 2],
+      ]);
+      expect(
+        scopedRootValues.values.map(({ value, count }) => [value, count]),
+      ).toEqual([[true, 2]]);
     });
 
     it("should match advanced input filters beyond the events_core truncation boundary", async () => {
@@ -2002,6 +2072,16 @@ describe("MCP Read Tools", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getObservationFilterValuesTool, {
         readOnlyHint: true,
+      });
+    });
+
+    it("should expose semantic-root inputs", () => {
+      const properties = getObservationFilterValuesTool.inputSchema
+        .properties as Record<string, unknown>;
+
+      expect(properties).toMatchObject({
+        column: { enum: expect.arrayContaining(["isRootObservation"]) },
+        isRootObservation: { type: "boolean" },
       });
     });
 

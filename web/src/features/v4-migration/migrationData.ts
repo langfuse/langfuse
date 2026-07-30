@@ -2,7 +2,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { normalizeLegacyApiEntrypoint } from "@/src/features/v4/utils";
 import { type V4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionStatus";
 
-export const V4_MIGRATION_LOOKBACK_DAYS = 7;
+export const V4_MIGRATION_LOOKBACK_DAYS = 14;
 
 const V4_MIGRATION_LOOKBACK_MS =
   V4_MIGRATION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
@@ -82,7 +82,9 @@ export const getProjectMigrationReadiness = (
     return "checking";
   }
   if (
-    status.sdk.status === "latest" &&
+    (status.sdk.status === "latest" ||
+      status.sdk.status === "otel_realtime" ||
+      status.sdk.status === "no_data") &&
     counts.every((count) => count.count === 0)
   ) {
     return "ready";

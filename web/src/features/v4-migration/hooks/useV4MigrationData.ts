@@ -155,6 +155,20 @@ export function useProjectV4SdkData(params: {
   });
 }
 
+export function useProjectV4EvalData(params: {
+  projectId: string | undefined;
+  orgId: string | undefined;
+  enabled: boolean;
+}) {
+  const { projectId, enabled } = params;
+  const queryEnabled = enabled && Boolean(projectId);
+  const evalQuery = api.v4Transition.traceLevelEvalSummary.useQuery(
+    { projectId: projectId ?? "" },
+    { ...queryOptions, enabled: queryEnabled },
+  );
+  return getMigrationCountState(evalQuery, (data) => data.traceLevelEvalCount);
+}
+
 export function useProjectV4MigrationData(params: {
   projectId: string | undefined;
   orgId: string | undefined;

@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { Progress } from "@/src/components/design-system/Progress/Progress";
 import { api } from "@/src/utils/api";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { BatchActionStatus } from "@langfuse/shared";
 import {
   Card,
