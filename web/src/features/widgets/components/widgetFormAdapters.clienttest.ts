@@ -399,7 +399,7 @@ describe("widget form view version", () => {
         isBetaEnabled: false,
         shape: {
           dimensions: [{ field: "experimentName" }],
-          measures: [{ measure: "count" }],
+          metrics: [{ measure: "count" }],
           filters: [],
         },
       }),

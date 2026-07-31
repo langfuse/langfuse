@@ -1,15 +1,3 @@
-// The public widget API validates shape compatibility against the deployment
-// write mode. DashboardService owns the persisted version after normalization.
-const envMock = vi.hoisted(() => ({}) as Record<string, unknown>);
-
-// Partial mock — real env underneath so the rest of the imported graph keeps
-// working; envMock keeps its object identity so per-test mutations stay visible.
-vi.mock("@/src/env.mjs", async (importOriginal) => {
-  const actual = (await importOriginal()) as { env: Record<string, unknown> };
-  Object.assign(envMock, actual.env);
-  return { env: envMock };
-});
-
 import {
   normalizePublicDashboardWidgetInput,
   validatePublicDashboardWidgetInput,
@@ -28,10 +16,14 @@ const baseInput = {
 };
 
 describe("public dashboard widget version validation", () => {
+  const originalWriteMode = sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   const setWriteMode = (mode: "legacy" | "dual") => {
-    envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = mode;
     sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = mode;
   };
+
+  afterEach(() => {
+    sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+  });
 
   describe("legacy write mode, where the events_* tables are empty", () => {
     beforeEach(() => {
@@ -48,25 +40,14 @@ describe("public dashboard widget version validation", () => {
 
     it("rejects a widget that genuinely needs v2 instead of persisting it unrenderable", () => {
       expect(() =>
-        normalizePublicDashboardWidgetInput({
-          ...baseInput,
-          metrics: [{ measure: "traceId", agg: "uniq" as const }],
-        }),
+        validatePublicDashboardWidgetInput(
+          normalizePublicDashboardWidgetInput({
+            ...baseInput,
+            metrics: [{ measure: "traceId", agg: "uniq" as const }],
+          }),
+        ),
       ).toThrow(/v2-only fields/i);
     });
-  });
-
-  // dual writes the events_* tables, so the server can choose v2 there whatever
-  // the preview opt-in says — Monitors ships on exactly that deployment mode.
-  it("accepts a v1-expressible shape in dual write mode", () => {
-    setWriteMode("dual");
-    envMock.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
-
-    expect(() =>
-      validatePublicDashboardWidgetInput(
-        normalizePublicDashboardWidgetInput(baseInput),
-      ),
-    ).not.toThrow();
   });
 
   it("only suggests dimensions that widget validation accepts", () => {
@@ -98,7 +79,7 @@ describe("public dashboard widget version validation", () => {
     }
   });
 
-  it("validates a v2-required shape without a caller-supplied version", () => {
+  it("accepts a v2-required shape on a dual-write deployment", () => {
     setWriteMode("dual");
 
     const normalized = normalizePublicDashboardWidgetInput({

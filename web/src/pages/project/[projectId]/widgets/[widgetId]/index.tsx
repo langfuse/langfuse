@@ -2,12 +2,11 @@ import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { WidgetForm } from "@/src/features/widgets/components/WidgetForm";
+import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { type DashboardWidgetChartType } from "@langfuse/shared";
 import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
-import { type WidgetChartConfig } from "@/src/features/widgets/utils";
 
 export default function EditWidget() {
   const router = useRouter();
@@ -55,16 +54,7 @@ export default function EditWidget() {
   });
 
   // Handle update widget
-  const handleUpdateWidget = (widgetFormData: {
-    name: string;
-    description: string;
-    view: string;
-    dimensions: { field: string }[];
-    metrics: { measure: string; agg: string }[];
-    filters: any[];
-    chartType: DashboardWidgetChartType;
-    chartConfig: WidgetChartConfig;
-  }) => {
+  const handleUpdateWidget = (widgetFormData: WidgetSavePayload) => {
     if (!widgetId) return;
 
     updateWidgetMutation.mutate({

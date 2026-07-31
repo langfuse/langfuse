@@ -122,13 +122,13 @@ import {
   makeWidgetFormSchema,
   normalizeWidgetFormValues,
   resolveWidgetViewVersion,
-  toWidgetQueryShape,
   toDefaultValues,
   toSavePayload,
   widgetChartTypeSupportsBreakdown,
   type SortField,
   type WidgetFormValues,
   type WidgetInitialValues,
+  type WidgetSavePayload,
 } from "./widgetFormSchema";
 
 // Re-exported from the schema module so co-located tests keep importing it from
@@ -247,16 +247,7 @@ export function WidgetForm({
     minVersion?: number;
   };
   projectId: string;
-  onSave: (widgetData: {
-    name: string;
-    description: string;
-    view: string;
-    dimensions: { field: string }[];
-    metrics: { measure: string; agg: string }[];
-    filters: any[];
-    chartType: DashboardWidgetChartType;
-    chartConfig: NonNullable<WidgetInitialValues["chartConfig"]>;
-  }) => void;
+  onSave: (widgetData: WidgetSavePayload) => void;
   widgetId?: string;
 }) {
   const { isBetaEnabled } = useV4Beta();
@@ -310,7 +301,7 @@ export function WidgetForm({
         view: mapped.view,
         baseMinVersion,
         isBetaEnabled,
-        shape: toWidgetQueryShape(mapped),
+        shape: mapped,
       });
       return resolversByVersion[version](mapped as any, context, options);
     };
@@ -340,7 +331,7 @@ export function WidgetForm({
     view: selectedView,
     baseMinVersion,
     isBetaEnabled,
-    shape: toWidgetQueryShape(values),
+    shape: values,
   });
   const suggestions = deriveWidgetSuggestions(values);
   const effectiveSort = deriveEffectiveSort(values);
@@ -871,7 +862,7 @@ export function WidgetForm({
       view: newView,
       baseMinVersion,
       isBetaEnabled,
-      shape: toWidgetQueryShape(values, newView),
+      shape: values,
     });
     const newViewDeclaration = viewDeclarations[newViewVersion][newView];
 

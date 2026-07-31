@@ -210,7 +210,9 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     });
     await prisma.dashboardWidget.update({
       where: { id: v1Widget.id },
-      data: { minVersion: 1 },
+      // `id` is a valid v1 breakdown but uiHidden in v2. This proves PATCH
+      // validates against the same preserved version that it persists.
+      data: { minVersion: 1, dimensions: [{ field: "id" }] },
     });
 
     await makeZodVerifiedAPICall(
@@ -229,7 +231,7 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       PatchUnstableDashboardWidgetResponse,
       "PATCH",
       `/api/public/unstable/dashboard-widgets/${v1Widget.id}`,
-      { view: "scores-numeric" },
+      { view: "scores-numeric", dimensions: [] },
       auth,
     );
     expect(patchViewResponse.body.view).toBe("scores-numeric");

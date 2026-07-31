@@ -14,12 +14,7 @@ import {
   dashboardWidgetViewToQueryView,
   queryViewToDashboardWidgetView,
 } from "@langfuse/shared/src/server";
-import {
-  getValidAggregationsForMeasureType,
-  getViewDeclaration,
-  views,
-  type ViewVersion,
-} from "@langfuse/shared/query";
+import { views } from "@langfuse/shared/query";
 import { TRPCError } from "@trpc/server";
 import { LangfuseConflictError } from "@langfuse/shared";
 
@@ -62,50 +57,6 @@ const GetDashboardWidgetInput = z.object({
   widgetId: z.string(),
 });
 
-function validateMetricAggregations(params: {
-  view: string;
-  metrics: Array<{ measure: string; agg: string }>;
-  version: ViewVersion;
-}): void {
-  const viewDecl = getViewDeclaration(
-    params.view as z.infer<typeof views>,
-    params.version,
-  );
-
-  for (const metric of params.metrics) {
-    const measureDef = viewDecl.measures[metric.measure];
-    if (!measureDef) continue; // measure existence is validated elsewhere
-    const validAggs = getValidAggregationsForMeasureType(measureDef.type);
-    if (!validAggs.some((a) => a === metric.agg)) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: `Aggregation "${metric.agg}" is not valid for measure "${metric.measure}" (type: ${measureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
-      });
-    }
-  }
-}
-
-function validateUiHiddenDimensions(params: {
-  view: string;
-  dimensions: Array<{ field: string }>;
-  version: ViewVersion;
-}): void {
-  const viewDecl = getViewDeclaration(
-    params.view as z.infer<typeof views>,
-    params.version,
-  );
-
-  const hiddenDims = params.dimensions.filter(
-    (dim) => viewDecl.dimensions[dim.field]?.uiHidden,
-  );
-  if (hiddenDims.length > 0) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Dimensions not available for widgets: ${hiddenDims.map((d) => d.field).join(", ")}`,
-    });
-  }
-}
-
 export const dashboardWidgetRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateDashboardWidgetInput)
@@ -114,25 +65,6 @@ export const dashboardWidgetRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "dashboards:CUD",
-      });
-
-      const version = DashboardService.getWidgetQueryVersion({
-        view: input.view,
-        dimensions: input.dimensions,
-        measures: input.metrics,
-        filters: input.filters,
-      });
-
-      validateMetricAggregations({
-        view: input.view,
-        metrics: input.metrics,
-        version,
-      });
-
-      validateUiHiddenDimensions({
-        view: input.view,
-        dimensions: input.dimensions,
-        version,
       });
 
       // Create the widget using the DashboardService
@@ -206,25 +138,6 @@ export const dashboardWidgetRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "dashboards:CUD",
-      });
-
-      const version = DashboardService.getWidgetQueryVersion({
-        view: input.view,
-        dimensions: input.dimensions,
-        measures: input.metrics,
-        filters: input.filters,
-      });
-
-      validateMetricAggregations({
-        view: input.view,
-        metrics: input.metrics,
-        version,
-      });
-
-      validateUiHiddenDimensions({
-        view: input.view,
-        dimensions: input.dimensions,
-        version,
       });
 
       // Update the widget using the DashboardService

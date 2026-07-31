@@ -12,7 +12,6 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
 import { requiresV2 } from "@langfuse/shared/query";
-import { env } from "@/src/env.mjs";
 import {
   mapLegacyUiTableFilterToView,
   mapWidgetUiTableFilterToView,
@@ -22,6 +21,7 @@ describe("dashboard widget minVersion", () => {
   let projectId: string;
   let orgId: string;
   let userId: string;
+  const originalWriteMode = sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
   beforeAll(async () => {
     const org = await createOrgProjectAndApiKey();
@@ -44,6 +44,10 @@ describe("dashboard widget minVersion", () => {
         role: "OWNER",
       },
     });
+  });
+
+  afterEach(() => {
+    sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
   });
 
   function makeCaller() {
@@ -175,26 +179,16 @@ describe("dashboard widget minVersion", () => {
   });
 
   it("rejects v2 widget shapes at the tRPC boundary on a legacy deployment", async () => {
-    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-    const originalSharedWriteMode = sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-    const v2Metric = { measure: "traceId", agg: "uniq" as const };
-
-    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
     sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
-    try {
-      const caller = makeCaller();
-      await expect(
-        caller.dashboardWidgets.create({
-          ...baseWidgetInput,
-          view: "observations",
-          projectId,
-          metrics: [v2Metric],
-        }),
-      ).rejects.toThrow(/v2-only fields/i);
-    } finally {
-      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
-      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalSharedWriteMode;
-    }
+
+    await expect(
+      makeCaller().dashboardWidgets.create({
+        ...baseWidgetInput,
+        view: "observations",
+        projectId,
+        metrics: [{ measure: "traceId", agg: "uniq" }],
+      }),
+    ).rejects.toThrow(/v2-only fields/i);
   });
 
   describe("observations release filter mapping", () => {
@@ -242,55 +236,30 @@ describe("dashboard widget minVersion", () => {
   // ── Service layer tests ─────────────────────────────────────────────
 
   describe("DashboardService", () => {
-    it("should default minVersion to 1 when not provided", async () => {
-      const originalWriteMode = sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    it("persists v1 shapes and rejects v2 creates and updates on legacy deployments", async () => {
       sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const v2Input = {
+        ...baseWidgetInput,
+        metrics: [{ measure: "traceId", agg: "uniq" }],
+      };
 
-      try {
-        const widget = await DashboardService.createWidget(
-          projectId,
-          baseWidgetInput,
-          userId,
-        );
+      await expect(
+        DashboardService.createWidget(projectId, v2Input, userId),
+      ).rejects.toThrow(/v2-only fields/i);
 
-        expect(widget.minVersion).toBe(1);
-      } finally {
-        sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
-      }
+      const widget = await DashboardService.createWidget(
+        projectId,
+        baseWidgetInput,
+        userId,
+      );
+      expect(widget.minVersion).toBe(1);
+
+      await expect(
+        DashboardService.updateWidget(projectId, widget.id, v2Input, userId),
+      ).rejects.toThrow(/v2-only fields/i);
     });
 
-    it("rejects v2-required creates and updates on a legacy deployment", async () => {
-      const originalWriteMode = sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
-
-      try {
-        const v2Input = {
-          ...baseWidgetInput,
-          metrics: [{ measure: "traceId", agg: "uniq" }],
-        };
-        await expect(
-          DashboardService.createWidget(projectId, v2Input, userId),
-        ).rejects.toThrow(/v2-only fields/i);
-
-        const v1Widget = await DashboardService.createWidget(
-          projectId,
-          baseWidgetInput,
-          userId,
-        );
-        await expect(
-          DashboardService.updateWidget(
-            projectId,
-            v1Widget.id,
-            v2Input,
-            userId,
-          ),
-        ).rejects.toThrow(/v2-only fields/i);
-      } finally {
-        sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
-      }
-    });
-
-    it("derives the persisted version from a v2-required shape", async () => {
+    it("derives v2, preserves it on dual writes, and heals it on legacy", async () => {
       const widget = await DashboardService.createWidget(
         projectId,
         {
@@ -301,17 +270,6 @@ describe("dashboard widget minVersion", () => {
       );
 
       expect(widget.minVersion).toBe(2);
-    });
-
-    it("should preserve minVersion when updating without specifying it", async () => {
-      const widget = await DashboardService.createWidget(
-        projectId,
-        {
-          ...baseWidgetInput,
-          metrics: [{ measure: "traceId", agg: "uniq" }],
-        },
-        userId,
-      );
 
       const updated = await DashboardService.updateWidget(
         projectId,
@@ -320,8 +278,19 @@ describe("dashboard widget minVersion", () => {
         userId,
       );
 
-      expect(updated.minVersion).toBe(2);
-      expect(updated.name).toBe("Updated Widget");
+      expect(updated).toMatchObject({
+        minVersion: 2,
+        name: "Updated Widget",
+      });
+
+      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const healed = await DashboardService.updateWidget(
+        projectId,
+        widget.id,
+        baseWidgetInput,
+        userId,
+      );
+      expect(healed.minVersion).toBe(1);
     });
 
     it("should preserve minVersion when copying widget to project", async () => {

@@ -59,13 +59,31 @@ const throwInvalidWidget = (params: {
   });
 };
 
+const runWidgetMutation = async <T>(mutation: () => Promise<T>): Promise<T> => {
+  try {
+    return await mutation();
+  } catch (error) {
+    if (error instanceof InvalidRequestError) {
+      return throwInvalidWidget({ message: error.message });
+    }
+    throw error;
+  }
+};
+
 function getWidgetViewVersion(widget: NormalizedWidgetInput): ViewVersion {
-  return DashboardService.getWidgetQueryVersion({
-    view: widget.view,
-    dimensions: widget.dimensions,
-    measures: widget.metrics,
-    filters: widget.filters,
-  });
+  try {
+    return DashboardService.getRequiredWidgetQueryVersion({
+      view: widget.view,
+      dimensions: widget.dimensions,
+      measures: widget.metrics,
+      filters: widget.filters,
+    });
+  } catch (error) {
+    if (error instanceof InvalidRequestError) {
+      return throwInvalidWidget({ message: error.message });
+    }
+    throw error;
+  }
 }
 
 function getPublicDashboardWidgetViewDeclaration(
@@ -153,20 +171,6 @@ export function normalizePublicDashboardWidgetInput(
     ...filter,
     column: columnAliases[filter.column] ?? filter.column,
   }));
-  try {
-    DashboardService.getWidgetQueryVersion({
-      view: input.view,
-      dimensions: input.dimensions,
-      measures: input.metrics.map((metric) => ({ measure: metric.measure })),
-      filters: normalizedFilters,
-    });
-  } catch (error) {
-    if (error instanceof InvalidRequestError) {
-      return throwInvalidWidget({ message: error.message });
-    }
-    throw error;
-  }
-
   return {
     ...input,
     filters: normalizedFilters,
@@ -282,13 +286,11 @@ export async function createPublicDashboardWidget(params: {
   const input = normalizePublicDashboardWidgetInput(params.input);
   validatePublicDashboardWidgetInput(input);
 
-  const widget = await DashboardService.createWidget(
-    params.projectId,
-    {
+  const widget = await runWidgetMutation(() =>
+    DashboardService.createWidget(params.projectId, {
       ...input,
       view: queryViewToDashboardWidgetView[input.view],
-    },
-    undefined,
+    }),
   );
 
   await auditLog({
@@ -375,11 +377,11 @@ export async function updatePublicDashboardWidget(params: {
         : currentPublic.chartConfig),
   });
   validatePublicDashboardWidgetInput(input);
-  const updated = await DashboardService.updateWidget(
-    params.projectId,
-    params.widgetId,
-    { ...input, view: queryViewToDashboardWidgetView[input.view] },
-    undefined,
+  const updated = await runWidgetMutation(() =>
+    DashboardService.updateWidget(params.projectId, params.widgetId, {
+      ...input,
+      view: queryViewToDashboardWidgetView[input.view],
+    }),
   );
   const result = toApiDashboardWidget(updated);
   await auditLog({

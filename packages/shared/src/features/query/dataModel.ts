@@ -1485,19 +1485,17 @@ export function getViewDeclaration(
   return versionViews[viewName as keyof typeof versionViews];
 }
 
-export type WidgetQueryShape = {
-  view: string;
-  dimensions: { field: string }[];
-  measures: { measure: string }[];
-  filters?: { column: string }[];
-};
-
 /**
  * Check whether a widget's selected fields require v2 view declarations.
  * Returns true if any dimension or measure only exists in the v2 declaration
  * for the given view (e.g. pairExpand dimensions, requiresDimension measures).
  */
-export function requiresV2(params: WidgetQueryShape): boolean {
+export function requiresV2(params: {
+  view: string;
+  dimensions: { field: string }[];
+  measures: { measure: string }[];
+  filters?: { column: string }[];
+}): boolean {
   const v1View =
     viewDeclarations.v1[params.view as keyof (typeof viewDeclarations)["v1"]];
   const v2View =

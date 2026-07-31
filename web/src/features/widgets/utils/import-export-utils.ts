@@ -503,11 +503,7 @@ export function parseImportedWidgetJson(params: {
     importedViewVersion,
   });
 
-  return {
-    widget: normalizedWidget,
-    removedValues,
-    removedFilters,
-  };
+  return { widget: normalizedWidget, removedValues, removedFilters };
 }
 
 export async function importWidgetFile(params: {

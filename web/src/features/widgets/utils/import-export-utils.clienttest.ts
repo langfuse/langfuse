@@ -159,11 +159,9 @@ describe("parseAndNormalizeImportedWidget", () => {
         ...baseWidget,
         view: "observations",
         dimensions: [{ field: "experimentName" }],
-        metrics: [{ measure: "count", agg: "count" }],
         chartType: "VERTICAL_BAR",
         chartConfig: { type: "VERTICAL_BAR" },
         filters: [],
-        minVersion: 1,
       },
       isBetaEnabled: false,
     });

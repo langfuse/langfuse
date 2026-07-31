@@ -20,39 +20,67 @@ import {
 import { z } from "zod";
 import { singleFilter } from "../../../";
 import {
+  getValidAggregationsForMeasureType,
+  getViewDeclaration,
   requiresV2,
   type ViewVersion,
-  type WidgetQueryShape,
 } from "../../../features/query";
 
-const maxSupportedWidgetVersion = () =>
-  env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? 1 : 2;
+type WidgetQueryShape = Parameters<typeof requiresV2>[0];
 
 const resolveDashboardWidgetMinVersion = (
   shape: WidgetQueryShape,
   persistedMinVersion?: number,
 ) => {
-  const maxVersion = maxSupportedWidgetVersion();
-  const minVersion = Math.max(
-    persistedMinVersion ?? maxVersion,
-    requiresV2(shape) ? 2 : 1,
-  );
+  const maxVersion = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? 1 : 2;
+  const requiredVersion = requiresV2(shape) ? 2 : 1;
 
-  if (minVersion > maxVersion) {
+  if (requiredVersion > maxVersion) {
     throw new InvalidRequestError(
       "This widget uses v2-only fields, but the current deployment only supports legacy widget queries",
     );
   }
 
-  return minVersion;
+  return Math.min(
+    Math.max(persistedMinVersion ?? maxVersion, requiredVersion),
+    maxVersion,
+  );
 };
 
 const toWidgetQueryShape = (input: CreateWidgetInput): WidgetQueryShape => ({
   view: dashboardWidgetViewToQueryView[input.view],
   dimensions: input.dimensions,
-  measures: input.metrics.map(({ measure }) => ({ measure })),
+  measures: input.metrics,
   filters: input.filters,
 });
+
+const validateDashboardWidgetQuery = (
+  input: CreateWidgetInput,
+  minVersion: number,
+) => {
+  const view = dashboardWidgetViewToQueryView[input.view];
+  const declaration = getViewDeclaration(view, minVersion >= 2 ? "v2" : "v1");
+
+  for (const metric of input.metrics) {
+    const measure = declaration.measures[metric.measure];
+    if (!measure) continue;
+    const validAggregations = getValidAggregationsForMeasureType(measure.type);
+    if (!validAggregations.some((aggregation) => aggregation === metric.agg)) {
+      throw new InvalidRequestError(
+        `Aggregation "${metric.agg}" is not valid for measure "${metric.measure}" (type: ${measure.type}). Valid aggregations: ${validAggregations.join(", ")}`,
+      );
+    }
+  }
+
+  const hiddenDimensions = input.dimensions.filter(
+    ({ field }) => declaration.dimensions[field]?.uiHidden,
+  );
+  if (hiddenDimensions.length > 0) {
+    throw new InvalidRequestError(
+      `Dimensions not available for widgets: ${hiddenDimensions.map(({ field }) => field).join(", ")}`,
+    );
+  }
+};
 
 export class DashboardService {
   /**
@@ -324,8 +352,10 @@ export class DashboardService {
     };
   }
 
-  public static getWidgetQueryVersion(shape: WidgetQueryShape): ViewVersion {
-    return resolveDashboardWidgetMinVersion(shape) >= 2 ? "v2" : "v1";
+  public static getRequiredWidgetQueryVersion(
+    shape: WidgetQueryShape,
+  ): ViewVersion {
+    return resolveDashboardWidgetMinVersion(shape, 1) >= 2 ? "v2" : "v1";
   }
 
   /**
@@ -339,6 +369,7 @@ export class DashboardService {
     const minVersion = resolveDashboardWidgetMinVersion(
       toWidgetQueryShape(input),
     );
+    validateDashboardWidgetQuery(input, minVersion);
     const newWidget = await prisma.dashboardWidget.create({
       data: {
         name: input.name,
@@ -407,6 +438,7 @@ export class DashboardService {
       toWidgetQueryShape(input),
       persistedMinVersion,
     );
+    validateDashboardWidgetQuery(input, minVersion);
     const updatedWidget = await prisma.dashboardWidget.update({
       where: {
         id: widgetId,
@@ -503,6 +535,11 @@ export class DashboardService {
       ...sourceWidget,
       owner: "LANGFUSE",
     });
+    const minVersion = resolveDashboardWidgetMinVersion(
+      toWidgetQueryShape(sourceWidgetDomain),
+      sourceWidgetDomain.minVersion,
+    );
+    validateDashboardWidgetQuery(sourceWidgetDomain, minVersion);
     // Duplicate widget and update dashboard definition atomically
     return prisma.$transaction(async (tx) => {
       // 1. create duplicate in project scope
@@ -516,10 +553,7 @@ export class DashboardService {
           filters: sourceWidget.filters ?? [],
           chartType: sourceWidget.chartType,
           chartConfig: sourceWidget.chartConfig ?? {},
-          minVersion: resolveDashboardWidgetMinVersion(
-            toWidgetQueryShape(sourceWidgetDomain),
-            sourceWidgetDomain.minVersion,
-          ),
+          minVersion,
           projectId, // project owned
           createdBy: userId,
           updatedBy: userId,

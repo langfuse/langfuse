@@ -290,24 +290,6 @@ export function makeWidgetFormSchema(viewVersion: ViewVersion) {
 type WidgetFormSchema = ReturnType<typeof makeWidgetFormSchema>;
 export type WidgetFormValues = z.infer<WidgetFormSchema>;
 
-/** Build the shared query-model shape from the form's editor values. */
-export function toWidgetQueryShape(
-  params: {
-    view: z.infer<typeof views>;
-    dimensions: { field: string }[];
-    metrics: { measure: string }[];
-    filters?: FilterState;
-  },
-  view = params.view,
-) {
-  return {
-    view,
-    dimensions: params.dimensions,
-    measures: params.metrics.map((metric) => ({ measure: metric.measure })),
-    filters: mapWidgetUiTableFilterToView(view, params.filters ?? []),
-  };
-}
-
 /**
  * The shape WidgetForm receives as `initialValues` — the legacy prop contract,
  * kept verbatim so create/edit pages need no changes to what they pass.
@@ -327,7 +309,7 @@ export type WidgetInitialValues = {
   minVersion?: number;
 };
 
-/** The exact object shape passed to `onSave` — unchanged from the legacy form. */
+/** The editor payload passed to `onSave`; persistence metadata is server-owned. */
 export type WidgetSavePayload = {
   name: string;
   description: string;
@@ -374,15 +356,18 @@ export function resolveWidgetViewVersion(params: {
   isBetaEnabled: boolean;
   shape?: {
     dimensions: { field: string }[];
-    measures: { measure: string }[];
-    filters: { column: string }[];
+    metrics: { measure: string }[];
+    filters?: FilterState;
   };
 }): ViewVersion {
   const shapeRequiresV2 = requiresV2({
     view: params.view,
     dimensions: params.shape?.dimensions ?? [],
-    measures: params.shape?.measures ?? [],
-    filters: params.shape?.filters ?? [],
+    measures: params.shape?.metrics ?? [],
+    filters: mapWidgetUiTableFilterToView(
+      params.view,
+      params.shape?.filters ?? [],
+    ),
   });
   return shapeRequiresV2 ||
     params.baseMinVersion >= 2 ||
