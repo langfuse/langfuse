@@ -253,7 +253,6 @@ export const ExperimentGridView = ({
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}
       topAlignCells
       peekView={peekView}
-      className="[&_table]:min-w-max"
       columnVisibility={columnVisibility}
       rowSelection={rowSelection}
       setRowSelection={setRowSelection}

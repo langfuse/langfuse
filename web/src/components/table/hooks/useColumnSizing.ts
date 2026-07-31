@@ -1,7 +1,7 @@
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { type ColumnSizingState } from "@tanstack/react-table";
 import debounce from "lodash/debounce";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 /**
  * Persists table column widths to localStorage with automatic debounced saving.
@@ -20,13 +20,12 @@ export const useColumnSizing = (tableId: string) => {
 
   const [columnSizing, setColumnSizing] =
     useState<ColumnSizingState>(storedSizing);
-  const previousColumnSizingRef = useRef(columnSizing);
 
   // Debounced storage update
   const debouncedSave = useMemo(
     () =>
       debounce((sizing: ColumnSizingState) => {
-        if (tableId) {
+        if (tableId && Object.keys(sizing).length > 0) {
           setStoredSizing(sizing);
         }
       }, 500),
@@ -35,21 +34,8 @@ export const useColumnSizing = (tableId: string) => {
 
   // Save to storage when state changes
   useEffect(() => {
-    const removedCustomWidth =
-      Object.keys(columnSizing).length <
-      Object.keys(previousColumnSizingRef.current).length;
-    previousColumnSizingRef.current = columnSizing;
-
-    if (removedCustomWidth || Object.keys(columnSizing).length === 0) {
-      debouncedSave.cancel();
-      if (tableId) {
-        setStoredSizing(columnSizing);
-      }
-      return;
-    }
-
     debouncedSave(columnSizing);
-  }, [columnSizing, debouncedSave, setStoredSizing, tableId]);
+  }, [columnSizing, debouncedSave]);
 
   return {
     columnSizing,
