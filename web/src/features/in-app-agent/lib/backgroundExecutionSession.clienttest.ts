@@ -2,7 +2,7 @@ import { EventType } from "@ag-ui/core";
 import type { AgentSubscriber } from "@ag-ui/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InAppAgentRunStatus } from "@langfuse/shared";
+import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 
 import { InAppAgentBackgroundClient } from "./backgroundAgentClient";
@@ -232,6 +232,123 @@ describe("BackgroundExecutionSessionController", () => {
       cancelStatus: "idle",
       attachment: { status: "detached" },
     });
+  });
+
+  it("keeps a terminal status delivered while the cancel mutation is in flight", async () => {
+    let statusListener:
+      | ((status: {
+          runId: string;
+          status: InAppAgentRunStatus;
+          errorCode?: string | null;
+          cancelRequested?: boolean;
+        }) => void)
+      | undefined;
+    const agent = {
+      ...createAgent(),
+      setStatusListener: vi.fn((listener?: typeof statusListener) => {
+        statusListener = listener;
+      }),
+    };
+    let resolveCancel: () => void = () => undefined;
+    // Deferred so the post-command refresh cannot mask the view cancel() wrote.
+    let resolveHydrate: (view: typeof runningView) => void = () => undefined;
+    const session = new BackgroundExecutionSessionController({
+      agent,
+      hydrate: vi.fn(
+        () =>
+          new Promise<typeof runningView>((resolve) => {
+            resolveHydrate = resolve;
+          }),
+      ),
+      cancelRun: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveCancel = resolve;
+          }),
+      ),
+      decideApproval: vi.fn(),
+      initialView: { currentRun: runningView.currentRun },
+    });
+
+    const cancelling = session.cancel();
+    statusListener?.({
+      runId: "run-1",
+      status: InAppAgentRunStatus.CANCELLED,
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
+      cancelRequested: true,
+    });
+    resolveCancel();
+
+    await vi.waitFor(() => {
+      expect(session.getSnapshot().cancelStatus).toBe("idle");
+    });
+    expect(session.getSnapshot().currentRun).toEqual({
+      id: "run-1",
+      status: InAppAgentRunStatus.CANCELLED,
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
+      cancelRequested: true,
+    });
+
+    resolveHydrate(runningView);
+    await cancelling;
+  });
+
+  it("does not stamp cancellation onto a superseding run", async () => {
+    let statusListener:
+      | ((status: {
+          runId: string;
+          status: InAppAgentRunStatus;
+          errorCode?: string | null;
+          cancelRequested?: boolean;
+        }) => void)
+      | undefined;
+    const agent = {
+      ...createAgent(),
+      setStatusListener: vi.fn((listener?: typeof statusListener) => {
+        statusListener = listener;
+      }),
+    };
+    let resolveCancel: () => void = () => undefined;
+    let resolveHydrate: (view: typeof runningView) => void = () => undefined;
+    const session = new BackgroundExecutionSessionController({
+      agent,
+      hydrate: vi.fn(
+        () =>
+          new Promise<typeof runningView>((resolve) => {
+            resolveHydrate = resolve;
+          }),
+      ),
+      cancelRun: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveCancel = resolve;
+          }),
+      ),
+      decideApproval: vi.fn(),
+      initialView: { currentRun: runningView.currentRun },
+    });
+
+    const cancelling = session.cancel();
+    statusListener?.({
+      runId: "run-2",
+      status: InAppAgentRunStatus.RUNNING,
+      errorCode: null,
+      cancelRequested: false,
+    });
+    resolveCancel();
+
+    await vi.waitFor(() => {
+      expect(session.getSnapshot().cancelStatus).toBe("idle");
+    });
+    expect(session.getSnapshot().currentRun).toEqual({
+      id: "run-2",
+      status: InAppAgentRunStatus.RUNNING,
+      errorCode: null,
+      cancelRequested: false,
+    });
+
+    resolveHydrate(runningView);
+    await cancelling;
   });
 
   it("keeps an accepted cancellation when attachment refresh fails", async () => {

@@ -261,9 +261,15 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       this.setView({ ...this.view, cancelStatus: "idle" });
       throw error;
     }
+    // The watch stream may have delivered a fresher status while the mutation
+    // was in flight; only stamp the cancellation onto the same run.
+    const currentRun = this.view.currentRun;
     this.setView({
       ...this.view,
-      currentRun: { ...run, cancelRequested: true },
+      currentRun:
+        currentRun?.id === run.id
+          ? { ...currentRun, cancelRequested: true }
+          : currentRun,
       cancelStatus: "idle",
     });
     this.detach();
