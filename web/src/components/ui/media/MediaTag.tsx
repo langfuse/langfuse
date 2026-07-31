@@ -41,6 +41,8 @@ export interface MediaTagProps {
    * meaningful when `status === "ready"`.
    */
   url?: string;
+  /** Resolved file size in bytes, shown in the peek header when available. */
+  contentLength?: number;
   /** Overrides the chip label (defaults to the MIME subtype, e.g. "JPEG"). */
   label?: string;
   /** Optional context shown above the preview in the peek popover. */
@@ -72,6 +74,19 @@ function getMediaKind(contentType: string): MediaKind {
 function getDefaultLabel(contentType: string): string {
   const subtype = contentType.split("/")[1]?.split("+")[0];
   return (subtype || "file").toUpperCase();
+}
+
+function formatFileSize(bytes: number): string {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+
+  return `${value.toFixed(2)} ${units[unitIndex]}`;
 }
 
 const MEDIA_KIND_ICON = {
@@ -196,6 +211,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
       contentType,
       status = "idle",
       url,
+      contentLength,
       label,
       description,
       openActionLabel,
@@ -277,6 +293,14 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               >
                 {contentType}
               </span>
+              {contentLength !== undefined ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="shrink-0">
+                    {formatFileSize(contentLength)}
+                  </span>
+                </>
+              ) : null}
             </div>
             {canOpen ? (
               <Button

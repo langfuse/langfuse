@@ -8,6 +8,7 @@ vi.mock("./useResolvedMedia", () => ({
   useResolvedMedia: () => ({
     status: "ready",
     url: "data:text/plain,original%20oversized%20field",
+    contentLength: 2.5 * 1024 * 1024,
   }),
 }));
 
@@ -33,5 +34,6 @@ describe("MediaReferenceTag", () => {
     expect(
       screen.getByRole("link", { name: "Open original" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("2.50 MB")).toBeInTheDocument();
   });
 });
