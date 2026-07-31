@@ -81,7 +81,7 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       projectId,
       name: "API widget",
       view: "OBSERVATIONS",
-      // widgets created via the public API are always v2 internally
+      // Public API policy selects v2 when the deployment can serve it.
       minVersion: 2,
     });
 

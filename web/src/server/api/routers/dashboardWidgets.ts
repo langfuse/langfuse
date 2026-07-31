@@ -8,6 +8,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,
+  type DashboardWidgetVersionPolicy,
   DimensionSchema,
   MetricSchema,
   ChartConfigSchema,
@@ -17,6 +18,14 @@ import {
 import { views } from "@langfuse/shared/query";
 import { TRPCError } from "@trpc/server";
 import { LangfuseConflictError } from "@langfuse/shared";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+
+const getInternalWidgetVersionPolicy = (
+  v4BetaEnabled: boolean,
+): DashboardWidgetVersionPolicy =>
+  v4BetaEnabled || sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
+    ? 2
+    : 1;
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),
@@ -67,6 +76,10 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
+      const versionPolicy = getInternalWidgetVersionPolicy(
+        ctx.session.user?.v4BetaEnabled === true,
+      );
+
       // Create the widget using the DashboardService
       const widget = await DashboardService.createWidget(
         input.projectId,
@@ -75,6 +88,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
           view: queryViewToDashboardWidgetView[input.view],
         },
         ctx.session.user?.id,
+        versionPolicy,
       );
 
       return {
@@ -140,6 +154,10 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
+      const versionPolicy = getInternalWidgetVersionPolicy(
+        ctx.session.user?.v4BetaEnabled === true,
+      );
+
       // Update the widget using the DashboardService
       const widget = await DashboardService.updateWidget(
         input.projectId,
@@ -155,6 +173,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
           chartConfig: input.chartConfig,
         },
         ctx.session.user?.id,
+        versionPolicy,
       );
 
       return {
@@ -179,12 +198,17 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
+      const versionPolicy = getInternalWidgetVersionPolicy(
+        ctx.session.user?.v4BetaEnabled === true,
+      );
+
       const newWidgetId = await DashboardService.copyWidgetToProject({
         sourceWidgetId: input.widgetId,
         projectId: input.projectId,
         dashboardId: input.dashboardId,
         placementId: input.placementId,
         userId: ctx.session.user?.id,
+        versionPolicy,
       });
 
       return { widgetId: newWidgetId };

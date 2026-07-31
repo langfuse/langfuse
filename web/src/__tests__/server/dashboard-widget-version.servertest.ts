@@ -50,7 +50,7 @@ describe("dashboard widget minVersion", () => {
     sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
   });
 
-  function makeCaller() {
+  function makeCaller(v4BetaEnabled = false) {
     const session: Session = {
       expires: "1",
       user: {
@@ -89,6 +89,7 @@ describe("dashboard widget minVersion", () => {
           experimentsV4Enabled: false,
           searchBar: false,
         },
+        v4BetaEnabled,
         admin: true,
       },
       environment: {} as any,
@@ -291,6 +292,51 @@ describe("dashboard widget minVersion", () => {
         userId,
       );
       expect(healed.minVersion).toBe(1);
+    });
+
+    it("uses the internal caller policy for new widgets and preserves a stored floor", async () => {
+      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+
+      const createInput = {
+        ...baseWidgetInput,
+        view: "observations" as const,
+        dimensions: [],
+        chartType: "NUMBER" as const,
+        chartConfig: { type: "NUMBER" as const },
+      };
+
+      const betaOff = await makeCaller(false).dashboardWidgets.create({
+        ...createInput,
+        projectId,
+      });
+      expect(betaOff.widget.minVersion).toBe(1);
+
+      const preserved = await makeCaller(true).dashboardWidgets.update({
+        ...createInput,
+        projectId,
+        widgetId: betaOff.widget.id,
+      });
+      expect(preserved.widget.minVersion).toBe(1);
+
+      const betaOn = await makeCaller(true).dashboardWidgets.create({
+        ...createInput,
+        projectId,
+      });
+      expect(betaOn.widget.minVersion).toBe(2);
+
+      const requiredV2 = await makeCaller(false).dashboardWidgets.create({
+        ...createInput,
+        projectId,
+        metrics: [{ measure: "traceId", agg: "uniq" }],
+      });
+      expect(requiredV2.widget.minVersion).toBe(2);
+
+      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const eventsOnly = await makeCaller(false).dashboardWidgets.create({
+        ...createInput,
+        projectId,
+      });
+      expect(eventsOnly.widget.minVersion).toBe(2);
     });
 
     it("should preserve minVersion when copying widget to project", async () => {
@@ -572,7 +618,7 @@ describe("dashboard widget minVersion", () => {
         chartConfig: { type: "NUMBER" },
       });
 
-      expect(created.widget.minVersion).toBe(2);
+      expect(created.widget.minVersion).toBe(1);
 
       const fetched = await caller.dashboardWidgets.get({
         projectId,
@@ -675,7 +721,7 @@ describe("dashboard widget minVersion", () => {
     ])(
       "create with dimension '%s' on v2 observations → rejected=%s",
       async (field, shouldReject) => {
-        const caller = makeCaller();
+        const caller = makeCaller(true);
         const promise = caller.dashboardWidgets.create({
           projectId,
           name: "uiHidden test widget",
@@ -697,7 +743,7 @@ describe("dashboard widget minVersion", () => {
     );
 
     it("should validate uiHidden dimensions on update mutation", async () => {
-      const caller = makeCaller();
+      const caller = makeCaller(true);
       const created = await caller.dashboardWidgets.create({
         projectId,
         name: "Widget to update",

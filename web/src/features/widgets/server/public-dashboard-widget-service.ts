@@ -4,6 +4,7 @@ import {
   DashboardService,
   dashboardWidgetViewToQueryView,
   queryViewToDashboardWidgetView,
+  type DashboardWidgetVersionPolicy,
   type WidgetDomain,
 } from "@langfuse/shared/src/server";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
@@ -28,6 +29,11 @@ import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
+
+// Public API and MCP widgets use the events-backed query model whenever the
+// deployment can serve it. DashboardService applies the deployment ceiling
+// and preserves a stored version on same-view updates.
+const PUBLIC_WIDGET_VERSION_POLICY: DashboardWidgetVersionPolicy = 2;
 
 // The widget shape used internally after input normalization: the public
 // body with chartConfig and filters fully resolved.
@@ -67,6 +73,7 @@ function getWidgetViewVersion(
       filters: widget.filters,
     },
     persistedMinVersion,
+    PUBLIC_WIDGET_VERSION_POLICY,
   );
 }
 
@@ -273,10 +280,15 @@ export async function createPublicDashboardWidget(params: {
   const input = normalizePublicDashboardWidgetInput(params.input);
   validatePublicDashboardWidgetInput(input);
 
-  const widget = await DashboardService.createWidget(params.projectId, {
-    ...input,
-    view: queryViewToDashboardWidgetView[input.view],
-  });
+  const widget = await DashboardService.createWidget(
+    params.projectId,
+    {
+      ...input,
+      view: queryViewToDashboardWidgetView[input.view],
+    },
+    undefined,
+    PUBLIC_WIDGET_VERSION_POLICY,
+  );
 
   await auditLog({
     action: "create",
@@ -373,6 +385,8 @@ export async function updatePublicDashboardWidget(params: {
       ...input,
       view: queryViewToDashboardWidgetView[input.view],
     },
+    undefined,
+    PUBLIC_WIDGET_VERSION_POLICY,
   );
   const result = toApiDashboardWidget(updated);
   await auditLog({
