@@ -29,10 +29,6 @@ import {
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import {
-  DataTableIoRenderModeSwitch,
-  useIoRenderModeLocalStorage,
-} from "@/src/components/table/data-table-io-render-mode-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
@@ -307,7 +303,9 @@ const StackedOutputCell = ({
               <StackedOutputRow
                 projectId={projectId}
                 output={out.output}
-                outputPotentiallyTruncated={out.outputPotentiallyTruncated}
+                outputPotentiallyTruncated={
+                  out.outputPotentiallyTruncated ?? false
+                }
                 experimentData={experimentsById.get(experimentId)}
                 markerClass={colorStyles.markerClass}
                 singleLine={singleLine}
@@ -334,6 +332,7 @@ const StackedOutputCell = ({
  */
 export default function ExperimentItemsTable({
   projectId,
+  ioRenderMode,
   hideControls = false,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
@@ -382,12 +381,6 @@ export default function ExperimentItemsTable({
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "experiment-items",
     "l",
-  );
-  // Global I/O rendering mode for the experiment views: JSON tree vs plain-text
-  // single-line. Controls IOTableCell `singleLine` across grid + list.
-  const [ioRenderMode, setIoRenderMode] = useIoRenderModeLocalStorage(
-    "experiment-items",
-    "json",
   );
   const ioSingleLine = ioRenderMode === "text";
 
@@ -1167,12 +1160,6 @@ export default function ExperimentItemsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            displayControls={
-              <DataTableIoRenderModeSwitch
-                ioRenderMode={ioRenderMode}
-                setIoRenderMode={setIoRenderMode}
-              />
-            }
             multiSelect={{
               selectAll,
               setSelectAll,

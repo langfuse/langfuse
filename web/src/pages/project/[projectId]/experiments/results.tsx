@@ -18,6 +18,7 @@ import {
 } from "@/src/features/navigation/utils/experiment-run-tabs";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
+import { useIoRenderModeLocalStorage } from "@/src/components/table/data-table-io-render-mode-switch";
 
 export default function ExperimentResults() {
   const router = useRouter();
@@ -36,6 +37,10 @@ export default function ExperimentResults() {
     setItemVisibility,
     allExperimentIds,
   } = useExperimentResultsState();
+  const [ioRenderMode, setIoRenderMode] = useIoRenderModeLocalStorage(
+    "experiment-items",
+    "json",
+  );
 
   const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
     "overview-panel-experiment-detail",
@@ -115,6 +120,8 @@ export default function ExperimentResults() {
               onItemVisibilityChange={setItemVisibility}
               hasComparisons={comparisonIds.length > 0}
               hasBaseline={hasBaseline}
+              ioRenderMode={ioRenderMode}
+              onIoRenderModeChange={setIoRenderMode}
             />
 
             <OverviewPanelToggle
@@ -128,7 +135,12 @@ export default function ExperimentResults() {
       <OverviewPanelLayout
         open={isOverviewOpen}
         persistId={`experiment-detail-${baselineId ?? "none"}`}
-        mainContent={<ExperimentItemsTable projectId={projectId} />}
+        mainContent={
+          <ExperimentItemsTable
+            projectId={projectId}
+            ioRenderMode={ioRenderMode}
+          />
+        }
         overviewContent={
           <ExperimentOverviewPanel
             key={baselineId ?? "no-baseline"}

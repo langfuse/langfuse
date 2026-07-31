@@ -195,6 +195,7 @@ export type ExperimentOption = {
  */
 export type ExperimentItemsTableProps = {
   projectId: string;
+  ioRenderMode: "json" | "text";
   hideControls?: boolean;
   /** Available experiments for filter targeting (baseline + comparisons) */
   availableExperiments?: ExperimentOption[];
