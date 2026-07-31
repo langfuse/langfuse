@@ -290,6 +290,24 @@ export function makeWidgetFormSchema(viewVersion: ViewVersion) {
 type WidgetFormSchema = ReturnType<typeof makeWidgetFormSchema>;
 export type WidgetFormValues = z.infer<WidgetFormSchema>;
 
+/** Build the shared query-model shape from the form's editor values. */
+export function toWidgetQueryShape(
+  params: {
+    view: z.infer<typeof views>;
+    dimensions: { field: string }[];
+    metrics: { measure: string }[];
+    filters?: FilterState;
+  },
+  view = params.view,
+) {
+  return {
+    view,
+    dimensions: params.dimensions,
+    measures: params.metrics.map((metric) => ({ measure: metric.measure })),
+    filters: mapWidgetUiTableFilterToView(view, params.filters ?? []),
+  };
+}
+
 /**
  * The shape WidgetForm receives as `initialValues` — the legacy prop contract,
  * kept verbatim so create/edit pages need no changes to what they pass.
@@ -369,10 +387,9 @@ export function resolveWidgetViewVersion(params: {
     filters: params.shape?.filters ?? [],
     persistedMinVersion: params.baseMinVersion,
   });
-  if (minVersion >= 2) return "v2";
-  if (params.view === "traces") return "v1";
-
-  return params.isBetaEnabled ? "v2" : "v1";
+  return minVersion >= 2 || (params.isBetaEnabled && params.view !== "traces")
+    ? "v2"
+    : "v1";
 }
 
 /** Sanitized pivot default sort for the current metric/dimension selection, or undefined when the stored sort no longer applies. */

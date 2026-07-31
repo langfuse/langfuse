@@ -122,6 +122,7 @@ import {
   makeWidgetFormSchema,
   normalizeWidgetFormValues,
   resolveWidgetViewVersion,
+  toWidgetQueryShape,
   toDefaultValues,
   toSavePayload,
   widgetChartTypeSupportsBreakdown,
@@ -311,13 +312,7 @@ export function WidgetForm({
         view: mapped.view,
         baseMinVersion,
         isBetaEnabled,
-        shape: {
-          dimensions: mapped.dimensions,
-          measures: mapped.metrics.map((metric) => ({
-            measure: metric.measure,
-          })),
-          filters: mapped.filters,
-        },
+        shape: toWidgetQueryShape(mapped),
       });
       return resolversByVersion[version](mapped as any, context, options);
     };
@@ -347,13 +342,7 @@ export function WidgetForm({
     view: selectedView,
     baseMinVersion,
     isBetaEnabled,
-    shape: {
-      dimensions: values.dimensions,
-      measures: values.metrics.map((metric) => ({
-        measure: metric.measure,
-      })),
-      filters: mapWidgetUiTableFilterToView(selectedView, values.filters),
-    },
+    shape: toWidgetQueryShape(values),
   });
   const suggestions = deriveWidgetSuggestions(values);
   const effectiveSort = deriveEffectiveSort(values);
@@ -884,13 +873,7 @@ export function WidgetForm({
       view: newView,
       baseMinVersion,
       isBetaEnabled,
-      shape: {
-        dimensions: values.dimensions,
-        measures: values.metrics.map((metric) => ({
-          measure: metric.measure,
-        })),
-        filters: mapWidgetUiTableFilterToView(newView, values.filters),
-      },
+      shape: toWidgetQueryShape(values, newView),
     });
     const newViewDeclaration = viewDeclarations[newViewVersion][newView];
 

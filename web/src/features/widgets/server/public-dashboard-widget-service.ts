@@ -10,7 +10,7 @@ import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
-  requiredWidgetMinVersion,
+  resolveWidgetMinVersion,
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -29,7 +29,7 @@ import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
-import { deploymentMinWidgetVersion } from "@/src/features/widgets/server/widget-version";
+import { maxSupportedWidgetVersion } from "@/src/features/widgets/server/widget-version";
 
 // The widget shape used internally after input normalization: the public
 // body with chartConfig fully resolved plus the internal minVersion.
@@ -143,33 +143,34 @@ export function normalizePublicDashboardWidgetInput(
     });
   }
 
-  const deploymentMinVersion = deploymentMinWidgetVersion();
+  const maxSupportedVersion = maxSupportedWidgetVersion();
   const normalizedFilters = mappedFilters.map((filter) => ({
     ...filter,
     column: columnAliases[filter.column] ?? filter.column,
   }));
-  const requiredMinVersion = requiredWidgetMinVersion({
+  const shape = {
     view: input.view,
     dimensions: input.dimensions,
     measures: input.metrics.map((metric) => ({ measure: metric.measure })),
     filters: normalizedFilters,
-  });
-  if (requiredMinVersion > deploymentMinVersion) {
+  };
+  const requiredMinVersion = resolveWidgetMinVersion(shape);
+  if (requiredMinVersion > maxSupportedVersion) {
     return throwInvalidWidget({
       message:
         "This widget uses v2-only fields, but the current deployment only supports legacy widget queries",
     });
   }
-  const storedVersion = persistedMinVersion ?? deploymentMinVersion;
+  const resolvedMinVersion = resolveWidgetMinVersion({
+    ...shape,
+    persistedMinVersion: persistedMinVersion ?? maxSupportedVersion,
+  });
 
   return {
     ...input,
     filters: normalizedFilters,
     chartConfig: chartConfig.data,
-    minVersion: Math.max(
-      Math.min(storedVersion, deploymentMinVersion),
-      requiredMinVersion,
-    ),
+    minVersion: Math.min(resolvedMinVersion, maxSupportedVersion),
   };
 }
 

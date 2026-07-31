@@ -19,6 +19,18 @@ import { z } from "zod";
 import { singleFilter } from "../../../";
 import { resolveWidgetMinVersion } from "../../../features/query";
 
+const resolveDashboardWidgetMinVersion = (
+  input: CreateWidgetInput,
+  persistedMinVersion?: number,
+) =>
+  resolveWidgetMinVersion({
+    view: dashboardWidgetViewToQueryView[input.view],
+    dimensions: input.dimensions,
+    measures: input.metrics,
+    filters: input.filters,
+    persistedMinVersion,
+  });
+
 export class DashboardService {
   /**
    * Retrieves a list of dashboards for a given project.
@@ -297,13 +309,10 @@ export class DashboardService {
     input: CreateWidgetInput,
     userId?: string,
   ): Promise<WidgetDomain> {
-    const minVersion = resolveWidgetMinVersion({
-      view: dashboardWidgetViewToQueryView[input.view],
-      dimensions: input.dimensions,
-      measures: input.metrics,
-      filters: input.filters,
-      persistedMinVersion: input.minVersion,
-    });
+    const minVersion = resolveDashboardWidgetMinVersion(
+      input,
+      input.minVersion,
+    );
     const newWidget = await prisma.dashboardWidget.create({
       data: {
         name: input.name,
@@ -364,13 +373,10 @@ export class DashboardService {
       where: { id: widgetId, projectId },
       select: { minVersion: true },
     });
-    const minVersion = resolveWidgetMinVersion({
-      view: dashboardWidgetViewToQueryView[input.view],
-      dimensions: input.dimensions,
-      measures: input.metrics,
-      filters: input.filters,
-      persistedMinVersion: input.minVersion ?? existingWidget?.minVersion,
-    });
+    const minVersion = resolveDashboardWidgetMinVersion(
+      input,
+      input.minVersion ?? existingWidget?.minVersion,
+    );
     const updatedWidget = await prisma.dashboardWidget.update({
       where: {
         id: widgetId,
@@ -481,13 +487,10 @@ export class DashboardService {
           filters: sourceWidget.filters ?? [],
           chartType: sourceWidget.chartType,
           chartConfig: sourceWidget.chartConfig ?? {},
-          minVersion: resolveWidgetMinVersion({
-            view: dashboardWidgetViewToQueryView[sourceWidgetDomain.view],
-            dimensions: sourceWidgetDomain.dimensions,
-            measures: sourceWidgetDomain.metrics,
-            filters: sourceWidgetDomain.filters,
-            persistedMinVersion: sourceWidgetDomain.minVersion,
-          }),
+          minVersion: resolveDashboardWidgetMinVersion(
+            sourceWidgetDomain,
+            sourceWidgetDomain.minVersion,
+          ),
           projectId, // project owned
           createdBy: userId,
           updatedBy: userId,

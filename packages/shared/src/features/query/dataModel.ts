@@ -1485,17 +1485,19 @@ export function getViewDeclaration(
   return versionViews[viewName as keyof typeof versionViews];
 }
 
+export type WidgetQueryShape = {
+  view: string;
+  dimensions: { field: string }[];
+  measures: { measure: string }[];
+  filters?: { column: string }[];
+};
+
 /**
  * Check whether a widget's selected fields require v2 view declarations.
  * Returns true if any dimension or measure only exists in the v2 declaration
  * for the given view (e.g. pairExpand dimensions, requiresDimension measures).
  */
-export function requiresV2(params: {
-  view: string;
-  dimensions: { field: string }[];
-  measures: { measure: string }[];
-  filters?: { column: string }[];
-}): boolean {
+export function requiresV2(params: WidgetQueryShape): boolean {
   const v1View =
     viewDeclarations.v1[params.view as keyof (typeof viewDeclarations)["v1"]];
   const v2View =
@@ -1516,18 +1518,6 @@ export function requiresV2(params: {
   );
 }
 
-export type WidgetQueryShape = {
-  view: string;
-  dimensions: { field: string }[];
-  measures: { measure: string }[];
-  filters?: { column: string }[];
-};
-
-/** Return the query version required by the widget shape itself. */
-export function requiredWidgetMinVersion(params: WidgetQueryShape): number {
-  return requiresV2(params) ? 2 : 1;
-}
-
 /**
  * Resolve the effective query version while preserving an explicitly persisted
  * lower bound. A persisted v1 value can never downgrade a shape that requires
@@ -1536,10 +1526,7 @@ export function requiredWidgetMinVersion(params: WidgetQueryShape): number {
 export function resolveWidgetMinVersion(
   params: WidgetQueryShape & { persistedMinVersion?: number },
 ): number {
-  return Math.max(
-    params.persistedMinVersion ?? 1,
-    requiredWidgetMinVersion(params),
-  );
+  return Math.max(params.persistedMinVersion ?? 1, requiresV2(params) ? 2 : 1);
 }
 
 /**

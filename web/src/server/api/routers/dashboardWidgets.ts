@@ -23,7 +23,7 @@ import {
 } from "@langfuse/shared/query";
 import { TRPCError } from "@trpc/server";
 import { LangfuseConflictError } from "@langfuse/shared";
-import { deploymentMinWidgetVersion } from "@/src/features/widgets/server/widget-version";
+import { maxSupportedWidgetVersion } from "@/src/features/widgets/server/widget-version";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),
@@ -130,7 +130,7 @@ function validateWidgetVersionAvailability(params: {
     persistedMinVersion: params.persistedMinVersion,
   });
 
-  if (deploymentMinWidgetVersion() < 2 && effectiveMinVersion >= 2) {
+  if (maxSupportedWidgetVersion() < 2 && effectiveMinVersion >= 2) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message:
