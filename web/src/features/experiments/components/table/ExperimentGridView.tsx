@@ -159,9 +159,6 @@ export const ExperimentGridView = ({
               projectId={projectId}
               itemId={row.original.itemId}
               output={outputData?.output}
-              outputPotentiallyTruncated={
-                outputData?.outputPotentiallyTruncated ?? false
-              }
               level={expData.level}
               startTime={expData.startTime}
               totalCost={expData.totalCost}

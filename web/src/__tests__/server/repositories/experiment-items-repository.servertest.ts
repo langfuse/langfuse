@@ -1548,9 +1548,6 @@ describe("Clickhouse Experiment Items Repository Test", () => {
           (o) => o.output === null || o.output.length <= 1000,
         ),
       ).toBe(true);
-      expect(result[0].outputs.every((o) => o.outputPotentiallyTruncated)).toBe(
-        true,
-      );
     });
   });
 });

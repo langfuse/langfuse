@@ -33,7 +33,6 @@ const renderCell = (props: {
   data: unknown;
   singleLine: boolean;
   enableExpandOnHover?: boolean;
-  expandedData?: unknown;
   isExpandedDataLoading?: boolean;
   onExpandOpenChange?: (open: boolean) => void;
 }) =>
@@ -110,10 +109,9 @@ describe("IOTableCell native title suppression", () => {
     expect(document.body.textContent).toContain("-end");
   });
 
-  it("expand-on-hover: renders separately fetched full data", async () => {
+  it("expand-on-hover: renders the full data passed by the caller", async () => {
     const { container } = renderCell({
-      data: "truncated output",
-      expandedData: "full output ending",
+      data: "full output ending",
       singleLine: false,
       enableExpandOnHover: true,
     });

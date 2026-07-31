@@ -7,12 +7,6 @@ import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
 /**
- * Length (in UTF-8 chars) to which the `events_core` materialized view
- * truncates `input`/`output`/`metadata_values` at ingestion.
- */
-export const EVENTS_CORE_IO_TRUNCATION_LENGTH = 200;
-
-/**
  * Extract the output column alias from a field expression (unquoted).
  * E.g. "e.span_id as id" → "id", 'e.trace_id as "trace_id"' → "trace_id"
  */

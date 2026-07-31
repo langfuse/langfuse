@@ -164,7 +164,6 @@ export const IOTableCell = ({
   padding = "default",
   singleLine = false,
   enableExpandOnHover = false,
-  expandedData,
   isExpandedDataLoading = false,
   onExpandOpenChange,
 }: {
@@ -174,7 +173,6 @@ export const IOTableCell = ({
   padding?: IOTableCellPadding;
   singleLine?: boolean;
   enableExpandOnHover?: boolean;
-  expandedData?: unknown;
   isExpandedDataLoading?: boolean;
   onExpandOpenChange?: (open: boolean) => void;
 }) => {
@@ -252,7 +250,7 @@ export const IOTableCell = ({
           <JsonSkeleton borderless className="min-h-12 w-full" />
         ) : (
           <JSONView
-            json={expandedData === undefined ? data : expandedData}
+            json={data}
             className="w-full"
             codeClassName="p-0 border-none"
             collapseStringsAfterLength={null}

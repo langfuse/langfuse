@@ -161,7 +161,6 @@ export type ExperimentItemData = {
 export type ExperimentOutputData = {
   experimentId: string;
   output: string | null;
-  outputPotentiallyTruncated: boolean;
 };
 
 /**

@@ -35,11 +35,7 @@ import { Button } from "@/src/components/ui/button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  IO_TABLE_CHAR_LIMIT,
-  JSONView,
-  stringifyJsonNode,
-} from "@/src/components/ui/CodeJsonViewer";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
@@ -50,7 +46,6 @@ type ExperimentGridCellProps = {
   projectId: string;
   itemId: string;
   output: unknown;
-  outputPotentiallyTruncated: boolean;
   level: string;
   startTime: Date;
   totalCost?: number | null;
@@ -81,7 +76,6 @@ type GridCellData = {
   projectId: string;
   itemId: string;
   output: unknown;
-  outputPotentiallyTruncated: boolean;
   level: string;
   startTime: Date;
   totalCost?: number | null;
@@ -393,7 +387,6 @@ export const ExperimentGridCell = ({
   projectId,
   itemId,
   output,
-  outputPotentiallyTruncated,
   level,
   startTime,
   totalCost,
@@ -442,32 +435,6 @@ export const ExperimentGridCell = ({
     [baselineLatencyMs, isBaseline, latencyMs],
   );
 
-  const outputExceedsTableLimit =
-    (stringifyJsonNode(output)?.length ?? 0) > IO_TABLE_CHAR_LIMIT;
-  const canExpandOutput = outputPotentiallyTruncated || outputExceedsTableLimit;
-
-  const [isOutputExpanded, setIsOutputExpanded] = useState(false);
-  const fullOutputQuery = api.events.experimentBatchIO.useQuery(
-    {
-      projectId,
-      observations: [{ id: observationId, traceId }],
-      minStartTime: startTime,
-      maxStartTime: startTime,
-      truncated: false,
-    },
-    {
-      enabled:
-        isOutputExpanded &&
-        outputPotentiallyTruncated &&
-        Boolean(observationId && traceId),
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
-    },
-  );
-  const expandedOutput = fullOutputQuery.data?.find(
-    (event) => event.id === observationId,
-  )?.output;
-
   const orderedObservationKeys = useMemo(
     () =>
       observationScoreOrder.length > 0
@@ -488,7 +455,6 @@ export const ExperimentGridCell = ({
     projectId,
     itemId,
     output,
-    outputPotentiallyTruncated,
     level,
     startTime,
     totalCost,
@@ -516,18 +482,8 @@ export const ExperimentGridCell = ({
           <MemoizedIOTableCell
             isLoading={data.isLoading}
             data={data.output ?? null}
-            expandedData={expandedOutput}
-            isExpandedDataLoading={
-              isOutputExpanded &&
-              outputPotentiallyTruncated &&
-              fullOutputQuery.isLoading
-            }
-            onExpandOpenChange={
-              canExpandOutput ? setIsOutputExpanded : undefined
-            }
             className="bg-accent-light-green min-h-8"
             singleLine={singleLine}
-            enableExpandOnHover={canExpandOutput}
           />
         ),
       },
@@ -653,13 +609,8 @@ export const ExperimentGridCell = ({
     ],
     [
       columnVisibility,
-      canExpandOutput,
-      expandedOutput,
-      fullOutputQuery.isLoading,
-      isOutputExpanded,
       orderedObservationKeys,
       orderedTraceKeys,
-      outputPotentiallyTruncated,
       showScoreLevelLabels,
       singleLine,
     ],

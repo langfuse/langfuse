@@ -8,11 +8,6 @@ import {
 import type { VisibilityState } from "@tanstack/react-table";
 import { ExperimentGridCell } from "./ExperimentGridCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
-import { IO_TABLE_CHAR_LIMIT } from "@/src/components/ui/CodeJsonViewer";
-
-const experimentBatchIOUseQueryMock = vi.hoisted(() =>
-  vi.fn(() => ({ data: undefined, isLoading: false })),
-);
 
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -21,33 +16,11 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => ({ data: undefined }),
       },
     },
-    events: {
-      experimentBatchIO: {
-        useQuery: experimentBatchIOUseQueryMock,
-      },
-    },
   },
 }));
 
 vi.mock("@/src/components/ui/IOTableCell", () => ({
-  MemoizedIOTableCell: ({
-    enableExpandOnHover,
-    onExpandOpenChange,
-  }: {
-    enableExpandOnHover?: boolean;
-    onExpandOpenChange?: (open: boolean) => void;
-  }) =>
-    enableExpandOnHover ? (
-      <button
-        type="button"
-        onClick={() => onExpandOpenChange?.(true)}
-        aria-label="Expand output"
-      >
-        IO cell
-      </button>
-    ) : (
-      <div>IO cell</div>
-    ),
+  MemoizedIOTableCell: () => <div>IO cell</div>,
 }));
 
 const observationScoreKey = "quality-EVAL-NUMERIC";
@@ -56,7 +29,6 @@ const traceScoreKey = "correctness-API-NUMERIC";
 const renderGridCell = (
   showScoreLevelLabels: boolean,
   columnVisibility: VisibilityState = { output: false, metadata: false },
-  outputPotentiallyTruncated = false,
   output: unknown = null,
 ) =>
   render(
@@ -65,7 +37,6 @@ const renderGridCell = (
         projectId="project-id"
         itemId="item-id"
         output={output}
-        outputPotentiallyTruncated={outputPotentiallyTruncated}
         level="GENERATION"
         startTime={new Date("2026-07-30T10:00:00.000Z")}
         observationId="observation-id"
@@ -126,53 +97,6 @@ describe("ExperimentGridCell", () => {
       screen.getByText("Output").parentElement?.nextElementSibling;
 
     expect(outputContent).toHaveClass("h-16", "overflow-hidden");
-  });
-
-  it("loads full output only when the output hover opens", () => {
-    experimentBatchIOUseQueryMock.mockClear();
-    renderGridCell(false, { metadata: false }, true);
-
-    expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ enabled: false }),
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Expand output" }));
-
-    expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ enabled: true }),
-    );
-  });
-
-  it("does not enable output expansion for complete previews", () => {
-    experimentBatchIOUseQueryMock.mockClear();
-    renderGridCell(false, { metadata: false });
-
-    expect(
-      screen.queryByRole("button", { name: "Expand output" }),
-    ).not.toBeInTheDocument();
-    expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ enabled: false }),
-    );
-  });
-
-  it("expands client-truncated output without fetching it again", () => {
-    experimentBatchIOUseQueryMock.mockClear();
-    renderGridCell(
-      false,
-      { metadata: false },
-      false,
-      "x".repeat(IO_TABLE_CHAR_LIMIT + 1),
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Expand output" }));
-
-    expect(experimentBatchIOUseQueryMock).toHaveBeenLastCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ enabled: false }),
-    );
   });
 
   it("links evaluator score comments to their execution trace", async () => {

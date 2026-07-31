@@ -12,7 +12,6 @@ import {
   EventsAggQueryBuilder,
   StringFilter,
   extractTimeFilter,
-  EVENTS_CORE_IO_TRUNCATION_LENGTH,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
@@ -1156,7 +1155,6 @@ const IO_TRUNCATE_LENGTH = 1000;
 export type ExperimentOutputData = {
   experimentId: string;
   output: string | null;
-  outputPotentiallyTruncated: boolean;
 };
 
 /**
@@ -1264,11 +1262,6 @@ export const getExperimentItemsBatchIO = async (props: {
     item.outputs.push({
       experimentId: row.experiment_id,
       output: row.output,
-      // `output` is sourced from events_core (truncated mode), which caps I/O at
-      // EVENTS_CORE_IO_TRUNCATION_LENGTH chars
-      outputPotentiallyTruncated:
-        row.output !== null &&
-        Array.from(row.output).length >= EVENTS_CORE_IO_TRUNCATION_LENGTH,
     });
   }
 
