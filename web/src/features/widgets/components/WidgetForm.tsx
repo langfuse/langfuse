@@ -1070,6 +1070,7 @@ export function WidgetForm({
         suggestedName: s.name,
         suggestedDescription: s.description,
         effectiveSort: deriveEffectiveSort(submitted),
+        persistedMinVersion: baseMinVersion,
       }) as Parameters<typeof onSave>[0],
     );
   });

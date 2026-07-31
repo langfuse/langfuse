@@ -151,7 +151,10 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      const effectiveMinVersion = validateWidgetVersionAvailability(input);
+      const effectiveMinVersion = validateWidgetVersionAvailability({
+        ...input,
+        persistedMinVersion: input.minVersion,
+      });
 
       validateMetricAggregations({
         view: input.view,

@@ -655,6 +655,7 @@ export function toSavePayload(
     suggestedName: string;
     suggestedDescription: string;
     effectiveSort: SortField | undefined;
+    persistedMinVersion?: number;
   },
 ): WidgetSavePayload {
   const isPivot = values.chart.type === "PIVOT_TABLE";
@@ -715,6 +716,7 @@ export function toSavePayload(
       dimensions: saveDimensions,
       measures: saveMetrics.map((m) => ({ measure: m.measure })),
       filters: normalizedFilters,
+      persistedMinVersion: params.persistedMinVersion,
     }),
   };
 }

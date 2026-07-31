@@ -397,6 +397,27 @@ describe("widget form adapters round-trip parity", () => {
     expect(payload.metrics).toEqual([{ measure: "count", agg: "count" }]);
     expect(payload.name).toBe("Count (Observations)");
   });
+
+  it("preserves a persisted v2 minimum for a v1-compatible shape", () => {
+    const initialValues = {
+      ...fixtures["count measure big number"],
+      minVersion: 2,
+    };
+    const values = toDefaultValues(
+      initialValues,
+      fixtureViewVersion(initialValues),
+    );
+    const suggestions = deriveWidgetSuggestions(values);
+
+    const payload = toSavePayload(values, {
+      suggestedName: suggestions.name,
+      suggestedDescription: suggestions.description,
+      effectiveSort: deriveEffectiveSort(values),
+      persistedMinVersion: deriveWidgetBaseMinVersion(initialValues),
+    });
+
+    expect(payload.minVersion).toBe(2);
+  });
 });
 
 describe("widget form view version", () => {
