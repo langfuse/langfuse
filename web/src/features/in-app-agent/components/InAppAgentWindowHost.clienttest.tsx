@@ -21,8 +21,21 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 vi.mock(
   "@/src/features/in-app-agent/components/ControlledInAppAgentWindow",
   () => ({
-    ControlledInAppAgentWindow: () => (
-      <div data-in-app-agent-window-drag-handle="true" data-testid="window" />
+    ControlledInAppAgentWindow: ({
+      draft,
+      onDraftChange,
+    }: {
+      draft?: string;
+      onDraftChange?: (draft: string) => void;
+    }) => (
+      <>
+        <div data-in-app-agent-window-drag-handle="true" data-testid="window" />
+        <input
+          aria-label="Message the assistant"
+          value={draft}
+          onChange={(event) => onDraftChange?.(event.target.value)}
+        />
+      </>
     ),
   }),
 );
@@ -126,5 +139,32 @@ describe("InAppAgentWindowHost", () => {
     expect(screen.getByTestId("movable-resizable-panel").style.top).toBe(
       "88px",
     );
+  });
+
+  it("preserves a draft when the assistant is hidden and shown again", () => {
+    const { rerender } = render(<InAppAgentWindowHost />);
+
+    mocks.open = true;
+    rerender(<InAppAgentWindowHost />);
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    fireEvent.change(input, { target: { value: "Keep this draft" } });
+
+    expect(input).toHaveValue("Keep this draft");
+
+    mocks.open = false;
+    rerender(<InAppAgentWindowHost />);
+    expect(
+      screen.queryByRole("textbox", { name: "Message the assistant" }),
+    ).toBeNull();
+
+    mocks.open = true;
+    rerender(<InAppAgentWindowHost />);
+
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toHaveValue("Keep this draft");
   });
 });

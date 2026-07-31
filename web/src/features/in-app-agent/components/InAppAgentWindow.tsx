@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  type Dispatch,
   type KeyboardEvent,
+  type SetStateAction,
   useCallback,
   useEffect,
   useRef,
@@ -257,6 +259,7 @@ type InAppAgentWindowCloseButtonProps =
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
+  draft?: string;
   disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   hasMoreConversations: boolean;
@@ -266,6 +269,7 @@ export type InAppAgentWindowProps = {
   isConversationInteractionDisabled: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
+  onDraftChange?: Dispatch<SetStateAction<string>>;
   onExpandedChange: (isExpanded: boolean) => void;
   onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onLoadMoreConversations: () => void;
@@ -358,6 +362,7 @@ function InAppAgentGenericError({
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     conversations,
+    draft,
     disablePendingToolApprovalActions = false,
     error,
     hasMoreConversations,
@@ -367,6 +372,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
     messages,
+    onDraftChange,
     onDeleteConversation,
     onExpandedChange,
     onLoadMoreConversations,
@@ -401,7 +407,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const previousIsAssistantTurnInProgressRef = useRef(
     isAssistantTurnInProgress,
   );
-  const [input, setInput] = useState("");
+  const [localDraft, setLocalDraft] = useState("");
+  const input = draft ?? localDraft;
+  const setInput = onDraftChange ?? setLocalDraft;
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
   const hasUserMessage = messages.some((message) => message.role === "user");

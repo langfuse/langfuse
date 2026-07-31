@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { DialogController } from "@/src/components/ui/dialog-controller";
@@ -67,6 +67,7 @@ export function InAppAgentWindowHost() {
   const canUseAgent = useCanUseInAppAgent();
   const { deleteConversation, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
+  const [draft, setDraft] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
 
@@ -142,8 +143,10 @@ export function InAppAgentWindowHost() {
           >
             {({ isHeaderDragHandleEnabled }) => (
               <ControlledInAppAgentWindow
+                draft={draft}
                 isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
                 isExpanded={isExpanded}
+                onDraftChange={setDraft}
                 onDeleteConversation={(conversation) => {
                   deleteConversationDialog.open(conversation);
                 }}

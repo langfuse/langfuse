@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { type Dispatch, type SetStateAction, useMemo } from "react";
 import { useRouter } from "next/router";
 import { InAppAgentWindow } from "./InAppAgentWindow";
 import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
@@ -17,8 +17,10 @@ const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
 type ControlledInAppAgentWindowBaseProps = {
+  draft?: string;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
+  onDraftChange?: Dispatch<SetStateAction<string>>;
   onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onExpandedChange: (isExpanded: boolean) => void;
 };
@@ -123,6 +125,7 @@ export function ControlledInAppAgentWindow(
 
   return (
     <InAppAgentWindow
+      draft={props.draft}
       error={displayError}
       isAssistantTurnInProgress={isAssistantTurnInProgress}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
@@ -146,6 +149,7 @@ export function ControlledInAppAgentWindow(
         selectConversation(null);
       }}
       onExpandedChange={props.onExpandedChange}
+      onDraftChange={props.onDraftChange}
       onSubmit={submit}
       onApproveToolCall={approveToolCall}
       onRejectToolCall={rejectToolCall}
