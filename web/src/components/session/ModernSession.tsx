@@ -175,6 +175,7 @@ export function ModernSession({
     string,
     NonNullable<ModernSessionSidebarTrace["observations"]>
   >();
+  const observationIdsByTraceId = new Map<string, Set<string>>();
   const traceIdsWithMatchingTraceLevelIO = new Set<string>();
   for (const query of observationQueries) {
     for (const observation of query.data?.observations ?? []) {
@@ -184,6 +185,17 @@ export function ModernSession({
       if (observation.id === `t-${observation.traceId}`) {
         traceIdsWithMatchingTraceLevelIO.add(observation.traceId);
         continue;
+      }
+      const observationIds = observationIdsByTraceId.get(observation.traceId);
+      if (observationIds?.has(observation.id)) {
+        continue;
+      }
+      if (observationIds) observationIds.add(observation.id);
+      else {
+        observationIdsByTraceId.set(
+          observation.traceId,
+          new Set([observation.id]),
+        );
       }
       const observations = observationsByTraceId.get(observation.traceId);
       const row = {
