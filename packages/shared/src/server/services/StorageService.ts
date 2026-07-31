@@ -21,6 +21,7 @@ import {
 import { Storage, Bucket, GetSignedUrlConfig } from "@google-cloud/storage";
 import { logger } from "../logger";
 import { env } from "../../env";
+import { VERSION } from "../../constants/VERSION";
 import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors";
 import {
@@ -665,6 +666,11 @@ class AzureBlobStorageService implements StorageService {
   }
 }
 
+// Appended to the AWS SDK user agent so bucket operators can attribute requests
+// to Langfuse in their access logs, matching the `application` string the
+// ClickHouse client sends.
+const S3_CUSTOM_USER_AGENT = `langfuse/${VERSION.replace("v", "")}`;
+
 class S3StorageService implements StorageService {
   private client: S3Client;
   private signedUrlClient: S3Client;
@@ -702,6 +708,7 @@ class S3StorageService implements StorageService {
       endpoint: params.endpoint,
       region: params.region,
       forcePathStyle: params.forcePathStyle,
+      customUserAgent: S3_CUSTOM_USER_AGENT,
       // Restore pre-v3.729 default so CompleteMultipartUpload doesn't send a
       // composite CRC32 header, which GCS's S3-compat layer rejects with 412.
       requestChecksumCalculation: "WHEN_REQUIRED",
@@ -725,6 +732,7 @@ class S3StorageService implements StorageService {
           endpoint: params.externalEndpoint,
           region: params.region,
           forcePathStyle: params.forcePathStyle,
+          customUserAgent: S3_CUSTOM_USER_AGENT,
           requestChecksumCalculation: "WHEN_REQUIRED",
           responseChecksumValidation: "WHEN_REQUIRED",
           requestHandler,
