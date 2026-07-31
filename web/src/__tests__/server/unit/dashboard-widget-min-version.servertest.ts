@@ -79,6 +79,32 @@ describe("public dashboard widget version validation", () => {
     }
   });
 
+  it("pre-validates v1-compatible shapes against v2 on dual-write deployments", () => {
+    setWriteMode("dual");
+
+    const normalized = normalizePublicDashboardWidgetInput({
+      ...baseInput,
+      dimensions: [{ field: "id" }],
+    });
+
+    let validationError: unknown;
+    try {
+      validatePublicDashboardWidgetInput(normalized);
+    } catch (error) {
+      validationError = error;
+    }
+
+    expect(validationError).toBeInstanceOf(UnstablePublicApiError);
+    expect(validationError).toMatchObject({
+      details: {
+        field: "dimensions[0].field",
+      },
+    });
+    expect((validationError as UnstablePublicApiError).message).toMatch(
+      /not available for widgets/i,
+    );
+  });
+
   it("accepts a v2-required shape on a dual-write deployment", () => {
     setWriteMode("dual");
 

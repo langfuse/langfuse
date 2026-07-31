@@ -19,11 +19,7 @@ import {
   type DashboardWidgetViewOutputType,
   type PostUnstableDashboardWidgetBodyType,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import {
-  ChartConfigSchema,
-  InvalidRequestError,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
+import { ChartConfigSchema, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   getWidgetImportFilterConfig,
   partitionStoredUiTableFiltersToView,
@@ -59,31 +55,13 @@ const throwInvalidWidget = (params: {
   });
 };
 
-const runWidgetMutation = async <T>(mutation: () => Promise<T>): Promise<T> => {
-  try {
-    return await mutation();
-  } catch (error) {
-    if (error instanceof InvalidRequestError) {
-      return throwInvalidWidget({ message: error.message });
-    }
-    throw error;
-  }
-};
-
 function getWidgetViewVersion(widget: NormalizedWidgetInput): ViewVersion {
-  try {
-    return DashboardService.getRequiredWidgetQueryVersion({
-      view: widget.view,
-      dimensions: widget.dimensions,
-      measures: widget.metrics,
-      filters: widget.filters,
-    });
-  } catch (error) {
-    if (error instanceof InvalidRequestError) {
-      return throwInvalidWidget({ message: error.message });
-    }
-    throw error;
-  }
+  return DashboardService.getRequiredWidgetQueryVersion({
+    view: widget.view,
+    dimensions: widget.dimensions,
+    measures: widget.metrics,
+    filters: widget.filters,
+  });
 }
 
 function getPublicDashboardWidgetViewDeclaration(
@@ -286,12 +264,10 @@ export async function createPublicDashboardWidget(params: {
   const input = normalizePublicDashboardWidgetInput(params.input);
   validatePublicDashboardWidgetInput(input);
 
-  const widget = await runWidgetMutation(() =>
-    DashboardService.createWidget(params.projectId, {
-      ...input,
-      view: queryViewToDashboardWidgetView[input.view],
-    }),
-  );
+  const widget = await DashboardService.createWidget(params.projectId, {
+    ...input,
+    view: queryViewToDashboardWidgetView[input.view],
+  });
 
   await auditLog({
     action: "create",
@@ -377,11 +353,13 @@ export async function updatePublicDashboardWidget(params: {
         : currentPublic.chartConfig),
   });
   validatePublicDashboardWidgetInput(input);
-  const updated = await runWidgetMutation(() =>
-    DashboardService.updateWidget(params.projectId, params.widgetId, {
+  const updated = await DashboardService.updateWidget(
+    params.projectId,
+    params.widgetId,
+    {
       ...input,
       view: queryViewToDashboardWidgetView[input.view],
-    }),
+    },
   );
   const result = toApiDashboardWidget(updated);
   await auditLog({
