@@ -52,6 +52,23 @@ Always fetch pricing from the provider's official docs before editing.
   10% of the base input price (e.g. Gemini 2.5 Flash: $0.30/MTok input → $0.03/MTok
   cached). If a cache-read price in the file diverges from this ratio, treat it as
   suspicious and verify against the official page before correcting.
+- **`ai.google.dev/pricing` has separate Free-tier and Paid-tier columns — do not confuse
+  them (resolved July 31 2026)** — The official Gemini pricing table has both a "Free of
+  charge" column and a "Paid tier" column per row. A model row can legitimately read
+  "Context caching price: Not available | $0.025/MTok (paid)" — the "Not available" only
+  describes the free tier. Prior audits (July 23, 25, 27 2026) saw contradictory
+  "available" vs "not available" summaries for `gemini-3.1-flash-lite` context caching
+  because WebFetch's summarizer sometimes collapsed the two columns into one answer. A
+  July 31 2026 fetch that explicitly asked to quote the row verbatim confirmed: Free tier
+  = "Not available", Paid tier = "$0.025/MTok (text/image/video), $0.05/MTok (audio)",
+  plus a **storage price** of $1.00 per 1M tokens per hour for the paid tier (a
+  time-based holding cost with no equivalent usage key in Langfuse's pricing schema —
+  do not attempt to represent it). Langfuse prices the paid/API tier, so
+  `gemini-3.1-flash-lite`'s existing cache pricing ($0.025/MTok text/image/video,
+  $0.05/MTok audio = 2.5e-8 / 5e-8 per token) is CONFIRMED CORRECT; no change was made.
+  This resolves unresolved finding #5 from the July 27 2026 audit memory. Lesson: when a
+  provider pricing page has multiple tiers/columns per model, ask WebFetch to quote the
+  exact row verbatim (not "does caching exist") to avoid column-collapse artifacts.
 - **Anthropic flat large-context models** — The Anthropic pricing page lists models with
   "full 1M token context window at standard pricing" in a dedicated "Long context pricing"
   section. As of July 2026 this list includes: Claude Fable 5, Claude Mythos 5, Claude
@@ -119,6 +136,22 @@ Always fetch pricing from the provider's official docs before editing.
   file and `openAIModels` in July 27 2026 audit. Official sources:
   `https://developers.openai.com/api/docs/pricing` and
   `https://developers.openai.com/api/docs/models/gpt-5.3-codex`.
+- **GPT-5.6 Terra / Luna price cut (found July 31 2026)** — OpenAI lowered pricing for
+  `gpt-5.6-terra` and `gpt-5.6-luna` sometime between the July 27 and July 31 2026 audits;
+  `gpt-5.6-sol` was unchanged. Confirmed via 4 independent WebFetch calls (the overview
+  pricing page fetched twice plus each model's dedicated page): `gpt-5.6-terra` is now
+  $2.00/MTok input, $0.20/MTok cached input, $12.00/MTok output (previously
+  $2.50/$0.25/$15.00); `gpt-5.6-luna` is now $0.20/MTok input, $0.02/MTok cached input,
+  $1.20/MTok output (previously $1.00/$0.10/$6.00). The >272K Large Context tier still
+  applies at 2x input / 1.5x output, with cached input also doubling (preserving the 10%
+  cache-to-input ratio): terra large-context $4.00/$0.40/$18.00, luna large-context
+  $0.40/$0.04/$1.80. `gpt-5.6-sol` remains $5.00/$0.50/$30.00 standard,
+  $10.00/$1.00/$45.00 large-context — unchanged. Updated in the pricing file during the
+  July 31 2026 audit. Official sources: `https://developers.openai.com/api/docs/pricing`,
+  `https://developers.openai.com/api/docs/models/gpt-5.6-terra`,
+  `https://developers.openai.com/api/docs/models/gpt-5.6-luna`. Lesson: do not assume a
+  model family's siblings keep moving in lockstep — verify each model ID's own page even
+  when the whole family was fully priced in a recent prior audit.
 
 Capture:
 
