@@ -51,17 +51,19 @@ describe("public dashboard widget version validation", () => {
 
     it("rejects a semantic-root filter instead of persisting a v1 widget", () => {
       expect(() =>
-        normalizePublicDashboardWidgetInput({
-          ...baseInput,
-          filters: [
-            {
-              column: "isRootObservation",
-              type: "boolean",
-              operator: "=",
-              value: true,
-            },
-          ],
-        }),
+        validatePublicDashboardWidgetInput(
+          normalizePublicDashboardWidgetInput({
+            ...baseInput,
+            filters: [
+              {
+                column: "isRootObservation",
+                type: "boolean",
+                operator: "=",
+                value: true,
+              },
+            ],
+          }),
+        ),
       ).toThrow(/v2-only fields/i);
     });
   });
@@ -119,7 +121,7 @@ describe("public dashboard widget version validation", () => {
   });
 
   it("promotes a semantic-root filter to v2 on a dual deployment", () => {
-    envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    setWriteMode("dual");
 
     const normalized = normalizePublicDashboardWidgetInput({
       ...baseInput,
