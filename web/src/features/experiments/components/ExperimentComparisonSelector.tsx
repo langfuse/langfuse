@@ -87,8 +87,6 @@ export function ExperimentComparisonSelector({
             : "Search experiments..."
         }
         disabled={isLoading}
-        singleLine
-        className="rounded-l-none border-l-0"
         getItemKey={(item) => item.experimentId}
         renderItem={(item, isSelected, onToggle) => (
           <button

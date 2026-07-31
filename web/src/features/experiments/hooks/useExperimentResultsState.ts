@@ -6,6 +6,10 @@ import {
 } from "use-query-params";
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 
+// Drop null/empty entries and de-duplicate, preserving first-seen order.
+const dedupe = (ids: (string | null | undefined)[]): string[] =>
+  Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
+
 export function useExperimentResultsState() {
   const [state, setState] = useQueryParams({
     baseline: withDefault(StringParam, undefined),
@@ -14,81 +18,55 @@ export function useExperimentResultsState() {
     itemVisibility: withDefault(StringParam, "baseline-only"),
   });
 
-  // The URL keeps the explicit baseline separate from comparison IDs. Internally,
-  // the baseline is part of one ordered selection list instead.
+  // The URL keeps the explicit baseline separate from comparison IDs, but
+  // internally they form one ordered selection with the baseline first.
   const explicitBaselineId = state.baseline as string | undefined;
-
-  // Parse comparison IDs - filter out null values, cast to strings, and dedupe.
-  const rawIds = state.c as (string | null)[] | undefined;
-  const urlComparisonIds: string[] = (rawIds ?? [])
-    .filter((id): id is string => typeof id === "string" && id.length > 0)
-    .filter((id, index, ids) => ids.indexOf(id) === index);
-
-  const selectedExperimentIds = [
-    ...(explicitBaselineId ? [explicitBaselineId] : []),
-    ...urlComparisonIds,
-  ]
-    .filter((id, index, ids) => ids.indexOf(id) === index)
-    .slice(0, MAX_SELECTED_EXPERIMENTS);
+  const selectedExperimentIds = dedupe([
+    explicitBaselineId,
+    ...((state.c as (string | null)[] | undefined) ?? []),
+  ]).slice(0, MAX_SELECTED_EXPERIMENTS);
 
   const comparisonIds = selectedExperimentIds.filter(
     (id) => id !== explicitBaselineId,
   );
   const hasBaseline = Boolean(explicitBaselineId);
 
-  const serializeSelection = (
-    selectedIds: string[],
-    nextExplicitBaselineId: string | undefined,
+  // Write one ordered selection back to the URL. The baseline is prepended so it
+  // is always kept and lands first; anything past the limit is evicted from the
+  // end; the baseline is stripped out of `c`.
+  const commitSelection = (
+    orderedIds: string[],
+    baseline: string | undefined,
   ) => {
-    const nextSelectedIds = selectedIds
-      .filter((id, index) => selectedIds.indexOf(id) === index)
-      .slice(0, MAX_SELECTED_EXPERIMENTS);
-    const baseline = nextExplicitBaselineId
-      ? nextSelectedIds.includes(nextExplicitBaselineId)
-        ? nextExplicitBaselineId
-        : undefined
-      : undefined;
-
+    const ids = dedupe([baseline, ...orderedIds]).slice(
+      0,
+      MAX_SELECTED_EXPERIMENTS,
+    );
     setState({
       baseline,
-      c: baseline
-        ? nextSelectedIds.filter((id) => id !== baseline)
-        : nextSelectedIds,
+      c: baseline ? ids.filter((id) => id !== baseline) : ids,
     });
   };
 
-  // Set baseline with reconciliation. Selecting a new baseline adds it to the
-  // selection and evicts the last selection when the total limit is reached.
+  // Selecting a baseline moves it to the front of the selection and marks it,
+  // evicting the last selection when the total limit is reached.
   const setBaseline = (id: string | undefined) => {
     if (!id) {
       clearBaseline();
       return;
     }
-
-    serializeSelection(
-      [id, ...selectedExperimentIds.filter((selectedId) => selectedId !== id)],
-      id,
-    );
+    commitSelection(selectedExperimentIds, id);
   };
 
-  // Clear the explicit baseline while preserving the selected experiments.
+  // Clear the explicit baseline while preserving the selected experiments; the
+  // former baseline moves to the end of the comparison list.
   const clearBaseline = () => {
     if (!explicitBaselineId) return;
-
-    serializeSelection([...comparisonIds, explicitBaselineId], undefined);
+    commitSelection([...comparisonIds, explicitBaselineId], undefined);
   };
 
-  // Comparison management. The baseline is excluded from c when explicitly
-  // selected; without a baseline, c contains all selected experiments.
-  const setComparisonIds = (ids: string[]) => {
-    const filtered = ids.filter(
-      (id, index) => id !== explicitBaselineId && ids.indexOf(id) === index,
-    );
-    serializeSelection(
-      explicitBaselineId ? [explicitBaselineId, ...filtered] : ids,
-      explicitBaselineId,
-    );
-  };
+  const setComparisonIds = (ids: string[]) =>
+    commitSelection(ids, explicitBaselineId);
 
   const addComparisonId = (id: string) => {
     if (id === explicitBaselineId) return; // Can't compare baseline with itself
@@ -97,9 +75,8 @@ export function useExperimentResultsState() {
     setComparisonIds([...comparisonIds, id]);
   };
 
-  const removeComparisonId = (id: string) => {
+  const removeComparisonId = (id: string) =>
     setComparisonIds(comparisonIds.filter((existingId) => existingId !== id));
-  };
 
   // Layout management
   const layout = (state.layout as "grid" | "list") ?? "list";

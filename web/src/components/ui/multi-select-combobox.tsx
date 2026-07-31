@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { Search, X, MoreHorizontal } from "lucide-react";
-import { cn } from "@/src/utils/tailwind";
 
 interface MultiSelectComboboxProps<T> {
   selectedItems: T[];
@@ -24,8 +23,6 @@ interface MultiSelectComboboxProps<T> {
   onOpenChange?: (open: boolean) => void;
   showSelectedItemsInInput?: boolean;
   dropdownClassName?: string;
-  singleLine?: boolean;
-  className?: string;
 }
 
 export function MultiSelectCombobox<T>({
@@ -44,15 +41,12 @@ export function MultiSelectCombobox<T>({
   onOpenChange,
   showSelectedItemsInInput = true,
   dropdownClassName,
-  singleLine = false,
-  className,
 }: MultiSelectComboboxProps<T>) {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [previousResults, setPreviousResults] = useState<T[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Handle focus/blur for dropdown visibility
@@ -75,16 +69,10 @@ export function MultiSelectCombobox<T>({
 
   // Auto-scroll to input when items are added/removed
   useEffect(() => {
-    if (inputRef.current && scrollContainerRef.current) {
-      if (singleLine) {
-        scrollContainerRef.current.scrollLeft =
-          scrollContainerRef.current.scrollWidth;
-      } else {
-        scrollContainerRef.current.scrollTop =
-          scrollContainerRef.current.scrollHeight;
-      }
+    if (inputRef.current && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [selectedItems.length, singleLine]);
+  }, [selectedItems.length]);
 
   // Update previous results when new data arrives (not loading)
   useEffect(() => {
@@ -142,37 +130,21 @@ export function MultiSelectCombobox<T>({
     );
   };
 
-  const displayedResults =
-    isLoading && previousResults.length > 0 ? previousResults : searchResults;
-
   return (
-    <div className="relative">
+    <div className="space-y-2">
       {/* Custom Input with Embedded Pills */}
-      <div>
+      <div className="relative">
         <div
           ref={containerRef}
-          className={cn(
-            "border-input bg-background flex min-h-8 w-full overflow-hidden rounded-md border text-xs",
-            className,
-          )}
+          className="border-input bg-background flex max-h-14 min-h-9 w-full overflow-y-auto rounded-md border text-xs"
+          style={{ overflowAnchor: "none" }}
         >
-          <Search className="text-muted-foreground mt-2 ml-2 h-4 w-4 shrink-0" />
-          <div
-            ref={scrollContainerRef}
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-1",
-              singleLine
-                ? "h-8 flex-nowrap overflow-x-auto overflow-y-hidden"
-                : "max-h-14 flex-wrap overflow-y-auto",
-            )}
-          >
+          <Search className="text-muted-foreground absolute top-2.5 left-2 z-10 h-4 w-4" />
+          <div className="flex max-h-full flex-1 flex-wrap items-center gap-1 pl-8">
             {/* Selected Items Pills */}
             {showSelectedItemsInInput
               ? selectedItems.map((item) => (
-                  <div
-                    key={getItemKey(item)}
-                    className={cn(singleLine && "shrink-0")}
-                  >
+                  <div key={getItemKey(item)}>
                     {renderSelectedItem(item, () => handleItemRemove(item))}
                   </div>
                 ))
@@ -200,7 +172,7 @@ export function MultiSelectCombobox<T>({
             <Button
               variant="ghost"
               size="sm"
-              className="mr-1 h-7 w-7 shrink-0 self-start p-0"
+              className="absolute top-1 right-2 h-7 w-7 p-0"
               onClick={() => onSearchChange("")}
             >
               <X className="h-3 w-3" />
@@ -211,23 +183,21 @@ export function MultiSelectCombobox<T>({
 
       {/* Search Results Dropdown */}
       {showDropdown && (
-        <div
-          ref={dropdownRef}
-          className={
-            dropdownClassName ??
-            cn(
-              "bg-background absolute top-full z-10 mt-2 w-full rounded-md border shadow-md",
-              displayedResults.length > 0
-                ? "max-h-48 overflow-y-auto"
-                : "text-muted-foreground py-6 text-center text-xs",
-            )
-          }
-          onMouseDown={(e) => e.preventDefault()}
-          onWheel={(e) => e.stopPropagation()}
-        >
-          {displayedResults.length > 0 ? (
-            <>
-              {displayedResults.map((item, index, array) => (
+        <div ref={dropdownRef} className="relative">
+          {searchResults.length > 0 ||
+          (isLoading && previousResults.length > 0) ? (
+            <div
+              className={
+                dropdownClassName ??
+                "bg-background absolute top-0 z-10 max-h-48 w-full overflow-y-auto rounded-md border shadow-md"
+              }
+              onMouseDown={(e) => e.preventDefault()}
+              onWheel={(e) => e.stopPropagation()}
+            >
+              {(isLoading && previousResults.length > 0
+                ? previousResults
+                : searchResults
+              ).map((item, index, array) => (
                 <div key={getItemKey(item)}>
                   {renderItem(
                     item,
@@ -251,13 +221,13 @@ export function MultiSelectCombobox<T>({
                   </div>
                 </div>
               )}
-            </>
+            </div>
           ) : (
-            <>
+            <div className="bg-background text-muted-foreground absolute top-0 z-10 w-full rounded-md border py-6 text-center text-xs shadow-md">
               {searchQuery
                 ? `No results found for "${searchQuery}"`
                 : "No results available"}
-            </>
+            </div>
           )}
         </div>
       )}
