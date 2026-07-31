@@ -1,7 +1,4 @@
-# Codex Guidelines for `worker`
-
-This file covers package-local guidance for the worker.
-Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
+# Agent Guidelines for `worker`
 
 ## Purpose
 
@@ -10,13 +7,9 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Maintenance Contract
 
-- `AGENTS.md` is a living document.
-- Update this file in the same PR for material worker-local changes:
-  - new/renamed queue processors
-  - new worker bootstrapping points
-  - changed worker verification commands
-- If queue contracts or shared workflows change, update root `AGENTS.md` and
-  likely `../packages/shared/AGENTS.md` too.
+- Update this file in the same PR when entry points, commands, or contracts
+  change. Queue-contract changes usually need `../packages/shared/AGENTS.md`
+  too.
 
 ## High-Signal Entry Points
 
