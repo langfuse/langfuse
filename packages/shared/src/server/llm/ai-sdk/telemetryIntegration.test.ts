@@ -49,6 +49,7 @@ const traceSinkParams: TraceSinkParams = {
   traceId: VALID_TRACE_ID,
   traceName: "Execute evaluator: helpfulness",
   environment: "langfuse-llm-judge",
+  metadata: { job_configuration_id: "evaluator-1" },
 };
 
 const modelParams: ModelParams = {
@@ -224,6 +225,7 @@ describe("AI SDK telemetry integration", () => {
       model: "gpt-4o",
       usageDetails: { input: 3, output: 5 },
       environment: "langfuse-llm-judge",
+      metadata: { job_configuration_id: "evaluator-1" },
     });
   });
 

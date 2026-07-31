@@ -199,6 +199,16 @@ export function createAiSdkTelemetryCapture(params: {
             [LangfuseOtelSpanAttributes.TRACE_USER_ID]: traceSinkParams.userId,
           }
         : {}),
+      // Evaluator costs are recorded on these generation spans. Preserve the
+      // evaluator metadata here so cost aggregation does not need to rebuild
+      // traces from their root spans.
+      ...(traceSinkParams.metadata
+        ? {
+            [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]: JSON.stringify(
+              traceSinkParams.metadata,
+            ),
+          }
+        : {}),
     },
   });
 
