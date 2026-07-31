@@ -62,7 +62,7 @@ describe("public dashboard widget version validation", () => {
             },
           ],
         }),
-      ).toThrow(/v2-only observations fields/i);
+      ).toThrow(/v2-only fields/i);
     });
   });
 
