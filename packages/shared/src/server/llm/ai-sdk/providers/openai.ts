@@ -82,10 +82,8 @@ export function isOpenRouterEndpoint(
     const url = parseOutboundUrl(baseURL.replace("{model}", "model"));
     if (!["http:", "https:"].includes(url.protocol)) return false;
 
-    return (
-      url.hostname === "openrouter.ai" ||
-      url.hostname.endsWith(".openrouter.ai")
-    );
+    const hostname = url.hostname.replace(/\.$/, "");
+    return hostname === "openrouter.ai" || hostname.endsWith(".openrouter.ai");
   } catch {
     return false;
   }

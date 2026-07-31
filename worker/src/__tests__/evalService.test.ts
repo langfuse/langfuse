@@ -3175,15 +3175,14 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
   });
 
   describe("internal trace environment filtering", () => {
-    test("does not create eval jobs for trace-upsert with LLMJudge environment", async () => {
+    test("does not create eval jobs for trace-upsert with the public LLMJudge environment", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
 
-      // Create trace with LLMJudge environment
       await upsertTrace({
         id: traceId,
         project_id: projectId,
-        environment: LangfuseInternalTraceEnvironment.LLMJudge,
+        environment: "llm-as-a-judge",
         timestamp: convertDateToClickhouseDateTime(new Date()),
         created_at: convertDateToClickhouseDateTime(new Date()),
         updated_at: convertDateToClickhouseDateTime(new Date()),
@@ -3207,7 +3206,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       const payload = {
         projectId,
         traceId,
-        traceEnvironment: LangfuseInternalTraceEnvironment.LLMJudge,
+        traceEnvironment: "llm-as-a-judge",
       };
 
       // Attempt to create eval jobs

@@ -307,6 +307,11 @@ describe("AI SDK request shapes", () => {
       expectedTrace: { environment: "langfuse-llm-as-a-judge" },
     },
     {
+      baseURL: "https://openrouter.ai./api/v1",
+      providerOptions: undefined,
+      expectedTrace: { environment: "langfuse-llm-as-a-judge" },
+    },
+    {
       baseURL: "https://eu.openrouter.ai/api/v1",
       providerOptions: {
         trace: {
