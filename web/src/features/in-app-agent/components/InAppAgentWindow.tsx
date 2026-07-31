@@ -263,7 +263,7 @@ export type InAppAgentWindowProps = {
   isAssistantTurnInProgress: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
-  isInputDisabled: boolean;
+  isConversationInteractionDisabled: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
   onExpandedChange: (isExpanded: boolean) => void;
@@ -364,7 +364,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isAssistantTurnInProgress,
     isHeaderDragHandleEnabled = false,
     isExpanded,
-    isInputDisabled: baseIsInputDisabled,
+    isConversationInteractionDisabled,
     isLoadingMoreConversations,
     messages,
     onDeleteConversation,
@@ -390,13 +390,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   // No auto-focus on mobile — it springs the keyboard and buries the panel.
   const isMobile = useIsMobile();
   const isRateLimited = isInAppAgentRateLimited(error);
-  const isInputDisabled = baseIsInputDisabled || isRateLimited;
-  const isSubmitDisabled = isInputDisabled || isAssistantTurnInProgress;
+  const isComposerDisabled = isConversationInteractionDisabled || isRateLimited;
+  const isSubmitDisabled = isComposerDisabled || isAssistantTurnInProgress;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const previousIsInputDisabledRef = useRef(isInputDisabled);
+  const previousIsInputDisabledRef = useRef(isComposerDisabled);
   const previousIsAssistantTurnInProgressRef = useRef(
     isAssistantTurnInProgress,
   );
@@ -474,9 +474,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
   // Update after refs commit so setInputRef can compare the previous disabled state.
   useEffect(() => {
-    previousIsInputDisabledRef.current = isInputDisabled;
+    previousIsInputDisabledRef.current = isComposerDisabled;
     previousIsAssistantTurnInProgressRef.current = isAssistantTurnInProgress;
-  }, [isAssistantTurnInProgress, isInputDisabled]);
+  }, [isAssistantTurnInProgress, isComposerDisabled]);
 
   const setInputRef = useCallback(
     (input: HTMLTextAreaElement | null) => {
@@ -485,7 +485,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       // Skip on mobile: refocusing after a turn re-springs the keyboard, even
       // for the quick-action flow that never focused the input.
       const shouldRefocusInput =
-        ((previousIsInputDisabledRef.current && !isInputDisabled) ||
+        ((previousIsInputDisabledRef.current && !isComposerDisabled) ||
           (previousIsAssistantTurnInProgressRef.current &&
             !isAssistantTurnInProgress)) &&
         !isMobile;
@@ -494,7 +494,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         input.focus();
       }
     },
-    [isAssistantTurnInProgress, isInputDisabled, isMobile],
+    [isAssistantTurnInProgress, isComposerDisabled, isMobile],
   );
 
   useEffect(() => {
@@ -542,7 +542,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6 shrink-0"
                 onClick={onNewConversation}
-                disabled={baseIsInputDisabled || isAssistantTurnInProgress}
+                disabled={
+                  isConversationInteractionDisabled || isAssistantTurnInProgress
+                }
                 aria-label="Start new conversation"
               >
                 <Plus className="size-3" />
@@ -568,7 +570,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     variant="ghost"
                     size="icon"
                     className="size-6 shrink-0"
-                    disabled={baseIsInputDisabled || isAssistantTurnInProgress}
+                    disabled={
+                      isConversationInteractionDisabled ||
+                      isAssistantTurnInProgress
+                    }
                     aria-label="Conversation history"
                   >
                     <History className="size-3" />
@@ -616,7 +621,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         size="icon-xs"
                         className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
                         disabled={
-                          baseIsInputDisabled || isAssistantTurnInProgress
+                          isConversationInteractionDisabled ||
+                          isAssistantTurnInProgress
                         }
                         aria-label="Delete conversation"
                         onClick={(event) => {
@@ -786,7 +792,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       role={message.role}
                       content={message.content}
                       isCompact={!isExpanded}
-                      isFeedbackDisabled={baseIsInputDisabled}
+                      isFeedbackDisabled={isConversationInteractionDisabled}
                       onSubmitFeedback={
                         feedbackRunId
                           ? (params) =>
@@ -945,7 +951,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              disabled={isInputDisabled}
+              disabled={isComposerDisabled}
               aria-label="Message the assistant"
               placeholder="Let me know what I can do for you..."
               rows={1}

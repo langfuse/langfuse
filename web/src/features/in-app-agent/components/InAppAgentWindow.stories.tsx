@@ -589,7 +589,7 @@ const meta = preview.meta({
   args: {
     error: null,
     isExpanded: false,
-    isInputDisabled: false,
+    isConversationInteractionDisabled: false,
     conversations,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
@@ -617,7 +617,7 @@ const meta = preview.meta({
 export const ToolApprovalRequired = meta.story({
   args: {
     isAssistantTurnInProgress: true,
-    isInputDisabled: true,
+    isConversationInteractionDisabled: true,
     selectedConversationId: "conversation-1",
     messages: [
       {
@@ -867,7 +867,7 @@ export const LoadingResponse = meta.story({
 export const LoadingAfterToolCall = meta.story({
   args: {
     isAssistantTurnInProgress: true,
-    isInputDisabled: true,
+    isConversationInteractionDisabled: true,
     messages: [
       {
         id: "user-1",
@@ -952,7 +952,7 @@ export const LoadingAfterToolCall = meta.story({
 export const Connecting = meta.story({
   args: {
     isAssistantTurnInProgress: true,
-    isInputDisabled: true,
+    isConversationInteractionDisabled: true,
     messages: [
       {
         id: "user-1",
@@ -998,7 +998,7 @@ export const RateLimited = meta.story({
   args: {
     error: null,
     isAssistantTurnInProgress: true,
-    isInputDisabled: true,
+    isConversationInteractionDisabled: true,
     messages: [
       {
         id: "approval-1",
@@ -1062,7 +1062,10 @@ export const RefocusAfterSubmit = meta.story({
   },
   render: function Render(args) {
     const [isExpanded, setIsExpanded] = useState(args.isExpanded);
-    const [isInputDisabled, setIsInputDisabled] = useState(false);
+    const [
+      isConversationInteractionDisabled,
+      setIsConversationInteractionDisabled,
+    ] = useState(false);
     const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([
       {
         id: "user-1",
@@ -1089,14 +1092,16 @@ export const RefocusAfterSubmit = meta.story({
             {...args}
             isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
             isExpanded={isExpanded}
-            isInputDisabled={isInputDisabled}
+            isConversationInteractionDisabled={
+              isConversationInteractionDisabled
+            }
             messages={messages}
             onExpandedChange={(isExpanded) => {
               setIsExpanded(isExpanded);
               args.onExpandedChange(isExpanded);
             }}
             onSubmit={(input) => {
-              setIsInputDisabled(true);
+              setIsConversationInteractionDisabled(true);
               window.setTimeout(() => {
                 setMessages((currentMessages) => [
                   ...currentMessages,
@@ -1109,7 +1114,7 @@ export const RefocusAfterSubmit = meta.story({
                     },
                   },
                 ]);
-                setIsInputDisabled(false);
+                setIsConversationInteractionDisabled(false);
               }, 50);
 
               args.onSubmit(input);
@@ -1147,7 +1152,7 @@ export const FeedbackControlsWaitForTurnEnd = meta.story({
   name: "(Test) Feedback Controls Wait For Turn End",
   args: {
     selectedConversationId: "conversation-1",
-    isInputDisabled: true,
+    isConversationInteractionDisabled: true,
     isAssistantTurnInProgress: true,
     onSubmitFeedback: fn(),
     messages: [

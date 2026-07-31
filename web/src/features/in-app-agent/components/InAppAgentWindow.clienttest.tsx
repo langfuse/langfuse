@@ -66,7 +66,7 @@ function windowElement(
     hasMoreConversations: false,
     isAssistantTurnInProgress: false,
     isExpanded: false,
-    isInputDisabled: false,
+    isConversationInteractionDisabled: false,
     isLoadingMoreConversations: false,
     messages: [],
     onApproveToolCall: vi.fn(),

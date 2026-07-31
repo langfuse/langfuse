@@ -71,7 +71,7 @@ export function ControlledInAppAgentWindow(
     pendingToolApprovals,
     shouldFlush: error !== null,
   });
-  const isInputDisabled =
+  const isConversationInteractionDisabled =
     selectedConversationIsWriteLocked || isSelectedConversationHydrating;
   const isAssistantTurnInProgress =
     isRunning ||
@@ -127,7 +127,7 @@ export function ControlledInAppAgentWindow(
       isAssistantTurnInProgress={isAssistantTurnInProgress}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
-      isInputDisabled={isInputDisabled}
+      isConversationInteractionDisabled={isConversationInteractionDisabled}
       disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       quickActionContext={quickActionContext}
