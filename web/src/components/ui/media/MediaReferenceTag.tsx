@@ -35,7 +35,9 @@ function LangfuseRefMediaTag({
   descriptor: LangfuseRefDescriptor;
 }) {
   const [armed, setArmed] = useState(false);
-  const { status, url } = useResolvedMedia(descriptor, { enabled: armed });
+  const { status, url, contentLength } = useResolvedMedia(descriptor, {
+    enabled: armed,
+  });
   const isOversizedField =
     descriptor.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE;
 
@@ -44,6 +46,7 @@ function LangfuseRefMediaTag({
       contentType={descriptor.contentType}
       status={status}
       url={url}
+      contentLength={contentLength}
       label={isOversizedField ? "Full value attached" : undefined}
       description={
         isOversizedField
