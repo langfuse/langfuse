@@ -843,12 +843,7 @@ const LoadedSessionEventsPage: React.FC<{
   });
   const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
-  const defaultPresetAppliedRef = useRef(false);
-
-  // Reset default preset flag when session changes (e.g., navigating between sessions)
-  useEffect(() => {
-    defaultPresetAppliedRef.current = false;
-  }, [sessionId]);
+  const defaultPresetResolvedSessionRef = useRef<string | null>(null);
 
   const [showCorrections, setShowCorrections] = useLocalStorage(
     "showCorrections",
@@ -1243,7 +1238,7 @@ const LoadedSessionEventsPage: React.FC<{
   // useRef initializer wouldn't re-run, leaving a stale viewId that blocks the
   // default-view effect on the new session. Re-read the URL during render (not
   // an effect, which would race the view manager's strip on reload) whenever the
-  // sessionId changes, mirroring the defaultPresetAppliedRef reset above.
+  // sessionId changes, mirroring the per-session default-preset decision above.
   const initialViewIdSessionRef = useRef(sessionId);
   if (initialViewIdSessionRef.current !== sessionId) {
     initialViewIdSessionRef.current = sessionId;
@@ -1339,7 +1334,11 @@ const LoadedSessionEventsPage: React.FC<{
   // prev/next session navigation re-decides, mirroring initialViewIdRef.
   const arrivedOnVisitedHistoryEntry = useHistoryEntryRevisit(sessionId);
 
-  // Fresh load with nothing in the URL → apply the default view. Skipped on
+  // On each session's first resolved view state, apply the default view when
+  // nothing else is selected. The decision is consumed even when existing
+  // filters make us skip it, so clearing those filters later remains a user
+  // clear action instead of unexpectedly applying the default preset.
+  // Skipped on
   // reload/shared-link (a viewId was in the URL) so the recovery effect above,
   // not the default, decides the view — otherwise "All observations" would be
   // silently replaced by the default on every reload. Also skipped when the
@@ -1348,8 +1347,9 @@ const LoadedSessionEventsPage: React.FC<{
   // default would overwrite what the user deliberately left there
   // (LFE-10715).
   useEffect(() => {
-    if (defaultPresetAppliedRef.current) return;
+    if (defaultPresetResolvedSessionRef.current === sessionId) return;
     if (isViewLoading) return; // Wait for view manager to initialize
+    defaultPresetResolvedSessionRef.current = sessionId;
     if (selectedViewId) return;
     if (initialViewIdRef.current) return;
     if (arrivedOnVisitedHistoryEntry) return;
@@ -1358,13 +1358,13 @@ const LoadedSessionEventsPage: React.FC<{
       hasFilters: visibleFilterState.length > 0,
     });
     if (!presetToApply) return;
-    defaultPresetAppliedRef.current = true;
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
     arrivedOnVisitedHistoryEntry,
     isViewLoading,
     selectedViewId,
+    sessionId,
     visibleFilterState,
   ]);
 
