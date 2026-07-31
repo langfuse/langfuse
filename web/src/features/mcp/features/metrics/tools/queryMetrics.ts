@@ -78,7 +78,11 @@ const getHighCardinalityGuidance = (
 
   const view = viewDeclarations.v2[input.view];
   const orderByMetric = input.metrics.find((metric) => {
-    const measure = view.measures[metric.measure];
+    // Own-property check: a measure named after an Object.prototype member
+    // would otherwise resolve to the inherited function and pass the guard.
+    const measure = Object.hasOwn(view.measures, metric.measure)
+      ? view.measures[metric.measure]
+      : undefined;
     return (
       metric.aggregation !== "histogram" &&
       measure !== undefined &&

@@ -2021,21 +2021,28 @@ describe("MCP Read Tools", () => {
       ).rejects.toThrow(/"config":\{"row_limit":100\}.*"field":"count_count"/i);
     });
 
-    it("should not build top-N guidance from an unsupported metric", async () => {
-      const { context } = await createMcpTestSetup();
-      const query = handleQueryMetrics(
-        {
-          view: "observations",
-          dimensions: [{ field: "traceId" }],
-          metrics: [{ measure: "unknown", aggregation: "count" }],
-          ...metricsWindow,
-        } as unknown as Parameters<typeof handleQueryMetrics>[0],
-        context,
-      );
+    // "toString" is a distinct path: a bracket lookup on the view's measures
+    // resolves it to the inherited Object.prototype member rather than undefined.
+    it.each(["unknown", "toString"])(
+      "should not build top-N guidance from the unsupported measure %s",
+      async (measure) => {
+        const { context } = await createMcpTestSetup();
+        const query = handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "traceId" }],
+            metrics: [{ measure, aggregation: "count" }],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        );
 
-      await expect(query).rejects.toThrow(/getMetricsSchema/i);
-      await expect(query).rejects.not.toThrow(/count_unknown/i);
-    });
+        await expect(query).rejects.toThrow(/getMetricsSchema/i);
+        await expect(query).rejects.not.toThrow(
+          new RegExp(`count_${measure}`, "i"),
+        );
+      },
+    );
 
     it("should direct raw observation payload filters to scoped observation retrieval", async () => {
       const { context } = await createMcpTestSetup();
