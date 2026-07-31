@@ -1,6 +1,21 @@
 import { z } from "zod";
 import { singleFilter } from "../../interfaces/filters";
 
+export const metricAggregations = z.enum([
+  "sum",
+  "avg",
+  "count",
+  "max",
+  "min",
+  "p50",
+  "p75",
+  "p90",
+  "p95",
+  "p99",
+  "histogram",
+  "uniq",
+]);
+
 export type ViewDeclarationType = z.infer<typeof viewDeclaration>;
 export type DimensionsDeclarationType = z.infer<
   typeof viewDeclaration
@@ -50,6 +65,19 @@ export const viewDeclaration = z.object({
       type: z.string().optional(),
       unit: z.string().optional(),
       aggs: z.record(z.string(), z.string()).optional(),
+      // Override query semantics for specific user-selected aggregations while
+      // keeping the base declaration as the UI/default compatibility contract.
+      aggregationOverrides: z
+        .record(
+          z.string(),
+          z.object({
+            sql: z.string(),
+            type: z.string().optional(),
+            aggs: z.record(z.string(), z.string()).optional(),
+            queryAggregation: metricAggregations.optional(),
+          }),
+        )
+        .optional(),
       // When set, the query builder will auto-include this dimension if it is absent.
       // Used for pairExpand value-alias measures (e.g. costByType requires costType so
       // the ARRAY JOIN is emitted and "cost_value" is in scope).
@@ -106,21 +134,6 @@ export type ViewVersion = z.infer<typeof viewVersions>;
 export const dimension = z.object({
   field: z.string(),
 });
-
-export const metricAggregations = z.enum([
-  "sum",
-  "avg",
-  "count",
-  "max",
-  "min",
-  "p50",
-  "p75",
-  "p90",
-  "p95",
-  "p99",
-  "histogram",
-  "uniq",
-]);
 
 /** MeasureDefinition is a single `measures` entry on a ViewDeclaration. */
 export type MeasureDefinition = ViewDeclarationType["measures"][string];
