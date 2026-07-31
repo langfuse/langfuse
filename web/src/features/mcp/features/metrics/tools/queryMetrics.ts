@@ -4,6 +4,7 @@ import {
   dimension,
   metric,
   validateQuery,
+  viewDeclarations,
   viewsV2,
 } from "@langfuse/shared/query";
 import {
@@ -16,6 +17,45 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 import { z } from "zod";
 
 const DEFAULT_ROW_LIMIT = 100;
+
+const normalizeMetricFilters = (
+  input: z.infer<typeof MetricsQueryObjectV2>,
+): z.infer<typeof MetricsQueryObjectV2> => {
+  const tagsDimension = viewDeclarations.v2[input.view].dimensions.tags;
+  const tagsAreArray =
+    tagsDimension?.type === "string[]" || tagsDimension?.type === "arrayString";
+
+  if (!tagsAreArray) {
+    return input;
+  }
+
+  return {
+    ...input,
+    filters: input.filters.map((filter) => {
+      if (filter.column !== "tags") {
+        return filter;
+      }
+
+      if (filter.type === "string" && filter.operator === "=") {
+        return {
+          type: "arrayOptions",
+          column: filter.column,
+          operator: "any of",
+          value: [filter.value],
+        };
+      }
+
+      if (filter.type === "stringOptions") {
+        return {
+          ...filter,
+          type: "arrayOptions",
+        };
+      }
+
+      return filter;
+    }),
+  };
+};
 
 const normalizeMetricOrderByFields = (
   input: z.infer<typeof MetricsQueryObjectV2>,
@@ -110,7 +150,9 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
         "mcp.metrics_view": input.view,
       },
       fn: async () => {
-        const normalizedInput = normalizeMetricOrderByFields(input);
+        const normalizedInput = normalizeMetricOrderByFields(
+          normalizeMetricFilters(input),
+        );
         const validation = validateQuery(normalizedInput, "v2");
 
         if (!validation.valid) {
