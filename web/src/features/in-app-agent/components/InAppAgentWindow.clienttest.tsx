@@ -21,7 +21,7 @@ const controlledAgent = vi.hoisted(() => ({
     liveMessageVersion: 0,
     loadMoreConversations: vi.fn(),
     messages: [],
-    pendingToolApprovals: [],
+    pendingToolApprovals: [] as Array<{ id: string }>,
     approveToolCall: vi.fn(),
     rejectToolCall: vi.fn(),
     selectedConversationId: undefined,
@@ -187,6 +187,8 @@ describe("InAppAgentWindow quick actions", () => {
 describe("ControlledInAppAgentWindow composer", () => {
   it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {
     const onSubmit = vi.fn().mockResolvedValue(true);
+    controlledAgent.value.isRunning = true;
+    controlledAgent.value.pendingToolApprovals = [];
     controlledAgent.value.submit = onSubmit;
     render(
       <TooltipProvider>
@@ -215,5 +217,58 @@ describe("ControlledInAppAgentWindow composer", () => {
 
     fireEvent.submit(form);
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("keeps navigation disabled while an approval is pending", () => {
+    controlledAgent.value.isRunning = false;
+    controlledAgent.value.pendingToolApprovals = [{ id: "approval-1" }];
+    controlledAgent.value.submit = vi.fn();
+
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Conversation history" }),
+    ).toBeDisabled();
+  });
+});
+
+describe("InAppAgentWindow focus", () => {
+  it("refocuses the composer when an active turn completes", () => {
+    const { rerender } = render(
+      <>
+        <button type="button">Other control</button>
+        {windowElement({ isAssistantTurnInProgress: true })}
+      </>,
+    );
+
+    screen.getByRole("button", { name: "Other control" }).focus();
+    expect(screen.getByRole("button", { name: "Other control" })).toHaveFocus();
+
+    rerender(
+      <>
+        <button type="button">Other control</button>
+        {windowElement({ isAssistantTurnInProgress: false })}
+      </>,
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toHaveFocus();
   });
 });
