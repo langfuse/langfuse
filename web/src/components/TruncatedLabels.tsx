@@ -5,7 +5,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { PRODUCTION_LABEL, LATEST_PROMPT_LABEL } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
@@ -13,7 +13,6 @@ interface TruncatedLabelsProps {
   labels: string[];
   maxVisibleLabels?: number;
   className?: string;
-  badgeClassName?: string;
   showSimpleBadges?: boolean;
 }
 
@@ -21,7 +20,6 @@ export function TruncatedLabels({
   labels,
   maxVisibleLabels = 5,
   className,
-  badgeClassName,
   showSimpleBadges = false,
 }: TruncatedLabelsProps) {
   // Enhanced sorting: prioritize latest and production labels
@@ -53,10 +51,7 @@ export function TruncatedLabels({
         showSimpleBadges ? (
           <div
             key={label}
-            className={cn(
-              "bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-semibold",
-              badgeClassName,
-            )}
+            className="bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold"
           >
             {label}
           </div>
@@ -64,8 +59,8 @@ export function TruncatedLabels({
           <StatusBadge
             type={label}
             key={label}
-            className={cn("break-all sm:break-normal", badgeClassName)}
             isLive={label === PRODUCTION_LABEL}
+            preserveCase
           />
         ),
       )}
@@ -82,16 +77,13 @@ export function TruncatedLabels({
           </HoverCardTrigger>
           <HoverCardContent className="w-80 p-3" side="bottom" align="start">
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold">All Labels</h4>
+              <h4 className="text-sm font-bold">All Labels</h4>
               <div className="flex flex-wrap gap-1">
                 {sortedLabels.map((label) =>
                   showSimpleBadges ? (
                     <div
                       key={label}
-                      className={cn(
-                        "bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-semibold",
-                        badgeClassName,
-                      )}
+                      className="bg-secondary text-secondary-foreground max-h-fit min-h-6 w-fit content-center rounded-sm px-1 text-left text-xs font-bold"
                     >
                       {label}
                     </div>
@@ -99,11 +91,8 @@ export function TruncatedLabels({
                     <StatusBadge
                       type={label}
                       key={label}
-                      className={cn(
-                        "break-all sm:break-normal",
-                        badgeClassName,
-                      )}
                       isLive={label === PRODUCTION_LABEL}
+                      preserveCase
                     />
                   ),
                 )}

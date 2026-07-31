@@ -52,7 +52,7 @@ export function JsonKey({
       style={{
         color: isIndex ? theme.punctuationColor : theme.keyColor,
         opacity: isIndex ? 0.5 : 1,
-        fontFamily: "monospace",
+        fontFamily: "var(--font-mono)",
         flexShrink: 0, // Prevent key from being compressed
         whiteSpace: "nowrap", // Keep key on single line
       }}

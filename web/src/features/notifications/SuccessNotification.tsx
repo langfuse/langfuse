@@ -22,7 +22,7 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
           <BadgeCheck size={20} className="text-primary-foreground" />
-          <div className="text-primary-foreground m-0 text-sm leading-tight font-medium">
+          <div className="text-primary-foreground m-0 text-sm leading-tight font-bold">
             {title}
           </div>
         </div>
@@ -32,14 +32,11 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
           </div>
         )}
         {link && (
-          <ActionButton
-            href={link.href}
-            size="sm"
-            variant="secondary"
-            className="self-start"
-          >
-            {link.text}
-          </ActionButton>
+          <div className="self-start">
+            <ActionButton href={link.href} size="sm" variant="secondary">
+              {link.text}
+            </ActionButton>
+          </div>
         )}
       </div>
       <button

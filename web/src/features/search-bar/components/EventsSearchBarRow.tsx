@@ -18,6 +18,7 @@ import * as React from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { cn } from "@/src/utils/tailwind";
 import type {
   ObservedOptions,
   ObservedScoreNames,
@@ -36,10 +37,13 @@ export function EventsSearchBarRow({
   commit,
   observed,
   erroredColumns,
+  fieldReason,
+  freeTextReason,
   onApplyFilters,
   onRequestColumns,
   aiDataContext,
   aiScoreNames,
+  className,
 }: {
   projectId: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
@@ -51,6 +55,12 @@ export function EventsSearchBarRow({
    *  empty (per column) instead of pinning, matching the sidebar's settled-error
    *  state, without blocking other columns. */
   erroredColumns?: ReadonlySet<string>;
+  /** Given a filter token's field, the reason it is not applied on the current
+   *  surface (e.g. the chart view can't filter on it) — dims the pill + hover.
+   *  Undefined leaves all filters active. */
+  fieldReason?: (field: string) => string | null;
+  /** Reason free-text tokens are not applied on the current surface, or null. */
+  freeTextReason?: string | null;
   /**
    * Applies AI-generated filters (apply-immediately); the bar re-derives them.
    * Preserves filters the grammar can't represent (no-silent-drop contract) —
@@ -69,6 +79,10 @@ export function EventsSearchBarRow({
   /** Observed score names by column type, for the server's score-name
    *  validation of the generated filters (undefined sets are not enforced). */
   aiScoreNames?: ObservedScoreNames;
+  /** Overrides the wrapper spacing. The default (`px-2 pt-2 pb-1`) aligns the
+   *  bar with the desktop toolbar row; the mobile Filters sheet passes flush
+   *  padding so the bar lines up with the sheet's other sections. */
+  className?: string;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -86,7 +100,7 @@ export function EventsSearchBarRow({
   }, [onRequestColumns]);
 
   return (
-    <div className="min-w-0 px-2 pt-2 pb-1">
+    <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>
       {aiOpen && aiAvailable ? (
         <SearchBarAiPrompt
           projectId={projectId}
@@ -103,6 +117,8 @@ export function EventsSearchBarRow({
             projectId={projectId}
             observed={observed}
             erroredColumns={erroredColumns}
+            fieldReason={fieldReason}
+            freeTextReason={freeTextReason}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
           />

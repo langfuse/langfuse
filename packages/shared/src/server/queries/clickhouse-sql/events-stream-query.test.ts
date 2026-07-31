@@ -1,4 +1,6 @@
 import type { FilterCondition } from "../../../types";
+import type { OrderByState } from "../../../interfaces/orderBy";
+import { InvalidRequestError } from "../../../errors";
 import { describe, expect, it } from "vitest";
 import {
   buildEventsObservationRowSelection,
@@ -17,13 +19,27 @@ const nativeFilter: FilterCondition = {
   value: ["GENERATION"],
   type: "stringOptions",
 };
+const scoreFilter: FilterCondition = {
+  type: "numberObject",
+  column: "scores_avg",
+  operator: ">",
+  key: "quality",
+  value: 0.5,
+};
 
 const normalizeSql = (query: string) => query.replace(/\s+/g, " ").trim();
 
-const buildSelection = ({ filter }: { filter: FilterCondition[] }) => {
+const buildSelection = ({
+  filter,
+  orderBy,
+}: {
+  filter: FilterCondition[];
+  orderBy?: OrderByState;
+}) => {
   const selection = buildEventsObservationRowSelection({
     projectId,
     filter,
+    orderBy,
   });
 
   const built = selection.queryBuilder
@@ -50,6 +66,7 @@ describe("buildEventsStreamQuery", () => {
 
     expect(query).toContain("e.project_id = {projectId: String}");
     expect(query).toContain("e.is_deleted = 0");
+    expect(query).toContain('e.is_app_root as "is_app_root"');
 
     const orderIndex = query.lastIndexOf("ORDER BY ");
     const deduplicationIndex = query.lastIndexOf("LIMIT 1 BY ");
@@ -121,13 +138,7 @@ describe("buildEventsStreamQuery", () => {
           operator: ">=",
           value: new Date("2025-01-02T03:04:05.678Z"),
         },
-        {
-          type: "numberObject",
-          column: "scores_avg",
-          operator: ">",
-          key: "quality",
-          value: 0.5,
-        },
+        scoreFilter,
       ],
       rowLimit: 7,
     });
@@ -145,6 +156,28 @@ describe("buildEventsStreamQuery", () => {
     );
     expect(query).toContain(
       "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 1 HOUR",
+    );
+    expect(query).not.toContain("name IN ({");
+  });
+
+  it("exports trace-level scores alongside observation-level ones (LFE-10596)", () => {
+    // No score filter at all: the export must still join and select the
+    // trace-score aggregate so trace-level scores land in the file exactly
+    // like the UI's unified Scores column.
+    const { queryBuilder } = buildEventsBlobExportStreamQuery({
+      projectId,
+      filter: [],
+      rowLimit: 7,
+    });
+    const { query } = queryBuilder.buildWithParams();
+
+    expect(query.match(/\btrace_scores_agg AS \(/g)).toHaveLength(1);
+    expect(query).toContain("ts.scores_avg as trace_scores_avg");
+    expect(query).toContain(
+      "ts.score_categories_tuples as trace_score_categories_tuples",
+    );
+    expect(query).toContain(
+      "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
     );
   });
 
@@ -166,25 +199,6 @@ describe("buildEventsStreamQuery", () => {
     const { params } = queryBuilder.selectFieldSet("eval").buildWithParams();
 
     expect(Object.values(params)).toContain("quality");
-  });
-
-  it("keeps comment filters out of the legacy stream selection", () => {
-    const { queryBuilder } = buildEventsStreamQuery({
-      projectId,
-      filter: [
-        nativeFilter,
-        {
-          column: "commentContent",
-          operator: "contains",
-          value: "comment-needle",
-          type: "string",
-        },
-      ],
-      rowLimit: 7,
-    });
-    const { params } = queryBuilder.selectFieldSet("eval").buildWithParams();
-
-    expect(Object.values(params)).not.toContain("comment-needle");
   });
 });
 
@@ -221,6 +235,11 @@ describe("buildEventsObservationRowSelection", () => {
     expect(filterGroups.traceScores).toHaveLength(1);
     expect(Object.values(params)).toContain("observation-quality");
     expect(Object.values(params)).toContain("trace-quality");
+    expect(Object.values(params)).toContainEqual([
+      "observation-quality",
+      "trace-quality",
+    ]);
+    expect(query.match(/\bname IN \(\{/g)).toHaveLength(2);
     expect(query).toContain(
       "AND timestamp >= {startTimeFrom: DateTime64(3)} - INTERVAL 1 HOUR",
     );
@@ -253,6 +272,26 @@ describe("buildEventsObservationRowSelection", () => {
     expect(query).not.toContain("AND timestamp >=");
   });
 
+  it("keeps complete score data when ordering by a score", () => {
+    const { query } = buildSelection({
+      filter: [scoreFilter],
+      orderBy: { column: "scores_avg", order: "DESC" },
+    });
+
+    expect(query).not.toContain("name IN ({");
+
+    for (const [column, expectedJoin] of [
+      ["scores_avg", "LEFT JOIN scores_agg AS s"],
+      ["trace_scores_avg", "LEFT JOIN trace_scores_agg AS ts"],
+    ] as const) {
+      const scoreOrderQuery = buildSelection({
+        filter: [],
+        orderBy: { column, order: "DESC" },
+      }).query;
+      expect(scoreOrderQuery).toContain(expectedJoin);
+    }
+  });
+
   it.each([
     ["scores_avg", "observationScores"],
     ["trace_scores_avg", "traceScores"],
@@ -275,7 +314,7 @@ describe("buildEventsObservationRowSelection", () => {
     },
   );
 
-  it("does not silently discard unresolved comment filters", () => {
+  it("rejects unresolved comment filters", () => {
     expect(() =>
       buildSelection({
         filter: [
@@ -287,6 +326,6 @@ describe("buildEventsObservationRowSelection", () => {
           },
         ],
       }),
-    ).toThrow();
+    ).toThrow(InvalidRequestError);
   });
 });

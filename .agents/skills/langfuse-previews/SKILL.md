@@ -1,13 +1,9 @@
 ---
 name: langfuse-previews
 description: >
-  Disposable per-PR preview environments for langfuse/langfuse. A same-repo PR
-  auto-builds a full Langfuse stack reachable at pr-N.preview.langfuse.com.
-  Use when spinning up or using a PR preview, logging into one, working out why
-  a preview did not come up (built but the URL 404s, ImagePullBackOff, pods
-  stuck Pending), reading web / worker / ClickHouse logs or otherwise debugging
-  a preview with kubectl, waking a preview that went to sleep off-hours, or
-  getting preview deploy or cluster access. Synthetic data only.
+  Use Langfuse's disposable per-PR previews at pr-N.preview.langfuse.com
+  (synthetic data only). Use for preview access, failed deployments, test-data
+  seeding, kubectl debugging, or waking sleeping previews.
 ---
 
 # Langfuse PR Previews
@@ -36,13 +32,16 @@ Pushing updates it; closing the PR tears it down.
 ## Using a preview
 
 - **Spin up** — open a same-repo PR. It's auto-labeled and builds (~5 min); a
-  bot comment then posts the preview URL and login, and a GitHub deployment
-  (environment `pr-<n>`) gives the PR a **View deployment** button. No manual
-  step, no label to add.
+  bot comment then posts the preview URL and login, a `Live preview:` line is
+  pinned at the top of the PR description (removed again on teardown), and a
+  deployment in the shared GitHub `PR Preview` environment gives the PR a
+  **View deployment** button. No manual step, no label to add.
 - **Log in** — use the credentials in the **bot's PR comment** (the source of
   truth). The demo project's shared seed identity is `demo@langfuse.com` /
   `password`, with API keys `pk-lf-1234567890` / `sk-lf-1234567890` — shared and
   synthetic, so never treat a preview as private.
+- **Know where you are** — every preview page shows a top strip linking back
+  to the PR, with the author and when the preview content last changed.
 - **Update** — push to the PR; it rebuilds and rolls to the new image (~5 min,
   **same URL, data preserved**). A brief `ImagePullBackOff` during the rebuild
   is normal and self-heals.
@@ -62,6 +61,51 @@ Pushing updates it; closing the PR tears it down.
 - **Disposable data.** Closing a PR destroys its database; reopening gives a
   **fresh** environment, not the old one.
 - **Forks can't preview.** External / fork PRs never build or deploy.
+
+## Add or improve data in a preview
+
+Previews start pre-seeded with the demo project and some synthetic traces. To
+add the specific shape you're testing — a very deep trace, a huge session, bulk
+traces for list performance, v4 events, malformed payloads — run the
+deterministic **seed CLI from your local checkout**, pointed at the preview's
+datastores over a `port-forward`. The CLI has no LLM/agent loop; you (or your
+coding agent) pick the scenario — the **`seed-test-data` skill** maps "what I
+need" → the exact command and flags.
+
+Needs cluster access (see [Getting access](#getting-access)) and a working
+local `.env` (your normal local-dev setup — it supplies everything except the
+DB connection, which the commands below override).
+
+```bash
+NS=langfuse-pr-<N>              # e.g. langfuse-pr-42
+
+# 1. tunnel Postgres + ClickHouse to localhost (leave these running)
+kubectl -n $NS port-forward svc/$NS-postgresql 5432:5432 &
+CH=$(kubectl -n $NS get svc -o name | grep clickhouse | head -1)
+kubectl -n $NS port-forward "$CH" 8123:8123 &
+
+# 2. per-preview generated passwords (synthetic, disposable)
+PGPW=$(kubectl -n $NS get secret langfuse-secrets -o jsonpath='{.data.postgres-password}' | base64 -d)
+CHPW=$(kubectl -n $NS get secret langfuse-secrets -o jsonpath='{.data.clickhouse-password}' | base64 -d)
+
+# 3. seed — overrides only the DB connection (your .env supplies the rest);
+#    NEXTAUTH_URL makes the CLI's printed deep links point at the preview UI
+cd packages/shared
+DATABASE_URL="postgresql://postgres:$PGPW@localhost:5432/postgres_langfuse" \
+CLICKHOUSE_URL="http://localhost:8123" CLICKHOUSE_PASSWORD="$CHPW" \
+NEXTAUTH_URL="https://pr-<N>.preview.langfuse.com" \
+pnpm run seed:scenario -- deep-chain --v4
+```
+
+- `pnpm run seed:scenario -- list` shows every scenario and flag; add
+  `--dry-run` to predict counts and write nothing. Full catalog: the
+  `seed-test-data` skill.
+- The last stdout line is a JSON summary with `verified` and clickable `links`
+  straight into the preview UI.
+- Run from a checkout whose **migrations match the PR** — scenario code and the
+  preview DB must agree, so seed from the PR's branch (usually already checked
+  out), not a stale `main`.
+- **Synthetic data only** — same rule as everywhere else in a preview.
 
 ## Debug a preview
 
@@ -117,6 +161,7 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
 ### Symptom → fix
 | Symptom | Likely cause / fix |
 |---|---|
+| My preview environment is not available | Check for the `preview` label and inspect the **AWS preview build** workflow. If the PR opened with merge conflicts, resolve them; the next update adds the label. Other CI checks do not gate the preview build. |
 | 🟢 build comment posted, but the URL 404s | PR author not on the **deploy allowlist** — the image built, nothing deployed. Add yourself (see Getting access). |
 | URL not ready right after building | Build still finishing (~5 min) or a transient `ImagePullBackOff` — it self-heals. |
 | Unresponsive at night / on a weekend | Asleep off-hours — wake it (above). |
@@ -129,18 +174,15 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
   selector in `k8s/preview/bootstrap/applicationset.yaml` (repo
   `langfuse/infrastructure`), open a PR, and merge to `main`. Argo re-syncs and
   your labeled PRs deploy — no admin needed.
-- **Cluster access — needs an admin** (only to debug with `kubectl`, not to
-  *use* a preview). Ask an admin to add you to the preview-cluster role in AWS
-  IAM Identity Center. Then set up local access — the `~/.aws/config` profile
-  block and its exact values (AWS account id, SSO start URL, cluster name,
-  region) are in the internal Langfuse doc:
+- **Cluster access — available to all Langfuse engineers** (only needed to
+  debug with `kubectl`, not to *use* a preview). Set up local access using the
+  `~/.aws/config` profile block from the internal Langfuse doc:
   https://linear.app/langfuse/document/connect-to-aws-instances-aurora-redis-from-local-machine-896fe46ff797
   1. Open `~/.aws/config` and add the `[sso-session langfuse]` + `[profile preview]`
      blocks from that doc (keep any `[sso-session langfuse]` you already have).
   2. `aws sso login --profile preview`
-  3. `aws eks update-kubeconfig --name <cluster> --region <region> --profile preview`
-     (name + region are in the doc; no `--role-arn` — the role has its own EKS
-     access entry).
+  3. `aws eks update-kubeconfig --name langfuse-preview --region eu-west-1 --profile preview`
+     (no `--role-arn` — the role has its own EKS access entry).
 
 ---
 

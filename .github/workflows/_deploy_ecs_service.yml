@@ -33,13 +33,13 @@ jobs:
           msg: ${{ inputs.service }}
           separator: "-"
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Authenticate with AWS
         # GitHub/AWS recommend to use OIDC here: https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#oidc
         # Probably more painful to configure, but would remove all long-lived credentials.
-        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -88,15 +88,50 @@ jobs:
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
       - name: Render AWS ECS Task Definition
         id: render-task-definition
-        uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1.8.5
+        uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1.9.0
         with:
           container-name: ${{ inputs.service }}
           image: ${{ steps.login-ecr.outputs.registry }}/${{ steps.split.outputs._0 }}:${{ github.sha }}
           task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
       - name: Update AWS ECS Service
-        uses: aws-actions/amazon-ecs-deploy-task-definition@a310a830f5c14e583e35d84e4e1ec7dd177c3c9c # v2.6.2
+        uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
         with:
           task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
           service: ${{ inputs.environment }}-${{ inputs.service }}
           cluster: ${{ inputs.environment }}-cluster
           wait-for-service-stability: true
+      # Register a Sentry release for this build and record the deploy, so Sentry
+      # can attribute regressions to a release ("first seen in <release>"), show
+      # deploy markers, resolve-in-release, and reopen issues that recur later.
+      # This job runs once per environment, so the release lands in that region's
+      # Sentry org + project via the environment-scoped vars/secret below. The web
+      # client already tags events with this exact identifier
+      # (Sentry.init({ release: process.env.NEXT_PUBLIC_BUILD_ID }), baked to
+      # github.sha in the Docker build above), so the release now gains metadata.
+      # We deliberately do NOT upload source maps here: they are served publicly
+      # in production (PR #15277), so `sourcemaps` is omitted. Best-effort — never
+      # block a deploy on a Sentry hiccup or a missing/mis-scoped token (e.g. the
+      # separate EU org needs its own token).
+      - name: Register Sentry release
+        if: ${{ inputs.service == 'web' && vars.SENTRY_ORG != '' }}
+        continue-on-error: true
+        uses: getsentry/action-release@ff07929a6537bac57790c3451cf4d364aca38528 # v3.7.0
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        with:
+          release: ${{ github.sha }}
+          # Match the environment tag on REAL browser events — the web client
+          # inits Sentry with `environment: NEXT_PUBLIC_SENTRY_ENVIRONMENT`
+          # (baked from this same var in the Docker build above), which may be a
+          # coarse value like "production" rather than the raw deploy-environment
+          # name (prod-eu/…). Using `inputs.environment` here would land the
+          # deploy marker under an environment with no matching events. Empty
+          # (unset) → action-release omits the deploy marker; the release is
+          # still created and finalized.
+          environment: ${{ vars.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
+          # Suspect commits need the Sentry↔GitHub integration; keep deploys
+          # reliable and enable "auto" once that is confirmed.
+          set_commits: skip
+          finalize: true

@@ -570,7 +570,15 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       return predecessor;
     }
 
-    const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
+    const tables = await clickhouseClient().query({
+      query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          surface: "worker",
+          route: "background-migration.backfillEventsFullFromDatasetRunItems",
+        }),
+      },
+    });
     const tableNames = (await tables.json()).data as { name: string }[];
 
     const requiredTables = [

@@ -81,6 +81,51 @@ describe("traces trpc", () => {
   });
 
   describe("traces.all", () => {
+    it("rejects a search query without any search types", async () => {
+      await expect(
+        caller.traces.all({
+          projectId,
+          filter: null,
+          searchQuery: "trace-id",
+          searchType: [],
+          page: 0,
+          limit: 50,
+          orderBy: {
+            column: "timestamp",
+            order: "DESC",
+          },
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects a legacy observation search without any search types", async () => {
+      await expect(
+        caller.generations.all({
+          projectId,
+          filter: [],
+          searchQuery: "observation-id",
+          searchType: [],
+          page: 0,
+          limit: 50,
+          orderBy: null,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects a v4 event search without any search types", async () => {
+      await expect(
+        caller.events.all({
+          projectId,
+          filter: [],
+          searchQuery: "event-id",
+          searchType: [],
+          page: 0,
+          limit: 50,
+          orderBy: null,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("ignores legacy full-text-only search when legacy IO search is disabled", async () => {
       mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH = "true";
       const tag = `legacy-io-search-disabled-${randomUUID()}`;

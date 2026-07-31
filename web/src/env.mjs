@@ -91,6 +91,7 @@ export const env = createEnv({
       )
       .optional(),
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.url().optional(),
+    LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK: z.url().optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
@@ -372,6 +373,18 @@ export const env = createEnv({
     LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
 
+    // S3 batch export bucket; must match the worker's config so the exports
+    // page can mint fresh short-lived download URLs for stored export files
+    LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_REGION: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("false"),
+
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
       .string()
       .optional()
@@ -450,10 +463,11 @@ export const env = createEnv({
     LANGFUSE_API_TRACES_DEFAULT_FIELDS: z.string().optional(),
     LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS: z.string().optional(),
 
-    // V4 preview opt-in. See LFE-9778.
+    // V4 preview opt-in. See LFE-9778. Defaults on for the v4 target state so
+    // the events read paths are available out of the box (v3 shipped "false").
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
       .enum(["true", "false"])
-      .default("false"),
+      .default("true"),
 
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH: z
@@ -463,9 +477,23 @@ export const env = createEnv({
     // public API routes that rely on the legacy traces/observations tables.
     // The worker owns the writes; the web only needs to know whether legacy
     // tables are still being populated to decide whether to serve reads.
+    // Defaults to `events_only` for the v4 target state (v3 shipped `legacy`);
+    // keep this value in sync with worker/src/env.ts and packages/shared/src/env.ts.
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
-      .default("legacy"),
+      .default("events_only"),
+
+    // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
+    // so the background-migrations status endpoint can tell dormant, env-gated
+    // rows apart from migrations the worker will actually pick up. The worker
+    // owns execution; the web only reads these to decide whether the sidebar
+    // migration indicator should light up.
+    LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL: z
+      .enum(["true", "false"])
+      .default("true"),
+    LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES: z
+      .enum(["true", "false"])
+      .default("false"),
 
     // Temporary kill-switch for the observations v2 subquery-IN rewrite.
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
@@ -508,6 +536,8 @@ export const env = createEnv({
     LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
       .string()
       .optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
+      z.string().optional(),
     LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
       .string()
       .optional(),
@@ -532,6 +562,11 @@ export const env = createEnv({
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
+    // PR preview deployments only (.github/workflows/preview-build.yml):
+    // identify the environment with a top-of-page strip linking back to the PR.
+    NEXT_PUBLIC_PREVIEW_PR_URL: z.url().optional(),
+    NEXT_PUBLIC_PREVIEW_PR_AUTHOR: z.string().optional(),
+    NEXT_PUBLIC_PREVIEW_LAST_UPDATED: z.iso.datetime().optional(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
     NEXT_PUBLIC_PLAIN_APP_ID: z.string().optional(),
@@ -567,6 +602,10 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF:
       process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
+    NEXT_PUBLIC_PREVIEW_PR_URL: process.env.NEXT_PUBLIC_PREVIEW_PR_URL,
+    NEXT_PUBLIC_PREVIEW_PR_AUTHOR: process.env.NEXT_PUBLIC_PREVIEW_PR_AUTHOR,
+    NEXT_PUBLIC_PREVIEW_LAST_UPDATED:
+      process.env.NEXT_PUBLIC_PREVIEW_LAST_UPDATED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
@@ -577,12 +616,19 @@ export const env = createEnv({
     LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER:
       process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER,
     LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER,
+      process.env
+        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER,
     LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN,
+      process.env
+        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN,
+    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
+      process.env
+        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN,
     LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION:
       process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
+    LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK:
+      process.env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: process.env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,
@@ -810,6 +856,21 @@ export const env = createEnv({
     LANGFUSE_S3_MEDIA_UPLOAD_SSE: process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
     LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
+    // S3 batch export
+    LANGFUSE_S3_BATCH_EXPORT_BUCKET:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_BUCKET,
+    LANGFUSE_S3_BATCH_EXPORT_REGION:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_REGION,
+    LANGFUSE_S3_BATCH_EXPORT_ENDPOINT:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+    LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT,
+    LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+    LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+    LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE,
     // Worker
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
@@ -918,6 +979,10 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
+      process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
+    LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:
+      process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES,
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,

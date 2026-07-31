@@ -5,7 +5,11 @@ import { BatchExport } from "@prisma/client";
 import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
 import { BatchTableNames } from "../../interfaces/tableNames";
-import { TracingSearchType } from "../../interfaces/search";
+import {
+  hasValidTracingSearchTypes,
+  TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
+  TracingSearchType,
+} from "../../interfaces/search";
 
 export enum BatchExportStatus {
   QUEUED = "QUEUED",
@@ -65,6 +69,14 @@ export const BatchExportQuerySchema = z
   // BatchExportQueryType is shared with the batch-action read stream (which
   // handles every table), so a narrowed type breaks the worker typecheck.
   .superRefine((query, ctx) => {
+    if (!hasValidTracingSearchTypes(query)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["searchType"],
+        message: TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
+      });
+    }
+
     if (query.tableName === BatchTableNames.Datasets) {
       ctx.addIssue({
         code: "custom",

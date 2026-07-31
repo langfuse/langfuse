@@ -101,6 +101,43 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     });
   });
 
+  it("creates and persists a boolean score widget", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+
+    const response = await makeZodVerifiedAPICall(
+      PostUnstableDashboardWidgetResponse,
+      "POST",
+      "/api/public/unstable/dashboard-widgets",
+      {
+        ...baseWidgetBody,
+        name: "Boolean score widget",
+        view: "scores-boolean",
+        dimensions: [{ field: "booleanValue" }],
+        metrics: [{ measure: "value", agg: "avg" }],
+        filters: [
+          {
+            column: "booleanValue",
+            type: "boolean",
+            operator: "=",
+            value: true,
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.body).toMatchObject({
+      view: "scores-boolean",
+      dimensions: [{ field: "booleanValue" }],
+      metrics: [{ measure: "value", agg: "avg" }],
+    });
+    await expect(
+      prisma.dashboardWidget.findUniqueOrThrow({
+        where: { id: response.body.id, projectId },
+      }),
+    ).resolves.toMatchObject({ view: DashboardWidgetViews.SCORES_BOOLEAN });
+  });
+
   it("rejects traces widgets", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 

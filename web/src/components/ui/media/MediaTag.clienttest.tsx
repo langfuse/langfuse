@@ -78,4 +78,34 @@ describe("MediaTag", () => {
 
     expect(await screen.findByText("Failed to load media")).toBeInTheDocument();
   });
+
+  it("renders an attachment with an explicit open action", () => {
+    render(
+      <MediaTag
+        contentType="text/plain"
+        status="ready"
+        url="https://example.com/oversized.txt"
+        label="Full value attached"
+        description="This field was too large to process inline, so Langfuse saved the complete original value as an attachment at ingestion."
+        openActionLabel="Open original"
+        intent="attachment"
+        open
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Full value attached media" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This field was too large to process inline, so Langfuse saved the complete original value as an attachment at ingestion.",
+      ),
+    ).toBeInTheDocument();
+    const openOriginal = screen.getByRole("link", { name: "Open original" });
+    expect(openOriginal).toHaveAttribute(
+      "href",
+      "https://example.com/oversized.txt",
+    );
+    expect(openOriginal).toHaveClass("gap-1.5");
+  });
 });

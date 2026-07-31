@@ -37,6 +37,27 @@
  */
 export const JSON_VIEW_RENDER_CHAR_LIMIT = 2_000_000;
 
+/**
+ * Row threshold at/above which a field in the JSON Beta view renders through the
+ * lazy byte-engine viewer (AdvancedJsonViewer/lazy) instead of the eager tree.
+ * Measured in fully-expanded rows (`countJsonRows`), NOT chars — a char limit is
+ * the wrong metric: a 20 MB single string (e.g. a base64 data-URI) is one node
+ * and renders instantly, while 20 MB of nested JSON is ~1M nodes.
+ *
+ * This equals the viewer's virtualization threshold on purpose: any field big
+ * enough to need windowing goes to the lazy viewer, whose cost is bounded to
+ * what's expanded/visible. There is NO safe "eager but virtualized" middle band.
+ * The old eager virtualized path (`buildMultiSectionTree` materializes every
+ * node, then React renders the whole node set synchronously on mount) froze the
+ * tab for minutes at only tens of thousands of nodes — e.g. a 44k-row
+ * big-number payload pegged the main thread ~4 min in dev (LFE-10847). So above
+ * this threshold we ALWAYS render lazily; below it a field is small enough to
+ * render eagerly inline. The raw download stays available as a secondary hatch.
+ *
+ * Keep in sync with `VIRTUALIZATION_THRESHOLD` in IOPreviewJSON (imported there).
+ */
+export const JSON_VIEW_RENDER_ROW_LIMIT = 3_333;
+
 export interface JsonFieldProbe {
   /** Serialized length in UTF-16 chars; drives the gating decision. */
   size: number;

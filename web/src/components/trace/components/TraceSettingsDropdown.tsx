@@ -262,7 +262,7 @@ export function TraceViewOptionsMenuItems({
           </span>
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
-          <DropdownMenuLabel className="font-semibold">
+          <DropdownMenuLabel className="font-bold">
             Minimum Level
           </DropdownMenuLabel>
           {Object.values(ObservationLevel).map((level) => (

@@ -47,14 +47,12 @@ import {
   type ColumnDefinition,
   filterOperators,
   singleFilter,
-} from "@langfuse/shared";
-import { NonEmptyString } from "@langfuse/shared";
-import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
+  NonEmptyString,
   formatSessionPositionInTraceFilterValue,
   getSessionPositionInTraceFilterMode,
-} from "@/src/components/session/session-position-in-trace";
+} from "@langfuse/shared";
+import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -548,7 +546,10 @@ function FilterBuilderForm({
           setAiPrompt("");
           setShowAiFilter(false);
         } else {
-          console.error(result);
+          console.error(
+            "filterBuilder.aiGenerate: invalid response format",
+            JSON.stringify(result),
+          );
           setAiError("Invalid response format from API");
         }
       } catch (error) {

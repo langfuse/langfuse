@@ -4,26 +4,31 @@ import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
+import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_MCP_USER_AGENT,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
-} from "@/src/ee/features/in-app-agent/constants";
-import { patchMastraToolCallInputStreaming } from "@/src/ee/features/in-app-agent/server/agent";
+} from "@langfuse/shared/in-app-agent";
+import {
+  patchMastraApprovalChunks,
+  type createAgUiStream,
+} from "@langfuse/shared/in-app-agent/server/agent";
 import {
   createInAppAgentSandbox,
   type SandboxProvider,
   type SandboxSession,
-} from "@/src/ee/features/in-app-agent/server/sandbox";
-import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@/src/ee/features/in-app-agent/server/tools";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
-import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+} from "@langfuse/shared/in-app-agent/server/sandbox";
+import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@langfuse/shared/in-app-agent/server/tools";
+import {
+  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
+  decodeFiltersGeneric,
+} from "@langfuse/shared";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
-import type { MastraAgent } from "@ag-ui/mastra";
 import type { Langfuse } from "langfuse";
-import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
+import type { InAppAgentTracingConfig } from "@langfuse/shared/in-app-agent/server/instrumentation";
 
 // Shape of the tool entries the mocked MCP client feeds into the Agent
 // constructor. `Agent`'s own `tools` type is a `DynamicArgument` union that
@@ -172,7 +177,7 @@ vi.mock("@ag-ui/mastra", () => ({
   }),
 }));
 
-vi.mock("@ai-sdk/amazon-bedrock", () => ({
+vi.mock("ai-sdk-amazon-bedrock-v4", () => ({
   createAmazonBedrock: vi.fn(() => vi.fn(() => ({}))),
 }));
 
@@ -256,7 +261,7 @@ vi.mock("@mastra/mcp", () => ({
   }),
 }));
 
-vi.mock("@/src/ee/features/in-app-agent/server/instrumentation", () => ({
+vi.mock("@langfuse/shared/in-app-agent/server/instrumentation", () => ({
   createInAppAgentInstrumentation:
     instrumentationMocks.createInAppAgentInstrumentation,
 }));
@@ -275,305 +280,26 @@ const createPatchedChunkProcessor = () => {
     })),
   };
 
-  patchMastraToolCallInputStreaming(adapter as unknown as MastraAgent);
+  // Derive the parameter type from the function instead of naming
+  // MastraAgent: web and shared can resolve @ag-ui/mastra to different pnpm
+  // peer instances, which tsc treats as non-identical types.
+  patchMastraApprovalChunks(
+    adapter as unknown as Parameters<typeof patchMastraApprovalChunks>[0],
+  );
 
   const processor = adapter.createChunkProcessor({ onError });
 
   return { forwardedChunks, onError, processor, flush };
 };
 
-describe("patchMastraToolCallInputStreaming", () => {
-  it("converts streamed tool-call input chunks to one native tool-call", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "tool-call-input-streaming-start",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "langfuseDocs_search",
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-delta",
-      payload: {
-        toolCallId: "tool-call-1",
-        argsTextDelta: '{"query":"invite',
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-delta",
-      payload: {
-        toolCallId: "tool-call-1",
-        argsTextDelta: ' users"}',
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-input-streaming-end",
-      payload: { toolCallId: "tool-call-1" },
-    });
-
-    expect(onError).not.toHaveBeenCalled();
-    expect(forwardedChunks).toEqual([
-      {
-        type: "tool-call",
-        payload: {
-          toolCallId: "tool-call-1",
-          toolName: "langfuseDocs_search",
-          args: { query: "invite users" },
-        },
-      },
-    ]);
-  });
-
-  it("uses empty args when streamed tool-call input is malformed JSON", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "tool-call-input-streaming-start",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "langfuseDocs_search",
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-delta",
-      payload: {
-        toolCallId: "tool-call-1",
-        argsTextDelta: '{"query":"invite users"',
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-input-streaming-end",
-      payload: { toolCallId: "tool-call-1" },
-    });
-
-    expect(onError).not.toHaveBeenCalled();
-    expect(forwardedChunks).toEqual([
-      {
-        type: "tool-call",
-        payload: {
-          toolCallId: "tool-call-1",
-          toolName: "langfuseDocs_search",
-          args: {},
-        },
-      },
-    ]);
-  });
-
-  it("suppresses one duplicate native tool-call after synthesizing it", () => {
-    const { forwardedChunks, processor } = createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "tool-call-input-streaming-start",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "langfuseDocs_search",
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-delta",
-      payload: {
-        toolCallId: "tool-call-1",
-        argsTextDelta: '{"query":"invite users"}',
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-input-streaming-end",
-      payload: { toolCallId: "tool-call-1" },
-    });
-    processor.handleChunk({
-      type: "tool-call",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "langfuseDocs_search",
-        args: { query: "invite users" },
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call",
-      payload: {
-        toolCallId: "tool-call-2",
-        toolName: "langfuse_search",
-        args: { traceId: "trace-1" },
-      },
-    });
-
-    expect(forwardedChunks).toEqual([
-      {
-        type: "tool-call",
-        payload: {
-          toolCallId: "tool-call-1",
-          toolName: "langfuseDocs_search",
-          args: { query: "invite users" },
-        },
-      },
-      {
-        type: "tool-call",
-        payload: {
-          toolCallId: "tool-call-2",
-          toolName: "langfuse_search",
-          args: { traceId: "trace-1" },
-        },
-      },
-    ]);
-  });
-
-  it("passes non-tool streaming chunks through unchanged", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "step-start",
-      payload: {},
-    });
-    processor.handleChunk({
-      type: "text-start",
-      payload: { textMessageId: "assistant-1" },
-    });
-    processor.handleChunk({
-      type: "text-delta",
-      payload: {
-        textMessageId: "assistant-1",
-        textDelta: "Investigating...",
-      },
-    });
-    processor.handleChunk({
-      type: "tool-result",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "langfuseDocs_search",
-        result: { ok: true },
-      },
-    });
-    processor.handleChunk({
-      type: "step-finish",
-      payload: {},
-    });
-
-    expect(onError).not.toHaveBeenCalled();
-    expect(forwardedChunks).toEqual([
-      {
-        type: "step-start",
-        payload: {},
-      },
-      {
-        type: "text-start",
-        payload: { textMessageId: "assistant-1" },
-      },
-      {
-        type: "text-delta",
-        payload: {
-          textMessageId: "assistant-1",
-          textDelta: "Investigating...",
-        },
-      },
-      {
-        type: "tool-result",
-        payload: {
-          toolCallId: "tool-call-1",
-          toolName: "langfuseDocs_search",
-          result: { ok: true },
-        },
-      },
-      {
-        type: "step-finish",
-        payload: {},
-      },
-    ]);
-  });
-
-  it("passes through native tool-calls that were not synthesized", () => {
-    const { forwardedChunks, processor } = createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "tool-call",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "langfuse_search",
-        args: { query: "errors" },
-      },
-    });
-
-    expect(forwardedChunks).toEqual([
-      {
-        type: "tool-call",
-        payload: {
-          toolCallId: "tool-call-1",
-          toolName: "langfuse_search",
-          args: { query: "errors" },
-        },
-      },
-    ]);
-  });
-
-  it("keeps suppressing the duplicate native tool-call after a tool-result arrives", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "tool-call-input-streaming-start",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "bash",
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-delta",
-      payload: {
-        toolCallId: "tool-call-1",
-        argsTextDelta: '{"command":"date"}',
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-input-streaming-end",
-      payload: { toolCallId: "tool-call-1" },
-    });
-    processor.handleChunk({
-      type: "tool-result",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "bash",
-        result: "Wed Jul 08 2026",
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "bash",
-        args: { command: "date" },
-      },
-    });
-
-    expect(onError).not.toHaveBeenCalled();
-    expect(forwardedChunks).toEqual([
-      {
-        type: "tool-call",
-        payload: {
-          toolCallId: "tool-call-1",
-          toolName: "bash",
-          args: { command: "date" },
-        },
-      },
-      {
-        type: "tool-result",
-        payload: {
-          toolCallId: "tool-call-1",
-          toolName: "bash",
-          result: "Wed Jul 08 2026",
-        },
-      },
-    ]);
-  });
-
+describe("patchMastraApprovalChunks", () => {
   it("converts tool-call approval chunks to suspended tool calls", () => {
     const { forwardedChunks, onError, processor } =
       createPatchedChunkProcessor();
 
     processor.handleChunk({
       type: "tool-call-approval",
+      runId: "run-1",
       payload: {
         toolCallId: "tool-call-1",
         toolName: "langfuse_createScoreConfig",
@@ -591,6 +317,7 @@ describe("patchMastraToolCallInputStreaming", () => {
     expect(forwardedChunks).toEqual([
       {
         type: "tool-call-suspended",
+        runId: "run-1",
         payload: {
           toolCallId: "tool-call-1",
           toolName: "langfuse_createScoreConfig",
@@ -617,61 +344,6 @@ describe("patchMastraToolCallInputStreaming", () => {
     ]);
   });
 
-  it("drops streamed tool-call args when the tool call becomes an approval", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "tool-call-input-streaming-start",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "langfuse_createScoreConfig",
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-delta",
-      payload: {
-        toolCallId: "tool-call-1",
-        argsTextDelta:
-          '{"name":"readiness","dataType":"NUMERIC","numericMinValue":0,"numericMaxValue":1}',
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-approval",
-      payload: {
-        toolCallId: "tool-call-1",
-        toolName: "langfuse_createScoreConfig",
-        args: {
-          name: "readiness",
-          dataType: "NUMERIC",
-          numericMinValue: 0,
-          numericMaxValue: 1,
-        },
-      },
-    });
-    processor.handleChunk({
-      type: "tool-call-input-streaming-end",
-      payload: { toolCallId: "tool-call-1" },
-    });
-
-    expect(onError).not.toHaveBeenCalled();
-    expect(forwardedChunks).toEqual([
-      {
-        type: "tool-call-suspended",
-        payload: expect.objectContaining({
-          toolCallId: "tool-call-1",
-          toolName: "langfuse_createScoreConfig",
-          args: {
-            name: "readiness",
-            dataType: "NUMERIC",
-            numericMinValue: 0,
-            numericMaxValue: 1,
-          },
-        }),
-      },
-    ]);
-  });
-
   it("reports malformed tool-call approvals", () => {
     const { forwardedChunks, onError, processor } =
       createPatchedChunkProcessor();
@@ -693,123 +365,6 @@ describe("patchMastraToolCallInputStreaming", () => {
     expect(forwardedChunks).toEqual([]);
   });
 
-  it("reports malformed tool-call deltas with no known tool name", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    const shouldStop = processor.handleChunk({
-      type: "tool-call-delta",
-      payload: {
-        toolCallId: "tool-call-1",
-        argsTextDelta: '{"query":"invite users"}',
-      },
-    });
-
-    expect(shouldStop).toBe(true);
-    expect(onError).toHaveBeenCalledWith(
-      new Error(
-        "Malformed tool-call-delta: missing toolName for unknown toolCallId in payload",
-      ),
-    );
-    expect(forwardedChunks).toEqual([]);
-  });
-
-  it("passes through text streaming chunks", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "text-start",
-      payload: { textMessageId: "message-1" },
-    });
-    processor.handleChunk({
-      type: "text-delta",
-      payload: { textMessageId: "message-1", textDelta: "hello" },
-    });
-    processor.handleChunk({
-      type: "text-end",
-      payload: { textMessageId: "message-1" },
-    });
-
-    expect(onError).not.toHaveBeenCalled();
-    expect(forwardedChunks).toEqual([
-      {
-        type: "text-start",
-        payload: { textMessageId: "message-1" },
-      },
-      {
-        type: "text-delta",
-        payload: { textMessageId: "message-1", textDelta: "hello" },
-      },
-      {
-        type: "text-end",
-        payload: { textMessageId: "message-1" },
-      },
-    ]);
-  });
-
-  it("passes lifecycle chunks through unchanged", () => {
-    const { forwardedChunks, onError, processor } =
-      createPatchedChunkProcessor();
-
-    processor.handleChunk({
-      type: "start",
-      runId: "run-1",
-      from: "AGENT",
-      payload: { id: "langfuse-in-app-assistant", messageId: "message-1" },
-    });
-    processor.handleChunk({
-      type: "step-start",
-      runId: "run-1",
-      from: "AGENT",
-      payload: { request: {}, warnings: [], messageId: "message-1" },
-    });
-    processor.handleChunk({
-      type: "step-finish",
-      runId: "run-1",
-      from: "AGENT",
-      payload: {
-        messageId: "message-1",
-        stepResult: { reason: "tool-calls", isContinued: true },
-      },
-    });
-
-    expect(onError).not.toHaveBeenCalled();
-    expect(forwardedChunks).toEqual([
-      {
-        type: "start",
-        from: "AGENT",
-        runId: "run-1",
-        payload: {
-          id: "langfuse-in-app-assistant",
-          messageId: "message-1",
-        },
-      },
-      {
-        type: "step-start",
-        from: "AGENT",
-        runId: "run-1",
-        payload: {
-          messageId: "message-1",
-          request: {},
-          warnings: [],
-        },
-      },
-      {
-        type: "step-finish",
-        from: "AGENT",
-        runId: "run-1",
-        payload: {
-          messageId: "message-1",
-          stepResult: {
-            isContinued: true,
-            reason: "tool-calls",
-          },
-        },
-      },
-    ]);
-  });
-
   it("converts tool-error chunks to tool-result error chunks", () => {
     const { forwardedChunks, onError, processor } =
       createPatchedChunkProcessor();
@@ -817,7 +372,6 @@ describe("patchMastraToolCallInputStreaming", () => {
     processor.handleChunk({
       type: "tool-error",
       runId: "run-1",
-      from: "AGENT",
       payload: {
         toolCallId: "tool-call-1",
         toolName: "bash",
@@ -832,41 +386,30 @@ describe("patchMastraToolCallInputStreaming", () => {
     expect(forwardedChunks).toEqual([
       {
         type: "tool-result",
+        runId: "run-1",
         payload: {
           toolCallId: "tool-call-1",
           toolName: "bash",
           args: { command: "date" },
           isError: true,
-          result: JSON.stringify(
-            {
-              error: "Error: Region is missing",
-            },
-            null,
-            2,
-          ),
+          result: { error: "Error: Region is missing" },
         },
       },
     ]);
   });
 
-  it("reports malformed tool-error chunks", () => {
+  it("passes other chunks through unchanged", () => {
     const { forwardedChunks, onError, processor } =
       createPatchedChunkProcessor();
+    const streamingChunk = {
+      type: "tool-call-delta",
+      payload: { toolCallId: "tool-call-1", argsTextDelta: '{"query":' },
+    };
 
-    const shouldStop = processor.handleChunk({
-      type: "tool-error",
-      payload: {
-        error: { message: "boom" },
-      },
-    });
+    processor.handleChunk(streamingChunk);
 
-    expect(shouldStop).toBe(true);
-    expect(onError).toHaveBeenCalledWith(
-      new Error(
-        "Malformed tool-error: missing toolCallId or toolName in payload",
-      ),
-    );
-    expect(forwardedChunks).toEqual([]);
+    expect(onError).not.toHaveBeenCalled();
+    expect(forwardedChunks).toEqual([streamingChunk]);
   });
 });
 
@@ -899,7 +442,7 @@ describe("createAgUiStream", () => {
 
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1252,7 +795,7 @@ describe("createAgUiStream", () => {
 
   it("does not enable Bedrock reasoning for non-Claude models", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1324,7 +867,7 @@ describe("createAgUiStream", () => {
 
   it("executes approved tools manually and continues with tool result history", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(true);
     adapterEvents.inputs = [];
     adapterEvents.items = [
@@ -1414,7 +957,15 @@ describe("createAgUiStream", () => {
           requestInit: {
             headers: expect.objectContaining({
               Authorization: expect.stringContaining("Basic "),
+              "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
               [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]: "run-override",
+            }),
+          },
+        },
+        langfuseDocs: {
+          requestInit: {
+            headers: expect.objectContaining({
+              "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
             }),
           },
         },
@@ -1425,13 +976,24 @@ describe("createAgUiStream", () => {
       servers: {
         langfuse: {
           requestInit: {
-            headers: expect.not.objectContaining({
-              [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]: expect.anything(),
+            headers: expect.objectContaining({
+              "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
+            }),
+          },
+        },
+        langfuseDocs: {
+          requestInit: {
+            headers: expect.objectContaining({
+              "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
             }),
           },
         },
       },
     });
+    expect(
+      vi.mocked(MCPClient).mock.calls[1]?.[0].servers.langfuse.requestInit
+        ?.headers,
+    ).not.toHaveProperty(IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER);
     expect(persistedEvents).toEqual([
       {
         type: EventType.RUN_STARTED,
@@ -1499,7 +1061,7 @@ describe("createAgUiStream", () => {
 
   it("continues approved tools with a tool error result when execution fails", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(true);
     const validationErrorMessage =
       "MCP error -32602: Validation failed: categories: Category must be an array of objects with label value pairs, where labels and values are unique.";
@@ -1634,7 +1196,7 @@ describe("createAgUiStream", () => {
 
   it("escapes screen context delimiters before compiling prompt instructions", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1708,7 +1270,7 @@ describe("createAgUiStream", () => {
 
   it("continues after rejected tools and asks the user how to proceed", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(false);
     const rejectionError = JSON.stringify({
       code: IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
@@ -1875,7 +1437,7 @@ describe("createAgUiStream", () => {
 
   it("uses V4-compatible filters for traces redirect actions", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1955,7 +1517,7 @@ describe("createAgUiStream", () => {
 
   it("lets HttpAgent subscribers observe streamed run errors", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -2011,7 +1573,7 @@ describe("createAgUiStream", () => {
       },
     });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(serverStream, {
+      new Response(serverStream as unknown as BodyInit, {
         status: 200,
         headers: { "Content-Type": "text/event-stream" },
       }),
@@ -2045,7 +1607,7 @@ describe("createAgUiStream", () => {
 
   it("does not expose sandbox tools when sandboxing is disabled", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -2114,7 +1676,9 @@ describe("createAgUiStream", () => {
 });
 
 async function readStream(
-  stream: ReadableStream<Uint8Array>,
+  // Shared compiles without the DOM lib, so createAgUiStream's declared
+  // return type is Node's stream/web ReadableStream, not the DOM one.
+  stream: Awaited<ReturnType<typeof createAgUiStream>>,
   onEvent?: (event: AgUiEvent) => void,
 ) {
   const reader = stream.getReader();

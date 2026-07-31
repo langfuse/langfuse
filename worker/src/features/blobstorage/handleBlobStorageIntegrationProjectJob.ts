@@ -72,7 +72,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
-import { assertLegacyExportSourceWritable } from "../exportWriteModeGuard";
+import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import {
   buildBlobExportManifest,
@@ -1279,9 +1279,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    // Symmetric legacy-side guard (LFE-10148); the catch persists lastError
-    // and notifies admins.
-    assertLegacyExportSourceWritable(
+    // Write-mode guard, both directions (LFE-10148, LFE-11009); the catch
+    // persists lastError and notifies admins.
+    assertExportSourceWritable(
       blobStorageIntegration.exportSource,
       "Select the enriched export source (OBSERVATIONS_V2) in the blob storage integration settings.",
     );

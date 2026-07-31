@@ -9,8 +9,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { UserCircle2Icon } from "lucide-react";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -18,12 +20,14 @@ import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
-import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -34,7 +38,7 @@ const PeekViewEvaluatorConfigDetail = ({
   const peekId = router.query.peek as string | undefined;
   const [isEditMode, setIsEditMode] = useState(false);
   const utils = api.useUtils();
-
+  const { allowLegacy } = useEvalCapabilities(projectId);
   const { data: evalConfig } = usePeekEvalConfigData({
     jobConfigurationId: peekId,
     projectId,
@@ -44,6 +48,7 @@ const PeekViewEvaluatorConfigDetail = ({
     evaluatorId: evalConfig?.id,
     evaluator: evalConfig,
   });
+  const canUseAgent = useCanUseInAppAgent();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
@@ -54,26 +59,34 @@ const PeekViewEvaluatorConfigDetail = ({
   const displayStatus =
     lazyExecutionCounts.displayStatus ?? evalConfig.displayStatus;
 
+  const evaluatorRequiresMigration = requiresLegacyMigrationAction({
+    targetObject: evalConfig.targetObject,
+    status: evalConfig.status,
+    timeScope: Array.isArray(evalConfig.timeScope) ? evalConfig.timeScope : [],
+  });
+
   return (
     <div className="grid h-full flex-1 grid-rows-[auto_auto_1fr] gap-2 overflow-hidden p-3 contain-layout">
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
-          <span className="max-h-fit text-lg font-medium">Configuration</span>
+          <span className="max-h-fit text-lg font-bold">Configuration</span>
           <div className="flex items-center gap-2">
-            <StatusBadge
-              type={displayStatus.toLowerCase()}
-              isLive
-              className="max-h-8"
+            <StatusBadge type={displayStatus.toLowerCase()} isLive />
+            <DeactivateEvalConfig
+              projectId={projectId}
+              evalConfig={evalConfig}
+              // Status changes remount the form below; drop edit mode so
+              // in-progress form state cannot fight the new status.
+              onStatusChange={() => setIsEditMode(false)}
             />
-            {isLegacyEvalTarget(evalConfig.targetObject) && (
-              <DeactivateEvalConfig
-                projectId={projectId}
-                evalConfig={evalConfig}
-              />
-            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {evaluatorRequiresMigration && (
+            <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+              Deprecated
+            </span>
+          )}
           <span
             className={cn("text-sm", isEditMode ? "" : "text-muted-foreground")}
           >
@@ -82,31 +95,40 @@ const PeekViewEvaluatorConfigDetail = ({
           <Switch
             disabled={
               !hasAccess ||
-              (isLegacyEvalTarget(evalConfig.targetObject) &&
-                evalConfig?.timeScope?.length === 1 &&
-                evalConfig.timeScope[0] === "EXISTING")
+              (isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy)
             }
             checked={isEditMode}
             onCheckedChange={setIsEditMode}
+            title={
+              isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy
+                ? "Deprecated evaluators are only available in read-only mode"
+                : undefined
+            }
+          />
+          <DeleteEvalConfigButton
+            aria-label="delete"
+            itemId={evalConfig.id}
+            projectId={projectId}
+            deleteConfirmation={evalConfig.scoreName}
+            // The peek only exists on the evals list page; redirecting there
+            // drops the peek query params and closes it after deletion.
+            redirectUrl={`/project/${projectId}/evals`}
+            icon
+            variant="ghost"
+            size="icon-xs"
+            title="Delete"
           />
         </div>
       </div>
 
-      {evalConfig &&
-        evalConfig.targetObject &&
-        evalConfig.evalTemplate &&
-        displayStatus === "ACTIVE" && (
-          <LegacyEvalCallout
-            projectId={projectId}
-            evalConfigId={evalConfig.id}
-            targetObject={evalConfig.targetObject}
-          />
-        )}
+      {evaluatorRequiresMigration && evalConfig.evalTemplate && canUseAgent && (
+        <V4MigrationUpdateRequiredBadge />
+      )}
 
       <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />
 
       <CardDescription className="flex items-center text-sm">
-        <span className="mr-2 text-sm font-medium">Referenced Evaluator</span>
+        <span className="mr-2 text-sm font-bold">Referenced Evaluator</span>
         {evalConfig.evalTemplate && (
           <TableLink
             path={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}

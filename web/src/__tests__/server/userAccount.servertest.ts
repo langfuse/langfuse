@@ -18,38 +18,65 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it("enables the search bar preview, leaving other flags intact", async () => {
+  it("enables the Modern Session preview, leaving other flags intact", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag"],
     });
 
     const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "searchBar",
+      flag: "modernSession",
       enabled: true,
     });
 
-    expect(result).toEqual({ success: true, flag: "searchBar", enabled: true });
+    expect(result).toEqual({
+      success: true,
+      flag: "modernSession",
+      enabled: true,
+    });
 
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: { featureFlags: true },
     });
-    expect(user.featureFlags).toEqual(["templateFlag", "searchBar"]);
+    expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
+  });
+
+  it("enables the V4 migration UI preview, leaving other flags intact", async () => {
+    const { caller, userId } = await createCaller({
+      featureFlags: ["templateFlag"],
+    });
+
+    const result = await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "v4UpgradeUi",
+      enabled: true,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      flag: "v4UpgradeUi",
+      enabled: true,
+    });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { featureFlags: true },
+    });
+    expect(user.featureFlags).toEqual(["templateFlag", "v4UpgradeUi"]);
   });
 
   it("disables a preview flag without touching the others", async () => {
     const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag", "searchBar"],
+      featureFlags: ["templateFlag", "modernSession"],
     });
 
     const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "searchBar",
+      flag: "modernSession",
       enabled: false,
     });
 
     expect(result).toEqual({
       success: true,
-      flag: "searchBar",
+      flag: "modernSession",
       enabled: false,
     });
 
@@ -66,7 +93,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 
     await expect(
       caller.userAccount.setFeaturePreviewEnabled({
-        flag: "searchBar",
+        flag: "modernSession",
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
@@ -146,8 +173,10 @@ async function createCaller({
         },
       ],
       featureFlags: {
+        modernSession: featureFlags.includes("modernSession"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
+        v4UpgradeUi: featureFlags.includes("v4UpgradeUi"),
         excludeClickhouseRead: false,
         observationEvals: false,
         v4BetaToggleVisible: false,

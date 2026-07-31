@@ -107,13 +107,40 @@ Generated local artifacts:
 - `.codex/config.toml`
 - `.codex/environments/environment.toml`
 
-The repo root discovery files remain committed as symlinks:
+Discovery files are committed as symlinks, not generated locally, so a fresh
+clone has guidance before `pnpm install` runs:
 
 - `AGENTS.md` -> `.agents/AGENTS.md`
 - `CLAUDE.md` -> `AGENTS.md`
+- a sibling `CLAUDE.md` -> `AGENTS.md` next to **every** `AGENTS.md` in the
+  tree, discovered by walking it (currently `web/`, `worker/`, `ee/`,
+  `packages/shared/`, `packages/shared/scripts/seeder/`)
+
+Claude reads a nested `CLAUDE.md` when it opens a file in that directory, so
+package-local guidance loads only when it is relevant. Dot-directories are
+skipped during discovery, which keeps vendored skill bundles such as
+`web/.agents/skills/vercel-*/AGENTS.md` from becoming directory-scoped
+instructions. A shim whose `AGENTS.md` is deleted or moved is swept on the next
+sync. Add an `AGENTS.md` anywhere and you must commit its generated shim —
+CI fails otherwise.
 
 This keeps provider discovery stable while `.agents/` remains the source of
 truth.
+
+## Validation
+
+Two levels, deliberately separated:
+
+- `node scripts/agents/sync-agent-shims.mjs --check` verifies the generated
+  config files and shims. This is what `postinstall` runs.
+- `pnpm run agents:check` adds `--check-paths`, which resolves every path an
+  `AGENTS.md` cites and fails on a broken one. The lint job runs this.
+
+Path validation is kept out of `postinstall` on purpose: failing it there would
+break `pnpm i`, and with it every CI job that installs, over a documentation
+typo. References that escape upward (`../langfuse-docs/**`) are reported only
+when they resolve, since a standalone clone legitimately lacks sibling
+checkouts.
 
 ## When To Edit `config.json`
 
@@ -190,7 +217,8 @@ After editing `.agents/config.json`:
 4. Update `AGENTS.md` or `CONTRIBUTING.md` if the shared workflow materially
    changed
 
-`pnpm install` also runs the sync/check flow via `postinstall`.
+`pnpm install` also runs the sync and the shim check via `postinstall`. It does
+not run path validation — see [Validation](#validation).
 
 ## Adding Shared Skills
 

@@ -56,7 +56,7 @@ export function ProjectNotificationChannelsList({
                   <Webhook className="h-4 w-4 shrink-0" />
                 )}
                 <span
-                  className="truncate text-sm font-medium"
+                  className="truncate text-sm font-bold"
                   title={destinationLabel(channel)}
                 >
                   {destinationLabel(channel)}

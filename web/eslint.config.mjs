@@ -112,7 +112,7 @@ export default [
   {
     ...reactYouMightNotNeedAnEffect.configs.recommended,
     name: "langfuse/web/in-app-agent",
-    files: ["src/ee/features/in-app-agent/**/*.{ts,tsx}"],
+    files: ["src/features/in-app-agent/**/*.{ts,tsx}"],
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
       "@typescript-eslint/consistent-type-definitions": ["warn", "type"],
@@ -124,6 +124,22 @@ export default [
       "@typescript-eslint/return-await": ["warn", "in-try-catch"],
       curly: ["error", "all"],
       "@repo/no-switch-statements": "error",
+    },
+  },
+
+  // Design-token lint wall. The type system has exactly two weights
+  // (`font-bold` for the bold role; text-* size tokens carry the regular
+  // weight), and colors must come from design tokens — palette utilities or
+  // token-backed arbitrary values like `bg-[hsl(var(--muted))]`. Raw weight
+  // utilities (font-medium, font-semibold, …) and raw colors in arbitrary
+  // values (bg-[#fff], shadow-[…rgb(0_0_0/0.3)]) escape the system and break
+  // theming.
+  {
+    name: "langfuse/web/design-tokens",
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-raw-font-weight": "error",
+      "@repo/no-arbitrary-colors": "error",
     },
   },
 

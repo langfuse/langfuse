@@ -68,6 +68,22 @@ interface DataTableProps<TData, TValue> {
     options?: number[];
     hideTotalCount?: boolean;
     canJumpPages?: boolean;
+    /**
+     * Approximate row/entity count matching the active filters. Rendered near
+     * the pagination controls, but ONLY when the result set spans more than one
+     * page: a single (last) page shows the EXACT total derived from the loaded
+     * rows instead (no "≈"). Distinct from `totalCount` (which drives page-count
+     * math): a cheap estimate shown for context only. `null` while loading.
+     */
+    approxTotalCount?: number | null;
+    isApproxTotalCountLoading?: boolean;
+    /**
+     * True when the approximate count dropped non-native filters (score/comment/
+     * input-output/full-text search) and so over-counts vs the visible rows.
+     * The footer then marks the estimate partial-scope and drops the
+     * "within a few percent" tooltip.
+     */
+    approxTotalCountIsPartialScope?: boolean;
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
@@ -578,13 +594,19 @@ export function DataTable<TData extends object, TValue>({
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (
-        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-medium">
+        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
             isLoading={data.isLoading}
             paginationOptions={pagination.options}
             hideTotalCount={pagination.hideTotalCount}
             canJumpPages={pagination.canJumpPages}
+            approxTotalCount={pagination.approxTotalCount}
+            isApproxTotalCountLoading={pagination.isApproxTotalCountLoading}
+            approxTotalCountIsPartialScope={
+              pagination.approxTotalCountIsPartialScope
+            }
+            hasNextPage={pagination.hasNextPage}
           />
         </div>
       ) : null}

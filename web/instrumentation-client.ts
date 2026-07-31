@@ -1,5 +1,9 @@
 import * as Sentry from "@sentry/nextjs";
-import { isNoisyHttpClientPollEvent } from "@/src/utils/sentryFilters";
+import {
+  isDenylistedNoiseEvent,
+  isNoisyHttpClientPollEvent,
+  isReactDevtoolsInternalEvent,
+} from "@/src/utils/sentryFilters";
 
 const isEuOrUsRegionNonHipaa =
   process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
@@ -12,21 +16,10 @@ Sentry.init({
   release: process.env.NEXT_PUBLIC_BUILD_ID,
 
   beforeSend(event) {
-    // const error = hint.originalException;
-    const errorValue = event.exception?.values?.[0]?.value || "";
-
-    // Filter invalid href errors - these are from user-inputted data containing malformed URLs
-    // The Next.js router correctly rejects them, no need to log as errors
-    if (
-      errorValue.includes("Invalid href") &&
-      errorValue.includes("passed to next/router")
-    ) {
-      return null;
-    }
-
-    // Filter React DevTools internal errors - these are benign errors from DevTools
-    // trying to access internal React properties
-    if (errorValue.includes("__reactContextDevtoolDebugId")) {
+    // Drop React DevTools' internal probes against React's private fiber
+    // properties - benign, DevTools-only noise. See isReactDevtoolsInternalEvent
+    // for the rationale.
+    if (isReactDevtoolsInternalEvent(event)) {
       return null;
     }
 
@@ -38,6 +31,17 @@ Sentry.init({
     // session outage is still observable server-side via request tracing/APM
     // spans and application logs.
     if (isNoisyHttpClientPollEvent(event)) {
+      return null;
+    }
+
+    // Drop known-benign client-side noise: browser/transport failures (offline,
+    // flaky network, CORS, proxy/infra HTML error pages), transient
+    // framework/vendor poll logs (NextAuth CLIENT_FETCH_ERROR, PostHog notices),
+    // and expected browser artifacts (clipboard permission denials, intentional
+    // request cancellations). Each signature is narrow and cannot represent a
+    // real Langfuse app bug; real errors that merely quote a phrase still flow
+    // to Sentry. See isDenylistedNoiseEvent for the per-rule rationale.
+    if (isDenylistedNoiseEvent(event)) {
       return null;
     }
 

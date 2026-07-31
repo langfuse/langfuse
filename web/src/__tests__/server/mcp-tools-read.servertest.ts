@@ -38,12 +38,24 @@ import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createDatasetRunScore,
   createEvent,
   createEventsCh,
   createScoresCh,
+  createSessionScore,
   createTraceScore,
+  buildDashboardUrl,
+  buildDashboardWidgetUrl,
+  buildEvaluatorUrl,
+  buildMonitorUrl,
+  buildExperimentUrl,
+  buildObservationUrl,
+  buildPromptUrl,
+  buildSessionUrl,
+  buildTraceUrl,
 } from "@langfuse/shared/src/server";
 import { ScoreConfigDataType } from "@langfuse/shared";
+import { viewDeclarations } from "@langfuse/shared/query";
 import { MonitorService } from "@langfuse/shared/monitors/server";
 import {
   createMcpTestSetup,
@@ -56,15 +68,6 @@ import {
 import { env } from "@/src/env.mjs";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
-import {
-  buildDashboardUrl,
-  buildDashboardWidgetUrl,
-  buildEvaluatorUrl,
-  buildMonitorUrl,
-  buildObservationUrl,
-  buildPromptUrl,
-  buildTraceUrl,
-} from "@/src/utils/product-url";
 import { handleCreateDashboardWidget } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
 import {
   getDashboardTool,
@@ -287,6 +290,7 @@ const createObservationEvent = (params: {
   type?: "GENERATION" | "SPAN" | "EVENT";
   startTime?: Date;
   parentObservationId?: string | null;
+  isAppRoot?: boolean;
   providedModelName?: string;
   input?: string;
   output?: string;
@@ -306,6 +310,7 @@ const createObservationEvent = (params: {
     span_id: observationId,
     trace_id: params.traceId ?? randomUUID(),
     parent_span_id: params.parentObservationId ?? null,
+    is_app_root: params.isAppRoot ?? false,
     project_id: params.projectId,
     name: params.name ?? `mcp-observation-${nanoid()}`,
     type: params.type ?? "GENERATION",
@@ -713,9 +718,10 @@ describe("MCP Read Tools", () => {
     });
 
     it("should return the observation projection field schema", async () => {
-      const { context } = await createMcpTestSetup();
-
-      const result = (await handleGetObservationFieldSchema({}, context)) as {
+      const result = (await handleGetObservationFieldSchema(
+        {},
+        mockServerContext(),
+      )) as {
         resource: string;
         defaultFields: string[];
         fields: Record<
@@ -726,6 +732,8 @@ describe("MCP Read Tools", () => {
             default: boolean;
             expensive: boolean;
             sensitive: boolean;
+            requiresScope?: boolean;
+            scopeRequirement?: string;
             description?: string;
           }
         >;
@@ -752,10 +760,17 @@ describe("MCP Read Tools", () => {
       expect(result.fields.providedModelName.nullable).toBe(true);
       expect(result.fields.startTime.type).toBe("datetime");
       expect(result.fields.startTime.nullable).toBe(false);
+      expect(result.fields.isRootObservation.type).toBe("boolean");
       expect(result.fields.costDetails.type).toBe("map<string, number>");
       expect(result.fields.input.expensive).toBe(true);
       expect(result.fields.input.sensitive).toBe(true);
+      expect(result.fields.input.requiresScope).toBe(true);
+      expect(result.fields.input.scopeRequirement).toMatch(
+        /traceId.*id filter.*fromStartTime.*toStartTime/i,
+      );
+      expect(result.fields.output.requiresScope).toBe(true);
       expect(result.fields.metadata.expensive).toBe(true);
+      expect(result.fields.metadata.requiresScope).toBe(true);
       expect(result.fields.metadata.description).toContain(
         "truncated to 200 UTF-8 characters per key",
       );
@@ -819,6 +834,7 @@ describe("MCP Read Tools", () => {
       ["modelId", "stringOptions", true],
       ["providedModelName", "stringOptions", true],
       ["tags", "arrayOptions", false],
+      ["isRootObservation", "boolean", false],
       ["hasParentObservation", "boolean", false],
     ])(
       "should expose the %s column used by observation filter values",
@@ -863,9 +879,13 @@ describe("MCP Read Tools", () => {
     });
 
     it("should expose object-shaped advanced filters in the tool schema", () => {
-      const filterSchema = (
-        listObservationsTool.inputSchema.properties as Record<string, unknown>
-      ).filter as
+      const properties = listObservationsTool.inputSchema.properties as Record<
+        string,
+        unknown
+      >;
+      expect(properties.isRootObservation).toMatchObject({ type: "boolean" });
+
+      const filterSchema = properties.filter as
         | {
             type?: string;
             items?: {
@@ -1013,6 +1033,7 @@ describe("MCP Read Tools", () => {
         name: observation.name,
         type: "GENERATION",
         level: "DEFAULT",
+        isRootObservation: true,
         providedModelName: "gpt-4o-mini",
         url: buildObservationUrl({
           projectId,
@@ -1160,6 +1181,68 @@ describe("MCP Read Tools", () => {
       });
     });
 
+    it("should expose semantic roots across list and filter values", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const parentlessRoot = createObservationEvent({ projectId, traceId });
+      const appRoot = createObservationEvent({
+        projectId,
+        traceId,
+        parentObservationId: randomUUID(),
+        isAppRoot: true,
+      });
+      const child = createObservationEvent({
+        projectId,
+        traceId,
+        parentObservationId: appRoot.id,
+      });
+
+      await createEventsCh([parentlessRoot, appRoot, child]);
+
+      const rootResult = (await handleListObservations(
+        {
+          traceId,
+          isRootObservation: true,
+          fields: ["id", "parentObservationId", "isRootObservation"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<Record<string, unknown> & { id: string }> };
+
+      const getRootValues = async (isRootObservation?: boolean) =>
+        (await handleGetObservationFilterValues(
+          {
+            column: "isRootObservation",
+            isRootObservation,
+            limit: 100,
+          },
+          context,
+        )) as { values: Array<{ value: boolean; count?: number }> };
+      const [allRootValues, scopedRootValues] = await Promise.all([
+        getRootValues(),
+        getRootValues(true),
+      ]);
+
+      expect(new Set(rootResult.data.map(({ id }) => id))).toEqual(
+        new Set([parentlessRoot.id, appRoot.id]),
+      );
+      expect(rootResult.data.find(({ id }) => id === appRoot.id)).toMatchObject(
+        {
+          parentObservationId: appRoot.parent_span_id,
+          isRootObservation: true,
+        },
+      );
+      expect(
+        allRootValues.values.map(({ value, count }) => [value, count]),
+      ).toEqual([
+        [false, 1],
+        [true, 2],
+      ]);
+      expect(
+        scopedRootValues.values.map(({ value, count }) => [value, count]),
+      ).toEqual([[true, 2]]);
+    });
+
     it("should match advanced input filters beyond the events_core truncation boundary", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
@@ -1266,6 +1349,44 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).resolves.toMatchObject({ data: [] });
+    });
+
+    it("should treat an exact observation id filter as selective scope", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const observation = createObservationEvent({
+        projectId,
+        input: "selective input",
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleListObservations(
+        {
+          fields: ["id", "input"],
+          filter: [
+            {
+              type: "string",
+              column: "id",
+              operator: "=",
+              value: observation.id,
+            },
+          ],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string; input: string }> };
+
+      expect(result.data).toEqual([
+        {
+          id: observation.id,
+          input: "selective input",
+          url: buildObservationUrl({
+            projectId,
+            traceId: observation.trace_id,
+            observationId: observation.id,
+          }),
+        },
+      ]);
     });
 
     it("should infer advanced filter type from the column", async () => {
@@ -1570,6 +1691,55 @@ describe("MCP Read Tools", () => {
       expect(Number(rows[0].count_count)).toBe(3);
     });
 
+    it("should coerce an exact string tags filter", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingTag = `mcp-metrics-tag-${nanoid()}`;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          traceId,
+          tags: [matchingTag],
+          startTime: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+        createObservationEvent({
+          projectId,
+          traceId,
+          tags: [`mcp-metrics-tag-miss-${nanoid()}`],
+          startTime: new Date("2026-01-01T00:01:00.000Z"),
+        }),
+      ]);
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+              {
+                type: "string",
+                column: "tags",
+                operator: "=",
+                value: matchingTag,
+              },
+            ],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      );
+
+      expect(rows).toHaveLength(1);
+      expect(Number(rows[0].count_count)).toBe(1);
+    });
+
     it("should accept raw metric names in orderBy", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
@@ -1619,6 +1789,56 @@ describe("MCP Read Tools", () => {
       expect(Number(rows[0].count_count)).toBe(3);
       expect(rows[1].name).toBe(lowCountName);
       expect(Number(rows[1].count_count)).toBe(1);
+    });
+
+    it("should accept reversed metric aliases in orderBy", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const highCostName = `mcp-metrics-cost-high-${nanoid()}`;
+      const lowCostName = `mcp-metrics-cost-low-${nanoid()}`;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: highCostName,
+          totalCost: 0.02,
+          startTime: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: lowCostName,
+          totalCost: 0.01,
+          startTime: new Date("2026-01-01T00:01:00.000Z"),
+        }),
+      ]);
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "totalCost", aggregation: "sum" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+            ],
+            orderBy: [{ field: "totalCost_sum", direction: "desc" }],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      );
+
+      expect(rows.map((row: { name: string }) => row.name)).toEqual([
+        highCostName,
+        lowCostName,
+      ]);
     });
 
     it("should prefer dimension fields over matching raw metric names in orderBy", async () => {
@@ -1825,6 +2045,7 @@ describe("MCP Read Tools", () => {
           "observations",
           "scores-numeric",
           "scores-categorical",
+          "scores-boolean",
         ],
         granularities: expect.arrayContaining(["day"]),
         config: {
@@ -1833,8 +2054,35 @@ describe("MCP Read Tools", () => {
         },
         views: {
           observations: {
+            filterableColumns: expect.arrayContaining([
+              {
+                column: "tags",
+                filterType: "arrayOptions",
+                operators: ["any of", "none of", "all of"],
+              },
+              {
+                column: "metadata",
+                filterType: "stringObject",
+                operators: [
+                  "=",
+                  "contains",
+                  "does not contain",
+                  "starts with",
+                  "ends with",
+                ],
+                requiresKey: true,
+              },
+            ]),
+            orderByFields: expect.arrayContaining([
+              "sum_totalCost",
+              "traceId",
+              "time_dimension",
+            ]),
             dimensions: {
-              traceId: { highCardinality: true },
+              traceId: {
+                highCardinality: true,
+                constraints: expect.any(String),
+              },
             },
             measures: {
               count: {
@@ -1842,9 +2090,43 @@ describe("MCP Read Tools", () => {
               },
             },
           },
+          "scores-boolean": {
+            dimensions: {
+              booleanValue: { type: "boolean" },
+            },
+            measures: {
+              value: {
+                validAggregations: expect.arrayContaining(["avg"]),
+              },
+            },
+          },
         },
       });
+      expect(views.observations.orderByFields).not.toContain(
+        "histogram_totalCost",
+      );
+      expect(views["scores-boolean"].dimensions.value).toBeUndefined();
       expect(Reflect.get(Object(views), "traces")).toBeUndefined();
+
+      for (const viewName of Object.keys(views) as Array<
+        keyof (typeof viewDeclarations)["v2"]
+      >) {
+        const declaredDimensions = viewDeclarations.v2[viewName].dimensions;
+        const expectedFilterableDimensions = Object.entries(declaredDimensions)
+          .filter(
+            ([, definition]) =>
+              definition.type !== undefined && !definition.pairExpand,
+          )
+          .map(([name]) => name);
+        const discoveredDimensions = views[viewName].filterableColumns
+          .map((column: { column: string }) => column.column)
+          .filter((column: string) => column in declaredDimensions);
+
+        expect(
+          discoveredDimensions.sort(),
+          `${viewName} MCP filter metadata must match filterable dimensions`,
+        ).toEqual(expectedFilterableDimensions.sort());
+      }
     });
 
     it("should return one requested metrics view", async () => {
@@ -1986,6 +2268,16 @@ describe("MCP Read Tools", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(getObservationFilterValuesTool, {
         readOnlyHint: true,
+      });
+    });
+
+    it("should expose semantic-root inputs", () => {
+      const properties = getObservationFilterValuesTool.inputSchema
+        .properties as Record<string, unknown>;
+
+      expect(properties).toMatchObject({
+        column: { enum: expect.arrayContaining(["isRootObservation"]) },
+        isRootObservation: { type: "boolean" },
       });
     });
 
@@ -2209,16 +2501,16 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(listScoresTool, { readOnlyHint: true });
     });
 
-    it("should return paginated scores with object-shaped filters", async () => {
+    it("should return v3-shaped scores with polymorphic value, subject, and url", async () => {
       const { context, projectId } = await createMcpTestSetup();
-      const matchingScore = createTraceScore({
+      const numericScore = createTraceScore({
         project_id: projectId,
         id: randomUUID(),
         name: `mcp-score-${nanoid()}`,
         data_type: "NUMERIC",
         value: 0.9,
       });
-      const otherScore = createTraceScore({
+      const booleanScore = createTraceScore({
         project_id: projectId,
         id: randomUUID(),
         name: `mcp-score-${nanoid()}`,
@@ -2226,63 +2518,204 @@ describe("MCP Read Tools", () => {
         value: 1,
         string_value: "True",
       });
+      const sessionScore = createSessionScore({
+        project_id: projectId,
+        id: randomUUID(),
+        name: `mcp-score-${nanoid()}`,
+        data_type: "CATEGORICAL",
+        value: 0,
+        string_value: "good",
+      });
 
-      await createScoresCh([matchingScore, otherScore]);
+      await createScoresCh([numericScore, booleanScore, sessionScore]);
 
       const result = (await handleListScores(
         {
           limit: 10,
-          page: 1,
-          scoreIds: [matchingScore.id, otherScore.id],
-          dataType: "NUMERIC",
-          fields: ["score"],
+          scoreIds: [numericScore.id, booleanScore.id, sessionScore.id],
+          dataType: ["NUMERIC"],
         },
         context,
       )) as any;
-      const data = result.data;
 
       expect(Object.keys(result).sort()).toEqual(["data", "meta"]);
-      expect(result.meta).toMatchObject({
-        page: 1,
-        limit: 10,
-        totalItems: 1,
-      });
-      expect(data).toHaveLength(1);
-      expect(data).toEqual([
+      expect(result.meta).toEqual({ limit: 10 });
+      expect(result.data).toEqual([
         expect.objectContaining({
-          id: matchingScore.id,
+          id: numericScore.id,
           dataType: "NUMERIC",
+          value: 0.9,
+          comment: numericScore.comment,
+          subject: { kind: "trace", id: numericScore.trace_id },
           url: buildTraceUrl({
             projectId,
-            traceId: matchingScore.trace_id!,
+            traceId: numericScore.trace_id!,
           }),
         }),
       ]);
-      expect(data).toEqual([
-        expect.not.objectContaining({ trace: expect.anything() }),
+
+      const booleanResult = (await handleListScores(
+        { limit: 10, scoreIds: [booleanScore.id] },
+        context,
+      )) as any;
+      expect(booleanResult.data).toEqual([
+        expect.objectContaining({
+          id: booleanScore.id,
+          dataType: "BOOLEAN",
+          value: true,
+        }),
+      ]);
+
+      const sessionResult = (await handleListScores(
+        { limit: 10, scoreIds: [sessionScore.id] },
+        context,
+      )) as any;
+      expect(sessionResult.data).toEqual([
+        expect.objectContaining({
+          id: sessionScore.id,
+          dataType: "CATEGORICAL",
+          value: "good",
+          subject: { kind: "session", id: sessionScore.session_id },
+          url: buildSessionUrl({
+            projectId,
+            sessionId: sessionScore.session_id!,
+          }),
+        }),
       ]);
     });
 
-    it("should enforce public v2 score field validation", async () => {
+    it("should link experiment-subject scores to the experiment results page", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const runScore = createDatasetRunScore({
+        project_id: projectId,
+        id: randomUUID(),
+        name: `mcp-run-score-${nanoid()}`,
+        data_type: "NUMERIC",
+        value: 0.7,
+      });
+
+      await createScoresCh([runScore]);
+
+      const result = (await handleListScores(
+        { limit: 10, scoreIds: [runScore.id] },
+        context,
+      )) as any;
+      expect(result.data).toEqual([
+        expect.objectContaining({
+          id: runScore.id,
+          subject: { kind: "experiment", id: runScore.dataset_run_id },
+          url: buildExperimentUrl({
+            projectId,
+            experimentId: runScore.dataset_run_id!,
+          }),
+        }),
+      ]);
+    });
+
+    it("should paginate with an opaque cursor", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const name = `mcp-cursor-score-${nanoid()}`;
+      const now = Date.now();
+      const scores = [0, 1, 2].map((i) =>
+        createTraceScore({
+          project_id: projectId,
+          id: randomUUID(),
+          name,
+          data_type: "NUMERIC",
+          value: i,
+          timestamp: now - i * 60_000,
+        }),
+      );
+
+      await createScoresCh(scores);
+
+      const firstPage = (await handleListScores(
+        { limit: 2, name: [name] },
+        context,
+      )) as any;
+      expect(firstPage.data).toHaveLength(2);
+      expect(firstPage.meta.limit).toBe(2);
+      expect(firstPage.meta.cursor).toEqual(expect.any(String));
+
+      const secondPage = (await handleListScores(
+        { limit: 2, name: [name], cursor: firstPage.meta.cursor },
+        context,
+      )) as any;
+      expect(secondPage.data).toHaveLength(1);
+      expect(secondPage.meta.cursor).toBeUndefined();
+
+      const seenIds = [...firstPage.data, ...secondPage.data].map(
+        (score: { id: string }) => score.id,
+      );
+      expect(seenIds.sort()).toEqual(scores.map((s) => s.id).sort());
+
+      await expect(
+        handleListScores(
+          { limit: 2, name: [name], cursor: "not-base64-json" },
+          context,
+        ),
+      ).rejects.toThrow(/invalid cursor format/i);
+
+      // Decodable JSON with a mismatched cursor schema (e.g. future version)
+      // must surface the same error, not a raw schema failure.
+      const wrongVersionCursor = Buffer.from(
+        JSON.stringify({ v: 2, lastId: "x" }),
+      ).toString("base64url");
+      await expect(
+        handleListScores(
+          { limit: 2, name: [name], cursor: wrongVersionCursor },
+          context,
+        ),
+      ).rejects.toThrow(/invalid cursor format/i);
+    });
+
+    it("should enforce v3 cross-field validation and reject dropped v2 params", async () => {
       const { context } = await createMcpTestSetup();
 
       await expect(
-        handleListScores({ fields: ["trace"], limit: 10, page: 1 }, context),
-      ).rejects.toThrow(/Scores needs to be selected always/i);
+        handleListScores({ limit: 10, value: ["0.5"] }, context),
+      ).rejects.toThrow(/value filter requires a single dataType/i);
+
+      // Number("") === 0: an empty placeholder must not become a value=0 filter.
+      await expect(
+        handleListScores(
+          { limit: 10, value: [""], dataType: ["NUMERIC"] },
+          context,
+        ),
+      ).rejects.toThrow(/value filter entries must be non-empty/i);
+      await expect(
+        handleListScores(
+          { limit: 10, value: ["  "], dataType: ["NUMERIC"] },
+          context,
+        ),
+      ).rejects.toThrow(/value filter entries must be non-empty/i);
+
+      await expect(
+        handleListScores({ limit: 10, valueMin: 0.5 }, context),
+      ).rejects.toThrow(/valueMin and valueMax require dataType=NUMERIC/i);
+
+      await expect(
+        handleListScores({ limit: 10, observationId: [randomUUID()] }, context),
+      ).rejects.toThrow(/observationId filter requires traceId/i);
 
       await expect(
         handleListScores(
-          { fields: ["score"], userId: "user-1", limit: 10, page: 1 },
+          { limit: 10, traceId: [randomUUID()], sessionId: [randomUUID()] },
           context,
         ),
-      ).rejects.toThrow(/Cannot filter by trace properties/i);
+      ).rejects.toThrow(/At most one of traceId, sessionId, experimentId/i);
 
+      // v2-only params (userId, traceTags, page, fields, filter) are rejected
+      // by the strict schema instead of being silently ignored.
       await expect(
-        handleListScores(
-          { fields: ["score"], traceTags: [], limit: 10, page: 1 },
-          context,
-        ),
-      ).resolves.toMatchObject({ data: [] });
+        handleListScores({ limit: 10, userId: "user-1" } as any, context),
+      ).rejects.toThrow(/validation failed/i);
+      await expect(
+        handleListScores({ limit: 10, traceTags: ["tag"] } as any, context),
+      ).rejects.toThrow(/validation failed/i);
+      await expect(
+        handleListScores({ limit: 10, page: 1 } as any, context),
+      ).rejects.toThrow(/validation failed/i);
     });
   });
 
@@ -2310,6 +2743,8 @@ describe("MCP Read Tools", () => {
         name: score.name,
         dataType: "NUMERIC",
         value: 0.8,
+        comment: score.comment,
+        subject: { kind: "trace", id: score.trace_id },
         url: buildTraceUrl({ projectId, traceId: score.trace_id! }),
       });
     });

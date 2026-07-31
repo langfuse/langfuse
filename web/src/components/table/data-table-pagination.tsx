@@ -17,6 +17,13 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Input } from "@/src/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { useEffect, useState } from "react";
 
 interface DataTablePaginationProps<TData> {
@@ -25,6 +32,13 @@ interface DataTablePaginationProps<TData> {
   paginationOptions?: number[];
   hideTotalCount?: boolean;
   canJumpPages?: boolean; // if we need a cursor (last_item_id), we can't jump pages
+  // Approx count for the "Total" footer; undefined = no footer (opt-in).
+  approxTotalCount?: number | null;
+  isApproxTotalCountLoading?: boolean;
+  /** The estimate over-counts (non-native filters dropped) — mark it partial. */
+  approxTotalCountIsPartialScope?: boolean;
+  /** Cursor pagination: whether another page exists after the current one. */
+  hasNextPage?: boolean;
 }
 
 export function DataTablePagination<TData>({
@@ -33,8 +47,27 @@ export function DataTablePagination<TData>({
   paginationOptions = [10, 20, 30, 40, 50],
   hideTotalCount = false,
   canJumpPages = true,
+  approxTotalCount,
+  isApproxTotalCountLoading = false,
+  approxTotalCountIsPartialScope = false,
+  hasNextPage,
 }: DataTablePaginationProps<TData>) {
   const capture = usePostHogClientCapture();
+
+  // Last page shows the exact loaded-row total; multi-page shows "Total ≈ X".
+  const totalFooterEnabled =
+    approxTotalCount !== undefined || isApproxTotalCountLoading;
+  const paginationState = table.getState().pagination;
+  const loadedRowCount = table.getRowModel().rows.length;
+  const isInitialTotalLoading = isLoading && loadedRowCount === 0;
+  // hasNextPage is authoritative for cursor tables; fall back to the table's signal.
+  const morePagesExist =
+    (hasNextPage ?? table.getCanNextPage()) && !isInitialTotalLoading;
+  const exactTotal =
+    paginationState.pageIndex * paginationState.pageSize + loadedRowCount;
+  const showApproxTotal = totalFooterEnabled && morePagesExist;
+  const showExactTotal =
+    totalFooterEnabled && !morePagesExist && !isInitialTotalLoading;
 
   const currentPage = table.getState().pagination.pageIndex + 1;
   const [inputState, setInputState] = useState<number | string>(currentPage);
@@ -81,11 +114,55 @@ export function DataTablePagination<TData>({
         {table.getFilteredRowModel().rows.length} row(s) selected. */}
       </div>
       <div className="flex flex-wrap items-center space-x-6 lg:space-x-8">
+        {showExactTotal ? (
+          // Result fits on the loaded page(s) — the total is exact, no estimate.
+          <span className="text-muted-foreground hidden text-sm font-normal whitespace-nowrap md:inline-flex md:items-center">
+            Total&nbsp;{compactNumberFormatter(exactTotal)}
+          </span>
+        ) : showApproxTotal ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground hidden text-sm font-normal whitespace-nowrap md:inline-flex md:items-center">
+                  Total&nbsp;≈&nbsp;
+                  {approxTotalCount != null ? (
+                    compactNumberFormatter(approxTotalCount)
+                  ) : (
+                    <span className="inline-flex align-middle">
+                      <Spinner size="xxs" variant="muted" display="inline" />
+                    </span>
+                  )}
+                  {approxTotalCountIsPartialScope &&
+                    approxTotalCount != null && (
+                      // Marks that the estimate ignores some filters (can exceed row count).
+                      <span className="text-muted-foreground/70 ml-0.5 align-super text-[0.65rem] leading-none">
+                        *
+                      </span>
+                    )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs font-normal">
+                {approxTotalCountIsPartialScope ? (
+                  <>
+                    Approximate count over the active column filters and time
+                    range only. It excludes full-text search, score, and comment
+                    filters, so it can be noticeably higher than the number of
+                    matching rows.
+                  </>
+                ) : (
+                  <>
+                    Approximate number of matching rows for the active filters
+                    and time range, estimated with ClickHouse&apos;s HyperLogLog
+                    (typically within a few percent of the true count).
+                  </>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
         <div className="flex items-center space-x-2">
-          <p className="text-sm font-medium whitespace-nowrap md:hidden">
-            Rows
-          </p>
-          <p className="hidden text-sm font-medium whitespace-nowrap md:block">
+          <p className="text-sm font-bold whitespace-nowrap md:hidden">Rows</p>
+          <p className="hidden text-sm font-bold whitespace-nowrap md:block">
             Rows per page
           </p>
           <Select
@@ -109,7 +186,7 @@ export function DataTablePagination<TData>({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center justify-center gap-1 text-sm font-medium whitespace-nowrap">
+        <div className="flex items-center justify-center gap-1 text-sm font-bold whitespace-nowrap">
           {table.getPageCount() !== -1 ? (
             <>
               Page

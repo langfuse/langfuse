@@ -680,7 +680,7 @@ export const AutomationForm = ({
                         {...field}
                         autoFocus={!automation}
                         disabled={!hasAccess || !isEditing}
-                        className="border-border rounded-none border-0 border-b bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
+                        className="border-border rounded-none border-0 border-b bg-transparent px-0 text-2xl font-bold focus-visible:ring-0 focus-visible:ring-offset-0"
                       />
                     </FormControl>
                     <FormMessage />
@@ -693,7 +693,7 @@ export const AutomationForm = ({
               name="status"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center gap-2">
-                  <FormLabel className="text-sm font-medium">Active</FormLabel>
+                  <FormLabel className="text-sm font-bold">Active</FormLabel>
                   <FormControl>
                     <Switch
                       checked={field.value === "ACTIVE"}

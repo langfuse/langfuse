@@ -81,7 +81,7 @@ export function RequestResetPasswordEmailButton({
     <>
       {isEmailSent ? (
         <div>
-          <label htmlFor="otp-code" className="mb-2 block text-sm font-medium">
+          <label htmlFor="otp-code" className="mb-2 block text-sm font-bold">
             Check your inbox for the code
           </label>
           <Input

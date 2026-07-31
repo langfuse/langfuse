@@ -11,6 +11,7 @@ import { Settings } from "lucide-react";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { env } from "@/src/env.mjs";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 import { GenerationOutput } from "./GenerationOutput";
 import { ChatMessages } from "@/src/components/ChatMessages";
@@ -56,7 +57,9 @@ const SubmitButton = () => {
       <Button
         className="flex-1"
         onClick={() => {
-          handleSubmit(streamingEnabled).catch((err) => console.error(err));
+          handleSubmit(streamingEnabled).catch((err) =>
+            captureUnknownError("playground.run", err),
+          );
         }}
         loading={isStreaming}
       >
@@ -79,7 +82,7 @@ const SubmitButton = () => {
             onClick={(e) => e.preventDefault()}
           >
             <div className="flex flex-col">
-              <span className="font-medium">Stream responses</span>
+              <span className="font-bold">Stream responses</span>
               <span className="text-muted-foreground text-xs">
                 {streamingEnabled
                   ? "Real-time response streaming"

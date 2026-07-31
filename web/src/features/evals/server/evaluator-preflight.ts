@@ -5,6 +5,7 @@ import {
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   getLLMErrorInfo,
   testModelCall,
 } from "@langfuse/shared/src/server";
@@ -73,6 +74,7 @@ export async function getEvaluatorDefinitionPreflightError(params: {
       apiKey: modelConfig.config.apiKey,
       modelConfig: modelConfig.config.modelParams,
       structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
+      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
     });
   } catch (err) {
     const llmError = getLLMErrorInfo(err);

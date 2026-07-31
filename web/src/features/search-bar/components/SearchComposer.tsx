@@ -293,6 +293,8 @@ export function SearchComposer({
   erroredColumns,
   onActivateAi,
   onRequestColumns,
+  fieldReason,
+  freeTextReason,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
@@ -309,6 +311,11 @@ export function SearchComposer({
    * loading is wired by the host table.
    */
   onRequestColumns?: (columns: readonly string[]) => void;
+  /** Given a filter token's field, the reason it is not applied on the current
+   *  surface (dims the pill + hover), or null. Undefined leaves all active. */
+  fieldReason?: (field: string) => string | null;
+  /** Reason free-text tokens are not applied on the current surface, or null. */
+  freeTextReason?: string | null;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -1287,8 +1294,17 @@ export function SearchComposer({
         {draft.length === 0 && (
           <div
             className={cn(
+              // Bound the right edge (not just pr-*) so `truncate` has a width
+              // to clip against — otherwise the placeholder grows to its full
+              // text width and runs under the top-right "Ask AI" button. The
+              // reserved gap matches the surface's pr-20/pr-8.
               "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
-              onActivateAi !== undefined ? "pr-20" : "pr-8",
+              // Mirror the surface's right reservation exactly: the "Ask AI"
+              // button (right-20) is hidden while diagnostics show, when the
+              // error icon takes over the top-right corner (right-8).
+              onActivateAi !== undefined && !showGlobalDiagnostics
+                ? "right-20"
+                : "right-8",
             )}
             title={COMPOSER_PLACEHOLDER}
           >
@@ -1350,6 +1366,8 @@ export function SearchComposer({
             draft={draft}
             showDiagnostics={showTokenDiagnostics}
             scoreTypes={scoreTypes}
+            fieldReason={fieldReason}
+            freeTextReason={freeTextReason}
           />
         </div>
         {/* "Ask AI" affordance — a plain button, always available so filters can

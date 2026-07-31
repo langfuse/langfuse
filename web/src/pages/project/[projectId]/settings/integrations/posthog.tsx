@@ -1,7 +1,7 @@
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -198,6 +198,15 @@ const PostHogIntegrationSettings = ({
   const formSchema = useMemo(
     () =>
       posthogIntegrationFormSchema.superRefine((data, ctx) => {
+        // The credential is write-only: blank keeps the saved key, so it is
+        // only required when no integration exists yet (LFE-14384).
+        if (!state && !data.posthogProjectApiKey) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["posthogProjectApiKey"],
+            message: "PostHog Project API Key is required",
+          });
+        }
         if (!isExportSourceSelectable(data.exportSource, exportSourceCtx)) {
           ctx.addIssue({
             code: "custom",
@@ -207,7 +216,7 @@ const PostHogIntegrationSettings = ({
           });
         }
       }),
-    [exportSourceCtx],
+    [exportSourceCtx, state],
   );
 
   const defaultExportSource = isPostCutoffCloud
@@ -221,7 +230,7 @@ const PostHogIntegrationSettings = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       posthogHostname: state?.posthogHostName ?? "",
-      posthogProjectApiKey: state?.posthogApiKey ?? "",
+      posthogProjectApiKey: "",
       enabled: state?.enabled ?? false,
       exportSource: defaultExportSource,
     },
@@ -231,7 +240,7 @@ const PostHogIntegrationSettings = ({
   useEffect(() => {
     posthogForm.reset({
       posthogHostname: state?.posthogHostName ?? "",
-      posthogProjectApiKey: state?.posthogApiKey ?? "",
+      posthogProjectApiKey: "",
       enabled: state?.enabled ?? false,
       exportSource: defaultExportSource,
     });
@@ -293,8 +302,16 @@ const PostHogIntegrationSettings = ({
             <FormItem>
               <FormLabel>Posthog Project API Key</FormLabel>
               <FormControl>
-                <PasswordInput {...field} />
+                <PasswordInput
+                  {...field}
+                  placeholder={state?.posthogApiKeyDisplay}
+                />
               </FormControl>
+              {state && (
+                <FormDescription>
+                  Leave blank to keep the current API key.
+                </FormDescription>
+              )}
               <FormMessage />
             </FormItem>
           )}
@@ -317,7 +334,7 @@ const PostHogIntegrationSettings = ({
                     >
                       {exportSourceOptions.map((option) => (
                         <div key={option.value} className="space-y-0.5">
-                          <div className="font-medium">{option.label}</div>
+                          <div className="font-bold">{option.label}</div>
                           <div className="text-muted-foreground text-xs">
                             {option.description}
                           </div>

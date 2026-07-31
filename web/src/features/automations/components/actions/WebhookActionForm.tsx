@@ -24,6 +24,7 @@ import {
   AvailableWebhookApiSchema,
   type SafeWebhookActionConfig,
   WebhookDefaultHeaders,
+  WebhookProtectedHeaders,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
@@ -52,8 +53,7 @@ export const webhookSchema = z.object({
       name: z.string().refine(
         (name) => {
           if (!name.trim()) return true; // Allow empty names (will be filtered out)
-          const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
-          return !defaultHeaderKeys.includes(name.trim().toLowerCase());
+          return !WebhookProtectedHeaders.includes(name.trim().toLowerCase());
         },
         {
           message:
@@ -93,13 +93,10 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
     name: "webhook.headers",
   });
 
-  // Get default header keys to filter them out
-  const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
-
-  // Filter out default headers from the user-editable headers
+  // Filter out headers managed by Langfuse from the user-editable headers
   const customHeaderFields = headerFields.filter((field, index) => {
     const headerName = form.watch(`webhook.headers.${index}.name`);
-    return !defaultHeaderKeys.includes(headerName?.toLowerCase());
+    return !WebhookProtectedHeaders.includes(headerName?.toLowerCase());
   });
 
   // Function to add a new header pair
@@ -407,7 +404,7 @@ export const RegenerateWebhookSecretButton = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent>
-          <h2 className="mb-3 font-semibold">Please confirm</h2>
+          <h2 className="mb-3 font-bold">Please confirm</h2>
           <p className="mb-3 max-w-sm text-sm">
             This action will invalidate the current webhook secret and generate
             a new one. Any existing integrations using the old secret will stop
@@ -479,12 +476,10 @@ export const formatWebhookHeaders = (
   }[],
 ): Record<string, { secret: boolean; value: string }> => {
   const requestHeaders: Record<string, { secret: boolean; value: string }> = {};
-  const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
-
   headers.forEach((header) => {
     if (header.name.trim()) {
-      // Exclude default headers - they will be added automatically by the API
-      if (!defaultHeaderKeys.includes(header.name.trim().toLowerCase())) {
+      // Exclude managed headers; they are added automatically by the API.
+      if (!WebhookProtectedHeaders.includes(header.name.trim().toLowerCase())) {
         requestHeaders[header.name.trim()] = {
           secret: header.isSecret || false,
           value: header.value.trim(),

@@ -1,7 +1,4 @@
-# Codex Guidelines for `@langfuse/shared`
-
-This file covers package-local guidance for this package.
-Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
+# Agent Guidelines for `@langfuse/shared`
 
 ## Purpose
 
@@ -12,13 +9,9 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 
 ## Maintenance Contract
 
-- `AGENTS.md` is a living document.
-- Update this file in the same PR for material shared-package changes:
-  - new/renamed schema or migration workflows
-  - new/renamed queue contracts
-  - changed exported surfaces or validation commands
-- Because this package is consumed by both `web` and `worker`, cross-package
-  changes usually require updates in root `AGENTS.md` too.
+- Update this file in the same PR when entry points, commands, or contracts
+  change. Because both `web` and `worker` consume this package, exported-surface
+  changes usually need their `AGENTS.md` too.
 
 ## High-Signal Entry Points
 
@@ -57,6 +50,14 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
+  client-safe contracts (AG-UI schemas, constants, id helpers) of the
+  EE-licensed in-app-agent module. Never re-export server code here.
+- `@langfuse/shared/in-app-agent/server` (plus per-module subpaths via the
+  `./in-app-agent/server/*` wildcard) via `src/in-app-agent/server/`:
+  the EE-licensed in-app-agent runtime (Mastra/Bedrock/MCP loop, tools,
+  persistence, sandbox), consumed by web's foreground adapter and the future
+  worker background-execution processor.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/ee/ingestionMasking`, and

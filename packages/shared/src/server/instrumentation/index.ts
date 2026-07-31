@@ -326,7 +326,7 @@ const flushMetricsToCloudWatch = () => {
 
 // Metrics ending with these suffixes have their tags flattened into the
 // CloudWatch metric name (excluding "unit"). Other metrics are unaffected.
-const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate"];
+const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate", ".dlq_oldest_age"];
 
 function buildCloudWatchKey(
   stat: string,

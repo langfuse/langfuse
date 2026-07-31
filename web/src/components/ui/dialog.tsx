@@ -60,7 +60,7 @@ const DialogOverlay = React.forwardRef<
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const dialogContentVariants = cva(
-  "fixed left-[50%] top-[50%] overflow-hidden flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-background shadow-lg sm:rounded-lg",
+  "fixed left-[50%] top-[50%] overflow-hidden flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-modal shadow-lg sm:rounded-lg",
   {
     variants: {
       size: {
@@ -78,12 +78,16 @@ const dialogContentVariants = cva(
 
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    closeOnInteractionOutside?: boolean;
-    confirmCloseOnEscape?: string;
-    overlayMode?: DialogOverlayMode;
-    stopPropagationOnEnterSpace?: boolean;
-  } & VariantProps<typeof dialogContentVariants>
+  Omit<
+    React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+      closeOnInteractionOutside?: boolean;
+      confirmCloseOnEscape?: string;
+      overlayMode?: DialogOverlayMode;
+      overlayClassName?: string;
+      stopPropagationOnEnterSpace?: boolean;
+    } & VariantProps<typeof dialogContentVariants>,
+    "onPointerDownOutside" | "onInteractOutside"
+  >
 >(
   (
     {
@@ -92,6 +96,7 @@ const DialogContent = React.forwardRef<
       closeOnInteractionOutside = false,
       confirmCloseOnEscape,
       overlayMode = "subtle",
+      overlayClassName,
       stopPropagationOnEnterSpace = true,
       onEscapeKeyDown,
       onClick,
@@ -123,7 +128,7 @@ const DialogContent = React.forwardRef<
 
     return (
       <DialogPortal>
-        <DialogOverlay overlayMode={overlayMode} />
+        <DialogOverlay overlayMode={overlayMode} className={overlayClassName} />
         <DialogPrimitive.Content
           ref={ref}
           className={cn(
@@ -166,7 +171,7 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const dialogHeaderVariants = cva(
-  "bg-background sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
+  "bg-modal sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
   {
     variants: {
       variant: {
@@ -223,7 +228,7 @@ const DialogBody = React.forwardRef<
 DialogBody.displayName = "DialogBody";
 
 const dialogFooterVariants = cva(
-  "bg-background sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
+  "bg-modal sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
   {
     variants: {
       variant: {
@@ -261,10 +266,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn(
-      "text-xl leading-none font-semibold tracking-tight",
-      className,
-    )}
+    className={cn("text-xl leading-none font-bold tracking-tight", className)}
     {...props}
   />
 ));

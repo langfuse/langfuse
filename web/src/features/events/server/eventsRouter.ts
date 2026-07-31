@@ -9,6 +9,7 @@ import {
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
+  singleFilter,
   timeFilter,
 } from "@langfuse/shared";
 import {
@@ -41,7 +42,7 @@ import {
 } from "@/src/features/trace-graph-view/types";
 import type * as opentelemetry from "@opentelemetry/api";
 
-const GetAllEventsInput = EventsTableOptions.extend({
+const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
 });
 
@@ -56,12 +57,17 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
+  filter: zodSchema.array(singleFilter).optional(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
   isRootObservation: zodSchema.boolean().optional(),
   hasParentObservation: zodSchema.boolean().optional(),
   columns: zodSchema
     .array(zodSchema.enum(EVENT_FILTER_OPTIONS_COLUMNS))
     .optional(),
+  // When true, the response also carries the approximate total observation
+  // count ("Total ≈ X") — uniq(span_id) over the same bulk facet scan, matching
+  // `filter`. Sent only on the eager bulk request.
+  includeApproxCount: zodSchema.boolean().optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -174,6 +180,7 @@ export const eventsRouter = createTRPCRouter({
           addAttributesToSpan({ span, input, orderBy: undefined });
           return getEventFilterOptions({
             projectId: input.projectId,
+            filter: input.filter,
             startTimeFilter: input.startTimeFilter,
             isRootObservation:
               input.isRootObservation ??
@@ -181,6 +188,7 @@ export const eventsRouter = createTRPCRouter({
                 ? !input.hasParentObservation
                 : undefined), // backward compat for legacy hasParentObservation filterOption
             columns: input.columns,
+            includeApproxCount: input.includeApproxCount,
           });
         },
       );
@@ -415,7 +423,7 @@ export const addAttributesToSpan = ({
 }) => {
   span.setAttribute("project_id", input.projectId);
 
-  // Only process filter if it exists (not present in GetEventFilterOptionsInput)
+  // Only process filters when supplied.
   if ("filter" in input && input.filter) {
     const startTimeFilter = input.filter.find(
       (f) => f.column === "startTime" && f.type === "datetime",

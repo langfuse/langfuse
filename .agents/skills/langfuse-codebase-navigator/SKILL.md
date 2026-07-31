@@ -1,6 +1,6 @@
 ---
 name: langfuse-codebase-navigator
-description: Navigate Langfuse repositories, code areas, and agent skills. Use when a user or agent asks where Langfuse code lives, which Langfuse repo to inspect, which Langfuse skill applies, how to search across Langfuse repositories, or how to orient in the Langfuse org before implementing, debugging, documenting, supporting, or operating Langfuse.
+description: Navigate Langfuse repositories, code areas, and agent skills. Use to locate code, choose the right repo or skill, search across the Langfuse organization, or orient before implementation, debugging, documentation, support, or operations.
 ---
 
 # Langfuse Codebase Navigator
