@@ -22,10 +22,9 @@ import { singleFilter } from "../../../";
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
-  requiresV2,
+  getWidgetRequiredVersion,
+  type WidgetQueryShape,
 } from "../../../features/query";
-
-type WidgetQueryShape = Parameters<typeof requiresV2>[0];
 
 /**
  * `minVersion` is the lowest query-engine version that can represent a widget
@@ -38,7 +37,7 @@ export const resolveDashboardWidgetMinVersion = (
   persistedMinVersion?: number,
 ) => {
   const maxVersion = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? 1 : 2;
-  const requiredVersion = requiresV2(shape) ? 2 : 1;
+  const requiredVersion = getWidgetRequiredVersion(shape);
 
   if (requiredVersion > maxVersion) {
     throw new InvalidRequestError(

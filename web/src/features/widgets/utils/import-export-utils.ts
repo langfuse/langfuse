@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   getValidAggregationsForMeasureType,
   metricAggregations,
-  requiresV2,
+  resolveWidgetEditorVersion,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -25,7 +25,6 @@ import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
-
 const dashboardWidgetChartTypeSchema = z.enum(DashboardWidgetChartType);
 const widgetMetricSchema = MetricSchema.extend({
   agg: metricAggregations,
@@ -449,6 +448,9 @@ function normalizeImportedWidgetVersion(widget: WidgetImport): WidgetImport {
     return widget;
   }
 
+  // v2 is a deployment/read-path choice for traces, not a v2-only widget
+  // shape. Keep the persisted hint at the actual minimum while allowing v4
+  // imports to validate against the events-backed trace declaration.
   return {
     ...widget,
     minVersion: 1,
@@ -483,20 +485,18 @@ export function parseImportedWidgetJson(params: {
   });
 
   const normalizedWidget = normalizeImportedWidgetVersion(importedWidget);
-  const shapeRequiresV2 = requiresV2({
-    view: normalizedWidget.view,
-    dimensions: normalizedWidget.dimensions,
-    measures: normalizedWidget.metrics.map((metric) => ({
-      measure: metric.measure,
-    })),
-    filters: normalizedWidget.filters,
+  const importedViewVersion: ViewVersion = resolveWidgetEditorVersion({
+    shape: {
+      view: normalizedWidget.view,
+      dimensions: normalizedWidget.dimensions,
+      measures: normalizedWidget.metrics.map((metric) => ({
+        measure: metric.measure,
+      })),
+      filters: normalizedWidget.filters,
+    },
+    baseMinVersion: normalizedWidget.minVersion ?? 1,
+    activeVersion: params.isBetaEnabled ? "v2" : "v1",
   });
-  const importedViewVersion: ViewVersion =
-    (params.isBetaEnabled && normalizedWidget.view !== "traces") ||
-    shapeRequiresV2 ||
-    (normalizedWidget.minVersion ?? 1) >= 2
-      ? "v2"
-      : "v1";
 
   validateImportedWidget({
     widget: normalizedWidget,

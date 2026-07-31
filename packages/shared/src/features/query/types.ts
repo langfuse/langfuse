@@ -92,7 +92,8 @@ export const views = z.enum([
   // "users",
 ]);
 
-// V2 views - excludes "traces" which is not supported in v2 API
+// Public v2 API views - excludes "traces". Internal dashboard queries still
+// support the events-backed v2 traces declaration for legacy widget parity.
 export const viewsV2 = z.enum([
   "observations",
   "scores-numeric",

@@ -8,8 +8,9 @@ import {
 } from "@langfuse/shared";
 import {
   getValidAggregationsForMeasureType,
+  getWidgetRequiredVersion,
   metricAggregations,
-  requiresV2,
+  resolveWidgetEditorVersion,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -329,7 +330,7 @@ export type WidgetSavePayload = {
 export function deriveWidgetBaseMinVersion(
   initialValues: WidgetInitialValues,
 ): number {
-  return requiresV2({
+  const requiredVersion = getWidgetRequiredVersion({
     view: initialValues.view,
     dimensions:
       initialValues.dimensions ??
@@ -340,40 +341,38 @@ export function deriveWidgetBaseMinVersion(
       measure: metric.measure,
     })) ?? [{ measure: initialValues.measure }],
     filters: initialValues.filters ?? [],
-  })
-    ? 2
-    : (initialValues.minVersion ?? 1);
+  });
+
+  return requiredVersion === 2 ? 2 : (initialValues.minVersion ?? 1);
 }
 
 /**
- * Derives the effective view version (query-engine v1/v2) from the current view,
- * selected query shape, frozen initial hint, and beta flag. The persisted value
- * is a local hint only; shape-required v2 is always promoted.
+ * Adapts editor-space form values to the canonical widget query shape and
+ * resolves the active editor declaration. Persistence remains server-owned.
  */
-export function resolveWidgetViewVersion(params: {
+export function resolveWidgetFormVersion(params: {
   view: z.infer<typeof views>;
   baseMinVersion: number;
-  isBetaEnabled: boolean;
+  activeVersion: ViewVersion;
   shape?: {
     dimensions: { field: string }[];
     metrics: { measure: string }[];
     filters?: FilterState;
   };
 }): ViewVersion {
-  const shapeRequiresV2 = requiresV2({
-    view: params.view,
-    dimensions: params.shape?.dimensions ?? [],
-    measures: params.shape?.metrics ?? [],
-    filters: mapWidgetUiTableFilterToView(
-      params.view,
-      params.shape?.filters ?? [],
-    ),
+  return resolveWidgetEditorVersion({
+    shape: {
+      view: params.view,
+      dimensions: params.shape?.dimensions ?? [],
+      measures: params.shape?.metrics ?? [],
+      filters: mapWidgetUiTableFilterToView(
+        params.view,
+        params.shape?.filters ?? [],
+      ),
+    },
+    baseMinVersion: params.baseMinVersion,
+    activeVersion: params.activeVersion,
   });
-  return shapeRequiresV2 ||
-    params.baseMinVersion >= 2 ||
-    (params.isBetaEnabled && params.view !== "traces")
-    ? "v2"
-    : "v1";
 }
 
 /** Sanitized pivot default sort for the current metric/dimension selection, or undefined when the stored sort no longer applies. */
