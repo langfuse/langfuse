@@ -55,6 +55,7 @@ import {
   buildTraceUrl,
 } from "@langfuse/shared/src/server";
 import { ScoreConfigDataType } from "@langfuse/shared";
+import { viewDeclarations } from "@langfuse/shared/query";
 import { MonitorService } from "@langfuse/shared/monitors/server";
 import {
   createMcpTestSetup,
@@ -731,6 +732,8 @@ describe("MCP Read Tools", () => {
             default: boolean;
             expensive: boolean;
             sensitive: boolean;
+            requiresScope?: boolean;
+            scopeRequirement?: string;
             description?: string;
           }
         >;
@@ -761,7 +764,13 @@ describe("MCP Read Tools", () => {
       expect(result.fields.costDetails.type).toBe("map<string, number>");
       expect(result.fields.input.expensive).toBe(true);
       expect(result.fields.input.sensitive).toBe(true);
+      expect(result.fields.input.requiresScope).toBe(true);
+      expect(result.fields.input.scopeRequirement).toMatch(
+        /traceId.*id filter.*fromStartTime.*toStartTime/i,
+      );
+      expect(result.fields.output.requiresScope).toBe(true);
       expect(result.fields.metadata.expensive).toBe(true);
+      expect(result.fields.metadata.requiresScope).toBe(true);
       expect(result.fields.metadata.description).toContain(
         "truncated to 200 UTF-8 characters per key",
       );
@@ -1342,6 +1351,44 @@ describe("MCP Read Tools", () => {
       ).resolves.toMatchObject({ data: [] });
     });
 
+    it("should treat an exact observation id filter as selective scope", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const observation = createObservationEvent({
+        projectId,
+        input: "selective input",
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleListObservations(
+        {
+          fields: ["id", "input"],
+          filter: [
+            {
+              type: "string",
+              column: "id",
+              operator: "=",
+              value: observation.id,
+            },
+          ],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string; input: string }> };
+
+      expect(result.data).toEqual([
+        {
+          id: observation.id,
+          input: "selective input",
+          url: buildObservationUrl({
+            projectId,
+            traceId: observation.trace_id,
+            observationId: observation.id,
+          }),
+        },
+      ]);
+    });
+
     it("should infer advanced filter type from the column", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
@@ -1644,6 +1691,55 @@ describe("MCP Read Tools", () => {
       expect(Number(rows[0].count_count)).toBe(3);
     });
 
+    it("should coerce an exact string tags filter", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingTag = `mcp-metrics-tag-${nanoid()}`;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          traceId,
+          tags: [matchingTag],
+          startTime: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+        createObservationEvent({
+          projectId,
+          traceId,
+          tags: [`mcp-metrics-tag-miss-${nanoid()}`],
+          startTime: new Date("2026-01-01T00:01:00.000Z"),
+        }),
+      ]);
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+              {
+                type: "string",
+                column: "tags",
+                operator: "=",
+                value: matchingTag,
+              },
+            ],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      );
+
+      expect(rows).toHaveLength(1);
+      expect(Number(rows[0].count_count)).toBe(1);
+    });
+
     it("should accept raw metric names in orderBy", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();
@@ -1693,6 +1789,56 @@ describe("MCP Read Tools", () => {
       expect(Number(rows[0].count_count)).toBe(3);
       expect(rows[1].name).toBe(lowCountName);
       expect(Number(rows[1].count_count)).toBe(1);
+    });
+
+    it("should accept reversed metric aliases in orderBy", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const highCostName = `mcp-metrics-cost-high-${nanoid()}`;
+      const lowCostName = `mcp-metrics-cost-low-${nanoid()}`;
+
+      await createEventsCh([
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: highCostName,
+          totalCost: 0.02,
+          startTime: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+        createObservationEvent({
+          projectId,
+          traceId,
+          name: lowCostName,
+          totalCost: 0.01,
+          startTime: new Date("2026-01-01T00:01:00.000Z"),
+        }),
+      ]);
+
+      const rows = getMetricRows(
+        await handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "totalCost", aggregation: "sum" }],
+            filters: [
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: traceId,
+              },
+            ],
+            orderBy: [{ field: "totalCost_sum", direction: "desc" }],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      );
+
+      expect(rows.map((row: { name: string }) => row.name)).toEqual([
+        highCostName,
+        lowCostName,
+      ]);
     });
 
     it("should prefer dimension fields over matching raw metric names in orderBy", async () => {
@@ -1908,8 +2054,35 @@ describe("MCP Read Tools", () => {
         },
         views: {
           observations: {
+            filterableColumns: expect.arrayContaining([
+              {
+                column: "tags",
+                filterType: "arrayOptions",
+                operators: ["any of", "none of", "all of"],
+              },
+              {
+                column: "metadata",
+                filterType: "stringObject",
+                operators: [
+                  "=",
+                  "contains",
+                  "does not contain",
+                  "starts with",
+                  "ends with",
+                ],
+                requiresKey: true,
+              },
+            ]),
+            orderByFields: expect.arrayContaining([
+              "sum_totalCost",
+              "traceId",
+              "time_dimension",
+            ]),
             dimensions: {
-              traceId: { highCardinality: true },
+              traceId: {
+                highCardinality: true,
+                constraints: expect.any(String),
+              },
             },
             measures: {
               count: {
@@ -1929,8 +2102,31 @@ describe("MCP Read Tools", () => {
           },
         },
       });
+      expect(views.observations.orderByFields).not.toContain(
+        "histogram_totalCost",
+      );
       expect(views["scores-boolean"].dimensions.value).toBeUndefined();
       expect(Reflect.get(Object(views), "traces")).toBeUndefined();
+
+      for (const viewName of Object.keys(views) as Array<
+        keyof (typeof viewDeclarations)["v2"]
+      >) {
+        const declaredDimensions = viewDeclarations.v2[viewName].dimensions;
+        const expectedFilterableDimensions = Object.entries(declaredDimensions)
+          .filter(
+            ([, definition]) =>
+              definition.type !== undefined && !definition.pairExpand,
+          )
+          .map(([name]) => name);
+        const discoveredDimensions = views[viewName].filterableColumns
+          .map((column: { column: string }) => column.column)
+          .filter((column: string) => column in declaredDimensions);
+
+        expect(
+          discoveredDimensions.sort(),
+          `${viewName} MCP filter metadata must match filterable dimensions`,
+        ).toEqual(expectedFilterableDimensions.sort());
+      }
     });
 
     it("should return one requested metrics view", async () => {

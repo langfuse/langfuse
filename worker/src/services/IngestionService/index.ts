@@ -1229,12 +1229,18 @@ export class IngestionService {
       internalModel,
     );
 
-    // Match pricing tier based on usage_details
+    // Match pricing tier based on usage_details. Skip when usage is empty
+    // (e.g. tokenization skipped because costs were provided, or ERROR-level
+    // generations): matching {} would stamp a tier chosen against a fabricated
+    // all-zero usage vector instead of leaving the tier unset.
     let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
     let usage_pricing_tier_id: string | null = null;
     let usage_pricing_tier_name: string | null = null;
 
-    if (pricingTiers.length > 0 && final_usage_details.usage_details) {
+    if (
+      pricingTiers.length > 0 &&
+      Object.keys(final_usage_details.usage_details ?? {}).length > 0
+    ) {
       const matchedTier = matchPricingTier(
         pricingTiers,
         final_usage_details.usage_details,
@@ -1283,6 +1289,7 @@ export class IngestionService {
       ObservationRecordInsertType,
       | "project_id"
       | "provided_usage_details"
+      | "provided_cost_details"
       | "level"
       | "input"
       | "output"
@@ -1299,10 +1306,19 @@ export class IngestionService {
       observationRecord.provided_usage_details,
     );
 
+    // Provided costs are authoritative: calculateUsageCosts ignores computed
+    // usage once any cost point is provided, so tokenised counts could never
+    // affect costs — leave usage_details blank instead of paying for
+    // tokenisation.
+    const hasProvidedCostDetails = Object.values(
+      observationRecord.provided_cost_details ?? {},
+    ).some((value) => value != null);
+
     if (
-      // Manual tokenisation when no user provided usage and generation has not status ERROR
+      // Manual tokenisation when no user provided usage or cost and generation has not status ERROR
       model &&
       Object.keys(providedUsageDetails).length === 0 &&
+      !hasProvidedCostDetails &&
       observationRecord.level !== ObservationLevel.ERROR
     ) {
       try {

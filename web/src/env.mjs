@@ -483,6 +483,18 @@ export const env = createEnv({
       .enum(["legacy", "dual", "events_only"])
       .default("events_only"),
 
+    // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
+    // so the background-migrations status endpoint can tell dormant, env-gated
+    // rows apart from migrations the worker will actually pick up. The worker
+    // owns execution; the web only reads these to decide whether the sidebar
+    // migration indicator should light up.
+    LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL: z
+      .enum(["true", "false"])
+      .default("true"),
+    LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES: z
+      .enum(["true", "false"])
+      .default("false"),
+
     // Temporary kill-switch for the observations v2 subquery-IN rewrite.
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
       .enum(["true", "false"])
@@ -967,6 +979,10 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
+      process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
+    LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:
+      process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES,
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,

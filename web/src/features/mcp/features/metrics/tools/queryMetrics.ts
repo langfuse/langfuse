@@ -4,6 +4,7 @@ import {
   dimension,
   metric,
   validateQuery,
+  viewDeclarations,
   viewsV2,
 } from "@langfuse/shared/query";
 import {
@@ -17,6 +18,45 @@ import { z } from "zod";
 
 const DEFAULT_ROW_LIMIT = 100;
 
+const normalizeMetricFilters = (
+  input: z.infer<typeof MetricsQueryObjectV2>,
+): z.infer<typeof MetricsQueryObjectV2> => {
+  const tagsDimension = viewDeclarations.v2[input.view].dimensions.tags;
+  const tagsAreArray =
+    tagsDimension?.type === "string[]" || tagsDimension?.type === "arrayString";
+
+  if (!tagsAreArray) {
+    return input;
+  }
+
+  return {
+    ...input,
+    filters: input.filters.map((filter) => {
+      if (filter.column !== "tags") {
+        return filter;
+      }
+
+      if (filter.type === "string" && filter.operator === "=") {
+        return {
+          type: "arrayOptions",
+          column: filter.column,
+          operator: "any of",
+          value: [filter.value],
+        };
+      }
+
+      if (filter.type === "stringOptions") {
+        return {
+          ...filter,
+          type: "arrayOptions",
+        };
+      }
+
+      return filter;
+    }),
+  };
+};
+
 const normalizeMetricOrderByFields = (
   input: z.infer<typeof MetricsQueryObjectV2>,
 ) => {
@@ -27,6 +67,12 @@ const normalizeMetricOrderByFields = (
   const metricAliases = input.metrics.map(
     (metric) => `${metric.aggregation}_${metric.measure}`,
   );
+  const reversedMetricAliases = new Map(
+    input.metrics.map((metric) => [
+      `${metric.measure}_${metric.aggregation}`,
+      `${metric.aggregation}_${metric.measure}`,
+    ]),
+  );
   const allowedOrderByFields = new Set([
     ...input.dimensions.map((dimension) => dimension.field),
     ...metricAliases,
@@ -36,15 +82,17 @@ const normalizeMetricOrderByFields = (
   return {
     ...input,
     orderBy: input.orderBy.map((orderBy) => {
-      const matchingMetrics = input.dimensions.some(
+      const isDimensionField = input.dimensions.some(
         (dimension) => dimension.field === orderBy.field,
-      )
+      );
+      const matchingMetrics = isDimensionField
         ? []
         : input.metrics.filter((metric) => metric.measure === orderBy.field);
-      const normalizedField =
-        matchingMetrics.length === 1
+      const normalizedField = isDimensionField
+        ? orderBy.field
+        : matchingMetrics.length === 1
           ? `${matchingMetrics[0].aggregation}_${matchingMetrics[0].measure}`
-          : orderBy.field;
+          : (reversedMetricAliases.get(orderBy.field) ?? orderBy.field);
 
       if (!allowedOrderByFields.has(normalizedField)) {
         throw new InvalidRequestError(
@@ -102,7 +150,9 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
         "mcp.metrics_view": input.view,
       },
       fn: async () => {
-        const normalizedInput = normalizeMetricOrderByFields(input);
+        const normalizedInput = normalizeMetricOrderByFields(
+          normalizeMetricFilters(input),
+        );
         const validation = validateQuery(normalizedInput, "v2");
 
         if (!validation.valid) {

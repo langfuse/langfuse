@@ -133,13 +133,17 @@ export function ControlledInAppAgentWindow(
                 }
               : null,
         };
-  const isInputDisabled =
+  // Only a read-only conversation disables the composer outright. An assistant
+  // turn -- including one paused on an approval -- blocks submission but leaves
+  // the draft editable.
+  const isConversationInteractionDisabled =
+    selectedConversationIsWriteLocked || isSelectedConversationHydrating;
+  const isAssistantTurnInProgress =
     isRunning ||
     isAnimating ||
     isSubmitting ||
-    selectedConversationIsWriteLocked ||
-    isSelectedConversationHydrating ||
-    pendingToolApprovals.length > 0;
+    pendingToolApprovals.length > 0 ||
+    displayedPendingToolApprovals.length > 0;
   const displayError = selectedConversationIsWriteLocked
     ? ({
         type: "generic",
@@ -185,12 +189,10 @@ export function ControlledInAppAgentWindow(
   return (
     <InAppAgentWindow
       error={displayError}
-      isAssistantTurnInProgress={
-        isRunning || isAnimating || displayedPendingToolApprovals.length > 0
-      }
+      isAssistantTurnInProgress={isAssistantTurnInProgress}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
-      isInputDisabled={isInputDisabled}
+      isConversationInteractionDisabled={isConversationInteractionDisabled}
       disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       quickActionContext={quickActionContext}

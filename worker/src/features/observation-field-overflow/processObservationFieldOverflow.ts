@@ -1,5 +1,6 @@
 import {
   type EventRecordInsertType,
+  instrumentAsync,
   logger,
   recordDistribution,
   recordIncrement,
@@ -26,6 +27,8 @@ type OverflowCandidate = OverflowTarget & {
 type OverflowResult = {
   candidate: OverflowCandidate;
   overflowedValue: string;
+  outcome: "uploaded" | "reused" | "failed";
+  bytesRemoved: number;
 };
 
 export async function applyObservationFieldOverflow(
@@ -46,13 +49,55 @@ export async function applyObservationFieldOverflow(
       throw new Error("Media upload bucket is not configured");
     }
 
-    const results = await uploadOverflowCandidates(
-      eventRecord,
-      candidates,
-      mediaBucket,
-    );
+    return await instrumentAsync(
+      {
+        name: "langfuse.ingestion.observation_field_overflow.process",
+      },
+      async (span) => {
+        const startedAt = Date.now();
 
-    return applyOverflowResults(eventRecord, results);
+        try {
+          const results = await uploadOverflowCandidates(
+            eventRecord,
+            candidates,
+            mediaBucket,
+          );
+
+          span.setAttributes({
+            "langfuse.project.id": eventRecord.project_id,
+            "langfuse.trace.id": eventRecord.trace_id,
+            "langfuse.observation.id": eventRecord.span_id,
+            "langfuse.ingestion.observation_field_overflow.candidates":
+              candidates.length,
+            "langfuse.ingestion.observation_field_overflow.fields":
+              candidates.map(({ field }) => field),
+            "langfuse.ingestion.observation_field_overflow.uploaded":
+              results.filter(({ outcome }) => outcome === "uploaded").length,
+            "langfuse.ingestion.observation_field_overflow.reused":
+              results.filter(({ outcome }) => outcome === "reused").length,
+            "langfuse.ingestion.observation_field_overflow.failed":
+              results.filter(({ outcome }) => outcome === "failed").length,
+            "langfuse.ingestion.observation_field_overflow.bytes_processed":
+              candidates.reduce(
+                (total, { originalBytes }) => total + originalBytes,
+                0,
+              ),
+            "langfuse.ingestion.observation_field_overflow.bytes_removed":
+              results.reduce(
+                (total, { bytesRemoved }) => total + bytesRemoved,
+                0,
+              ),
+          });
+
+          return applyOverflowResults(eventRecord, results);
+        } finally {
+          recordDistribution(
+            "langfuse.ingestion.observation_field_overflow.processing_duration_ms",
+            Date.now() - startedAt,
+          );
+        }
+      },
+    );
   } catch (error) {
     logger.warn(
       "Observation field overflow processing failed; persisting original record",
@@ -198,13 +243,22 @@ async function uploadOverflowCandidate(
     return null;
   });
   if (!uploadResult) {
-    return { candidate, overflowedValue: value };
+    return {
+      candidate,
+      overflowedValue: value,
+      outcome: "failed",
+      bytesRemoved: 0,
+    };
   }
 
   const mediaReference =
     `@@@langfuseMedia:type=text/plain|id=${uploadResult.mediaId}` +
     `|source=${OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE}@@@`;
   const metricTags = { field, outcome: uploadResult.outcome };
+  const bytesRemoved = Math.max(
+    originalBytes - Buffer.byteLength(mediaReference, "utf8"),
+    0,
+  );
 
   recordIncrement(
     "langfuse.ingestion.observation_field_overflow",
@@ -213,9 +267,14 @@ async function uploadOverflowCandidate(
   );
   recordDistribution(
     "langfuse.ingestion.observation_field_overflow.bytes_removed",
-    Math.max(originalBytes - Buffer.byteLength(mediaReference, "utf8"), 0),
+    bytesRemoved,
     metricTags,
   );
 
-  return { candidate, overflowedValue: mediaReference };
+  return {
+    candidate,
+    overflowedValue: mediaReference,
+    outcome: uploadResult.outcome,
+    bytesRemoved,
+  };
 }
