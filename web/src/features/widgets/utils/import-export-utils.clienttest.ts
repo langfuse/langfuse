@@ -2,6 +2,7 @@ import {
   buildWidgetExport,
   buildWidgetImportAllowedValues,
   importWidgetFile,
+  parseImportedWidgetJson,
   parseAndNormalizeImportedWidget,
   parsePastedWidget,
   WIDGET_FILE_FORMAT_VERSION,
@@ -150,6 +151,22 @@ describe("parseAndNormalizeImportedWidget", () => {
 
     expect(result.snapshot.selectedView).toBe("traces");
     expect(result.snapshot.widgetMinVersion).toBe(1);
+  });
+
+  it("validates a v2-required imported shape without rewriting its version hint", () => {
+    const result = parseImportedWidgetJson({
+      parsedJson: {
+        ...baseWidget,
+        view: "observations",
+        dimensions: [{ field: "experimentName" }],
+        chartType: "VERTICAL_BAR",
+        chartConfig: { type: "VERTICAL_BAR" },
+        filters: [],
+      },
+      isBetaEnabled: false,
+    });
+
+    expect(result.widget.minVersion).toBe(1);
   });
 
   it("imports boolean score widgets with boolean filters intact", async () => {
