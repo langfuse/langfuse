@@ -1,5 +1,5 @@
 import preview from "../../../.storybook/preview";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps, useState } from "react";
 
 import {
@@ -391,12 +391,139 @@ export const LoadingTurns = meta.story({
   },
 });
 
-export const LoadingSpans = meta.story({
+export const LoadingObservations = meta.story({
   args: {
     ...loadedArgs,
     traces: sidebarTraces.map((sidebarTrace) => ({
       ...sidebarTrace,
       observations: undefined,
     })),
+  },
+});
+
+export const ObservationLoadError = meta.story({
+  args: {
+    ...loadedArgs,
+    traces: [],
+    activeTraceId: undefined,
+    search: "missing",
+    expandedTraceIds: new Set(),
+    observationLoadError: true,
+  },
+});
+
+export const TestSelectsFilteredTurnByStableNumber = meta.story({
+  name: "(Test) Selects filtered turn by stable number",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        ...sidebarTraces[2]!,
+        turnNumber: 3,
+        observations: [
+          {
+            id: "observation-3",
+            name: "Matching observation",
+            type: "SPAN",
+            latency: 0.5,
+          },
+        ],
+      },
+    ],
+    activeTraceId: "turn-3",
+    search: "matching",
+    expandedTraceIds: new Set(["turn-3"]),
+    onSelect: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("3")).toBeInTheDocument();
+    await expect(canvas.getByText("Matching observation")).toBeInTheDocument();
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Summarize findings/i }),
+    );
+    await expect(args.onSelect).toHaveBeenCalledWith(2);
+  },
+});
+
+export const TestLoadsUnderfilledSearchResults = meta.story({
+  name: "(Test) Loads underfilled search results",
+  args: {
+    ...loadedArgs,
+    traces: [sidebarTraces[0]!],
+    activeTraceId: "turn-1",
+    search: "retrieve",
+    expandedTraceIds: new Set(["turn-1"]),
+    hasMoreObservations: true,
+    onVisibleTraceIdsChange: fn(),
+    onViewportUnderfilled: fn(),
+  },
+  play: async ({ args }) => {
+    await waitFor(() => {
+      expect(args.onVisibleTraceIdsChange).toHaveBeenCalledWith(["turn-1"]);
+      expect(args.onViewportUnderfilled).toHaveBeenCalled();
+    });
+  },
+});
+
+export const TestLoadsNearListEnd = meta.story({
+  name: "(Test) Loads near list end",
+  args: {
+    ...loadedArgs,
+    traces: largeSessionSidebarTraces,
+    activeTraceId: "large-turn-1",
+    expandedTraceIds: new Set(largeSessionTraces.map((trace) => trace.id)),
+    hasMoreObservations: true,
+    onLoadMoreObservations: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const region = canvas.getByRole("region", { name: "Session turns" });
+
+    await waitFor(() => {
+      expect(region.scrollHeight).toBeGreaterThan(region.clientHeight);
+    });
+    region.scrollTop = region.scrollHeight;
+    region.dispatchEvent(new Event("scroll", { bubbles: true }));
+
+    await waitFor(() => {
+      expect(args.onLoadMoreObservations).toHaveBeenCalled();
+    });
+  },
+});
+
+export const TestDistinguishesTraceLevelIO = meta.story({
+  name: "(Test) Distinguishes trace-level I/O",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        ...sidebarTraces[0]!,
+        observations: [],
+        hasMatchingTraceLevelIO: true,
+      },
+      {
+        ...sidebarTraces[1]!,
+        observations: [],
+      },
+    ],
+    activeTraceId: "turn-1",
+    expandedTraceIds: new Set(["turn-1", "turn-2"]),
+    filterControls: {
+      ...loadedArgs.filterControls,
+      activeFilterCount: 1,
+    },
+    onSelect: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Trace-level I/O only")).toBeInTheDocument();
+    await expect(
+      canvas.getByText("No matching child observations"),
+    ).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByText("Trace-level I/O only"));
+    await expect(args.onSelect).toHaveBeenCalledWith(0);
   },
 });
