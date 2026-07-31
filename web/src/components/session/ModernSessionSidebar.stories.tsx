@@ -189,6 +189,7 @@ const toSidebarTraces = (
     trace,
     turnNumber: index + 1,
     observations: observations[trace.id] ?? [],
+    hasMatchingTraceLevelIO: false,
   }));
 
 const sidebarTraces = toSidebarTraces(traces, observationsByTraceId);
@@ -332,6 +333,42 @@ export const ActiveView = meta.story({
       ...loadedArgs.filterControls,
       activeFilterCount: 2,
       activeFilters,
+      activeViewName: "All observations with I/O",
+      selectedViewId: "__langfuse_with_io__",
+      matchingSystemPresetId: "__langfuse_with_io__",
+    },
+  },
+});
+
+export const TraceLevelIOOnly = meta.story({
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        ...sidebarTraces[0]!,
+        observations: [],
+        hasMatchingTraceLevelIO: true,
+      },
+    ],
+    activeTraceId: "turn-1",
+    expandedTraceIds: new Set(["turn-1"]),
+    filterControls: {
+      ...loadedArgs.filterControls,
+      activeFilterCount: 2,
+      activeFilters: [
+        {
+          column: "hasInput",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+        {
+          column: "hasOutput",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
       activeViewName: "All observations with I/O",
       selectedViewId: "__langfuse_with_io__",
       matchingSystemPresetId: "__langfuse_with_io__",

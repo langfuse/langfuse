@@ -73,6 +73,7 @@ function sidebar(activeTraceId: string, onSelect = vi.fn()) {
         trace,
         turnNumber: index + 1,
         observations: [],
+        hasMatchingTraceLevelIO: false,
       }))}
       activeTraceId={activeTraceId}
       filterControls={filterControls}
@@ -147,6 +148,7 @@ describe("ModernSessionSidebar", () => {
                 latency: 0.5,
               },
             ],
+            hasMatchingTraceLevelIO: false,
           },
         ]}
         activeTraceId="turn-3"
@@ -182,7 +184,14 @@ describe("ModernSessionSidebar", () => {
     render(
       <ModernSessionSidebar
         state="loaded"
-        traces={[{ trace: traces[0]!, turnNumber: 1, observations: [] }]}
+        traces={[
+          {
+            trace: traces[0]!,
+            turnNumber: 1,
+            observations: [],
+            hasMatchingTraceLevelIO: false,
+          },
+        ]}
         activeTraceId="turn-1"
         filterControls={filterControls}
         search="matching"
@@ -216,7 +225,14 @@ describe("ModernSessionSidebar", () => {
     render(
       <ModernSessionSidebar
         state="loaded"
-        traces={[{ trace: traces[0]!, turnNumber: 1, observations: [] }]}
+        traces={[
+          {
+            trace: traces[0]!,
+            turnNumber: 1,
+            observations: [],
+            hasMatchingTraceLevelIO: false,
+          },
+        ]}
         activeTraceId="turn-1"
         filterControls={filterControls}
         search=""
@@ -238,12 +254,62 @@ describe("ModernSessionSidebar", () => {
       clientHeight: { configurable: true, value: 100 },
       scrollTop: { configurable: true, value: 0, writable: true },
     });
+
     fireEvent.scroll(region);
     expect(onLoadMoreObservations).not.toHaveBeenCalled();
 
     region.scrollTop = 200;
     fireEvent.scroll(region);
     expect(onLoadMoreObservations).toHaveBeenCalledOnce();
+  });
+
+  it("distinguishes matching trace I/O from missing child spans", () => {
+    virtualizer.getVirtualItems.mockReturnValue([
+      { index: 0, key: "turn-1", start: 0, end: 160, size: 160, lane: 0 },
+      { index: 1, key: "turn-2", start: 160, end: 320, size: 160, lane: 0 },
+    ]);
+    const onSelect = vi.fn();
+
+    render(
+      <ModernSessionSidebar
+        state="loaded"
+        traces={[
+          {
+            trace: traces[0]!,
+            turnNumber: 1,
+            observations: [],
+            hasMatchingTraceLevelIO: true,
+          },
+          {
+            trace: traces[1]!,
+            turnNumber: 2,
+            observations: [],
+            hasMatchingTraceLevelIO: false,
+          },
+        ]}
+        activeTraceId="turn-1"
+        filterControls={filterControls}
+        search="matching"
+        onSearchChange={vi.fn()}
+        expandedTraceIds={new Set(["turn-1", "turn-2"])}
+        onToggleTraceExpanded={vi.fn()}
+        onExcludeObservation={vi.fn()}
+        onSelect={onSelect}
+        onVisibleTraceIdsChange={vi.fn()}
+        hasMoreObservations={false}
+        isLoadingMoreObservations={false}
+        observationLoadError={false}
+        onLoadMoreObservations={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Trace-level I/O only")).toBeInTheDocument();
+    expect(
+      screen.getByText("No matching child observations"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Trace-level I/O only"));
+    expect(onSelect).toHaveBeenCalledWith(0);
   });
 
   it("shows observation loading errors when search has no rows", () => {

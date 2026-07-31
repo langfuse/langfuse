@@ -95,6 +95,13 @@ export function ModernSession({
       value: sessionMaxTimestamp,
     },
   ];
+  const filtersRequireIO = filterState.some(
+    (filter) =>
+      (filter.column === "hasInput" || filter.column === "hasOutput") &&
+      filter.type === "boolean" &&
+      filter.operator === "=" &&
+      filter.value,
+  );
 
   const traceIndexById = new Map(
     traces.map((trace, index) => [trace.id, index] as const),
@@ -168,12 +175,14 @@ export function ModernSession({
     string,
     NonNullable<ModernSessionSidebarTrace["observations"]>
   >();
+  const traceIdsWithMatchingTraceLevelIO = new Set<string>();
   for (const query of observationQueries) {
     for (const observation of query.data?.observations ?? []) {
-      if (
-        !observation.traceId ||
-        observation.id === `t-${observation.traceId}`
-      ) {
+      if (!observation.traceId) {
+        continue;
+      }
+      if (observation.id === `t-${observation.traceId}`) {
+        traceIdsWithMatchingTraceLevelIO.add(observation.traceId);
         continue;
       }
       const observations = observationsByTraceId.get(observation.traceId);
@@ -224,12 +233,20 @@ export function ModernSession({
             ? undefined
             : (observationsByTraceId.get(trace.id) ?? []);
 
-    if (searchQuery && !observationsByTraceId.has(trace.id)) continue;
+    if (
+      searchQuery &&
+      !observationsByTraceId.has(trace.id) &&
+      !traceIdsWithMatchingTraceLevelIO.has(trace.id)
+    ) {
+      continue;
+    }
 
     sidebarTraces.push({
       trace,
       turnNumber: index + 1,
       observations,
+      hasMatchingTraceLevelIO:
+        filtersRequireIO && traceIdsWithMatchingTraceLevelIO.has(trace.id),
     });
   }
 

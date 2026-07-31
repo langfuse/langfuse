@@ -1,4 +1,4 @@
-import { MoreHorizontal } from "lucide-react";
+import { ArrowRight, MoreHorizontal } from "lucide-react";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { Button } from "@/src/components/ui/button";
@@ -20,6 +20,7 @@ export type ObservationListRow = {
 type ObservationListRowsState =
   | { type: "loading" }
   | { type: "error" }
+  | { type: "trace-io-only" }
   | { type: "empty"; hasFilters: boolean }
   | { type: "loaded"; rows: ObservationListRow[] };
 
@@ -31,7 +32,7 @@ export function ObservationListRows({
   | {
       state: Extract<
         ObservationListRowsState,
-        { type: "loading" | "error" | "empty" }
+        { type: "loading" | "error" | "trace-io-only" | "empty" }
       >;
       onSelectTurn?: never;
       onExcludeObservation?: never;
@@ -53,8 +54,22 @@ export function ObservationListRows({
   if (state.type === "empty") {
     return (
       <p className="text-muted-foreground -mx-1 px-1 py-2 text-xs">
-        {state.hasFilters ? "No matching spans" : "No observations"}
+        {state.hasFilters
+          ? "No matching child observations"
+          : "No child observations"}
       </p>
+    );
+  }
+
+  if (state.type === "trace-io-only") {
+    return (
+      <div className="border-border bg-muted/40 text-foreground -mx-1 mt-2 flex items-center gap-2 rounded-sm border px-2 py-1.5 text-xs">
+        <span className="min-w-0 flex-1">Trace-level I/O only</span>
+        <ArrowRight
+          aria-hidden="true"
+          className="text-muted-foreground h-3.5 w-3.5 shrink-0"
+        />
+      </div>
     );
   }
 

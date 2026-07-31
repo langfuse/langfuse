@@ -42,6 +42,7 @@ export type ModernSessionSidebarTrace = {
   trace: EventSessionTrace;
   turnNumber: number;
   observations: ObservationListRow[] | null | undefined;
+  hasMatchingTraceLevelIO: boolean;
 };
 
 const EMPTY_TRACES: ModernSessionSidebarTrace[] = [];
@@ -75,13 +76,24 @@ const TurnCard = React.memo(
     hasFilters: boolean;
     onExcludeObservation: (name: string) => void;
   }) => {
-    const { trace, turnNumber, observations } = sidebarTrace;
+    const { trace, turnNumber, observations, hasMatchingTraceLevelIO } =
+      sidebarTrace;
+    const isTraceLevelIOOnly =
+      hasMatchingTraceLevelIO && observations?.length === 0;
 
     return (
       <div
+        onClick={(event) => {
+          if (!isTraceLevelIOOnly) return;
+          if ((event.target as Element).closest("button, [role='button']")) {
+            return;
+          }
+          onSelect(selectIndex);
+        }}
         className={cn(
           "group hover:bg-foreground/[0.03] rounded-sm border border-transparent p-2 transition-colors duration-150",
           isActive && "bg-foreground/5",
+          isTraceLevelIOOnly && "cursor-pointer",
         )}
         data-observation-list-active={isActive}
       >
@@ -132,7 +144,13 @@ const TurnCard = React.memo(
           ) : observations === null ? (
             <ObservationListRows state={{ type: "error" }} />
           ) : observations.length === 0 ? (
-            <ObservationListRows state={{ type: "empty", hasFilters }} />
+            <ObservationListRows
+              state={
+                isTraceLevelIOOnly
+                  ? { type: "trace-io-only" }
+                  : { type: "empty", hasFilters }
+              }
+            />
           ) : (
             <ObservationListRows
               state={{ type: "loaded", rows: observations }}
@@ -273,7 +291,7 @@ export function ModernSessionSidebar(
     return (
       <div
         role="complementary"
-        aria-label="Session spans"
+        aria-label="Session observations"
         aria-busy="true"
         className="bg-background dark:bg-header relative flex h-full min-h-0 flex-col border-r"
       >
@@ -331,7 +349,7 @@ export function ModernSessionSidebar(
   return (
     <div
       role="complementary"
-      aria-label="Session spans"
+      aria-label="Session observations"
       className="bg-background dark:bg-header relative flex h-full min-h-0 flex-col border-r"
     >
       <div className="shrink-0 border-b">
@@ -344,8 +362,8 @@ export function ModernSessionSidebar(
             <Input
               value={search}
               onChange={(event) => handleSearchChange(event.target.value)}
-              aria-label="Search turns and spans"
-              placeholder="Search turns and spans"
+              aria-label="Search turns and observations"
+              placeholder="Search turns and observations"
               className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
             />
           </div>
