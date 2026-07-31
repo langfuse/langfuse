@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   eventsTableCols,
   filterOperators,
+  FTS_MATCH_OPERATOR,
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
 } from "@langfuse/shared";
 import { defineTool } from "../../../core/define-tool";
@@ -25,6 +26,12 @@ const OBSERVATION_MCP_FILTER_COLUMNS = eventsTableCols
 const OBSERVATION_MCP_FILTER_CONFIG_COLUMN_OVERRIDES: Record<string, string> = {
   tags: "traceTags",
 };
+
+const OBSERVATION_MCP_INDEXED_MATCH_COLUMNS = new Set([
+  "input",
+  "output",
+  "metadata",
+]);
 
 export const [
   getObservationFilterSchemaTool,
@@ -54,7 +61,9 @@ export const [
             publicColumn,
             {
               type: column.type,
-              operators: filterOperators[column.type],
+              operators: OBSERVATION_MCP_INDEXED_MATCH_COLUMNS.has(publicColumn)
+                ? [...filterOperators[column.type], FTS_MATCH_OPERATOR]
+                : filterOperators[column.type],
               nullable: Boolean(column.nullable),
               requiresKey:
                 column.type === "stringObject" ||

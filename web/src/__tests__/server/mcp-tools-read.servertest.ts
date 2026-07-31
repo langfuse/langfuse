@@ -813,8 +813,12 @@ describe("MCP Read Tools", () => {
         expect.objectContaining({
           type: "stringObject",
           requiresKey: true,
+          operators: expect.arrayContaining(["matches"]),
         }),
       );
+      expect(result.columns.input.operators).toContain("matches");
+      expect(result.columns.output.operators).toContain("matches");
+      expect(result.columns.statusMessage.operators).not.toContain("matches");
       expect(result.columns.traceTags).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
@@ -1270,6 +1274,54 @@ describe("MCP Read Tools", () => {
               type: "string",
               column: "input",
               operator: "contains",
+              value: needle,
+            },
+          ],
+          fields: ["id"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string; url: string }> };
+
+      expect(result.data).toEqual([
+        {
+          id: matchingObservation.id,
+          url: buildObservationUrl({
+            projectId,
+            traceId,
+            observationId: matchingObservation.id,
+          }),
+        },
+      ]);
+    });
+
+    it("should accept indexed matches filters for observation input", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const needle = `indexed-${nanoid()}`;
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        input: `prefix ${needle} suffix`,
+      });
+
+      await createEventsCh([
+        matchingObservation,
+        createObservationEvent({
+          projectId,
+          traceId,
+          input: "different indexed content",
+        }),
+      ]);
+
+      const result = (await handleListObservations(
+        {
+          traceId,
+          filter: [
+            {
+              type: "string",
+              column: "input",
+              operator: "matches",
               value: needle,
             },
           ],
