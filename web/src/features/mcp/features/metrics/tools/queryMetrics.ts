@@ -17,6 +17,57 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 import { z } from "zod";
 
 const DEFAULT_ROW_LIMIT = 100;
+const RAW_OBSERVATION_PAYLOAD_FIELDS = new Set(["input", "output"]);
+
+const getRawObservationPayloadFields = (
+  input: z.infer<typeof MetricsQueryObjectV2>,
+) => {
+  const fields = [
+    ...input.dimensions.map((dimension) => dimension.field),
+    ...input.metrics.map((metric) => metric.measure),
+    ...input.filters.map((filter) => filter.column),
+  ];
+
+  return [...new Set(fields)].filter((field) =>
+    RAW_OBSERVATION_PAYLOAD_FIELDS.has(field),
+  );
+};
+
+const getHighCardinalityDimensionFields = (
+  input: z.infer<typeof MetricsQueryObjectV2>,
+) =>
+  input.dimensions
+    .map((dimension) => dimension.field)
+    .filter(
+      (field) =>
+        viewDeclarations.v2[input.view].dimensions[field]?.highCardinality,
+    );
+
+const getHighCardinalityGuidance = (
+  input: z.infer<typeof MetricsQueryObjectV2>,
+  reason: string,
+) => {
+  const fields = getHighCardinalityDimensionFields(input);
+  if (fields.length === 0) {
+    return reason;
+  }
+
+  const schemaReminder = ` Call getMetricsSchema({"view":"${input.view}"}) for supported fields and metric aliases.`;
+
+  if (input.timeDimension) {
+    return `${reason} Remove ${fields.join(", ")} or remove timeDimension; config.row_limit and orderBy cannot make this combination safe.${schemaReminder}`;
+  }
+
+  const orderByMetric = input.metrics.find(
+    (metric) => metric.aggregation !== "histogram",
+  );
+  if (!orderByMetric) {
+    return `${reason}${schemaReminder}`;
+  }
+
+  const orderByField = `${orderByMetric.aggregation}_${orderByMetric.measure}`;
+  return `${reason} For a non-timeseries top-N query, add {"config":{"row_limit":100},"orderBy":[{"field":"${orderByField}","direction":"desc"}]}.${schemaReminder}`;
+};
 
 const normalizeMetricFilters = (
   input: z.infer<typeof MetricsQueryObjectV2>,
@@ -153,10 +204,21 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
         const normalizedInput = normalizeMetricOrderByFields(
           normalizeMetricFilters(input),
         );
+        const rawPayloadFields =
+          getRawObservationPayloadFields(normalizedInput);
+
+        if (rawPayloadFields.length > 0) {
+          throw new InvalidRequestError(
+            `Raw observation ${rawPayloadFields.join(" and ")} is not available from queryMetrics. Use listObservations with traceId, an exact id filter, or both fromStartTime and toStartTime; call getObservationFilterSchema for supported observation filters.`,
+          );
+        }
+
         const validation = validateQuery(normalizedInput, "v2");
 
         if (!validation.valid) {
-          throw new InvalidRequestError(validation.reason);
+          throw new InvalidRequestError(
+            getHighCardinalityGuidance(normalizedInput, validation.reason),
+          );
         }
 
         const { config, ...query } = normalizedInput;

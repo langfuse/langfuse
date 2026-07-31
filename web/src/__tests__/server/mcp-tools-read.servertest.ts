@@ -2019,8 +2019,50 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).rejects.toThrow(
-        /require both 'config\.row_limit' and 'orderBy' with direction 'desc'/i,
+        /"config":\{"row_limit":100\}.*"field":"count_count".*getMetricsSchema/i,
       );
+    });
+
+    it("should direct raw observation payload filters to scoped observation retrieval", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "input",
+                operator: "contains",
+                value: "customer question",
+              },
+            ],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      ).rejects.toThrow(
+        /listObservations.*traceId.*getObservationFilterSchema/i,
+      );
+    });
+
+    it("should explain the safe alternative for high-cardinality time series", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "traceId" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            timeDimension: { granularity: "day" },
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      ).rejects.toThrow(/Remove.*timeDimension.*getMetricsSchema/i);
     });
   });
 
