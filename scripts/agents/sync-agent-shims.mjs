@@ -359,6 +359,7 @@ const collectReferencedPaths = (filePath, contents) => {
 
     references.push({
       raw: target,
+      escapesUpward: cleaned.startsWith("../"),
       candidates: [resolve(fileDirectory, cleaned)],
     });
   }
@@ -372,11 +373,26 @@ const collectReferencedPaths = (filePath, contents) => {
     // and both conventions are in use. Accept whichever resolves.
     references.push({
       raw: target,
+      escapesUpward: target.startsWith("../"),
       candidates: [resolve(repoRoot, target), resolve(fileDirectory, target)],
     });
   }
 
   return references;
+};
+
+// True when `candidate` sits under a top-level repo directory that exists, so
+// a missing file below it is rot rather than an unfetched sibling checkout.
+const isInsideRepoDirectory = (candidate) => {
+  const relativePath = relative(repoRoot, candidate);
+
+  if (!relativePath || relativePath.startsWith("..")) {
+    return false;
+  }
+
+  const [topLevel] = relativePath.split("/");
+
+  return existsSync(resolve(repoRoot, topLevel));
 };
 
 const findBrokenReferences = () => {
@@ -396,16 +412,18 @@ const findBrokenReferences = () => {
         continue;
       }
 
-      // Only flag a reference whose parent directory exists. That is the
-      // signature of a file that was moved or renamed underneath the docs. A
-      // path with no existing ancestor is almost always an external checkout
-      // (for example `../langfuse-docs/**`) rather than repo rot, and this
-      // check deliberately does not try to police those.
-      if (
-        !reference.candidates.some((candidate) =>
-          existsSync(dirname(candidate)),
-        )
-      ) {
+      // A `../`-relative reference is reported only when it resolves, because
+      // it usually points at a sibling checkout (`../langfuse-docs/**`) that a
+      // standalone clone legitimately lacks.
+      if (reference.escapesUpward) {
+        continue;
+      }
+
+      // Otherwise police anything landing under a top-level directory that
+      // exists. Testing the immediate parent instead would miss a path whose
+      // entire directory was renamed or removed, which is exactly the rot
+      // worth catching.
+      if (!reference.candidates.some(isInsideRepoDirectory)) {
         continue;
       }
 

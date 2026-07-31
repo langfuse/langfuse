@@ -138,7 +138,7 @@ regenerated outputs. Never hand-edit `generated/**`.
 - `.agents/AGENTS.md` is the canonical root guide.
 - Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
 - Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
-- After changing skills / Agent.md, run `pnpm run agents:sync` and
+- After changing skills / AGENTS.md, run `pnpm run agents:sync` and
   `pnpm run agents:check`.
 - **Write agent guidance only in `AGENTS.md`, never in a `CLAUDE.md`.** Every
   `AGENTS.md` in the tree gets a generated sibling `CLAUDE.md` symlink when running

@@ -108,8 +108,10 @@ Sentry instrumentation skill first and decide whether it should capture at all
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in
   `src/server/api/root.ts`.
-- RBAC lives in `src/features/rbac`: role definitions in `constants/`, access
-  checks in `utils/checkProjectAccess.ts` and `utils/checkOrganizationAccess.ts`.
+- RBAC lives in `src/features/rbac`: role definitions in
+  `src/features/rbac/constants`, access checks in
+  `src/features/rbac/utils/checkProjectAccess.ts` and
+  `src/features/rbac/utils/checkOrganizationAccess.ts`.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.
