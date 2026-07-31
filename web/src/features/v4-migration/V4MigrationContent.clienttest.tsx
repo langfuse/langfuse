@@ -34,10 +34,18 @@ const mocks = vi.hoisted(() => ({
     evals: { status: "loaded", count: 0 } as MigrationCountState,
     apis: { status: "loaded", count: 1 } as MigrationCountState,
     exports: { status: "loaded", count: 3 } as MigrationCountState,
-    apiUsage: [{ endpoint: "GET /api/public/traces", count: 42 }],
+    apiUsage: [
+      {
+        endpoint: "GET /api/public/traces",
+        count: 42,
+        lastSeen: "2026-07-23T10:37:00Z",
+      },
+    ],
     legacyIntegrations: ["PostHog", "Mixpanel", "Blob Storage"],
   },
   canToggleV4: true,
+  hasApiKeyCreateAccess: true,
+  createProjectApiKey: vi.fn(),
 }));
 
 vi.mock("next/router", () => ({
@@ -55,8 +63,28 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    useUtils: () => ({
+      projectApiKeys: { invalidate: vi.fn() },
+    }),
+    projectApiKeys: {
+      create: {
+        useMutation: () => ({
+          mutateAsync: mocks.createProjectApiKey,
+          isPending: false,
+        }),
+      },
+    },
+  },
+}));
+
 vi.mock("@/src/features/projects/hooks", () => ({
   useProject: () => ({ organization: { id: "org-1" } }),
+}));
+
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+  useHasProjectAccess: () => mocks.hasApiKeyCreateAccess,
 }));
 
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
@@ -113,7 +141,11 @@ describe("V4MigrationDetailsContent", () => {
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
     mocks.migrationData.apiUsage = [
-      { endpoint: "GET /api/public/traces", count: 42 },
+      {
+        endpoint: "GET /api/public/traces",
+        count: 42,
+        lastSeen: "2026-07-23T10:37:00Z",
+      },
     ];
     mocks.migrationData.legacyIntegrations = [
       "PostHog",
@@ -135,6 +167,10 @@ describe("V4MigrationDetailsContent", () => {
     ).toHaveAttribute(
       "href",
       "https://langfuse.com/faq/all/deprecated-api-migration",
+    );
+    expect(screen.getByText(/42 calls · last seen/)).toHaveAttribute(
+      "title",
+      "Last seen at 2026-07-23T10:37:00Z",
     );
 
     const expectedIntegrationGuides = {
@@ -255,6 +291,15 @@ describe("V4MigrationHeaderContent", () => {
     mocks.migrationData.evals = { status: "loaded", count: 0 };
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
+    mocks.hasApiKeyCreateAccess = true;
+    mocks.createProjectApiKey.mockReset();
+    mocks.createProjectApiKey.mockImplementation(
+      ({ projectId }: { projectId: string }) =>
+        Promise.resolve({
+          secretKey: `sk-lf-${projectId}`,
+          publicKey: `pk-lf-${projectId}`,
+        }),
+    );
   });
 
   it("claims the project needs migrating while checks report action needed", () => {
@@ -294,5 +339,66 @@ describe("V4MigrationHeaderContent", () => {
     const link = screen.getByRole("link", { name: "View Status" });
     expect(link).toHaveAttribute("href", "/v4-migration");
     expect(link.parentElement).toHaveClass("pr-6");
+  });
+
+  it("creates project API keys when revealing the migration prompt", async () => {
+    render(<V4MigrationHeaderContent projectId="project-1" />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Update SDK with agents" }),
+    );
+
+    expect(screen.getByText("coding-agent-prompt")).toBeInTheDocument();
+    expect(mocks.createProjectApiKey).toHaveBeenCalledWith({
+      projectId: "project-1",
+      note: "v4-migration-key",
+    });
+    await waitFor(() =>
+      expect(screen.getByText("pk-lf-pr…ct-1")).toBeInTheDocument(),
+    );
+  });
+
+  it("hides API key creation for users without access", () => {
+    mocks.hasApiKeyCreateAccess = false;
+    const { container } = render(
+      <V4MigrationHeaderContent projectId="project-1" />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Update SDK with agents" }),
+    );
+
+    expect(screen.getByText("coding-agent-prompt")).toBeInTheDocument();
+    expect(mocks.createProjectApiKey).not.toHaveBeenCalled();
+    expect(container.querySelector(".lucide-loader-circle")).toBeNull();
+  });
+
+  it("refreshes generated keys when the project changes", async () => {
+    const { rerender } = render(
+      <V4MigrationHeaderContent key="project-1" projectId="project-1" />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Update SDK with agents" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("pk-lf-pr…ct-1")).toBeInTheDocument(),
+    );
+
+    rerender(
+      <V4MigrationHeaderContent key="project-2" projectId="project-2" />,
+    );
+
+    expect(screen.queryByText("pk-lf-pr…ct-1")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Update SDK with agents" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("pk-lf-pr…ct-2")).toBeInTheDocument(),
+    );
+    expect(mocks.createProjectApiKey).toHaveBeenLastCalledWith({
+      projectId: "project-2",
+      note: "v4-migration-key",
+    });
   });
 });

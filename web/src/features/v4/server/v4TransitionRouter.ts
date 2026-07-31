@@ -97,12 +97,14 @@ type LegacyApiUsageRow = {
   time: string;
   entrypoint: string;
   count: string | number;
+  lastSeen: string;
 };
 
 type LegacyApiUsageResultRow = {
   time: string;
   entrypoint: string;
   count: number;
+  lastSeen: string | null;
 };
 
 type LegacyApiUsageSummaryByProjectRow = {
@@ -208,6 +210,7 @@ const getEmptyTimelineBuckets = (
       time: formatTimelineBucket(bucket),
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
   }
 
@@ -1196,6 +1199,7 @@ SETTINGS skip_unavailable_shards = 1
 WITH selected AS (
   SELECT
     ${bucketTimeSql} AS bucket_time,
+    event_time_microseconds,
     splitByChar('?', JSONExtractString(log_comment, 'route'))[1] AS route_path
   FROM ${systemTableRef("system.query_log")}
   WHERE
@@ -1211,6 +1215,7 @@ WITH selected AS (
 classified AS (
   SELECT
     bucket_time,
+    event_time_microseconds,
     multiIf(
       route_path IN (
         'GET /api/public/spans',
@@ -1257,7 +1262,8 @@ classified AS (
 SELECT
   formatDateTime(bucket_time, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time,
   concat('publicapi: ', legacy_route) AS entrypoint,
-  sum(1.0 / clickhouse_queries_per_api_call) AS count
+  sum(1.0 / clickhouse_queries_per_api_call) AS count,
+  formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen
 FROM classified
 WHERE legacy_route IS NOT NULL
   AND clickhouse_queries_per_api_call IS NOT NULL
@@ -1284,6 +1290,7 @@ SETTINGS skip_unavailable_shards = 1
         time: row.time,
         entrypoint: row.entrypoint,
         count: Number(row.count),
+        lastSeen: row.lastSeen,
       }));
 
       return dataRows.length === 0

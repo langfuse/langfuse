@@ -1,13 +1,18 @@
 import { z } from "zod";
-import { DashboardWidgetChartType } from "@langfuse/shared";
+import {
+  DashboardWidgetChartType,
+  InvalidRequestError,
+} from "@langfuse/shared";
 import { metricAggregations } from "@langfuse/shared/query";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 import { createPublicDashboardWidget } from "@/src/features/widgets/server/public-dashboard-widget-service";
+import { getWidgetImportFilterConfig } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
   PostUnstableDashboardWidgetBody,
   PostUnstableDashboardWidgetView,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
+import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import { buildDashboardWidgetUrl } from "@langfuse/shared/src/server";
 
 export const DashboardWidgetFilterBaseSchema = z
@@ -67,6 +72,37 @@ const CreateDashboardWidgetBaseSchema = z.object({
   ),
 });
 
+const throwActionableDashboardWidgetError = (
+  error: unknown,
+  input: z.infer<typeof PostUnstableDashboardWidgetBody>,
+): never => {
+  if (!(error instanceof UnstablePublicApiError)) throw error;
+
+  const field = error.details?.field;
+  const allowedValues =
+    error.details?.allowedValues ??
+    (field === "filters"
+      ? Array.from(getWidgetImportFilterConfig(input.view).allowedColumns)
+      : []);
+  const fieldLabel = field?.startsWith("dimensions")
+    ? "dimensions"
+    : field?.endsWith(".agg")
+      ? "aggregations"
+      : field?.endsWith(".measure")
+        ? "measures"
+        : field === "filters"
+          ? "filter columns"
+          : "values";
+  const supportedValuesHint =
+    allowedValues.length > 0
+      ? ` Supported ${fieldLabel} for "${input.view}": ${allowedValues.join(", ")}.`
+      : "";
+
+  throw new InvalidRequestError(
+    `${error.message}.${supportedValuesHint} Call getMetricsSchema with view "${input.view}" for broader query schema details; use the widget-compatible values listed above when present.`,
+  );
+};
+
 export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
   defineTool({
     name: "createDashboardWidget",
@@ -92,7 +128,9 @@ export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
             projectId: context.projectId,
             input,
             auditScope: context,
-          });
+          }).catch((error) =>
+            throwActionableDashboardWidgetError(error, input),
+          );
 
           span.setAttribute("mcp.dashboard_widget_id", widget.id);
 
