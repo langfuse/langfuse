@@ -28,7 +28,15 @@ import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
 } from "@langfuse/shared/in-app-agent";
-import { type AgUiEvent } from "@langfuse/shared/in-app-agent";
+import {
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
+  type AgUiEvent,
+} from "@langfuse/shared/in-app-agent";
+import {
+  deserializeInAppAgentDisplayState,
+  projectInAppAgentMessagesForDisplay,
+} from "@/src/features/in-app-agent/lib/display";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
   createRun,
@@ -1064,32 +1072,58 @@ describe("in-app agent persistence", () => {
       ],
     });
 
-    await expect(
-      caller.getConversation({ projectId, conversationId: conversation.id }),
-    ).resolves.toMatchObject({
-      messages: [
-        {
-          id: "interleaved-user",
-          role: "user",
-          content: "Investigate this",
-        },
-        {
-          id: "interleaved-assistant",
-          role: "assistant",
-          content: "Initial answer.",
-        },
-        {
-          id: "interleaved-reasoning",
-          role: "reasoning",
-          content: "A later thought.",
-        },
-        {
-          id: "display-text-interleaved-assistant-1",
-          role: "assistant",
-          content: " Final answer.",
-        },
-      ],
+    // The wire carries canonical messages: the assistant message keeps its full
+    // content so a resumed run can append to it. Interleaved ordering travels
+    // separately, in the display state.
+    const snapshot = await caller.getConversation({
+      projectId,
+      conversationId: conversation.id,
     });
+
+    expect(snapshot.messages).toMatchObject([
+      {
+        id: "interleaved-user",
+        role: "user",
+        content: "Investigate this",
+      },
+      {
+        id: "interleaved-assistant",
+        role: "assistant",
+        content: "Initial answer. Final answer.",
+      },
+      {
+        id: "interleaved-reasoning",
+        role: "reasoning",
+        content: "A later thought.",
+      },
+    ]);
+    expect(
+      projectInAppAgentMessagesForDisplay(
+        snapshot.messages,
+        deserializeInAppAgentDisplayState(snapshot.displayState),
+      ),
+    ).toMatchObject([
+      {
+        id: "interleaved-user",
+        role: "user",
+        content: "Investigate this",
+      },
+      {
+        id: "interleaved-assistant",
+        role: "assistant",
+        content: "Initial answer.",
+      },
+      {
+        id: "interleaved-reasoning",
+        role: "reasoning",
+        content: "A later thought.",
+      },
+      {
+        id: "display-text-interleaved-assistant-1",
+        role: "assistant",
+        content: " Final answer.",
+      },
+    ]);
     await expect(
       getConversationMessagesForReplay({
         prisma,
@@ -1508,7 +1542,24 @@ describe("in-app agent persistence", () => {
       conversationId: conversation.id,
     });
 
-    expect(detail.messages).toEqual([
+    // The snapshot stays canonical and keeps the unpaired call: a run resuming
+    // from here still needs it present for its result to attach to, and a
+    // pending approval renders against it.
+    expect(
+      detail.messages.flatMap((message) =>
+        message.role === "assistant" ? (message.toolCalls ?? []) : [],
+      ),
+    ).toMatchObject([
+      { id: "paired-tool-call" },
+      { id: "unapproved-tool-call" },
+    ]);
+
+    // Settled transcripts prune it at render time instead.
+    expect(
+      dropEmptyAssistantMessages(
+        dropUnpairedAssistantToolCalls(detail.messages),
+      ),
+    ).toEqual([
       { id: "user-1", role: "user", content: "search" },
       {
         id: "assistant-1",
