@@ -347,43 +347,27 @@ export default function ExperimentItemsTable({
   const {
     baselineId,
     hasBaseline,
-    resolveBaselineOrFirstComparison,
     comparisonIds,
+    allExperimentIds,
     layout,
     itemVisibility,
   } = useExperimentResultsState();
-  const fallbackBaselineId = resolveBaselineOrFirstComparison();
-  const comparisonIdsWithoutFallbackBaseline = useMemo(
-    () =>
-      fallbackBaselineId
-        ? comparisonIds.filter((id) => id !== fallbackBaselineId)
-        : comparisonIds,
-    [comparisonIds, fallbackBaselineId],
-  );
-  // All experiment IDs (base first, then comparisons)
-  const allExperimentIds = useMemo(() => {
-    return fallbackBaselineId
-      ? [fallbackBaselineId, ...comparisonIdsWithoutFallbackBaseline]
-      : [];
-  }, [fallbackBaselineId, comparisonIdsWithoutFallbackBaseline]);
 
   const defaultFilterTargetExperimentId = getDefaultExperimentFilterTarget({
     baselineId,
     comparisonIds,
   });
-  const hasSelectedRuns = hasBaseline || comparisonIds.length > 0;
+  const hasSelectedRuns = allExperimentIds.length > 0;
   const canUsePeek = shouldEnableExperimentPeek({
     hasBaseline,
     hideControls,
   });
   const { experimentNames } = useExperimentNames({ projectId });
   const selectedExperimentNames = useMemo(() => {
-    return experimentNames.filter(
-      (exp) =>
-        comparisonIds.includes(exp.experimentId) ||
-        (baselineId ? exp.experimentId === baselineId : false),
+    return experimentNames.filter((exp) =>
+      allExperimentIds.includes(exp.experimentId),
     );
-  }, [experimentNames, comparisonIds, baselineId]);
+  }, [experimentNames, allExperimentIds]);
 
   const { selectAll, setSelectAll } = useSelectAll(
     projectId,
@@ -720,7 +704,7 @@ export default function ExperimentItemsTable({
           );
         },
       })) as LangfuseColumnDef<ExperimentItemsTableRow>[],
-    [allExperimentIds, colorExperimentIds, hasBaseline, baselineId],
+    [allExperimentIds, baselineId, colorExperimentIds, hasBaseline],
   );
 
   const observationExperimentScoreColumns = useMemo(
@@ -1014,10 +998,12 @@ export default function ExperimentItemsTable({
       "peekExperimentId",
     ],
     extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
-      // Use baseline experiment (the one matching experimentId prop)
-      const baselineExp = row.experiments.find(
-        (e) => e.experimentId === fallbackBaselineId,
-      );
+      // Use the explicit baseline when present. Without one, use the first
+      // selected experiment only as the primary trace for URL-compatible peek
+      // navigation; it is not treated as a baseline in comparison logic.
+      const baselineExp = baselineId
+        ? row.experiments.find((e) => e.experimentId === baselineId)
+        : row.experiments[0];
       return {
         traceId: baselineExp?.traceId || "",
         timestamp: baselineExp?.startTime.toISOString() || "",
@@ -1252,8 +1238,10 @@ export default function ExperimentItemsTable({
               hasSelectedRuns ? (
                 <ExperimentGridView
                   projectId={projectId}
-                  baselineExperimentId={fallbackBaselineId ?? ""}
-                  comparisonExperimentIds={comparisonIdsWithoutFallbackBaseline}
+                  baselineExperimentId={baselineId}
+                  comparisonExperimentIds={
+                    baselineId ? comparisonIds : allExperimentIds
+                  }
                   useExperimentColors={hasBaseline}
                   singleLine={ioSingleLine}
                   rows={rows}

@@ -3,7 +3,7 @@ import { Check, X } from "lucide-react";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
-import { MAX_EXPERIMENT_COMPARISONS } from "@/src/features/experiments/constants/comparison";
+import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 
 export type ExperimentOption = {
   experimentId: string;
@@ -14,6 +14,7 @@ type ExperimentComparisonSelectorProps = {
   projectId: string;
   baselineExperimentId?: string;
   selectedIds: string[];
+  selectedExperimentCount: number;
   onSelectedIdsChange: (ids: string[]) => void;
 };
 
@@ -21,6 +22,7 @@ export function ExperimentComparisonSelector({
   projectId,
   baselineExperimentId,
   selectedIds,
+  selectedExperimentCount,
   onSelectedIdsChange,
 }: ExperimentComparisonSelectorProps) {
   const {
@@ -57,11 +59,18 @@ export function ExperimentComparisonSelector({
   const handleItemsChange = (items: ExperimentOption[]) => {
     const newIds = items
       .map((item) => item.experimentId)
-      .slice(0, MAX_EXPERIMENT_COMPARISONS);
+      .slice(
+        0,
+        Math.max(
+          0,
+          MAX_SELECTED_EXPERIMENTS -
+            (selectedExperimentCount - selectedIds.length),
+        ),
+      );
     onSelectedIdsChange(newIds);
   };
 
-  const isMaxReached = selectedIds.length >= MAX_EXPERIMENT_COMPARISONS;
+  const isMaxReached = selectedExperimentCount >= MAX_SELECTED_EXPERIMENTS;
 
   return (
     <div className="space-y-2">
@@ -74,10 +83,10 @@ export function ExperimentComparisonSelector({
         isLoading={isLoading}
         placeholder={
           isMaxReached
-            ? `Max ${MAX_EXPERIMENT_COMPARISONS} comparisons`
+            ? `Max ${MAX_SELECTED_EXPERIMENTS} experiments`
             : "Search experiments..."
         }
-        disabled={isMaxReached}
+        disabled={isLoading}
         singleLine
         className="rounded-l-none border-l-0"
         getItemKey={(item) => item.experimentId}
@@ -85,7 +94,9 @@ export function ExperimentComparisonSelector({
           <button
             type="button"
             onClick={onToggle}
-            disabled={!isSelected && isMaxReached}
+            disabled={
+              !isSelected && selectedExperimentCount >= MAX_SELECTED_EXPERIMENTS
+            }
             className="hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
           >
             <div className="flex h-4 w-4 items-center justify-center">

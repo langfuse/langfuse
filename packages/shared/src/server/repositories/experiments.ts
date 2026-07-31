@@ -1265,10 +1265,7 @@ export const getExperimentItemsBatchIO = async (props: {
       experimentId: row.experiment_id,
       output: row.output,
       // `output` is sourced from events_core (truncated mode), which caps I/O at
-      // EVENTS_CORE_IO_TRUNCATION_LENGTH chars — the larger charLimit passed to
-      // selectIO above cannot exceed that. Comparing against the env char limit
-      // instead never matched, so genuinely truncated outputs were never
-      // flagged and the UI never refetched the full value from events_full.
+      // EVENTS_CORE_IO_TRUNCATION_LENGTH chars
       outputPotentiallyTruncated:
         row.output !== null &&
         Array.from(row.output).length >= EVENTS_CORE_IO_TRUNCATION_LENGTH,

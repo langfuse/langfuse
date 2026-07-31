@@ -6,6 +6,7 @@ type ExperimentSelectionControlsProps = {
   baselineId?: string;
   baselineName?: string;
   comparisonIds: string[];
+  selectedExperimentCount: number;
   onBaselineChange: (id: string) => void;
   onBaselineClear: () => void;
   onComparisonIdsChange: (ids: string[]) => void;
@@ -16,6 +17,7 @@ export function ExperimentSelectionControls({
   baselineId,
   baselineName,
   comparisonIds,
+  selectedExperimentCount,
   onBaselineChange,
   onBaselineClear,
   onComparisonIdsChange,
@@ -46,6 +48,7 @@ export function ExperimentSelectionControls({
             projectId={projectId}
             baselineExperimentId={baselineId}
             selectedIds={comparisonIds}
+            selectedExperimentCount={selectedExperimentCount}
             onSelectedIdsChange={onComparisonIdsChange}
           />
         </div>

@@ -32,7 +32,7 @@ const GRID_VIEW_ROW_HEIGHTS = {
 
 type ExperimentGridViewProps = {
   projectId: string;
-  baselineExperimentId: string;
+  baselineExperimentId?: string;
   comparisonExperimentIds: string[];
   useExperimentColors?: boolean;
   /** Render I/O cells as single-line text (true) or JSON tree (false). */
@@ -83,9 +83,13 @@ export const ExperimentGridView = ({
   setRowSelection,
   highlightAllRows,
 }: ExperimentGridViewProps) => {
-  // Build all experiment IDs (baseline first)
+  // Keep the explicit baseline separate from the comparison list. A baseline
+  // is optional, so c-only URLs render every selected experiment here.
   const allExperimentIds = useMemo(
-    () => [baselineExperimentId, ...comparisonExperimentIds],
+    () => [
+      ...(baselineExperimentId ? [baselineExperimentId] : []),
+      ...comparisonExperimentIds,
+    ],
     [baselineExperimentId, comparisonExperimentIds],
   );
 
@@ -94,7 +98,8 @@ export const ExperimentGridView = ({
   // Build dynamic columns for each experiment
   const experimentColumns = useMemo(() => {
     return allExperimentIds.map((expId, index) => {
-      const isBaseline = index === 0;
+      const isBaseline =
+        Boolean(baselineExperimentId) && expId === baselineExperimentId;
       const expInfo = experimentNames.find((e) => e.experimentId === expId);
       const expName = expInfo?.experimentName ?? expId.slice(0, 8);
       const colorStyles = useExperimentColors

@@ -1,1 +1,1 @@
-export const MAX_EXPERIMENT_COMPARISONS = 10;
+export const MAX_SELECTED_EXPERIMENTS = 10;

@@ -54,9 +54,9 @@ function Harness() {
     hasBaseline,
     comparisonIds,
     setComparisonIds,
-    maxComparisons,
+    maxSelectedExperiments,
     clearBaseline,
-    resolveBaselineOrFirstComparison,
+    selectedExperimentIds,
   } = useExperimentResultsState();
 
   return (
@@ -64,10 +64,8 @@ function Harness() {
       <div data-testid="baseline">{baselineId ?? "null"}</div>
       <div data-testid="has-baseline">{hasBaseline ? "true" : "false"}</div>
       <div data-testid="comparisons">{comparisonIds.join(",")}</div>
-      <div data-testid="max-comparisons">{maxComparisons}</div>
-      <div data-testid="resolved">
-        {resolveBaselineOrFirstComparison() ?? "null"}
-      </div>
+      <div data-testid="selected">{selectedExperimentIds.join(",")}</div>
+      <div data-testid="max-experiments">{maxSelectedExperiments}</div>
       <button
         type="button"
         onClick={() =>
@@ -106,20 +104,26 @@ describe("useExperimentResultsState", () => {
     expect(screen.getAllByTestId("has-baseline")[1].textContent).toBe("false");
   });
 
-  it("resolves baseline first, then first comparison", () => {
+  it("keeps c-only selections as comparisons without an implicit baseline", () => {
     queryParamStore.set("baseline", "baseline-run");
     queryParamStore.set("c", ["comp-a", "comp-b"]);
 
     render(<Harness />);
 
-    expect(screen.getByTestId("resolved").textContent).toBe("baseline-run");
+    expect(screen.getByTestId("comparisons").textContent).toBe("comp-a,comp-b");
 
     queryParamStore.clear();
     queryParamStore.set("c", ["comp-a", "comp-b"]);
 
     render(<Harness />);
 
-    expect(screen.getAllByTestId("resolved")[1].textContent).toBe("comp-a");
+    expect(screen.getAllByTestId("has-baseline")[1].textContent).toBe("false");
+    expect(screen.getAllByTestId("comparisons")[1].textContent).toBe(
+      "comp-a,comp-b",
+    );
+    expect(screen.getAllByTestId("selected")[1].textContent).toBe(
+      "comp-a,comp-b",
+    );
   });
 
   it("clears baseline by URL state only and moves it into comparisons", () => {
@@ -134,19 +138,25 @@ describe("useExperimentResultsState", () => {
     expect(screen.getByTestId("comparisons").textContent).toBe(
       "comp-a,baseline-run",
     );
+    expect(screen.getByTestId("selected").textContent).toBe(
+      "comp-a,baseline-run",
+    );
 
     expect(queryParamStore.has("baseline")).toBe(false);
     expect(queryParamStore.get("c")).toEqual(["comp-a", "baseline-run"]);
   });
 
-  it("allows up to ten comparisons and clamps additional selections", () => {
+  it("allows up to ten selected experiments and clamps additional selections", () => {
     render(<Harness />);
 
     fireEvent.click(
       screen.getByRole("button", { name: "set twelve comparisons" }),
     );
 
-    expect(screen.getByTestId("max-comparisons").textContent).toBe("10");
+    expect(screen.getByTestId("max-experiments").textContent).toBe("10");
+    expect(screen.getByTestId("selected").textContent).toBe(
+      Array.from({ length: 10 }, (_, index) => `comp-${index}`).join(","),
+    );
     expect(screen.getByTestId("comparisons").textContent).toBe(
       Array.from({ length: 10 }, (_, index) => `comp-${index}`).join(","),
     );
@@ -160,8 +170,31 @@ describe("useExperimentResultsState", () => {
 
     render(<Harness />);
 
+    expect(screen.getByTestId("selected").textContent).toBe(
+      Array.from({ length: 10 }, (_, index) => `comp-${index}`).join(","),
+    );
     expect(screen.getByTestId("comparisons").textContent).toBe(
       Array.from({ length: 10 }, (_, index) => `comp-${index}`).join(","),
+    );
+  });
+
+  it("keeps an explicit baseline outside the ten comparison slots", () => {
+    queryParamStore.set("baseline", "baseline-run");
+    queryParamStore.set(
+      "c",
+      Array.from({ length: 12 }, (_, index) => `comp-${index}`),
+    );
+
+    render(<Harness />);
+
+    expect(screen.getByTestId("selected").textContent).toBe(
+      [
+        "baseline-run",
+        ...Array.from({ length: 9 }, (_, index) => `comp-${index}`),
+      ].join(","),
+    );
+    expect(screen.getByTestId("comparisons").textContent).toBe(
+      Array.from({ length: 9 }, (_, index) => `comp-${index}`).join(","),
     );
   });
 });

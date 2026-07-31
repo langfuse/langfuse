@@ -60,28 +60,6 @@ export default function ExperimentResults() {
     router.replace(`/project/${projectId}/datasets`);
   }, [isExperimentsBetaActive, isInitializing, projectId, router]);
 
-  useEffect(() => {
-    if (
-      !router.isReady ||
-      isInitializing ||
-      !isExperimentsBetaActive ||
-      !projectId ||
-      allExperimentIds.length > 0
-    ) {
-      return;
-    }
-
-    // A bare Results URL has no meaningful content. Return to the experiment
-    // list instead of leaving users on an empty comparison screen.
-    router.replace(`/project/${projectId}/experiments`);
-  }, [
-    allExperimentIds.length,
-    isExperimentsBetaActive,
-    isInitializing,
-    projectId,
-    router,
-  ]);
-
   // Fetch experiment to get dataset ID and other details
   const { data: experiment } = api.experiments.byId.useQuery(
     {
@@ -94,7 +72,7 @@ export default function ExperimentResults() {
   );
 
   // Show spinner while session loads or while redirecting when beta is off
-  if (!isExperimentsBetaActive || allExperimentIds.length === 0) {
+  if (!isExperimentsBetaActive) {
     return (
       <Page headerProps={{ title: "Experiments" }}>
         <div className="flex h-full items-center justify-center">
@@ -122,6 +100,7 @@ export default function ExperimentResults() {
             baselineId={baselineId}
             baselineName={experiment?.name}
             comparisonIds={comparisonIds}
+            selectedExperimentCount={allExperimentIds.length}
             onBaselineChange={setBaseline}
             onBaselineClear={clearBaseline}
             onComparisonIdsChange={setComparisonIds}

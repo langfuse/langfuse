@@ -2,7 +2,7 @@ import { type FilterState, type ScoreAggregate } from "@langfuse/shared";
 import { type VisibilityState } from "@tanstack/react-table";
 import { type ReactNode } from "react";
 
-// Disabled Tailwind color families in globals.css compile to no styles.
+// Shared font color palette for experiment rows/columns
 export const EXPERIMENT_COLOR_STYLES = [
   {
     textClass: "text-foreground",

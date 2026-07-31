@@ -8,12 +8,7 @@ import { FilterList, StringFilter } from "./clickhouse-filter";
 
 /**
  * Length (in UTF-8 chars) to which the `events_core` materialized view
- * truncates `input`/`output`/`metadata_values` at ingestion
- * (`leftUTF8(..., 200)` in events_core_mv). Truncated-mode reads
- * (`selectIO(true, ...)`) source these columns, so a value returned at exactly
- * this length may have been cut off and should be treated as potentially
- * truncated (e.g. refetched from `events_full`). Any larger `charLimit` passed
- * to `selectIO` cannot recover characters beyond this cap.
+ * truncates `input`/`output`/`metadata_values` at ingestion.
  */
 export const EVENTS_CORE_IO_TRUNCATION_LENGTH = 200;
 
