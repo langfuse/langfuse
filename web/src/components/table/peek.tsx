@@ -85,10 +85,10 @@ type TablePeekViewProps = Pick<
    */
   actionsMenu?: React.ReactNode;
   /**
-   * Pins the Assistant entrypoint in peek chrome for trace/observation peeks
-   * (same focused chips for root trace and selected observation).
+   * Assistant launcher pinned in peek chrome, for peeks whose item the
+   * assistant can reason about. The caller owns the availability check.
    */
-  showAssistant?: boolean;
+  assistant?: React.ReactNode;
   // Content
   /**
    * The content to display in the peek view.
@@ -249,7 +249,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}
       actions={props.actions}
       actionsMenu={props.actionsMenu}
-      showAssistant={props.showAssistant}
+      assistant={props.assistant}
       expand={
         isMobile
           ? undefined

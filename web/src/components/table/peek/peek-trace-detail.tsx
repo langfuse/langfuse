@@ -11,6 +11,8 @@ import {
 } from "@/src/components/table/peek";
 import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { ControlledInAppAgentDetailLauncher } from "@/src/features/in-app-agent/components/ControlledInAppAgentDetailLauncher";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 
 export const TablePeekViewTraceDetail = (
@@ -24,6 +26,7 @@ export const TablePeekViewTraceDetail = (
   const { projectId } = props;
 
   const router = useRouter();
+  const canUseAssistant = useCanUseInAppAgent();
   const { traceId, timestamp } = resolvePeekTraceParams({
     reader: "trace",
     peek: router.query.peek as string | undefined,
@@ -68,7 +71,9 @@ export const TablePeekViewTraceDetail = (
     <TablePeekView
       {...props}
       title={traceDetailTitle(trace.data, traceId)}
-      showAssistant
+      assistant={
+        canUseAssistant ? <ControlledInAppAgentDetailLauncher /> : undefined
+      }
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }

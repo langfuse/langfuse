@@ -65,27 +65,4 @@ describe("planPeekHeaderLayout", () => {
     expect(plan.badgeShowLabel).toBe(false);
     expect(plan.navCompact).toBe(true);
   });
-
-  it("keeps assistant labeled when only actions fold; icons when nav compacts", () => {
-    const withAssistant = {
-      ...base,
-      assistantLabeledWidth: 120,
-      assistantIconWidth: 48,
-    };
-
-    // Actions fold first — assistant stays labeled beside full K/J.
-    const foldedActions = planPeekHeaderLayout({
-      ...withAssistant,
-      headerWidth: 680,
-    });
-    expect(foldedActions.foldActions).toBe(true);
-    expect(foldedActions.navCompact).toBe(false);
-
-    // Nav compact (and assistant icon) only when tighter.
-    const compactNav = planPeekHeaderLayout({
-      ...withAssistant,
-      headerWidth: 500,
-    });
-    expect(compactNav.navCompact).toBe(true);
-  });
 });

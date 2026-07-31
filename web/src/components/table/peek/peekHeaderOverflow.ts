@@ -31,7 +31,7 @@ export type PlanPeekHeaderArgs = {
   navFullWidth: number;
   /** Prev/next nav width as compact icon arrows, px (0 when no nav). */
   navCompactWidth: number;
-  /** Pinned controls other than nav/assistant (expand + close), px. */
+  /** Pinned controls other than nav (expand + close + divider), px. */
   otherPinnedWidth: number;
   /** Width of the "…" overflow trigger, counted once anything folds, px. */
   moreWidth: number;
@@ -39,15 +39,6 @@ export type PlanPeekHeaderArgs = {
   actionsWidth?: number;
   /** Open-in-tab button width, px; omit when it isn't shown. */
   openInTabWidth?: number;
-  /**
-   * Assistant split-button with label, px; omit when not shown. Collapses to
-   * `assistantIconWidth` only when nav goes compact (same moment as K/J), so
-   * it doesn't shrink early next to still-labeled nav. Plan both widths so
-   * remeasure can't oscillate.
-   */
-  assistantLabeledWidth?: number;
-  /** Assistant split-button icon-only width, px. */
-  assistantIconWidth?: number;
   /** Slack absorbing inter-control gaps + rounding, px. */
   safety?: number;
 };
@@ -63,31 +54,18 @@ export function planPeekHeaderLayout({
   moreWidth,
   actionsWidth,
   openInTabWidth,
-  assistantLabeledWidth,
-  assistantIconWidth,
   safety = 16,
 }: PlanPeekHeaderArgs): PeekHeaderPlan {
   const hasActions = actionsWidth != null;
   const hasOpenInTab = openInTabWidth != null;
-  const hasAssistant = assistantLabeledWidth != null;
 
   let foldActions = false;
   let foldOpenInTab = false;
   let badgeShowLabel = true;
   let navCompact = false;
 
-  // Matches PeekHeader: labeled until nav goes compact (with K/J).
-  const assistantWidth = () => {
-    if (!hasAssistant) return 0;
-    return navCompact
-      ? (assistantIconWidth ?? assistantLabeledWidth ?? 0)
-      : (assistantLabeledWidth ?? 0);
-  };
-
   const pinnedWidth = () =>
-    (navCompact ? navCompactWidth : navFullWidth) +
-    otherPinnedWidth +
-    assistantWidth();
+    (navCompact ? navCompactWidth : navFullWidth) + otherPinnedWidth;
   const clusterWidth = () =>
     pinnedWidth() +
     (foldActions || foldOpenInTab ? moreWidth : 0) +
