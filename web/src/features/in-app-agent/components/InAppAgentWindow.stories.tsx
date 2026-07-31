@@ -1265,3 +1265,25 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
     });
   },
 });
+
+export const DraftSurvivesExpansion = meta.story({
+  name: "(Test) Draft Survives Expansion",
+  args: {
+    messages: [],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const textarea = canvas.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+
+    await userEvent.type(textarea, "Keep this draft");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand window" }),
+    );
+
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toHaveValue("Keep this draft");
+  },
+});

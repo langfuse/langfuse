@@ -80,36 +80,35 @@ export function InAppAgentWindowShell({
   // rest of the app stays click-through. The panel is the interactive surface,
   // so it opts pointer events back in via `pointer-events-auto`. No z-index:
   // layer ORDER stacks the whole `agent` layer below every transient overlay.
-  if (isExpanded) {
-    return (
-      <div
-        ref={panelRef}
-        className="pointer-events-auto fixed inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3 origin-top-left"
-        data-ignore-outside-interaction
-      >
-        <div
-          data-ignore-outside-interaction
-          className="h-full w-full origin-top-left"
-        >
-          {children({ isHeaderDragHandleEnabled: false })}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <MovableResizablePanel
       dragHandleSelector={IN_APP_AGENT_WINDOW_SHELL_DRAG_HANDLE_SELECTOR}
       ignoreOutsideInteraction
       ref={panelRef}
       handle={floatingPanelHandle}
-      className="pointer-events-auto"
+      className={
+        isExpanded
+          ? "pointer-events-auto [&>[data-resize-direction]]:hidden"
+          : "pointer-events-auto"
+      }
+      style={
+        isExpanded
+          ? {
+              left: "0.75rem",
+              top: "calc(var(--banner-offset) + 0.75rem)",
+              right: "0.75rem",
+              bottom: "0.75rem",
+              width: "auto",
+              height: "auto",
+            }
+          : undefined
+      }
     >
       <div
         data-ignore-outside-interaction
         className="h-full w-full origin-top-left"
       >
-        {children({ isHeaderDragHandleEnabled: true })}
+        {children({ isHeaderDragHandleEnabled: !isExpanded })}
       </div>
     </MovableResizablePanel>
   );
