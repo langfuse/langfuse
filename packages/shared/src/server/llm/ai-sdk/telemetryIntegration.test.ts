@@ -244,6 +244,16 @@ describe("AI SDK telemetry integration", () => {
         traceId: experimentTraceId,
         traceName: "dataset-run-item-abc12",
         environment: "langfuse-prompt-experiment",
+        metadata: {
+          dataset_id: "dataset-1",
+          dataset_item_id: "item-1",
+          structured_output_schema: {
+            type: "object",
+            properties: { answer: { type: "string" } },
+          },
+          experiment_name: "run name",
+          experiment_run_name: "run-abc",
+        },
         eventsWriter: {
           experimentContext: {
             id: "run-1",
@@ -308,6 +318,13 @@ describe("AI SDK telemetry integration", () => {
       expect(child.environment).toBe("langfuse-prompt-experiment");
       expect(child.experimentItemRootSpanId).toBe(root.spanId);
       expect(child.spanId).not.toBe(root.spanId);
+      expect(child.metadata).toMatchObject({
+        dataset_id: "dataset-1",
+        dataset_item_id: "item-1",
+        experiment_name: "run name",
+        experiment_run_name: "run-abc",
+      });
+      expect(child.metadata).not.toHaveProperty("structured_output_schema");
     }
   });
 

@@ -185,6 +185,14 @@ export function createAiSdkTelemetryCapture(params: {
       }
     : undefined;
 
+  const childSpanMetadata = traceSinkParams.metadata
+    ? Object.fromEntries(
+        Object.entries(traceSinkParams.metadata).filter(
+          ([key]) => key !== "structured_output_schema",
+        ),
+      )
+    : undefined;
+
   const otelIntegration = createGenerationSpanTelemetry({
     tracer,
     attributes: {
@@ -199,14 +207,12 @@ export function createAiSdkTelemetryCapture(params: {
             [LangfuseOtelSpanAttributes.TRACE_USER_ID]: traceSinkParams.userId,
           }
         : {}),
-      // Evaluator costs are recorded on these generation spans. Preserve the
-      // evaluator metadata here so cost aggregation does not need to rebuild
-      // traces from their root spans.
-      ...(traceSinkParams.metadata
+      // Keep useful trace context on child spans, but leave the potentially
+      // large output schema on the root trace only.
+      ...(childSpanMetadata
         ? {
-            [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]: JSON.stringify(
-              traceSinkParams.metadata,
-            ),
+            [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]:
+              JSON.stringify(childSpanMetadata),
           }
         : {}),
     },
