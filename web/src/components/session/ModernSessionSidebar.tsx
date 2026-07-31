@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
-  ArrowRight,
   ChevronDown,
   ListFilter,
   MoreHorizontal,
@@ -118,12 +117,8 @@ function ObservationListRows({
 
   if (state.type === "trace-io-only") {
     return (
-      <div className="border-border bg-muted/40 text-foreground -mx-1 mt-2 flex items-center gap-2 rounded-sm border px-2 py-1.5 text-xs">
-        <span className="min-w-0 flex-1">Trace-level I/O only</span>
-        <ArrowRight
-          aria-hidden="true"
-          className="text-muted-foreground h-3.5 w-3.5 shrink-0"
-        />
+      <div className="border-border bg-border/40 text-foreground -mx-1 mt-2 rounded-sm border px-2 py-1.5 text-xs">
+        Trace-level I/O only
       </div>
     );
   }
