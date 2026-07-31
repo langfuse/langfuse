@@ -186,7 +186,6 @@ describe("dashboard widget minVersion", () => {
           view: "observations",
           projectId,
           metrics: [v2Metric],
-          minVersion: 1,
         }),
       ).rejects.toThrow(/v2-only fields/i);
     } finally {
@@ -255,7 +254,6 @@ describe("dashboard widget minVersion", () => {
         {
           ...baseWidgetInput,
           metrics: [{ measure: "traceId", agg: "uniq" }],
-          minVersion: 1,
         },
         userId,
       );
@@ -263,24 +261,13 @@ describe("dashboard widget minVersion", () => {
       expect(widget.minVersion).toBe(2);
     });
 
-    it("should persist minVersion=2 when explicitly provided", async () => {
-      const widget = await DashboardService.createWidget(
-        projectId,
-        { ...baseWidgetInput, minVersion: 2 },
-        userId,
-      );
-
-      expect(widget.minVersion).toBe(2);
-
-      const fetched = await DashboardService.getWidget(widget.id, projectId);
-      expect(fetched).not.toBeNull();
-      expect(fetched!.minVersion).toBe(2);
-    });
-
     it("should preserve minVersion when updating without specifying it", async () => {
       const widget = await DashboardService.createWidget(
         projectId,
-        { ...baseWidgetInput, minVersion: 2 },
+        {
+          ...baseWidgetInput,
+          metrics: [{ measure: "traceId", agg: "uniq" }],
+        },
         userId,
       );
 
@@ -295,17 +282,20 @@ describe("dashboard widget minVersion", () => {
       expect(updated.name).toBe("Updated Widget");
     });
 
-    it("should allow changing minVersion on update", async () => {
+    it("does not let an update request downgrade a persisted v2 widget", async () => {
       const widget = await DashboardService.createWidget(
         projectId,
-        { ...baseWidgetInput, minVersion: 1 },
+        {
+          ...baseWidgetInput,
+          metrics: [{ measure: "traceId", agg: "uniq" }],
+        },
         userId,
       );
 
       const updated = await DashboardService.updateWidget(
         projectId,
         widget.id,
-        { ...baseWidgetInput, minVersion: 2 },
+        baseWidgetInput,
         userId,
       );
 
@@ -589,8 +579,9 @@ describe("dashboard widget minVersion", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
+
+      expect(created.widget.minVersion).toBe(2);
 
       const fetched = await caller.dashboardWidgets.get({
         projectId,
@@ -613,7 +604,6 @@ describe("dashboard widget minVersion", () => {
           filters: [],
           chartType: "HISTOGRAM",
           chartConfig: { type: "HISTOGRAM", bins: 10 },
-          minVersion: 2,
         }),
       ).rejects.toThrow(/not valid for measure/);
     });
@@ -630,7 +620,6 @@ describe("dashboard widget minVersion", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       expect(result.success).toBe(true);
@@ -648,7 +637,6 @@ describe("dashboard widget minVersion", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       await expect(
@@ -663,7 +651,6 @@ describe("dashboard widget minVersion", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         }),
       ).rejects.toThrow(/not valid for measure/);
     });
@@ -708,7 +695,6 @@ describe("dashboard widget minVersion", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         });
 
         if (shouldReject) {
@@ -731,7 +717,6 @@ describe("dashboard widget minVersion", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       await expect(
@@ -746,7 +731,6 @@ describe("dashboard widget minVersion", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         }),
       ).rejects.toThrow(/not available for widgets/);
     });

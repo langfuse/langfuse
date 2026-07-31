@@ -36,7 +36,6 @@ const legacyTracesWidgetInput = {
   filters: [],
   chartType: "NUMBER" as const,
   chartConfig: { type: "NUMBER" as const },
-  minVersion: 1,
 };
 
 const expectUnstableError = (

@@ -256,15 +256,15 @@ export function WidgetForm({
     filters: any[];
     chartType: DashboardWidgetChartType;
     chartConfig: NonNullable<WidgetInitialValues["chartConfig"]>;
-    minVersion: number;
   }) => void;
   widgetId?: string;
 }) {
   const { isBetaEnabled } = useV4Beta();
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  // The initial widget's persisted minimum is frozen at mount. The resolver
-  // and live viewVersion additionally derive v2 from the current form shape.
+  // The initial widget's persisted version is a local hint frozen at mount.
+  // The resolver and live viewVersion additionally derive v2 from the current
+  // form shape; the server derives the value that gets persisted.
   const [baseMinVersion] = useState(() =>
     deriveWidgetBaseMinVersion(initialValues),
   );
@@ -988,9 +988,8 @@ export function WidgetForm({
 
       const snapshot = result.snapshot;
       const importIsPivot = snapshot.selectedChartType === "PIVOT_TABLE";
-      // The preview version for the imported widget, re-derived from the
-      // snapshot's own minVersion (not the mount's) so a v2-requiring import
-      // normalizes against the right view declaration.
+      // The preview version for the imported widget is re-derived from the
+      // snapshot's own version hint (not the mount's).
       const importViewVersion = resolveWidgetViewVersion({
         view: snapshot.selectedView,
         baseMinVersion: snapshot.widgetMinVersion,
@@ -1070,7 +1069,6 @@ export function WidgetForm({
         suggestedName: s.name,
         suggestedDescription: s.description,
         effectiveSort: deriveEffectiveSort(submitted),
-        persistedMinVersion: baseMinVersion,
       }) as Parameters<typeof onSave>[0],
     );
   });

@@ -1,7 +1,5 @@
-// The public widget API stamps the internal `minVersion` that decides whether a
-// widget queries the v1 tables or the v2 events_* tables. Only the deployment
-// knows which of the two it can serve, so these cases pin the behavior on a
-// deployment without a v4 write mode — the v3 default (LFE-14581).
+// The public widget API validates shape compatibility against the deployment
+// write mode. DashboardService owns the persisted version after normalization.
 const envMock = vi.hoisted(() => ({}) as Record<string, unknown>);
 
 // Partial mock — real env underneath so the rest of the imported graph keeps
@@ -28,16 +26,15 @@ const baseInput = {
   chartType: "BAR_TIME_SERIES" as const,
 };
 
-describe("public dashboard widget minVersion", () => {
+describe("public dashboard widget version validation", () => {
   describe("legacy write mode, where the events_* tables are empty", () => {
     beforeEach(() => {
       envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
     });
 
-    it("stamps a v1-expressible widget as v1 so it can render", () => {
+    it("accepts a v1-expressible widget so it can render", () => {
       const normalized = normalizePublicDashboardWidgetInput(baseInput);
 
-      expect(normalized.minVersion).toBe(1);
       expect(() =>
         validatePublicDashboardWidgetInput(normalized),
       ).not.toThrow();
@@ -51,22 +48,19 @@ describe("public dashboard widget minVersion", () => {
         }),
       ).toThrow(/v2-only fields/i);
     });
-
-    it("caps a stored v2 widget back to v1 so a patch heals it", () => {
-      expect(normalizePublicDashboardWidgetInput(baseInput, 2).minVersion).toBe(
-        1,
-      );
-    });
   });
 
-  // dual writes the events_* tables, so v2 is servable there whatever the
-  // preview opt-in says — Monitors ships on exactly that test and its charts
-  // are v2-only. Capping here would break them.
-  it("keeps stamping v2 in dual write mode with the preview opt-in off", () => {
+  // dual writes the events_* tables, so the server can choose v2 there whatever
+  // the preview opt-in says — Monitors ships on exactly that deployment mode.
+  it("accepts a v1-expressible shape in dual write mode", () => {
     envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
     envMock.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
 
-    expect(normalizePublicDashboardWidgetInput(baseInput).minVersion).toBe(2);
+    expect(() =>
+      validatePublicDashboardWidgetInput(
+        normalizePublicDashboardWidgetInput(baseInput),
+      ),
+    ).not.toThrow();
   });
 
   it("only suggests dimensions that widget validation accepts", () => {
@@ -98,18 +92,14 @@ describe("public dashboard widget minVersion", () => {
     }
   });
 
-  it("promotes a v2-required shape despite a persisted v1 lower bound", () => {
+  it("validates a v2-required shape without a caller-supplied version", () => {
     envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
 
-    const normalized = normalizePublicDashboardWidgetInput(
-      {
-        ...baseInput,
-        metrics: [{ measure: "traceId", agg: "uniq" as const }],
-      },
-      1,
-    );
+    const normalized = normalizePublicDashboardWidgetInput({
+      ...baseInput,
+      metrics: [{ measure: "traceId", agg: "uniq" as const }],
+    });
 
-    expect(normalized.minVersion).toBe(2);
     expect(() => validatePublicDashboardWidgetInput(normalized)).not.toThrow();
   });
 });

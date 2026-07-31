@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   getValidAggregationsForMeasureType,
   metricAggregations,
-  resolveWidgetMinVersion,
+  requiresV2,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -459,7 +459,9 @@ function normalizeImportedWidgetVersion(widget: WidgetImport): WidgetImport {
  * Full import pipeline for one parsed widget JSON payload: schema parse,
  * filter normalization (value-level pruning only when option sets are
  * provided — clipboard/drop flows skip the option queries and pass none),
- * traces-view version normalization, and view-declaration validation.
+ * traces-view version normalization, and view-declaration validation. The
+ * imported minVersion is a preview hint only; the write API derives the
+ * persisted version from the submitted shape.
  * Throws on any payload that cannot become a valid widget.
  */
 export function parseImportedWidgetJson(params: {
@@ -481,33 +483,28 @@ export function parseImportedWidgetJson(params: {
   });
 
   const normalizedWidget = normalizeImportedWidgetVersion(importedWidget);
-  const resolvedMinVersion = resolveWidgetMinVersion({
+  const shapeRequiresV2 = requiresV2({
     view: normalizedWidget.view,
     dimensions: normalizedWidget.dimensions,
     measures: normalizedWidget.metrics.map((metric) => ({
       measure: metric.measure,
     })),
     filters: normalizedWidget.filters,
-    persistedMinVersion: normalizedWidget.minVersion,
   });
-  const widgetWithMinimumVersion =
-    resolvedMinVersion > (normalizedWidget.minVersion ?? 1)
-      ? { ...normalizedWidget, minVersion: resolvedMinVersion }
-      : normalizedWidget;
-  const importedMinVersion = widgetWithMinimumVersion.minVersion ?? 1;
   const importedViewVersion: ViewVersion =
-    (params.isBetaEnabled && widgetWithMinimumVersion.view !== "traces") ||
-    importedMinVersion >= 2
+    (params.isBetaEnabled && normalizedWidget.view !== "traces") ||
+    shapeRequiresV2 ||
+    (normalizedWidget.minVersion ?? 1) >= 2
       ? "v2"
       : "v1";
 
   validateImportedWidget({
-    widget: widgetWithMinimumVersion,
+    widget: normalizedWidget,
     importedViewVersion,
   });
 
   return {
-    widget: widgetWithMinimumVersion,
+    widget: normalizedWidget,
     removedValues,
     removedFilters,
   };
@@ -600,6 +597,5 @@ export function toWidgetCreateFields(widget: WidgetExportSource) {
     filters: widget.filters,
     chartType: widget.chartType,
     chartConfig: widget.chartConfig,
-    minVersion: widget.minVersion,
   };
 }

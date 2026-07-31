@@ -1,7 +1,7 @@
 import startCase from "lodash/startCase";
 import { type z } from "zod";
 
-import { requiresV2, type metricAggregations } from "@langfuse/shared/query";
+import { type metricAggregations } from "@langfuse/shared/query";
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
@@ -194,14 +194,6 @@ function legacyReconstruct(iv: WidgetInitialValues): WidgetSavePayload {
     filters: normalizedUserFilters,
     chartType: iv.chartType,
     chartConfig,
-    minVersion: requiresV2({
-      view: iv.view,
-      dimensions: saveDimensions,
-      measures: saveMetrics.map((m) => ({ measure: m.measure })),
-      filters: normalizedUserFilters,
-    })
-      ? 2
-      : 1,
   };
 }
 
@@ -358,7 +350,6 @@ describe("widget form adapters round-trip parity", () => {
       filters: [],
       chartType: "LINE_TIME_SERIES",
       chartConfig: { type: "LINE_TIME_SERIES" },
-      minVersion: 1,
     });
   });
 
@@ -396,27 +387,6 @@ describe("widget form adapters round-trip parity", () => {
     expect(payload.chartConfig).toEqual({ type: "NUMBER", row_limit: 100 });
     expect(payload.metrics).toEqual([{ measure: "count", agg: "count" }]);
     expect(payload.name).toBe("Count (Observations)");
-  });
-
-  it("preserves a persisted v2 minimum for a v1-compatible shape", () => {
-    const initialValues = {
-      ...fixtures["count measure big number"],
-      minVersion: 2,
-    };
-    const values = toDefaultValues(
-      initialValues,
-      fixtureViewVersion(initialValues),
-    );
-    const suggestions = deriveWidgetSuggestions(values);
-
-    const payload = toSavePayload(values, {
-      suggestedName: suggestions.name,
-      suggestedDescription: suggestions.description,
-      effectiveSort: deriveEffectiveSort(values),
-      persistedMinVersion: deriveWidgetBaseMinVersion(initialValues),
-    });
-
-    expect(payload.minVersion).toBe(2);
   });
 });
 

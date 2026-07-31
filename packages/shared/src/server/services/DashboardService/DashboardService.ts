@@ -22,13 +22,14 @@ import { resolveWidgetMinVersion } from "../../../features/query";
 const resolveDashboardWidgetMinVersion = (
   input: CreateWidgetInput,
   persistedMinVersion?: number,
+  defaultMinVersion = 1,
 ) =>
   resolveWidgetMinVersion({
     view: dashboardWidgetViewToQueryView[input.view],
     dimensions: input.dimensions,
     measures: input.metrics,
     filters: input.filters,
-    persistedMinVersion,
+    persistedMinVersion: persistedMinVersion ?? defaultMinVersion,
   });
 
 export class DashboardService {
@@ -308,10 +309,12 @@ export class DashboardService {
     projectId: string,
     input: CreateWidgetInput,
     userId?: string,
+    options?: { defaultMinVersion?: number },
   ): Promise<WidgetDomain> {
     const minVersion = resolveDashboardWidgetMinVersion(
       input,
-      input.minVersion,
+      undefined,
+      options?.defaultMinVersion,
     );
     const newWidget = await prisma.dashboardWidget.create({
       data: {
@@ -368,14 +371,20 @@ export class DashboardService {
     widgetId: string,
     input: CreateWidgetInput,
     userId?: string,
+    options?: { defaultMinVersion?: number },
   ): Promise<WidgetDomain> {
     const existingWidget = await prisma.dashboardWidget.findFirst({
       where: { id: widgetId, projectId },
-      select: { minVersion: true },
+      select: { minVersion: true, view: true },
     });
+    const persistedMinVersion =
+      existingWidget && existingWidget.view === input.view
+        ? existingWidget.minVersion
+        : undefined;
     const minVersion = resolveDashboardWidgetMinVersion(
       input,
-      input.minVersion ?? existingWidget?.minVersion,
+      persistedMinVersion,
+      options?.defaultMinVersion,
     );
     const updatedWidget = await prisma.dashboardWidget.update({
       where: {
@@ -473,7 +482,6 @@ export class DashboardService {
       ...sourceWidget,
       owner: "LANGFUSE",
     });
-
     // Duplicate widget and update dashboard definition atomically
     return prisma.$transaction(async (tx) => {
       // 1. create duplicate in project scope

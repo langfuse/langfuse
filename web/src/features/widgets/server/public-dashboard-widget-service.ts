@@ -10,7 +10,7 @@ import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
-  resolveWidgetMinVersion,
+  requiresV2,
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -32,11 +32,11 @@ import {
 import { maxSupportedWidgetVersion } from "@/src/features/widgets/server/widget-version";
 
 // The widget shape used internally after input normalization: the public
-// body with chartConfig fully resolved plus the internal minVersion.
+// body with chartConfig and filters fully resolved.
 type NormalizedWidgetInput = Omit<
   z.infer<typeof PostUnstableDashboardWidgetResponse>,
   "id" | "createdAt" | "updatedAt"
-> & { minVersion: number };
+>;
 
 const throwInvalidWidget = (params: {
   message: string;
@@ -57,8 +57,15 @@ const throwInvalidWidget = (params: {
   });
 };
 
-function getWidgetViewVersion(widget: { minVersion: number }): ViewVersion {
-  return widget.minVersion >= 2 ? "v2" : "v1";
+function getWidgetViewVersion(widget: NormalizedWidgetInput): ViewVersion {
+  return requiresV2({
+    view: widget.view,
+    dimensions: widget.dimensions,
+    measures: widget.metrics,
+    filters: widget.filters,
+  }) || maxSupportedWidgetVersion() >= 2
+    ? "v2"
+    : "v1";
 }
 
 function getPublicDashboardWidgetViewDeclaration(
@@ -88,13 +95,12 @@ type PublicDashboardWidgetInput = Omit<
  * UI offers v4, not whether those tables contain data.
  *
  * The shape-required version is checked against what the deployment can
- * actually query, so the API never persists a widget that can never render
- * (LFE-14581). An existing persisted lower bound is only used by same-view
- * updates to reject stale v2 widgets on legacy deployments.
+ * actually query, so the API never accepts a widget that can never render
+ * (LFE-14581). The DashboardService derives the persisted version when it
+ * writes the normalized shape.
  */
 export function normalizePublicDashboardWidgetInput(
   input: PublicDashboardWidgetInput,
-  persistedMinVersion?: number,
 ): NormalizedWidgetInput {
   const { mappedFilters, unsupportedFilters } =
     partitionStoredUiTableFiltersToView(input.view, input.filters);
@@ -154,23 +160,17 @@ export function normalizePublicDashboardWidgetInput(
     measures: input.metrics.map((metric) => ({ measure: metric.measure })),
     filters: normalizedFilters,
   };
-  const requiredMinVersion = resolveWidgetMinVersion(shape);
-  if (requiredMinVersion > maxSupportedVersion) {
+  if (maxSupportedVersion < 2 && requiresV2(shape)) {
     return throwInvalidWidget({
       message:
         "This widget uses v2-only fields, but the current deployment only supports legacy widget queries",
     });
   }
-  const resolvedMinVersion = resolveWidgetMinVersion({
-    ...shape,
-    persistedMinVersion: persistedMinVersion ?? maxSupportedVersion,
-  });
 
   return {
     ...input,
     filters: normalizedFilters,
     chartConfig: chartConfig.data,
-    minVersion: Math.min(resolvedMinVersion, maxSupportedVersion),
   };
 }
 
@@ -282,10 +282,15 @@ export async function createPublicDashboardWidget(params: {
   const input = normalizePublicDashboardWidgetInput(params.input);
   validatePublicDashboardWidgetInput(input);
 
-  const widget = await DashboardService.createWidget(params.projectId, {
-    ...input,
-    view: queryViewToDashboardWidgetView[input.view],
-  });
+  const widget = await DashboardService.createWidget(
+    params.projectId,
+    {
+      ...input,
+      view: queryViewToDashboardWidgetView[input.view],
+    },
+    undefined,
+    { defaultMinVersion: maxSupportedWidgetVersion() },
+  );
 
   await auditLog({
     action: "create",
@@ -355,36 +360,34 @@ export async function updatePublicDashboardWidget(params: {
     params.widgetId,
   );
   const currentPublic = toPublicWidgetInput(current);
+  if (maxSupportedWidgetVersion() < 2 && current.minVersion >= 2) {
+    return throwInvalidWidget({
+      message:
+        "This widget uses v2 queries, but the current deployment only supports legacy widget queries",
+    });
+  }
   const chartTypeChanged =
     params.input.chartType !== undefined &&
     params.input.chartType !== currentPublic.chartType;
-  // Keep the stored minVersion (and thus v1/v2 query semantics) unless the
-  // caller explicitly changes the view; view changes take the deployment
-  // default like create. Either way normalize caps the result, so patching a
-  // widget that was stamped v2 on a deployment that cannot serve v2 heals it.
-  const mergedView = params.input.view ?? currentPublic.view;
-  const persistedMinVersion =
-    mergedView === currentPublic.view ? current.minVersion : undefined;
-  const input = normalizePublicDashboardWidgetInput(
-    {
-      ...currentPublic,
-      ...params.input,
-      // A chartType change without an explicit chartConfig resets the config
-      // to the new type; carrying the stale config type over would always
-      // fail validation.
-      chartConfig:
-        params.input.chartConfig ??
-        (chartTypeChanged
-          ? { type: params.input.chartType }
-          : currentPublic.chartConfig),
-    },
-    persistedMinVersion,
-  );
+  const input = normalizePublicDashboardWidgetInput({
+    ...currentPublic,
+    ...params.input,
+    // A chartType change without an explicit chartConfig resets the config
+    // to the new type; carrying the stale config type over would always
+    // fail validation.
+    chartConfig:
+      params.input.chartConfig ??
+      (chartTypeChanged
+        ? { type: params.input.chartType }
+        : currentPublic.chartConfig),
+  });
   validatePublicDashboardWidgetInput(input);
   const updated = await DashboardService.updateWidget(
     params.projectId,
     params.widgetId,
     { ...input, view: queryViewToDashboardWidgetView[input.view] },
+    undefined,
+    { defaultMinVersion: maxSupportedWidgetVersion() },
   );
   const result = toApiDashboardWidget(updated);
   await auditLog({

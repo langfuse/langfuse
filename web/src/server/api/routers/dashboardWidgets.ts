@@ -17,7 +17,7 @@ import {
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
-  resolveWidgetMinVersion,
+  requiresV2,
   views,
   type ViewVersion,
 } from "@langfuse/shared/query";
@@ -35,7 +35,6 @@ const CreateDashboardWidgetInput = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
-  minVersion: z.number().int().optional(),
 });
 
 // Define update widget input schema (without projectId)
@@ -50,7 +49,6 @@ const UpdateDashboardWidgetInput = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
-  minVersion: z.number().int().optional(),
 });
 
 // Define the widget list input schema
@@ -69,12 +67,11 @@ const GetDashboardWidgetInput = z.object({
 function validateMetricAggregations(params: {
   view: string;
   metrics: Array<{ measure: string; agg: string }>;
-  minVersion?: number;
+  version: ViewVersion;
 }): void {
-  const version: ViewVersion = (params.minVersion ?? 1) >= 2 ? "v2" : "v1";
   const viewDecl = getViewDeclaration(
     params.view as z.infer<typeof views>,
-    version,
+    params.version,
   );
 
   for (const metric of params.metrics) {
@@ -93,12 +90,11 @@ function validateMetricAggregations(params: {
 function validateUiHiddenDimensions(params: {
   view: string;
   dimensions: Array<{ field: string }>;
-  minVersion?: number;
+  version: ViewVersion;
 }): void {
-  const version: ViewVersion = (params.minVersion ?? 1) >= 2 ? "v2" : "v1";
   const viewDecl = getViewDeclaration(
     params.view as z.infer<typeof views>,
-    version,
+    params.version,
   );
 
   const hiddenDims = params.dimensions.filter(
@@ -117,28 +113,37 @@ function validateWidgetVersionAvailability(params: {
   dimensions: Array<{ field: string }>;
   metrics: Array<{ measure: string }>;
   filters: Array<{ column: string }>;
-  persistedMinVersion?: number;
-}): number {
+}): void {
   const shape = {
     view: params.view,
     dimensions: params.dimensions,
     measures: params.metrics,
     filters: params.filters,
   };
-  const effectiveMinVersion = resolveWidgetMinVersion({
-    ...shape,
-    persistedMinVersion: params.persistedMinVersion,
-  });
 
-  if (maxSupportedWidgetVersion() < 2 && effectiveMinVersion >= 2) {
+  if (maxSupportedWidgetVersion() < 2 && requiresV2(shape)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message:
         "This widget uses v2-only fields, but the current deployment only supports legacy widget queries",
     });
   }
+}
 
-  return effectiveMinVersion;
+function getShapeViewVersion(params: {
+  view: string;
+  dimensions: Array<{ field: string }>;
+  metrics: Array<{ measure: string }>;
+  filters: Array<{ column: string }>;
+}): ViewVersion {
+  return requiresV2({
+    view: params.view,
+    dimensions: params.dimensions,
+    measures: params.metrics,
+    filters: params.filters,
+  }) || maxSupportedWidgetVersion() >= 2
+    ? "v2"
+    : "v1";
 }
 
 export const dashboardWidgetRouter = createTRPCRouter({
@@ -151,21 +156,19 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      const effectiveMinVersion = validateWidgetVersionAvailability({
-        ...input,
-        persistedMinVersion: input.minVersion,
-      });
+      validateWidgetVersionAvailability(input);
+      const version = getShapeViewVersion(input);
 
       validateMetricAggregations({
         view: input.view,
         metrics: input.metrics,
-        minVersion: effectiveMinVersion,
+        version,
       });
 
       validateUiHiddenDimensions({
         view: input.view,
         dimensions: input.dimensions,
-        minVersion: effectiveMinVersion,
+        version,
       });
 
       // Create the widget using the DashboardService
@@ -174,9 +177,9 @@ export const dashboardWidgetRouter = createTRPCRouter({
         {
           ...input,
           view: queryViewToDashboardWidgetView[input.view],
-          minVersion: effectiveMinVersion,
         },
         ctx.session.user?.id,
+        { defaultMinVersion: maxSupportedWidgetVersion() },
       );
 
       return {
@@ -242,25 +245,33 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      const existingWidget = await DashboardService.getWidget(
-        input.widgetId,
-        input.projectId,
-      );
-      const effectiveMinVersion = validateWidgetVersionAvailability({
-        ...input,
-        persistedMinVersion: input.minVersion ?? existingWidget?.minVersion,
-      });
+      if (maxSupportedWidgetVersion() < 2) {
+        const existingWidget = await DashboardService.getWidget(
+          input.widgetId,
+          input.projectId,
+        );
+        if (existingWidget?.minVersion && existingWidget.minVersion >= 2) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "This widget uses v2 queries, but the current deployment only supports legacy widget queries",
+          });
+        }
+      }
+
+      validateWidgetVersionAvailability(input);
+      const version = getShapeViewVersion(input);
 
       validateMetricAggregations({
         view: input.view,
         metrics: input.metrics,
-        minVersion: effectiveMinVersion,
+        version,
       });
 
       validateUiHiddenDimensions({
         view: input.view,
         dimensions: input.dimensions,
-        minVersion: effectiveMinVersion,
+        version,
       });
 
       // Update the widget using the DashboardService
@@ -276,9 +287,9 @@ export const dashboardWidgetRouter = createTRPCRouter({
           filters: input.filters,
           chartType: input.chartType,
           chartConfig: input.chartConfig,
-          minVersion: effectiveMinVersion,
         },
         ctx.session.user?.id,
+        { defaultMinVersion: maxSupportedWidgetVersion() },
       );
 
       return {
@@ -308,12 +319,18 @@ export const dashboardWidgetRouter = createTRPCRouter({
         input.projectId,
       );
       if (sourceWidget) {
+        if (maxSupportedWidgetVersion() < 2 && sourceWidget.minVersion >= 2) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "This widget uses v2 queries, but the current deployment only supports legacy widget queries",
+          });
+        }
         validateWidgetVersionAvailability({
           view: dashboardWidgetViewToQueryView[sourceWidget.view],
           dimensions: sourceWidget.dimensions,
           metrics: sourceWidget.metrics,
           filters: sourceWidget.filters,
-          persistedMinVersion: sourceWidget.minVersion,
         });
       }
 

@@ -153,7 +153,7 @@ describe("parseAndNormalizeImportedWidget", () => {
     expect(result.snapshot.widgetMinVersion).toBe(1);
   });
 
-  it("promotes an imported v1 widget when its shape requires v2", () => {
+  it("validates a v2-required imported shape without rewriting its version hint", () => {
     const result = parseImportedWidgetJson({
       parsedJson: {
         ...baseWidget,
@@ -168,7 +168,7 @@ describe("parseAndNormalizeImportedWidget", () => {
       isBetaEnabled: false,
     });
 
-    expect(result.widget.minVersion).toBe(2);
+    expect(result.widget.minVersion).toBe(1);
   });
 
   it("imports boolean score widgets with boolean filters intact", async () => {

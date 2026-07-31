@@ -9,7 +9,7 @@ import {
 import {
   getValidAggregationsForMeasureType,
   metricAggregations,
-  resolveWidgetMinVersion,
+  requiresV2,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -337,18 +337,17 @@ export type WidgetSavePayload = {
   filters: FilterState;
   chartType: WidgetFormValues["chart"]["type"];
   chartConfig: WidgetChartConfig;
-  minVersion: number;
 };
 
 /**
- * The frozen, view-shape-derived base minVersion for a widget, computed from the
- * `initialValues` at mount. Mirrors the legacy `initialWidgetRequiresV2 ? 2 :
- * (initialValues.minVersion ?? 1)`.
+ * The frozen local version hint for a widget. The server owns the persisted
+ * version; the editor only uses the stored hint and current shape to select
+ * the declaration it can show.
  */
 export function deriveWidgetBaseMinVersion(
   initialValues: WidgetInitialValues,
 ): number {
-  return resolveWidgetMinVersion({
+  return requiresV2({
     view: initialValues.view,
     dimensions:
       initialValues.dimensions ??
@@ -359,16 +358,15 @@ export function deriveWidgetBaseMinVersion(
       measure: metric.measure,
     })) ?? [{ measure: initialValues.measure }],
     filters: initialValues.filters ?? [],
-    persistedMinVersion: initialValues.minVersion,
-  });
+  })
+    ? 2
+    : (initialValues.minVersion ?? 1);
 }
 
 /**
  * Derives the effective view version (query-engine v1/v2) from the current view,
- * selected query shape, frozen initial minimum, and beta flag. An explicitly
- * persisted v2 widget remains v2 even when its current view is traces; only
- * automatic shape/beta promotion skips traces because that view has no v2-only
- * fields.
+ * selected query shape, frozen initial hint, and beta flag. The persisted value
+ * is a local hint only; shape-required v2 is always promoted.
  */
 export function resolveWidgetViewVersion(params: {
   view: z.infer<typeof views>;
@@ -380,14 +378,15 @@ export function resolveWidgetViewVersion(params: {
     filters: { column: string }[];
   };
 }): ViewVersion {
-  const minVersion = resolveWidgetMinVersion({
+  const shapeRequiresV2 = requiresV2({
     view: params.view,
     dimensions: params.shape?.dimensions ?? [],
     measures: params.shape?.measures ?? [],
     filters: params.shape?.filters ?? [],
-    persistedMinVersion: params.baseMinVersion,
   });
-  return minVersion >= 2 || (params.isBetaEnabled && params.view !== "traces")
+  return shapeRequiresV2 ||
+    params.baseMinVersion >= 2 ||
+    (params.isBetaEnabled && params.view !== "traces")
     ? "v2"
     : "v1";
 }
@@ -646,8 +645,8 @@ export function toDefaultValues(
  * toSavePayload folds the form values into the exact `onSave` object the legacy
  * `handleSaveWidget` produced (WidgetForm.tsx :1430-1471), byte for byte:
  * name/description fall back to the live suggestions, filters are mapped into
- * view space, the per-type chartConfig is rebuilt, and `minVersion` is derived
- * from the query shape through the shared resolver.
+ * view space and the per-type chartConfig is rebuilt. The server derives and
+ * persists the query version from this shape when the widget is written.
  */
 export function toSavePayload(
   values: WidgetFormValues,
@@ -655,7 +654,6 @@ export function toSavePayload(
     suggestedName: string;
     suggestedDescription: string;
     effectiveSort: SortField | undefined;
-    persistedMinVersion?: number;
   },
 ): WidgetSavePayload {
   const isPivot = values.chart.type === "PIVOT_TABLE";
@@ -711,13 +709,6 @@ export function toSavePayload(
     filters: normalizedFilters,
     chartType,
     chartConfig,
-    minVersion: resolveWidgetMinVersion({
-      view: values.view,
-      dimensions: saveDimensions,
-      measures: saveMetrics.map((m) => ({ measure: m.measure })),
-      filters: normalizedFilters,
-      persistedMinVersion: params.persistedMinVersion,
-    }),
   };
 }
 
