@@ -79,6 +79,20 @@ export const GetAnnotationQueueByIdQuery = z
 /** @alias */
 export const GetAnnotationQueueByIdResponse = AnnotationQueueSchema;
 
+// DELETE /annotation-queues/:queueId
+export const DeleteAnnotationQueueQuery = z
+  .object({
+    queueId: z.string(),
+  })
+  .strict();
+
+export const DeleteAnnotationQueueResponse = z
+  .object({
+    success: z.boolean(),
+    message: z.string(),
+  })
+  .strict();
+
 // GET /annotation-queues/:queueId/items
 export const GetAnnotationQueueItemsQuery = z
   .object({

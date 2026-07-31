@@ -692,3 +692,50 @@ export const deleteAnnotationQueueAssignmentForApi = async ({
     throw error;
   }
 };
+
+export const deleteAnnotationQueueForApi = async ({
+  projectId,
+  queueId,
+  auditScope,
+}: {
+  projectId: string;
+  queueId: string;
+} & OptionalAuditScope): Promise<{
+  success: boolean;
+  message: string;
+}> => {
+  // Look up first so we can audit-log the full record before deletion, and so
+  // a missing queue (or one in another project) yields a clean 404 instead of
+  // a Prisma P2025 racing through the cascade.
+  const existingQueue = await getAnnotationQueueRecordOrThrow({
+    projectId,
+    queueId,
+  });
+
+  // Hard-delete. The Prisma schema cascades AnnotationQueueItem and
+  // AnnotationQueueAssignment on queue deletion, so items and assignments
+  // are removed in the same transaction.
+  await prisma.annotationQueue.delete({
+    where: {
+      id: queueId,
+      projectId,
+    },
+  });
+
+  if (auditScope) {
+    await auditLog({
+      action: "delete",
+      resourceType: "annotationQueue",
+      resourceId: existingQueue.id,
+      projectId: auditScope.projectId,
+      orgId: auditScope.orgId,
+      apiKeyId: auditScope.apiKeyId,
+      before: existingQueue,
+    });
+  }
+
+  return {
+    success: true,
+    message: "Annotation queue deleted successfully",
+  };
+};
