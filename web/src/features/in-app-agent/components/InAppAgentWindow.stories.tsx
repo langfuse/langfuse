@@ -998,7 +998,7 @@ export const RateLimited = meta.story({
   args: {
     error: null,
     isAssistantTurnInProgress: true,
-    isConversationInteractionDisabled: true,
+    isConversationInteractionDisabled: false,
     messages: [
       {
         id: "approval-1",
@@ -1041,7 +1041,7 @@ export const RateLimited = meta.story({
     await expect(alert).toHaveTextContent("Try again in about");
     await expect(
       canvas.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await expect(
       canvas.getByRole("button", { name: "Confirm" }),
     ).toBeDisabled();

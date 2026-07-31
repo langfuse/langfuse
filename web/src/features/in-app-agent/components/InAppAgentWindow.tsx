@@ -390,8 +390,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   // No auto-focus on mobile — it springs the keyboard and buries the panel.
   const isMobile = useIsMobile();
   const isRateLimited = isInAppAgentRateLimited(error);
-  const isComposerDisabled = isConversationInteractionDisabled || isRateLimited;
-  const isSubmitDisabled = isComposerDisabled || isAssistantTurnInProgress;
+  const isComposerDisabled = isConversationInteractionDisabled;
+  const isSubmitDisabled =
+    isComposerDisabled || isRateLimited || isAssistantTurnInProgress;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);

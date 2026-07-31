@@ -185,6 +185,33 @@ describe("InAppAgentWindow quick actions", () => {
 });
 
 describe("ControlledInAppAgentWindow composer", () => {
+  it("keeps a draft editable but prevents submitting it while rate limited", () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
+    render(
+      windowElement({
+        error: { type: "rate_limit", retryAt: Date.now() + 60_000 },
+        onSubmit,
+      }),
+    );
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    fireEvent.change(input, { target: { value: "Follow up" } });
+
+    expect(input).toHaveValue("Follow up");
+    expect(input).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+
+    const form = input.closest("form");
+    if (!form) {
+      throw new Error("Expected the assistant composer to render a form");
+    }
+
+    fireEvent.submit(form);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {
     const onSubmit = vi.fn().mockResolvedValue(true);
     controlledAgent.value.isRunning = true;
