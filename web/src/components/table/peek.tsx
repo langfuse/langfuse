@@ -84,6 +84,11 @@ type TablePeekViewProps = Pick<
    * overflow "…" menu when the peek is too narrow for the inline icon row.
    */
   actionsMenu?: React.ReactNode;
+  /**
+   * Pins the Assistant entrypoint in peek chrome for trace/observation peeks
+   * (same focused chips for root trace and selected observation).
+   */
+  showAssistant?: boolean;
   // Content
   /**
    * The content to display in the peek view.
@@ -244,6 +249,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}
       actions={props.actions}
       actionsMenu={props.actionsMenu}
+      showAssistant={props.showAssistant}
       expand={
         isMobile
           ? undefined

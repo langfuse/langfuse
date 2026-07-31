@@ -14,6 +14,7 @@ import {
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
+import { InAppAgentDetailEntryButton } from "@/src/features/in-app-agent/components/InAppAgentDetailEntryButton";
 import {
   ExternalLink,
   Maximize2,
@@ -37,6 +38,12 @@ type PeekHeaderProps = {
   actions?: React.ReactNode;
   /** The same actions as labeled rows for the overflow "…" menu. */
   actionsMenu?: React.ReactNode;
+  /**
+   * When true, pins the Assistant split-button in the peek chrome so it stays
+   * reachable while the slide-in covers the page-header launcher. Wire for
+   * trace and observation peeks (same focused chips for both).
+   */
+  showAssistant?: boolean;
   /** Expand-to-max-width toggle. Desktop only; hidden on mobile. */
   expand?: { isExpanded: boolean; onToggle: () => void };
   /** Open the standalone detail page in a new browser tab. Optional. */
@@ -53,6 +60,8 @@ const MORE_BUTTON_PX = 32;
 const BADGE_LABEL_FALLBACK_PX = 72;
 const NAV_FULL_FALLBACK_PX = 92;
 const NAV_COMPACT_FALLBACK_PX = 52;
+const ASSISTANT_LABELED_FALLBACK_PX = 120;
+const ASSISTANT_ICON_FALLBACK_PX = 48;
 
 const samePlan = (a: PeekHeaderPlan, b: PeekHeaderPlan) =>
   a.foldActions === b.foldActions &&
@@ -115,6 +124,7 @@ export function PeekHeader({
   resolveDetailNavigationPath,
   actions,
   actionsMenu,
+  showAssistant,
   expand,
   openInNewTab,
   onClose,
@@ -128,6 +138,7 @@ export function PeekHeader({
   const actionsRef = useRef<HTMLDivElement>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
+  const assistantRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef<HTMLDivElement>(null);
   // Cached widths survive a part being folded / collapsed (it can't be
   // re-measured while hidden, in the closed popover, or in the other nav mode).
@@ -137,6 +148,8 @@ export function PeekHeader({
     badgeLabel?: number;
     navFull?: number;
     navCompact?: number;
+    assistantLabeled?: number;
+    assistantIcon?: number;
     otherPinned?: number;
   }>({});
   const [plan, setPlan] = useState<PeekHeaderPlan>(FULL);
@@ -144,6 +157,9 @@ export function PeekHeader({
   const hasActions = Boolean(actions);
   const hasOpenInTab = Boolean(openInNewTab);
   const hasNav = Boolean(detailNavigationKey && resolveDetailNavigationPath);
+  // Keep the Assistant label until nav goes compact, so it doesn't shrink to
+  // icon-xs beside still-labeled K/J after only the actions fold.
+  const assistantShowLabel = !plan.navCompact;
 
   // Measure + plan in a layout effect (before paint), reading width from the
   // ref directly — useElementSize's state lands post-paint, which would flash
@@ -162,13 +178,28 @@ export function PeekHeader({
     if (hasOpenInTab && !plan.foldOpenInTab && openInTabRef.current) {
       widthsRef.current.openInTab = openInTabRef.current.offsetWidth;
     }
+    if (showAssistant && assistantRef.current) {
+      const assistantW = assistantRef.current.offsetWidth;
+      if (assistantShowLabel) {
+        widthsRef.current.assistantLabeled = assistantW;
+      } else {
+        widthsRef.current.assistantIcon = assistantW;
+      }
+    }
     if (pinnedRef.current) {
       const navW = hasNav && navRef.current ? navRef.current.offsetWidth : 0;
+      const assistantW =
+        showAssistant && assistantRef.current
+          ? assistantRef.current.offsetWidth
+          : 0;
       if (hasNav) {
         if (plan.navCompact) widthsRef.current.navCompact = navW;
         else widthsRef.current.navFull = navW;
       }
-      widthsRef.current.otherPinned = pinnedRef.current.offsetWidth - navW;
+      // Expand + close only — assistant is planned separately so its
+      // labeled↔icon collapse can't rewrite otherPinned and oscillate.
+      widthsRef.current.otherPinned =
+        pinnedRef.current.offsetWidth - navW - assistantW;
     }
 
     const next = planPeekHeaderLayout({
@@ -188,6 +219,12 @@ export function PeekHeader({
       openInTabWidth: hasOpenInTab
         ? (widthsRef.current.openInTab ?? 0)
         : undefined,
+      assistantLabeledWidth: showAssistant
+        ? (widthsRef.current.assistantLabeled ?? ASSISTANT_LABELED_FALLBACK_PX)
+        : undefined,
+      assistantIconWidth: showAssistant
+        ? (widthsRef.current.assistantIcon ?? ASSISTANT_ICON_FALLBACK_PX)
+        : undefined,
     });
     setPlan((prev) => (samePlan(prev, next) ? prev : next));
   }, [
@@ -197,6 +234,8 @@ export function PeekHeader({
     hasActions,
     hasOpenInTab,
     hasNav,
+    showAssistant,
+    assistantShowLabel,
     plan,
   ]);
 
@@ -275,11 +314,23 @@ export function PeekHeader({
             </div>
           ) : null}
 
-          {/* Pinned block: nav (keeps K/J live), expand, close. */}
+          {/* Pinned block: assistant (when wired), nav (keeps K/J live),
+              expand, close. Assistant stays out of the fold plan so the
+              slide-in entrypoint remains visible as the peek narrows. */}
           <div
             ref={pinnedRef}
             className="flex h-full flex-row items-center gap-1"
           >
+            {showAssistant ? (
+              <div ref={assistantRef} className="flex items-center">
+                <InAppAgentDetailEntryButton
+                  // Drop the label with nav compact (same beat as K/J), not
+                  // when actions fold — otherwise the split looks tiny next
+                  // to still-labeled prev/next. Planner uses both widths.
+                  showLabel={assistantShowLabel}
+                />
+              </div>
+            ) : null}
             {hasNav && (
               <div ref={navRef} className="flex flex-row items-center">
                 <DetailPageNav

@@ -21,4 +21,12 @@ describe("contextual assistant quick actions", () => {
     expect(getInAppAgentFocusedQuickActions("trace-list")).toBeUndefined();
     expect(getInAppAgentFocusedQuickActions("page")).toBeUndefined();
   });
+
+  it("reuses the trace focused set for observation screen contexts", () => {
+    const traceActions = getInAppAgentFocusedQuickActions("trace");
+    const observationActions = getInAppAgentFocusedQuickActions("observation");
+
+    expect(traceActions?.length).toBeGreaterThan(0);
+    expect(observationActions).toBe(traceActions);
+  });
 });
