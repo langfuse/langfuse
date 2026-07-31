@@ -1,9 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ListFilter, Pencil, Save, Search, X } from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
 
-import { type ObservationListRowsRenderer } from "@/src/components/session/ObservationListRows";
+import {
+  ObservationListRows,
+  type ObservationListRow,
+} from "@/src/components/session/ObservationListRows";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import {
@@ -34,7 +37,14 @@ import { cn } from "@/src/utils/tailwind";
 
 const OBSERVATION_LIST_OVERSCAN = 5;
 const SIDEBAR_AUTO_FOLLOW_IDLE_MS = 750;
-const EMPTY_TRACES: EventSessionTrace[] = [];
+
+export type ModernSessionSidebarTrace = {
+  trace: EventSessionTrace;
+  turnNumber: number;
+  observations: ObservationListRow[] | null | undefined;
+};
+
+const EMPTY_TRACES: ModernSessionSidebarTrace[] = [];
 
 export type ModernSessionSidebarFilterControls =
   ModernSessionViewDropdownMenuControls & {
@@ -47,81 +57,93 @@ export type ModernSessionSidebarFilterControls =
 
 const TurnCard = React.memo(
   ({
-    trace,
-    index,
+    sidebarTrace,
+    selectIndex,
     isActive,
     isCollapsed,
     onToggleCollapse,
     onSelect,
-    renderObservationRows,
-    search,
+    hasFilters,
+    onExcludeObservation,
   }: {
-    trace: EventSessionTrace;
-    index: number;
+    sidebarTrace: ModernSessionSidebarTrace;
+    selectIndex: number;
     isActive: boolean;
     isCollapsed: boolean;
     onToggleCollapse: (traceId: string) => void;
     onSelect: (index: number) => void;
-    renderObservationRows: ObservationListRowsRenderer;
-    search: string;
-  }) => (
-    <div
-      className={cn(
-        "group hover:bg-foreground/[0.03] rounded-sm border border-transparent p-2 transition-colors duration-150",
-        isActive && "bg-foreground/5",
-      )}
-      data-observation-list-active={isActive}
-    >
-      <button
-        type="button"
-        onClick={() => onSelect(index)}
-        className="flex w-full items-center gap-2 text-left"
-        aria-current={isActive ? "true" : undefined}
+    hasFilters: boolean;
+    onExcludeObservation: (name: string) => void;
+  }) => {
+    const { trace, turnNumber, observations } = sidebarTrace;
+
+    return (
+      <div
+        className={cn(
+          "group hover:bg-foreground/[0.03] rounded-sm border border-transparent p-2 transition-colors duration-150",
+          isActive && "bg-foreground/5",
+        )}
+        data-observation-list-active={isActive}
       >
-        <span className="border-border bg-tertiary text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]">
-          {index + 1}
-        </span>
-        <span
-          className="min-w-0 flex-1 truncate text-[13px] font-bold"
-          title={trace.name ?? "Trace"}
+        <button
+          type="button"
+          onClick={() => onSelect(selectIndex)}
+          className="flex w-full items-center gap-2 text-left"
+          aria-current={isActive ? "true" : undefined}
         >
-          {trace.name ?? "Trace"}
-        </span>
-        <span
-          role="button"
-          tabIndex={0}
-          aria-label={isCollapsed ? "Expand turn" : "Collapse turn"}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleCollapse(trace.id);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
+          <span className="border-border bg-tertiary text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]">
+            {turnNumber}
+          </span>
+          <span
+            className="min-w-0 flex-1 truncate text-[13px] font-bold"
+            title={trace.name ?? "Trace"}
+          >
+            {trace.name ?? "Trace"}
+          </span>
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={isCollapsed ? "Expand turn" : "Collapse turn"}
+            onClick={(event) => {
               event.stopPropagation();
               onToggleCollapse(trace.id);
-            }
-          }}
-          className="text-muted-foreground -my-2 -mr-2.5 -ml-2 flex h-8 w-8 shrink-0 items-center justify-center"
-        >
-          <ChevronDown
-            className={cn(
-              "h-3 w-3 transition-transform duration-150",
-              isCollapsed ? "-rotate-90" : "rotate-0",
-            )}
-            strokeWidth={1.6}
-          />
-        </span>
-      </button>
-      {!isCollapsed
-        ? renderObservationRows({
-            traceId: trace.id,
-            search,
-            onSelectTurn: () => onSelect(index),
-          })
-        : null}
-    </div>
-  ),
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                onToggleCollapse(trace.id);
+              }
+            }}
+            className="text-muted-foreground -my-2 -mr-2.5 -ml-2 flex h-8 w-8 shrink-0 items-center justify-center"
+          >
+            <ChevronDown
+              className={cn(
+                "h-3 w-3 transition-transform duration-150",
+                isCollapsed ? "-rotate-90" : "rotate-0",
+              )}
+              strokeWidth={1.6}
+            />
+          </span>
+        </button>
+        {!isCollapsed ? (
+          observations === undefined ? (
+            <ObservationListRows state={{ type: "loading" }} />
+          ) : observations === null ? (
+            <ObservationListRows state={{ type: "error" }} />
+          ) : observations.length === 0 ? (
+            <ObservationListRows state={{ type: "empty", hasFilters }} />
+          ) : (
+            <ObservationListRows
+              state={{ type: "loaded", rows: observations }}
+              onSelectTurn={() => onSelect(selectIndex)}
+              onExcludeObservation={onExcludeObservation}
+            />
+          )
+        ) : null}
+      </div>
+    );
+  },
 );
 TurnCard.displayName = "TurnCard";
 
@@ -130,102 +152,121 @@ export function ModernSessionSidebar(
     | { state: "loading" }
     | {
         state: "loaded";
-        traces: EventSessionTrace[];
+        traces: ModernSessionSidebarTrace[];
         activeTraceId: string | undefined;
         filterControls: ModernSessionSidebarFilterControls;
-        renderObservationRows: ObservationListRowsRenderer;
+        search: string;
+        onSearchChange: (search: string) => void;
+        expandedTraceIds: ReadonlySet<string>;
+        onToggleTraceExpanded: (traceId: string) => void;
+        onExcludeObservation: (name: string) => void;
         onSelect: (index: number) => void;
+        onVisibleTraceIdsChange: (traceIds: string[]) => void;
+        hasMoreObservations: boolean;
+        isLoadingMoreObservations: boolean;
+        observationLoadError: boolean;
+        onLoadMoreObservations: () => void;
+        onViewportUnderfilled?: () => void;
       },
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
   const listRef = useRef<HTMLDivElement>(null);
-  const isManualSidebarScrollRef = useRef(false);
   const isSidebarPointerDownRef = useRef(false);
-  const autoFollowResumeTimeoutRef = useRef<number | undefined>(undefined);
-  const [search, setSearch] = useState("");
-  const [collapsedTurns, setCollapsedTurns] = useState<Record<string, true>>(
-    {},
-  );
+  const autoFollowPausedUntilRef = useRef(0);
 
   const idleGapSeconds = useMemo(
     () =>
-      traces.map((trace, index) =>
-        index === 0 ? null : computeIdleGapSeconds(traces[index - 1], trace),
+      traces.map(({ trace }, index) =>
+        index === 0
+          ? null
+          : computeIdleGapSeconds(traces[index - 1]!.trace, trace),
       ),
     [traces],
   );
-
-  const toggleCollapse = (traceId: string) =>
-    setCollapsedTurns((current) => {
-      const next = { ...current };
-      if (next[traceId]) delete next[traceId];
-      else next[traceId] = true;
-      return next;
-    });
 
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => listRef.current,
     estimateSize: () => 160,
     overscan: OBSERVATION_LIST_OVERSCAN,
-    getItemKey: (index) => traces[index]?.id ?? index,
-  });
-  const activeTraceIndex = activeTraceId
-    ? traces.findIndex((trace) => trace.id === activeTraceId)
-    : -1;
+    getItemKey: (index) => traces[index]?.trace.id ?? index,
+    onChange: (instance) => {
+      if (props.state !== "loaded") return;
 
-  useEffect(() => {
-    if (activeTraceIndex === -1 || isManualSidebarScrollRef.current) return;
+      props.onVisibleTraceIdsChange(
+        instance.getVirtualItems().flatMap((virtualItem) => {
+          const traceId = traces[virtualItem.index]?.trace.id;
+          return traceId ? [traceId] : [];
+        }),
+      );
 
-    // `auto` moves the minimum distance and does nothing while the row is visible.
-    virtualizer.scrollToIndex(activeTraceIndex, { align: "auto" });
-  }, [activeTraceIndex, virtualizer]);
-
-  useEffect(
-    () => () => {
-      if (autoFollowResumeTimeoutRef.current !== undefined) {
-        window.clearTimeout(autoFollowResumeTimeoutRef.current);
+      const scrollElement = instance.scrollElement;
+      if (
+        props.onViewportUnderfilled &&
+        props.hasMoreObservations &&
+        !props.isLoadingMoreObservations &&
+        scrollElement &&
+        instance.getTotalSize() <= scrollElement.clientHeight
+      ) {
+        props.onViewportUnderfilled();
       }
     },
-    [],
+  });
+  const activeTraceIndex = activeTraceId
+    ? traces.findIndex(({ trace }) => trace.id === activeTraceId)
+    : -1;
+  const virtualItems = virtualizer.getVirtualItems();
+  const setListElement = useCallback(
+    (element: HTMLDivElement | null) => {
+      listRef.current = element;
+      if (
+        !element ||
+        activeTraceIndex === -1 ||
+        isSidebarPointerDownRef.current ||
+        Date.now() < autoFollowPausedUntilRef.current
+      ) {
+        return;
+      }
+
+      // `auto` moves the minimum distance and does nothing while the row is visible.
+      virtualizer.scrollToIndex(activeTraceIndex, { align: "auto" });
+    },
+    [activeTraceIndex, virtualizer],
   );
 
-  const pauseSidebarAutoFollow = () => {
-    isManualSidebarScrollRef.current = true;
-    if (autoFollowResumeTimeoutRef.current !== undefined) {
-      window.clearTimeout(autoFollowResumeTimeoutRef.current);
-      autoFollowResumeTimeoutRef.current = undefined;
-    }
-  };
-
-  const resumeSidebarAutoFollowAfterIdle = () => {
-    if (autoFollowResumeTimeoutRef.current !== undefined) {
-      window.clearTimeout(autoFollowResumeTimeoutRef.current);
-    }
-    autoFollowResumeTimeoutRef.current = window.setTimeout(() => {
-      autoFollowResumeTimeoutRef.current = undefined;
-      if (isSidebarPointerDownRef.current) return;
-      // Restore ownership without snapping back after the user browsed elsewhere.
-      // The next active-turn change resumes following the main view.
-      isManualSidebarScrollRef.current = false;
-    }, SIDEBAR_AUTO_FOLLOW_IDLE_MS);
-  };
-
   const handleTransientSidebarScroll = () => {
-    pauseSidebarAutoFollow();
-    resumeSidebarAutoFollowAfterIdle();
+    autoFollowPausedUntilRef.current = Date.now() + SIDEBAR_AUTO_FOLLOW_IDLE_MS;
+  };
+
+  const handleSidebarScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const { clientHeight, scrollTop } = event.currentTarget;
+    const viewportBottom = scrollTop + clientHeight;
+    const visibleTurn = virtualItems.findLast(
+      (virtualItem) => virtualItem.start < viewportBottom,
+    );
+    const loadMoreThreshold = visibleTurn
+      ? Math.min(240, visibleTurn.size / 4)
+      : 0;
+    if (
+      props.state === "loaded" &&
+      props.hasMoreObservations &&
+      !props.isLoadingMoreObservations &&
+      visibleTurn &&
+      viewportBottom >= visibleTurn.end - loadMoreThreshold
+    ) {
+      props.onLoadMoreObservations();
+    }
   };
 
   const handleSidebarPointerDown = () => {
     isSidebarPointerDownRef.current = true;
-    pauseSidebarAutoFollow();
   };
 
   const handleSidebarPointerEnd = () => {
     isSidebarPointerDownRef.current = false;
-    resumeSidebarAutoFollowAfterIdle();
+    handleTransientSidebarScroll();
   };
 
   if (props.state === "loading") {
@@ -259,7 +300,19 @@ export function ModernSessionSidebar(
     );
   }
 
-  const { filterControls, renderObservationRows, onSelect } = props;
+  const {
+    filterControls,
+    search,
+    onSearchChange,
+    expandedTraceIds,
+    onToggleTraceExpanded,
+    onExcludeObservation,
+    onSelect,
+  } = props;
+  const handleSearchChange = (nextSearch: string) => {
+    virtualizer.scrollToOffset(0);
+    onSearchChange(nextSearch);
+  };
   const showFilterSummary = Boolean(
     filterControls.activeFilterCount > 0 ||
     filterControls.activeViewName ||
@@ -290,9 +343,9 @@ export function ModernSessionSidebar(
             />
             <Input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              aria-label="Search spans"
-              placeholder="Search spans"
+              onChange={(event) => handleSearchChange(event.target.value)}
+              aria-label="Search turns and spans"
+              placeholder="Search turns and spans"
               className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
             />
           </div>
@@ -401,63 +454,80 @@ export function ModernSessionSidebar(
         ) : null}
       </div>
       <div
-        ref={listRef}
+        ref={setListElement}
         role="region"
         aria-label="Session turns"
         className="min-h-0 flex-1 overflow-y-auto pt-0.5 pb-4"
         onWheel={handleTransientSidebarScroll}
         onTouchMove={handleTransientSidebarScroll}
+        onScroll={handleSidebarScroll}
         onPointerDown={handleSidebarPointerDown}
         onPointerUp={handleSidebarPointerEnd}
         onPointerCancel={handleSidebarPointerEnd}
         onPointerLeave={handleSidebarPointerEnd}
       >
-        <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            position: "relative",
-            width: "100%",
-          }}
-        >
-          {virtualizer.getVirtualItems().map((virtualItem) => {
-            const trace = traces[virtualItem.index];
-            if (!trace) return null;
-            const isCollapsed = Boolean(collapsedTurns[trace.id]);
-            const gap = idleGapSeconds[virtualItem.index];
-            return (
-              <SessionVirtualizedRow
-                key={virtualItem.key}
-                itemKey={String(virtualItem.key)}
-                measurementKey={`${String(virtualItem.key)}:${isCollapsed}:${search}`}
-                source="modern"
-                virtualItem={virtualItem}
-                virtualizer={virtualizer}
-              >
-                {gap !== null &&
-                gap !== undefined &&
-                gap >= IDLE_GAP_THRESHOLD_SECONDS ? (
-                  <div className="my-0.5 mb-2 flex items-center bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-3 py-[5px]">
-                    <span className="text-muted-foreground font-mono text-[11px] whitespace-nowrap">
-                      +{formatIdleGap(gap)} idle
-                    </span>
+        {traces.length === 0 ? (
+          <div className="text-muted-foreground px-3 py-6 text-center text-xs">
+            {props.isLoadingMoreObservations
+              ? "Loading observations..."
+              : props.observationLoadError
+                ? "Failed to load observations"
+                : search
+                  ? "No matching turns"
+                  : "No turns"}
+          </div>
+        ) : (
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              position: "relative",
+              width: "100%",
+            }}
+          >
+            {virtualItems.map((virtualItem) => {
+              const sidebarTrace = traces[virtualItem.index];
+              if (!sidebarTrace) return null;
+              const { trace } = sidebarTrace;
+              const isCollapsed = !expandedTraceIds.has(trace.id);
+              const gap = idleGapSeconds[virtualItem.index];
+              return (
+                <SessionVirtualizedRow
+                  key={virtualItem.key}
+                  itemKey={String(virtualItem.key)}
+                  measurementKey={`${String(virtualItem.key)}:${isCollapsed}:${search}`}
+                  source="modern"
+                  virtualItem={virtualItem}
+                  virtualizer={virtualizer}
+                >
+                  {gap !== null &&
+                  gap !== undefined &&
+                  gap >= IDLE_GAP_THRESHOLD_SECONDS ? (
+                    <div className="my-0.5 mb-2 flex items-center bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-3 py-[5px]">
+                      <span className="text-muted-foreground font-mono text-[11px] whitespace-nowrap">
+                        +{formatIdleGap(gap)} idle
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className="px-1 pb-2">
+                    <TurnCard
+                      sidebarTrace={sidebarTrace}
+                      selectIndex={sidebarTrace.turnNumber - 1}
+                      isActive={trace.id === activeTraceId}
+                      isCollapsed={isCollapsed}
+                      onToggleCollapse={onToggleTraceExpanded}
+                      onSelect={onSelect}
+                      hasFilters={
+                        search.trim() !== "" ||
+                        filterControls.activeFilterCount > 0
+                      }
+                      onExcludeObservation={onExcludeObservation}
+                    />
                   </div>
-                ) : null}
-                <div className="px-1 pb-2">
-                  <TurnCard
-                    trace={trace}
-                    index={virtualItem.index}
-                    isActive={trace.id === activeTraceId}
-                    isCollapsed={isCollapsed}
-                    onToggleCollapse={toggleCollapse}
-                    onSelect={onSelect}
-                    renderObservationRows={renderObservationRows}
-                    search={search}
-                  />
-                </div>
-              </SessionVirtualizedRow>
-            );
-          })}
-        </div>
+                </SessionVirtualizedRow>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

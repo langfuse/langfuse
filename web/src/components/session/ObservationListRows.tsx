@@ -1,4 +1,3 @@
-import { type ReactNode } from "react";
 import { MoreHorizontal } from "lucide-react";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
@@ -11,7 +10,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
-type ObservationListRow = {
+export type ObservationListRow = {
   id: string;
   name: string | null;
   type: string;
@@ -20,6 +19,7 @@ type ObservationListRow = {
 
 type ObservationListRowsState =
   | { type: "loading" }
+  | { type: "error" }
   | { type: "empty"; hasFilters: boolean }
   | { type: "loaded"; rows: ObservationListRow[] };
 
@@ -29,7 +29,10 @@ export function ObservationListRows({
   onExcludeObservation,
 }:
   | {
-      state: Extract<ObservationListRowsState, { type: "loading" | "empty" }>;
+      state: Extract<
+        ObservationListRowsState,
+        { type: "loading" | "error" | "empty" }
+      >;
       onSelectTurn?: never;
       onExcludeObservation?: never;
     }
@@ -51,6 +54,14 @@ export function ObservationListRows({
     return (
       <p className="text-muted-foreground -mx-1 px-1 py-2 text-xs">
         {state.hasFilters ? "No matching spans" : "No observations"}
+      </p>
+    );
+  }
+
+  if (state.type === "error") {
+    return (
+      <p className="text-muted-foreground -mx-1 px-1 py-2 text-xs">
+        Failed to load observations
       </p>
     );
   }
@@ -109,9 +120,3 @@ export function ObservationListRows({
     </div>
   );
 }
-
-export type ObservationListRowsRenderer = (props: {
-  traceId: string;
-  search: string;
-  onSelectTurn: () => void;
-}) => ReactNode;

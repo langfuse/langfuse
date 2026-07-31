@@ -1,12 +1,11 @@
 import preview from "../../../.storybook/preview";
 import { fn } from "storybook/test";
-import { type ComponentProps } from "react";
+import { type ComponentProps, useState } from "react";
 
-import { ModernSessionSidebar } from "@/src/components/session/ModernSessionSidebar";
 import {
-  ObservationListRows,
-  type ObservationListRowsRenderer,
-} from "@/src/components/session/ObservationListRows";
+  ModernSessionSidebar,
+  type ModernSessionSidebarTrace,
+} from "@/src/components/session/ModernSessionSidebar";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { type FilterState } from "@langfuse/shared";
 
@@ -179,66 +178,24 @@ const largeSessionObservationsByTraceId = Object.fromEntries(
 );
 const onExcludeObservation = fn();
 
-const renderObservationRows: ObservationListRowsRenderer = ({
-  traceId,
-  search,
-  onSelectTurn,
-}) => {
-  const normalizedSearch = search.trim().toLowerCase();
-  const rows = (observationsByTraceId[traceId] ?? []).filter(
-    (observation) =>
-      normalizedSearch === "" ||
-      observation.name.toLowerCase().includes(normalizedSearch),
-  );
+const toSidebarTraces = (
+  sourceTraces: EventSessionTrace[],
+  observations: Record<
+    string,
+    Array<{ id: string; name: string; type: string; latency: number | null }>
+  >,
+): ModernSessionSidebarTrace[] =>
+  sourceTraces.map((trace, index) => ({
+    trace,
+    turnNumber: index + 1,
+    observations: observations[trace.id] ?? [],
+  }));
 
-  if (rows.length === 0) {
-    return (
-      <ObservationListRows
-        state={{
-          type: "empty",
-          hasFilters: normalizedSearch !== "",
-        }}
-      />
-    );
-  }
-
-  return (
-    <ObservationListRows
-      state={{ type: "loaded", rows }}
-      onSelectTurn={onSelectTurn}
-      onExcludeObservation={onExcludeObservation}
-    />
-  );
-};
-
-const renderLargeSessionObservationRows: ObservationListRowsRenderer = ({
-  traceId,
-  search,
-  onSelectTurn,
-}) => {
-  const normalizedSearch = search.trim().toLowerCase();
-  const rows = (largeSessionObservationsByTraceId[traceId] ?? []).filter(
-    (observation) =>
-      normalizedSearch === "" ||
-      observation.name.toLowerCase().includes(normalizedSearch),
-  );
-
-  if (rows.length === 0) {
-    return (
-      <ObservationListRows
-        state={{ type: "empty", hasFilters: normalizedSearch !== "" }}
-      />
-    );
-  }
-
-  return (
-    <ObservationListRows
-      state={{ type: "loaded", rows }}
-      onSelectTurn={onSelectTurn}
-      onExcludeObservation={onExcludeObservation}
-    />
-  );
-};
+const sidebarTraces = toSidebarTraces(traces, observationsByTraceId);
+const largeSessionSidebarTraces = toSidebarTraces(
+  largeSessionTraces,
+  largeSessionObservationsByTraceId,
+);
 
 const activeFilters = [
   {
@@ -257,7 +214,7 @@ const activeFilters = [
 
 const loadedArgs = {
   state: "loaded",
-  traces,
+  traces: sidebarTraces,
   activeTraceId: "turn-2",
   filterControls: {
     activeFilterCount: 0,
@@ -273,21 +230,84 @@ const loadedArgs = {
     onOpenFilterDialog: fn(),
     onClearFilters: fn(),
   },
-  renderObservationRows,
+  search: "",
+  onSearchChange: fn(),
+  expandedTraceIds: new Set(traces.map((trace) => trace.id)),
+  onToggleTraceExpanded: fn(),
+  onExcludeObservation,
   onSelect: fn(),
+  onVisibleTraceIdsChange: fn(),
+  hasMoreObservations: false,
+  isLoadingMoreObservations: false,
+  observationLoadError: false,
+  onLoadMoreObservations: fn(),
 } satisfies Extract<
   ComponentProps<typeof ModernSessionSidebar>,
   { state: "loaded" }
 >;
 
+function ModernSessionSidebarStory(
+  args: ComponentProps<typeof ModernSessionSidebar>,
+) {
+  const [search, setSearch] = useState(
+    args.state === "loaded" ? args.search : "",
+  );
+  const [expandedTraceIds, setExpandedTraceIds] = useState(
+    args.state === "loaded" ? args.expandedTraceIds : new Set<string>(),
+  );
+
+  if (args.state === "loading") {
+    return (
+      <div className="h-screen w-[296px]">
+        <ModernSessionSidebar state="loading" />
+      </div>
+    );
+  }
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const visibleTraces = normalizedSearch
+    ? args.traces.flatMap((sidebarTrace) => {
+        const matchingObservations = sidebarTrace.observations?.filter(
+          (observation) =>
+            (observation.name ?? "").toLowerCase().includes(normalizedSearch),
+        );
+        const traceMatches = (sidebarTrace.trace.name ?? "")
+          .toLowerCase()
+          .includes(normalizedSearch);
+        if (!traceMatches && matchingObservations?.length === 0) return [];
+        return [{ ...sidebarTrace, observations: matchingObservations }];
+      })
+    : args.traces;
+
+  return (
+    <div className="h-screen w-[296px]">
+      <ModernSessionSidebar
+        {...args}
+        traces={visibleTraces}
+        search={search}
+        onSearchChange={(nextSearch) => {
+          setSearch(nextSearch);
+          args.onSearchChange(nextSearch);
+        }}
+        expandedTraceIds={expandedTraceIds}
+        onToggleTraceExpanded={(traceId) => {
+          setExpandedTraceIds((current) => {
+            const next = new Set(current);
+            if (next.has(traceId)) next.delete(traceId);
+            else next.add(traceId);
+            return next;
+          });
+          args.onToggleTraceExpanded(traceId);
+        }}
+      />
+    </div>
+  );
+}
+
 const meta = preview.meta({
   component: ModernSessionSidebar,
   parameters: { layout: "fullscreen" },
-  render: (args) => (
-    <div className="h-screen w-[296px]">
-      <ModernSessionSidebar {...args} />
-    </div>
-  ),
+  render: (args) => <ModernSessionSidebarStory {...args} />,
 });
 
 export default meta;
@@ -322,9 +342,9 @@ export const ActiveView = meta.story({
 export const LargeSession = meta.story({
   args: {
     ...loadedArgs,
-    traces: largeSessionTraces,
+    traces: largeSessionSidebarTraces,
     activeTraceId: "large-turn-1",
-    renderObservationRows: renderLargeSessionObservationRows,
+    expandedTraceIds: new Set(largeSessionTraces.map((trace) => trace.id)),
   },
 });
 
@@ -337,8 +357,9 @@ export const LoadingTurns = meta.story({
 export const LoadingSpans = meta.story({
   args: {
     ...loadedArgs,
-    renderObservationRows: () => (
-      <ObservationListRows state={{ type: "loading" }} />
-    ),
+    traces: sidebarTraces.map((sidebarTrace) => ({
+      ...sidebarTrace,
+      observations: undefined,
+    })),
   },
 });

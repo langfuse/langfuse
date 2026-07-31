@@ -9,12 +9,34 @@ import { type EventSessionTrace } from "@/src/components/session/sessionDetailPa
 
 const virtualizer = vi.hoisted(() => ({
   getTotalSize: vi.fn(() => 0),
-  getVirtualItems: vi.fn(() => []),
+  getVirtualItems: vi.fn(
+    (): Array<{
+      index: number;
+      key: string;
+      start: number;
+      end: number;
+      size: number;
+      lane: number;
+    }> => [],
+  ),
   scrollToIndex: vi.fn(),
+  scrollToOffset: vi.fn(),
+  resizeItem: vi.fn(),
+  isScrolling: false,
+  scrollElement: null as HTMLElement | null,
+}));
+
+const virtualizerControl = vi.hoisted(() => ({
+  notifyChange: null as (() => void) | null,
 }));
 
 vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: () => virtualizer,
+  useVirtualizer: (options: {
+    onChange?: (instance: typeof virtualizer) => void;
+  }) => {
+    virtualizerControl.notifyChange = () => options.onChange?.(virtualizer);
+    return virtualizer;
+  },
 }));
 
 const traces = Array.from({ length: 3 }, (_, index) => ({
@@ -43,15 +65,28 @@ const filterControls = {
   onClearFilters: vi.fn(),
 } satisfies ModernSessionSidebarFilterControls;
 
-function sidebar(activeTraceId: string) {
+function sidebar(activeTraceId: string, onSelect = vi.fn()) {
   return (
     <ModernSessionSidebar
       state="loaded"
-      traces={traces}
+      traces={traces.map((trace, index) => ({
+        trace,
+        turnNumber: index + 1,
+        observations: [],
+      }))}
       activeTraceId={activeTraceId}
       filterControls={filterControls}
-      renderObservationRows={() => null}
-      onSelect={vi.fn()}
+      search=""
+      onSearchChange={vi.fn()}
+      expandedTraceIds={new Set(traces.map((trace) => trace.id))}
+      onToggleTraceExpanded={vi.fn()}
+      onExcludeObservation={vi.fn()}
+      onSelect={onSelect}
+      onVisibleTraceIdsChange={vi.fn()}
+      hasMoreObservations={false}
+      isLoadingMoreObservations={false}
+      observationLoadError={false}
+      onLoadMoreObservations={vi.fn()}
     />
   );
 }
@@ -60,6 +95,10 @@ describe("ModernSessionSidebar", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     virtualizer.scrollToIndex.mockReset();
+    virtualizer.scrollToOffset.mockReset();
+    virtualizer.getVirtualItems.mockReturnValue([]);
+    virtualizer.scrollElement = null;
+    virtualizerControl.notifyChange = null;
   });
 
   afterEach(() => {
@@ -85,5 +124,149 @@ describe("ModernSessionSidebar", () => {
     expect(virtualizer.scrollToIndex).toHaveBeenLastCalledWith(2, {
       align: "auto",
     });
+  });
+
+  it("uses the stable turn number when selecting a filtered turn", () => {
+    const onSelect = vi.fn();
+    virtualizer.getVirtualItems.mockReturnValue([
+      { index: 0, key: "turn-3", start: 0, end: 160, size: 160, lane: 0 },
+    ]);
+
+    render(
+      <ModernSessionSidebar
+        state="loaded"
+        traces={[
+          {
+            trace: traces[2]!,
+            turnNumber: 3,
+            observations: [
+              {
+                id: "observation-3",
+                name: "Matching observation",
+                type: "SPAN",
+                latency: 0.5,
+              },
+            ],
+          },
+        ]}
+        activeTraceId="turn-3"
+        filterControls={filterControls}
+        search="matching"
+        onSearchChange={vi.fn()}
+        expandedTraceIds={new Set(["turn-3"])}
+        onToggleTraceExpanded={vi.fn()}
+        onExcludeObservation={vi.fn()}
+        onSelect={onSelect}
+        onVisibleTraceIdsChange={vi.fn()}
+        hasMoreObservations={false}
+        isLoadingMoreObservations={false}
+        observationLoadError={false}
+        onLoadMoreObservations={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("Matching observation")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Turn 3/i }));
+    expect(onSelect).toHaveBeenCalledWith(2);
+  });
+
+  it("reports visible turns and loads more when search results are exhausted", () => {
+    const onVisibleTraceIdsChange = vi.fn();
+    const onLoadMoreObservations = vi.fn();
+    virtualizer.getVirtualItems.mockReturnValue([
+      { index: 0, key: "turn-1", start: 0, end: 160, size: 160, lane: 0 },
+    ]);
+
+    render(
+      <ModernSessionSidebar
+        state="loaded"
+        traces={[{ trace: traces[0]!, turnNumber: 1, observations: [] }]}
+        activeTraceId="turn-1"
+        filterControls={filterControls}
+        search="matching"
+        onSearchChange={vi.fn()}
+        expandedTraceIds={new Set(["turn-1"])}
+        onToggleTraceExpanded={vi.fn()}
+        onExcludeObservation={vi.fn()}
+        onSelect={vi.fn()}
+        onVisibleTraceIdsChange={onVisibleTraceIdsChange}
+        hasMoreObservations
+        isLoadingMoreObservations={false}
+        observationLoadError={false}
+        onLoadMoreObservations={onLoadMoreObservations}
+        onViewportUnderfilled={onLoadMoreObservations}
+      />,
+    );
+
+    virtualizer.scrollElement = screen.getByLabelText("Session turns");
+    act(() => virtualizerControl.notifyChange?.());
+
+    expect(onVisibleTraceIdsChange).toHaveBeenCalledWith(["turn-1"]);
+    expect(onLoadMoreObservations).toHaveBeenCalledOnce();
+  });
+
+  it("loads another browse page near the end of the visible turn", () => {
+    const onLoadMoreObservations = vi.fn();
+    virtualizer.getVirtualItems.mockReturnValue([
+      { index: 0, key: "turn-1", start: 0, end: 400, size: 400, lane: 0 },
+    ]);
+
+    render(
+      <ModernSessionSidebar
+        state="loaded"
+        traces={[{ trace: traces[0]!, turnNumber: 1, observations: [] }]}
+        activeTraceId="turn-1"
+        filterControls={filterControls}
+        search=""
+        onSearchChange={vi.fn()}
+        expandedTraceIds={new Set(["turn-1"])}
+        onToggleTraceExpanded={vi.fn()}
+        onExcludeObservation={vi.fn()}
+        onSelect={vi.fn()}
+        onVisibleTraceIdsChange={vi.fn()}
+        hasMoreObservations
+        isLoadingMoreObservations={false}
+        observationLoadError={false}
+        onLoadMoreObservations={onLoadMoreObservations}
+      />,
+    );
+
+    const region = screen.getByLabelText("Session turns");
+    Object.defineProperties(region, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+    });
+    fireEvent.scroll(region);
+    expect(onLoadMoreObservations).not.toHaveBeenCalled();
+
+    region.scrollTop = 200;
+    fireEvent.scroll(region);
+    expect(onLoadMoreObservations).toHaveBeenCalledOnce();
+  });
+
+  it("shows observation loading errors when search has no rows", () => {
+    render(
+      <ModernSessionSidebar
+        state="loaded"
+        traces={[]}
+        activeTraceId={undefined}
+        filterControls={filterControls}
+        search="missing"
+        onSearchChange={vi.fn()}
+        expandedTraceIds={new Set()}
+        onToggleTraceExpanded={vi.fn()}
+        onExcludeObservation={vi.fn()}
+        onSelect={vi.fn()}
+        onVisibleTraceIdsChange={vi.fn()}
+        hasMoreObservations={false}
+        isLoadingMoreObservations={false}
+        observationLoadError
+        onLoadMoreObservations={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Failed to load observations")).toBeInTheDocument();
   });
 });

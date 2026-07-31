@@ -1766,6 +1766,8 @@ const LoadedSessionEventsPage: React.FC<{
                   }
                   projectId={projectId}
                   sessionId={sessionId}
+                  sessionMinTimestamp={session.minTimestamp}
+                  sessionMaxTimestamp={session.maxTimestamp}
                   openPeek={openPeek}
                   traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
                   filterState={visibleFilterState}
