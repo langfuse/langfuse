@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
 
+import { parseOutboundUrl } from "../../../outbound-url/validation";
 import { processOpenAIBaseURL } from "../../utils";
 import type { TranslatedProviderOptions } from "./types";
 import { isPlainObject } from "./utils";
@@ -67,6 +68,24 @@ export function isOpenAICompatibleEndpoint(
 
     const hostname = url.hostname;
     return hostname !== "api.openai.com";
+  } catch {
+    return false;
+  }
+}
+
+export function isOpenRouterEndpoint(
+  baseURL: string | null | undefined,
+): baseURL is string {
+  if (!baseURL) return false;
+
+  try {
+    const url = parseOutboundUrl(baseURL.replace("{model}", "model"));
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+
+    return (
+      url.hostname === "openrouter.ai" ||
+      url.hostname.endsWith(".openrouter.ai")
+    );
   } catch {
     return false;
   }

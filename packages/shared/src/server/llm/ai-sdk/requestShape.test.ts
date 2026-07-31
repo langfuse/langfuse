@@ -7,6 +7,7 @@ import {
   ChatMessageType,
   LLMAdapter,
   type ModelParams,
+  type TraceSinkParams,
 } from "../types";
 import {
   createLLMOutput,
@@ -18,6 +19,12 @@ import {
 // the separately tested secure transport with a capture fetch.
 vi.mock("../secureLlmFetch", () => ({
   createSecureLlmFetch: () => globalThis.fetch,
+}));
+
+// Request-shape tests only need the trace context as an input to provider
+// request construction. Internal telemetry publishing is covered separately.
+vi.mock("./telemetry", () => ({
+  createAiSdkTelemetryCapture: () => undefined,
 }));
 
 // The Vertex provider exchanges service-account credentials for an OAuth
@@ -171,6 +178,7 @@ async function runCompletion(params: {
   llmConnectionConfig?: Record<string, string | boolean>;
   output?: ReturnType<typeof createLLMOutput>;
   response: unknown;
+  trace?: TraceSinkParams;
 }) {
   const { calls, fetch } = createCaptureFetch(params.response);
   vi.stubGlobal("fetch", fetch);
@@ -189,6 +197,7 @@ async function runCompletion(params: {
     }),
     timeout: 10_000,
     output: params.output,
+    trace: params.trace,
   });
 
   expect(calls).toHaveLength(1);
@@ -201,6 +210,13 @@ afterEach(() => {
 });
 
 describe("AI SDK request shapes", () => {
+  const internalTrace: TraceSinkParams = {
+    targetProjectId: "project-1",
+    traceId: "1".repeat(32),
+    traceName: "Execute evaluator: helpfulness",
+    environment: "langfuse-llm-as-a-judge",
+  };
+
   it("OpenAI chat completions: default URL, bearer auth, translated body params", async () => {
     const { result, request } = await runCompletion({
       modelParams: {
@@ -282,6 +298,70 @@ describe("AI SDK request shapes", () => {
     expect(request.body.logitBias).toBeUndefined();
     expect(request.body.thinkingBudget).toBe(1024);
     expect(request.body.thinkingLevel).toBe("high");
+  });
+
+  it.each([
+    {
+      baseURL: "https://openrouter.ai/api/v1",
+      providerOptions: undefined,
+      expectedTrace: { environment: "langfuse-llm-as-a-judge" },
+    },
+    {
+      baseURL: "https://eu.openrouter.ai/api/v1",
+      providerOptions: {
+        trace: {
+          environment: "customer-environment",
+          feature: "support-agent",
+        },
+      },
+      expectedTrace: {
+        environment: "langfuse-llm-as-a-judge",
+        feature: "support-agent",
+      },
+    },
+  ])(
+    "OpenRouter: propagates system-owned internal provenance and preserves trace metadata for $baseURL",
+    async ({ baseURL, providerOptions, expectedTrace }) => {
+      const { request } = await runCompletion({
+        modelParams: {
+          provider: "openrouter",
+          adapter: LLMAdapter.OpenAI,
+          model: "openai/gpt-4o-mini",
+          providerOptions,
+        },
+        apiKey: "openrouter-key",
+        baseURL,
+        trace: internalTrace,
+        response: OPENAI_CHAT_RESPONSE,
+      });
+
+      expect(request.body.trace).toEqual(expectedTrace);
+    },
+  );
+
+  it("other OpenAI-compatible endpoints keep customer trace metadata unchanged", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "custom",
+        adapter: LLMAdapter.OpenAI,
+        model: "custom-model",
+        providerOptions: {
+          trace: {
+            environment: "customer-environment",
+            feature: "support-agent",
+          },
+        },
+      },
+      apiKey: "custom-key",
+      baseURL: "https://openrouter.ai.example.com/v1",
+      trace: internalTrace,
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.body.trace).toEqual({
+      environment: "customer-environment",
+      feature: "support-agent",
+    });
   });
 
   it("OpenAI-compatible chat completions: preserves JSON schema response_format", async () => {
