@@ -43,6 +43,7 @@ type AppliedDimensionType = {
 type AppliedMetricType = {
   sql: string;
   aggregation: z.infer<typeof metricAggregations>;
+  queryAggregation?: z.infer<typeof metricAggregations>;
   alias?: string;
   relationTable?: string;
   aggs?: Record<string, string>;
@@ -135,7 +136,9 @@ export class QueryBuilder {
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
-    switch (metric.aggregation) {
+    const aggregation = metric.queryAggregation ?? metric.aggregation;
+
+    switch (aggregation) {
       case "sum":
         return `sum(${metric.alias || metric.sql})`;
       case "avg":
@@ -165,9 +168,9 @@ export class QueryBuilder {
         return `uniq(${metric.alias || metric.sql})`;
       default: {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const exhaustiveCheck: never = metric.aggregation;
+        const exhaustiveCheck: never = aggregation;
         throw new InvalidRequestError(
-          `Invalid aggregation: ${metric.aggregation satisfies never}`,
+          `Invalid aggregation: ${aggregation satisfies never}`,
         );
       }
     }
@@ -301,16 +304,23 @@ export class QueryBuilder {
         );
       }
       const measureDef = view.measures[metric.measure];
-      const validAggs = getValidAggregationsForMeasureType(measureDef.type);
+      const aggregationOverride =
+        measureDef.aggregationOverrides?.[metric.aggregation];
+      const resolvedMeasureDef = aggregationOverride
+        ? { ...measureDef, ...aggregationOverride }
+        : measureDef;
+      const validAggs = getValidAggregationsForMeasureType(
+        resolvedMeasureDef.type,
+      );
       if (!validAggs.includes(metric.aggregation)) {
         throw new InvalidRequestError(
-          `Aggregation "${metric.aggregation}" is not valid for measure "${metric.measure}" (type: ${measureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
+          `Aggregation "${metric.aggregation}" is not valid for measure "${metric.measure}" (type: ${resolvedMeasureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
         );
       }
       return {
-        ...view.measures[metric.measure],
+        ...resolvedMeasureDef,
         aggregation: metric.aggregation,
-        aggs: view.measures[metric.measure].aggs,
+        aggs: resolvedMeasureDef.aggs,
         measureName: metric.measure,
       };
     });
