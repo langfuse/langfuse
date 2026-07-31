@@ -2038,9 +2038,7 @@ describe("MCP Read Tools", () => {
         );
 
         await expect(query).rejects.toThrow(/getMetricsSchema/i);
-        await expect(query).rejects.not.toThrow(
-          new RegExp(`count_${measure}`, "i"),
-        );
+        await expect(query).rejects.not.toThrow(`count_${measure}`);
       },
     );
 
