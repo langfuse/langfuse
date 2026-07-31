@@ -27,10 +27,15 @@ import {
 
 type WidgetQueryShape = Parameters<typeof requiresV2>[0];
 
+/**
+ * `minVersion` is the lowest query-engine version that can represent a widget
+ * definition. It is derived from the definition, never requested by a caller.
+ * Same-view updates retain an already-persisted floor and promote it when the
+ * updated definition requires v2.
+ */
 export const resolveDashboardWidgetMinVersion = (
   shape: WidgetQueryShape,
   persistedMinVersion?: number,
-  defaultMinVersion: 1 | 2 = 1,
 ) => {
   const maxVersion = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? 1 : 2;
   const requiredVersion = requiresV2(shape) ? 2 : 1;
@@ -42,7 +47,7 @@ export const resolveDashboardWidgetMinVersion = (
   }
 
   return Math.min(
-    Math.max(persistedMinVersion ?? defaultMinVersion, requiredVersion),
+    Math.max(persistedMinVersion ?? 1, requiredVersion),
     maxVersion,
   );
 };
@@ -359,12 +364,9 @@ export class DashboardService {
     projectId: string,
     input: CreateWidgetInput,
     userId?: string,
-    defaultMinVersion: 1 | 2 = 1,
   ): Promise<WidgetDomain> {
     const minVersion = resolveDashboardWidgetMinVersion(
       toWidgetQueryShape(input),
-      undefined,
-      defaultMinVersion,
     );
     validateDashboardWidgetQuery(input, minVersion);
     const newWidget = await prisma.dashboardWidget.create({
@@ -422,7 +424,6 @@ export class DashboardService {
     widgetId: string,
     input: CreateWidgetInput,
     userId?: string,
-    defaultMinVersion: 1 | 2 = 1,
   ): Promise<WidgetDomain> {
     const existingWidget = await prisma.dashboardWidget.findFirst({
       where: { id: widgetId, projectId },
@@ -435,7 +436,6 @@ export class DashboardService {
     const minVersion = resolveDashboardWidgetMinVersion(
       toWidgetQueryShape(input),
       persistedMinVersion,
-      defaultMinVersion,
     );
     validateDashboardWidgetQuery(input, minVersion);
     const updatedWidget = await prisma.dashboardWidget.update({

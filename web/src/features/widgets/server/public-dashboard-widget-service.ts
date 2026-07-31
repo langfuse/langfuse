@@ -30,8 +30,6 @@ import {
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 
-const PUBLIC_WIDGET_DEFAULT_MIN_VERSION = 2 as const;
-
 // The widget shape used internally after input normalization: the public
 // body with chartConfig and filters fully resolved.
 type NormalizedWidgetInput = Omit<
@@ -70,7 +68,6 @@ function getWidgetViewVersion(
       filters: widget.filters,
     },
     persistedMinVersion,
-    PUBLIC_WIDGET_DEFAULT_MIN_VERSION,
   ) >= 2
     ? "v2"
     : "v1";
@@ -279,15 +276,10 @@ export async function createPublicDashboardWidget(params: {
   const input = normalizePublicDashboardWidgetInput(params.input);
   validatePublicDashboardWidgetInput(input);
 
-  const widget = await DashboardService.createWidget(
-    params.projectId,
-    {
-      ...input,
-      view: queryViewToDashboardWidgetView[input.view],
-    },
-    undefined,
-    PUBLIC_WIDGET_DEFAULT_MIN_VERSION,
-  );
+  const widget = await DashboardService.createWidget(params.projectId, {
+    ...input,
+    view: queryViewToDashboardWidgetView[input.view],
+  });
 
   await auditLog({
     action: "create",
@@ -384,8 +376,6 @@ export async function updatePublicDashboardWidget(params: {
       ...input,
       view: queryViewToDashboardWidgetView[input.view],
     },
-    undefined,
-    PUBLIC_WIDGET_DEFAULT_MIN_VERSION,
   );
   const result = toApiDashboardWidget(updated);
   await auditLog({

@@ -294,23 +294,15 @@ describe("dashboard widget minVersion", () => {
       expect(healed.minVersion).toBe(1);
     });
 
-    it.each([
-      [false, "count", "count", 1],
-      [true, "count", "count", 2],
-      [false, "traceId", "uniq", 2],
-    ] as const)(
-      "uses the internal v4=%s default for %s/%s",
-      async (v4BetaEnabled, measure, agg, expectedMinVersion) => {
-        sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
-        const result = await makeCaller(v4BetaEnabled).dashboardWidgets.create({
-          ...baseWidgetInput,
-          view: "observations",
-          projectId,
-          metrics: [{ measure, agg }],
-        });
-        expect(result.widget.minVersion).toBe(expectedMinVersion);
-      },
-    );
+    it("derives minVersion from the shape instead of v4 session state", async () => {
+      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const result = await makeCaller(true).dashboardWidgets.create({
+        ...baseWidgetInput,
+        view: "observations",
+        projectId,
+      });
+      expect(result.widget.minVersion).toBe(1);
+    });
 
     it("should preserve minVersion when copying widget to project", async () => {
       const sourceWidget = await prisma.dashboardWidget.create({
@@ -690,16 +682,16 @@ describe("dashboard widget minVersion", () => {
       ["parentObservationId", true],
       ["name", false],
     ])(
-      "create with dimension '%s' on v2 observations → rejected=%s",
+      "create with dimension '%s' on shape-required v2 observations → rejected=%s",
       async (field, shouldReject) => {
-        const caller = makeCaller(true);
+        const caller = makeCaller();
         const promise = caller.dashboardWidgets.create({
           projectId,
           name: "uiHidden test widget",
           description: `${field} dimension on v2`,
           view: "observations",
           dimensions: [{ field }],
-          metrics: [{ measure: "count", agg: "count" }],
+          metrics: [{ measure: "traceId", agg: "uniq" }],
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
@@ -714,14 +706,14 @@ describe("dashboard widget minVersion", () => {
     );
 
     it("should validate uiHidden dimensions on update mutation", async () => {
-      const caller = makeCaller(true);
+      const caller = makeCaller();
       const created = await caller.dashboardWidgets.create({
         projectId,
         name: "Widget to update",
         description: "will try hidden dim update",
         view: "observations",
         dimensions: [{ field: "name" }],
-        metrics: [{ measure: "count", agg: "count" }],
+        metrics: [{ measure: "traceId", agg: "uniq" }],
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },

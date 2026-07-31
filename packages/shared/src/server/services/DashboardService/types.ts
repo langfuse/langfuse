@@ -161,6 +161,7 @@ export const WidgetDomainSchema = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  // Lowest query-engine version required by the persisted widget definition.
   minVersion: z.number().int().default(1),
   owner: OwnerEnum,
 });

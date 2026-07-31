@@ -75,7 +75,6 @@ export const dashboardWidgetRouter = createTRPCRouter({
           view: queryViewToDashboardWidgetView[input.view],
         },
         ctx.session.user?.id,
-        ctx.session.user?.v4BetaEnabled ? 2 : 1,
       );
 
       return {
@@ -156,7 +155,6 @@ export const dashboardWidgetRouter = createTRPCRouter({
           chartConfig: input.chartConfig,
         },
         ctx.session.user?.id,
-        ctx.session.user?.v4BetaEnabled ? 2 : 1,
       );
 
       return {

@@ -81,8 +81,8 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       projectId,
       name: "API widget",
       view: "OBSERVATIONS",
-      // Public API policy selects v2 when the deployment can serve it.
-      minVersion: 2,
+      // The submitted shape is fully expressible in v1.
+      minVersion: 1,
     });
 
     await expect(
@@ -226,19 +226,6 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       where: { id: v1Widget.id, projectId },
     });
     expect(afterRename.minVersion).toBe(1);
-
-    const patchViewResponse = await makeZodVerifiedAPICall(
-      PatchUnstableDashboardWidgetResponse,
-      "PATCH",
-      `/api/public/unstable/dashboard-widgets/${v1Widget.id}`,
-      { view: "scores-numeric", dimensions: [] },
-      auth,
-    );
-    expect(patchViewResponse.body.view).toBe("scores-numeric");
-    const afterViewChange = await prisma.dashboardWidget.findUniqueOrThrow({
-      where: { id: v1Widget.id, projectId },
-    });
-    expect(afterViewChange.minVersion).toBe(2);
   });
 
   it("rejects patching a widget into the legacy traces view", async () => {

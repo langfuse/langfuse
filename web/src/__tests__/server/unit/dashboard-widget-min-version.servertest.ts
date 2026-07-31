@@ -79,30 +79,18 @@ describe("public dashboard widget version validation", () => {
     }
   });
 
-  it("validates public widgets against v2 on dual-write deployments", () => {
+  it("validates public widgets against the minimum version required by their shape", () => {
     setWriteMode("dual");
 
-    const normalized = normalizePublicDashboardWidgetInput({
-      ...baseInput,
-      dimensions: [{ field: "id" }],
-    });
-
-    let validationError: unknown;
-    try {
-      validatePublicDashboardWidgetInput(normalized);
-    } catch (error) {
-      validationError = error;
-    }
-
-    expect(validationError).toBeInstanceOf(UnstablePublicApiError);
-    expect(validationError).toMatchObject({
-      details: {
-        field: "dimensions[0].field",
-      },
-    });
-    expect((validationError as UnstablePublicApiError).message).toMatch(
-      /not available for widgets/i,
-    );
+    expect(() =>
+      validatePublicDashboardWidgetInput(
+        normalizePublicDashboardWidgetInput({
+          ...baseInput,
+          // `id` is available to v1 widgets but uiHidden in v2.
+          dimensions: [{ field: "id" }],
+        }),
+      ),
+    ).not.toThrow();
 
     expect(() =>
       validatePublicDashboardWidgetInput(
