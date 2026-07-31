@@ -1300,6 +1300,7 @@ type PublicApiObservationsQuery = {
   limit: number;
   traceId?: string;
   userId?: string;
+  sessionId?: string;
   name?: string;
   type?: string;
   level?: string;

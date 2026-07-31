@@ -3379,6 +3379,13 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: sessionId
+          in: query
+          description: Filter by session ID.
+          required: false
+          schema:
+            type: string
+            nullable: true
         - name: type
           in: query
           description: >-
