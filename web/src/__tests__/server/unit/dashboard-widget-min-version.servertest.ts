@@ -79,7 +79,7 @@ describe("public dashboard widget version validation", () => {
     }
   });
 
-  it("pre-validates v1-compatible shapes against v2 on dual-write deployments", () => {
+  it("validates public widgets against v2 on dual-write deployments", () => {
     setWriteMode("dual");
 
     const normalized = normalizePublicDashboardWidgetInput({
@@ -103,16 +103,14 @@ describe("public dashboard widget version validation", () => {
     expect((validationError as UnstablePublicApiError).message).toMatch(
       /not available for widgets/i,
     );
-  });
 
-  it("accepts a v2-required shape on a dual-write deployment", () => {
-    setWriteMode("dual");
-
-    const normalized = normalizePublicDashboardWidgetInput({
-      ...baseInput,
-      metrics: [{ measure: "traceId", agg: "uniq" as const }],
-    });
-
-    expect(() => validatePublicDashboardWidgetInput(normalized)).not.toThrow();
+    expect(() =>
+      validatePublicDashboardWidgetInput(
+        normalizePublicDashboardWidgetInput({
+          ...baseInput,
+          metrics: [{ measure: "traceId", agg: "uniq" as const }],
+        }),
+      ),
+    ).not.toThrow();
   });
 });

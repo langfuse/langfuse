@@ -210,12 +210,8 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     });
     await prisma.dashboardWidget.update({
       where: { id: v1Widget.id },
-      // This creates a discriminating fixture: `id` is a valid v1 observations
-      // dimension but uiHidden in v2. The following name-only PATCH retains
-      // these dimensions, so success means it validates against preserved v1;
-      // the final assertion makes a validation/persistence mismatch observable.
-      // The fixture alone does not prove validation ran; rejection coverage is
-      // provided by the public widget validation suite.
+      // `id` is valid in v1 but uiHidden in v2, making a validation/persistence
+      // version mismatch observable on the following name-only PATCH.
       data: { minVersion: 1, dimensions: [{ field: "id" }] },
     });
 

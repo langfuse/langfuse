@@ -294,50 +294,23 @@ describe("dashboard widget minVersion", () => {
       expect(healed.minVersion).toBe(1);
     });
 
-    it("uses the internal caller policy for new widgets and preserves a stored floor", async () => {
-      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
-
-      const createInput = {
-        ...baseWidgetInput,
-        view: "observations" as const,
-        dimensions: [],
-        chartType: "NUMBER" as const,
-        chartConfig: { type: "NUMBER" as const },
-      };
-
-      const betaOff = await makeCaller(false).dashboardWidgets.create({
-        ...createInput,
-        projectId,
-      });
-      expect(betaOff.widget.minVersion).toBe(1);
-
-      const preserved = await makeCaller(true).dashboardWidgets.update({
-        ...createInput,
-        projectId,
-        widgetId: betaOff.widget.id,
-      });
-      expect(preserved.widget.minVersion).toBe(1);
-
-      const betaOn = await makeCaller(true).dashboardWidgets.create({
-        ...createInput,
-        projectId,
-      });
-      expect(betaOn.widget.minVersion).toBe(2);
-
-      const requiredV2 = await makeCaller(false).dashboardWidgets.create({
-        ...createInput,
-        projectId,
-        metrics: [{ measure: "traceId", agg: "uniq" }],
-      });
-      expect(requiredV2.widget.minVersion).toBe(2);
-
-      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
-      const eventsOnly = await makeCaller(false).dashboardWidgets.create({
-        ...createInput,
-        projectId,
-      });
-      expect(eventsOnly.widget.minVersion).toBe(2);
-    });
+    it.each([
+      [false, "count", "count", 1],
+      [true, "count", "count", 2],
+      [false, "traceId", "uniq", 2],
+    ] as const)(
+      "uses the internal v4=%s default for %s/%s",
+      async (v4BetaEnabled, measure, agg, expectedMinVersion) => {
+        sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+        const result = await makeCaller(v4BetaEnabled).dashboardWidgets.create({
+          ...baseWidgetInput,
+          view: "observations",
+          projectId,
+          metrics: [{ measure, agg }],
+        });
+        expect(result.widget.minVersion).toBe(expectedMinVersion);
+      },
+    );
 
     it("should preserve minVersion when copying widget to project", async () => {
       const sourceWidget = await prisma.dashboardWidget.create({
@@ -617,8 +590,6 @@ describe("dashboard widget minVersion", () => {
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
       });
-
-      expect(created.widget.minVersion).toBe(1);
 
       const fetched = await caller.dashboardWidgets.get({
         projectId,

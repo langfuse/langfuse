@@ -4,7 +4,7 @@ import {
   DashboardService,
   dashboardWidgetViewToQueryView,
   queryViewToDashboardWidgetView,
-  type DashboardWidgetVersionPolicy,
+  resolveDashboardWidgetMinVersion,
   type WidgetDomain,
 } from "@langfuse/shared/src/server";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
@@ -30,10 +30,7 @@ import {
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 
-// Public API and MCP widgets use the events-backed query model whenever the
-// deployment can serve it. DashboardService applies the deployment ceiling
-// and preserves a stored version on same-view updates.
-const PUBLIC_WIDGET_VERSION_POLICY: DashboardWidgetVersionPolicy = 2;
+const PUBLIC_WIDGET_DEFAULT_MIN_VERSION = 2 as const;
 
 // The widget shape used internally after input normalization: the public
 // body with chartConfig and filters fully resolved.
@@ -65,7 +62,7 @@ function getWidgetViewVersion(
   widget: NormalizedWidgetInput,
   persistedMinVersion?: number,
 ): ViewVersion {
-  return DashboardService.getRequiredWidgetQueryVersion(
+  return resolveDashboardWidgetMinVersion(
     {
       view: widget.view,
       dimensions: widget.dimensions,
@@ -73,8 +70,10 @@ function getWidgetViewVersion(
       filters: widget.filters,
     },
     persistedMinVersion,
-    PUBLIC_WIDGET_VERSION_POLICY,
-  );
+    PUBLIC_WIDGET_DEFAULT_MIN_VERSION,
+  ) >= 2
+    ? "v2"
+    : "v1";
 }
 
 function getPublicDashboardWidgetViewDeclaration(
@@ -287,7 +286,7 @@ export async function createPublicDashboardWidget(params: {
       view: queryViewToDashboardWidgetView[input.view],
     },
     undefined,
-    PUBLIC_WIDGET_VERSION_POLICY,
+    PUBLIC_WIDGET_DEFAULT_MIN_VERSION,
   );
 
   await auditLog({
@@ -386,7 +385,7 @@ export async function updatePublicDashboardWidget(params: {
       view: queryViewToDashboardWidgetView[input.view],
     },
     undefined,
-    PUBLIC_WIDGET_VERSION_POLICY,
+    PUBLIC_WIDGET_DEFAULT_MIN_VERSION,
   );
   const result = toApiDashboardWidget(updated);
   await auditLog({

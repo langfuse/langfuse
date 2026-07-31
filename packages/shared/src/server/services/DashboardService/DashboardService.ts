@@ -23,23 +23,14 @@ import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
   requiresV2,
-  type ViewVersion,
 } from "../../../features/query";
 
 type WidgetQueryShape = Parameters<typeof requiresV2>[0];
 
-/**
- * The version floor requested by the caller when a widget has no persisted
- * query-definition version yet. This is deliberately separate from the
- * deployment's maximum query version: callers decide which query model they
- * want to use, while the deployment only limits what can be written.
- */
-export type DashboardWidgetVersionPolicy = 1 | 2;
-
-const resolveDashboardWidgetMinVersion = (
+export const resolveDashboardWidgetMinVersion = (
   shape: WidgetQueryShape,
   persistedMinVersion?: number,
-  versionPolicy: DashboardWidgetVersionPolicy = 1,
+  defaultMinVersion: 1 | 2 = 1,
 ) => {
   const maxVersion = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? 1 : 2;
   const requiredVersion = requiresV2(shape) ? 2 : 1;
@@ -51,7 +42,7 @@ const resolveDashboardWidgetMinVersion = (
   }
 
   return Math.min(
-    Math.max(persistedMinVersion ?? versionPolicy, requiredVersion),
+    Math.max(persistedMinVersion ?? defaultMinVersion, requiredVersion),
     maxVersion,
   );
 };
@@ -361,20 +352,6 @@ export class DashboardService {
     };
   }
 
-  public static getRequiredWidgetQueryVersion(
-    shape: WidgetQueryShape,
-    persistedMinVersion?: number,
-    versionPolicy: DashboardWidgetVersionPolicy = 1,
-  ): ViewVersion {
-    return resolveDashboardWidgetMinVersion(
-      shape,
-      persistedMinVersion,
-      versionPolicy,
-    ) >= 2
-      ? "v2"
-      : "v1";
-  }
-
   /**
    * Creates a new dashboard widget.
    */
@@ -382,12 +359,12 @@ export class DashboardService {
     projectId: string,
     input: CreateWidgetInput,
     userId?: string,
-    versionPolicy: DashboardWidgetVersionPolicy = 1,
+    defaultMinVersion: 1 | 2 = 1,
   ): Promise<WidgetDomain> {
     const minVersion = resolveDashboardWidgetMinVersion(
       toWidgetQueryShape(input),
       undefined,
-      versionPolicy,
+      defaultMinVersion,
     );
     validateDashboardWidgetQuery(input, minVersion);
     const newWidget = await prisma.dashboardWidget.create({
@@ -445,7 +422,7 @@ export class DashboardService {
     widgetId: string,
     input: CreateWidgetInput,
     userId?: string,
-    versionPolicy: DashboardWidgetVersionPolicy = 1,
+    defaultMinVersion: 1 | 2 = 1,
   ): Promise<WidgetDomain> {
     const existingWidget = await prisma.dashboardWidget.findFirst({
       where: { id: widgetId, projectId },
@@ -458,7 +435,7 @@ export class DashboardService {
     const minVersion = resolveDashboardWidgetMinVersion(
       toWidgetQueryShape(input),
       persistedMinVersion,
-      versionPolicy,
+      defaultMinVersion,
     );
     validateDashboardWidgetQuery(input, minVersion);
     const updatedWidget = await prisma.dashboardWidget.update({
@@ -537,16 +514,9 @@ export class DashboardService {
     dashboardId: string;
     placementId: string;
     userId?: string;
-    versionPolicy?: DashboardWidgetVersionPolicy;
   }): Promise<string> {
-    const {
-      sourceWidgetId,
-      projectId,
-      dashboardId,
-      placementId,
-      userId,
-      versionPolicy = 1,
-    } = props;
+    const { sourceWidgetId, projectId, dashboardId, placementId, userId } =
+      props;
 
     const sourceWidget = await prisma.dashboardWidget.findFirst({
       where: {
@@ -567,7 +537,6 @@ export class DashboardService {
     const minVersion = resolveDashboardWidgetMinVersion(
       toWidgetQueryShape(sourceWidgetDomain),
       sourceWidgetDomain.minVersion,
-      versionPolicy,
     );
     validateDashboardWidgetQuery(sourceWidgetDomain, minVersion);
     // Duplicate widget and update dashboard definition atomically
