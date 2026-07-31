@@ -55,20 +55,25 @@ const throwInvalidWidget = (params: {
   });
 };
 
-function getWidgetViewVersion(widget: NormalizedWidgetInput): ViewVersion {
-  return DashboardService.getRequiredWidgetQueryVersion({
-    view: widget.view,
-    dimensions: widget.dimensions,
-    measures: widget.metrics,
-    filters: widget.filters,
-  });
+function getWidgetViewVersion(
+  widget: NormalizedWidgetInput,
+  persistedMinVersion?: number,
+): ViewVersion {
+  return DashboardService.getRequiredWidgetQueryVersion(
+    {
+      view: widget.view,
+      dimensions: widget.dimensions,
+      measures: widget.metrics,
+      filters: widget.filters,
+    },
+    persistedMinVersion,
+  );
 }
 
 function getPublicDashboardWidgetViewDeclaration(
   widget: NormalizedWidgetInput,
+  viewVersion: ViewVersion,
 ): ReturnType<typeof getViewDeclaration> {
-  const viewVersion = getWidgetViewVersion(widget);
-
   try {
     return getViewDeclaration(widget.view, viewVersion);
   } catch (error) {
@@ -158,9 +163,13 @@ export function normalizePublicDashboardWidgetInput(
 
 export function validatePublicDashboardWidgetInput(
   widget: NormalizedWidgetInput,
+  persistedMinVersion?: number,
 ): void {
-  const viewVersion = getWidgetViewVersion(widget);
-  const viewDeclaration = getPublicDashboardWidgetViewDeclaration(widget);
+  const viewVersion = getWidgetViewVersion(widget, persistedMinVersion);
+  const viewDeclaration = getPublicDashboardWidgetViewDeclaration(
+    widget,
+    viewVersion,
+  );
   const widgetCompatibleDimensions = Object.entries(
     viewDeclaration.dimensions,
   ).flatMap(([field, definition]) => (definition.uiHidden ? [] : [field]));
@@ -352,7 +361,11 @@ export async function updatePublicDashboardWidget(params: {
         ? { type: params.input.chartType }
         : currentPublic.chartConfig),
   });
-  validatePublicDashboardWidgetInput(input);
+  const persistedMinVersion =
+    current.view === queryViewToDashboardWidgetView[input.view]
+      ? current.minVersion
+      : undefined;
+  validatePublicDashboardWidgetInput(input, persistedMinVersion);
   const updated = await DashboardService.updateWidget(
     params.projectId,
     params.widgetId,

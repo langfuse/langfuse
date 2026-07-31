@@ -354,8 +354,11 @@ export class DashboardService {
 
   public static getRequiredWidgetQueryVersion(
     shape: WidgetQueryShape,
+    persistedMinVersion?: number,
   ): ViewVersion {
-    return resolveDashboardWidgetMinVersion(shape) >= 2 ? "v2" : "v1";
+    return resolveDashboardWidgetMinVersion(shape, persistedMinVersion) >= 2
+      ? "v2"
+      : "v1";
   }
 
   /**
