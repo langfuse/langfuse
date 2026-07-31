@@ -374,10 +374,16 @@ is only the spine.
       `notes.md`.
 - [ ] Write the FULL report — filled chart template, tables, `## Outcome`
       section with the no-PR reasons — to the job summary, and use it as
-      the body of whatever you emit: PR, issue, or noop. This holds even
-      when you skip a fresh analysis (reuse the latest `history/*.json`
-      numbers and say so); never end an analysis run with a one-line noop
+      the body of whatever you emit. This holds even when you skip a fresh
+      analysis (reuse the latest `history/*.json` numbers and say so)
       ("Report and graph").
+- [ ] ALWAYS emit exactly one safe output before you finish: a PR, a
+      comment, an issue, or a noop. When nothing is actionable, a noop is
+      the correct and expected outcome — it is a first-class result, not a
+      failure to avoid. Its body must be the full report above; what is
+      forbidden is a thin noop body, never the noop itself. Finishing an
+      analysis run having emitted no safe output at all is a bug, even if
+      the analysis and memory update both succeeded.
 
 **Assessment run** (`workflow_run` — CI/CD just finished on one of your PRs):
 
@@ -724,8 +730,11 @@ PRs):
 A quiet week, an early exit, or a decision to skip recomputing changes the
 Outcome section, never the report's presence or completeness. Write the
 full report to the GitHub job summary AND use it verbatim as the body of
-whatever you emit (PR, issue, or the noop message — the noop body is what
-makes a no-action run's summary readable, so never reduce it to a one-liner).
+whatever you emit (PR, issue, or the noop message). Emitting a safe output is
+itself unconditional: every analysis run ends with exactly one of PR, comment,
+issue, or noop, and a noop is the right answer whenever nothing is actionable.
+The noop body is what makes a no-action run's summary readable, so give it the
+full report — the thing to avoid is a one-line body, not the noop.
 If you decided not to recompute (e.g. a manual re-trigger shortly after the
 previous analysis), you may fill individual days from the latest
 `history/*.json` and state that those days are reused — but reuse never
