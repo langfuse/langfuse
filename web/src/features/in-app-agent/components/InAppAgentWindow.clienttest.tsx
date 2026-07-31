@@ -5,11 +5,51 @@ import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
+import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 
 const capture = vi.fn();
+const controlledAgent = vi.hoisted(() => ({
+  value: {
+    conversations: [],
+    error: null,
+    hasMoreConversations: false,
+    isLoadingMoreConversations: false,
+    isRunning: true,
+    isSelectedConversationHydrating: false,
+    isSubmitting: false,
+    invalidateConversations: vi.fn(),
+    liveMessageVersion: 0,
+    loadMoreConversations: vi.fn(),
+    messages: [],
+    pendingToolApprovals: [],
+    approveToolCall: vi.fn(),
+    rejectToolCall: vi.fn(),
+    selectedConversationId: undefined,
+    selectedConversationIsWriteLocked: false,
+    submit: vi.fn(),
+    submitFeedback: vi.fn(),
+  },
+}));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
+}));
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({ asPath: "/" }),
+}));
+
+vi.mock("./InAppAiAgentProvider", () => ({
+  useInAppAiAgent: () => controlledAgent.value,
+}));
+
+vi.mock("./useSmoothStreamingMessages", () => ({
+  useSmoothStreamingMessages: () => ({
+    isAnimating: false,
+    messages: [],
+    pendingToolApprovals: [],
+    runningToolCallIds: [],
+  }),
 }));
 
 // jsdom does not implement Element scrolling.
@@ -141,5 +181,39 @@ describe("InAppAgentWindow quick actions", () => {
     expect(
       screen.getByRole("button", { name: /^Create a prompt/ }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("ControlledInAppAgentWindow composer", () => {
+  it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
+    controlledAgent.value.submit = onSubmit;
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    fireEvent.change(input, { target: { value: "Follow up" } });
+
+    expect(input).toHaveValue("Follow up");
+    expect(input).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+
+    const form = input.closest("form");
+    if (!form) {
+      throw new Error("Expected the assistant composer to render a form");
+    }
+
+    fireEvent.submit(form);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

@@ -72,12 +72,7 @@ export function ControlledInAppAgentWindow(
     shouldFlush: error !== null,
   });
   const isInputDisabled =
-    isRunning ||
-    isAnimating ||
-    isSubmitting ||
-    selectedConversationIsWriteLocked ||
-    isSelectedConversationHydrating ||
-    pendingToolApprovals.length > 0;
+    selectedConversationIsWriteLocked || isSelectedConversationHydrating;
   const displayError = selectedConversationIsWriteLocked
     ? ({
         type: "generic",
@@ -124,7 +119,10 @@ export function ControlledInAppAgentWindow(
     <InAppAgentWindow
       error={displayError}
       isAssistantTurnInProgress={
-        isRunning || isAnimating || displayedPendingToolApprovals.length > 0
+        isRunning ||
+        isAnimating ||
+        isSubmitting ||
+        displayedPendingToolApprovals.length > 0
       }
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}

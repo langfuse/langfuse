@@ -391,6 +391,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isMobile = useIsMobile();
   const isRateLimited = isInAppAgentRateLimited(error);
   const isInputDisabled = baseIsInputDisabled || isRateLimited;
+  const isSubmitDisabled = isInputDisabled || isAssistantTurnInProgress;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
@@ -432,7 +433,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const submitInput = (content: string, options?: InAppAgentSubmitOptions) => {
     const trimmedContent = content.trim();
 
-    if (!trimmedContent || isInputDisabled) {
+    if (!trimmedContent || isSubmitDisabled) {
       return;
     }
 
@@ -717,7 +718,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
                   focusedActions={focusedQuickActions}
                   initialContext={quickActionContext}
-                  isDisabled={isInputDisabled}
+                  isDisabled={isSubmitDisabled}
                   onSelectAction={(action, context, position) => {
                     capture("in_app_agent:quick_action_started", {
                       quickActionKey: action.id,
@@ -953,7 +954,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 className="h-8 w-8 rounded-md border"
                 aria-label="Send message"
                 variant="outline"
-                disabled={isInputDisabled || !input.trim()}
+                disabled={isSubmitDisabled || !input.trim()}
               >
                 <SendHorizontal className="h-4 w-4" />
               </Button>
@@ -965,7 +966,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   type="submit"
                   className="h-8 w-fit rounded-md px-3"
                   aria-label="Send message"
-                  disabled={isInputDisabled || !input.trim()}
+                  disabled={isSubmitDisabled || !input.trim()}
                   onClick={(e) => {
                     e.stopPropagation();
                   }}
