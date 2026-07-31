@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="Helvetica, Arial, sans-serif">
+  <style>
+    .axis { stroke: #94a3b8; stroke-width: 1; }
+    .grid { stroke: #e2e8f0; stroke-width: 1; }
+    .bar { fill: #6366f1; }
+    .bar-anom { fill: #f97316; }
+    .ref-baseline { stroke: #16a34a; stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .ref-checkpoint { stroke: #ca8a04; stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .label { fill: #334155; font-size: 12px; }
+    .title { fill: #0f172a; font-size: 15px; font-weight: 600; }
+    .legend { fill: #475569; font-size: 11px; }
+    .val { fill: #1e293b; font-size: 11px; text-anchor: middle; }
+  </style>
+
+  <text x="20" y="24" class="title">web `run tests` step median, by day (2026-07-27..07-31)</text>
+  <text x="20" y="42" class="legend">Weekday aggregate median: 147s -- baseline 86s (2026-W28) -- last checkpoint 114.5s (2026-W28 07-08)</text>
+
+  <!-- plot area: x=60..680, y=70..320, 0..200s scale -->
+  <line x1="60" y1="320" x2="680" y2="320" class="axis" />
+  <line x1="60" y1="70" x2="60" y2="320" class="axis" />
+  <g class="grid">
+    <line x1="60" y1="270" x2="680" y2="270" />
+    <line x1="60" y1="220" x2="680" y2="220" />
+    <line x1="60" y1="170" x2="680" y2="170" />
+    <line x1="60" y1="120" x2="680" y2="120" />
+    <line x1="60" y1="70"  x2="680" y2="70" />
+  </g>
+  <text x="52" y="323" class="label" text-anchor="end">0</text>
+  <text x="52" y="273" class="label" text-anchor="end">40</text>
+  <text x="52" y="223" class="label" text-anchor="end">80</text>
+  <text x="52" y="173" class="label" text-anchor="end">120</text>
+  <text x="52" y="123" class="label" text-anchor="end">160</text>
+  <text x="52" y="73"  class="label" text-anchor="end">200s</text>
+
+  <!-- baseline (86s) and checkpoint (114.5s) reference lines, scale: 250px = 200s -> 1.25px/s -->
+  <line x1="60" y1="212.5" x2="680" y2="212.5" class="ref-baseline" />
+  <text x="600" y="209" class="legend" fill="#16a34a">baseline 86s</text>
+  <line x1="60" y1="177" x2="680" y2="177" class="ref-checkpoint" />
+  <text x="600" y="173" class="legend" fill="#ca8a04">checkpoint 114.5s</text>
+
+  <!-- bars: 5 days, bar width 80, gap 44 -->
+  <!-- 07-27: 146s -> height 182.5 -->
+  <rect x="90"  y="137.5" width="80" height="182.5" class="bar" />
+  <text x="130" y="130" class="val">146</text>
+  <text x="130" y="336" class="label" text-anchor="middle">07-27</text>
+
+  <!-- 07-28: 147s -> height 183.75 -->
+  <rect x="214" y="136.25" width="80" height="183.75" class="bar" />
+  <text x="254" y="129" class="val">147</text>
+  <text x="254" y="336" class="label" text-anchor="middle">07-28</text>
+
+  <!-- 07-29: 147s -->
+  <rect x="338" y="136.25" width="80" height="183.75" class="bar" />
+  <text x="378" y="129" class="val">147</text>
+  <text x="378" y="336" class="label" text-anchor="middle">07-29</text>
+
+  <!-- 07-30: 171s -> height 213.75, anomalous day -->
+  <rect x="462" y="106.25" width="80" height="213.75" class="bar-anom" />
+  <text x="502" y="99" class="val">171</text>
+  <text x="502" y="336" class="label" text-anchor="middle">07-30*</text>
+
+  <!-- 07-31: 166s -> height 207.5 -->
+  <rect x="586" y="112.5" width="80" height="207.5" class="bar" />
+  <text x="626" y="105" class="val">166</text>
+  <text x="626" y="336" class="label" text-anchor="middle">07-31</text>
+
+  <text x="20" y="360" class="legend">* 07-30: anomalous day this week -- highest perceived/execution time; worst single shard (mode-azure) web run-tests = 368s.</text>
+  <text x="20" y="378" class="legend">Root cause: web/src/__tests__/server/score-comparison-analytics.servertest.ts (120k-row sequential-batch insert test) -- dominant, still-worsening slow file.</text>
+  <text x="20" y="396" class="legend">Candidate fix identified (parallelize batch inserts via Promise.all) but NOT sandbox-verified this run (pnpm/corepack blocked headlessly) -- flagged, not opened as a PR.</text>
+</svg>
