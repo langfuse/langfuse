@@ -1,5 +1,18 @@
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "./constants";
-import type { AgUiMessage } from "./schema";
+import { z } from "zod";
+
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
+import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+
+/**
+ * Rendering-only derivation of the persisted event log. The canonical messages
+ * stay untouched; this state records where interleaved reasoning and tool calls
+ * landed so the projection can reproduce that ordering. It lives in web because
+ * only the browser renders — the worker never does.
+ *
+ * The state is produced twice from the same events: once on the web server when
+ * building a conversation snapshot, and once incrementally on the client as
+ * live events arrive. Both use these same functions, so the two agree.
+ */
 
 type InAppAgentDisplayPlacement = {
   anchorMessageId: string;
@@ -31,6 +44,65 @@ export type InAppAgentDisplayState = {
 type InAppAgentDisplayMessage = AgUiMessage & {
   feedbackMessageId?: string;
 };
+
+const InAppAgentDisplayPlacementSchema = z.object({
+  anchorMessageId: z.string(),
+  order: z.number(),
+});
+
+/**
+ * Wire form of {@link InAppAgentDisplayState}: identical except that the seen
+ * message ids travel as an array. Validated rather than relying on the tRPC
+ * transformer so the contract stays explicit and transport-independent.
+ */
+export const SerializedInAppAgentDisplayStateSchema = z.object({
+  latestPlacement: InAppAgentDisplayPlacementSchema.nullable(),
+  nativeToolCallParentMessageId: z.string().nullable(),
+  latestNewMessageId: z.string().nullable(),
+  nextOrder: z.number(),
+  seenMessageIds: z.array(z.string()),
+  textByMessageId: z.record(
+    z.string(),
+    z.object({
+      nativeContent: z.string(),
+      publishedContent: z.string(),
+      segments: z.array(
+        InAppAgentDisplayPlacementSchema.extend({
+          id: z.string(),
+          content: z.string(),
+        }),
+      ),
+    }),
+  ),
+  toolCallPlacements: z.record(
+    z.string(),
+    InAppAgentDisplayPlacementSchema.nullable(),
+  ),
+});
+
+export type SerializedInAppAgentDisplayState = z.infer<
+  typeof SerializedInAppAgentDisplayStateSchema
+>;
+
+export function serializeInAppAgentDisplayState(
+  state: InAppAgentDisplayState,
+): SerializedInAppAgentDisplayState {
+  return { ...state, seenMessageIds: [...state.seenMessageIds] };
+}
+
+export function deserializeInAppAgentDisplayState(
+  serialized: unknown,
+): InAppAgentDisplayState {
+  const parsed = SerializedInAppAgentDisplayStateSchema.safeParse(serialized);
+  if (!parsed.success) {
+    return createInAppAgentDisplayState();
+  }
+
+  return {
+    ...parsed.data,
+    seenMessageIds: new Set(parsed.data.seenMessageIds),
+  };
+}
 
 export function createInAppAgentDisplayState(): InAppAgentDisplayState {
   return {

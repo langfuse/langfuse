@@ -4,7 +4,7 @@ import {
   projectInAppAgentMessagesForDisplay,
   recordInAppAgentMessagesForDisplay,
   recordInAppAgentToolCallForDisplay,
-} from "@langfuse/shared/in-app-agent";
+} from "@/src/features/in-app-agent/lib/display";
 
 const assistantToolMessage = {
   id: "assistant-tools",

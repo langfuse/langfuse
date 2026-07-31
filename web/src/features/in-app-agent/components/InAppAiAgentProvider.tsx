@@ -30,17 +30,23 @@ import {
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
-  createInAppAgentDisplayState,
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
   isActiveInAppAgentRunStatus,
-  projectInAppAgentMessagesForDisplay,
-  recordInAppAgentMessagesForDisplay,
-  recordInAppAgentToolCallForDisplay,
   type AgUiMessage,
   type InAppAgentMessageFeedback,
   type InAppAgentMessageFeedbackValue,
   type InAppAgentRuntimeState,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
+import {
+  createInAppAgentDisplayState,
+  deserializeInAppAgentDisplayState,
+  projectInAppAgentMessagesForDisplay,
+  recordInAppAgentMessagesForDisplay,
+  recordInAppAgentToolCallForDisplay,
+  type InAppAgentDisplayState,
+} from "@/src/features/in-app-agent/lib/display";
 import { InAppAgentBackgroundClient } from "@/src/features/in-app-agent/lib/backgroundAgentClient";
 import { useInAppAgentBackgroundExecutionEnabled } from "@/src/features/in-app-agent/lib/backgroundExecutionFlag";
 import {
@@ -91,6 +97,7 @@ const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   messages: EMPTY_MESSAGES,
+  displayState: createInAppAgentDisplayState(),
   liveMessageRevision: 0,
   eventCursor: -1,
   currentRun: null,
@@ -400,6 +407,9 @@ function InAppAiAgentProviderInner({
       messages: conversationQuery.data.messages.filter(
         isAgentConversationMessage,
       ),
+      displayState: deserializeInAppAgentDisplayState(
+        conversationQuery.data.displayState,
+      ),
       liveMessageRevision: 0,
       eventCursor: conversationQuery.data.eventCursor,
       currentRun: latestRun
@@ -462,9 +472,31 @@ function InAppAiAgentProviderInner({
     backgroundExecutionView.pendingToolApprovals,
     foregroundPendingToolApprovals,
   ]);
-  const currentMessages = useMemo(() => {
+  /**
+   * Messages and their display sidecar always come from the same source, so the
+   * projection below can never fold live messages against persisted state (or
+   * the reverse). `isSettled` marks a transcript the server has finished
+   * writing, which is the only case where pruning is safe.
+   */
+  const currentSource = useMemo((): {
+    messages: readonly AgUiMessage[];
+    displayState: InAppAgentDisplayState;
+    isSettled: boolean;
+  } => {
     if (isSelectedConversationNotFound) {
-      return EMPTY_MESSAGES;
+      return {
+        messages: EMPTY_MESSAGES,
+        displayState: EMPTY_BACKGROUND_VIEW.displayState,
+        isSettled: true,
+      };
+    }
+
+    if (backgroundExecutionEnabled) {
+      return {
+        messages: backgroundExecutionView.messages,
+        displayState: backgroundExecutionView.displayState,
+        isSettled: !isBackgroundRunning,
+      };
     }
 
     const storedMessages =
@@ -472,35 +504,52 @@ function InAppAiAgentProviderInner({
         ? conversationQuery.data.messages.filter(isAgentConversationMessage)
         : undefined;
 
-    if (backgroundExecutionEnabled) {
-      return backgroundExecutionView.messages;
-    }
-
     if (
       !isRunning &&
       storedMessages &&
       foregroundMessages.length <= storedMessages.length
     ) {
-      return storedMessages;
+      return {
+        messages: storedMessages,
+        displayState: deserializeInAppAgentDisplayState(
+          conversationQuery.data?.displayState,
+        ),
+        isSettled: true,
+      };
     }
 
-    return foregroundMessages;
+    return {
+      messages: foregroundMessages,
+      displayState,
+      isSettled: false,
+    };
   }, [
     backgroundExecutionEnabled,
+    backgroundExecutionView.displayState,
     backgroundExecutionView.messages,
     conversationQuery.data,
+    displayState,
     foregroundMessages,
+    isBackgroundRunning,
     isRunning,
     isSelectedConversationNotFound,
     selectedConversationId,
   ]);
   const messagesWithUiState = useMemo(() => {
+    // Unpaired tool calls and empty assistant messages are pruned only once the
+    // transcript is settled. A live seed must keep them: an in-flight tool call
+    // needs to be present for its arriving result to attach to.
+    const prunedMessages = currentSource.isSettled
+      ? dropEmptyAssistantMessages(
+          dropUnpairedAssistantToolCalls(currentSource.messages),
+        )
+      : currentSource.messages;
     const messagesWithRunId = backgroundExecutionEnabled
       ? attachActiveRunIdToAssistantMessages(
-          currentMessages,
+          prunedMessages,
           currentBackgroundRun?.id ?? null,
         )
-      : currentMessages;
+      : prunedMessages;
     const messagesWithFeedback = mergeMessagesWithFeedback(
       messagesWithRunId,
       selectedConversationId
@@ -509,7 +558,7 @@ function InAppAiAgentProviderInner({
     );
     const displayMessages = projectInAppAgentMessagesForDisplay(
       messagesWithFeedback,
-      displayState,
+      currentSource.displayState,
     );
 
     return displayMessages.map((message) => {
@@ -537,10 +586,9 @@ function InAppAiAgentProviderInner({
     backgroundExecutionEnabled,
     currentBackgroundRun?.id,
     feedbackByConversationId,
-    currentMessages,
+    currentSource,
     loadingEventIds,
     selectedConversationId,
-    displayState,
   ]);
   const fetchNextConversationsPage = conversationListQuery.fetchNextPage;
   const loadMoreConversations = useCallback(() => {
@@ -615,10 +663,13 @@ function InAppAiAgentProviderInner({
       currentIds.size > 0 ? new Set() : currentIds,
     );
   }, []);
-  const publishLiveMessages = useCallback((messages: AgUiMessage[]) => {
-    setForegroundMessages(messages);
-    setForegroundLiveMessageVersion((currentVersion) => currentVersion + 1);
-  }, []);
+  const publishLiveMessages = useCallback(
+    (messages: readonly AgUiMessage[]) => {
+      setForegroundMessages([...messages]);
+      setForegroundLiveMessageVersion((currentVersion) => currentVersion + 1);
+    },
+    [],
+  );
   const recordAgentMessagesForDisplay = useCallback(
     (messages: AgUiMessage[]) => {
       setDisplayState((currentState) =>
@@ -698,7 +749,16 @@ function InAppAiAgentProviderInner({
   }, [rateLimitRetryAt]);
 
   const createSharedAgentSubscriber = useCallback(
-    (options: { reportRunError?: boolean } = {}) =>
+    (
+      options: {
+        reportRunError?: boolean;
+        /**
+         * Foreground only. The background session owns its own display state,
+         * so it must not also feed the provider's foreground copy.
+         */
+        recordDisplayState?: boolean;
+      } = {},
+    ) =>
       ({
         onRunStartedEvent: ({
           event,
@@ -707,12 +767,14 @@ function InAppAiAgentProviderInner({
           event: unknown;
           messages: readonly unknown[];
         }) => {
-          setDisplayState((currentState) =>
-            recordInAppAgentMessagesForDisplay(
-              currentState,
-              runMessages.filter(isAgentConversationMessage),
-            ),
-          );
+          if (options.recordDisplayState !== false) {
+            setDisplayState((currentState) =>
+              recordInAppAgentMessagesForDisplay(
+                currentState,
+                runMessages.filter(isAgentConversationMessage),
+              ),
+            );
+          }
 
           if (
             typeof event === "object" &&
@@ -742,13 +804,15 @@ function InAppAiAgentProviderInner({
 
           if (event.type === EventType.TOOL_CALL_START) {
             toolCallNamesRef.current.set(event.toolCallId, event.toolCallName);
-            setDisplayState((currentState) =>
-              recordInAppAgentToolCallForDisplay(
-                currentState,
-                event.toolCallId,
-                event.parentMessageId,
-              ),
-            );
+            if (options.recordDisplayState !== false) {
+              setDisplayState((currentState) =>
+                recordInAppAgentToolCallForDisplay(
+                  currentState,
+                  event.toolCallId,
+                  event.parentMessageId,
+                ),
+              );
+            }
 
             updateLoadingEvent(event.toolCallId, true);
             return;
@@ -922,27 +986,21 @@ function InAppAiAgentProviderInner({
       agentRef.current = agent;
 
       if (agent instanceof InAppAgentBackgroundClient) {
-        const sharedSubscriber = createSharedAgentSubscriber({
-          reportRunError: false,
-        });
-        const recordBackgroundMessages = ({
-          messages,
-        }: {
-          messages: readonly unknown[];
-        }) => {
-          recordAgentMessagesForDisplay(
-            messages.filter(isAgentConversationMessage),
-          );
-        };
         const nextBackgroundSession = new BackgroundExecutionSessionController({
           agent,
-          subscriber: {
-            ...sharedSubscriber,
-            onMessagesChanged: recordBackgroundMessages,
-            onStateChanged: recordBackgroundMessages,
-          },
+          // The session owns background display state; the shared subscriber
+          // must not also record into the foreground-only provider state.
+          subscriber: createSharedAgentSubscriber({
+            reportRunError: false,
+            recordDisplayState: false,
+          }),
           initialView: {
             messages: initialMessages,
+            displayState: deserializeInAppAgentDisplayState(
+              conversationQuery.data?.conversation.id === conversationId
+                ? conversationQuery.data.displayState
+                : undefined,
+            ),
             eventCursor: initialCursor,
             currentRun: initialRun,
           },
@@ -954,6 +1012,9 @@ function InAppAiAgentProviderInner({
 
             return {
               messages: snapshot.messages.filter(isAgentConversationMessage),
+              displayState: deserializeInAppAgentDisplayState(
+                snapshot.displayState,
+              ),
               eventCursor: snapshot.eventCursor,
               currentRun: snapshot.latestRun
                 ? {
@@ -1011,7 +1072,6 @@ function InAppAiAgentProviderInner({
       createSharedAgentSubscriber,
       decideToolApprovalMutation,
       projectId,
-      recordAgentMessagesForDisplay,
       releaseSubmitLock,
       resetAgent,
       startRunMutation,
@@ -1817,9 +1877,9 @@ function getHydratedMessages(
 }
 
 function mergeMessagesWithFeedback(
-  messages: AgUiMessage[],
+  messages: readonly AgUiMessage[],
   feedbackByMessageId: Record<string, InAppAgentMessageFeedback> | undefined,
-): AgUiMessage[] {
+): readonly AgUiMessage[] {
   if (!feedbackByMessageId || Object.keys(feedbackByMessageId).length === 0) {
     return messages;
   }
@@ -1839,9 +1899,9 @@ function mergeMessagesWithFeedback(
 }
 
 function attachActiveRunIdToAssistantMessages(
-  messages: AgUiMessage[],
+  messages: readonly AgUiMessage[],
   runId: string | null,
-): AgUiMessage[] {
+): readonly AgUiMessage[] {
   if (!runId) {
     return messages;
   }

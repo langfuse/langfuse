@@ -1,4 +1,5 @@
 import type { AbstractAgent, AgentSubscriber } from "@ag-ui/client";
+import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
 import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
@@ -8,6 +9,12 @@ import type {
 } from "@langfuse/shared/in-app-agent";
 import { AgUiMessageSchema } from "@langfuse/shared/in-app-agent";
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
+import {
+  createInAppAgentDisplayState,
+  recordInAppAgentMessagesForDisplay,
+  recordInAppAgentToolCallForDisplay,
+  type InAppAgentDisplayState,
+} from "./display";
 
 export type AgentInput = Parameters<AbstractAgent["runAgent"]>[0];
 
@@ -38,6 +45,12 @@ export type BackgroundExecutionAttachment =
 
 export type BackgroundExecutionView = {
   messages: AgUiMessage[];
+  /**
+   * Rendering sidecar for {@link messages}. Seeded from the hydrated snapshot
+   * and advanced by live events, so the projection at render time sees the same
+   * state the server built from the persisted log.
+   */
+  displayState: InAppAgentDisplayState;
   liveMessageRevision: number;
   eventCursor: number;
   currentRun: BackgroundExecutionRunView | null;
@@ -124,6 +137,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.onError = config.onError;
     this.view = {
       messages: [],
+      displayState: createInAppAgentDisplayState(),
       liveMessageRevision: 0,
       eventCursor: -1,
       currentRun: null,
@@ -148,6 +162,23 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     });
     this.agentSubscription = this.agent.subscribe({
       ...config.subscriber,
+      onEvent: (params) => {
+        if (params.event.type === EventType.TOOL_CALL_START) {
+          const event = params.event as {
+            toolCallId: string;
+            parentMessageId?: string;
+          };
+          this.setView({
+            ...this.view,
+            displayState: recordInAppAgentToolCallForDisplay(
+              this.view.displayState,
+              event.toolCallId,
+              event.parentMessageId,
+            ),
+          });
+        }
+        return config.subscriber?.onEvent?.(params);
+      },
       onMessagesChanged: (params) => {
         if (!this.isReplacingMessages) {
           this.observeMessages(params.messages);
@@ -315,12 +346,17 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
   }
 
   private observeMessages(messages: readonly unknown[]): void {
+    const parsedMessages = messages.flatMap((message) => {
+      const parsed = AgUiMessageSchema.safeParse(message);
+      return parsed.success ? [parsed.data] : [];
+    });
     this.setView({
       ...this.view,
-      messages: messages.flatMap((message) => {
-        const parsed = AgUiMessageSchema.safeParse(message);
-        return parsed.success ? [parsed.data] : [];
-      }),
+      messages: parsedMessages,
+      displayState: recordInAppAgentMessagesForDisplay(
+        this.view.displayState,
+        parsedMessages,
+      ),
       liveMessageRevision: this.view.liveMessageRevision + 1,
     });
   }

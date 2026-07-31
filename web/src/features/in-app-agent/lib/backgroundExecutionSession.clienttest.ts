@@ -6,6 +6,11 @@ import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 
 import { InAppAgentBackgroundClient } from "./backgroundAgentClient";
+import {
+  createInAppAgentDisplayState,
+  projectInAppAgentMessagesForDisplay,
+  recordInAppAgentMessagesForDisplay,
+} from "./display";
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
   BackgroundExecutionSessionController,
@@ -20,6 +25,7 @@ const message = {
 
 const runningView = {
   messages: [message],
+  displayState: createInAppAgentDisplayState(),
   eventCursor: 7,
   currentRun: {
     id: "run-1",
@@ -803,6 +809,159 @@ describe("BackgroundExecutionSessionController", () => {
       attachment: { status: "attached" },
       currentRun: runningView.currentRun,
     });
+  });
+});
+
+describe("BackgroundExecutionSessionController hydration", () => {
+  it("continues a hydrated assistant message that already interleaved a thought", async () => {
+    const question = {
+      id: "user-question",
+      role: "user",
+      content: "Why is latency up?",
+    } satisfies AgUiMessage;
+    const thought = {
+      id: "assistant-thought",
+      role: "reasoning",
+      content: "Checking the traces.",
+    } satisfies AgUiMessage;
+    const answerBeforeThought = {
+      id: "assistant-answer",
+      role: "assistant",
+      content: "Initial answer.",
+    } satisfies AgUiMessage;
+    const answerAfterThought = {
+      ...answerBeforeThought,
+      content: "Initial answer. Final answer.",
+    } satisfies AgUiMessage;
+
+    // Mirrors the fold the web server runs over the persisted event log: the
+    // assistant answered, a thought was placed, then the same message continued.
+    let displayState = createInAppAgentDisplayState();
+    displayState = recordInAppAgentMessagesForDisplay(displayState, [
+      question,
+      answerBeforeThought,
+    ]);
+    displayState = recordInAppAgentMessagesForDisplay(displayState, [
+      question,
+      answerBeforeThought,
+      thought,
+    ]);
+    displayState = recordInAppAgentMessagesForDisplay(displayState, [
+      question,
+      answerAfterThought,
+      thought,
+    ]);
+
+    const hydrate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        messages: [question, answerAfterThought, thought],
+        displayState,
+        eventCursor: 7,
+        currentRun: runningView.currentRun,
+        pendingToolApprovals: [],
+      })
+      // The post-execution converge would refetch the settled transcript and
+      // hide any damage the live tail did, so hold it open.
+      .mockImplementation(() => new Promise<never>(() => undefined));
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        [
+          sseFrame({
+            type: "event",
+            sequenceNumber: 8,
+            event: {
+              type: EventType.RUN_STARTED,
+              runId: "run-1",
+              threadId: "conversation-1",
+            },
+          }),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 9,
+            event: {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: answerAfterThought.id,
+              role: "assistant",
+            },
+          }),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 10,
+            event: {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: answerAfterThought.id,
+              delta: " And one more.",
+            },
+          }),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 11,
+            event: {
+              type: EventType.TEXT_MESSAGE_END,
+              messageId: answerAfterThought.id,
+            },
+          }),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 12,
+            event: {
+              type: EventType.RUN_FINISHED,
+              runId: "run-1",
+              threadId: "conversation-1",
+            },
+          }),
+          sseFrame({ type: "done" }),
+        ].join(""),
+      ),
+    );
+
+    const session = new BackgroundExecutionSessionController({
+      agent: new InAppAgentBackgroundClient({
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        cursor: -1,
+        startRun: vi.fn(),
+      }),
+      hydrate,
+      cancelRun: vi.fn(),
+      decideApproval: vi.fn(),
+    });
+
+    await session.hydrateAndAttach();
+    await vi.waitFor(() => {
+      expect(
+        session
+          .getSnapshot()
+          .messages.find((message) => message.id === answerAfterThought.id),
+      ).toMatchObject({
+        content: "Initial answer. Final answer. And one more.",
+      });
+    });
+
+    const snapshot = session.getSnapshot();
+    // The canonical transcript stays one assistant message: no synthetic
+    // display-text sibling was ever seeded into the agent.
+    expect(snapshot.messages.map((message) => message.id)).toEqual([
+      question.id,
+      answerAfterThought.id,
+      thought.id,
+    ]);
+    expect(
+      projectInAppAgentMessagesForDisplay(
+        snapshot.messages,
+        snapshot.displayState,
+      ).map((message) => ({ id: message.id, content: message.content })),
+    ).toEqual([
+      { id: question.id, content: question.content },
+      { id: answerAfterThought.id, content: "Initial answer." },
+      { id: thought.id, content: thought.content },
+      {
+        id: `display-text-${answerAfterThought.id}-1`,
+        content: " Final answer. And one more.",
+      },
+    ]);
   });
 });
 

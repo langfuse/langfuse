@@ -25,7 +25,6 @@ import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/ser
 import {
   ensureOwnedConversation,
   getConversationEvents,
-  getConversationMessagesForDisplayFromEvents,
   getOwnedConversationOrThrow,
   isInAppAgentConversationWriteLocked,
   maybeInferAndPersistConversationTitle,
@@ -40,7 +39,9 @@ import {
   requestRunCancellation,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 
+import { serializeInAppAgentDisplayState } from "@/src/features/in-app-agent/lib/display";
 import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
+import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
 
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
@@ -96,7 +97,7 @@ export async function getBackgroundConversationSnapshot(params: {
       },
     }),
   ]);
-  const messages = getConversationMessagesForDisplayFromEvents(events);
+  const { messages, displayState } = getConversationSnapshotFromEvents(events);
 
   const latestRun = runs.at(-1) ?? null;
 
@@ -108,6 +109,7 @@ export async function getBackgroundConversationSnapshot(params: {
       }),
     }),
     messages,
+    displayState: serializeInAppAgentDisplayState(displayState),
     eventCursor: events.reduce(
       (max, event) => Math.max(max, event.sequenceNumber),
       -1,
