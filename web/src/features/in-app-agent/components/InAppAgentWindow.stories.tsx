@@ -841,6 +841,31 @@ export const Streaming = meta.story({
   render: (args) => <StreamingInAppAgentWindow {...args} />,
 });
 
+export const DraftWhileTurnIsActive = meta.story({
+  name: "(Test) Draft While Turn Is Active",
+  args: {
+    isAssistantTurnInProgress: true,
+    messages: [],
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const textarea = canvas.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+
+    await userEvent.type(textarea, "Follow up");
+
+    await expect(textarea).toHaveValue("Follow up");
+    await expect(textarea).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Send message" }),
+    ).toBeDisabled();
+
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+  },
+});
+
 export const LoadingResponse = meta.story({
   args: {
     isAssistantTurnInProgress: true,
@@ -1031,17 +1056,25 @@ export const RateLimited = meta.story({
       />
     );
   },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const alert = canvas.getByRole("alert");
+    const textarea = canvas.getByRole("textbox", {
+      name: "Message the assistant",
+    });
 
     await expect(alert).toHaveTextContent(
       "You've reached the assistant request limit",
     );
     await expect(alert).toHaveTextContent("Try again in about");
+    await userEvent.type(textarea, "Follow up");
+    await expect(textarea).toHaveValue("Follow up");
+    await expect(textarea).toBeEnabled();
     await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeEnabled();
+      canvas.getByRole("button", { name: "Send message" }),
+    ).toBeDisabled();
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onSubmit).not.toHaveBeenCalled();
     await expect(
       canvas.getByRole("button", { name: "Confirm" }),
     ).toBeDisabled();
@@ -1062,10 +1095,8 @@ export const RefocusAfterSubmit = meta.story({
   },
   render: function Render(args) {
     const [isExpanded, setIsExpanded] = useState(args.isExpanded);
-    const [
-      isConversationInteractionDisabled,
-      setIsConversationInteractionDisabled,
-    ] = useState(false);
+    const [isAssistantTurnInProgress, setIsAssistantTurnInProgress] =
+      useState(false);
     const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([
       {
         id: "user-1",
@@ -1092,16 +1123,14 @@ export const RefocusAfterSubmit = meta.story({
             {...args}
             isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
             isExpanded={isExpanded}
-            isConversationInteractionDisabled={
-              isConversationInteractionDisabled
-            }
+            isAssistantTurnInProgress={isAssistantTurnInProgress}
             messages={messages}
             onExpandedChange={(isExpanded) => {
               setIsExpanded(isExpanded);
               args.onExpandedChange(isExpanded);
             }}
             onSubmit={(input) => {
-              setIsConversationInteractionDisabled(true);
+              setIsAssistantTurnInProgress(true);
               window.setTimeout(() => {
                 setMessages((currentMessages) => [
                   ...currentMessages,
@@ -1114,7 +1143,7 @@ export const RefocusAfterSubmit = meta.story({
                     },
                   },
                 ]);
-                setIsConversationInteractionDisabled(false);
+                setIsAssistantTurnInProgress(false);
               }, 50);
 
               args.onSubmit(input);
