@@ -389,7 +389,7 @@ export function ModernSession({
   };
 
   return (
-    <div className="bg-background dark:bg-header relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
+    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
       {tracesState.type === "loading" ? (
         <ModernSessionSidebar state="loading" />
       ) : (

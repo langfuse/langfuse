@@ -247,6 +247,17 @@ const loadedArgs = {
   { state: "loaded" }
 >;
 
+function assertLoadedArgs(
+  args: ComponentProps<typeof ModernSessionSidebar>,
+): asserts args is Extract<
+  ComponentProps<typeof ModernSessionSidebar>,
+  { state: "loaded" }
+> {
+  if (args.state !== "loaded") {
+    throw new Error("Expected loaded sidebar args");
+  }
+}
+
 function ModernSessionSidebarStory(
   args: ComponentProps<typeof ModernSessionSidebar>,
 ) {
@@ -307,13 +318,51 @@ function ModernSessionSidebarStory(
 
 const meta = preview.meta({
   component: ModernSessionSidebar,
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", a11y: { test: "error" } },
   render: (args) => <ModernSessionSidebarStory {...args} />,
 });
 
 export default meta;
 
 export const Default = meta.story({ args: loadedArgs });
+
+export const DarkMode = meta.story({
+  args: {
+    ...loadedArgs,
+    traces: [
+      sidebarTraces[0]!,
+      {
+        ...sidebarTraces[1]!,
+        observations: [],
+        hasMatchingTraceLevelIO: true,
+      },
+      { ...sidebarTraces[2]!, observations: [] },
+    ],
+    activeTraceId: "turn-1",
+    filterControls: {
+      ...loadedArgs.filterControls,
+      activeFilterCount: 2,
+      activeFilters: [
+        {
+          column: "hasInput",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+        {
+          column: "hasOutput",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
+      activeViewName: "All observations with I/O",
+      selectedViewId: "__langfuse_with_io__",
+      matchingSystemPresetId: "__langfuse_with_io__",
+    },
+  },
+  globals: { theme: "dark" },
+});
 
 export const ActiveFilters = meta.story({
   args: {
@@ -436,6 +485,7 @@ export const TestSelectsFilteredTurnByStableNumber = meta.story({
     onSelect: fn(),
   },
   play: async ({ args, canvasElement }) => {
+    assertLoadedArgs(args);
     const canvas = within(canvasElement);
     await expect(canvas.getByText("3")).toBeInTheDocument();
     await expect(canvas.getByText("Matching observation")).toBeInTheDocument();
@@ -454,6 +504,7 @@ export const TestSelectsObservation = meta.story({
     onSelect: fn(),
   },
   play: async ({ args, canvasElement }) => {
+    assertLoadedArgs(args);
     const canvas = within(canvasElement);
 
     await userEvent.click(
@@ -476,6 +527,7 @@ export const TestLoadsUnderfilledSearchResults = meta.story({
     onViewportUnderfilled: fn(),
   },
   play: async ({ args }) => {
+    assertLoadedArgs(args);
     await waitFor(() => {
       expect(args.onVisibleTraceIdsChange).toHaveBeenCalledWith(["turn-1"]);
       expect(args.onViewportUnderfilled).toHaveBeenCalled();
@@ -494,6 +546,7 @@ export const TestLoadsNearListEnd = meta.story({
     onLoadMoreObservations: fn(),
   },
   play: async ({ args, canvasElement }) => {
+    assertLoadedArgs(args);
     const canvas = within(canvasElement);
     const region = canvas.getByRole("region", { name: "Session turns" });
 
@@ -533,6 +586,7 @@ export const TestDistinguishesTraceLevelIO = meta.story({
     onSelect: fn(),
   },
   play: async ({ args, canvasElement }) => {
+    assertLoadedArgs(args);
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Trace-level I/O only")).toBeInTheDocument();
     await expect(

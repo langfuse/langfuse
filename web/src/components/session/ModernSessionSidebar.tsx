@@ -131,6 +131,10 @@ function ObservationListRows({
     );
   }
 
+  if (!onSelectObservation) {
+    throw new Error("Loaded observation rows require a selection handler");
+  }
+
   return (
     <div className="mt-2 flex flex-col">
       {state.rows.map((observation) => (
@@ -221,42 +225,33 @@ const TurnCard = React.memo(
           onSelect(selectIndex);
         }}
         className={cn(
-          "group hover:bg-foreground/[0.03] rounded-sm border border-transparent p-2 transition-colors duration-150",
-          isActive && "bg-foreground/5",
+          "group hover:bg-muted/60 rounded-sm border border-transparent p-2 transition-colors duration-150",
+          isActive && "border-primary-accent/50 bg-background dark:bg-muted",
           isTraceLevelIOOnly && "cursor-pointer",
         )}
         data-observation-list-active={isActive}
       >
-        <button
-          type="button"
-          onClick={() => onSelect(selectIndex)}
-          className="flex w-full items-center gap-2 text-left"
-          aria-current={isActive ? "true" : undefined}
-        >
-          <span className="border-border bg-tertiary text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]">
-            {turnNumber}
-          </span>
-          <span
-            className="min-w-0 flex-1 truncate text-[13px] font-bold"
-            title={trace.name ?? "Trace"}
+        <div className="flex w-full items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onSelect(selectIndex)}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            aria-current={isActive ? "true" : undefined}
           >
-            {trace.name ?? "Trace"}
-          </span>
-          <span
-            role="button"
-            tabIndex={0}
+            <span className="border-border bg-tertiary text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]">
+              {turnNumber}
+            </span>
+            <span
+              className="min-w-0 flex-1 truncate text-[13px] font-bold"
+              title={trace.name ?? "Trace"}
+            >
+              {trace.name ?? "Trace"}
+            </span>
+          </button>
+          <button
+            type="button"
             aria-label={isCollapsed ? "Expand turn" : "Collapse turn"}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleCollapse(trace.id);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                event.stopPropagation();
-                onToggleCollapse(trace.id);
-              }
-            }}
+            onClick={() => onToggleCollapse(trace.id)}
             className="text-muted-foreground -my-2 -mr-2.5 -ml-2 flex h-8 w-8 shrink-0 items-center justify-center"
           >
             <ChevronDown
@@ -266,8 +261,8 @@ const TurnCard = React.memo(
               )}
               strokeWidth={1.6}
             />
-          </span>
-        </button>
+          </button>
+        </div>
         {!isCollapsed ? (
           observations === undefined ? (
             <ObservationListRows state={{ type: "loading" }} />
@@ -425,7 +420,7 @@ export function ModernSessionSidebar(
         role="complementary"
         aria-label="Session observations"
         aria-busy="true"
-        className="bg-background dark:bg-header relative flex h-full min-h-0 flex-col border-r"
+        className="bg-background relative flex h-full min-h-0 flex-col border-r"
       >
         <div className="flex shrink-0 items-center border-b px-2 py-2.5">
           <div className="bg-muted h-7 flex-1 animate-pulse rounded-sm" />
@@ -482,7 +477,7 @@ export function ModernSessionSidebar(
     <div
       role="complementary"
       aria-label="Session observations"
-      className="bg-background dark:bg-header relative flex h-full min-h-0 flex-col border-r"
+      className="bg-background relative flex h-full min-h-0 flex-col border-r"
     >
       <div className="shrink-0 border-b">
         <div className="flex items-center gap-1 px-2 py-2.5">
