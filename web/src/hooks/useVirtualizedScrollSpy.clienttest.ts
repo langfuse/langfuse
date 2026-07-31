@@ -74,26 +74,19 @@ describe("useVirtualizedScrollSpy", () => {
     expect(renderScrollSpy(9_000).result.current.activeItemId).toBe("99");
   });
 
-  it("scrolls to an offset where the selected item is active", () => {
+  it("scrolls to the selected item start", () => {
     const { result, scrollElement } = renderScrollSpy(5_000);
 
-    act(() => result.current.selectItem(95));
+    act(() => result.current.selectItem(89));
 
-    expect(result.current.activeItemId).toBe("50");
-    const scrollOptions = vi.mocked(scrollElement.scrollTo).mock.calls[0]?.[0];
-    expect(scrollOptions).toEqual({
-      top: expect.any(Number),
+    expect(result.current.activeItemId).toBe("89");
+    expect(scrollElement.scrollTo).toHaveBeenCalledWith({
+      top: 8_900,
       behavior: "smooth",
     });
-    if (!scrollOptions || typeof scrollOptions !== "object") {
-      throw new Error("Expected scroll options");
-    }
-    expect(
-      renderScrollSpy(scrollOptions.top ?? 0).result.current.activeItemId,
-    ).toBe("95");
   });
 
-  it("scrolls the final item to the bottom of the viewport", () => {
+  it("clamps a selected item start to the available scroll range", () => {
     const { result, scrollElement } = renderScrollSpy(5_000);
 
     act(() => result.current.selectItem(99));

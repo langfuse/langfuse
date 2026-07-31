@@ -96,6 +96,7 @@ const ModernSessionObservation = ({
 
   return (
     <div
+      data-session-observation-id={observation.id}
       className={
         isConversation
           ? "flex flex-col gap-2"

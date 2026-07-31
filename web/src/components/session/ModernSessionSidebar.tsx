@@ -80,7 +80,7 @@ export type ModernSessionSidebarFilterControls =
 
 function ObservationListRows({
   state,
-  onSelectTurn,
+  onSelectObservation,
   onExcludeObservation,
 }:
   | {
@@ -88,12 +88,12 @@ function ObservationListRows({
         ObservationListRowsState,
         { type: "loading" | "error" | "trace-io-only" | "empty" }
       >;
-      onSelectTurn?: never;
+      onSelectObservation?: never;
       onExcludeObservation?: never;
     }
   | {
       state: Extract<ObservationListRowsState, { type: "loaded" }>;
-      onSelectTurn: () => void;
+      onSelectObservation: (observationId: string) => void;
       onExcludeObservation?: (name: string) => void;
     }) {
   if (state.type === "loading") {
@@ -140,7 +140,7 @@ function ObservationListRows({
         >
           <button
             type="button"
-            onClick={onSelectTurn}
+            onClick={() => onSelectObservation(observation.id)}
             className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left"
           >
             {renderFilterIcon(observation.type)}
@@ -202,7 +202,7 @@ const TurnCard = React.memo(
     isActive: boolean;
     isCollapsed: boolean;
     onToggleCollapse: (traceId: string) => void;
-    onSelect: (index: number) => void;
+    onSelect: (index: number, observationId?: string) => void;
     hasFilters: boolean;
     onExcludeObservation: (name: string) => void;
   }) => {
@@ -284,7 +284,9 @@ const TurnCard = React.memo(
           ) : (
             <ObservationListRows
               state={{ type: "loaded", rows: observations }}
-              onSelectTurn={() => onSelect(selectIndex)}
+              onSelectObservation={(observationId) =>
+                onSelect(selectIndex, observationId)
+              }
               onExcludeObservation={onExcludeObservation}
             />
           )
@@ -308,7 +310,7 @@ export function ModernSessionSidebar(
         expandedTraceIds: ReadonlySet<string>;
         onToggleTraceExpanded: (traceId: string) => void;
         onExcludeObservation: (name: string) => void;
-        onSelect: (index: number) => void;
+        onSelect: (index: number, observationId?: string) => void;
         onVisibleTraceIdsChange: (traceIds: string[]) => void;
         hasMoreObservations: boolean;
         isLoadingMoreObservations: boolean;

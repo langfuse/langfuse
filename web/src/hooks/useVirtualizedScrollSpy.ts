@@ -58,55 +58,11 @@ function getScrollSpyAnchor({
   return clampedScrollOffset + anchorOffset;
 }
 
-function getScrollOffsetForAnchor({
-  anchor,
-  viewportHeight,
-  totalSize,
-  endTransitionRatio,
-}: {
-  anchor: number;
-  viewportHeight: number;
-  totalSize: number;
-  endTransitionRatio: number;
-}) {
-  const maxScrollOffset = Math.max(0, totalSize - viewportHeight);
-  const targetAnchor = Math.max(0, Math.min(anchor, totalSize - 1));
-  const transitionDistance = Math.min(
-    viewportHeight * Math.max(0, Math.min(endTransitionRatio, 1)),
-    maxScrollOffset,
-  );
-  const transitionStart = maxScrollOffset - transitionDistance;
-  if (targetAnchor <= transitionStart || transitionDistance === 0) {
-    return Math.min(targetAnchor, maxScrollOffset);
-  }
-
-  // The anchor function is monotonic. Find the first scroll offset whose
-  // anchor reaches the selected item so boundary equality selects that item.
-  let lowerBound = transitionStart;
-  let upperBound = maxScrollOffset;
-  for (let iteration = 0; iteration < 32; iteration += 1) {
-    const candidate = (lowerBound + upperBound) / 2;
-    const candidateAnchor = getScrollSpyAnchor({
-      scrollOffset: candidate,
-      viewportHeight,
-      totalSize,
-      endTransitionRatio,
-    });
-    if (candidateAnchor < targetAnchor) {
-      lowerBound = candidate;
-    } else {
-      upperBound = candidate;
-    }
-  }
-  return upperBound;
-}
-
 /**
  * Coordinates scroll-spy state for a TanStack Virtual list.
  *
  * The active item is derived from the virtual item containing a
- * viewport-relative anchor. Selecting an item smoothly scrolls to the offset
- * where that same anchor reaches the selected item.
+ * viewport-relative anchor. Selecting an item smoothly scrolls to its start.
  *
  * If the list is too short to scroll to the selected item, selection remains
  * active until the user scrolls beyond a small viewport-relative buffer.
@@ -187,15 +143,10 @@ export function useVirtualizedScrollSpy<
       if (!item || !scrollElement || offset === undefined) return;
 
       const totalSize = virtualizer.getTotalSize();
-      const scrollTarget =
-        index === items.length - 1
-          ? Math.max(0, totalSize - viewportHeight)
-          : getScrollOffsetForAnchor({
-              anchor: offset,
-              viewportHeight,
-              totalSize,
-              endTransitionRatio,
-            });
+      const scrollTarget = Math.min(
+        offset,
+        Math.max(0, totalSize - viewportHeight),
+      );
       const targetAnchor = getScrollSpyAnchor({
         scrollOffset: scrollTarget,
         viewportHeight,

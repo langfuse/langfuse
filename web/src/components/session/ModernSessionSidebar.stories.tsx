@@ -447,6 +447,22 @@ export const TestSelectsFilteredTurnByStableNumber = meta.story({
   },
 });
 
+export const TestSelectsObservation = meta.story({
+  name: "(Test) Selects observation",
+  args: {
+    ...loadedArgs,
+    onSelect: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: /^Search knowledge base 0.70s$/i }),
+    );
+    await expect(args.onSelect).toHaveBeenCalledWith(1, "tool-1");
+  },
+});
+
 export const TestLoadsUnderfilledSearchResults = meta.story({
   name: "(Test) Loads underfilled search results",
   args: {

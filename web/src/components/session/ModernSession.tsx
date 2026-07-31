@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
@@ -336,6 +336,57 @@ export function ModernSession({
     viewportHeight: feedSize?.height ?? 0,
     endTransitionRatio: 0.2,
   });
+  const observationScrollCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => observationScrollCleanupRef.current?.(), []);
+  const handleSelect = (index: number, observationId?: string) => {
+    observationScrollCleanupRef.current?.();
+    observationScrollCleanupRef.current = null;
+    selectTrace(index);
+    if (!observationId) return;
+
+    const feed = feedRef.current;
+    if (!feed) return;
+
+    const scrollToObservation = () => {
+      const observation = Array.from(
+        feed.querySelectorAll<HTMLElement>("[data-session-observation-id]"),
+      ).find(
+        (element) => element.dataset.sessionObservationId === observationId,
+      );
+      if (!observation) return false;
+
+      const top =
+        feed.scrollTop +
+        observation.getBoundingClientRect().top -
+        feed.getBoundingClientRect().top -
+        Math.max(0, (feed.clientHeight - observation.clientHeight) / 2);
+      feed.scrollTo({ top, behavior: "smooth" });
+      return true;
+    };
+
+    if (scrollToObservation()) return;
+
+    let timeout: number;
+    const cleanup = () => {
+      observer.disconnect();
+      window.clearTimeout(timeout);
+    };
+    const observer = new MutationObserver(() => {
+      if (!scrollToObservation()) return;
+      cleanup();
+      if (observationScrollCleanupRef.current === cleanup) {
+        observationScrollCleanupRef.current = null;
+      }
+    });
+    observer.observe(feed, { childList: true, subtree: true });
+    timeout = window.setTimeout(() => {
+      cleanup();
+      if (observationScrollCleanupRef.current === cleanup) {
+        observationScrollCleanupRef.current = null;
+      }
+    }, 5_000);
+    observationScrollCleanupRef.current = cleanup;
+  };
 
   return (
     <div className="bg-background dark:bg-header relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
@@ -352,7 +403,7 @@ export function ModernSession({
           expandedTraceIds={expandedTraceIds}
           onToggleTraceExpanded={toggleTraceExpanded}
           onExcludeObservation={onExcludeObservation}
-          onSelect={selectTrace}
+          onSelect={handleSelect}
           onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
           hasMoreObservations={hasMoreObservations}
           isLoadingMoreObservations={
