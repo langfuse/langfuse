@@ -54,6 +54,13 @@ const InAppAgentDisplayPlacementSchema = z.object({
  * Wire form of {@link InAppAgentDisplayState}: identical except that the seen
  * message ids travel as an array. Validated rather than relying on the tRPC
  * transformer so the contract stays explicit and transport-independent.
+ *
+ * The sidecar duplicates assistant text, and `publishedContent` is always
+ * `nativeContent` plus every segment's content joined in order, so it could be
+ * dropped from the wire and recomputed on deserialize. Measured overhead on a
+ * large real conversation is ~12% of the message payload, because tool results
+ * dominate and are never duplicated here, so that optimization is not worth
+ * its invariant today.
  */
 export const SerializedInAppAgentDisplayStateSchema = z.object({
   latestPlacement: InAppAgentDisplayPlacementSchema.nullable(),

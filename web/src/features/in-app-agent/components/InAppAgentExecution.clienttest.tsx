@@ -40,6 +40,7 @@ const providerMocks = vi.hoisted(() => ({
             errorCode: string | null;
             cancelRequested: boolean;
           } | null;
+          displayState?: unknown;
           pendingToolApprovals: Array<{
             runId: string;
             approvalRequest: {
@@ -282,5 +283,69 @@ describe("in-app agent execution", () => {
         name: "Reject",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the pending tool call in the transcript while a run awaits approval", async () => {
+    providerMocks.backgroundExecutionEnabled = true;
+    providerMocks.conversationQuery.data = {
+      conversation: {
+        id: "conversation-1",
+        isWriteLocked: false,
+      },
+      messages: [
+        {
+          id: "persisted-user",
+          role: "user",
+          content: "Create the prompt",
+        },
+        {
+          id: "persisted-assistant",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: '{"name":"greeting-prompt"}',
+              },
+            },
+          ],
+        },
+      ],
+      eventCursor: 12,
+      latestRun: {
+        id: "run-1",
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [
+        {
+          runId: "run-1",
+          approvalRequest: {
+            type: "tool_approval_request",
+            toolCallId: "tool-call-1",
+            toolName: "langfuse_createTextPrompt",
+            runId: "run-1",
+          },
+        },
+      ],
+    };
+    window.sessionStorage.setItem(
+      "langfuse:in-app-ai-agent-selected-conversation:project-1",
+      JSON.stringify("conversation-1"),
+    );
+
+    renderExecutionUi();
+
+    // A paused run is not settled, so the result-less tool call survives
+    // render-time pruning. The approval therefore renders against the real
+    // call — arguments included — rather than being re-added as a detached
+    // card built only from the approval request.
+    expect(await screen.findByText("Create the prompt")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument();
+    expect(screen.getByText(/greeting-prompt/)).toBeInTheDocument();
   });
 });
