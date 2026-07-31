@@ -1134,9 +1134,9 @@ classified AS (
         'GET /api/public/observations',
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), 2,
-      route_path = 'GET /api/public/dataset-run-items', 2,
       route_path IN (
         'GET /api/public/sessions',
         'GET /api/public/metrics'
@@ -1249,9 +1249,9 @@ classified AS (
         'GET /api/public/observations',
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), 2,
-      route_path = 'GET /api/public/dataset-run-items', 2,
       route_path IN (
         'GET /api/public/sessions',
         'GET /api/public/metrics'
