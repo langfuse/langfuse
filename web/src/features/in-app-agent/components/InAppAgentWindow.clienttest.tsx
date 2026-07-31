@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ScanSearch } from "lucide-react";
+import { InAppAgentRunStatus } from "@langfuse/shared";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   InAppAgentWindow,
@@ -17,7 +18,19 @@ const controlledAgent = vi.hoisted(() => ({
     isRunning: true,
     isSelectedConversationHydrating: false,
     isSubmitting: false,
-    execution: { type: "foreground" } as const,
+    execution: { type: "foreground" } as
+      | { type: "foreground" }
+      | {
+          type: "background";
+          run: {
+            id: string;
+            status: InAppAgentRunStatus;
+            errorCode: string | null;
+            cancelRequested: boolean;
+          } | null;
+          isCancelling: boolean;
+          cancel: () => void;
+        },
     invalidateConversations: vi.fn(),
     liveMessageVersion: 0,
     loadMoreConversations: vi.fn(),
@@ -44,8 +57,11 @@ vi.mock("./InAppAiAgentProvider", () => ({
   useInAppAiAgent: () => controlledAgent.value,
 }));
 
+const finishAnimation = vi.fn();
+
 vi.mock("./useSmoothStreamingMessages", () => ({
   useSmoothStreamingMessages: () => ({
+    finishAnimation,
     isAnimating: false,
     messages: [],
     pendingToolApprovals: [],
@@ -102,44 +118,6 @@ function selectTab(name: string) {
     ctrlKey: false,
   });
 }
-
-describe("InAppAgentWindow execution controls", () => {
-  it("keeps background status and Stop available while execution is active", () => {
-    const onStop = vi.fn();
-    const { rerender } = render(
-      windowElement({
-        executionUi: {
-          type: "background",
-          notice: "You can close this; the run continues in the background.",
-          stop: { status: "available", onStop },
-        },
-        isAssistantTurnInProgress: true,
-      }),
-    );
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "You can close this; the run continues in the background.",
-    );
-
-    const stopButton = screen.getByRole("button", { name: "Stop run" });
-    expect(stopButton).toBeEnabled();
-    fireEvent.click(stopButton);
-    expect(onStop).toHaveBeenCalledOnce();
-
-    rerender(
-      windowElement({
-        executionUi: {
-          type: "background",
-          notice: "Stopping the run…",
-          stop: { status: "stopping", onStop },
-        },
-        isAssistantTurnInProgress: true,
-      }),
-    );
-
-    expect(screen.getByRole("button", { name: "Stopping run" })).toBeDisabled();
-  });
-});
 
 describe("InAppAgentWindow quick actions", () => {
   it("switches tabs, resets on route change, and submits the action prompt with attribution", async () => {
@@ -316,6 +294,43 @@ describe("ControlledInAppAgentWindow composer", () => {
     expect(
       screen.getByRole("button", { name: "Conversation history" }),
     ).toBeDisabled();
+  });
+});
+
+describe("ControlledInAppAgentWindow stop", () => {
+  it("flushes the paced reveal and cancels the run from one Stop click", () => {
+    const cancel = vi.fn();
+    controlledAgent.value.isRunning = true;
+    controlledAgent.value.pendingToolApprovals = [];
+    controlledAgent.value.execution = {
+      type: "background",
+      run: {
+        id: "run-1",
+        status: InAppAgentRunStatus.RUNNING,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      isCancelling: false,
+      cancel,
+    };
+
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop run" }));
+
+    // Cancelling alone only stops future frames. Without the flush the already
+    // buffered block keeps typing out, which reads as "stop did nothing".
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(finishAnimation).toHaveBeenCalledOnce();
   });
 });
 

@@ -22,7 +22,6 @@ import { useRouter } from "next/router";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
-import { InAppAgentRunStatus } from "@langfuse/shared";
 import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
@@ -477,9 +476,12 @@ function InAppAiAgentProviderInner({
    * Messages and their display sidecar always come from the same source, so the
    * projection below can never fold live messages against persisted state (or
    * the reverse). `isSettled` marks a transcript the server has finished
-   * writing, which is the only case where pruning is safe. A run paused on an
-   * approval is not finished: its pending tool call has no result yet, and
-   * pruning it would detach the approval card from where the call happened.
+   * writing, which is the only case where pruning is safe.
+   *
+   * A run paused on an approval needs no special case: `human-in-the-loop.ts`
+   * emits the tool call's START and RESULT in one batch when the decision is
+   * resolved, so a pending approval has no tool call yet and a resolved one is
+   * never unpaired.
    */
   const currentSource = useMemo((): {
     messages: readonly AgUiMessage[];
@@ -498,10 +500,7 @@ function InAppAiAgentProviderInner({
       return {
         messages: backgroundExecutionView.messages,
         displayState: backgroundExecutionView.displayState,
-        isSettled:
-          !isBackgroundRunning &&
-          currentBackgroundRun?.status !==
-            InAppAgentRunStatus.AWAITING_APPROVAL,
+        isSettled: !isBackgroundRunning,
       };
     }
 
@@ -534,7 +533,6 @@ function InAppAiAgentProviderInner({
     backgroundExecutionView.displayState,
     backgroundExecutionView.messages,
     conversationQuery.data,
-    currentBackgroundRun?.status,
     displayState,
     foregroundMessages,
     isBackgroundRunning,

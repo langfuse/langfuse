@@ -994,6 +994,32 @@ export const Error = meta.story({
   },
 });
 
+export const BackgroundRun = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    executionUi: {
+      type: "background",
+      notice: "You can close this; the run continues in the background.",
+      stop: { status: "available", onStop: fn() },
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: { type: "loading" },
+      },
+    ],
+  },
+});
+
 export const RateLimited = meta.story({
   name: "(Test) Rate Limited",
   args: {
@@ -1264,5 +1290,68 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
       value: "thumbs_up",
       comment: null,
     });
+  },
+});
+
+export const BackgroundExecutionControls = meta.story({
+  name: "(Test) Background Execution Controls",
+  args: {
+    isAssistantTurnInProgress: true,
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: { type: "loading" },
+      },
+    ],
+  },
+  render: function Render(args) {
+    const [isStopping, setIsStopping] = useState(false);
+
+    return (
+      <StatefulInAppAgentWindow
+        {...args}
+        executionUi={{
+          type: "background",
+          notice: isStopping
+            ? "Stopping the run…"
+            : "You can close this; the run continues in the background.",
+          stop: {
+            status: isStopping ? "stopping" : "available",
+            onStop: () => {
+              setIsStopping(true);
+            },
+          },
+        }}
+      />
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "the run continues in the background",
+    );
+
+    const stopButton = canvas.getByRole("button", { name: "Stop run" });
+    await expect(stopButton).toBeEnabled();
+    await userEvent.click(stopButton);
+
+    await waitFor(async () => {
+      await expect(
+        canvas.getByRole("button", { name: "Stopping run" }),
+      ).toBeDisabled();
+    });
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Stopping the run",
+    );
   },
 });
