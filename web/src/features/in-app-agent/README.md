@@ -4,6 +4,11 @@ The in-app agent is Langfuse's project-scoped assistant inside the authenticated
 product UI. Foreground execution remains the production default; an opt-in
 background path executes the same conversation through a worker-owned run.
 
+`ARCHITECTURE.md` covers why the feature is shaped this way: the one-log /
+three-derivations contract, where code lives and why, the target state after
+foreground is removed, and the rules that keep the two execution paths apart.
+Read it before changing how messages are represented or where logic lives.
+
 ## Core Model
 
 AG-UI is the durable contract for live streaming, persistence, replay, and rendering.
@@ -26,7 +31,12 @@ a turn:
 - `server/agent.ts`: Mastra/Bedrock/MCP runtime setup, custom tool wiring, human-in-the-loop approval gates, AG-UI event normalization, and cleanup.
 - `server/human-in-the-loop.ts`: interrupt parsing helpers, pending tool approval persistence, and resume approval validation/consumption.
 - `server/tools.ts`: custom agent tools with strict schemas and scoped, user-visible behavior.
-- `server/persistence.ts`: conversations, runs, events, replay, active-run locking, and stale-run recovery.
+- `server/persistence.ts`: conversations, runs, events, canonical accumulation, replay, active-run locking, and stale-run recovery. Knows nothing about rendering.
+- `lib/display.ts`: display-state recording, the render-time projection, and its
+  wire serialization. Web-only; used by the browser and by the web server when
+  it builds a conversation snapshot.
+- `server/conversationSnapshot.ts`: rebuilds canonical messages and display state
+  from one read of the persisted event log.
 - `server/router.ts`: non-streaming tRPC routes for conversation lists, replay, and feedback.
 - `server/instrumentation.ts`: optional Langfuse tracing for agent runs, prompts, events, and errors.
 - `server/sandbox/config.ts`: sandbox provider selection and runtime configuration.
@@ -58,6 +68,10 @@ flowchart TB
   Provider -->|AG-UI HttpAgent + SSE| Handler["server/handler.ts\nserver route for agent runs"]
   Provider -->|useSyncExternalStore| Session["backgroundExecutionSession.ts\nbackground state + actions"]
   Session --> BackgroundClient["backgroundAgentClient.ts\nstart + watch adapter"]
+  Display["lib/display.ts\ndisplay state + projection"] -.-> Provider
+  Display -.-> Session
+  Display -.-> Snapshot["server/conversationSnapshot.ts\ncanonical + display state"]
+  Router --> Snapshot
   BackgroundClient -->|start/watch| Router
   Provider -->|tRPC| Router["server/router.ts\ntRPC routes (non-streaming)"]
 
@@ -100,8 +114,9 @@ flowchart TB
 
 1. The provider selects the background client only when the local opt-in is
    enabled and starts the durable run through `startRun`.
-2. `BackgroundExecutionSessionController` installs the persisted messages and
-   cursor before attaching the watch stream.
+2. `BackgroundExecutionSessionController` installs the persisted canonical
+   messages, the display state, and the cursor before attaching the watch
+   stream. The seed is never projected or pruned; see `ARCHITECTURE.md`.
 3. The session snapshot is the sole owner of background messages, approvals,
    current run, cancellation, and attachment state. React subscribes with
    `useSyncExternalStore`; it does not mirror those facts into component state.
@@ -124,6 +139,9 @@ flowchart TB
   foreground copy cannot be combined with background Stop state.
 - Display pacing remains in `useSmoothStreamingMessages`; canonical AG-UI
   messages are never rewritten for animation.
+- Messages and their display state always come from the same source. The
+  provider selects both together, so a live transcript can never be folded
+  against persisted display state or the reverse.
 
 The provider is still a large integration controller. Do not add another
 background state mirror or a generic long-lived foreground/background adapter;
