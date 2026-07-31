@@ -69,7 +69,7 @@ const GetDashboardWidgetInput = z.object({
 function validateMetricAggregations(params: {
   view: string;
   metrics: Array<{ measure: string; agg: string }>;
-  persistedMinVersion?: number;
+  minVersion?: number;
 }): void {
   const version: ViewVersion = (params.minVersion ?? 1) >= 2 ? "v2" : "v1";
   const viewDecl = getViewDeclaration(
@@ -117,7 +117,7 @@ function validateWidgetVersionAvailability(params: {
   dimensions: Array<{ field: string }>;
   metrics: Array<{ measure: string }>;
   filters: Array<{ column: string }>;
-  minVersion?: number;
+  persistedMinVersion?: number;
 }): number {
   const shape = {
     view: params.view,
