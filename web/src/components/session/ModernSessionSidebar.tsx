@@ -1,12 +1,18 @@
 import React, { useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ListFilter, Pencil, Save, Search, X } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronDown,
+  ListFilter,
+  MoreHorizontal,
+  Pencil,
+  Save,
+  Search,
+  X,
+} from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
 
-import {
-  ObservationListRows,
-  type ObservationListRow,
-} from "@/src/components/session/ObservationListRows";
+import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import {
@@ -23,6 +29,8 @@ import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import {
@@ -33,10 +41,25 @@ import {
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 
 const OBSERVATION_LIST_OVERSCAN = 5;
 const SIDEBAR_AUTO_FOLLOW_IDLE_MS = 750;
+
+type ObservationListRow = {
+  id: string;
+  name: string | null;
+  type: string;
+  latency: number | null;
+};
+
+type ObservationListRowsState =
+  | { type: "loading" }
+  | { type: "error" }
+  | { type: "trace-io-only" }
+  | { type: "empty"; hasFilters: boolean }
+  | { type: "loaded"; rows: ObservationListRow[] };
 
 export type ModernSessionSidebarTrace = {
   trace: EventSessionTrace;
@@ -55,6 +78,118 @@ export type ModernSessionSidebarFilterControls =
     selectedViewId: string | null;
     onClearFilters: () => void;
   };
+
+function ObservationListRows({
+  state,
+  onSelectTurn,
+  onExcludeObservation,
+}:
+  | {
+      state: Extract<
+        ObservationListRowsState,
+        { type: "loading" | "error" | "trace-io-only" | "empty" }
+      >;
+      onSelectTurn?: never;
+      onExcludeObservation?: never;
+    }
+  | {
+      state: Extract<ObservationListRowsState, { type: "loaded" }>;
+      onSelectTurn: () => void;
+      onExcludeObservation?: (name: string) => void;
+    }) {
+  if (state.type === "loading") {
+    return (
+      <div className="-mx-1 flex flex-col gap-1 px-1 py-2">
+        <div className="bg-muted h-3 w-3/4 animate-pulse rounded-sm" />
+        <div className="bg-muted h-3 w-1/2 animate-pulse rounded-sm" />
+      </div>
+    );
+  }
+
+  if (state.type === "empty") {
+    return (
+      <p className="text-muted-foreground -mx-1 px-1 py-2 text-xs">
+        {state.hasFilters
+          ? "No matching child observations"
+          : "No child observations"}
+      </p>
+    );
+  }
+
+  if (state.type === "trace-io-only") {
+    return (
+      <div className="border-border bg-muted/40 text-foreground -mx-1 mt-2 flex items-center gap-2 rounded-sm border px-2 py-1.5 text-xs">
+        <span className="min-w-0 flex-1">Trace-level I/O only</span>
+        <ArrowRight
+          aria-hidden="true"
+          className="text-muted-foreground h-3.5 w-3.5 shrink-0"
+        />
+      </div>
+    );
+  }
+
+  if (state.type === "error") {
+    return (
+      <p className="text-muted-foreground -mx-1 px-1 py-2 text-xs">
+        Failed to load observations
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex flex-col">
+      {state.rows.map((observation) => (
+        <div
+          key={observation.id}
+          className="hover:bg-foreground/10 -mr-2 -ml-1 flex items-center rounded-sm transition-colors duration-150"
+        >
+          <button
+            type="button"
+            onClick={onSelectTurn}
+            className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left"
+          >
+            {renderFilterIcon(observation.type)}
+            <span
+              className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
+              title={observation.name ?? observation.id}
+            >
+              {observation.name ?? observation.id}
+            </span>
+            {observation.latency !== null && observation.type !== "EVENT" ? (
+              <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
+                {formatIntervalSeconds(observation.latency)}
+              </span>
+            ) : null}
+          </button>
+          {observation.name && onExcludeObservation ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-muted-foreground -my-1 -mr-0.5 h-8 w-8 shrink-0 hover:bg-transparent"
+                  aria-label={`Actions for ${observation.name}`}
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={0}>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    onExcludeObservation(observation.name as string)
+                  }
+                >
+                  Exclude similar observations
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const TurnCard = React.memo(
   ({
