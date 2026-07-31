@@ -17,13 +17,11 @@ import {
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
-  requiresV2,
   views,
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { TRPCError } from "@trpc/server";
 import { LangfuseConflictError } from "@langfuse/shared";
-import { maxSupportedWidgetVersion } from "@/src/features/widgets/server/widget-version";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),
@@ -108,44 +106,6 @@ function validateUiHiddenDimensions(params: {
   }
 }
 
-function validateWidgetVersionAvailability(params: {
-  view: string;
-  dimensions: Array<{ field: string }>;
-  metrics: Array<{ measure: string }>;
-  filters: Array<{ column: string }>;
-}): void {
-  const shape = {
-    view: params.view,
-    dimensions: params.dimensions,
-    measures: params.metrics,
-    filters: params.filters,
-  };
-
-  if (maxSupportedWidgetVersion() < 2 && requiresV2(shape)) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message:
-        "This widget uses v2-only fields, but the current deployment only supports legacy widget queries",
-    });
-  }
-}
-
-function getShapeViewVersion(params: {
-  view: string;
-  dimensions: Array<{ field: string }>;
-  metrics: Array<{ measure: string }>;
-  filters: Array<{ column: string }>;
-}): ViewVersion {
-  return requiresV2({
-    view: params.view,
-    dimensions: params.dimensions,
-    measures: params.metrics,
-    filters: params.filters,
-  }) || maxSupportedWidgetVersion() >= 2
-    ? "v2"
-    : "v1";
-}
-
 export const dashboardWidgetRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateDashboardWidgetInput)
@@ -156,8 +116,12 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      validateWidgetVersionAvailability(input);
-      const version = getShapeViewVersion(input);
+      const version = DashboardService.getWidgetQueryVersion({
+        view: input.view,
+        dimensions: input.dimensions,
+        measures: input.metrics,
+        filters: input.filters,
+      });
 
       validateMetricAggregations({
         view: input.view,
@@ -179,7 +143,6 @@ export const dashboardWidgetRouter = createTRPCRouter({
           view: queryViewToDashboardWidgetView[input.view],
         },
         ctx.session.user?.id,
-        { defaultMinVersion: maxSupportedWidgetVersion() },
       );
 
       return {
@@ -245,22 +208,12 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      if (maxSupportedWidgetVersion() < 2) {
-        const existingWidget = await DashboardService.getWidget(
-          input.widgetId,
-          input.projectId,
-        );
-        if (existingWidget?.minVersion && existingWidget.minVersion >= 2) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message:
-              "This widget uses v2 queries, but the current deployment only supports legacy widget queries",
-          });
-        }
-      }
-
-      validateWidgetVersionAvailability(input);
-      const version = getShapeViewVersion(input);
+      const version = DashboardService.getWidgetQueryVersion({
+        view: input.view,
+        dimensions: input.dimensions,
+        measures: input.metrics,
+        filters: input.filters,
+      });
 
       validateMetricAggregations({
         view: input.view,
@@ -289,7 +242,6 @@ export const dashboardWidgetRouter = createTRPCRouter({
           chartConfig: input.chartConfig,
         },
         ctx.session.user?.id,
-        { defaultMinVersion: maxSupportedWidgetVersion() },
       );
 
       return {
@@ -313,26 +265,6 @@ export const dashboardWidgetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "dashboards:CUD",
       });
-
-      const sourceWidget = await DashboardService.getWidget(
-        input.widgetId,
-        input.projectId,
-      );
-      if (sourceWidget) {
-        if (maxSupportedWidgetVersion() < 2 && sourceWidget.minVersion >= 2) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message:
-              "This widget uses v2 queries, but the current deployment only supports legacy widget queries",
-          });
-        }
-        validateWidgetVersionAvailability({
-          view: dashboardWidgetViewToQueryView[sourceWidget.view],
-          dimensions: sourceWidget.dimensions,
-          metrics: sourceWidget.metrics,
-          filters: sourceWidget.filters,
-        });
-      }
 
       const newWidgetId = await DashboardService.copyWidgetToProject({
         sourceWidgetId: input.widgetId,

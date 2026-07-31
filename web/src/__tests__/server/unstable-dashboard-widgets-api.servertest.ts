@@ -208,6 +208,10 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
       name: "Legacy v1 observations widget",
       view: DashboardWidgetViews.OBSERVATIONS,
     });
+    await prisma.dashboardWidget.update({
+      where: { id: v1Widget.id },
+      data: { minVersion: 1 },
+    });
 
     await makeZodVerifiedAPICall(
       PatchUnstableDashboardWidgetResponse,

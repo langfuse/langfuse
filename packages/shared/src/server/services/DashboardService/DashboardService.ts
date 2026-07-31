@@ -4,6 +4,8 @@ import {
   LangfuseNotFoundError,
   type OrderByState,
 } from "../../../";
+import { InvalidRequestError } from "../../../errors";
+import { env } from "../../../env";
 import {
   CreateWidgetInput,
   WidgetDomain,
@@ -17,20 +19,40 @@ import {
 } from "./types";
 import { z } from "zod";
 import { singleFilter } from "../../../";
-import { resolveWidgetMinVersion } from "../../../features/query";
+import {
+  requiresV2,
+  type ViewVersion,
+  type WidgetQueryShape,
+} from "../../../features/query";
+
+const maxSupportedWidgetVersion = () =>
+  env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? 1 : 2;
 
 const resolveDashboardWidgetMinVersion = (
-  input: CreateWidgetInput,
+  shape: WidgetQueryShape,
   persistedMinVersion?: number,
-  defaultMinVersion = 1,
-) =>
-  resolveWidgetMinVersion({
-    view: dashboardWidgetViewToQueryView[input.view],
-    dimensions: input.dimensions,
-    measures: input.metrics,
-    filters: input.filters,
-    persistedMinVersion: persistedMinVersion ?? defaultMinVersion,
-  });
+) => {
+  const maxVersion = maxSupportedWidgetVersion();
+  const minVersion = Math.max(
+    persistedMinVersion ?? maxVersion,
+    requiresV2(shape) ? 2 : 1,
+  );
+
+  if (minVersion > maxVersion) {
+    throw new InvalidRequestError(
+      "This widget uses v2-only fields, but the current deployment only supports legacy widget queries",
+    );
+  }
+
+  return minVersion;
+};
+
+const toWidgetQueryShape = (input: CreateWidgetInput): WidgetQueryShape => ({
+  view: dashboardWidgetViewToQueryView[input.view],
+  dimensions: input.dimensions,
+  measures: input.metrics.map(({ measure }) => ({ measure })),
+  filters: input.filters,
+});
 
 export class DashboardService {
   /**
@@ -302,6 +324,10 @@ export class DashboardService {
     };
   }
 
+  public static getWidgetQueryVersion(shape: WidgetQueryShape): ViewVersion {
+    return resolveDashboardWidgetMinVersion(shape) >= 2 ? "v2" : "v1";
+  }
+
   /**
    * Creates a new dashboard widget.
    */
@@ -309,12 +335,9 @@ export class DashboardService {
     projectId: string,
     input: CreateWidgetInput,
     userId?: string,
-    options?: { defaultMinVersion?: number },
   ): Promise<WidgetDomain> {
     const minVersion = resolveDashboardWidgetMinVersion(
-      input,
-      undefined,
-      options?.defaultMinVersion,
+      toWidgetQueryShape(input),
     );
     const newWidget = await prisma.dashboardWidget.create({
       data: {
@@ -371,7 +394,6 @@ export class DashboardService {
     widgetId: string,
     input: CreateWidgetInput,
     userId?: string,
-    options?: { defaultMinVersion?: number },
   ): Promise<WidgetDomain> {
     const existingWidget = await prisma.dashboardWidget.findFirst({
       where: { id: widgetId, projectId },
@@ -382,9 +404,8 @@ export class DashboardService {
         ? existingWidget.minVersion
         : undefined;
     const minVersion = resolveDashboardWidgetMinVersion(
-      input,
+      toWidgetQueryShape(input),
       persistedMinVersion,
-      options?.defaultMinVersion,
     );
     const updatedWidget = await prisma.dashboardWidget.update({
       where: {
@@ -496,7 +517,7 @@ export class DashboardService {
           chartType: sourceWidget.chartType,
           chartConfig: sourceWidget.chartConfig ?? {},
           minVersion: resolveDashboardWidgetMinVersion(
-            sourceWidgetDomain,
+            toWidgetQueryShape(sourceWidgetDomain),
             sourceWidgetDomain.minVersion,
           ),
           projectId, // project owned

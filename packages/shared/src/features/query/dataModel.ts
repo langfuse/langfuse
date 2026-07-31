@@ -1519,17 +1519,6 @@ export function requiresV2(params: WidgetQueryShape): boolean {
 }
 
 /**
- * Resolve the effective query version while preserving an explicitly persisted
- * lower bound. A persisted v1 value can never downgrade a shape that requires
- * v2; a persisted v2 value keeps a v1-compatible widget on v2.
- */
-export function resolveWidgetMinVersion(
-  params: WidgetQueryShape & { persistedMinVersion?: number },
-): number {
-  return Math.max(params.persistedMinVersion ?? 1, requiresV2(params) ? 2 : 1);
-}
-
-/**
  * Returns the declared unit for a measure in a given view/version, or undefined
  * if the view or measure is not found. Use this to drive display formatting
  * (e.g. unit === "millisecond" → convert to seconds before rendering).

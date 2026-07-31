@@ -25,7 +25,7 @@ import {
   mapWidgetUiTableFilterToView,
   partitionWidgetUiTableFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef } from "react";
 import {
   useController,
   useForm,
@@ -265,9 +265,7 @@ export function WidgetForm({
   // The initial widget's persisted version is a local hint frozen at mount.
   // The resolver and live viewVersion additionally derive v2 from the current
   // form shape; the server derives the value that gets persisted.
-  const [baseMinVersion] = useState(() =>
-    deriveWidgetBaseMinVersion(initialValues),
-  );
+  const baseMinVersion = deriveWidgetBaseMinVersion(initialValues);
 
   // The auto-suggestions change on every keystroke; a ref keeps the resolver
   // closure from being rebuilt on each one (the filled name/description do not

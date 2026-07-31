@@ -15,6 +15,7 @@ import {
   validatePublicDashboardWidgetInput,
 } from "@/src/features/widgets/server/public-dashboard-widget-service";
 import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 
 const baseInput = {
   name: "API widget",
@@ -27,9 +28,14 @@ const baseInput = {
 };
 
 describe("public dashboard widget version validation", () => {
+  const setWriteMode = (mode: "legacy" | "dual") => {
+    envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = mode;
+    sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = mode;
+  };
+
   describe("legacy write mode, where the events_* tables are empty", () => {
     beforeEach(() => {
-      envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      setWriteMode("legacy");
     });
 
     it("accepts a v1-expressible widget so it can render", () => {
@@ -53,7 +59,7 @@ describe("public dashboard widget version validation", () => {
   // dual writes the events_* tables, so the server can choose v2 there whatever
   // the preview opt-in says — Monitors ships on exactly that deployment mode.
   it("accepts a v1-expressible shape in dual write mode", () => {
-    envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    setWriteMode("dual");
     envMock.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
 
     expect(() =>
@@ -64,7 +70,7 @@ describe("public dashboard widget version validation", () => {
   });
 
   it("only suggests dimensions that widget validation accepts", () => {
-    envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    setWriteMode("dual");
     const normalized = normalizePublicDashboardWidgetInput({
       ...baseInput,
       dimensions: [{ field: "notAViewDimension" }],
@@ -93,7 +99,7 @@ describe("public dashboard widget version validation", () => {
   });
 
   it("validates a v2-required shape without a caller-supplied version", () => {
-    envMock.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    setWriteMode("dual");
 
     const normalized = normalizePublicDashboardWidgetInput({
       ...baseInput,

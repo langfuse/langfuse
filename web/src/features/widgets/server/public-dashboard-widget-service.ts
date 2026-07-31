@@ -10,7 +10,6 @@ import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,
-  requiresV2,
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -20,7 +19,11 @@ import {
   type DashboardWidgetViewOutputType,
   type PostUnstableDashboardWidgetBodyType,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { ChartConfigSchema, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  ChartConfigSchema,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import {
   getWidgetImportFilterConfig,
   partitionStoredUiTableFiltersToView,
@@ -29,7 +32,6 @@ import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
-import { maxSupportedWidgetVersion } from "@/src/features/widgets/server/widget-version";
 
 // The widget shape used internally after input normalization: the public
 // body with chartConfig and filters fully resolved.
@@ -58,14 +60,12 @@ const throwInvalidWidget = (params: {
 };
 
 function getWidgetViewVersion(widget: NormalizedWidgetInput): ViewVersion {
-  return requiresV2({
+  return DashboardService.getWidgetQueryVersion({
     view: widget.view,
     dimensions: widget.dimensions,
     measures: widget.metrics,
     filters: widget.filters,
-  }) || maxSupportedWidgetVersion() >= 2
-    ? "v2"
-    : "v1";
+  });
 }
 
 function getPublicDashboardWidgetViewDeclaration(
@@ -149,22 +149,22 @@ export function normalizePublicDashboardWidgetInput(
     });
   }
 
-  const maxSupportedVersion = maxSupportedWidgetVersion();
   const normalizedFilters = mappedFilters.map((filter) => ({
     ...filter,
     column: columnAliases[filter.column] ?? filter.column,
   }));
-  const shape = {
-    view: input.view,
-    dimensions: input.dimensions,
-    measures: input.metrics.map((metric) => ({ measure: metric.measure })),
-    filters: normalizedFilters,
-  };
-  if (maxSupportedVersion < 2 && requiresV2(shape)) {
-    return throwInvalidWidget({
-      message:
-        "This widget uses v2-only fields, but the current deployment only supports legacy widget queries",
+  try {
+    DashboardService.getWidgetQueryVersion({
+      view: input.view,
+      dimensions: input.dimensions,
+      measures: input.metrics.map((metric) => ({ measure: metric.measure })),
+      filters: normalizedFilters,
     });
+  } catch (error) {
+    if (error instanceof InvalidRequestError) {
+      return throwInvalidWidget({ message: error.message });
+    }
+    throw error;
   }
 
   return {
@@ -289,7 +289,6 @@ export async function createPublicDashboardWidget(params: {
       view: queryViewToDashboardWidgetView[input.view],
     },
     undefined,
-    { defaultMinVersion: maxSupportedWidgetVersion() },
   );
 
   await auditLog({
@@ -360,12 +359,6 @@ export async function updatePublicDashboardWidget(params: {
     params.widgetId,
   );
   const currentPublic = toPublicWidgetInput(current);
-  if (maxSupportedWidgetVersion() < 2 && current.minVersion >= 2) {
-    return throwInvalidWidget({
-      message:
-        "This widget uses v2 queries, but the current deployment only supports legacy widget queries",
-    });
-  }
   const chartTypeChanged =
     params.input.chartType !== undefined &&
     params.input.chartType !== currentPublic.chartType;
@@ -387,7 +380,6 @@ export async function updatePublicDashboardWidget(params: {
     params.widgetId,
     { ...input, view: queryViewToDashboardWidgetView[input.view] },
     undefined,
-    { defaultMinVersion: maxSupportedWidgetVersion() },
   );
   const result = toApiDashboardWidget(updated);
   await auditLog({
