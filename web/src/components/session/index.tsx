@@ -1267,7 +1267,9 @@ const LoadedSessionEventsPage: React.FC<{
   const excludeModernSessionObservation = useCallback(
     (name: string) => {
       const existingFilter = queryFilter.filterState.find(
-        (filter) =>
+        (
+          filter,
+        ): filter is Extract<FilterState[number], { type: "stringOptions" }> =>
           filter.column === "name" &&
           filter.type === "stringOptions" &&
           filter.operator === "none of",
