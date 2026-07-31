@@ -2018,9 +2018,65 @@ describe("MCP Read Tools", () => {
           } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
-      ).rejects.toThrow(
-        /require both 'config\.row_limit' and 'orderBy' with direction 'desc'/i,
+      ).rejects.toThrow(/"config":\{"row_limit":100\}.*"field":"count_count"/i);
+    });
+
+    it("should not build top-N guidance from an unsupported metric", async () => {
+      const { context } = await createMcpTestSetup();
+      const query = handleQueryMetrics(
+        {
+          view: "observations",
+          dimensions: [{ field: "traceId" }],
+          metrics: [{ measure: "unknown", aggregation: "count" }],
+          ...metricsWindow,
+        } as unknown as Parameters<typeof handleQueryMetrics>[0],
+        context,
       );
+
+      await expect(query).rejects.toThrow(/getMetricsSchema/i);
+      await expect(query).rejects.not.toThrow(/count_unknown/i);
+    });
+
+    it("should direct raw observation payload filters to scoped observation retrieval", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "input",
+                operator: "contains",
+                value: "customer question",
+              },
+            ],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      ).rejects.toThrow(
+        /listObservations.*traceId.*getObservationFilterSchema/i,
+      );
+    });
+
+    it("should explain the safe alternative for high-cardinality time series", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "traceId" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            timeDimension: { granularity: "day" },
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      ).rejects.toThrow(/Remove.*timeDimension.*getMetricsSchema/i);
     });
   });
 

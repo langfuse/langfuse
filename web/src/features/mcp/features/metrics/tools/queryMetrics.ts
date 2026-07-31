@@ -2,6 +2,7 @@ import { InvalidRequestError } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
   dimension,
+  getValidAggregationsForMeasureType,
   metric,
   validateQuery,
   viewDeclarations,
@@ -17,6 +18,98 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 import { z } from "zod";
 
 const DEFAULT_ROW_LIMIT = 100;
+const RAW_PAYLOAD_FIELDS = new Set(["input", "output"]);
+
+/**
+ * Leads a rejected query's error with the listObservations redirect when it
+ * referenced raw input/output. The query builder decides which fields a view
+ * supports; this only adds the tool-routing hint it cannot know about, so no
+ * view declaration knowledge is duplicated here.
+ */
+const withRawPayloadGuidance = (
+  error: unknown,
+  input: z.infer<typeof MetricsQueryObjectV2>,
+) => {
+  if (!(error instanceof InvalidRequestError)) {
+    return error;
+  }
+
+  const referenced = new Set(
+    [
+      ...input.dimensions.map((dimension) => dimension.field),
+      ...input.metrics.map((metric) => metric.measure),
+      ...input.filters.map((filter) => filter.column),
+    ].filter((field) => RAW_PAYLOAD_FIELDS.has(field)),
+  );
+
+  if (referenced.size === 0) {
+    return error;
+  }
+
+  return new InvalidRequestError(
+    `Raw observation ${[...referenced].join(" and ")} is not available from queryMetrics. Use listObservations with traceId, an exact id filter, or both fromStartTime and toStartTime; call getObservationFilterSchema for supported observation filters. ${error.message}`,
+  );
+};
+
+const getHighCardinalityDimensionFields = (
+  input: z.infer<typeof MetricsQueryObjectV2>,
+) =>
+  input.dimensions
+    .map((dimension) => dimension.field)
+    .filter(
+      (field) =>
+        viewDeclarations.v2[input.view].dimensions[field]?.highCardinality,
+    );
+
+const getHighCardinalityGuidance = (
+  input: z.infer<typeof MetricsQueryObjectV2>,
+  reason: string,
+) => {
+  const fields = getHighCardinalityDimensionFields(input);
+  if (fields.length === 0) {
+    return reason;
+  }
+
+  const schemaReminder = ` Call getMetricsSchema({"view":"${input.view}"}) for supported fields and metric aliases.`;
+
+  if (input.timeDimension) {
+    return `${reason} Remove ${fields.join(", ")} or remove timeDimension; config.row_limit and orderBy cannot make this combination safe.${schemaReminder}`;
+  }
+
+  const view = viewDeclarations.v2[input.view];
+  const orderByMetric = input.metrics.find((metric) => {
+    const measure = view.measures[metric.measure];
+    return (
+      metric.aggregation !== "histogram" &&
+      measure !== undefined &&
+      getValidAggregationsForMeasureType(measure.type).includes(
+        metric.aggregation,
+      )
+    );
+  });
+  if (!orderByMetric) {
+    return `${reason}${schemaReminder}`;
+  }
+
+  const orderByField = `${orderByMetric.aggregation}_${orderByMetric.measure}`;
+  const rowLimit = input.config?.row_limit ?? DEFAULT_ROW_LIMIT;
+  const orderBy = [{ field: orderByField, direction: "desc" as const }];
+  const remediatedInput = {
+    ...input,
+    config: { ...input.config, row_limit: rowLimit },
+    orderBy,
+  };
+
+  if (!validateQuery(remediatedInput, "v2").valid) {
+    return `${reason}${schemaReminder}`;
+  }
+
+  const remediation = JSON.stringify({
+    config: { row_limit: rowLimit },
+    orderBy,
+  });
+  return `${reason} To satisfy this high-cardinality constraint for a non-timeseries top-N query, add ${remediation}.${schemaReminder}`;
+};
 
 const normalizeMetricFilters = (
   input: z.infer<typeof MetricsQueryObjectV2>,
@@ -156,7 +249,9 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
         const validation = validateQuery(normalizedInput, "v2");
 
         if (!validation.valid) {
-          throw new InvalidRequestError(validation.reason);
+          throw new InvalidRequestError(
+            getHighCardinalityGuidance(normalizedInput, validation.reason),
+          );
         }
 
         const { config, ...query } = normalizedInput;
@@ -169,14 +264,18 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
           },
         };
 
-        const result = await executeQuery(
-          context.projectId,
-          queryParams,
-          "v2",
-          true,
-        );
+        try {
+          const result = await executeQuery(
+            context.projectId,
+            queryParams,
+            "v2",
+            true,
+          );
 
-        return { data: result };
+          return { data: result };
+        } catch (error) {
+          throw withRawPayloadGuidance(error, normalizedInput);
+        }
       },
     });
   },
