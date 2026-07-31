@@ -48,6 +48,24 @@ describe("public dashboard widget version validation", () => {
         ),
       ).toThrow(/v2-only fields/i);
     });
+
+    it("rejects a semantic-root filter instead of persisting a v1 widget", () => {
+      expect(() =>
+        validatePublicDashboardWidgetInput(
+          normalizePublicDashboardWidgetInput({
+            ...baseInput,
+            filters: [
+              {
+                column: "isRootObservation",
+                type: "boolean",
+                operator: "=",
+                value: true,
+              },
+            ],
+          }),
+        ),
+      ).toThrow(/v2-only fields/i);
+    });
   });
 
   it("only suggests dimensions that widget validation accepts", () => {
@@ -100,5 +118,23 @@ describe("public dashboard widget version validation", () => {
         }),
       ),
     ).not.toThrow();
+  });
+
+  it("promotes a semantic-root filter to v2 on a dual deployment", () => {
+    setWriteMode("dual");
+
+    const normalized = normalizePublicDashboardWidgetInput({
+      ...baseInput,
+      filters: [
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+
+    expect(() => validatePublicDashboardWidgetInput(normalized)).not.toThrow();
   });
 });

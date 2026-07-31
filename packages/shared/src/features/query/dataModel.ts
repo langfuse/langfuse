@@ -6,6 +6,7 @@ import {
   type views,
 } from "./types";
 import { InvalidRequestError } from "../../errors";
+import { eventsTableIsRootObservationSqlForAlias } from "../../eventsTable";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -1096,6 +1097,14 @@ export const eventsObservationsView: ViewDeclarationType = {
       description:
         "Identifier of the parent observation. Empty for the root span.",
       highCardinality: true,
+      uiHidden: true,
+    },
+    isRootObservation: {
+      sql: `toBool(${eventsTableIsRootObservationSqlForAlias("events_observations")})`,
+      alias: "isRootObservation",
+      type: "boolean",
+      description:
+        "Whether the observation is a semantic root, including app roots with an external parent.",
       uiHidden: true,
     },
     type: {

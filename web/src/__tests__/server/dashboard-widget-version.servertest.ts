@@ -150,6 +150,13 @@ describe("dashboard widget minVersion", () => {
         [{ column: "experimentDatasetId" }],
         true,
       ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "isRootObservation" }],
+        true,
+      ],
       // v1-compatible fields
       [
         "observations",
@@ -680,6 +687,7 @@ describe("dashboard widget minVersion", () => {
       ["id", true],
       ["traceId", true],
       ["parentObservationId", true],
+      ["isRootObservation", true],
       ["name", false],
     ])(
       "create with dimension '%s' on shape-required v2 observations → rejected=%s",
@@ -734,5 +742,27 @@ describe("dashboard widget minVersion", () => {
         }),
       ).rejects.toThrow(/not available for widgets/);
     });
+
+    it.each([undefined, 1])(
+      "rejects isRootObservation as a breakdown when minVersion is %s",
+      async (minVersion) => {
+        const caller = makeCaller();
+
+        await expect(
+          caller.dashboardWidgets.create({
+            projectId,
+            name: "semantic root breakdown",
+            description: "root status is filter-only",
+            view: "observations",
+            dimensions: [{ field: "isRootObservation" }],
+            metrics: [{ measure: "count", agg: "count" }],
+            filters: [],
+            chartType: "NUMBER",
+            chartConfig: { type: "NUMBER" },
+            ...(minVersion === undefined ? {} : { minVersion }),
+          }),
+        ).rejects.toThrow(/not available for widgets/);
+      },
+    );
   });
 });
