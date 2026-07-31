@@ -15,6 +15,7 @@ import {
   ObservationLimitSchema,
   type ObservationMcpFilterColumn,
 } from "../schema";
+import { assertObservationMcpTimeWindow } from "./observation-time-window";
 
 const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "name",
@@ -162,7 +163,7 @@ export const [
 ] = defineTool({
   name: "getObservationFilterValues",
   description:
-    "List example values for a string or boolean observation filter field, such as names, types, levels, environments, model names, tags, users, or sessions. For numeric metric fields, returns a range with min, max, avg, and count. Use the returned cursor to page through long value lists.",
+    "List example values for a string or boolean observation filter field, such as names, types, levels, environments, model names, tags, users, or sessions. For numeric metric fields, returns a range with min, max, avg, and count. Use the returned cursor to page through long value lists. Requests without a lower time bound use the backend's default 30-day lookback; explicit lower-bound windows may span at most 30 days.",
   baseSchema: GetObservationFilterValuesBaseSchema,
   inputSchema: GetObservationFilterValuesBaseSchema,
   handler: async (input, context) => {
@@ -174,6 +175,8 @@ export const [
         "mcp.pagination_limit": input.limit,
       },
       fn: async () => {
+        assertObservationMcpTimeWindow(input);
+
         const startTimeFilter = buildStartTimeFilter({
           fromStartTime: input.fromStartTime,
           toStartTime: input.toStartTime,
@@ -237,4 +240,5 @@ export const [
     });
   },
   readOnlyHint: true,
+  expensiveHint: true,
 });

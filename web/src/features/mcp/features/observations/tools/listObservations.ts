@@ -35,6 +35,7 @@ import {
   ObservationLimitSchema,
   projectObservation,
 } from "../schema";
+import { assertObservationMcpTimeWindow } from "./observation-time-window";
 
 const ObservationCursorSchema =
   EncodedObservationsCursorV2String.optional().describe(
@@ -296,12 +297,12 @@ const assertAllowedExpensiveObservationAccess = (
 
   if (expensiveColumns.size === 0) return;
 
-  const hasSelectiveScope =
-    Boolean(input.traceId) ||
-    hasObservationIdFilter(input.filter) ||
-    hasValidStartTimeBound(input);
+  if (input.traceId || hasObservationIdFilter(input.filter)) return;
 
-  if (hasSelectiveScope) return;
+  if (hasValidStartTimeBound(input)) {
+    assertObservationMcpTimeWindow(input);
+    return;
+  }
 
   throw new InvalidRequestError(
     `Accessing observation ${Array.from(expensiveColumns)
@@ -323,6 +324,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
     "Requests that project or filter input, output, or metadata must include traceId, an id filter, or both fromStartTime and toStartTime.",
+    "When time bounds provide that scope, the maximum supported window is 30 days.",
   ].join("\n"),
   baseSchema: ListObservationsBaseSchema,
   inputSchema: ListObservationsInputSchema,
@@ -422,4 +424,5 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     });
   },
   readOnlyHint: true,
+  expensiveHint: true,
 });
