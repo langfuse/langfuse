@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EvaluationRuleExecutionTraceStatusHistory } from "@/src/features/evals/v2/components/EvaluationRuleExecutionStatusHistory";
+import { EvaluationRuleExecutionTraceStatusHistory } from "@/src/features/evals/v2/components/production/EvaluationRuleExecutionStatusHistory";
 import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar";
 import { RelationshipPills } from "@/src/features/evals/v2/components/RelationshipPills";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";

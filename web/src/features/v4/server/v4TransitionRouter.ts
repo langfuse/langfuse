@@ -97,12 +97,14 @@ type LegacyApiUsageRow = {
   time: string;
   entrypoint: string;
   count: string | number;
+  lastSeen: string;
 };
 
 type LegacyApiUsageResultRow = {
   time: string;
   entrypoint: string;
   count: number;
+  lastSeen: string | null;
 };
 
 type LegacyApiUsageSummaryByProjectRow = {
@@ -208,6 +210,7 @@ const getEmptyTimelineBuckets = (
       time: formatTimelineBucket(bucket),
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
   }
 
@@ -1112,13 +1115,15 @@ classified AS (
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
         'GET /api/public/metrics',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), route_path,
       match(route_path, '^GET /api/public/traces/[^/?#]+$'), 'GET /api/public/traces/{id}',
       match(route_path, '^GET /api/public/sessions/[^/?#]+$'), 'GET /api/public/sessions/{id}',
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 'GET /api/public/observations/{id}',
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 'GET /api/public/scores/{id}',
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/{id}',
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 'GET /api/public/datasets/{datasetName}/runs/{runName}',
       NULL
     ) AS legacy_route,
     multiIf(
@@ -1129,7 +1134,8 @@ classified AS (
         'GET /api/public/observations',
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), 2,
       route_path IN (
         'GET /api/public/sessions',
@@ -1140,6 +1146,7 @@ classified AS (
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 1,
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1,
       NULL
     ) AS clickhouse_queries_per_api_call
   FROM selected
@@ -1196,6 +1203,7 @@ SETTINGS skip_unavailable_shards = 1
 WITH selected AS (
   SELECT
     ${bucketTimeSql} AS bucket_time,
+    event_time_microseconds,
     splitByChar('?', JSONExtractString(log_comment, 'route'))[1] AS route_path
   FROM ${systemTableRef("system.query_log")}
   WHERE
@@ -1211,6 +1219,7 @@ WITH selected AS (
 classified AS (
   SELECT
     bucket_time,
+    event_time_microseconds,
     multiIf(
       route_path IN (
         'GET /api/public/spans',
@@ -1221,13 +1230,15 @@ classified AS (
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
         'GET /api/public/metrics',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), route_path,
       match(route_path, '^GET /api/public/traces/[^/?#]+$'), 'GET /api/public/traces/{id}',
       match(route_path, '^GET /api/public/sessions/[^/?#]+$'), 'GET /api/public/sessions/{id}',
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 'GET /api/public/observations/{id}',
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 'GET /api/public/scores/{id}',
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/{id}',
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 'GET /api/public/datasets/{datasetName}/runs/{runName}',
       NULL
     ) AS legacy_route,
     multiIf(
@@ -1238,7 +1249,8 @@ classified AS (
         'GET /api/public/observations',
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), 2,
       route_path IN (
         'GET /api/public/sessions',
@@ -1249,6 +1261,7 @@ classified AS (
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 1,
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1,
       NULL
     ) AS clickhouse_queries_per_api_call
   FROM selected
@@ -1257,7 +1270,8 @@ classified AS (
 SELECT
   formatDateTime(bucket_time, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time,
   concat('publicapi: ', legacy_route) AS entrypoint,
-  sum(1.0 / clickhouse_queries_per_api_call) AS count
+  sum(1.0 / clickhouse_queries_per_api_call) AS count,
+  formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen
 FROM classified
 WHERE legacy_route IS NOT NULL
   AND clickhouse_queries_per_api_call IS NOT NULL
@@ -1284,6 +1298,7 @@ SETTINGS skip_unavailable_shards = 1
         time: row.time,
         entrypoint: row.entrypoint,
         count: Number(row.count),
+        lastSeen: row.lastSeen,
       }));
 
       return dataRows.length === 0

@@ -244,6 +244,7 @@ describe("v4TransitionRouter", () => {
         time: "2026-06-24T12:00:00Z",
         entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: "0.6666666666666666",
+        lastSeen: "2026-06-24T12:34:56.789123Z",
       },
     ]);
   });
@@ -268,21 +269,25 @@ describe("v4TransitionRouter", () => {
       time: "2026-06-24T00:00:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
     expect(rows[12]).toEqual({
       time: "2026-06-24T12:00:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
     expect(rows[13]).toEqual({
       time: "2026-06-24T12:00:00Z",
       entrypoint: "publicapi: GET /api/public/traces/{id}",
       count: 0.6666666666666666,
+      lastSeen: "2026-06-24T12:34:56.789123Z",
     });
     expect(rows[24]).toEqual({
       time: "2026-06-24T23:00:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
 
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
@@ -298,6 +303,9 @@ describe("v4TransitionRouter", () => {
     );
     expect(clickhouseQuery?.query).toContain(
       "sum(1.0 / clickhouse_queries_per_api_call) AS count",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen",
     );
     expect(clickhouseQuery?.query).toContain(
       "SETTINGS skip_unavailable_shards = 1",
@@ -326,6 +334,7 @@ describe("v4TransitionRouter", () => {
       "GET /api/public/v2/scores",
       "GET /api/public/metrics",
       "GET /api/public/metrics/daily",
+      "GET /api/public/dataset-run-items",
     ].forEach((route) => expect(clickhouseQuery?.query).toContain(route));
 
     [
@@ -334,10 +343,14 @@ describe("v4TransitionRouter", () => {
       "GET /api/public/observations/{id}",
       "GET /api/public/scores/{id}",
       "GET /api/public/v2/scores/{id}",
+      "GET /api/public/datasets/{datasetName}/runs/{runName}",
     ].forEach((route) => expect(clickhouseQuery?.query).toContain(route));
+    expect(clickhouseQuery?.query).toContain(
+      "match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1",
+    );
 
     expect(clickhouseQuery?.query).toContain(
-      "'GET /api/public/traces',\n        'GET /api/public/observations',\n        'GET /api/public/scores',\n        'GET /api/public/v2/scores',\n        'GET /api/public/metrics/daily'\n      ), 2",
+      "'GET /api/public/traces',\n        'GET /api/public/observations',\n        'GET /api/public/scores',\n        'GET /api/public/v2/scores',\n        'GET /api/public/metrics/daily',\n        'GET /api/public/dataset-run-items'\n      ), 2",
     );
     expect(clickhouseQuery?.query).toContain(
       "'GET /api/public/sessions',\n        'GET /api/public/metrics'\n      ), 1",
@@ -353,6 +366,7 @@ describe("v4TransitionRouter", () => {
         time: "2026-06-10T00:00:00Z",
         entrypoint: "publicapi: GET /api/public/traces",
         count: "42",
+        lastSeen: "2026-06-10T17:42:00Z",
       },
     ]);
 
@@ -373,21 +387,25 @@ describe("v4TransitionRouter", () => {
       time: "2026-05-26T00:00:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
     expect(rows[15]).toEqual({
       time: "2026-06-10T00:00:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
     expect(rows[16]).toEqual({
       time: "2026-06-10T00:00:00Z",
       entrypoint: "publicapi: GET /api/public/traces",
       count: 42,
+      lastSeen: "2026-06-10T17:42:00Z",
     });
     expect(rows[30]).toEqual({
       time: "2026-06-24T00:00:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
 
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
@@ -402,6 +420,7 @@ describe("v4TransitionRouter", () => {
         time: "2026-06-24T00:20:00Z",
         entrypoint: "publicapi: GET /api/public/traces",
         count: "8",
+        lastSeen: "2026-06-24T00:21:30Z",
       },
     ]);
 
@@ -420,21 +439,25 @@ describe("v4TransitionRouter", () => {
       time: "2026-06-24T00:00:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
     expect(rows[10]).toEqual({
       time: "2026-06-24T00:20:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
     expect(rows[11]).toEqual({
       time: "2026-06-24T00:20:00Z",
       entrypoint: "publicapi: GET /api/public/traces",
       count: 8,
+      lastSeen: "2026-06-24T00:21:30Z",
     });
     expect(rows[30]).toEqual({
       time: "2026-06-24T00:58:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
 
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
@@ -449,6 +472,7 @@ describe("v4TransitionRouter", () => {
         time: "2026-06-24T00:16:00Z",
         entrypoint: "publicapi: GET /api/public/traces",
         count: "8",
+        lastSeen: "2026-06-24T00:17:45Z",
       },
     ]);
 
@@ -467,21 +491,25 @@ describe("v4TransitionRouter", () => {
       time: "2026-06-24T00:00:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
     expect(rows[8]).toEqual({
       time: "2026-06-24T00:16:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
     expect(rows[9]).toEqual({
       time: "2026-06-24T00:16:00Z",
       entrypoint: "publicapi: GET /api/public/traces",
       count: 8,
+      lastSeen: "2026-06-24T00:17:45Z",
     });
     expect(rows[23]).toEqual({
       time: "2026-06-24T00:44:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
 
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
@@ -496,6 +524,7 @@ describe("v4TransitionRouter", () => {
         time: "2026-06-24T01:00:00Z",
         entrypoint: "publicapi: GET /api/public/traces",
         count: "12",
+        lastSeen: "2026-06-24T01:04:59Z",
       },
     ]);
 
@@ -514,21 +543,25 @@ describe("v4TransitionRouter", () => {
       time: "2026-06-24T00:00:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
     expect(rows[12]).toEqual({
       time: "2026-06-24T01:00:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
     expect(rows[13]).toEqual({
       time: "2026-06-24T01:00:00Z",
       entrypoint: "publicapi: GET /api/public/traces",
       count: 12,
+      lastSeen: "2026-06-24T01:04:59Z",
     });
     expect(rows[36]).toEqual({
       time: "2026-06-24T02:55:00Z",
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
 
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];

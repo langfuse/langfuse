@@ -43,12 +43,12 @@ export function ManageDefaultEvalModel({
       {defaultModel ? (
         <span
           className={cn(
-            "text-sm font-bold",
+            "text-sm font-bold text-nowrap",
             variant === "color-coded" && "text-dark-green",
             className,
           )}
         >
-          {"Current default model: "}
+          {"Default model: "}
           {defaultModel.provider} / {defaultModel.model}
         </span>
       ) : (

@@ -3175,55 +3175,58 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
   });
 
   describe("internal trace environment filtering", () => {
-    test("does not create eval jobs for trace-upsert with LLMJudge environment", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
+    test.each([LangfuseInternalTraceEnvironment.LLMJudge, "llm-as-a-judge"])(
+      "does not create eval jobs for trace-upsert with %s environment",
+      async (environment) => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const traceId = randomUUID();
 
-      // Create trace with LLMJudge environment
-      await upsertTrace({
-        id: traceId,
-        project_id: projectId,
-        environment: LangfuseInternalTraceEnvironment.LLMJudge,
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-        created_at: convertDateToClickhouseDateTime(new Date()),
-        updated_at: convertDateToClickhouseDateTime(new Date()),
-      });
+        await upsertTrace({
+          id: traceId,
+          project_id: projectId,
+          environment,
+          timestamp: convertDateToClickhouseDateTime(new Date()),
+          created_at: convertDateToClickhouseDateTime(new Date()),
+          updated_at: convertDateToClickhouseDateTime(new Date()),
+        });
 
-      // Create an active eval configuration
-      await prisma.jobConfiguration.create({
-        data: {
-          id: randomUUID(),
+        // Create an active eval configuration
+        await prisma.jobConfiguration.create({
+          data: {
+            id: randomUUID(),
+            projectId,
+            filter: JSON.parse("[]"),
+            jobType: "EVAL",
+            delay: 0,
+            sampling: new Decimal("1"),
+            targetObject: EvalTargetObject.TRACE,
+            scoreName: "score",
+            variableMapping: JSON.parse("[]"),
+          },
+        });
+
+        const payload = {
           projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.TRACE,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-        },
-      });
+          traceId,
+          traceEnvironment: environment,
+        };
 
-      const payload = {
-        projectId,
-        traceId,
-        traceEnvironment: LangfuseInternalTraceEnvironment.LLMJudge,
-      };
+        // Attempt to create eval jobs
+        await createEvalJobs({
+          sourceEventType: "trace-upsert",
+          event: payload,
+          jobTimestamp,
+        });
 
-      // Attempt to create eval jobs
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      });
+        // Verify no eval jobs were created
+        const jobs = await prisma.jobExecution.findMany({
+          where: { projectId },
+        });
 
-      // Verify no eval jobs were created
-      const jobs = await prisma.jobExecution.findMany({
-        where: { projectId },
-      });
-
-      expect(jobs.length).toBe(0);
-    }, 10_000);
+        expect(jobs.length).toBe(0);
+      },
+      10_000,
+    );
 
     test("does not create eval jobs for trace-upsert with PromptExperiments environment", async () => {
       const { projectId } = await createOrgProjectAndApiKey();

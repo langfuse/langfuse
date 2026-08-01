@@ -35,13 +35,14 @@ function truncateLabel(label: string, max = 36): string {
 // Linter-style token highlighting for {{variable}}: healthy variables are
 // accent-colored prose text, broken/unmapped ones get an amber wavy
 // underline (the universal "there's a problem here" editor idiom). The
-// binding itself lives in the variable mapping panel — here it only appears in the
-// hover title, plus click-to-jump.
+// binding itself lives in the variable mapping panel — here it only appears in
+// the hover title.
 function createVariableHighlighter(
   getStatus: (variable: string) => VariableMappingStatus | undefined,
   getMappingLabel: (variable: string) => string | undefined,
   isActive: (variable: string) => boolean,
   readOnly: boolean,
+  interactive: boolean,
 ) {
   const decorator = new MatchDecorator({
     regexp: /{{\s*([\w.]+)\s*}}/g,
@@ -53,14 +54,15 @@ function createVariableHighlighter(
         from,
         to,
         Decoration.mark({
-          class: `cm-eval-variable${status ? ` cm-eval-variable-${status.status}` : ""}${isActive(match[1]) ? " cm-eval-variable-active" : ""}${readOnly ? " cm-eval-variable-read-only" : ""}`,
+          class: `cm-eval-variable${status ? ` cm-eval-variable-${status.status}` : ""}${isActive(match[1]) ? " cm-eval-variable-active" : ""}${readOnly || !interactive ? " cm-eval-variable-read-only" : ""}`,
           attributes: {
             title: invalid
-              ? (status.message ??
-                "Not connected to the sample data — click to open its mapping")
+              ? (status.message ?? "Not connected to the sample data")
               : readOnly
                 ? `Pulls from ${label}`
-                : `Pulls from ${label} — click to open its mapping`,
+                : interactive
+                  ? `Pulls from ${label} — click to open its mapping`
+                  : `Pulls from ${label}`,
           },
         }),
       );
@@ -127,8 +129,8 @@ const variableTheme = EditorView.baseTheme({
 /**
  * Prompt editor with syntax-highlighted {{variable}} tokens: healthy
  * variables render as accent mono text, broken ones as linter-style amber
- * wavy underlines. Clicking a token opens its mapping card
- * (via onVariableClick) — no widget chrome in the text flow.
+ * wavy underlines. Mapping remains an explicit card action rather than a
+ * hidden navigation affordance in the prompt text.
  */
 export function PromptVariableEditor({
   value,
@@ -154,8 +156,8 @@ export function PromptVariableEditor({
   variableMappings?: Record<string, string>;
   /** The variable being mapped in the side panel — its pill gets a ring. */
   activeVariable?: string | null;
-  /** Called when a {{variable}} token is clicked (reveal, not edit). */
-  onVariableClick: (variable: string) => void;
+  /** Optional explicit token interaction for contexts that provide one. */
+  onVariableClick?: (variable: string) => void;
   /** When true, render previewSlot instead of the editor (toolbar stays). */
   previewEnabled?: boolean;
   onPreviewEnabledChange?: (enabled: boolean) => void;
@@ -175,7 +177,7 @@ export function PromptVariableEditor({
     () => undefined,
   );
   handleClickRef.current = (event, view) => {
-    if (readOnly) return;
+    if (readOnly || !onVariableClick) return;
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
     if (pos === null) return;
     const line = view.state.doc.lineAt(pos);
@@ -204,14 +206,19 @@ export function PromptVariableEditor({
         (variable) => mappingLabels[variable],
         (variable) => variable === activeVariable,
         readOnly,
+        Boolean(onVariableClick),
       ),
       variableTheme,
       promptFontTheme,
-      EditorView.domEventHandlers({
-        click: (event, view) => handleClickRef.current(event, view),
-      }),
+      ...(onVariableClick
+        ? [
+            EditorView.domEventHandlers({
+              click: (event, view) => handleClickRef.current(event, view),
+            }),
+          ]
+        : []),
     ];
-  }, [statusKey, mappingsKey, activeVariable, readOnly]);
+  }, [statusKey, mappingsKey, activeVariable, readOnly, onVariableClick]);
 
   return (
     <div className="flex flex-col">

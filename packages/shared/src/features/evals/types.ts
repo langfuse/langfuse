@@ -1,6 +1,6 @@
 import {
-  EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
+  type EvalTemplateSourceCodeLanguage,
   type EvalTemplate,
 } from "@prisma/client";
 import z from "zod";

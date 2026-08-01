@@ -60,7 +60,9 @@ export async function signupApiHandler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  if (req.method !== "POST") return;
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Method not allowed" });
+  }
 
   // Block direct signup when email verification is required
   if (isEmailVerificationRequired()) {

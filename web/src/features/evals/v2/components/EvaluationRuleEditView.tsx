@@ -2,8 +2,7 @@ import { useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationAlert";
-import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
+import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert";
 import { parseEvaluationRuleVariableMapping } from "@/src/features/evals/v2/components/EvaluationRuleEvaluatorList";
 import { EvaluationRuleForm } from "@/src/features/evals/v2/components/EvaluationRuleForm";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
@@ -176,9 +175,6 @@ export function EvaluationRuleEditView({
 
   return (
     <div className="flex min-w-0 flex-col gap-6 p-4">
-      <EvaluationRuleAttachmentValidationDialog
-        open={attachment.pendingKey !== null}
-      />
       <EvaluationRuleForm
         projectId={projectId}
         name={name}
@@ -199,7 +195,7 @@ export function EvaluationRuleEditView({
         timeRange={timeRange}
         onOpenTrace={onOpenTrace}
         evaluatorContent={
-          attachment.issue ? (
+          attachment.issue?.requiresMappingReview ? (
             <EvaluationRuleAttachmentValidationAlert
               issue={attachment.issue}
               onDismiss={attachment.dismissIssue}

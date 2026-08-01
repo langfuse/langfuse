@@ -33,6 +33,7 @@ export type PageHeaderProps = {
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
+  actionButtonsRightClassName?: string;
   /** Mobile-only: the same actions rendered as full-width labeled menu rows
    * (icon + label), for the compact header's `⋯` overflow. Pages pass a
    * `layout="menu"` variant of their actions here (mirrors the table peek's
@@ -60,6 +61,7 @@ const PageHeader = ({
   itemType,
   actionButtonsLeft,
   actionButtonsRight,
+  actionButtonsRightClassName,
   breadcrumb,
   help,
   titleTooltip,
@@ -226,10 +228,14 @@ const PageHeader = ({
               )}
             </div>
 
-            {/* Right side content — right-aligned by the row's
-                justify-between while it shares the line with the title;
-                left-aligned once it wraps to its own line. */}
-            <div className="flex flex-wrap items-center gap-1">
+            {/* Right side content. Pages can override the default alignment
+                when wrapped actions should retain a shared right edge. */}
+            <div
+              className={cn(
+                "flex flex-wrap items-center gap-1",
+                actionButtonsRightClassName,
+              )}
+            >
               {actionButtonsRight}
             </div>
           </div>

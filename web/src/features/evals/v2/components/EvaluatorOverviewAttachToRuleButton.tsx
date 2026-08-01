@@ -10,9 +10,8 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { CreateEvaluationRuleDialog } from "@/src/features/evals/v2/components/CreateEvaluationRuleDialog";
-import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationAlert";
-import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
-import { EvaluationRulePicker } from "@/src/features/evals/v2/components/EvaluationRulePicker";
+import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert";
+import { EvaluationRulePicker } from "@/src/features/evals/v2/components/production/EvaluationRulePicker";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
 import { getEvaluationRuleMappingReviewHref } from "@/src/features/evals/v2/lib/evaluationRuleMappingReviewHref";
 import { api } from "@/src/utils/api";
@@ -84,24 +83,23 @@ export function EvaluatorOverviewAttachToRuleButton({
         onCreateRule={() => setCreateRuleDialogOpen(true)}
       />
 
-      <EvaluationRuleAttachmentValidationDialog
-        open={attachment.pendingKey !== null}
-      />
-
       <Dialog
-        open={attachment.issue !== null}
+        open={attachment.issue?.requiresMappingReview ?? false}
         onOpenChange={(open) => {
           if (!open) attachment.dismissIssue();
         }}
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Evaluator could not be attached</DialogTitle>
+            <DialogTitle className="sr-only">
+              Review evaluator variable mapping
+            </DialogTitle>
           </DialogHeader>
-          {attachment.issue ? (
+          {attachment.issue?.requiresMappingReview ? (
             <DialogBody>
               <EvaluationRuleAttachmentValidationAlert
                 issue={attachment.issue}
+                onDismiss={attachment.dismissIssue}
                 reviewHref={getEvaluationRuleMappingReviewHref({
                   projectId,
                   ruleId: attachment.issue.ruleId,

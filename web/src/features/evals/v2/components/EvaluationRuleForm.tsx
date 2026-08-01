@@ -32,7 +32,7 @@ import {
   mergeExampleFilters,
   RuleFilterSearchBar,
 } from "@/src/features/evals/v2/components/EvaluationRuleSection";
-import { SetupStep } from "@/src/features/evals/v2/components/SetupStep";
+import { SetupStep } from "@/src/features/evals/v2/components/production/SetupStep";
 import { type AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 
 export function EvaluationRuleForm({

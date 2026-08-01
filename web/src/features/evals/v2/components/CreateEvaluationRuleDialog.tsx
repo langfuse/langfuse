@@ -32,8 +32,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Slider } from "@/src/components/ui/slider";
 import { ActivationCostEstimate } from "@/src/features/evals/v2/components/ActivationCostEstimate";
-import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationAlert";
-import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
+import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert";
 import {
   EvaluationRuleEvaluatorList,
   parseEvaluationRuleVariableMapping,
@@ -47,7 +46,7 @@ import {
   RuleFilterSearchBar,
 } from "@/src/features/evals/v2/components/EvaluationRuleSection";
 import { EvaluationRulePreviewTable } from "@/src/features/evals/v2/components/EvaluationRulePreviewTable";
-import { SetupStep } from "@/src/features/evals/v2/components/SetupStep";
+import { SetupStep } from "@/src/features/evals/v2/components/production/SetupStep";
 import { useValidatedRuleDraftEvaluator } from "@/src/features/evals/v2/hooks/useValidatedRuleDraftEvaluator";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -275,10 +274,6 @@ export function CreateEvaluationRuleDialog({
           )}
         </DialogHeader>
 
-        <EvaluationRuleAttachmentValidationDialog
-          open={validation.pendingEvaluatorId !== null}
-        />
-
         {traceId ? (
           <DialogBody className="min-h-0 gap-0 p-0">
             <TraceDetailBody trace={trace.data} context="peek" />
@@ -434,7 +429,7 @@ export function CreateEvaluationRuleDialog({
                   }
                   onRemove={toggleEvaluator}
                 />
-                {validation.issue ? (
+                {validation.issue?.requiresMappingReview ? (
                   <EvaluationRuleAttachmentValidationAlert
                     issue={validation.issue}
                     onDismiss={validation.resetIssue}

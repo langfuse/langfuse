@@ -620,7 +620,7 @@ describe("CreateEvaluationRuleDialog", () => {
     await waitFor(() => expect(mocks.getEvaluator).toHaveBeenCalledOnce());
   });
 
-  it("creates the rule and shows a dismissible warning when evaluator validation fails", async () => {
+  it("creates the rule without showing a review alert for a non-mapping validation failure", async () => {
     mocks.getSample.mockResolvedValue({
       observations: [
         {
@@ -673,23 +673,6 @@ describe("CreateEvaluationRuleDialog", () => {
         ],
       }),
     );
-    const warning = screen.getByRole("alert");
-    expect(warning).toHaveClass("bg-light-yellow");
-    expect(warning).toHaveTextContent("Review evaluator variable mapping");
-    expect(
-      screen.getByRole("link", {
-        name: "Review how the evaluator maps data to variables",
-      }),
-    ).toHaveAttribute("href", "/project/project-1/evals/v2/evaluator-1?edit=1");
-    expect(
-      screen.queryByRole("button", { name: "Create rule anyway" }),
-    ).not.toBeInTheDocument();
-    const dismissButton = screen.getByRole("button", {
-      name: "Dismiss validation warning",
-    });
-    expect(warning.firstElementChild).toBe(dismissButton);
-    expect(dismissButton).toHaveStyle({ color: "var(--dark-yellow)" });
-    fireEvent.click(dismissButton);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 

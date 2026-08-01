@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, TriangleAlert, X } from "lucide-react";
 import {
   type FilterState,
   observationVariableMappingList,
@@ -12,8 +12,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { EvaluationRuleMappingStatus } from "@/src/features/evals/v2/components/EvaluationRuleMappingStatus";
-import { VariableMappingList } from "@/src/features/evals/v2/components/VariableMappingList";
+import { VariableMappingCard as VariableMapping } from "@/src/features/evals/v2/components/production/variable-mapping/VariableMappingCard";
 import {
   MAPPABLE_COLUMNS,
   type VariableFieldState,
@@ -30,6 +29,34 @@ export type EvaluationRuleFormEvaluator = {
   scoreName: string;
   variableMapping: ObservationVariableMapping[];
 };
+
+function EvaluationRuleMappingStatus({
+  mappedCount,
+  variableCount,
+}: {
+  mappedCount: number;
+  variableCount: number;
+}) {
+  const complete = mappedCount === variableCount;
+
+  return (
+    <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
+      {mappedCount}/{variableCount}{" "}
+      {variableCount === 1 ? "variable" : "variables"} mapped
+      {complete ? (
+        <Check
+          className="text-dark-green h-3.5 w-3.5"
+          aria-label="All variables mapped"
+        />
+      ) : (
+        <TriangleAlert
+          className="text-dark-yellow h-3.5 w-3.5"
+          aria-label="Some variables are not mapped"
+        />
+      )}
+    </span>
+  );
+}
 
 export function parseEvaluationRuleVariableMapping(mapping: unknown) {
   return observationVariableMappingList.catch([]).parse(mapping);
@@ -148,7 +175,7 @@ function EvaluationRuleEvaluatorItem({
               aria-disabled={readOnly || undefined}
               className={readOnly ? "opacity-60" : undefined}
             >
-              <VariableMappingList
+              <VariableMapping
                 overview={overview}
                 activeVariable={activeVariable}
                 onActiveVariableChange={setActiveVariable}

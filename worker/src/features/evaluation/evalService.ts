@@ -80,7 +80,10 @@ import {
   completeEvalExecution,
   type EvalExecutionResult,
 } from "./evalCompletion";
-import { isEvalTargetEnvironmentAllowed } from "./isEvalTargetEnvironmentAllowed";
+import {
+  isEvalTargetEnvironmentAllowed,
+  isInternalEvalEnvironment,
+} from "./isEvalTargetEnvironmentAllowed";
 import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
@@ -235,20 +238,19 @@ export const createEvalJobs = async ({
   // Without this safeguard: user trace → eval → eval trace → another eval → infinite loop
   //
   // IMPLEMENTATION:
-  // - Block ALL traces with environment starting with "langfuse-" when coming from trace-upsert queue
+  // - Block internal environments and their public-ingestion aliases when coming from trace-upsert queue
   // - This excludes traces from prompt experiments that come via dataset-run-item-upsert queue
   // - Internal traces (e.g., eval executions) use LangfuseInternalTraceEnvironment enum values
   //
-  // DUAL SAFEGUARD:
+  // DEFENSE IN DEPTH:
   // - This check prevents eval job CREATION for internal traces
-  // - The shared LLM runtime enforces that internal traces MUST use the
-  //   "langfuse-" prefix
+  // - Eval executors repeat the same environment check before execution
   //
   // See: packages/shared/src/server/llm (enforcement)
   // See: packages/shared/src/server/llm/types.ts (LangfuseInternalTraceEnvironment enum)
   if (
     sourceEventType === "trace-upsert" &&
-    event.traceEnvironment?.startsWith("langfuse")
+    isInternalEvalEnvironment(event.traceEnvironment)
   ) {
     logger.debug("Skipping eval job creation for internal Langfuse trace", {
       traceId: event.traceId,

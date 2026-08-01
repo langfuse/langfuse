@@ -1,15 +1,6 @@
 import { getInAppAgentScreenContextDescription } from "./context";
 
 describe("getInAppAgentScreenContextDescription", () => {
-  it("recognizes evaluator list routes", () => {
-    expect(
-      getInAppAgentScreenContextDescription("/project/project-1/evals"),
-    ).toEqual({ type: "evaluators-list" });
-    expect(
-      getInAppAgentScreenContextDescription("/project/project-1/evals/v2"),
-    ).toEqual({ type: "evaluators-list" });
-  });
-
   it.each([
     {
       name: "trace detail",

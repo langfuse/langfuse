@@ -45,7 +45,7 @@ vi.mock("@/src/components/layouts/page", () => ({
 }));
 
 vi.mock(
-  "@/src/features/evals/v2/components/EvaluatorConfigurationView",
+  "@/src/features/evals/v2/components/production/EvaluatorDefinitionView",
   () => ({
     EvaluatorDefinitionView: ({
       sourceCode,

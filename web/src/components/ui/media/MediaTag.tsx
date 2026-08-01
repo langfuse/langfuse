@@ -4,10 +4,12 @@ import {
   File,
   Image as ImageIcon,
   ImageOff,
+  Paperclip,
   Video,
   Volume2,
   type LucideIcon,
 } from "lucide-react";
+import { cva } from "class-variance-authority";
 
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -24,6 +26,7 @@ import {
  * itself never fetches, which keeps it pure and Storybook-able.
  */
 export type MediaTagStatus = "idle" | "loading" | "ready" | "error";
+export type MediaTagIntent = "default" | "attachment";
 
 export interface MediaTagProps {
   /**
@@ -38,8 +41,16 @@ export interface MediaTagProps {
    * meaningful when `status === "ready"`.
    */
   url?: string;
+  /** Resolved file size in bytes, shown in the peek header when available. */
+  contentLength?: number;
   /** Overrides the chip label (defaults to the MIME subtype, e.g. "JPEG"). */
   label?: string;
+  /** Optional context shown above the preview in the peek popover. */
+  description?: string;
+  /** Optional text label for the open action. The default is icon-only. */
+  openActionLabel?: string;
+  /** Visual framing for the collapsed chip. */
+  intent?: MediaTagIntent;
   /** Controlled open state of the peek popover (used by stories/tests). */
   open?: boolean;
   /**
@@ -65,12 +76,41 @@ function getDefaultLabel(contentType: string): string {
   return (subtype || "file").toUpperCase();
 }
 
+function formatFileSize(bytes: number): string {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+
+  return `${value.toFixed(2)} ${units[unitIndex]}`;
+}
+
 const MEDIA_KIND_ICON = {
   image: ImageIcon,
   audio: Volume2,
   video: Video,
   file: File,
 } satisfies Record<MediaKind, LucideIcon>;
+
+const mediaTagVariants = cva(
+  "focus-visible:ring-ring inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
+  {
+    variants: {
+      intent: {
+        default: "hover:bg-accent bg-background",
+        attachment:
+          "border-blue-500/40 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50",
+      },
+    },
+    defaultVariants: {
+      intent: "default",
+    },
+  },
+);
 
 function KindIcon({
   kind,
@@ -163,10 +203,24 @@ function PeekBody({
  * popover with a preview and an "open in new tab" action.
  *
  * It receives the resolved `url` + `status` as props and never fetches — the
- * owning container (`JsonMediaTag`) gates a lazy fetch on `onOpenChange`.
+ * owning container (`MediaReferenceTag`) gates a lazy fetch on `onOpenChange`.
  */
 export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
-  ({ contentType, status = "idle", url, label, open, onOpenChange }, ref) => {
+  (
+    {
+      contentType,
+      status = "idle",
+      url,
+      contentLength,
+      label,
+      description,
+      openActionLabel,
+      intent,
+      open,
+      onOpenChange,
+    },
+    ref,
+  ) => {
     const kind = getMediaKind(contentType);
     const chipLabel = label ?? getDefaultLabel(contentType);
     const canOpen = status === "ready" && Boolean(url);
@@ -201,7 +255,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             data-media-tag=""
             aria-label={`${chipLabel} media`}
             aria-expanded={isOpen}
-            className="hover:bg-accent focus-visible:ring-ring bg-background inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
+            className={mediaTagVariants({ intent })}
             onClick={openPeek}
             onPointerDown={(event) => {
               if (event.pointerType !== "mouse") {
@@ -210,7 +264,11 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               }
             }}
           >
-            <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />
+            {intent === "attachment" ? (
+              <Paperclip className="h-2.5 w-2.5 shrink-0" />
+            ) : (
+              <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />
+            )}
             <span
               className="relative top-0.25 truncate align-baseline font-mono leading-none"
               // Empty while the peek is open: a native tooltip would render on
@@ -235,29 +293,46 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               >
                 {contentType}
               </span>
+              {contentLength !== undefined ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="shrink-0">
+                    {formatFileSize(contentLength)}
+                  </span>
+                </>
+              ) : null}
             </div>
             {canOpen ? (
               <Button
                 asChild
                 variant="outline"
-                size="icon-xs"
+                size={openActionLabel ? "sm" : "icon-xs"}
+                className={openActionLabel ? "gap-1.5" : undefined}
                 title="Open in new tab"
               >
                 <a href={url} target="_blank" rel="noopener noreferrer">
+                  {openActionLabel ? <span>{openActionLabel}</span> : null}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </Button>
             ) : (
               <Button
                 variant="outline"
-                size="icon-xs"
+                size={openActionLabel ? "sm" : "icon-xs"}
+                className={openActionLabel ? "gap-1.5" : undefined}
                 disabled
                 title="Open in new tab"
               >
+                {openActionLabel ? <span>{openActionLabel}</span> : null}
                 <ExternalLink className="h-3 w-3" />
               </Button>
             )}
           </div>
+          {description ? (
+            <p className="text-muted-foreground max-w-64 text-xs">
+              {description}
+            </p>
+          ) : null}
           <PeekBody
             kind={kind}
             status={previewStatus}

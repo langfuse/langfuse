@@ -18,6 +18,7 @@ import {
   mapEventEvalFilterColumnIdToField,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
+import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -30,7 +31,8 @@ interface ScheduleObservationEvalsParams {
  * Whether queue-driven (asynchronous OTel ingestion) observation-eval
  * scheduling is allowed for an observation.
  *
- * Internal Langfuse environments are excluded: LLM-as-a-judge executions
+ * Internal Langfuse environments and public-ingestion aliases are excluded:
+ * LLM-as-a-judge executions
  * publish their own telemetry through the OTel ingestion pipeline
  * (shared AI SDK LLM runtime), and scheduling evals on eval
  * observations would recurse indefinitely — the observation-eval counterpart
@@ -51,7 +53,7 @@ export function isObservationAllowedForQueuedObservationEvals(
     "environment" | "span_id" | "experiment_item_root_span_id"
   >,
 ): boolean {
-  if (!observation.environment?.startsWith("langfuse")) {
+  if (!isInternalEvalEnvironment(observation.environment)) {
     return true;
   }
 

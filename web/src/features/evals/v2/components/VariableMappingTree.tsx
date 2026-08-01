@@ -15,10 +15,10 @@ import {
   type VariableFieldState,
 } from "@/src/features/evals/v2/components/VariableMappingPopover";
 import {
-  JsonPathEditor,
   previewOf,
   typeBadge,
 } from "@/src/features/evals/v2/components/VariableMappingPanel";
+import { JsonPathEditor } from "@/src/features/evals/v2/components/production/variable-mapping/JsonPathEditor";
 import {
   buildJsonPathSuggestions,
   tryParseJson,

@@ -72,8 +72,7 @@ const EMPTY_MESSAGES: AgUiMessage[] = [];
 export type InAppAgentEntryPoint =
   | "top_nav"
   | "keyboard_shortcut"
-  | "dashboard_widget"
-  | "evaluator_create";
+  | "dashboard_widget";
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),

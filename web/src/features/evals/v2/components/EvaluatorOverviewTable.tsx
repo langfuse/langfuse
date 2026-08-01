@@ -23,7 +23,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EvaluationRuleExecutionTraceStatusHistory } from "@/src/features/evals/v2/components/EvaluationRuleExecutionStatusHistory";
+import { EvaluationRuleExecutionTraceStatusHistory } from "@/src/features/evals/v2/components/production/EvaluationRuleExecutionStatusHistory";
 import { EvaluatorOverviewAttachToRuleButton } from "@/src/features/evals/v2/components/EvaluatorOverviewAttachToRuleButton";
 import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";

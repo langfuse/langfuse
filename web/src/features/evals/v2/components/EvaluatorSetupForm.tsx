@@ -8,25 +8,17 @@ import {
 } from "react";
 import { useRouter } from "next/router";
 import {
-  Code2,
   FlaskConical,
   InfoIcon,
   PanelRightClose,
   PanelRightOpen,
-  Sparkles,
   TriangleAlert,
 } from "lucide-react";
-import { SiPython, SiTypescript } from "react-icons/si";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 // Animated tab variants: the active pill slides between options.
-import {
-  Tabs,
-  AnimatedTabsList as TabsList,
-  AnimatedTabsTrigger as TabsTrigger,
-} from "@/src/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -71,27 +63,36 @@ import {
   ScoreOutputSection,
   toScoreOutputFormState,
   type ScoreOutputFormState,
-} from "@/src/features/evals/v2/components/ScoreOutputSection";
+} from "@/src/features/evals/v2/components/production/ScoreOutputSection";
 import { EvaluationRulePreviewTable } from "@/src/features/evals/v2/components/EvaluationRulePreviewTable";
 import {
   TestResultPanel,
-  TestRunButton,
   useCodeTestRunMutation,
   useTestRunMutation,
   type CodeTestRunPayload,
   type TestRunPayload,
 } from "@/src/features/evals/v2/components/TestRunSection";
+import { TestRunButton } from "@/src/features/evals/v2/components/production/TestRunButton";
 import { CodeSampleContextDrawer } from "@/src/features/evals/v2/components/CodeSampleContextPreview";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import {
   MAPPABLE_COLUMNS,
   type VariableFieldState,
 } from "@/src/features/evals/v2/components/VariableMappingPopover";
-import { VariableMappingList } from "@/src/features/evals/v2/components/VariableMappingList";
-import { SetupStep } from "@/src/features/evals/v2/components/SetupStep";
+import { VariableMappingCard as VariableMapping } from "@/src/features/evals/v2/components/production/variable-mapping/VariableMappingCard";
+import { SetupStep } from "@/src/features/evals/v2/components/production/SetupStep";
+import {
+  EvaluatorModeSelector,
+  type EvaluatorTab,
+} from "@/src/features/evals/v2/components/production/EvaluatorModeSelector";
 import { formatMappingLabel } from "@/src/features/evals/v2/lib/jsonPathSegments";
 import { buildEvaluationRuleFilterSuggestionSection } from "@/src/features/evals/v2/lib/evaluationRuleFilterSuggestions";
 import { removePromptVariable } from "@/src/features/evals/v2/lib/promptVariables";
+import {
+  reconcileSampleObservationOptions,
+  resolveSampleObservation,
+  type SampleObservationOption,
+} from "@/src/features/evals/v2/lib/sampleObservationSelection";
 import { useRuleMatchCount } from "@/src/features/evals/v2/lib/useRuleMatchCount";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -114,7 +115,7 @@ import {
 
 export type CatalogTemplate = RouterOutputs["evalsV2"]["catalog"][number];
 
-export type EvaluatorTab = "llm" | "python" | "typescript";
+export type { EvaluatorTab } from "@/src/features/evals/v2/components/production/EvaluatorModeSelector";
 
 export type EvaluatorSetupRuleControls = {
   filterState: FilterState;
@@ -125,54 +126,6 @@ export type EvaluatorSetupRuleControls = {
 
 const EVALUATOR_SPLIT_GROUP_ID = "evalV2SetupSplitLayoutNoStepper60";
 const EVALUATOR_SPLIT_PANEL_IDS = ["evaluator", "rule"];
-
-/** A sample candidate from the rule-preview table. */
-type SampleObservationOption = {
-  /** Observation id. */
-  id: string;
-  /** Parent trace — needed for the peek and the byId lookup. */
-  traceId: string;
-  name: string | null;
-  startTime: Date;
-};
-
-function toSampleObservationOptions(
-  rows: EventsTableRow[],
-): SampleObservationOption[] {
-  const seen = new Set<string>();
-  const options: SampleObservationOption[] = [];
-  for (const row of rows) {
-    if (!row.traceId || seen.has(row.id)) continue;
-    seen.add(row.id);
-    options.push({
-      id: row.id,
-      traceId: row.traceId,
-      name: row.name ?? null,
-      startTime: row.startTime,
-    });
-  }
-  return options;
-}
-
-function reconcileSampleObservationOptions(
-  current: SampleObservationOption[] | null,
-  rows: EventsTableRow[],
-) {
-  const next = toSampleObservationOptions(rows);
-  // EventsTable reports its rows after rendering. Preserve the state reference
-  // when that report is unchanged so the parent does not trigger it again.
-  const unchanged =
-    current !== null &&
-    current.length === next.length &&
-    current.every(
-      (option, index) =>
-        option.id === next[index]?.id &&
-        option.traceId === next[index]?.traceId &&
-        option.name === next[index]?.name &&
-        option.startTime.getTime() === next[index]?.startTime.getTime(),
-    );
-  return unchanged ? current : next;
-}
 
 const SCRATCH_PROMPT = `You are an expert evaluator. Judge the quality of the model response below.
 
@@ -338,9 +291,6 @@ export function EvaluatorSetupForm({
   // with the setup filters for optional activation after saving.
   const [sampling, setSampling] = useState(initialSampling);
 
-  const [selectedObservationId, setSelectedObservationId] = useState<
-    string | null
-  >(null);
   const [previewColumnsPickerEl, setPreviewColumnsPickerEl] =
     useState<HTMLDivElement | null>(null);
 
@@ -468,37 +418,20 @@ export function EvaluatorSetupForm({
     enabled: ruleEditorExpanded,
   });
 
-  // An observation picked from the rule preview may not be among the current
-  // options (e.g. after a filter change), so it is carried separately and the
-  // pick stays sticky.
+  // Store only an explicit user pick. Without one, the newest loaded row is
+  // derived as the default; this avoids synchronizing an id with query data in
+  // an effect and makes a newly picked sample the immediate source of truth.
   const [pickedObservation, setPickedObservation] =
     useState<SampleObservationOption | null>(null);
 
-  // Auto-select the preview's newest observation, and re-sync when a filter
-  // change drops the auto-picked one from the preview. Explicit row picks
-  // survive.
-  useEffect(() => {
-    if (observationOptions.length === 0) return;
-    const selectionInOptions = observationOptions.some(
-      (o) => o.id === selectedObservationId,
-    );
-    if (
-      !selectedObservationId ||
-      (!selectionInOptions && pickedObservation === null)
-    ) {
-      setSelectedObservationId(observationOptions[0].id);
-    }
-  }, [selectedObservationId, observationOptions, pickedObservation]);
-
-  const selectedObservation =
-    observationOptions.find((o) => o.id === selectedObservationId) ??
-    (pickedObservation?.id === selectedObservationId
-      ? pickedObservation
-      : null);
+  const selectedObservation = resolveSampleObservation(
+    observationOptions,
+    pickedObservation,
+  );
+  const selectedObservationId = selectedObservation?.id ?? null;
 
   const pickObservation = (row: EventsTableRow) => {
     if (!row.traceId) return;
-    setSelectedObservationId(row.id);
     setPickedObservation({
       id: row.id,
       traceId: row.traceId,
@@ -530,10 +463,10 @@ export function EvaluatorSetupForm({
   // observation itself.
   const sourceObject = useMemo(
     () =>
-      observationDetails.data
+      observationDetails.data?.id === selectedObservation?.id
         ? (observationDetails.data as unknown as Record<string, unknown>)
         : null,
-    [observationDetails.data],
+    [observationDetails.data, selectedObservation?.id],
   );
 
   // Save/test payload. The server contract requires a column per variable,
@@ -1064,17 +997,6 @@ export function EvaluatorSetupForm({
     setActiveVariable(variable);
   };
 
-  // Clicking a {{variable}} token in the prompt reveals, not edits: scrolls
-  // to the card and expands its value preview. The nonce makes repeated
-  // clicks on the same token re-fire.
-  const [revealSignal, setRevealSignal] = useState<{
-    variable: string;
-    nonce: number;
-  } | null>(null);
-  const revealVariable = (variable: string) => {
-    setRevealSignal((prev) => ({ variable, nonce: (prev?.nonce ?? 0) + 1 }));
-  };
-
   const openSampleTracePeek = () => {
     if (selectedObservation) peekConfig.openPeek?.(selectedObservation.traceId);
   };
@@ -1126,66 +1048,12 @@ export function EvaluatorSetupForm({
                   Evaluation
                 </LabelWithTooltip>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span>Run using</span>
-                  <Tabs
-                    value={isCodeMode ? "code" : "llm"}
-                    onValueChange={(value) =>
-                      setTab(
-                        value === "llm"
-                          ? "llm"
-                          : tab === "llm"
-                            ? "python"
-                            : tab,
-                      )
-                    }
-                  >
-                    <TabsList className="bg-background [&>span[aria-hidden]]:bg-muted border">
-                      <TabsTrigger
-                        value="llm"
-                        className="gap-1.5"
-                        disabled={mode === "edit"}
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        LLM-as-a-judge
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="code"
-                        className="gap-1.5"
-                        disabled={mode === "edit"}
-                      >
-                        <Code2 className="h-3.5 w-3.5" />
-                        Code evaluator
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                  {isCodeMode ? (
-                    <>
-                      <span>written in</span>
-                      <Tabs
-                        value={tab}
-                        onValueChange={(value) => setTab(value as EvaluatorTab)}
-                      >
-                        <TabsList className="bg-background [&>span[aria-hidden]]:bg-muted border">
-                          <TabsTrigger
-                            value="python"
-                            className="gap-1.5"
-                            disabled={mode === "edit"}
-                          >
-                            <SiPython className="h-3.5 w-3.5" />
-                            Python
-                          </TabsTrigger>
-                          <TabsTrigger
-                            value="typescript"
-                            className="gap-1.5"
-                            disabled={mode === "edit"}
-                          >
-                            <SiTypescript className="h-3.5 w-3.5" />
-                            TypeScript
-                          </TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                    </>
-                  ) : (
+                  <EvaluatorModeSelector
+                    value={tab}
+                    onValueChange={setTab}
+                    disabled={mode === "edit"}
+                  />
+                  {!isCodeMode ? (
                     <>
                       <span>with</span>
                       <JudgeModelSection
@@ -1202,7 +1070,7 @@ export function EvaluatorSetupForm({
                         }}
                       />
                     </>
-                  )}
+                  ) : null}
                 </div>
               </div>
               {isCodeMode ? (
@@ -1248,7 +1116,6 @@ export function EvaluatorSetupForm({
                       variableStatus={variableStatus}
                       variableMappings={variableMappingLabels}
                       activeVariable={activeVariable}
-                      onVariableClick={revealVariable}
                       showPreviewToggle
                       previewEnabled={previewEnabled}
                       onPreviewEnabledChange={setPreviewEnabled}
@@ -1283,11 +1150,10 @@ export function EvaluatorSetupForm({
                 open={mappingStepOpen}
                 onOpenChange={setMappingStepOpen}
               >
-                <VariableMappingList
+                <VariableMapping
                   overview={variableOverview}
                   activeVariable={activeVariable}
                   onActiveVariableChange={setActiveVariable}
-                  revealSignal={revealSignal}
                   getFieldState={getVariableFieldState}
                   onChangeField={(variable, next) =>
                     setVariableFields((prev) => ({

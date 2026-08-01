@@ -5,11 +5,51 @@ import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
+import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 
 const capture = vi.fn();
+const controlledAgent = vi.hoisted(() => ({
+  value: {
+    conversations: [],
+    error: null,
+    hasMoreConversations: false,
+    isLoadingMoreConversations: false,
+    isRunning: true,
+    isSelectedConversationHydrating: false,
+    isSubmitting: false,
+    invalidateConversations: vi.fn(),
+    liveMessageVersion: 0,
+    loadMoreConversations: vi.fn(),
+    messages: [],
+    pendingToolApprovals: [] as Array<{ id: string }>,
+    approveToolCall: vi.fn(),
+    rejectToolCall: vi.fn(),
+    selectedConversationId: undefined,
+    selectedConversationIsWriteLocked: false,
+    submit: vi.fn(),
+    submitFeedback: vi.fn(),
+  },
+}));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
+}));
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({ asPath: "/" }),
+}));
+
+vi.mock("./InAppAiAgentProvider", () => ({
+  useInAppAiAgent: () => controlledAgent.value,
+}));
+
+vi.mock("./useSmoothStreamingMessages", () => ({
+  useSmoothStreamingMessages: () => ({
+    isAnimating: false,
+    messages: [],
+    pendingToolApprovals: [],
+    runningToolCallIds: [],
+  }),
 }));
 
 // jsdom does not implement Element scrolling.
@@ -26,7 +66,7 @@ function windowElement(
     hasMoreConversations: false,
     isAssistantTurnInProgress: false,
     isExpanded: false,
-    isInputDisabled: false,
+    isConversationInteractionDisabled: false,
     isLoadingMoreConversations: false,
     messages: [],
     onApproveToolCall: vi.fn(),
@@ -62,10 +102,6 @@ function selectTab(name: string) {
 }
 
 describe("InAppAgentWindow quick actions", () => {
-  beforeEach(() => {
-    capture.mockClear();
-  });
-
   it("switches tabs, resets on route change, and submits the action prompt with attribution", async () => {
     const onSubmit = vi.fn().mockResolvedValue(true);
     const { rerender } = render(windowElement({ onSubmit }));
@@ -146,45 +182,120 @@ describe("InAppAgentWindow quick actions", () => {
       screen.getByRole("button", { name: /^Create a prompt/ }),
     ).toBeInTheDocument();
   });
+});
 
-  it("focuses the composer without submitting for a focus-input action", () => {
+describe("ControlledInAppAgentWindow composer", () => {
+  it("keeps a draft editable but prevents submitting it while rate limited", () => {
     const onSubmit = vi.fn().mockResolvedValue(true);
-
     render(
       windowElement({
-        focusedQuickActions: [
-          {
-            id: "describe-evaluator-goal",
-            label: "Build an evaluator I have in mind",
-            description: "Describe what you want the evaluator to measure",
-            icon: ScanSearch,
-            behavior: "focus_input",
-          },
-        ],
+        error: { type: "rate_limit", retryAt: Date.now() + 60_000 },
         onSubmit,
-        quickActionContext: "evaluation",
-        quickActionResetKey: "/project/project-1/evals/v2",
-        screenContextDescription: { type: "evaluators-list" },
       }),
     );
 
-    const composer = screen.getByRole("textbox", {
+    const input = screen.getByRole("textbox", {
       name: "Message the assistant",
     });
-    composer.blur();
+    fireEvent.change(input, { target: { value: "Follow up" } });
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^Build an evaluator I have in mind/,
-      }),
+    expect(input).toHaveValue("Follow up");
+    expect(input).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+
+    const form = input.closest("form");
+    if (!form) {
+      throw new Error("Expected the assistant composer to render a form");
+    }
+
+    fireEvent.submit(form);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
+    controlledAgent.value.isRunning = true;
+    controlledAgent.value.pendingToolApprovals = [];
+    controlledAgent.value.submit = onSubmit;
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
     );
 
-    expect(composer).toHaveFocus();
-    expect(onSubmit).not.toHaveBeenCalled();
-    expect(capture).toHaveBeenCalledWith("in_app_agent:quick_action_started", {
-      quickActionKey: "describe-evaluator-goal",
-      quickActionCategory: "evaluation",
-      position: 0,
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
     });
+    fireEvent.change(input, { target: { value: "Follow up" } });
+
+    expect(input).toHaveValue("Follow up");
+    expect(input).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+
+    const form = input.closest("form");
+    if (!form) {
+      throw new Error("Expected the assistant composer to render a form");
+    }
+
+    fireEvent.submit(form);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("keeps navigation disabled while an approval is pending", () => {
+    controlledAgent.value.isRunning = false;
+    controlledAgent.value.pendingToolApprovals = [{ id: "approval-1" }];
+    controlledAgent.value.submit = vi.fn();
+
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Conversation history" }),
+    ).toBeDisabled();
+  });
+});
+
+describe("InAppAgentWindow focus", () => {
+  it("refocuses the composer when an active turn completes", () => {
+    const { rerender } = render(
+      <>
+        <button type="button">Other control</button>
+        {windowElement({ isAssistantTurnInProgress: true })}
+      </>,
+    );
+
+    screen.getByRole("button", { name: "Other control" }).focus();
+    expect(screen.getByRole("button", { name: "Other control" })).toHaveFocus();
+
+    rerender(
+      <>
+        <button type="button">Other control</button>
+        {windowElement({ isAssistantTurnInProgress: false })}
+      </>,
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toHaveFocus();
   });
 });

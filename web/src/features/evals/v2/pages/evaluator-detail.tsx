@@ -1,26 +1,20 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
-import {
-  ArrowLeft,
-  History,
-  ListTree,
-  MoreVertical,
-  Trash2,
-} from "lucide-react";
+import { History, ListTree, MoreVertical, Trash2 } from "lucide-react";
 
 import Page from "@/src/components/layouts/page";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -31,10 +25,10 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ActivateEvaluatorDialog } from "@/src/features/evals/v2/components/ActivateEvaluatorDialog";
 import { CreateEvaluationRuleDialog } from "@/src/features/evals/v2/components/CreateEvaluationRuleDialog";
-import { EvaluatorDefinitionView } from "@/src/features/evals/v2/components/EvaluatorConfigurationView";
 import { EvaluatorEditView } from "@/src/features/evals/v2/components/EvaluatorEditView";
 import { EvaluatorRuleAssignments } from "@/src/features/evals/v2/components/EvaluatorRuleAssignments";
 import { TablePeekViewEvaluationRuleDetail } from "@/src/features/evals/v2/components/EvaluationRulePeekView";
+import { EvaluatorVersionHistorySheet } from "@/src/features/evals/v2/components/production/evaluator-detail/EvaluatorVersionHistorySheet";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -404,105 +398,24 @@ export default function EvaluatorDetailPage() {
         </SheetContent>
       </Sheet>
 
-      <Sheet
+      <EvaluatorVersionHistorySheet
         open={versionHistoryOpen}
-        modal={false}
         onOpenChange={(open) => {
           setVersionHistoryOpen(open);
           if (!open) setSelectedVersionId(null);
         }}
-      >
-        <SheetContent
-          showOverlay={false}
-          className="flex flex-col gap-5 overflow-y-auto shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] sm:max-w-2xl dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]"
-        >
-          {selectedVersion ? (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-fit px-2"
-                onClick={() => setSelectedVersionId(null)}
-              >
-                <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-                All versions
-              </Button>
-              <SheetHeader>
-                <SheetTitle>Version {selectedVersion.version}</SheetTitle>
-                <SheetDescription>
-                  Saved {selectedVersion.createdAt.toLocaleString()}. This
-                  definition is read-only.
-                </SheetDescription>
-              </SheetHeader>
-              <div className="pb-6">
-                <EvaluatorDefinitionView
-                  evaluatorType={selectedVersion.type}
-                  sourceCode={selectedVersion.sourceCode}
-                  sourceCodeLanguage={selectedVersion.sourceCodeLanguage}
-                  prompt={selectedVersion.prompt}
-                  modelLabel={selectedVersionModelLabel}
-                  usesProjectDefaultModel={
-                    selectedVersionUsesProjectDefaultModel
-                  }
-                  outputDefinition={selectedVersion.outputDefinition}
-                  mappings={[]}
-                  showMappings={false}
-                  showType={false}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <SheetHeader>
-                <SheetTitle>Evaluator versions</SheetTitle>
-                <SheetDescription>
-                  Saved definition versions for {data.scoreName}. Version
-                  history is read-only.
-                </SheetDescription>
-              </SheetHeader>
-              <div className="flex flex-col gap-2">
-                {evaluatorVersions.isPending ? (
-                  <>
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                  </>
-                ) : versions.length > 0 ? (
-                  versions.map((version) => (
-                    <button
-                      key={version.id}
-                      type="button"
-                      className="hover:bg-muted/50 flex w-full items-start justify-between gap-3 rounded-md border p-3 text-left transition-colors"
-                      onClick={() => setSelectedVersionId(version.id)}
-                    >
-                      <div className="min-w-0">
-                        <p
-                          className="truncate text-sm font-bold"
-                          title={`Version ${version.version}`}
-                        >
-                          Version {version.version}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          {version.createdAt.toLocaleString()}
-                        </p>
-                      </div>
-                      {version.id === template.id ? (
-                        <span className="bg-light-green text-dark-green rounded-md px-2 py-0.5 text-xs font-bold">
-                          Current
-                        </span>
-                      ) : null}
-                    </button>
-                  ))
-                ) : (
-                  <p className="text-muted-foreground text-sm">
-                    No saved versions found.
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+        evaluatorName={data.scoreName}
+        versions={versions}
+        currentVersionId={template.id}
+        selectedVersion={selectedVersion}
+        selectedVersionModelLabel={selectedVersionModelLabel}
+        selectedVersionUsesProjectDefaultModel={
+          selectedVersionUsesProjectDefaultModel
+        }
+        isLoading={evaluatorVersions.isPending}
+        onSelectVersion={setSelectedVersionId}
+        onBack={() => setSelectedVersionId(null)}
+      />
     </Page>
   );
 }

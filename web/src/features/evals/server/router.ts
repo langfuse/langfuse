@@ -35,7 +35,9 @@ import {
 import {
   getQueue,
   getAvgCostByEvaluatorIds,
+  getAvgCostByEvaluatorIdsFromObservations,
   getCostByEvaluatorIds,
+  getTotalCostByEvaluatorIds,
   getEvaluatorExecutionStatusCountsByEvaluatorId,
   getScoresByIds,
   logger,
@@ -2001,10 +2003,13 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const costs = await getCostByEvaluatorIds(
-        input.projectId,
-        input.evaluatorIds,
-      );
+      const costs =
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+          ? await getCostByEvaluatorIds(input.projectId, input.evaluatorIds)
+          : await getTotalCostByEvaluatorIds(
+              input.projectId,
+              input.evaluatorIds,
+            );
 
       // Convert array to map for easier lookup
       return costs.reduce(
@@ -2030,10 +2035,13 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const costs = await getAvgCostByEvaluatorIds(
-        input.projectId,
-        input.evaluatorIds,
-      );
+      const costs =
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+          ? await getAvgCostByEvaluatorIdsFromObservations(
+              input.projectId,
+              input.evaluatorIds,
+            )
+          : await getAvgCostByEvaluatorIds(input.projectId, input.evaluatorIds);
 
       return costs.reduce(
         (acc, { evaluatorId, avgCost, executionCount }) => {

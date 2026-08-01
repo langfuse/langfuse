@@ -21,10 +21,8 @@
 - `components/EvaluationRuleEvaluatorList.tsx` owns the collapsible evaluator
   rows in rule create/edit forms. Each row edits the pairing-specific variable
   mapping, initially copied from the evaluator default.
-- `components/EvaluatorConfigurationView.tsx` owns read-only evaluator and
-  rule-assignment presentation. It reuses the edit hierarchy for prompt-variable
-  mappings and score output; controls become read-only while `Advanced` remains
-  inspectable. `EvaluatorDefinitionView` is shared by both detail surfaces.
+- `components/production/evaluator-detail/` owns the prop-driven version-history
+  views used by the detail page, including its read-only evaluator definition.
 - `server/router.ts` owns the project-scoped tRPC contract.
 - `server/evaluationRuleService.ts` owns evaluator ↔ rule assignment workflows.
 - `components/ActivateEvaluatorDialog.tsx` owns the post-save choice to keep an

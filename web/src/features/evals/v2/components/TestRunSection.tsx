@@ -66,34 +66,6 @@ export function useCodeTestRunMutation() {
 export type CodeTestRunMutation = ReturnType<typeof useCodeTestRunMutation>;
 
 /** The test-run CTA for the Test step (LLM and code evaluators alike). */
-export function TestRunButton({
-  isPending,
-  onRun,
-  disabledReason,
-  className,
-}: {
-  isPending: boolean;
-  onRun: () => void;
-  disabledReason: string | null;
-  className?: string;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className={className}
-      loading={isPending}
-      disabled={Boolean(disabledReason)}
-      title={disabledReason ?? "Run the evaluator on the selected sample"}
-      onClick={onRun}
-    >
-      <Play className="mr-1.5 h-3.5 w-3.5" />
-      Run test on this sample
-    </Button>
-  );
-}
-
 /** The code evaluator's scores (or error). */
 function CodeTestRunResultBody({ testRun }: { testRun: CodeTestRunMutation }) {
   const result = testRun.data;

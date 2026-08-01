@@ -56,6 +56,9 @@
 
   --spacing-banner-offset: var(--banner-offset);
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
+  /* Minimum width for evaluator template tiles. Keeping this as a named
+     layout token lets the gallery grid and Design → Layout stay in sync. */
+  --spacing-evaluator-gallery-tile-min: 17rem;
 
   --color-primary-accent: hsl(var(--primary-accent));
   --color-link: hsl(var(--link));

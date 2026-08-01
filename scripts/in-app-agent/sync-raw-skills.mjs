@@ -20,9 +20,6 @@ const rawTargetDir = resolve(generatedDir, "raw");
 const generatedModuleName = "skill-markdown.ts";
 const sourceApiUrl =
   "https://api.github.com/repos/langfuse/skills/contents/skills/langfuse/references?ref=main";
-const localSkillSourcePaths = [
-  resolve(repoRoot, "scripts/in-app-agent/skills/evaluator-design.md"),
-];
 
 const requiredAccess = "LANGFUSE_PROJECT_INTERFACE";
 
@@ -143,16 +140,7 @@ const getExpectedFiles = async () => {
     }
   }
 
-  for (const localPath of localSkillSourcePaths) {
-    expectedFiles.push({
-      name: basename(localPath),
-      content: readFileSync(localPath, "utf8"),
-    });
-  }
-
-  return expectedFiles.sort((left, right) =>
-    left.name.localeCompare(right.name),
-  );
+  return expectedFiles;
 };
 
 const getCurrentManagedFileNames = () =>

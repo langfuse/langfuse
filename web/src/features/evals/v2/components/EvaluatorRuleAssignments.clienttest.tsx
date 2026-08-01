@@ -177,6 +177,7 @@ describe("EvaluatorRuleAssignments", () => {
         evaluationRuleName: "Available rule",
         outcome: "failed",
         message: "The mapping did not match the sample.",
+        requiresMappingReview: true,
       },
     });
 
@@ -217,7 +218,7 @@ describe("EvaluatorRuleAssignments", () => {
     expect(mocks.dismissIssue).toHaveBeenCalledOnce();
   });
 
-  it("blocks the screen while validation is running", () => {
+  it("disables the attachment action while validation is running", () => {
     mocks.attachmentHook.mockReturnValue({
       attach: mocks.attach,
       dismissIssue: mocks.dismissIssue,
@@ -238,8 +239,7 @@ describe("EvaluatorRuleAssignments", () => {
     );
 
     expect(
-      screen.getByRole("dialog", { name: "Checking evaluator" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+      screen.getByRole("combobox", { name: "Attach to rule" }),
+    ).toBeDisabled();
   });
 });

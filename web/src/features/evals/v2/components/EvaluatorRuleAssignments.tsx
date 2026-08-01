@@ -18,9 +18,8 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { CreateEvaluationRuleDialog } from "@/src/features/evals/v2/components/CreateEvaluationRuleDialog";
-import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationAlert";
-import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
-import { EvaluationRulePicker } from "@/src/features/evals/v2/components/EvaluationRulePicker";
+import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert";
+import { EvaluationRulePicker } from "@/src/features/evals/v2/components/production/EvaluationRulePicker";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
@@ -221,7 +220,7 @@ export function EvaluatorRuleAssignments({
         </div>
       )}
 
-      {attachment.issue ? (
+      {attachment.issue?.requiresMappingReview ? (
         <EvaluationRuleAttachmentValidationAlert
           issue={attachment.issue}
           onDismiss={attachment.dismissIssue}
@@ -233,10 +232,6 @@ export function EvaluatorRuleAssignments({
           onReview={onReviewEvaluator}
         />
       ) : null}
-
-      <EvaluationRuleAttachmentValidationDialog
-        open={attachment.pendingKey !== null}
-      />
 
       {createRuleDialogOpen ? (
         <CreateEvaluationRuleDialog
