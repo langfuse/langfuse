@@ -6,6 +6,7 @@ import { validateCommentReferenceObject } from "@/src/features/comments/validate
 import type {
   GetCommentV1Query,
   GetCommentsV1Query,
+  PatchCommentV1Body,
   PostCommentsV1Body,
 } from "@/src/features/public-api/types/comments";
 import { LangfuseNotFoundError } from "@langfuse/shared";
@@ -29,6 +30,11 @@ type ListCommentsInput = z.infer<typeof GetCommentsV1Query> & {
 type GetCommentInput = z.infer<typeof GetCommentV1Query> & {
   projectId: string;
 };
+
+type UpdateCommentInput = {
+  input: z.infer<typeof PatchCommentV1Body>;
+  auditScope: CommentAuditScope;
+} & GetCommentInput;
 
 // Exclude inline positioning fields from public API.
 const toPublicComment = (comment: {
@@ -153,4 +159,41 @@ export const getCommentForApi = async ({
 }: GetCommentInput) => {
   const comment = await getCommentRecordOrThrow({ projectId, commentId });
   return toPublicComment(comment);
+};
+
+export const updateCommentForApi = async ({
+  projectId,
+  commentId,
+  input,
+  auditScope,
+}: UpdateCommentInput) => {
+  // Look up first so we can audit-log the before state, and so a missing
+  // comment (or one in another project) yields a clean 404 instead of a
+  // Prisma P2025 racing through the update.
+  const before = await getCommentRecordOrThrow({ projectId, commentId });
+
+  const updated = await prisma.comment.update({
+    where: {
+      id: commentId,
+      projectId,
+    },
+    data: {
+      content: input.content,
+    },
+  });
+
+  if (auditScope) {
+    await auditLog({
+      action: "update",
+      resourceType: "comment",
+      resourceId: updated.id,
+      projectId: auditScope.projectId,
+      orgId: auditScope.orgId,
+      apiKeyId: auditScope.apiKeyId,
+      before,
+      after: updated,
+    });
+  }
+
+  return toPublicComment(updated);
 };

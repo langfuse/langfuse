@@ -74,3 +74,17 @@ export const GetCommentV1Query = z
   })
   .strict();
 export const GetCommentV1Response = APIComment;
+
+// PATCH /comments/:id
+// Note: Public API does not process mentions or inline comment positioning
+export const PatchCommentV1Query = z
+  .object({
+    commentId: z.string(),
+  })
+  .strict();
+export const PatchCommentV1Body = z
+  .object({
+    content: z.string().trim().min(1).max(5000),
+  })
+  .strict();
+export const PatchCommentV1Response = APIComment;
