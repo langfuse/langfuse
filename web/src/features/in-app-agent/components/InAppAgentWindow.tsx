@@ -403,6 +403,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const shouldPlaceCaretAtEndRef = useRef(true);
+  const shouldRestoreComposerFocusRef = useRef(false);
   const previousIsInputDisabledRef = useRef(isComposerDisabled);
   const previousIsAssistantTurnInProgressRef = useRef(
     isAssistantTurnInProgress,
@@ -491,6 +493,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     (input: HTMLTextAreaElement | null) => {
       inputRef.current = input;
 
+      if (!input) {
+        return;
+      }
+
       // Skip on mobile: refocusing after a turn re-springs the keyboard, even
       // for the quick-action flow that never focused the input.
       const shouldRefocusInput =
@@ -498,10 +504,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           (previousIsAssistantTurnInProgressRef.current &&
             !isAssistantTurnInProgress)) &&
         !isMobile;
+      const shouldFocusDraftAtEnd =
+        shouldPlaceCaretAtEndRef.current && !isMobile && input.value.length > 0;
 
-      if (input && shouldRefocusInput) {
+      if (shouldRefocusInput || shouldFocusDraftAtEnd) {
         input.focus();
+
+        if (shouldFocusDraftAtEnd) {
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
       }
+
+      shouldPlaceCaretAtEndRef.current = false;
     },
     [isAssistantTurnInProgress, isComposerDisabled, isMobile],
   );
@@ -668,8 +682,21 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6"
                 aria-label={isExpanded ? "Collapse window" : "Expand window"}
+                onMouseDown={(event) => {
+                  shouldRestoreComposerFocusRef.current =
+                    !isExpanded &&
+                    event.button === 0 &&
+                    document.activeElement === inputRef.current;
+                }}
                 onClick={() => {
+                  const shouldRestoreComposerFocus =
+                    shouldRestoreComposerFocusRef.current;
+                  shouldRestoreComposerFocusRef.current = false;
                   onExpandedChange(!isExpanded);
+
+                  if (shouldRestoreComposerFocus) {
+                    inputRef.current?.focus();
+                  }
                 }}
               >
                 {isExpanded ? (

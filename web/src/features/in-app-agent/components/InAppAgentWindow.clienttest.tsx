@@ -276,6 +276,39 @@ describe("ControlledInAppAgentWindow composer", () => {
 });
 
 describe("InAppAgentWindow focus", () => {
+  it("places the caret at the end of an existing draft when mounted", () => {
+    render(windowElement({ draft: "Keep this draft" }));
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    }) as HTMLTextAreaElement;
+    const end = "Keep this draft".length;
+
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(end);
+    expect(input.selectionEnd).toBe(end);
+  });
+
+  it("keeps the composer focused when expanding from the composer", () => {
+    const onExpandedChange = vi.fn();
+    render(windowElement({ onExpandedChange }));
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    const expandButton = screen.getByRole("button", {
+      name: "Expand window",
+    });
+
+    input.focus();
+    fireEvent.mouseDown(expandButton, { button: 0 });
+    expandButton.focus();
+    fireEvent.click(expandButton);
+
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
+    expect(input).toHaveFocus();
+  });
+
   it("refocuses the composer when an active turn completes", () => {
     const { rerender } = render(
       <>
