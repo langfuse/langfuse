@@ -337,6 +337,7 @@ export const GetObservationsV2Query = z.object({
   traceId: z.string().nullish(),
   version: z.string().nullish(),
   parentObservationId: z.string().nullish(),
+  sessionId: z.string().nullish(),
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime.optional(),
   toStartTime: stringDateTime.optional(),

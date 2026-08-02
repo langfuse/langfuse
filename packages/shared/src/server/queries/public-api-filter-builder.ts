@@ -155,8 +155,25 @@ export function createPublicApiObservationsColumnMapping(
           clickhouseTable: "traces",
           clickhousePrefix: "t",
         };
+  const sessionIdMapping: ApiColumnMapping =
+    tableName === "events_proto"
+      ? {
+          id: "sessionId",
+          clickhouseSelect: "session_id",
+          filterType: "StringFilter",
+          clickhouseTable: tableName,
+          clickhousePrefix: tablePrefix,
+        }
+      : {
+          id: "sessionId",
+          clickhouseSelect: "session_id",
+          filterType: "StringFilter",
+          clickhouseTable: "traces",
+          clickhousePrefix: "t",
+        };
   return [
     userIdMapping,
+    sessionIdMapping,
     {
       id: "traceId",
       clickhouseSelect: "trace_id",

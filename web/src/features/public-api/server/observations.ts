@@ -19,6 +19,7 @@ type ObservationsApiQueryProps = {
   name?: string;
   type?: string;
   environment?: string | string[];
+  sessionId?: string;
   parentObservationId?: string;
   fromStartTime?: string;
   toStartTime?: string;
