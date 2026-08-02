@@ -1,5 +1,7 @@
 {
   "ignore": [".agents/skills/**", "scripts/**", "vitest.workspace.ts"],
+  // Go toolchain binaries used by the tests-go-observations-api CI job.
+  "ignoreBinaries": ["gofmt"],
   // Re-enable once Knip tracks all workspace packages and catalog entries stop false-positiveing.
   "rules": {
     "catalog": "off",
