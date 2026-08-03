@@ -127,16 +127,23 @@ export default withMiddlewares({
       // rather than dropping spans silently.
       const idValidation = validateOtelSpanIds(resourceSpans);
       if (idValidation.invalidSpanCount > 0) {
-        recordIncrement(
-          "langfuse.ingestion.otel.rejected_invalid_span_ids",
-          idValidation.invalidSpanCount,
-          { reason: idValidation.reasons[0] ?? "unknown" },
-        );
+        // One increment per reason, so a batch that mixes reasons splits across
+        // them instead of attributing every rejected span to whichever reason
+        // happened to come first. The tag set is bounded by construction.
+        for (const [reason, count] of Object.entries(
+          idValidation.reasonCounts,
+        )) {
+          recordIncrement(
+            "langfuse.ingestion.otel.rejected_invalid_span_ids",
+            count,
+            { reason },
+          );
+        }
         logger.warn("Rejecting OTEL trace export with invalid span ids", {
           projectId: auth.scope.projectId,
           invalidSpanCount: idValidation.invalidSpanCount,
           totalSpanCount: idValidation.totalSpanCount,
-          reasons: idValidation.reasons,
+          reasonCounts: idValidation.reasonCounts,
           instrumentationScopes: idValidation.scopeNames,
           sdkName: req.headers["x-langfuse-sdk-name"],
         });

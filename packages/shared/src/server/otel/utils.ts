@@ -88,9 +88,19 @@ export function getOtelIdRejectionReason(
 export interface OtelSpanIdValidationResult {
   totalSpanCount: number;
   invalidSpanCount: number;
+  /**
+   * Invalid spans per `<field>:<reason>` pair, e.g.
+   * `{ "traceId:absent": 8, "spanId:wrong_length": 2 }`.
+   *
+   * A span with both a bad traceId and a bad spanId counts once under each, so
+   * these can sum above `invalidSpanCount`. The key set is bounded by
+   * construction (2 fields x the reason union), which is what makes it safe to
+   * use as a metric tag and why it is not sampled.
+   */
+  reasonCounts: Record<string, number>;
   /** Deduped `<field>:<reason>` pairs, e.g. "traceId:absent". */
   reasons: string[];
-  /** Deduped instrumentation scope names of the offending spans. */
+  /** Deduped instrumentation scope names of the offending spans, sampled. */
   scopeNames: string[];
 }
 
@@ -111,11 +121,17 @@ export function validateOtelSpanIds(
 ): OtelSpanIdValidationResult {
   let totalSpanCount = 0;
   let invalidSpanCount = 0;
-  const reasons = new Set<string>();
+  const reasonCounts: Record<string, number> = {};
   const scopeNames = new Set<string>();
 
   if (!Array.isArray(resourceSpans)) {
-    return { totalSpanCount, invalidSpanCount, reasons: [], scopeNames: [] };
+    return {
+      totalSpanCount,
+      invalidSpanCount,
+      reasonCounts,
+      reasons: [],
+      scopeNames: [],
+    };
   }
 
   for (const resourceSpan of resourceSpans) {
@@ -140,8 +156,8 @@ export function validateOtelSpanIds(
         if (spanReasons.length === 0) continue;
 
         invalidSpanCount++;
-        if (reasons.size < maxSamples) {
-          spanReasons.forEach((r) => reasons.add(r));
+        for (const reason of spanReasons) {
+          reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1;
         }
         const scopeName = scopeSpan?.scope?.name;
         if (scopeName && scopeNames.size < maxSamples) {
@@ -154,7 +170,8 @@ export function validateOtelSpanIds(
   return {
     totalSpanCount,
     invalidSpanCount,
-    reasons: [...reasons],
+    reasonCounts,
+    reasons: Object.keys(reasonCounts),
     scopeNames: [...scopeNames],
   };
 }

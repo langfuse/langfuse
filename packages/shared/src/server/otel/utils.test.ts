@@ -116,6 +116,35 @@ describe("validateOtelSpanIds", () => {
     expect(result).toMatchObject({ totalSpanCount: 3, invalidSpanCount: 1 });
   });
 
+  // The rejection metric is tagged per reason, so a batch mixing reasons has to
+  // split across them rather than attributing every span to the first reason.
+  it("counts invalid spans per reason", () => {
+    const result = validateOtelSpanIds(
+      wrap([
+        ...Array.from({ length: 8 }, () => ({ spanId: SPAN_ID })),
+        ...Array.from({ length: 2 }, () => ({
+          traceId: TRACE_ID,
+          spanId: "0a0176",
+        })),
+      ]),
+    );
+    expect(result.invalidSpanCount).toBe(10);
+    expect(result.reasonCounts).toEqual({
+      "traceId:absent": 8,
+      "spanId:wrong_length": 2,
+    });
+  });
+
+  // A span can fail on both ids, so per-reason counts may exceed the span count.
+  it("counts a span under each of its reasons", () => {
+    const result = validateOtelSpanIds(wrap([{ traceState: "INFO" }]));
+    expect(result.invalidSpanCount).toBe(1);
+    expect(result.reasonCounts).toEqual({
+      "traceId:absent": 1,
+      "spanId:absent": 1,
+    });
+  });
+
   // This runs on the request path, so a malformed collection must not throw:
   // that would surface as a 500 instead of a rejection. A `?? []` fallback is
   // not enough, since a non-nullish non-iterable still breaks for...of.
@@ -137,13 +166,19 @@ describe("validateOtelSpanIds", () => {
     expect(validateOtelSpanIds(payload).invalidSpanCount).toBe(0);
   });
 
-  // Payloads can carry very many spans, so the samples that reach the error
-  // message and the log line have to stay bounded.
-  it("caps sampled reasons and scope names", () => {
-    const spans = Array.from({ length: 50 }, () => ({ traceState: "INFO" }));
-    const result = validateOtelSpanIds(wrap(spans), { maxSamples: 2 });
+  // Scope names are client-controlled and unbounded, so the samples that reach
+  // the error message and the log line have to stay capped. Reasons are bounded
+  // by construction and so are counted in full.
+  it("caps sampled scope names but not reasons", () => {
+    const resourceSpans = Array.from({ length: 50 }, (_unused, i) =>
+      wrap([{ traceState: "INFO" }], `scope-${i}`),
+    ).flat();
+    const result = validateOtelSpanIds(resourceSpans, { maxSamples: 2 });
     expect(result.invalidSpanCount).toBe(50);
-    expect(result.reasons.length).toBeLessThanOrEqual(2);
-    expect(result.scopeNames.length).toBeLessThanOrEqual(2);
+    expect(result.scopeNames.length).toBe(2);
+    expect(result.reasonCounts).toEqual({
+      "traceId:absent": 50,
+      "spanId:absent": 50,
+    });
   });
 });
