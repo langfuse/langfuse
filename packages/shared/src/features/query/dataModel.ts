@@ -350,7 +350,7 @@ export const eventsTracesView: ViewDeclarationType = {
   timeDimension: "start_time",
   rootEventCondition: {
     column: "trace_id",
-    condition: eventsTableIsRootObservationSqlForAlias(""),
+    condition: eventsTableIsRootObservationSqlForAlias("events_traces"),
   },
   baseCte: `events_core events_traces`,
 };

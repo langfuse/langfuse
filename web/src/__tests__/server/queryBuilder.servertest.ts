@@ -5147,6 +5147,8 @@ describe("query builder measure-aggregation validation", () => {
   });
 
   describe("rootEventCondition threshold gating", () => {
+    const rootEventSubqueryPrefix =
+      "IN (SELECT events_traces.trace_id FROM events_core events_traces";
     const tracesV2Query: QueryType = {
       view: "traces",
       dimensions: [{ field: "name" }],
@@ -5162,8 +5164,17 @@ describe("query builder measure-aggregation validation", () => {
       // 168 hours (7 days) threshold, 72-hour window → should include subquery
       const builder = new QueryBuilder(undefined, "v2");
       builder.setRootEventConditionMaxWindowHours(168);
-      const { query: sql } = await builder.build(tracesV2Query, randomUUID());
-      expect(sql).toContain("IN (SELECT trace_id");
+      const { query: sql } = await builder.build(
+        {
+          ...tracesV2Query,
+          timeDimension: { granularity: "day" },
+        },
+        randomUUID(),
+      );
+      expect(sql).toContain(
+        "anyIf(toNullable(toDate(events_core.start_time)), (events_traces.parent_span_id = '' OR events_traces.is_app_root = true))",
+      );
+      expect(sql).toContain(rootEventSubqueryPrefix);
     });
 
     it("should skip rootEventCondition subquery when window exceeds threshold", async () => {
@@ -5171,7 +5182,7 @@ describe("query builder measure-aggregation validation", () => {
       const builder = new QueryBuilder(undefined, "v2");
       builder.setRootEventConditionMaxWindowHours(24);
       const { query: sql } = await builder.build(tracesV2Query, randomUUID());
-      expect(sql).not.toContain("IN (SELECT trace_id");
+      expect(sql).not.toContain(rootEventSubqueryPrefix);
     });
 
     it("should always include rootEventCondition subquery when threshold is 0", async () => {
@@ -5186,7 +5197,7 @@ describe("query builder measure-aggregation validation", () => {
         },
         randomUUID(),
       );
-      expect(sql).toContain("IN (SELECT trace_id");
+      expect(sql).toContain(rootEventSubqueryPrefix);
     });
   });
 });
