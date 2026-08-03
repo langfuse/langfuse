@@ -1139,10 +1139,19 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # build-push-action v2 requires this step; it no longer sets up buildkit
+      # itself. Both inputs are load-bearing, do not drop them:
+      # - cache-key is required as of setup-docker-builder v2. Without it the
+      #   action errors and falls back to a local builder, which is how the
+      #   v4.2.0 and v4.3.0 releases silently lost their layer cache.
+      # - nofallback makes that degradation fail the job instead of emitting a
+      #   warning nobody reads. Releases are rare and cache-cold builds are
+      #   slow, so a Blacksmith outage should block the release, not hide in it.
       - name: Setup Blacksmith Builder
         uses: useblacksmith/setup-docker-builder@33803e640bd9d674f2843a8c323aa2a7da478d23 # v2.0.0
         with:
           cache-key: langfuse/${{ matrix.image_name }}-${{ matrix.platform_tag }}
+          nofallback: "true"
       - name: Extract metadata (labels) for Docker
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
