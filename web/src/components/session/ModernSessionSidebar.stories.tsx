@@ -7,6 +7,7 @@ import {
   type ModernSessionSidebarTrace,
 } from "@/src/components/session/ModernSessionSidebar";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
 import { type FilterState } from "@langfuse/shared";
 
 const traces = [
@@ -188,6 +189,10 @@ const toSidebarTraces = (
   sourceTraces.map((trace, index) => ({
     trace,
     turnNumber: index + 1,
+    idleGapSeconds:
+      index === 0
+        ? null
+        : computeIdleGapSeconds(sourceTraces[index - 1]!, trace),
     observations: observations[trace.id] ?? [],
     hasMatchingTraceLevelIO: false,
   }));

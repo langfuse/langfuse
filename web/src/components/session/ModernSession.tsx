@@ -5,6 +5,7 @@ import { type FilterState } from "@langfuse/shared";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
@@ -256,6 +257,8 @@ export function ModernSession({
     sidebarTraces.push({
       trace,
       turnNumber: index + 1,
+      idleGapSeconds:
+        index === 0 ? null : computeIdleGapSeconds(traces[index - 1]!, trace),
       observations,
       hasMatchingTraceLevelIO:
         filtersRequireIO && traceIdsWithMatchingTraceLevelIO.has(trace.id),

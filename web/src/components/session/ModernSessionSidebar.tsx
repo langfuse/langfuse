@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChevronDown,
@@ -20,7 +20,6 @@ import {
 } from "@/src/components/session/ModernSessionViewDropdownMenu";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
 import {
-  computeIdleGapSeconds,
   formatIdleGap,
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/components/session/sessionIdleGap";
@@ -63,6 +62,7 @@ type ObservationListRowsState =
 export type ModernSessionSidebarTrace = {
   trace: EventSessionTrace;
   turnNumber: number;
+  idleGapSeconds: number | null;
   observations: ObservationListRow[] | null | undefined;
   hasMatchingTraceLevelIO: boolean;
 };
@@ -320,16 +320,6 @@ export function ModernSessionSidebar(
   const listRef = useRef<HTMLDivElement>(null);
   const isSidebarPointerDownRef = useRef(false);
   const autoFollowPausedUntilRef = useRef(0);
-
-  const idleGapSeconds = useMemo(
-    () =>
-      traces.map(({ trace }, index) =>
-        index === 0
-          ? null
-          : computeIdleGapSeconds(traces[index - 1]!.trace, trace),
-      ),
-    [traces],
-  );
 
   const virtualizer = useVirtualizer({
     count: traces.length,
@@ -634,7 +624,7 @@ export function ModernSessionSidebar(
               if (!sidebarTrace) return null;
               const { trace } = sidebarTrace;
               const isCollapsed = !expandedTraceIds.has(trace.id);
-              const gap = idleGapSeconds[virtualItem.index];
+              const gap = sidebarTrace.idleGapSeconds;
               return (
                 <SessionVirtualizedRow
                   key={virtualItem.key}
