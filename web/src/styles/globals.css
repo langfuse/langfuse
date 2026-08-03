@@ -330,7 +330,7 @@
     --border-contrast: 214.3 20% 80%;
 
     /* Focus ring (hover = the fill, focus = the ring). */
-    --focus: 215 100% 51%;
+    --focus: 219 99% 53%;
 
     /* Primary action fill: buttons paint the brightest ink — same tier as
        text-primary (the text-primary utility resolves through this token
@@ -360,12 +360,12 @@
     --ring: var(--focus);
     --sidebar-ring: var(--focus);
 
-    --primary-accent: 215 100% 51%;
+    --primary-accent: 219 99% 53%;
     /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
        same Kumo blue family as dark, but deeper — links shouldn't be the
        loudest thing on a light page — with a clearly darker hover step. */
-    --link: 227 76% 41%;
-    --link-hover: 227 76% 32%;
+    --link: 219 99% 53%;
+    --link-hover: 220 100% 40%;
     /* Preview-deployment strip (PR previews only): soft blue tint with text
        darker than the fill, links a step brighter than body text. Values are
        the blue-100/950/200/700/800 ramp. */
@@ -506,10 +506,10 @@
        gap is the hierarchy. */
     --text-primary: 0 0% 88%;
     --text-secondary: 0 0% 60%;
-    --text-tertiary: var(--text-secondary); /* meta merged into body in dark */
+    --text-tertiary: 0 0% 50%; /* meta — TRIAL re-split from body (was merged at 60) */
     --text-disabled: 0 0% 40%;
 
-    --canvas: 0 0% 3%;
+    --canvas: 0 0% 3.5%;
     --card: 0 0% 6%;
     /* Frame and elevated share the raised tier in dark. */
     --sidebar-background: var(--card);
@@ -535,18 +535,18 @@
     /* Inputs + popover borders lift above the 13% hairline, which is
        near-invisible on the 10% popover — text fields and the top layer
        carry their own visible edge. */
-    --border-edge: 0 0% 16%;
-    --border-contrast: 0 0% 26%;
+    --border-edge: 0 0% 13%; /* TRIAL merge into hairline (was 16) */
+    --border-contrast: 0 0% 20%;
 
-    --focus: 212 100% 66%;
+    --focus: 218 100% 74%;
 
     /* ── Raw per-mode overrides (no shared role) ─────────────────────── */
     --destructive: 0 78.7% 63.1%;
     --destructive-foreground: 0 0% 88%;
 
-    --primary-accent: 212 100% 66%;
-    --link: 212 100% 66%;
-    --link-hover: 212 100% 80%;
+    --primary-accent: 218 100% 74%;
+    --link: 218 100% 74%;
+    --link-hover: 217 100% 83%;
     /* Preview-deployment strip: fill is blue-500/25 precomposed over the
        dark canvas, border is blue-300/20 precomposed over that fill — the
        strip needs opaque colors. Body text stays on the neutral foreground
@@ -559,7 +559,7 @@
     --control-track: 0 0% 26%;
     /* Matches --border-contrast: unchecked checkboxes/radios read by their
        border alone; 20% was ~1.58:1 on the canvas. */
-    --control-border: 0 0% 26%;
+    --control-border: var(--border-contrast);
 
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;

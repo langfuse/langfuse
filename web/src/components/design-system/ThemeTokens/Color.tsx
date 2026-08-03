@@ -106,20 +106,24 @@ type RampStep = {
 };
 
 const TEXT_RAMP: RampStep[] = [
-  { token: "--text-1", label: "faint", note: "placeholders, disabled, hints" },
   {
-    token: "--text-2",
+    token: "--text-disabled",
+    label: "faint",
+    note: "placeholders, disabled, hints",
+  },
+  {
+    token: "--text-tertiary",
     label: "meta",
     note: "captions and labels — merges into body in dark (60 = 60); distinct in light",
   },
-  { token: "--text-3", label: "body", note: "default copy" },
+  { token: "--text-secondary", label: "body", note: "default copy" },
   {
-    token: "--text-4",
+    token: "--text-primary",
     label: "bright",
     note: "emphasis, titles, active nav — and the primary button fill. Light runs the ramp the other way: bright is the DARKEST step (9 < 22 < 46.9 < 62).",
   },
   {
-    token: "--text-on-bright",
+    token: "--text-on-fill",
     label: "on-bright",
     note: "ink on bright fills — rides --surface-2, the canvas color (inverted ink)",
   },
@@ -127,33 +131,33 @@ const TEXT_RAMP: RampStep[] = [
 
 const SURFACE_RAMP: RampStep[] = [
   {
-    token: "--surface-1",
+    token: "--code",
     label: "code well",
     note: "the one recessed tier (code is a well); collapses to the canvas in dark, stays a 92% grey in light",
   },
-  { token: "--surface-2", label: "canvas" },
+  { token: "--canvas", label: "canvas" },
   {
-    token: "--surface-3",
+    token: "--sidebar-background",
     label: "frame",
     note: "sidebar chrome, lifted above the canvas; light gets a 98% tint while dark shares the raised tier with cards",
   },
   {
-    token: "--surface-4",
+    token: "--card",
     label: "elevated",
     note: "card + modal share the tier; light alternates back to white (Carbon's light-layer model), dark joins the frame on the raised tier",
   },
   {
-    token: "--surface-5",
+    token: "--popover",
     label: "popover",
     note: "top of the ladder — popovers outrank modals (menus open on top of dialogs)",
   },
   {
-    token: "--surface-6",
+    token: "--muted",
     label: "muted fill",
     note: "level with the popover in dark; --secondary also rides it and is slated for retirement",
   },
   {
-    token: "--surface-7",
+    token: "--hover",
     label: "hover / focus fill",
     note: "focus:bg-accent is the only focus cue in menus, so it steps clearly above the popover. --tertiary also rides it (slated for retirement), as does --muted-gray (chart grid, disabled badges).",
   },
@@ -161,17 +165,17 @@ const SURFACE_RAMP: RampStep[] = [
 
 const BORDER_RAMP: RampStep[] = [
   {
-    token: "--line-1",
+    token: "--border",
     label: "hairline",
     note: "the default edge on every surface tier",
   },
   {
-    token: "--line-2",
+    token: "--border-edge",
     label: "edge",
     note: "inputs + popover borders — dark lifts it above the hairline so the top layer keeps an edge on the near-black canvas; light coincides with the hairline",
   },
   {
-    token: "--line-3",
+    token: "--border-contrast",
     label: "contrast",
     note: "structural/viz lines: tree connectors, timeline grid",
   },
