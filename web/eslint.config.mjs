@@ -141,6 +141,79 @@ export default [
     },
   },
 
+  // Variable Naming Conventions
+  // Currently scoped to the in-app-agent feature for testing purposes.
+  {
+    name: "langfuse/web/naming-convention",
+    files: ["src/features/in-app-agent/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/naming-convention": [
+        "error",
+        {
+          selector: "variable",
+          modifiers: ["const", "global"],
+          filter: {
+            regex: "(?:Schema|Router)$",
+            match: true,
+          },
+          format: ["PascalCase"],
+        },
+        {
+          selector: "variable",
+          modifiers: ["const", "global"],
+          types: ["function"],
+          format: ["camelCase", "PascalCase"],
+        },
+        {
+          selector: "variable",
+          modifiers: ["const", "global"],
+          format: ["UPPER_CASE"],
+        },
+        {
+          selector: "typeLike",
+          format: ["PascalCase"],
+        },
+      ],
+    },
+  },
+  {
+    name: "langfuse/web/naming-convention-storybook",
+    files: ["src/features/in-app-agent/**/*.stories.tsx"],
+    rules: {
+      "@typescript-eslint/naming-convention": [
+        "error",
+        {
+          selector: "variable",
+          filter: {
+            regex: "^meta$",
+            match: true,
+          },
+          format: null,
+        },
+        {
+          selector: "variable",
+          modifiers: ["const", "exported"],
+          format: ["PascalCase", "UPPER_CASE"],
+        },
+        {
+          selector: "variable",
+          modifiers: ["const", "global"],
+          types: ["function"],
+          format: ["camelCase", "PascalCase"],
+        },
+        {
+          selector: "variable",
+          modifiers: ["const", "global"],
+          format: ["UPPER_CASE"],
+        },
+        {
+          selector: "typeLike",
+          format: ["PascalCase"],
+        },
+      ],
+    },
+  },
+
   // Design-token lint wall. The type system has exactly two weights
   // (`font-bold` for the bold role; text-* size tokens carry the regular
   // weight), and colors must come from design tokens — palette utilities or
