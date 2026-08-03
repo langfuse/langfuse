@@ -70,7 +70,7 @@ export function InAppAgentDetailLauncher({
           <Button
             type="button"
             variant="outline"
-            size="icon-xs"
+            size="icon"
             aria-label={isOpen ? "Close assistant" : "Open assistant"}
             aria-pressed={isOpen}
             data-ignore-outside-interaction
@@ -89,7 +89,7 @@ export function InAppAgentDetailLauncher({
           <Button
             type="button"
             variant="outline"
-            size="icon-xs"
+            size="icon"
             aria-label="Assistant quick actions"
             data-ignore-outside-interaction
             className={splitButton({ isOpen, side: "right" })}
