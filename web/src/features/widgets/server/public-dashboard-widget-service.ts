@@ -56,7 +56,7 @@ const throwInvalidWidget = (params: {
   });
 };
 
-function getWidgetViewVersion(
+function resolvePublicWidgetPersistedViewVersion(
   widget: NormalizedWidgetInput,
   persistedMinVersion?: number,
 ): ViewVersion {
@@ -168,7 +168,10 @@ export function validatePublicDashboardWidgetInput(
   widget: NormalizedWidgetInput,
   persistedMinVersion?: number,
 ): void {
-  const viewVersion = getWidgetViewVersion(widget, persistedMinVersion);
+  const viewVersion = resolvePublicWidgetPersistedViewVersion(
+    widget,
+    persistedMinVersion,
+  );
   const viewDeclaration = getPublicDashboardWidgetViewDeclaration(
     widget,
     viewVersion,

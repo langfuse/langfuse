@@ -265,6 +265,11 @@ export class IngestionService {
       "events",
     );
 
+    const shouldEnrichUsageAndCost =
+      Boolean(eventData.modelName) ||
+      Object.keys(eventData.providedUsageDetails ?? {}).length > 0 ||
+      Object.keys(eventData.providedCostDetails ?? {}).length > 0;
+
     // Perform lookups for prompt and model/usage enrichment
     const [prompt, generationUsage] = await Promise.all([
       // Lookup prompt by name and version
@@ -279,8 +284,8 @@ export class IngestionService {
             label: undefined,
           })
         : null,
-      // Lookup model and enrich usage/cost details (includes tokenization if needed)
-      eventData.modelName
+      // Promote provided usage/cost and enrich from the model when available.
+      shouldEnrichUsageAndCost
         ? this.getGenerationUsage({
             projectId: eventData.projectId,
             observationRecord: {
