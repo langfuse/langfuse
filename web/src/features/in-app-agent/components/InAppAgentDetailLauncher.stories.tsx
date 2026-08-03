@@ -39,7 +39,7 @@ export const RunsQuickAction = meta.story({
     const [firstAction] = args.quickActions;
     await userEvent.click(
       await overlay().findByRole("menuitem", {
-        name: RegExp(firstAction.label),
+        name: firstAction.label,
       }),
     );
 
@@ -61,7 +61,7 @@ export const BlockedWhileRunning = meta.story({
 
     const [firstAction] = args.quickActions;
     const item = await overlay().findByRole("menuitem", {
-      name: RegExp(firstAction.label),
+      name: firstAction.label,
     });
 
     // Force past the pointer-events guard so this asserts the menu item really
