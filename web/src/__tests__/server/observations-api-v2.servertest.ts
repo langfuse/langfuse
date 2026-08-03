@@ -115,9 +115,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
 
       await createEventsCh([observation]);
 
-      // Request only basic field group (core is always included)
+      // Request only basic and trace context field groups (core is always included)
       const response = await getObservations(
-        `/api/public/v2/observations?fields=basic&traceId=${traceId}`,
+        `/api/public/v2/observations?fields=basic,trace_context&traceId=${traceId}`,
       );
 
       expect(response.status).toBe(200);
@@ -142,6 +142,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       // Verify basic fields are present
       expect(createdObs?.name).toBe("test-observation");
       expect(createdObs?.level).toBe("DEFAULT");
+      expect(createdObs?.traceName).toBe("test-observation");
 
       // Verify fields from non-requested groups are not present
       expect(createdObs?.input).toBeUndefined();

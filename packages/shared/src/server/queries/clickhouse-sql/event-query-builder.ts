@@ -2,7 +2,10 @@ import {
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   type ObservationFieldGroupPublicApi,
 } from "../../../domain/observation-field-groups";
-import { eventsTableIsRootObservationSql } from "../../../eventsTable";
+import {
+  eventsTableIsRootObservationSql,
+  eventsTableTraceNameSql,
+} from "../../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
@@ -128,7 +131,7 @@ const EVENTS_FIELDS = {
   public: "e.public as public",
   userId: 'e.user_id as "user_id"',
   sessionId: 'e.session_id as "session_id"',
-  traceName: 'e.trace_name as "trace_name"',
+  traceName: `${eventsTableTraceNameSql} as "trace_name"`,
 
   // Time fields
   startTime: 'e.start_time as "start_time"',
