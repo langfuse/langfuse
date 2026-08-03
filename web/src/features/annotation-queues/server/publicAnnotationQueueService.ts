@@ -583,25 +583,23 @@ export const createAnnotationQueueAssignmentForApi = async ({
     userId: input.userId,
   };
 
-  // Create the assignment (upsert to handle duplicates gracefully)
-  const assignment = await prisma.annotationQueueAssignment.upsert({
-    where: {
-      projectId_queueId_userId: assignmentWhere,
-    },
-    create: assignmentWhere,
-    update: {},
-  });
+  // Insert atomically so concurrent or repeated assignments remain idempotent
+  // and only the request that created the row emits an audit log.
+  const [createdAssignment] =
+    await prisma.annotationQueueAssignment.createManyAndReturn({
+      data: assignmentWhere,
+      skipDuplicates: true,
+    });
 
-  // TODO: only create audit log if upsert actually creates a new record
-  if (auditScope) {
+  if (auditScope && createdAssignment) {
     await auditLog({
       action: "create",
       resourceType: "annotationQueueAssignment",
-      resourceId: assignment.id,
+      resourceId: createdAssignment.id,
       projectId: auditScope.projectId,
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
-      after: assignment,
+      after: createdAssignment,
     });
   }
 
