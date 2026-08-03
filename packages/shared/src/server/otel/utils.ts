@@ -2,6 +2,137 @@ export function isValidDateString(dateString: string): boolean {
   return !isNaN(new Date(dateString).getTime());
 }
 
+const OTEL_TRACE_ID_BYTES = 16;
+const OTEL_SPAN_ID_BYTES = 8;
+const HEX_ONLY = /^[0-9a-fA-F]+$/;
+
+export type OtelIdKind = "traceId" | "spanId";
+
+export type OtelIdRejectionReason = "absent" | "not_an_id" | "wrong_length";
+
+/**
+ * Unwrap the `{ data: [...] }` envelope produced when a Buffer is serialized to
+ * JSON, matching the `span.traceId?.data ?? span.traceId` handling in
+ * OtelIngestionProcessor.
+ */
+function unwrapBufferEnvelope(value: unknown): unknown {
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    !(value instanceof Uint8Array) &&
+    "data" in value
+  ) {
+    return (value as { data: unknown }).data;
+  }
+  return value;
+}
+
+/**
+ * Decide whether an OTLP trace/span id is usable, or why it is not.
+ *
+ * Returns null when the id is acceptable. Accepted wire shapes mirror the ones
+ * OtelIngestionProcessor.parseId handles:
+ *  - hex string (OTLP/JSON, JS SDK)
+ *  - Buffer / Uint8Array (OTLP/protobuf decode)
+ *  - number[] (the Python SDK sends int arrays)
+ *  - { data: number[] } (Buffer serialized to JSON)
+ *
+ * Strings that are not hex are deliberately accepted: hex is the only
+ * OTLP/JSON-compliant encoding, but other encodings (e.g. base64 from a
+ * proto3-JSON mapping) already ingest successfully today and rejecting them
+ * here would break working clients for a problem we have not observed.
+ */
+export function getOtelIdRejectionReason(
+  value: unknown,
+  kind: OtelIdKind,
+): OtelIdRejectionReason | null {
+  const expectedBytes =
+    kind === "traceId" ? OTEL_TRACE_ID_BYTES : OTEL_SPAN_ID_BYTES;
+  const unwrapped = unwrapBufferEnvelope(value);
+
+  if (unwrapped === null || unwrapped === undefined) return "absent";
+
+  if (typeof unwrapped === "string") {
+    if (unwrapped.length === 0) return "absent";
+    if (!HEX_ONLY.test(unwrapped)) return null;
+    return unwrapped.length === expectedBytes * 2 ? null : "wrong_length";
+  }
+
+  if (unwrapped instanceof Uint8Array || Array.isArray(unwrapped)) {
+    return unwrapped.length === expectedBytes ? null : "wrong_length";
+  }
+
+  // Numbers, booleans and plain objects reach Buffer.from() in parseId and
+  // throw ERR_INVALID_ARG_TYPE there.
+  return "not_an_id";
+}
+
+export interface OtelSpanIdValidationResult {
+  totalSpanCount: number;
+  invalidSpanCount: number;
+  /** Deduped `<field>:<reason>` pairs, e.g. "traceId:absent". */
+  reasons: string[];
+  /** Deduped instrumentation scope names of the offending spans. */
+  scopeNames: string[];
+}
+
+/**
+ * Walk a decoded OTLP trace export and report spans whose traceId or spanId is
+ * missing or malformed.
+ *
+ * These payloads cannot be converted downstream: parseId either throws
+ * ERR_INVALID_ARG_TYPE (absent id) or yields a truncated id that produces a
+ * bogus trace. The dominant real-world source is an OTLP *logs* export sent to
+ * the traces endpoint — ResourceLogs and ResourceSpans share protobuf field
+ * numbers, so log records decode into spans that carry a valid instrumentation
+ * scope but no ids.
+ */
+export function validateOtelSpanIds(
+  resourceSpans: unknown,
+  { maxSamples = 5 }: { maxSamples?: number } = {},
+): OtelSpanIdValidationResult {
+  let totalSpanCount = 0;
+  let invalidSpanCount = 0;
+  const reasons = new Set<string>();
+  const scopeNames = new Set<string>();
+
+  if (!Array.isArray(resourceSpans)) {
+    return { totalSpanCount, invalidSpanCount, reasons: [], scopeNames: [] };
+  }
+
+  for (const resourceSpan of resourceSpans) {
+    for (const scopeSpan of (resourceSpan as any)?.scopeSpans ?? []) {
+      for (const span of scopeSpan?.spans ?? []) {
+        totalSpanCount++;
+
+        const spanReasons: string[] = [];
+        for (const kind of ["traceId", "spanId"] as const) {
+          const reason = getOtelIdRejectionReason(span?.[kind], kind);
+          if (reason) spanReasons.push(`${kind}:${reason}`);
+        }
+        if (spanReasons.length === 0) continue;
+
+        invalidSpanCount++;
+        if (reasons.size < maxSamples) {
+          spanReasons.forEach((r) => reasons.add(r));
+        }
+        const scopeName = scopeSpan?.scope?.name;
+        if (scopeName && scopeNames.size < maxSamples) {
+          scopeNames.add(String(scopeName));
+        }
+      }
+    }
+  }
+
+  return {
+    totalSpanCount,
+    invalidSpanCount,
+    reasons: [...reasons],
+    scopeNames: [...scopeNames],
+  };
+}
+
 /**
  * Flattens a nested JSON object into path-based names and string values.
  * For example: {foo: {bar: "baz", num: 42}} becomes:

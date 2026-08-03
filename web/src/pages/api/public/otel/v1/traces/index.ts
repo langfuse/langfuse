@@ -8,6 +8,8 @@ import {
   markProjectAsOtelUser,
   createIngestionAttribution,
   getLangfuseHeaderValue,
+  recordIncrement,
+  validateOtelSpanIds,
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
@@ -108,6 +110,43 @@ export default withMiddlewares({
 
       if (!resourceSpans || resourceSpans.length === 0) {
         return {};
+      }
+
+      // Reject spans whose traceId/spanId is missing or malformed. These cannot
+      // be converted in the worker: parseId either throws ERR_INVALID_ARG_TYPE
+      // or produces a truncated id that creates a bogus trace. Failing here
+      // returns a non-retryable status instead of letting the payload burn six
+      // queue attempts before it is dropped anyway.
+      //
+      // The common source is an OTLP *logs* export pointed at this endpoint.
+      // ResourceLogs and ResourceSpans share protobuf field numbers, so log
+      // records decode into spans with a valid instrumentation scope but no ids.
+      const idValidation = validateOtelSpanIds(resourceSpans);
+      if (idValidation.invalidSpanCount > 0) {
+        recordIncrement(
+          "langfuse.ingestion.otel.rejected_invalid_span_ids",
+          idValidation.invalidSpanCount,
+          { reason: idValidation.reasons[0] ?? "unknown" },
+        );
+        logger.warn("Rejecting OTEL trace export with invalid span ids", {
+          projectId: auth.scope.projectId,
+          invalidSpanCount: idValidation.invalidSpanCount,
+          totalSpanCount: idValidation.totalSpanCount,
+          reasons: idValidation.reasons,
+          instrumentationScopes: idValidation.scopeNames,
+          sdkName: req.headers["x-langfuse-sdk-name"],
+        });
+        res.status(400);
+        return {
+          error:
+            `Invalid OTLP trace export: ${idValidation.invalidSpanCount} of ` +
+            `${idValidation.totalSpanCount} span(s) have a missing or malformed ` +
+            `traceId/spanId (${idValidation.reasons.join(", ")}). A traceId must be ` +
+            `16 bytes (32 hex chars) and a spanId 8 bytes (16 hex chars). ` +
+            `Instrumentation scopes: ${idValidation.scopeNames.join(", ") || "unknown"}. ` +
+            `Note that this endpoint accepts OpenTelemetry traces only — if you are ` +
+            `exporting OpenTelemetry logs, point your log exporter elsewhere.`,
+        };
       }
 
       // Warn on oversized OTEL request bodies (16MB threshold)
