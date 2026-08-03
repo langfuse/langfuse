@@ -121,6 +121,10 @@ export default withMiddlewares({
       // The common source is an OTLP *logs* export pointed at this endpoint.
       // ResourceLogs and ResourceSpans share protobuf field numbers, so log
       // records decode into spans with a valid instrumentation scope but no ids.
+      //
+      // One invalid span means the whole export is almost certainly malformed,
+      // so the batch is rejected as a unit and the response says so explicitly
+      // rather than dropping spans silently.
       const idValidation = validateOtelSpanIds(resourceSpans);
       if (idValidation.invalidSpanCount > 0) {
         recordIncrement(
@@ -141,11 +145,12 @@ export default withMiddlewares({
           error:
             `Invalid OTLP trace export: ${idValidation.invalidSpanCount} of ` +
             `${idValidation.totalSpanCount} span(s) have a missing or malformed ` +
-            `traceId/spanId (${idValidation.reasons.join(", ")}). A traceId must be ` +
-            `16 bytes (32 hex chars) and a spanId 8 bytes (16 hex chars). ` +
+            `traceId/spanId (${idValidation.reasons.join(", ")}). The entire export ` +
+            `was rejected and no spans were ingested. A traceId must be 16 bytes ` +
+            `(32 hex chars) and a spanId 8 bytes (16 hex chars). ` +
             `Instrumentation scopes: ${idValidation.scopeNames.join(", ") || "unknown"}. ` +
-            `Note that this endpoint accepts OpenTelemetry traces only — if you are ` +
-            `exporting OpenTelemetry logs, point your log exporter elsewhere.`,
+            `This endpoint accepts OpenTelemetry traces only — if you are exporting ` +
+            `OpenTelemetry logs, point your log exporter elsewhere.`,
         };
       }
 

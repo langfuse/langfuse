@@ -488,6 +488,80 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     });
   });
 
+  it("should reject spans whose ids are missing or truncated", async () => {
+    const response = await makeAPICall<{ error: string }>(
+      "POST",
+      "/api/public/otel/v1/traces",
+      {
+        resourceSpans: [
+          {
+            resource: { attributes: [] },
+            scopeSpans: [
+              {
+                scope: { name: "uvicorn.access" },
+                spans: [
+                  { traceState: "INFO" },
+                  { traceId: "6b", spanId: "0a0176" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("2 of 2 span(s)");
+    expect(response.body.error).toContain("uvicorn.access");
+  });
+
+  // An OTLP *logs* export pointed at this endpoint. ResourceLogs and
+  // ResourceSpans share protobuf field numbers, so log records decode into
+  // spans that keep a valid instrumentation scope but carry no ids, which used
+  // to fail in the worker and burn all six queue attempts.
+  it("should reject an OTLP logs payload sent to the traces endpoint", async () => {
+    const requestBody =
+      $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.encode(
+        $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.fromObject(
+          {
+            resourceLogs: [
+              {
+                resource: { attributes: [] },
+                scopeLogs: [
+                  {
+                    scope: { name: "codex_otel.log_only" },
+                    logRecords: [{ severityText: "INFO" }],
+                  },
+                ],
+              },
+            ],
+          },
+        ),
+      ).finish();
+
+    // makeAPICall JSON-stringifies its body, so send the binary payload
+    // with a plain fetch instead.
+    const response = await fetch(
+      "http://localhost:3000/api/public/otel/v1/traces",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-protobuf",
+          Authorization: createBasicAuthHeader(
+            "pk-lf-1234567890",
+            "sk-lf-1234567890",
+          ),
+        },
+        body: requestBody,
+      },
+    );
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toContain("traceId:absent");
+    expect(body.error).toContain("codex_otel.log_only");
+  });
+
   it("should transform deployment.environment to lowercase", async () => {
     const traceId = randomBytes(16);
     const spanId = randomBytes(8);
