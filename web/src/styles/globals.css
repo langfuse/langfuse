@@ -528,8 +528,8 @@
 
     /* One quiet line for everything non-assertive — dividers, inputs,
        popover edges (edge tier merged down per Trang, 2026-08-03). */
-    --border: 0 0% 12%;
-    --border-contrast: 0 0% 20%;
+    --border: 0 0% 13%;
+    --border-contrast: 0 0% 18%;
 
     --focus: 218 100% 74%;
 
