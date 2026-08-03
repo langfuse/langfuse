@@ -6,6 +6,11 @@ import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 
+const { mockDlqAdd, mockUploadJson } = vi.hoisted(() => ({
+  mockDlqAdd: vi.fn().mockResolvedValue(undefined),
+  mockUploadJson: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock recordHistogram, recordCount, recordGauge
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original = (await importOriginal()) as {};
@@ -15,6 +20,12 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     recordIncrement: vi.fn(),
     recordCount: vi.fn(),
     recordGauge: vi.fn(),
+    ClickhouseWriterDeadLetterQueue: {
+      getInstance: vi.fn(() => ({ add: mockDlqAdd })),
+    },
+    getS3EventStorageClient: vi.fn(() => ({
+      uploadJson: mockUploadJson,
+    })),
     logger: {
       info: vi.fn(),
       debug: vi.fn(),
@@ -163,12 +174,17 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
 
-  it("should drop records after max attempts", async () => {
+  it("should persist exhausted records and enqueue a DLQ replay job", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
       .mockRejectedValue(new Error("DB Error"));
 
-    writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
+    const trace = {
+      id: "1",
+      project_id: "project-1",
+      name: "test",
+    };
+    writer.addToQueue(TableName.Traces, trace as any);
 
     for (let i = 0; i < writer.maxAttempts; i++) {
       await vi.advanceTimersByTimeAsync(writer.writeInterval);
@@ -178,16 +194,63 @@ describe("ClickhouseWriter", () => {
 
     expect(mockInsert).toHaveBeenCalledTimes(writer.maxAttempts);
     expect(
-      logger.error.mock.calls.some((call) =>
+      logger.warn.mock.calls.some((call) =>
         call[0].includes("Max attempts reached"),
       ),
     ).toBe(true);
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    expect(mockUploadJson).toHaveBeenCalledWith(
+      expect.stringMatching(/clickhouse-writer-dlq\/traces\/.+\.json$/),
+      [trace],
+    );
+    const fileKey = mockUploadJson.mock.calls[0][0];
+    expect(mockDlqAdd).toHaveBeenCalledWith(
+      serverExports.QueueJobs.ClickhouseWriterDeadLetterJob,
+      expect.objectContaining({
+        name: serverExports.QueueJobs.ClickhouseWriterDeadLetterJob,
+        payload: {
+          tableName: TableName.Traces,
+          fileKey,
+        },
+      }),
+    );
     expect(serverExports.recordIncrement).toHaveBeenCalledWith(
-      "langfuse.queue.clickhouse_writer.rows_dropped",
+      "langfuse.queue.clickhouse_writer.rows_dead_lettered",
       1,
       { entity_type: TableName.Traces },
     );
+    expect(serverExports.recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.rows_dropped",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("should retain exhausted records when DLQ persistence fails", async () => {
+    vi.spyOn(clickhouseClientMock, "insert").mockRejectedValue(
+      new Error("DB Error"),
+    );
+    mockUploadJson.mockRejectedValueOnce(new Error("S3 unavailable"));
+
+    writer.addToQueue(TableName.Traces, {
+      id: "1",
+      project_id: "project-1",
+      name: "test",
+    } as any);
+
+    for (let i = 0; i < writer.maxAttempts; i++) {
+      await vi.advanceTimersByTimeAsync(writer.writeInterval);
+    }
+
+    expect(writer["queue"][TableName.Traces]).toHaveLength(1);
+    expect(writer["queue"][TableName.Traces][0].attempts).toBe(
+      writer.maxAttempts,
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("retained them in memory for retry"),
+      expect.any(Error),
+    );
+    expect(mockDlqAdd).not.toHaveBeenCalled();
   });
 
   it("should retry client request timeouts within the same flush", async () => {

@@ -14,6 +14,9 @@ import {
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
   buildClickHouseLogComment,
+  ClickhouseWriterDeadLetterQueue,
+  getS3EventStorageClient,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 
 import { Decimal } from "decimal.js";
@@ -22,6 +25,7 @@ import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { backOff } from "exponential-backoff";
+import { randomUUID } from "crypto";
 
 // Decimal64(12): valid range is (-10^6, 10^6), i.e. 18 total digits with 12 fractional.
 // JS double can't represent 999999.999999999999 exactly (rounds to 1e6), so we use a
@@ -511,8 +515,7 @@ export class ClickhouseWriter {
     } catch (err) {
       logger.error(`ClickhouseWriter.flush ${tableName}`, err);
 
-      // Re-add the records to the queue with incremented attempts
-      let droppedCount = 0;
+      const exhaustedItems: ClickhouseWriterQueueItem<T>[] = [];
       queueItems.forEach((item) => {
         if (item.attempts < this.maxAttempts) {
           entityQueue.push({
@@ -520,22 +523,24 @@ export class ClickhouseWriter {
             attempts: item.attempts + 1,
           });
         } else {
-          // TODO - Add to a dead letter queue in Redis rather than dropping
           recordIncrement("langfuse.queue.clickhouse_writer.error");
-          droppedCount++;
+          exhaustedItems.push(item);
         }
       });
 
-      if (droppedCount > 0) {
-        recordIncrement(
-          "langfuse.queue.clickhouse_writer.rows_dropped",
-          droppedCount,
-          { entity_type: tableName },
-        );
+      if (exhaustedItems.length > 0) {
+        try {
+          const fileKey = await this.persistDeadLetterRecords(
+            tableName,
+            exhaustedItems.map((item) => item.data),
+          );
+          recordIncrement(
+            "langfuse.queue.clickhouse_writer.rows_dead_lettered",
+            exhaustedItems.length,
+            { entity_type: tableName },
+          );
 
-        const droppedIds = queueItems
-          .filter((item) => item.attempts >= this.maxAttempts)
-          .map((item) => {
+          const deadLetteredIds = exhaustedItems.map((item) => {
             const r = item.data as Record<string, unknown>;
             return {
               project_id: r.project_id,
@@ -544,12 +549,56 @@ export class ClickhouseWriter {
             };
           });
 
-        logger.error(
-          `ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
-          { droppedIds },
-        );
+          logger.warn(
+            `ClickhouseWriter: Max attempts reached, dead-lettered ${exhaustedItems.length} ${tableName} record(s)`,
+            { fileKey, deadLetteredIds },
+          );
+        } catch (deadLetterError) {
+          for (const item of exhaustedItems) {
+            entityQueue.push(item);
+          }
+          logger.error(
+            `ClickhouseWriter: Failed to dead-letter ${exhaustedItems.length} ${tableName} record(s); retained them in memory for retry`,
+            deadLetterError,
+          );
+        }
       }
     }
+  }
+
+  private async persistDeadLetterRecords<T extends TableName>(
+    tableName: T,
+    records: RecordInsertType<T>[],
+  ): Promise<string> {
+    const fileKey = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}clickhouse-writer-dlq/${tableName}/${randomUUID()}.json`;
+    await getS3EventStorageClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    ).uploadJson(fileKey, records as Record<string, unknown>[]);
+
+    const queue = ClickhouseWriterDeadLetterQueue.getInstance();
+    if (!queue) {
+      throw new Error("Dead letter retry queue is unavailable");
+    }
+
+    const id = randomUUID();
+    await queue.add(QueueJobs.ClickhouseWriterDeadLetterJob, {
+      timestamp: new Date(),
+      id,
+      name: QueueJobs.ClickhouseWriterDeadLetterJob,
+      payload: { tableName, fileKey },
+    });
+
+    return fileKey;
+  }
+
+  public async replayDeadLetterRecords(
+    tableName: TableName,
+    records: Record<string, unknown>[],
+  ): Promise<void> {
+    await this.writeToClickhouse({
+      table: tableName,
+      records: records as RecordInsertType<TableName>[],
+    });
   }
 
   public addToQueue<T extends TableName>(

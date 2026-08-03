@@ -22,6 +22,7 @@ import { BatchActionQueue } from "./batchActionQueue";
 import { CreateEvalQueue } from "./createEvalQueue";
 import { ScoreDeleteQueue } from "./scoreDelete";
 import { DeadLetterRetryQueue } from "./dlqRetryQueue";
+import { ClickhouseWriterDeadLetterQueue } from "./clickhouseWriterDeadLetterQueue";
 import { WebhookQueue } from "./webhookQueue";
 import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
@@ -93,6 +94,8 @@ export function getQueue(
       return ScoreDeleteQueue.getInstance();
     case QueueName.DeadLetterRetryQueue:
       return DeadLetterRetryQueue.getInstance();
+    case QueueName.ClickhouseWriterDeadLetterQueue:
+      return ClickhouseWriterDeadLetterQueue.getInstance();
     case QueueName.WebhookQueue:
       return WebhookQueue.getInstance();
     case QueueName.EntityChangeQueue:

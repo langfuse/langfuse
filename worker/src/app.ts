@@ -33,6 +33,7 @@ import {
   logger,
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
+  ClickhouseWriterDeadLetterQueue,
   IngestionQueue,
   SecondaryIngestionQueue,
   OtelIngestionQueue,
@@ -618,6 +619,17 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
     {
       concurrency: 1,
     },
+  );
+}
+
+if (
+  env.QUEUE_CONSUMER_CLICKHOUSE_WRITER_DEAD_LETTER_QUEUE_IS_ENABLED === "true"
+) {
+  ClickhouseWriterDeadLetterQueue.getInstance();
+  WorkerManager.register(
+    QueueName.ClickhouseWriterDeadLetterQueue,
+    DlqRetryService.replayClickhouseWriterRecords,
+    { concurrency: 1 },
   );
 }
 
