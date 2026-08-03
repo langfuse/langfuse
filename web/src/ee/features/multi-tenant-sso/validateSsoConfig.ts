@@ -1,4 +1,9 @@
 import { type SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
+import {
+  fetchWithSecureRedirects,
+  validateWebhookURL,
+  whitelistFromEnv,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const DISCOVERY_TIMEOUT_MS = 5000;
@@ -90,20 +95,33 @@ export async function validateSsoConfig(
   const trimmedIssuer = stripTrailingSlash(issuer);
   const discoveryUrl = `${trimmedIssuer}/.well-known/openid-configuration`;
 
+  // Ports unrestricted: self-hosted IdPs use 8443.
+  const whitelist = whitelistFromEnv();
+  const validateUrl = (url: string) =>
+    validateWebhookURL(url, whitelist, { allowedPorts: "any" });
+
   let resp: Response;
   try {
-    // SSRF defense: refuse to follow redirects. An admin can configure any
-    // issuer host, and a malicious one could 302 us at internal endpoints
-    // (cloud metadata services, kube API, localhost). Per OIDC Discovery §4
-    // the discovery doc is served directly at the issuer URL with no
-    // redirects, so legitimate IdPs (Auth0, Okta, Google, Azure AD,
-    // JumpCloud, etc.) all return 200 directly. `redirect: "error"` makes
-    // fetch throw on any 3xx, which we catch as the same "Could not reach"
-    // error the admin sees for any other connection failure.
-    resp = await fetch(discoveryUrl, {
-      signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),
-      redirect: "error",
-    });
+    // Inside this try so a blocked host is indistinguishable from an
+    // unreachable one.
+    await validateUrl(discoveryUrl);
+
+    // maxRedirects 0 rejects any 3xx; OIDC Discovery §4 serves the doc
+    // directly at the issuer URL. fetchWithSecureRedirects also re-validates
+    // the peer IP at connect time, closing the DNS-rebind window above.
+    const { response } = await fetchWithSecureRedirects(
+      discoveryUrl,
+      { signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS) },
+      {
+        maxRedirects: 0,
+        redirectValidation: {
+          validateUrl,
+          whitelist,
+          logContext: "SSO discovery URL",
+        },
+      },
+    );
+    resp = response;
   } catch {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",

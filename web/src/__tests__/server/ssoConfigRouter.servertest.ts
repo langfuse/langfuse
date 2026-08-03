@@ -1,3 +1,21 @@
+// The discovery SSRF guard resolves the issuer host; stub DNS to stay offline.
+const { resolve4Mock, resolve6Mock, lookupMock } = vi.hoisted(() => ({
+  resolve4Mock: vi.fn<() => Promise<string[]>>(),
+  resolve6Mock: vi.fn<() => Promise<string[]>>(),
+  lookupMock: vi.fn<() => Promise<Array<{ address: string; family: 4 | 6 }>>>(),
+}));
+
+vi.mock("node:dns/promises", () => ({
+  default: {
+    resolve4: resolve4Mock,
+    resolve6: resolve6Mock,
+    lookup: lookupMock,
+  },
+  resolve4: resolve4Mock,
+  resolve6: resolve6Mock,
+  lookup: lookupMock,
+}));
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -6,6 +24,8 @@ import { Role } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 
+const PUBLIC_IP = "93.184.216.34";
+
 // `validateSsoConfig` does a live OIDC discovery fetch. Default mock returns
 // a valid response that mirrors the issuer; individual tests override.
 const fetchMock = vi.fn<typeof fetch>();
@@ -13,6 +33,10 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
   mockDiscoveryOk("https://example.okta.com");
+
+  resolve4Mock.mockResolvedValue([PUBLIC_IP]);
+  resolve6Mock.mockRejectedValue(new Error("ENODATA"));
+  lookupMock.mockResolvedValue([{ address: PUBLIC_IP, family: 4 }]);
 });
 afterEach(() => {
   vi.unstubAllGlobals();
