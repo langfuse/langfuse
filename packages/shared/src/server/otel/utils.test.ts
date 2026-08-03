@@ -5,64 +5,54 @@ import { getOtelIdRejectionReason, validateOtelSpanIds } from "./utils";
 const TRACE_ID = "bb14c33c23138873afcc5e6f3c2b5f61"; // 16 bytes
 const SPAN_ID = "cb00000daff4e5ae"; // 8 bytes
 const traceBytes = Buffer.from(TRACE_ID, "hex");
-const spanBytes = Buffer.from(SPAN_ID, "hex");
 
 describe("getOtelIdRejectionReason", () => {
-  // Every wire shape OtelIngestionProcessor.parseId accepts has to stay valid,
-  // otherwise this validation would reject clients that ingest fine today.
+  // Anything parseId can convert must stay accepted, otherwise this validation
+  // breaks clients that ingest fine today. Length and encoding are not checked:
+  // the OTLP protobuf declares these fields as `bytes` with no length
+  // constraint, and the backend stores the id as a String.
   it.each([
-    { shape: "hex string", traceId: TRACE_ID, spanId: SPAN_ID },
-    {
-      shape: "Buffer (protobuf decode)",
-      traceId: traceBytes,
-      spanId: spanBytes,
-    },
-    {
-      shape: "int array (Python SDK)",
-      traceId: [...traceBytes],
-      spanId: [...spanBytes],
-    },
+    { shape: "hex string", value: TRACE_ID },
+    { shape: "Buffer from a protobuf decode", value: traceBytes },
+    { shape: "int array from the Python SDK", value: [...traceBytes] },
+    { shape: "Uint8Array", value: new Uint8Array([...traceBytes]) },
     {
       shape: "Buffer serialized to JSON",
-      traceId: { type: "Buffer", data: [...traceBytes] },
-      spanId: { type: "Buffer", data: [...spanBytes] },
+      value: { type: "Buffer", data: [...traceBytes] },
     },
-    {
-      // Not OTLP/JSON compliant, but such clients ingest today, so they are
-      // deliberately left alone rather than broken by this validation.
-      shape: "non-hex string (e.g. base64)",
-      traceId: traceBytes.toString("base64"),
-      spanId: spanBytes.toString("base64"),
-    },
-  ])("accepts $shape", ({ traceId, spanId }) => {
-    expect(getOtelIdRejectionReason(traceId, "traceId")).toBeNull();
-    expect(getOtelIdRejectionReason(spanId, "spanId")).toBeNull();
+    { shape: "base64 string", value: traceBytes.toString("base64") },
+    { shape: "arbitrary non-hex string", value: "trace-1" },
+    // Short, long and all-zero ids convert cleanly and the backend stores them
+    // verbatim, so they are the client's business, not ours.
+    { shape: "short id", value: Buffer.from([107]) },
+    { shape: "span-length id in a traceId", value: SPAN_ID },
+    { shape: "over-long id", value: Buffer.alloc(100, 7) },
+    { shape: "all-zero id", value: Buffer.alloc(16) },
+    { shape: "empty string", value: "" },
+    { shape: "empty array", value: [] },
+  ])("accepts $shape", ({ value }) => {
+    expect(getOtelIdRejectionReason(value)).toBeNull();
   });
 
+  // The production failure: parseId calls Buffer.from() on these and throws
+  // ERR_INVALID_ARG_TYPE, which fails the queue job through every retry.
   it.each([
-    { value: undefined, kind: "traceId", reason: "absent" },
-    { value: null, kind: "spanId", reason: "absent" },
-    { value: "", kind: "traceId", reason: "absent" },
-    // A 1-byte id is what an OTLP log record decodes into, see below.
-    { value: Buffer.from([107]), kind: "traceId", reason: "wrong_length" },
-    { value: SPAN_ID, kind: "traceId", reason: "wrong_length" },
-    { value: TRACE_ID, kind: "spanId", reason: "wrong_length" },
-    // Values Buffer.from() cannot handle: parseId throws ERR_INVALID_ARG_TYPE.
-    { value: 42, kind: "traceId", reason: "not_an_id" },
-    { value: { foo: "bar" }, kind: "spanId", reason: "not_an_id" },
-    // All-zero ids are spec-invalid and would make unrelated entities collide
-    // on a single zero id.
-    { value: "0".repeat(32), kind: "traceId", reason: "all_zero" },
-    { value: Buffer.alloc(16), kind: "traceId", reason: "all_zero" },
-    { value: new Array(8).fill(0), kind: "spanId", reason: "all_zero" },
-    // Entries that coerce to 0x00 the same way Buffer.from() coerces them.
-    { value: new Array(8).fill("x"), kind: "spanId", reason: "all_zero" },
-  ] as const)(
-    "rejects $value as $kind ($reason)",
-    ({ value, kind, reason }) => {
-      expect(getOtelIdRejectionReason(value, kind)).toBe(reason);
+    { shape: "undefined", value: undefined, reason: "absent" },
+    { shape: "null", value: null, reason: "absent" },
+    { shape: "a number", value: 42, reason: "not_an_id" },
+    { shape: "a boolean", value: true, reason: "not_an_id" },
+    { shape: "a plain object", value: { foo: "bar" }, reason: "not_an_id" },
+    // Buffer.from only revives the `{ type: "Buffer", data }` shape. The
+    // worker's processToEvent path passes the raw value, so an untagged
+    // envelope throws there even though other call sites unwrap `.data`.
+    {
+      shape: "an untagged data envelope",
+      value: { data: [1, 2, 3, 4] },
+      reason: "not_an_id",
     },
-  );
+  ] as const)("rejects $shape as $reason", ({ value, reason }) => {
+    expect(getOtelIdRejectionReason(value)).toBe(reason);
+  });
 });
 
 describe("validateOtelSpanIds", () => {
@@ -73,35 +63,38 @@ describe("validateOtelSpanIds", () => {
     },
   ];
 
-  // The two OTLP *log record* shapes that survive being decoded as spans:
-  // ResourceLogs and ResourceSpans share protobuf field numbers, so the scope
-  // name comes through intact while the ids do not. The worker-side crash these
-  // produce is pinned by
+  // The production failure: an OTLP log record decoded as a span. ResourceLogs
+  // and ResourceSpans share protobuf field numbers, so the scope name comes
+  // through intact while the ids are absent entirely. The worker-side crash this
+  // causes is pinned by
   // worker/src/queues/__tests__/otelConversionFailureLogging.test.ts; this
-  // asserts they no longer get that far.
-  it.each([
-    {
-      shape: "log record with only severityText",
-      span: { traceState: "INFO" },
-      scopeName: "codex_otel.log_only",
-      reasonCounts: { "traceId:absent": 1, "spanId:absent": 1 },
-    },
-    {
-      shape: "log record with only attributes (truncated ids)",
-      span: {
-        traceId: { type: "Buffer", data: [107] },
-        spanId: { type: "Buffer", data: [10, 1, 118] },
-        kind: 8,
-      },
-      scopeName: "uvicorn.access",
-      reasonCounts: { "traceId:wrong_length": 1, "spanId:wrong_length": 1 },
-    },
-  ])("rejects a $shape", ({ span, scopeName, reasonCounts }) => {
-    const result = validateOtelSpanIds(wrap([span], scopeName));
+  // asserts it no longer gets that far.
+  it("rejects a log record decoded as a span", () => {
+    const result = validateOtelSpanIds(
+      wrap([{ traceState: "INFO" }], "codex_otel.log_only"),
+    );
     expect(result.invalidSpanCount).toBe(1);
     // Both ids fail, so the per-reason counts sum above the span count.
-    expect(result.reasonCounts).toEqual(reasonCounts);
-    expect(result.scopeNames).toEqual([scopeName]);
+    expect(result.reasonCounts).toEqual({
+      "traceId:absent": 1,
+      "spanId:absent": 1,
+    });
+    expect(result.scopeNames).toEqual(["codex_otel.log_only"]);
+  });
+
+  // The other decodable log-record shape yields 1- and 3-byte ids. Those convert
+  // fine and the backend stores them verbatim, so they are deliberately accepted
+  // rather than rejected on length — see getOtelIdRejectionReason.
+  it("accepts a span whose ids are short but decodable", () => {
+    const result = validateOtelSpanIds(
+      wrap([
+        {
+          traceId: { type: "Buffer", data: [107] },
+          spanId: { type: "Buffer", data: [10, 1, 118] },
+        },
+      ]),
+    );
+    expect(result).toMatchObject({ totalSpanCount: 1, invalidSpanCount: 0 });
   });
 
   // Doubles as the happy path: the two valid spans must not be flagged.
@@ -121,14 +114,14 @@ describe("validateOtelSpanIds", () => {
         ...Array.from({ length: 8 }, () => ({ spanId: SPAN_ID })),
         ...Array.from({ length: 2 }, () => ({
           traceId: TRACE_ID,
-          spanId: "0a0176",
+          spanId: 42,
         })),
       ]),
     );
     expect(result.invalidSpanCount).toBe(10);
     expect(result.reasonCounts).toEqual({
       "traceId:absent": 8,
-      "spanId:wrong_length": 2,
+      "spanId:not_an_id": 2,
     });
   });
 

@@ -505,8 +505,9 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
               {
                 scope: { name: "uvicorn.access" },
                 spans: [
+                  // Both ids absent, and an id of a type Buffer.from rejects.
                   { traceState: "INFO" },
-                  { traceId: "6b", spanId: "0a0176" },
+                  { traceId: 42, spanId: 42 },
                 ],
               },
             ],

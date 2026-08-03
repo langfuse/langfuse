@@ -2,86 +2,48 @@ export function isValidDateString(dateString: string): boolean {
   return !isNaN(new Date(dateString).getTime());
 }
 
-const OTEL_TRACE_ID_BYTES = 16;
-const OTEL_SPAN_ID_BYTES = 8;
-const HEX_ONLY = /^[0-9a-fA-F]+$/;
-
-export type OtelIdKind = "traceId" | "spanId";
-
-export type OtelIdRejectionReason =
-  | "absent"
-  | "not_an_id"
-  | "wrong_length"
-  /**
-   * An all-zero id is invalid per the OTel spec. It is also actively harmful:
-   * ingestion persists it as the entity id, so unrelated traces and
-   * observations would collide on a single zero id and merge.
-   */
-  | "all_zero";
+export type OtelIdRejectionReason = "absent" | "not_an_id";
 
 /**
- * Unwrap the `{ data: [...] }` envelope produced when a Buffer is serialized to
- * JSON, matching the `span.traceId?.data ?? span.traceId` handling in
- * OtelIngestionProcessor.
- */
-function unwrapBufferEnvelope(value: unknown): unknown {
-  if (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    !(value instanceof Uint8Array) &&
-    "data" in value
-  ) {
-    return (value as { data: unknown }).data;
-  }
-  return value;
-}
-
-/**
- * Decide whether an OTLP trace/span id is usable, or why it is not.
+ * Whether an OTLP trace/span id can be converted by
+ * OtelIngestionProcessor.parseId, which returns strings unchanged and otherwise
+ * calls `Buffer.from()`. Returns null when it can.
  *
- * Returns null when the id is acceptable. Accepted wire shapes mirror the ones
- * OtelIngestionProcessor.parseId handles:
- *  - hex string (OTLP/JSON, JS SDK)
- *  - Buffer / Uint8Array (OTLP/protobuf decode)
- *  - number[] (the Python SDK sends int arrays)
- *  - { data: number[] } (Buffer serialized to JSON)
- *
- * Strings that are not hex are deliberately accepted: hex is the only
- * OTLP/JSON-compliant encoding, but other encodings (e.g. base64 from a
- * proto3-JSON mapping) already ingest successfully today and rejecting them
- * here would break working clients for a problem we have not observed.
+ * Convertibility is the only property worth checking here. Length and encoding
+ * are deliberately *not* validated: the OTLP protobuf declares both fields as
+ * `bytes` with no length constraint, and ClickHouse stores the id as a plain
+ * `String`, so a short, long, non-hex or all-zero id ingests without incident.
+ * Rejecting those would break clients to no benefit — every production failure
+ * behind this validation was `ERR_INVALID_ARG_TYPE` from an id that could not be
+ * converted at all.
  */
 export function getOtelIdRejectionReason(
   value: unknown,
-  kind: OtelIdKind,
 ): OtelIdRejectionReason | null {
-  const expectedBytes =
-    kind === "traceId" ? OTEL_TRACE_ID_BYTES : OTEL_SPAN_ID_BYTES;
-  const unwrapped = unwrapBufferEnvelope(value);
+  if (value === null || value === undefined) return "absent";
 
-  if (unwrapped === null || unwrapped === undefined) return "absent";
+  // parseId short-circuits on strings, so any string is convertible.
+  if (typeof value === "string") return null;
 
-  if (typeof unwrapped === "string") {
-    if (unwrapped.length === 0) return "absent";
-    if (!HEX_ONLY.test(unwrapped)) return null;
-    if (unwrapped.length !== expectedBytes * 2) return "wrong_length";
-    return /^0+$/.test(unwrapped) ? "all_zero" : null;
+  // Uint8Array/Buffer from a protobuf decode, int arrays from the Python SDK.
+  if (value instanceof Uint8Array || Array.isArray(value)) return null;
+
+  if (typeof value === "object") {
+    // Rarer object shapes: ask Buffer.from rather than guess at its rules.
+    // Checked against the raw value on purpose — the worker's processToEvent
+    // path (OtelIngestionProcessor.ts:322) passes it straight to parseId
+    // without the `?.data` unwrap the other call sites apply, so
+    // `{ data: [...] }` lacking a `type: "Buffer"` tag throws there and has to
+    // be rejected here, while `{ type: "Buffer", data: [...] }` is fine.
+    try {
+      Buffer.from(value as unknown as Uint8Array);
+      return null;
+    } catch {
+      return "not_an_id";
+    }
   }
 
-  if (unwrapped instanceof Uint8Array || Array.isArray(unwrapped)) {
-    if (unwrapped.length !== expectedBytes) return "wrong_length";
-    // Mirror how Buffer.from() coerces array entries, so an array of values
-    // that all land on 0x00 is caught as well.
-    const bytes = Array.from(unwrapped as Iterable<unknown>, (entry) => {
-      const n = Number(entry);
-      return Number.isFinite(n) ? n & 0xff : 0;
-    });
-    return bytes.every((byte) => byte === 0) ? "all_zero" : null;
-  }
-
-  // Numbers, booleans and plain objects reach Buffer.from() in parseId and
-  // throw ERR_INVALID_ARG_TYPE there.
+  // Numbers, booleans and symbols throw in Buffer.from.
   return "not_an_id";
 }
 
@@ -96,7 +58,7 @@ export interface OtelSpanIdValidationResult {
   malformedCollectionCount: number;
   /**
    * Rejections per `<field>:<reason>` pair, e.g.
-   * `{ "traceId:absent": 8, "spanId:wrong_length": 2 }`.
+   * `{ "traceId:absent": 8, "spanId:not_an_id": 2 }`.
    *
    * A span with both a bad traceId and a bad spanId counts once under each, so
    * these can sum above `invalidSpanCount`. The key set is bounded by
@@ -113,15 +75,14 @@ export interface OtelSpanIdValidationResult {
 
 /**
  * Walk a decoded OTLP trace export and report everything that makes it
- * unprocessable downstream: spans whose traceId or spanId is missing or
- * malformed, and `scopeSpans`/`spans` fields that are present but not arrays.
+ * unprocessable downstream: spans whose traceId or spanId cannot be converted,
+ * and `scopeSpans`/`spans` fields that are present but not arrays.
  *
- * Bad ids cannot be converted: parseId either throws ERR_INVALID_ARG_TYPE
- * (absent id) or yields a truncated id that produces a bogus trace. The
- * dominant real-world source is an OTLP *logs* export sent to the traces
- * endpoint — ResourceLogs and ResourceSpans share protobuf field numbers, so
- * log records decode into spans that carry a valid instrumentation scope but no
- * ids.
+ * An unconvertible id throws ERR_INVALID_ARG_TYPE in parseId, failing the queue
+ * job through every retry attempt. The dominant real-world source is an OTLP
+ * *logs* export sent to the traces endpoint — ResourceLogs and ResourceSpans
+ * share protobuf field numbers, so log records decode into spans that carry a
+ * valid instrumentation scope but no ids at all.
  *
  * Non-array collections cannot be converted either: the worker iterates the
  * same fields behind a `?? []` fallback, which does not guard a non-nullish
@@ -186,7 +147,7 @@ export function validateOtelSpanIds(
 
         const spanReasons: string[] = [];
         for (const kind of ["traceId", "spanId"] as const) {
-          const reason = getOtelIdRejectionReason(span?.[kind], kind);
+          const reason = getOtelIdRejectionReason(span?.[kind]);
           if (reason) spanReasons.push(`${kind}:${reason}`);
         }
         if (spanReasons.length === 0) continue;

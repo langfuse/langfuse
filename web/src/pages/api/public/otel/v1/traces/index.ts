@@ -177,8 +177,8 @@ export default withMiddlewares({
         if (idValidation.invalidSpanCount > 0) {
           problems.push(
             `${idValidation.invalidSpanCount} of ${idValidation.totalSpanCount} ` +
-              `span(s) have a missing or malformed traceId/spanId — a traceId must ` +
-              `be 16 bytes (32 hex chars) and a spanId 8 bytes (16 hex chars)`,
+              `span(s) are missing a traceId or spanId, or carry one that cannot ` +
+              `be decoded — each must be a string or a byte array`,
           );
         }
         if (idValidation.malformedCollectionCount > 0) {
