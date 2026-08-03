@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { Search, X, MoreHorizontal } from "lucide-react";
@@ -25,8 +25,8 @@ interface MultiSelectComboboxProps<T> {
   showSelectedItemsInInput?: boolean;
   showSearchIcon?: boolean;
   dropdownClassName?: string;
-  /** Square the left corners so the control can sit flush against a left-adjacent element. */
-  flushLeft?: boolean;
+  /** Optional label rendered as a chip flush against the left edge of the control. */
+  labelLeft?: ReactNode;
 }
 
 export function MultiSelectCombobox<T>({
@@ -46,7 +46,7 @@ export function MultiSelectCombobox<T>({
   showSelectedItemsInInput = true,
   showSearchIcon = true,
   dropdownClassName,
-  flushLeft = false,
+  labelLeft,
 }: MultiSelectComboboxProps<T>) {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -139,12 +139,17 @@ export function MultiSelectCombobox<T>({
   return (
     <div className="space-y-2">
       {/* Custom Input with Embedded Pills */}
-      <div className="relative">
+      <div className="relative flex items-center">
+        {labelLeft && (
+          <div className="border-input bg-muted/30 flex h-8 w-auto shrink-0 items-center rounded-l-md border px-3 text-xs">
+            {labelLeft}
+          </div>
+        )}
         <div
           ref={containerRef}
           className={cn(
-            "border-input bg-background flex h-8 min-h-8 w-full overflow-hidden rounded-md border text-xs",
-            flushLeft && "rounded-l-none",
+            "border-input bg-background flex h-8 min-h-8 min-w-0 flex-1 overflow-hidden rounded-md border text-xs",
+            labelLeft && "rounded-l-none",
           )}
           style={{ overflowAnchor: "none" }}
         >

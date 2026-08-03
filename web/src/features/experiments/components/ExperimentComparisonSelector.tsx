@@ -75,7 +75,7 @@ export function ExperimentComparisonSelector({
   return (
     <div className="space-y-2">
       <MultiSelectCombobox<ExperimentOption>
-        flushLeft
+        labelLeft="Experiment selection"
         selectedItems={selectedExperiments}
         onItemsChange={handleItemsChange}
         searchQuery={searchQuery}
