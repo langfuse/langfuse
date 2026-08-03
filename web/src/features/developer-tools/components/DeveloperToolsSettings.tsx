@@ -23,7 +23,7 @@ const ManageApiKeysButton = ({ projectId }: { projectId: string }) => (
 );
 
 export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
-  const baseUrl = useLangfuseBaseUrl();
+  const baseUrl = useLangfuseBaseUrl().replace(/\/+$/, "");
 
   return (
     <div>
