@@ -266,6 +266,27 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(Object.values(applied.params)).toContainEqual(["181"]);
   });
 
+  it("treats an empty observation release as null", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "release",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    expect(filter.apply().query).toContain(
+      `(e.release = '' OR e.release IS NULL)`,
+    );
+  });
+
   it("builds a direct grouped query for one boolean filter option column", () => {
     const built = buildEventsFilterOptionColumnQuery({
       projectId: "test-project",
