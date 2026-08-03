@@ -50,6 +50,16 @@ describe("getOtelIdRejectionReason", () => {
       value: { data: [1, 2, 3, 4] },
       reason: "not_an_id",
     },
+    // Buffer.from also accepts any object with a numeric `length` and
+    // zero-fills that many bytes. Probing it here would let a tiny request body
+    // block the shared web event loop for seconds, so array-likes are matched by
+    // shape and rejected. If this ever regresses to calling Buffer.from, this
+    // row starts passing the value through and the test fails.
+    {
+      shape: "a bare array-like",
+      value: { length: 8 },
+      reason: "not_an_id",
+    },
   ] as const)("rejects $shape as $reason", ({ value, reason }) => {
     expect(getOtelIdRejectionReason(value)).toBe(reason);
   });
@@ -95,6 +105,31 @@ describe("validateOtelSpanIds", () => {
       ]),
     );
     expect(result).toMatchObject({ totalSpanCount: 1, invalidSpanCount: 0 });
+  });
+
+  // parentSpanId reaches parseId too, so a present-but-unconvertible one crashes
+  // the worker exactly like a bad traceId. Absent is the common case and stays
+  // valid, since the worker only converts it when truthy.
+  it("rejects an unconvertible parentSpanId", () => {
+    const result = validateOtelSpanIds(
+      wrap([{ traceId: TRACE_ID, spanId: SPAN_ID, parentSpanId: 42 }]),
+    );
+    expect(result.invalidSpanCount).toBe(1);
+    expect(result.reasonCounts).toEqual({ "parentSpanId:not_an_id": 1 });
+  });
+
+  it.each([
+    { shape: "omitted", span: { traceId: TRACE_ID, spanId: SPAN_ID } },
+    {
+      shape: "an empty string",
+      span: { traceId: TRACE_ID, spanId: SPAN_ID, parentSpanId: "" },
+    },
+    {
+      shape: "a valid hex string",
+      span: { traceId: TRACE_ID, spanId: SPAN_ID, parentSpanId: SPAN_ID },
+    },
+  ])("accepts a parentSpanId that is $shape", ({ span }) => {
+    expect(validateOtelSpanIds(wrap([span])).invalidSpanCount).toBe(0);
   });
 
   // Doubles as the happy path: the two valid spans must not be flagged.

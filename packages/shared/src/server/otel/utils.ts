@@ -20,22 +20,24 @@ export function getOtelIdRejectionReason(
   // Uint8Array/Buffer from a protobuf decode, int arrays from the Python SDK.
   if (value instanceof Uint8Array || Array.isArray(value)) return null;
 
-  if (typeof value === "object") {
-    // Rarer object shapes: ask Buffer.from rather than guess at its rules.
-    // Checked against the raw value on purpose — the worker's processToEvent
-    // path (OtelIngestionProcessor.ts:322) passes it straight to parseId
-    // without the `?.data` unwrap the other call sites apply, so
-    // `{ data: [...] }` lacking a `type: "Buffer"` tag throws there and has to
-    // be rejected here, while `{ type: "Buffer", data: [...] }` is fine.
-    try {
-      Buffer.from(value as unknown as Uint8Array);
-      return null;
-    } catch {
-      return "not_an_id";
-    }
+  // A Buffer that has been through JSON. Matched explicitly rather than by
+  // probing Buffer.from, which must never see attacker-controlled input on the
+  // request path: it also accepts any object carrying a numeric `length` and
+  // eagerly zero-fills that many bytes, so `{ length: 8e8 }` in a 94-byte body
+  // would block the shared web event loop for seconds. Pathological array-likes
+  // are therefore rejected here even though Buffer.from would accept them.
+  if (
+    typeof value === "object" &&
+    (value as { type?: unknown }).type === "Buffer" &&
+    Array.isArray((value as { data?: unknown }).data)
+  ) {
+    return null;
   }
 
-  // Numbers, booleans and symbols throw in Buffer.from.
+  // Numbers, booleans and every other object shape throw in Buffer.from —
+  // including the untagged `{ data: [...] }` envelope, which the worker's
+  // processToEvent path (OtelIngestionProcessor.ts:322) hands to parseId
+  // without the `?.data` unwrap the other call sites apply.
   return "not_an_id";
 }
 
@@ -67,8 +69,9 @@ export interface OtelSpanIdValidationResult {
 
 /**
  * Walk a decoded OTLP trace export and report everything that makes it
- * unprocessable downstream: spans whose traceId or spanId cannot be converted,
- * and `scopeSpans`/`spans` fields that are present but not arrays.
+ * unprocessable downstream: spans whose traceId, spanId or (when present)
+ * parentSpanId cannot be converted, and `scopeSpans`/`spans` fields that are
+ * present but not arrays.
  *
  * An unconvertible id throws ERR_INVALID_ARG_TYPE in parseId, failing the queue
  * job through every retry attempt. The dominant real-world source is an OTLP
@@ -141,6 +144,13 @@ export function validateOtelSpanIds(
         for (const kind of ["traceId", "spanId"] as const) {
           const reason = getOtelIdRejectionReason(span?.[kind]);
           if (reason) spanReasons.push(`${kind}:${reason}`);
+        }
+        // parentSpanId is optional and the worker only converts it when truthy
+        // (OtelIngestionProcessor.ts:325), so an absent one is legitimate and
+        // only a present-but-unconvertible value crashes there.
+        if (span?.parentSpanId) {
+          const reason = getOtelIdRejectionReason(span.parentSpanId);
+          if (reason) spanReasons.push(`parentSpanId:${reason}`);
         }
         if (spanReasons.length === 0) continue;
 
