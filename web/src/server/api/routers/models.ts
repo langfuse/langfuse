@@ -28,6 +28,30 @@ const ModelAllOptions = z.object({
   ...paginationZod,
 });
 
+const modelNameUniqueConstraintColumns = [
+  "project_id",
+  "model_name",
+  "start_date",
+  "unit",
+] as const;
+
+const isModelNameUniqueConstraintError = (error: unknown): boolean => {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== "P2002"
+  ) {
+    return false;
+  }
+
+  const target = error.meta?.target;
+  if (!Array.isArray(target)) return false;
+
+  return (
+    target.length === modelNameUniqueConstraintColumns.length &&
+    modelNameUniqueConstraintColumns.every((column) => target.includes(column))
+  );
+};
+
 const paginateArray = <T>(params: {
   limit: number;
   page: number;
@@ -325,10 +349,7 @@ export const modelRouter = createTRPCRouter({
             },
           })
           .catch((error: unknown) => {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === "P2002"
-            ) {
+            if (isModelNameUniqueConstraintError(error)) {
               throw new TRPCError({
                 code: "BAD_REQUEST",
                 message: `Model name '${modelName}' already exists in project`,

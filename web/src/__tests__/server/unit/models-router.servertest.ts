@@ -6,7 +6,18 @@ import { Role } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 
-const createCaller = () => {
+const modelNameConstraintTarget = [
+  "project_id",
+  "model_name",
+  "start_date",
+  "unit",
+];
+
+const createCaller = ({
+  uniqueConstraintTarget = modelNameConstraintTarget,
+}: {
+  uniqueConstraintTarget?: string[];
+} = {}) => {
   const orgId = randomUUID();
   const projectId = randomUUID();
   const session: Session = {
@@ -64,7 +75,7 @@ const createCaller = () => {
           code: "P2002",
           clientVersion: "test",
           meta: {
-            target: ["project_id", "model_name", "start_date", "unit"],
+            target: uniqueConstraintTarget,
           },
         }),
       ),
@@ -110,6 +121,33 @@ describe("modelRouter.upsert", () => {
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
       message: `Model name '${modelName}' already exists in project`,
+    });
+  });
+
+  it("does not report a model name conflict for a primary key collision", async () => {
+    const { caller, projectId } = createCaller({
+      uniqueConstraintTarget: ["id"],
+    });
+    const modelName = `primary-key-race-${randomUUID()}`;
+
+    await expect(
+      caller.upsert({
+        modelId: randomUUID(),
+        projectId,
+        modelName,
+        matchPattern: `^${modelName}$`,
+        pricingTiers: [
+          {
+            name: "Standard",
+            isDefault: true,
+            priority: 0,
+            conditions: [],
+            prices: { input: 1 },
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: "INTERNAL_SERVER_ERROR",
     });
   });
 });
