@@ -89,13 +89,20 @@ export interface OtelSpanIdValidationResult {
   totalSpanCount: number;
   invalidSpanCount: number;
   /**
-   * Invalid spans per `<field>:<reason>` pair, e.g.
+   * `scopeSpans`/`spans` fields that are present but not arrays. Counted
+   * separately from `invalidSpanCount` because there is no span to attribute
+   * them to — the collection that would hold the spans is itself unusable.
+   */
+  malformedCollectionCount: number;
+  /**
+   * Rejections per `<field>:<reason>` pair, e.g.
    * `{ "traceId:absent": 8, "spanId:wrong_length": 2 }`.
    *
    * A span with both a bad traceId and a bad spanId counts once under each, so
    * these can sum above `invalidSpanCount`. The key set is bounded by
-   * construction (2 fields x the reason union), which is what makes it safe to
-   * use as a metric tag and why it is not sampled.
+   * construction (the id fields x the reason union, plus the two
+   * `not_an_array` keys), which is what makes it safe to use as a metric tag
+   * and why it is not sampled.
    */
   reasonCounts: Record<string, number>;
   /** Deduped `<field>:<reason>` pairs, e.g. "traceId:absent". */
@@ -105,15 +112,22 @@ export interface OtelSpanIdValidationResult {
 }
 
 /**
- * Walk a decoded OTLP trace export and report spans whose traceId or spanId is
- * missing or malformed.
+ * Walk a decoded OTLP trace export and report everything that makes it
+ * unprocessable downstream: spans whose traceId or spanId is missing or
+ * malformed, and `scopeSpans`/`spans` fields that are present but not arrays.
  *
- * These payloads cannot be converted downstream: parseId either throws
- * ERR_INVALID_ARG_TYPE (absent id) or yields a truncated id that produces a
- * bogus trace. The dominant real-world source is an OTLP *logs* export sent to
- * the traces endpoint — ResourceLogs and ResourceSpans share protobuf field
- * numbers, so log records decode into spans that carry a valid instrumentation
- * scope but no ids.
+ * Bad ids cannot be converted: parseId either throws ERR_INVALID_ARG_TYPE
+ * (absent id) or yields a truncated id that produces a bogus trace. The
+ * dominant real-world source is an OTLP *logs* export sent to the traces
+ * endpoint — ResourceLogs and ResourceSpans share protobuf field numbers, so
+ * log records decode into spans that carry a valid instrumentation scope but no
+ * ids.
+ *
+ * Non-array collections cannot be converted either: the worker iterates the
+ * same fields behind a `?? []` fallback, which does not guard a non-nullish
+ * non-array, so `for...of` throws there and the job fails through every retry.
+ * Reporting them here lets the endpoint reject the payload instead. Absent and
+ * empty collections stay valid — only a present, non-array value is a defect.
  */
 export function validateOtelSpanIds(
   resourceSpans: unknown,
@@ -121,13 +135,19 @@ export function validateOtelSpanIds(
 ): OtelSpanIdValidationResult {
   let totalSpanCount = 0;
   let invalidSpanCount = 0;
+  let malformedCollectionCount = 0;
   const reasonCounts: Record<string, number> = {};
   const scopeNames = new Set<string>();
+
+  const countReason = (reason: string) => {
+    reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1;
+  };
 
   if (!Array.isArray(resourceSpans)) {
     return {
       totalSpanCount,
       invalidSpanCount,
+      malformedCollectionCount,
       reasonCounts,
       reasons: [],
       scopeNames: [],
@@ -135,15 +155,31 @@ export function validateOtelSpanIds(
   }
 
   for (const resourceSpan of resourceSpans) {
-    // Only iterate actual arrays. A `?? []` fallback still hands a non-nullish
-    // non-iterable (`{}`, a number) to for...of, which throws — and this runs on
-    // the request path, so that would surface as a 500 rather than a rejection.
+    // Never hand a non-array to for...of: a `?? []` fallback does not guard a
+    // non-nullish non-iterable (`{}`, a number), and this runs on the request
+    // path, so throwing here would surface as a 500 rather than a rejection.
     const scopeSpans = (resourceSpan as any)?.scopeSpans;
-    if (!Array.isArray(scopeSpans)) continue;
+    if (!Array.isArray(scopeSpans)) {
+      if (scopeSpans !== null && scopeSpans !== undefined) {
+        malformedCollectionCount++;
+        countReason("scopeSpans:not_an_array");
+      }
+      continue;
+    }
 
     for (const scopeSpan of scopeSpans) {
       const spans = scopeSpan?.spans;
-      if (!Array.isArray(spans)) continue;
+      if (!Array.isArray(spans)) {
+        if (spans !== null && spans !== undefined) {
+          malformedCollectionCount++;
+          countReason("spans:not_an_array");
+          const malformedScope = scopeSpan?.scope?.name;
+          if (malformedScope && scopeNames.size < maxSamples) {
+            scopeNames.add(String(malformedScope));
+          }
+        }
+        continue;
+      }
 
       for (const span of spans) {
         totalSpanCount++;
@@ -156,9 +192,7 @@ export function validateOtelSpanIds(
         if (spanReasons.length === 0) continue;
 
         invalidSpanCount++;
-        for (const reason of spanReasons) {
-          reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1;
-        }
+        spanReasons.forEach(countReason);
         const scopeName = scopeSpan?.scope?.name;
         if (scopeName && scopeNames.size < maxSamples) {
           scopeNames.add(String(scopeName));
@@ -170,6 +204,7 @@ export function validateOtelSpanIds(
   return {
     totalSpanCount,
     invalidSpanCount,
+    malformedCollectionCount,
     reasonCounts,
     reasons: Object.keys(reasonCounts),
     scopeNames: [...scopeNames],

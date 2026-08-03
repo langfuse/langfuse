@@ -112,11 +112,13 @@ export default withMiddlewares({
         return {};
       }
 
-      // Reject spans whose traceId/spanId is missing or malformed. These cannot
-      // be converted in the worker: parseId either throws ERR_INVALID_ARG_TYPE
-      // or produces a truncated id that creates a bogus trace. Failing here
-      // returns a non-retryable status instead of letting the payload burn six
-      // queue attempts before it is dropped anyway.
+      // Reject payloads the worker cannot convert: spans whose traceId/spanId is
+      // missing or malformed, and scopeSpans/spans fields that are present but
+      // not arrays. Both fail in the worker — parseId throws
+      // ERR_INVALID_ARG_TYPE or yields a truncated id, and a non-array
+      // collection throws on for...of — so the job burns all six attempts before
+      // being dropped anyway. Failing here returns a non-retryable status
+      // instead.
       //
       // The common source is an OTLP *logs* export pointed at this endpoint.
       // ResourceLogs and ResourceSpans share protobuf field numbers, so log
@@ -126,7 +128,10 @@ export default withMiddlewares({
       // so the batch is rejected as a unit and the response says so explicitly
       // rather than dropping spans silently.
       const idValidation = validateOtelSpanIds(resourceSpans);
-      if (idValidation.invalidSpanCount > 0) {
+      if (
+        idValidation.invalidSpanCount > 0 ||
+        idValidation.malformedCollectionCount > 0
+      ) {
         // One increment per reason, so a batch that mixes reasons splits across
         // them instead of attributing every rejected span to whichever reason
         // happened to come first. The tag set is bounded by construction.
@@ -139,22 +144,37 @@ export default withMiddlewares({
             { reason },
           );
         }
-        logger.warn("Rejecting OTEL trace export with invalid span ids", {
+        logger.warn("Rejecting unprocessable OTEL trace export", {
           projectId: auth.scope.projectId,
           invalidSpanCount: idValidation.invalidSpanCount,
+          malformedCollectionCount: idValidation.malformedCollectionCount,
           totalSpanCount: idValidation.totalSpanCount,
           reasonCounts: idValidation.reasonCounts,
           instrumentationScopes: idValidation.scopeNames,
           sdkName: req.headers["x-langfuse-sdk-name"],
         });
+
+        const problems: string[] = [];
+        if (idValidation.invalidSpanCount > 0) {
+          problems.push(
+            `${idValidation.invalidSpanCount} of ${idValidation.totalSpanCount} ` +
+              `span(s) have a missing or malformed traceId/spanId — a traceId must ` +
+              `be 16 bytes (32 hex chars) and a spanId 8 bytes (16 hex chars)`,
+          );
+        }
+        if (idValidation.malformedCollectionCount > 0) {
+          problems.push(
+            `${idValidation.malformedCollectionCount} scopeSpans/spans field(s) ` +
+              `are present but not arrays`,
+          );
+        }
+
         res.status(400);
         return {
           error:
-            `Invalid OTLP trace export: ${idValidation.invalidSpanCount} of ` +
-            `${idValidation.totalSpanCount} span(s) have a missing or malformed ` +
-            `traceId/spanId (${idValidation.reasons.join(", ")}). The entire export ` +
-            `was rejected and no spans were ingested. A traceId must be 16 bytes ` +
-            `(32 hex chars) and a spanId 8 bytes (16 hex chars). ` +
+            `Invalid OTLP trace export: ${problems.join("; ")} ` +
+            `(${idValidation.reasons.join(", ")}). The entire export was rejected ` +
+            `and no spans were ingested. ` +
             `Instrumentation scopes: ${idValidation.scopeNames.join(", ") || "unknown"}. ` +
             `This endpoint accepts OpenTelemetry traces only — if you are exporting ` +
             `OpenTelemetry logs, point your log exporter elsewhere.`,

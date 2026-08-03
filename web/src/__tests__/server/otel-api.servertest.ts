@@ -515,6 +515,21 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     expect(response.body.error).toContain("uvicorn.access");
   });
 
+  // The worker iterates scopeSpans/spans behind a `?? []` fallback that does not
+  // guard a non-nullish non-array, so this shape used to be accepted here and
+  // then fail the queue job through every retry attempt.
+  it("should reject collections that are present but not arrays", async () => {
+    const response = await makeAPICall<{ error: string }>(
+      "POST",
+      "/api/public/otel/v1/traces",
+      { resourceSpans: [{ resource: { attributes: [] }, scopeSpans: {} }] },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("not arrays");
+    expect(response.body.error).toContain("scopeSpans:not_an_array");
+  });
+
   // An OTLP *logs* export pointed at this endpoint. ResourceLogs and
   // ResourceSpans share protobuf field numbers, so log records decode into
   // spans that keep a valid instrumentation scope but carry no ids, which used

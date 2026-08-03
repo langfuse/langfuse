@@ -145,9 +145,7 @@ describe("validateOtelSpanIds", () => {
     });
   });
 
-  // This runs on the request path, so a malformed collection must not throw:
-  // that would surface as a 500 instead of a rejection. A `?? []` fallback is
-  // not enough, since a non-nullish non-iterable still breaks for...of.
+  // Absent and empty collections are legitimate and must stay accepted.
   it.each([
     { shape: "empty array", payload: [] },
     { shape: "non-array", payload: undefined },
@@ -156,14 +154,52 @@ describe("validateOtelSpanIds", () => {
       shape: "null scope and spans",
       payload: [{ scopeSpans: [{ scope: null, spans: null }] }],
     },
-    { shape: "object scopeSpans", payload: [{ scopeSpans: {} }] },
-    { shape: "numeric scopeSpans", payload: [{ scopeSpans: 42 }] },
-    { shape: "string scopeSpans", payload: [{ scopeSpans: "nope" }] },
-    { shape: "object spans", payload: [{ scopeSpans: [{ spans: {} }] }] },
-    { shape: "numeric spans", payload: [{ scopeSpans: [{ spans: 7 }] }] },
-  ])("tolerates $shape without throwing", ({ payload }) => {
+    { shape: "empty spans", payload: [{ scopeSpans: [{ spans: [] }] }] },
+  ])("accepts $shape", ({ payload }) => {
+    const result = validateOtelSpanIds(payload);
+    expect(result.invalidSpanCount).toBe(0);
+    expect(result.malformedCollectionCount).toBe(0);
+  });
+
+  // A present-but-non-array collection throws on for...of. The worker iterates
+  // these same fields behind a `?? []` fallback that does not guard it, so the
+  // job would fail through every retry — the failure mode this validation exists
+  // to prevent. Report it so the endpoint rejects, and never throw here, since
+  // that would surface as a 500.
+  it.each([
+    {
+      shape: "object scopeSpans",
+      payload: [{ scopeSpans: {} }],
+      reason: "scopeSpans:not_an_array",
+    },
+    {
+      shape: "numeric scopeSpans",
+      payload: [{ scopeSpans: 42 }],
+      reason: "scopeSpans:not_an_array",
+    },
+    {
+      shape: "string scopeSpans",
+      payload: [{ scopeSpans: "nope" }],
+      reason: "scopeSpans:not_an_array",
+    },
+    {
+      shape: "object spans",
+      payload: [{ scopeSpans: [{ spans: {} }] }],
+      reason: "spans:not_an_array",
+    },
+    {
+      shape: "numeric spans",
+      payload: [{ scopeSpans: [{ spans: 7 }] }],
+      reason: "spans:not_an_array",
+    },
+  ])("reports $shape without throwing", ({ payload, reason }) => {
     expect(() => validateOtelSpanIds(payload)).not.toThrow();
-    expect(validateOtelSpanIds(payload).invalidSpanCount).toBe(0);
+    const result = validateOtelSpanIds(payload);
+    expect(result.malformedCollectionCount).toBe(1);
+    expect(result.reasons).toEqual([reason]);
+    // No span was reachable, so nothing is attributed to a span.
+    expect(result.invalidSpanCount).toBe(0);
+    expect(result.totalSpanCount).toBe(0);
   });
 
   // Scope names are client-controlled and unbounded, so the samples that reach
