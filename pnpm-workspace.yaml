@@ -24,7 +24,9 @@ minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 minimumReleaseAgeExclude:
-  - "brace-expansion@5.0.8"
+  - "brace-expansion@1.1.18"
+  - "brace-expansion@2.1.4"
+  - "brace-expansion@5.0.9"
   - "@eslint/js@10.0.1"
   - "eslint@10.8.0"
   - "postcss@8.5.22"

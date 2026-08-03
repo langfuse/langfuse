@@ -10,6 +10,7 @@ import {
   type DatasetItemMediaField,
   InternalServerError,
   LangfuseNotFoundError,
+  MediaAssociationOrigin,
 } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
@@ -58,6 +59,7 @@ export async function createMediaUploadUrl(params: {
         observationId,
         mediaId,
         field,
+        origin: MediaAssociationOrigin.CLIENT_UPLOAD,
       });
     }
   };

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { SubHeader } from "@/src/components/layouts/header";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 import {
   ArrowRight,

@@ -4,11 +4,10 @@ import {
   buildWidgetOrderBy,
   getResultUnit,
   isV2BreakdownChart,
-  requiresV2,
+  resolveWidgetRenderVersion,
   toQueryChartConfig,
   validateQuery,
   type QueryType,
-  type ViewVersion,
   type metricAggregations,
   type views,
 } from "@langfuse/shared/query";
@@ -137,21 +136,18 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
-  const widgetRequiresV2 = requiresV2({
-    view: widget.data?.view ?? "traces",
-    dimensions: widget.data?.dimensions ?? [],
-    measures:
-      widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
-    filters: widget.data?.filters ?? [],
+  const metricsVersion = resolveWidgetRenderVersion({
+    shape: {
+      view: widget.data?.view ?? "traces",
+      dimensions: widget.data?.dimensions ?? [],
+      measures:
+        widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ??
+        [],
+      filters: widget.data?.filters ?? [],
+    },
+    persistedMinVersion: widget.data?.minVersion,
+    newestReadableVersion: isBetaEnabled ? "v2" : "v1",
   });
-  // If widget requires v2 features (minVersion >= 2), must use v2.
-  // Otherwise follow the beta toggle.
-  const metricsVersion: ViewVersion =
-    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
-      ? "v2"
-      : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
-        ? "v2"
-        : "v1";
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",

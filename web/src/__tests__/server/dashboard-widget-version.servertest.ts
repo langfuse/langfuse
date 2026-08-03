@@ -3,6 +3,7 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { DashboardService } from "@langfuse/shared/src/server";
 import { DashboardWidgetViews } from "@langfuse/shared/src/db";
 import { prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,
   LANGFUSE_HOME_DASHBOARD_ID,
@@ -20,6 +21,7 @@ describe("dashboard widget minVersion", () => {
   let projectId: string;
   let orgId: string;
   let userId: string;
+  const originalWriteMode = sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
   beforeAll(async () => {
     const org = await createOrgProjectAndApiKey();
@@ -44,7 +46,11 @@ describe("dashboard widget minVersion", () => {
     });
   });
 
-  function makeCaller() {
+  afterEach(() => {
+    sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+  });
+
+  function makeCaller(v4BetaEnabled = false) {
     const session: Session = {
       expires: "1",
       user: {
@@ -83,6 +89,7 @@ describe("dashboard widget minVersion", () => {
           experimentsV4Enabled: false,
           searchBar: false,
         },
+        v4BetaEnabled,
         admin: true,
       },
       environment: {} as any,
@@ -143,6 +150,13 @@ describe("dashboard widget minVersion", () => {
         [{ column: "experimentDatasetId" }],
         true,
       ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "isRootObservation" }],
+        true,
+      ],
       // v1-compatible fields
       [
         "observations",
@@ -170,6 +184,19 @@ describe("dashboard widget minVersion", () => {
         );
       },
     );
+  });
+
+  it("rejects v2 widget shapes at the tRPC boundary on a legacy deployment", async () => {
+    sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+
+    await expect(
+      makeCaller().dashboardWidgets.create({
+        ...baseWidgetInput,
+        view: "observations",
+        projectId,
+        metrics: [{ measure: "traceId", agg: "uniq" }],
+      }),
+    ).rejects.toThrow(/v2-only fields/i);
   });
 
   describe("observations release filter mapping", () => {
@@ -217,36 +244,40 @@ describe("dashboard widget minVersion", () => {
   // ── Service layer tests ─────────────────────────────────────────────
 
   describe("DashboardService", () => {
-    it("should default minVersion to 1 when not provided", async () => {
+    it("persists v1 shapes and rejects v2 creates and updates on legacy deployments", async () => {
+      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const v2Input = {
+        ...baseWidgetInput,
+        metrics: [{ measure: "traceId", agg: "uniq" }],
+      };
+
+      await expect(
+        DashboardService.createWidget(projectId, v2Input, userId),
+      ).rejects.toThrow(/v2-only fields/i);
+
       const widget = await DashboardService.createWidget(
         projectId,
         baseWidgetInput,
         userId,
       );
-
       expect(widget.minVersion).toBe(1);
+
+      await expect(
+        DashboardService.updateWidget(projectId, widget.id, v2Input, userId),
+      ).rejects.toThrow(/v2-only fields/i);
     });
 
-    it("should persist minVersion=2 when explicitly provided", async () => {
+    it("derives v2, preserves it on dual writes, and heals it on legacy", async () => {
       const widget = await DashboardService.createWidget(
         projectId,
-        { ...baseWidgetInput, minVersion: 2 },
+        {
+          ...baseWidgetInput,
+          metrics: [{ measure: "traceId", agg: "uniq" }],
+        },
         userId,
       );
 
       expect(widget.minVersion).toBe(2);
-
-      const fetched = await DashboardService.getWidget(widget.id, projectId);
-      expect(fetched).not.toBeNull();
-      expect(fetched!.minVersion).toBe(2);
-    });
-
-    it("should preserve minVersion when updating without specifying it", async () => {
-      const widget = await DashboardService.createWidget(
-        projectId,
-        { ...baseWidgetInput, minVersion: 2 },
-        userId,
-      );
 
       const updated = await DashboardService.updateWidget(
         projectId,
@@ -255,25 +286,29 @@ describe("dashboard widget minVersion", () => {
         userId,
       );
 
-      expect(updated.minVersion).toBe(2);
-      expect(updated.name).toBe("Updated Widget");
-    });
+      expect(updated).toMatchObject({
+        minVersion: 2,
+        name: "Updated Widget",
+      });
 
-    it("should allow changing minVersion on update", async () => {
-      const widget = await DashboardService.createWidget(
-        projectId,
-        { ...baseWidgetInput, minVersion: 1 },
-        userId,
-      );
-
-      const updated = await DashboardService.updateWidget(
+      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const healed = await DashboardService.updateWidget(
         projectId,
         widget.id,
-        { ...baseWidgetInput, minVersion: 2 },
+        baseWidgetInput,
         userId,
       );
+      expect(healed.minVersion).toBe(1);
+    });
 
-      expect(updated.minVersion).toBe(2);
+    it("derives minVersion from the shape instead of v4 session state", async () => {
+      sharedEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const result = await makeCaller(true).dashboardWidgets.create({
+        ...baseWidgetInput,
+        view: "observations",
+        projectId,
+      });
+      expect(result.widget.minVersion).toBe(1);
     });
 
     it("should preserve minVersion when copying widget to project", async () => {
@@ -553,7 +588,6 @@ describe("dashboard widget minVersion", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       const fetched = await caller.dashboardWidgets.get({
@@ -577,7 +611,6 @@ describe("dashboard widget minVersion", () => {
           filters: [],
           chartType: "HISTOGRAM",
           chartConfig: { type: "HISTOGRAM", bins: 10 },
-          minVersion: 2,
         }),
       ).rejects.toThrow(/not valid for measure/);
     });
@@ -594,7 +627,6 @@ describe("dashboard widget minVersion", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       expect(result.success).toBe(true);
@@ -612,7 +644,6 @@ describe("dashboard widget minVersion", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       await expect(
@@ -627,7 +658,6 @@ describe("dashboard widget minVersion", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         }),
       ).rejects.toThrow(/not valid for measure/);
     });
@@ -657,9 +687,10 @@ describe("dashboard widget minVersion", () => {
       ["id", true],
       ["traceId", true],
       ["parentObservationId", true],
+      ["isRootObservation", true],
       ["name", false],
     ])(
-      "create with dimension '%s' on v2 observations → rejected=%s",
+      "create with dimension '%s' on shape-required v2 observations → rejected=%s",
       async (field, shouldReject) => {
         const caller = makeCaller();
         const promise = caller.dashboardWidgets.create({
@@ -668,11 +699,10 @@ describe("dashboard widget minVersion", () => {
           description: `${field} dimension on v2`,
           view: "observations",
           dimensions: [{ field }],
-          metrics: [{ measure: "count", agg: "count" }],
+          metrics: [{ measure: "traceId", agg: "uniq" }],
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         });
 
         if (shouldReject) {
@@ -691,11 +721,10 @@ describe("dashboard widget minVersion", () => {
         description: "will try hidden dim update",
         view: "observations",
         dimensions: [{ field: "name" }],
-        metrics: [{ measure: "count", agg: "count" }],
+        metrics: [{ measure: "traceId", agg: "uniq" }],
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        minVersion: 2,
       });
 
       await expect(
@@ -710,9 +739,30 @@ describe("dashboard widget minVersion", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         }),
       ).rejects.toThrow(/not available for widgets/);
     });
+
+    it.each([undefined, 1])(
+      "rejects isRootObservation as a breakdown when minVersion is %s",
+      async (minVersion) => {
+        const caller = makeCaller();
+
+        await expect(
+          caller.dashboardWidgets.create({
+            projectId,
+            name: "semantic root breakdown",
+            description: "root status is filter-only",
+            view: "observations",
+            dimensions: [{ field: "isRootObservation" }],
+            metrics: [{ measure: "count", agg: "count" }],
+            filters: [],
+            chartType: "NUMBER",
+            chartConfig: { type: "NUMBER" },
+            ...(minVersion === undefined ? {} : { minVersion }),
+          }),
+        ).rejects.toThrow(/not available for widgets/);
+      },
+    );
   });
 });

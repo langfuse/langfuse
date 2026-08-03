@@ -125,6 +125,7 @@ export const OversizedField = meta.story({
     open: true,
     status: "ready",
     url: "data:text/plain,original%20oversized%20field",
+    contentLength: 2.5 * 1024 * 1024,
   },
 });
 
