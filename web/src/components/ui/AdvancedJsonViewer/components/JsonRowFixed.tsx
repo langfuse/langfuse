@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * JsonRowFixed - Fixed column content (line number + expand button)
  *

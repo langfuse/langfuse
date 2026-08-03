@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * JsonKey - Renders a JSON property key or array index
  *

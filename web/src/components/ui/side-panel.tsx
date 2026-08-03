@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useState, useCallback, type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";

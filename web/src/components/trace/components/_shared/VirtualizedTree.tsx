@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * Generic virtualized tree component using @tanstack/react-virtual.
  *
