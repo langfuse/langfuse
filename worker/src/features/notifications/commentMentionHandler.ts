@@ -120,6 +120,22 @@ export async function handleCommentMentionNotification(
     // Create lookup map for O(1) access
     const userMap = new Map(projectUsers.map((u) => [u.id, u]));
 
+    const notificationPreferences =
+      await prisma.notificationPreference.findMany({
+        where: {
+          projectId,
+          channel: "EMAIL",
+          type: "COMMENT_MENTION",
+          userId: { in: mentionedUserIds },
+        },
+        select: { userId: true, enabled: true },
+      });
+    const disabledUserIds = new Set(
+      notificationPreferences
+        .filter((preference) => !preference.enabled)
+        .map((preference) => preference.userId),
+    );
+
     // Get author name if author is a project/org member
     let authorName: string | undefined = undefined;
     if (comment.authorUserId && userMap.has(comment.authorUserId)) {
@@ -158,18 +174,7 @@ export async function handleCommentMentionNotification(
         // Check notification preference (default: enabled)
         // If preference exists and is disabled, skip
         // If user/project was deleted, the preference won't exist (cascade delete)
-        const preference = await prisma.notificationPreference.findUnique({
-          where: {
-            userId_projectId_channel_type: {
-              userId,
-              projectId,
-              channel: "EMAIL",
-              type: "COMMENT_MENTION",
-            },
-          },
-        });
-
-        if (preference && !preference.enabled) {
+        if (disabledUserIds.has(userId)) {
           logger.info(
             `User ${userId} has disabled email notifications for comment mentions in project ${projectId}. Skipping.`,
           );
