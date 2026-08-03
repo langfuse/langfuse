@@ -1264,7 +1264,7 @@ const LoadedSessionEventsPage: React.FC<{
   const hasSessionControls =
     !isModernSessionEnabled ||
     Boolean(session.users?.length || session.scores.length);
-  const excludeModernSessionObservation = useCallback(
+  const excludeObservationsByName = useCallback(
     (name: string) => {
       const existingFilter = queryFilter.filterState.find(
         (
@@ -1778,7 +1778,7 @@ const LoadedSessionEventsPage: React.FC<{
                   showInlineToolCalls={showInlineToolCalls}
                   showSystemPrompt={showSystemPrompt}
                   sidebarFilterControls={sidebarFilterControls}
-                  onExcludeObservation={excludeModernSessionObservation}
+                  onExcludeObservation={excludeObservationsByName}
                 />
               )}
             </ModernSessionFilterControls>
