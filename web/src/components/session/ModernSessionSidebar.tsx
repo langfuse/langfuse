@@ -465,7 +465,7 @@ export function ModernSessionSidebar(
   );
   const filterSummaryLabel = filterControls.activeViewName
     ? `View: ${filterControls.activeViewName}`
-    : `${filterControls.activeFilterCount} active filters`;
+    : `${filterControls.activeFilterCount} active filter${filterControls.activeFilterCount === 1 ? "" : "s"}`;
   const activeFilterQuery = filterStateToQueryText(
     filterControls.activeFilters,
   );
