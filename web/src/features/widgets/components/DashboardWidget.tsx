@@ -488,8 +488,9 @@ export function DashboardWidget({
       view as z.infer<typeof views>,
       mergedFilters,
       dateRange,
+      isBetaEnabled ? "v4" : "v3",
     );
-  }, [projectId, widget.data, filterState, dateRange]);
+  }, [projectId, widget.data, filterState, dateRange, isBetaEnabled]);
 
   const handleViewAsTable = () => {
     if (!tableView) return;
