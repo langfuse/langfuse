@@ -78,6 +78,7 @@ export * from "../utils/IORepresentation/chatML/types";
 export * from "../server/ingestion/types";
 export * from "../server/ingestion/modelMatch";
 export * from "./ingestion/ingestionAttribution";
+export * from "./ingestion/reservedInternalEnvironments";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/validateAndInflateScore";
 export * from "./ingestion/extractToolsBackend";

@@ -44,6 +44,10 @@ import {
   markProjectS3Slowdown,
 } from "../redis/s3SlowdownTracking";
 import { markProjectIngestFailure } from "../redis/ingestionFailureTracking";
+import {
+  getIngestionEventEnvironment,
+  shouldDropPublicIngestionForEnvironment,
+} from "./reservedInternalEnvironments";
 
 let s3StorageServiceClient: StorageService;
 
@@ -163,6 +167,7 @@ export const processEventBatch = async (
 
   const validationErrors: { id: string; error: unknown }[] = [];
   const authenticationErrors: { id: string; error: unknown }[] = [];
+  const droppedReservedEnvironmentEventIds: string[] = [];
 
   const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
   const batch: z.infer<typeof ingestionSchema>[] = input
@@ -193,6 +198,29 @@ export const processEventBatch = async (
       if (event.type === eventTypes.SDK_LOG) {
         // Log SDK_LOG events, but remove them from further processing
         logger.info("SDK Log Event", { event });
+        return [];
+      }
+      if (
+        shouldDropPublicIngestionForEnvironment(
+          getIngestionEventEnvironment(event),
+          { isLangfuseInternal, attribution },
+        )
+      ) {
+        logger.debug(
+          "Dropping public ingestion event for reserved internal environment",
+          {
+            environment: getIngestionEventEnvironment(event),
+            eventId: event.id,
+            eventType: event.type,
+            projectId: authCheck.scope.projectId,
+          },
+        );
+        recordIncrement(
+          "langfuse.ingestion.dropped_reserved_internal_environment",
+          1,
+          { source },
+        );
+        droppedReservedEnvironmentEventIds.push(event.id);
         return [];
       }
       return [event];
@@ -412,7 +440,10 @@ export const processEventBatch = async (
 
   return aggregateBatchResult(
     [...validationErrors, ...authenticationErrors],
-    sortedBatch.map((event) => ({ id: event.id, result: event })),
+    [
+      ...sortedBatch.map((event) => ({ id: event.id, result: event })),
+      ...droppedReservedEnvironmentEventIds.map((id) => ({ id, result: {} })),
+    ],
     authCheck.scope.projectId,
   );
 };

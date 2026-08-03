@@ -18,8 +18,11 @@ describe("isEvalTargetEnvironmentAllowed", () => {
       "langfuse-llm-as-a-judge",
       "llm-as-a-judge",
       "langfuse-code-eval",
+      "code-eval",
       "langfuse-natural-language-filter",
+      "natural-language-filter",
       "langfuse-in-app-agent",
+      "in-app-agent",
       "langfuse",
     ]) {
       expect(isEvalTargetEnvironmentAllowed(environment)).toBe(false);

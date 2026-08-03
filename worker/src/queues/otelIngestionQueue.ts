@@ -22,6 +22,8 @@ import {
   ResourceSpan,
   type IngestionAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
+  getIngestionEventEnvironment,
+  shouldDropExternalIngestionForReservedEnvironment,
 } from "@langfuse/shared/src/server";
 import {
   applyIngestionMasking,
@@ -336,14 +338,38 @@ export const otelIngestionQueueProcessorBuilder = (
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
 
+      const shouldDropExternalReservedEnvironmentEvent = (
+        event: IngestionEventType,
+      ) =>
+        !isLangfuseInternal &&
+        shouldDropExternalIngestionForReservedEnvironment(
+          getIngestionEventEnvironment(event),
+          attribution,
+        );
+
+      const droppedExternalReservedEnvironmentCount = events.filter(
+        shouldDropExternalReservedEnvironmentEvent,
+      ).length;
+      if (droppedExternalReservedEnvironmentCount > 0) {
+        recordIncrement(
+          "langfuse.ingestion.dropped_reserved_internal_environment",
+          droppedExternalReservedEnvironmentCount,
+          { source: "otel" },
+        );
+      }
+
+      const filteredEvents = events.filter(
+        (event) => !shouldDropExternalReservedEnvironmentEvent(event),
+      );
+
       // Here, we split the events into observations and non-observations.
       // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
-      const traces = events.filter(
+      const traces = filteredEvents.filter(
         (e) => getClickhouseEntityType(e.type) !== "observation",
       );
       // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
       const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
-      const observations = events
+      const observations = filteredEvents
         .filter((e) => getClickhouseEntityType(e.type) === "observation")
         .map((o) => ingestionSchema.safeParse(o))
         .flatMap((o) => {
@@ -519,7 +545,16 @@ export const otelIngestionQueueProcessorBuilder = (
       //
       // Both require enriched event records with trace-level attributes
       // (userId, sessionId, tags, release) that processToEvent provides.
-      const eventInputs = processor.processToEvent(parsedSpans);
+      const eventInputs = processor
+        .processToEvent(parsedSpans)
+        .filter(
+          (eventInput) =>
+            isLangfuseInternal ||
+            !shouldDropExternalIngestionForReservedEnvironment(
+              eventInput.environment,
+              attribution,
+            ),
+        );
 
       if (eventInputs.length === 0) {
         return;

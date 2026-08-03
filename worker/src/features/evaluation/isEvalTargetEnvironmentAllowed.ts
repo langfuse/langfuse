@@ -1,16 +1,12 @@
-import { LangfuseInternalTraceEnvironment } from "@langfuse/shared/src/server";
-
-// Public ingestion strips the reserved `langfuse-` prefix from environments
-// originating outside Langfuse, including OpenRouter Broadcast callbacks.
-const PUBLIC_LLM_JUDGE_ENVIRONMENT = "llm-as-a-judge";
+import {
+  LangfuseInternalTraceEnvironment,
+  isInternalEnvironmentNamespace,
+} from "@langfuse/shared/src/server";
 
 export function isInternalEvalEnvironment(
   environment: string | null | undefined,
 ): boolean {
-  return (
-    environment?.startsWith("langfuse") === true ||
-    environment === PUBLIC_LLM_JUDGE_ENVIRONMENT
-  );
+  return isInternalEnvironmentNamespace(environment);
 }
 
 /**
