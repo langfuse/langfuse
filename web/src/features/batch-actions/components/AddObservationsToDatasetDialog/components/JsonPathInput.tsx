@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useState, useCallback, useMemo } from "react";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { StreamLanguage } from "@codemirror/language";

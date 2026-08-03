@@ -1,7 +1,7 @@
 import startCase from "lodash/startCase";
 import { type z } from "zod";
 
-import { requiresV2, type metricAggregations } from "@langfuse/shared/query";
+import { type metricAggregations } from "@langfuse/shared/query";
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
@@ -194,14 +194,6 @@ function legacyReconstruct(iv: WidgetInitialValues): WidgetSavePayload {
     filters: normalizedUserFilters,
     chartType: iv.chartType,
     chartConfig,
-    minVersion: requiresV2({
-      view: iv.view,
-      dimensions: saveDimensions,
-      measures: saveMetrics.map((m) => ({ measure: m.measure })),
-      filters: normalizedUserFilters,
-    })
-      ? 2
-      : 1,
   };
 }
 
@@ -358,7 +350,6 @@ describe("widget form adapters round-trip parity", () => {
       filters: [],
       chartType: "LINE_TIME_SERIES",
       chartConfig: { type: "LINE_TIME_SERIES" },
-      minVersion: 1,
     });
   });
 
@@ -396,6 +387,23 @@ describe("widget form adapters round-trip parity", () => {
     expect(payload.chartConfig).toEqual({ type: "NUMBER", row_limit: 100 });
     expect(payload.metrics).toEqual([{ measure: "count", agg: "count" }]);
     expect(payload.name).toBe("Count (Observations)");
+  });
+});
+
+describe("widget form view version", () => {
+  it("promotes a legacy widget when its current shape requires v2", () => {
+    expect(
+      resolveWidgetViewVersion({
+        view: "observations",
+        baseMinVersion: 1,
+        isBetaEnabled: false,
+        shape: {
+          dimensions: [{ field: "experimentName" }],
+          metrics: [{ measure: "count" }],
+          filters: [],
+        },
+      }),
+    ).toBe("v2");
   });
 });
 

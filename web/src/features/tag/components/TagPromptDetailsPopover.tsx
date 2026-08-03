@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";

@@ -179,47 +179,9 @@ Formula:
 price_per_token = price_per_mtok / 1_000_000
 ```
 
-## Common Price Keys by Provider
+## Provider Usage Keys
 
-### Anthropic Claude
-
-```json
-{
-  "input": "<base_input_price>",
-  "input_tokens": "<base_input_price>",
-  "output": "<output_price>",
-  "output_tokens": "<output_price>",
-  "cache_creation_input_tokens": "<cache_write_price>",
-  "input_cache_creation": "<cache_write_price>",
-  "cache_read_input_tokens": "<cache_read_price>",
-  "input_cache_read": "<cache_read_price>"
-}
-```
-
-### OpenAI
-
-```json
-{
-  "input": "<input_price>",
-  "input_cached_tokens": "<cached_input_price>",
-  "input_cache_read": "<cached_input_price>",
-  "output": "<output_price>"
-}
-```
-
-### Google Gemini
-
-```json
-{
-  "input": "<input_price>",
-  "input_modality_1": "<input_price>",
-  "prompt_token_count": "<input_price>",
-  "promptTokenCount": "<input_price>",
-  "input_cached_tokens": "<cached_price>",
-  "cached_content_token_count": "<cached_price>",
-  "output": "<output_price>",
-  "output_modality_1": "<output_price>",
-  "candidates_token_count": "<output_price>",
-  "candidatesTokenCount": "<output_price>"
-}
-```
+Use [provider-usage-key-matrix.md](provider-usage-key-matrix.md) as the single
+source of truth for OpenAI, Gemini, Anthropic, and Bedrock usage aliases. Do not
+copy a partial key set from this pricing-source reference or from an older model
+entry.

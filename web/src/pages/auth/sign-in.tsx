@@ -25,10 +25,10 @@ import {
   SiWordpress,
 } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
@@ -46,6 +46,14 @@ import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderB
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { Spinner } from "@/src/components/layouts/spinner";
+
+// The shared, intentionally-public demo identity created by the seed script
+// (packages/shared/scripts/seeder/seed-postgres.ts) and posted in every
+// preview PR comment (.github/workflows/preview-build.yml). Only used when
+// NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN is baked into the build.
+const PREVIEW_DEMO_USER_EMAIL = "demo@langfuse.com";
+const PREVIEW_DEMO_USER_PASSWORD = "password";
 
 const credentialAuthForm = z.object({
   email: z.email(),
@@ -646,6 +654,60 @@ export default function SignIn({
     }
   }
 
+  // Auto sign-in for disposable preview deployments: the flag is baked only
+  // into preview images (.github/workflows/preview-build.yml) whose seeded
+  // demo login is shared and public anyway. `?autoSignIn=false` opts out,
+  // e.g. to exercise the regular auth flows on a preview. NextAuth error
+  // redirects land on this page, so an error in the query keeps the form
+  // visible instead of silently signing in over it.
+  const autoSignInParam = router.query.autoSignIn;
+  const autoSignInOptedOut = Array.isArray(autoSignInParam)
+    ? autoSignInParam.includes("false")
+    : autoSignInParam === "false";
+  const previewAutoSignInEnabled =
+    env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN === "true" &&
+    authProviders.credentials &&
+    !autoSignInOptedOut &&
+    !nextAuthError;
+  const [previewAutoSignInPending, setPreviewAutoSignInPending] = useState(
+    previewAutoSignInEnabled,
+  );
+  const previewAutoSignInAttempted = useRef(false);
+  const sessionStatus = useSession().status;
+  useEffect(() => {
+    if (
+      !previewAutoSignInEnabled ||
+      previewAutoSignInAttempted.current ||
+      sessionStatus === "loading"
+    )
+      return;
+    previewAutoSignInAttempted.current = true;
+    if (sessionStatus === "authenticated") {
+      // already signed in — useAuthGuard navigates away from this page
+      return;
+    }
+    // re-arm in case the flag flipped enabled after mount (query-only nav)
+    setPreviewAutoSignInPending(true);
+    signIn("credentials", {
+      email: PREVIEW_DEMO_USER_EMAIL,
+      password: PREVIEW_DEMO_USER_PASSWORD,
+      callbackUrl: targetPath ?? "/",
+      redirect: false,
+    })
+      .then((result) => {
+        if (result?.ok) return; // session updates and useAuthGuard navigates
+        setPreviewAutoSignInPending(false);
+        setCredentialsFormError(
+          result?.error ?? "Automatic preview sign-in failed.",
+        );
+      })
+      .catch((error) => {
+        captureUnknownError("auth.signIn.previewAutoSignIn", error);
+        setPreviewAutoSignInPending(false);
+        setCredentialsFormError("Automatic preview sign-in failed.");
+      });
+  }, [previewAutoSignInEnabled, sessionStatus, targetPath]);
+
   /**
    * First-step handler ("Continue" button).
    * 1. Validates email.
@@ -717,6 +779,17 @@ export default function SignIn({
     } finally {
       setContinueLoading(false);
     }
+  }
+
+  if (previewAutoSignInEnabled && previewAutoSignInPending) {
+    return (
+      <>
+        <Head>
+          <title>Sign in | Langfuse</title>
+        </Head>
+        <Spinner message={`Signing in as ${PREVIEW_DEMO_USER_EMAIL}`} />
+      </>
+    );
   }
 
   return (

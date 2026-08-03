@@ -13,8 +13,9 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
+import { isMetricsV2Available } from "@/src/pages/api/public/v2/metrics";
 
-const hasV2Apis = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+const hasV2Apis = isMetricsV2Available();
 const maybe = hasV2Apis ? describe : describe.skip;
 
 describe("/api/public/v2/metrics API Endpoint", () => {
@@ -26,6 +27,24 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   const timestamp = new Date();
   const timeValue = timestamp.getTime() * 1000; // microseconds for events table
   const testMetadataValue = randomUUID();
+
+  it("gates v2 metrics on a non-legacy write mode", () => {
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    const originalPreviewOptIn = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+    (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+    try {
+      expect(isMetricsV2Available()).toBe(false);
+
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      expect(isMetricsV2Available()).toBe(true);
+    } finally {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+    }
+  });
 
   beforeAll(async () => {
     if (!hasV2Apis) {
@@ -216,6 +235,14 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       const query = {
         view: "observations",
         metrics: [{ measure: "latency", aggregation: "avg" }],
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+            type: "string",
+          },
+        ],
         fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
         toTimestamp: new Date().toISOString(),
       };
@@ -354,6 +381,111 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         expect(lower).toBeLessThanOrEqual(upper);
         expect(height).toBeGreaterThanOrEqual(0);
       });
+    });
+  });
+
+  maybe("Semantic root observation dimension", () => {
+    it("groups and filters physical and app roots independently of parent span", async () => {
+      const semanticRootTraceId = randomUUID();
+      const timestamp = Date.now() * 1000;
+      const observations = [
+        ["physical-root", "", false],
+        ["app-root-with-external-parent", "external-parent", true],
+        ["ordinary-child", "physical-root", false],
+      ] as const;
+
+      await createEventsCh(
+        observations.map(([name, parentSpanId, isAppRoot], index) =>
+          createEvent({
+            id: randomUUID(),
+            span_id: `${semanticRootTraceId}-${index}`,
+            trace_id: semanticRootTraceId,
+            project_id: projectId,
+            parent_span_id: parentSpanId,
+            is_app_root: isAppRoot,
+            type: "SPAN",
+            name,
+            start_time: timestamp + index,
+            end_time: timestamp + index + 1,
+          }),
+        ),
+      );
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() AS count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            params: { projectId, traceId: semanticRootTraceId },
+          });
+          expect(Number(result[0]?.count)).toBe(3);
+        },
+        5000,
+        10,
+      );
+
+      const baseQuery = {
+        view: "observations",
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: semanticRootTraceId,
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+      };
+
+      const groupedResponse = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(
+          JSON.stringify({
+            ...baseQuery,
+            dimensions: [{ field: "isRootObservation" }],
+          }),
+        )}`,
+      );
+
+      expect(groupedResponse.status).toBe(200);
+      const grouped = groupedResponse.body.data;
+      expect(grouped).toHaveLength(2);
+      expect(
+        Number(
+          grouped.find((row) => row.isRootObservation === true)?.count_count,
+        ),
+      ).toBe(2);
+      expect(
+        Number(
+          grouped.find((row) => row.isRootObservation === false)?.count_count,
+        ),
+      ).toBe(1);
+
+      const filteredResponse = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(
+          JSON.stringify({
+            ...baseQuery,
+            dimensions: [],
+            filters: [
+              ...baseQuery.filters,
+              {
+                column: "isRootObservation",
+                operator: "=",
+                value: true,
+                type: "boolean",
+              },
+            ],
+          }),
+        )}`,
+      );
+
+      expect(filteredResponse.status).toBe(200);
+      expect(filteredResponse.body.data).toHaveLength(1);
+      expect(Number(filteredResponse.body.data[0]?.count_count)).toBe(2);
     });
   });
 

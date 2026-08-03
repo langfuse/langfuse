@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useEffect, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
