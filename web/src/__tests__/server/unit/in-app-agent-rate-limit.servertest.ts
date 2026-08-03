@@ -1,6 +1,7 @@
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 
 const rateLimitRequestMock = vi.hoisted(() => vi.fn());
+const refundUserRateLimitMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   RateLimitService: {
@@ -69,5 +70,37 @@ describe("checkInAppAgentRateLimit", () => {
       checkInAppAgentRateLimit(scope, "user-a", "in-app-agent-run"),
     ).resolves.toBe(rateLimitResult);
     expect(rateLimitRequestMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("refunds the user bucket when the organization bucket rejects", async () => {
+    const organizationRateLimitResult = {
+      resource: "in-app-agent-run" as const,
+      scope,
+      points: 1_000,
+      remainingPoints: 0,
+      msBeforeNext: 60_000,
+      consumedPoints: 1_001,
+      isFirstInDuration: false,
+    };
+    rateLimitRequestMock
+      .mockResolvedValueOnce({
+        isRateLimited: () => false,
+        res: {
+          ...organizationRateLimitResult,
+          points: 500,
+          remainingPoints: 499,
+          consumedPoints: 1,
+        },
+        refund: refundUserRateLimitMock,
+      })
+      .mockResolvedValueOnce({
+        isRateLimited: () => true,
+        res: organizationRateLimitResult,
+      });
+
+    await expect(
+      checkInAppAgentRateLimit(scope, "user-a", "in-app-agent-run"),
+    ).resolves.toBe(organizationRateLimitResult);
+    expect(refundUserRateLimitMock).toHaveBeenCalledOnce();
   });
 });

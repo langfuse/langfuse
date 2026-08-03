@@ -207,6 +207,66 @@ describe("RateLimitService", () => {
     ).resolves.toBeNull();
   });
 
+  it("should allow a one-point user bucket and refund its consumption", async () => {
+    const scope = {
+      orgId,
+      plan: "cloud:team" as const,
+      projectId,
+      accessLevel: "project" as const,
+      rateLimitOverrides: [
+        {
+          resource: "in-app-agent-run" as const,
+          points: 2,
+          durationInSec: 60,
+        },
+      ],
+    };
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+    const userScope = {
+      type: "user" as const,
+      userId: "one-point-user",
+      pointsMultiplier: 0.5,
+    };
+
+    const firstResult = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "in-app-agent-run",
+      userScope,
+    );
+    expect(firstResult.isRateLimited()).toBe(false);
+    expect(firstResult.res).toMatchObject({
+      points: 1,
+      remainingPoints: 0,
+      consumedPoints: 1,
+    });
+
+    await firstResult.refund();
+
+    const resultAfterRefund = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "in-app-agent-run",
+      userScope,
+    );
+    expect(resultAfterRefund.isRateLimited()).toBe(false);
+    expect(resultAfterRefund.res).toMatchObject({
+      points: 1,
+      remainingPoints: 0,
+      consumedPoints: 1,
+    });
+
+    const rejectedResult = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "in-app-agent-run",
+      userScope,
+    );
+    expect(rejectedResult.isRateLimited()).toBe(true);
+    expect(rejectedResult.res).toMatchObject({
+      points: 1,
+      remainingPoints: 0,
+      consumedPoints: 2,
+    });
+  });
+
   it("should reset the rate limit count after the window expires", async () => {
     const scope = {
       orgId: orgId,

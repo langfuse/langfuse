@@ -104,8 +104,12 @@ export class RateLimitService {
       return new RateLimitHelper(undefined);
     }
 
+    const result = await this.checkRateLimit(scope, resource, consumptionScope);
     return new RateLimitHelper(
-      await this.checkRateLimit(scope, resource, consumptionScope),
+      result,
+      result && !isRateLimitExceeded(result)
+        ? () => this.refundRateLimitRequest(scope, resource, consumptionScope)
+        : undefined,
     );
   }
 
@@ -114,26 +118,16 @@ export class RateLimitService {
     resource: z.infer<typeof RateLimitResource>,
     consumptionScope: RateLimitConsumptionScope = { type: "organization" },
   ) {
-    const configuredRateLimit = getRateLimitConfig(scope, resource);
-    const effectiveConfig =
-      consumptionScope.type === "user" && configuredRateLimit?.points
-        ? {
-            ...configuredRateLimit,
-            points: Math.max(
-              1,
-              Math.floor(
-                configuredRateLimit.points * consumptionScope.pointsMultiplier,
-              ),
-            ),
-          }
-        : configuredRateLimit;
+    const effectiveConfig = getEffectiveRateLimitConfig(
+      scope,
+      resource,
+      consumptionScope,
+    );
+    const points = effectiveConfig?.points;
+    const durationInSec = effectiveConfig?.durationInSec;
 
     // returning early if no rate limit is set
-    if (
-      !effectiveConfig ||
-      !effectiveConfig.points ||
-      !effectiveConfig.durationInSec
-    ) {
+    if (!points || !durationInSec) {
       return;
     }
 
@@ -146,20 +140,12 @@ export class RateLimitService {
       }
     }
 
-    const rateLimiter = new RateLimiterRedis({
-      // Basic options
-      points: effectiveConfig.points, // Number of points
-      duration: effectiveConfig.durationInSec, // Per second(s)
-
-      keyPrefix: this.rateLimitPrefix(resource, consumptionScope.type), // must be unique for limiters with different purpose
-      storeClient: RateLimitService.redis,
-      rejectIfRedisNotReady: true,
-    });
-
-    const consumptionKey =
-      consumptionScope.type === "user"
-        ? `${scope.orgId}:user:${consumptionScope.userId}`
-        : scope.orgId;
+    const rateLimiter = this.createRateLimiter(
+      resource,
+      consumptionScope.type,
+      { points, durationInSec },
+    );
+    const consumptionKey = this.consumptionKey(scope, consumptionScope);
 
     let res: RateLimitResult | undefined = undefined;
     try {
@@ -167,7 +153,7 @@ export class RateLimitService {
       res = {
         resource,
         scope,
-        points: effectiveConfig.points,
+        points,
         remainingPoints: libRes.remainingPoints,
         msBeforeNext: libRes.msBeforeNext,
         consumedPoints: libRes.consumedPoints,
@@ -179,7 +165,7 @@ export class RateLimitService {
         res = {
           resource,
           scope,
-          points: effectiveConfig.points,
+          points,
           remainingPoints: err.remainingPoints,
           msBeforeNext: err.msBeforeNext,
           consumedPoints: err.consumedPoints,
@@ -192,7 +178,7 @@ export class RateLimitService {
       }
     }
 
-    if (res.remainingPoints < 1) {
+    if (isRateLimitExceeded(res)) {
       recordIncrement("langfuse.rate_limit.exceeded", 1, {
         orgId: scope.orgId,
         plan: scope.plan,
@@ -202,6 +188,57 @@ export class RateLimitService {
     }
 
     return res;
+  }
+
+  private async refundRateLimitRequest(
+    scope: ApiAccessScope,
+    resource: z.infer<typeof RateLimitResource>,
+    consumptionScope: RateLimitConsumptionScope,
+  ): Promise<void> {
+    const effectiveConfig = getEffectiveRateLimitConfig(
+      scope,
+      resource,
+      consumptionScope,
+    );
+    const points = effectiveConfig?.points;
+    const durationInSec = effectiveConfig?.durationInSec;
+    if (!points || !durationInSec || !RateLimitService.redis) {
+      return;
+    }
+
+    try {
+      await this.createRateLimiter(resource, consumptionScope.type, {
+        points,
+        durationInSec,
+      }).reward(this.consumptionKey(scope, consumptionScope));
+    } catch (error) {
+      // A Redis transport failure is already observable server-side. Preserve
+      // the original rate-limit result rather than replacing it with a 500.
+      logger.error("Internal rate limit refund error", error);
+    }
+  }
+
+  private createRateLimiter(
+    resource: string,
+    consumptionScope: RateLimitConsumptionScope["type"],
+    config: { points: number; durationInSec: number },
+  ) {
+    return new RateLimiterRedis({
+      points: config.points,
+      duration: config.durationInSec,
+      keyPrefix: this.rateLimitPrefix(resource, consumptionScope),
+      storeClient: RateLimitService.redis,
+      rejectIfRedisNotReady: true,
+    });
+  }
+
+  private consumptionKey(
+    scope: ApiAccessScope,
+    consumptionScope: RateLimitConsumptionScope,
+  ) {
+    return consumptionScope.type === "user"
+      ? `${scope.orgId}:user:${consumptionScope.userId}`
+      : scope.orgId;
   }
 
   rateLimitPrefix(
@@ -215,13 +252,28 @@ export class RateLimitService {
 
 export class RateLimitHelper {
   res: RateLimitResult | undefined;
+  private readonly refundConsumedPoint?: () => Promise<void>;
+  private isRefunded = false;
 
-  constructor(res: RateLimitResult | undefined) {
+  constructor(
+    res: RateLimitResult | undefined,
+    refundConsumedPoint?: () => Promise<void>,
+  ) {
     this.res = res;
+    this.refundConsumedPoint = refundConsumedPoint;
   }
 
   isRateLimited() {
-    return this.res ? this.res.remainingPoints < 1 : false;
+    return this.res ? isRateLimitExceeded(this.res) : false;
+  }
+
+  async refund() {
+    if (!this.refundConsumedPoint || this.isRefunded) {
+      return;
+    }
+
+    this.isRefunded = true;
+    await this.refundConsumedPoint();
   }
 
   sendRestResponseIfLimited(
@@ -276,6 +328,29 @@ const getRateLimitConfig = (
 
   return customConfig || planBasedConfig;
 };
+
+const getEffectiveRateLimitConfig = (
+  scope: ApiAccessScope,
+  resource: z.infer<typeof RateLimitResource>,
+  consumptionScope: RateLimitConsumptionScope,
+) => {
+  const configuredRateLimit = getRateLimitConfig(scope, resource);
+
+  return consumptionScope.type === "user" && configuredRateLimit?.points
+    ? {
+        ...configuredRateLimit,
+        points: Math.max(
+          1,
+          Math.floor(
+            configuredRateLimit.points * consumptionScope.pointsMultiplier,
+          ),
+        ),
+      }
+    : configuredRateLimit;
+};
+
+const isRateLimitExceeded = (result: RateLimitResult) =>
+  result.consumedPoints > result.points;
 
 const getPlanBasedRateLimitConfig = (
   plan: Plan,

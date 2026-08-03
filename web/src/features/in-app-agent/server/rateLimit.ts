@@ -96,9 +96,12 @@ export async function checkInAppAgentRateLimit(
     resource,
   );
 
-  return organizationRateLimit.isRateLimited()
-    ? (organizationRateLimit.res ?? undefined)
-    : undefined;
+  if (organizationRateLimit.isRateLimited()) {
+    await userRateLimit.refund();
+    return organizationRateLimit.res ?? undefined;
+  }
+
+  return undefined;
 }
 
 /** tRPC-shaped variant; BaseErrors bubble to the tRPC error middleware. */

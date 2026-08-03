@@ -83,7 +83,45 @@ vi.mock(
   }),
 );
 
-import { sendRateLimitResponse } from "@/src/features/public-api/server/RateLimitService";
+import {
+  RateLimitHelper,
+  sendRateLimitResponse,
+} from "@/src/features/public-api/server/RateLimitService";
+
+describe("RateLimitHelper", () => {
+  const resultAtLimit = {
+    points: 1,
+    remainingPoints: 0,
+    msBeforeNext: 60_000,
+    resource: "in-app-agent-run",
+    scope: {
+      projectId: "project-1",
+      orgId: "org-1",
+      plan: "cloud:team",
+      accessLevel: "project",
+      rateLimitOverrides: [],
+      apiKeyId: "in-app-agent-session",
+      publicKey: "in-app-agent-session",
+      isIngestionSuspended: false,
+    },
+    consumedPoints: 1,
+    isFirstInDuration: true,
+  } satisfies RateLimitResult;
+
+  it("allows the request that consumes the final available point", () => {
+    expect(new RateLimitHelper(resultAtLimit).isRateLimited()).toBe(false);
+  });
+
+  it("rejects requests consumed beyond the configured points", () => {
+    expect(
+      new RateLimitHelper({
+        ...resultAtLimit,
+        consumedPoints: 2,
+        isFirstInDuration: false,
+      }).isRateLimited(),
+    ).toBe(true);
+  });
+});
 
 describe("sendRateLimitResponse", () => {
   const upgradePath = {
