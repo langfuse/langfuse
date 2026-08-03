@@ -2,6 +2,7 @@ import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import Link from "next/link";
 import { Bot, SquareTerminal, Sparkles } from "lucide-react";
 
@@ -22,6 +23,8 @@ const ManageApiKeysButton = ({ projectId }: { projectId: string }) => (
 );
 
 export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
+  const baseUrl = useLangfuseBaseUrl();
+
   return (
     <div>
       <Header title="MCP & CLI" />
@@ -67,7 +70,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
           <CodeBlock
             language="shell"
             value={`claude mcp add --transport http langfuse \\
-  https://cloud.langfuse.com/api/public/mcp \\
+  ${baseUrl}/api/public/mcp \\
   --header "Authorization: Basic {your-base64-token}"`}
           />
           <div className="mt-4 flex items-center gap-2">
@@ -91,6 +94,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
             language="shell"
             value={`export LANGFUSE_PUBLIC_KEY="pk-lf-..."
 export LANGFUSE_SECRET_KEY="sk-lf-..."
+export LANGFUSE_BASE_URL="${baseUrl}"
 
 npx langfuse-cli api <resource> <action>`}
           />
