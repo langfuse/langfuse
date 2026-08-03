@@ -365,29 +365,45 @@ export function InlineFilterState({
   className?: string;
 }) {
   return filterState.map((filter, i) => {
-    const column = `${filter.column}${
-      filter.type === "stringObject" ||
-      filter.type === "numberObject" ||
-      filter.type === "booleanObject"
-        ? `.${filter.key}`
-        : ""
-    }`;
-    const value =
-      filter.type === "positionInTrace"
-        ? formatSessionPositionInTraceFilterValue(filter)
-        : filter.type === "datetime"
-          ? new Date(filter.value).toLocaleString()
-          : filter.type === "stringOptions" || filter.type === "arrayOptions"
-            ? filter.value.length > 2
-              ? `${filter.value.length} selected`
-              : filter.value.join(", ")
-            : filter.type === "number" || filter.type === "numberObject"
-              ? filter.value
-              : filter.type === "boolean" || filter.type === "booleanObject"
-                ? `${filter.value}`
-                : filter.type === "null"
-                  ? ""
-                  : `"${filter.value}"`;
+    const column = (() => {
+      if (
+        filter.type === "stringObject" ||
+        filter.type === "numberObject" ||
+        filter.type === "booleanObject"
+      ) {
+        return `${filter.column}.${filter.key}`;
+      }
+
+      return filter.column;
+    })();
+
+    const value = (() => {
+      if (filter.type === "positionInTrace") {
+        return formatSessionPositionInTraceFilterValue(filter);
+      }
+      if (filter.type === "datetime") {
+        return new Date(filter.value).toLocaleString();
+      }
+      if (filter.type === "stringOptions" || filter.type === "arrayOptions") {
+        if (filter.value.length > 2) {
+          return `${filter.value.length} selected`;
+        }
+
+        return filter.value.join(", ");
+      }
+      if (filter.type === "number" || filter.type === "numberObject") {
+        return filter.value;
+      }
+      if (filter.type === "boolean" || filter.type === "booleanObject") {
+        return `${filter.value}`;
+      }
+      if (filter.type === "null") {
+        return "";
+      }
+
+      return `"${filter.value}"`;
+    })();
+
     const numericValue =
       value !== "" && /^-?\d+(\.\d+)?$/.test(String(value).trim());
 
