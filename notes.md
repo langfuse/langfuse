@@ -156,6 +156,51 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   zero retries.
 - Wrote `history/2026-W31-partial-0731.json`. Ledger unchanged (empty).
 
+## 2026-08-03 (run 12, `schedule` — weekly analysis fully blocked by two independent infra issues)
+
+- **GitHub Actions MCP block recurred, unresolved.** Every `actions_list` call
+  (main session AND 7 independently-spawned subagents, one per day of the
+  07-28..08-03 window) failed identically on the FIRST call:
+  `resource:actions_list ... filtered by secrecy policy ... not authorized to
+  access private-scoped data`. This is the same error text as the 07-30
+  four-run block, but run 11 (07-31) had reported it "resolved" after a
+  guard-policy config fix on `fix/analyst-guard-policy`. That fix evidently
+  did not hold (or this scheduled run uses a different config path than the
+  `workflow_dispatch` run that tested the fix) — **do not treat 07-31's
+  "resolved" note as durable; this is a recurring, not one-off, issue.**
+  `mcp__github__search_pull_requests` worked fine both times (confirmed
+  ledger still empty), so the block is scoped to the Actions API surface
+  specifically, not the whole GitHub MCP server.
+- **New, separate blocker this run: DB connectivity dead.**
+  `/tmp/gh-aw/db-stack-ready` existed (provisioning claimed success), but
+  `node -e "dns.lookup('host.docker.internal', ...)"` failed with
+  `EAI_AGAIN` twice in a row, and running
+  `npx dotenv -e ../.env -- vitest run --project server
+  score-comparison-analytics.servertest.ts` confirmed every single test
+  failing with the identical `getaddrinfo EAI_AGAIN host.docker.internal` —
+  not a code assertion failure. Per this workflow's own rule, this is an
+  infra signal, not a regression or flaky-test signal, and blocks all
+  DB-backed sandbox verification (so last week's flagged fix below stayed
+  unverified again, for a different reason this time).
+- **Net effect: zero fresh data this run.** No timing metrics, no vitest-log
+  sampling, no regression/optimization judgment possible, no new history
+  file written (nothing real to put in one) — the last real numbers remain
+  `history/2026-W31-partial-0731.json` (2026-07-31). Filed both
+  `missing_tool` (Actions API) and `missing_data` (DB connectivity) — see
+  tooling notes below, both worked cleanly this run.
+- **Still-open, ready candidate from last week, now blocked twice for two
+  different reasons across two runs:** parallelize the sequential
+  `createScoresCh` batch loop in `insertLargeTraceLevelScorePairs`
+  (`web/src/__tests__/server/score-comparison-analytics.servertest.ts:112`,
+  batches at L159) and the analogous `insertLargeIdenticalTraceLevelScores`
+  (L163). Root cause and precedent (`scores-api-v2.servertest.ts:104`)
+  already fully documented in `history/2026-W31-partial-0731.json`; nothing
+  new to re-derive. Whichever future run gets BOTH working Actions-API
+  access AND working DB connectivity in the same session should verify this
+  immediately rather than re-investigating.
+- No PR, comment, or issue opened this run — ledger (`prs.json`) unchanged
+  (still empty, reconfirmed via `search_pull_requests`).
+
 ## Tooling notes (for future runs)
 
 - The GitHub Actions MCP `list_workflow_runs` caps at ~30 runs/page regardless
@@ -168,13 +213,24 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
 - Jobs API payload is nested at `.jobs.jobs[]` with `.jobs.total_count`.
 - Sandbox bash blocks compound commands (`;` in some but not all cases, `&&`,
   `for`, triple-dot `...` git revspecs), `bash script.sh`, `jq -f`, redirects
-  outside the workspace, `ls` outside the repo working dir, and (new as of
-  run 11) any `pnpm`/`corepack pnpm`/`npm exec pnpm` invocation — the last of
-  these means **no test suite can be executed to verify a candidate fix in
-  this sandbox**; treat that as a standing constraint, not a per-run fluke,
-  until a run confirms otherwise. Use single jq invocations with inline
-  programs and redirect only into the repo working dir; use exact filenames
-  (no globs) for `rm`.
-- `mcp__safeoutputs__missing_tool` is currently broken (DIFC secrecy-policy
-  rejection, see 07-31 entry above) — use `noop` with the finding folded into
-  the report body instead until this is fixed.
+  outside the workspace, `ls`/`find`/`getent` outside the repo working dir,
+  and bare `pnpm` (not found) / `corepack pnpm` (hangs on a never-resolving
+  approval gate). **Correction to the 07-31 note: `npx <bin>` (e.g. `npx
+  vitest run ...`, `npx dotenv -e ../.env -- vitest run ...`) DOES work in
+  the sandbox even when `pnpm`/`corepack pnpm` don't** — confirmed run 12
+  (2026-08-03), matches this workflow's own "Verify changes" section
+  examples. So test suites CAN be executed for verification via `npx`; the
+  standing constraint is narrower than previously noted (no bare `pnpm`, not
+  "no test execution at all").
+- `mcp__safeoutputs__missing_tool` and `mcp__safeoutputs__missing_data`
+  BOTH worked cleanly in run 12 (2026-08-03) — the 07-31 DIFC secrecy-policy
+  rejection of `missing_tool` did not recur. Treat that as resolved unless a
+  future run sees it again; no need to route around it into `noop` bodies
+  anymore.
+- Check DB connectivity early with a cheap probe before assuming the dev
+  stack works just because `/tmp/gh-aw/db-stack-ready` exists: `node -e
+  "require('dns').lookup('host.docker.internal',(e,a)=>console.log(e?String(e):a))"`.
+  Run 12 (2026-08-03) got `EAI_AGAIN` here (and in the real test run) despite
+  the ready-marker being present — the marker means provisioning was
+  attempted, not that connectivity is live in this particular sandbox
+  session.
