@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {

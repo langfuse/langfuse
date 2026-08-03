@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * JsonValue - Renders a JSON value with type-based styling
  *

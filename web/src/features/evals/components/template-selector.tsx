@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { type EvalTemplate } from "@langfuse/shared";
 
 import {

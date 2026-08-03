@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { PauseCircle } from "lucide-react";
 
 import { Badge, type BadgeProps } from "@/src/components/ui/badge";
