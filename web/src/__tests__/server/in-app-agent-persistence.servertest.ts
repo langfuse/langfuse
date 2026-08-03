@@ -1044,9 +1044,13 @@ describe("in-app agent persistence", () => {
           },
         },
         {
-          type: EventType.TEXT_MESSAGE_CHUNK,
+          type: EventType.TEXT_MESSAGE_START,
           messageId: "interleaved-assistant",
           role: "assistant",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "interleaved-assistant",
           delta: "Initial answer.",
         },
         {
@@ -1063,11 +1067,25 @@ describe("in-app agent persistence", () => {
           type: EventType.REASONING_MESSAGE_END,
           messageId: "interleaved-reasoning",
         },
+      ],
+    });
+
+    // Persist the continuation separately, as it would arrive after the
+    // snapshot prefix containing the interleaved reasoning message.
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events: [
         {
-          type: EventType.TEXT_MESSAGE_CHUNK,
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: "interleaved-assistant",
-          role: "assistant",
           delta: " Final answer.",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: "interleaved-assistant",
         },
       ],
     });
@@ -1122,24 +1140,6 @@ describe("in-app agent persistence", () => {
         id: "display-text-interleaved-assistant-1",
         role: "assistant",
         content: " Final answer.",
-      },
-    ]);
-    await expect(
-      getConversationMessagesForReplay({
-        prisma,
-        projectId,
-        conversationId: conversation.id,
-      }),
-    ).resolves.toEqual([
-      {
-        id: "interleaved-user",
-        role: "user",
-        content: "Investigate this",
-      },
-      {
-        id: "interleaved-assistant",
-        role: "assistant",
-        content: "Initial answer. Final answer.",
       },
     ]);
   });

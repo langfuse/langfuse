@@ -9,13 +9,14 @@ cannot infer from any single file.
 
 ## One log, three derivations
 
-Everything a conversation knows lives in one place: the `in_app_agent_events`
-table, ordered by a per-conversation `sequence_number`. Every representation the
-product uses is derived from that log. None of them is a second source of truth.
+Every message representation of a conversation is derived from one place: the
+`in_app_agent_events` table, ordered by a per-conversation `sequence_number`.
+Canonical, display and replay messages are not persisted independently as
+additional sources of transcript truth.
 
 | Derivation                     | Produced by                                                                           | Consumed by                                                                    | Shape                                                                                                                 | Never                                            |
 | ------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| **Canonical messages**         | `createConversationMessageAccumulator` (`packages/shared/.../persistence.ts`)         | the `getConversation` wire, the AG-UI seed, feedback identity, title inference | one assistant message per assistant turn, full text, `runId` preserved, in-flight tool calls kept                     | pruned or reordered before seeding a live agent  |
+| **Canonical messages**         | `createConversationMessageAccumulator` (`packages/shared/.../persistence.ts`)         | the `getConversation` wire, the AG-UI seed, feedback identity, title inference | complete assistant messages keyed by stable AG-UI message ids, `runId` preserved, in-flight tool calls kept           | pruned or reordered before seeding a live agent  |
 | **Display state + projection** | `lib/display.ts` — `record*` accumulates, `projectInAppAgentMessagesForDisplay` folds | rendering only, once, in `InAppAiAgentProvider`                                | a sidecar describing where interleaved reasoning and tool calls belong, plus synthetic `display-text-<id>-N` segments | written back to the server, or fed to an agent   |
 | **Replay messages**            | `getConversationMessagesForReplay` (`packages/shared/.../persistence.ts`)             | model context for a resuming run                                               | reasoning, redirect results, `runId`s and unpaired tool calls stripped                                                | rendered, or used as a client hydration snapshot |
 
@@ -143,52 +144,18 @@ already the final one.
 
 ### The quarantine rule
 
-Until foreground is deleted, no new abstraction may span both paths.
+Until foreground is deleted, do not introduce an abstraction whose purpose is
+to normalize the foreground and background run drivers or client state
+machines. Pure transcript contracts and presentation code may remain shared.
 
 The temptation is to write an adapter that makes them interchangeable. That
 adapter would be the most complex code in the feature and would have to be
-untangled later rather than deleted. PostHog hit exactly this while migrating
-Max from LangGraph to their sandbox runtime: their thread logic reached 3353
-lines carrying both runtimes, and they eventually resorted to a written rule
-forbidding new work on the legacy path so the eventual removal stayed a removal.
+untangled later rather than deleted.
 
 Concretely: foreground-only members are marked delete-with-foreground, shared
 code between the paths must be independent of how the server executes a run
 (the projection, the drawer, the approval wire contract), and behavior tests
 cover each path at its own seam.
-
-## Comparison: PostHog Max
-
-Max's sandbox runtime solves the same problem — a browser observing an agent it
-does not host — and independently arrived at the same core invariant: an
-append-only frame log as the single source of truth with a pure fold producing
-the rendered thread. Their fold is memoized on log identity and their thread
-items are derived, never mutated from a listener. That is the same rule as
-"fold once", reached from a different direction.
-
-Three things they do that are worth taking:
-
-- **Tag every frame with its source** (`replay`, `live`, `client`). It is what
-  lets them suppress side effects on replay — telemetry, auto-approval and tool
-  events all check it. Without it every reload re-fires reactions.
-- **Pin idempotency for non-idempotent frames.** They dedupe permission requests
-  by request id because a cursor resume can legitimately re-deliver the envelope.
-- **Test the reconnect matrix.** Resume above cursor, drop-loop abandonment,
-  attempt-cap exhaustion, read-only viewers keyed apart from live ones.
-
-One thing to skip: their cold-reopen path connects the stream first, then reads
-the snapshot, then reconciles the seam by hashing frame content — necessary only
-because their SSE ids come from Redis and their snapshot comes from S3, so the
-two share no identifier. Langfuse's snapshot and tail already share
-`sequence_number`, so that entire problem does not exist here. Keep it that way:
-if a future transport cannot express the shared cursor, it is the wrong
-transport.
-
-Their smoothing decision differs from ours and both are defensible. Max appends
-text verbatim and spends its budget on block-memoized markdown and DOM-direct
-virtualization; Langfuse paces reveal in `useSmoothStreamingMessages`. Ours is a
-perceived-quality choice with a real re-render cost, and it stays a display-only
-layer: canonical messages are never rewritten for animation.
 
 ## Change rules
 

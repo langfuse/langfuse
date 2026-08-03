@@ -11,7 +11,9 @@ Read it before changing how messages are represented or where logic lives.
 
 ## Core Model
 
-AG-UI is the durable contract for live streaming, persistence, replay, and rendering.
+AG-UI events are the durable transcript vocabulary. Langfuse-owned protocols
+coordinate persistence, watching, run lifecycle, approvals, and display
+projection around those events.
 
 The browser owns interaction state and submits intent. The server owns authorization, run/message IDs, request sanitization, MCP credentials, runtime configuration, tool access, persistence, and replay.
 
