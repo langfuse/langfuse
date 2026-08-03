@@ -18,7 +18,10 @@ import {
 import { ModernSessionSaveViewDialogContent } from "@/src/components/session/ModernSessionSaveViewDialogContent";
 import { SESSION_DETAIL_SYSTEM_PRESETS } from "@/src/components/session/session-detail-presets";
 import { type ModernSessionSidebarFilterControls } from "@/src/components/session/ModernSessionSidebar";
-import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import {
+  TableViewPresetsDrawerContent,
+  TableViewPresetsDrawerRoot,
+} from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { Dialog } from "@/src/components/ui/dialog";
@@ -320,18 +323,21 @@ export function ModernSessionFilterControls({
         ) : null}
       </Dialog>
 
-      <TableViewPresetsDrawer
+      <TableViewPresetsDrawerRoot
+        tableName={TableViewPresetTableName.SessionDetail}
         open={manageViewsOpen}
         onOpenChange={setManageViewsOpen}
-        hideTrigger
-        viewConfig={{
-          tableName: TableViewPresetTableName.SessionDetail,
-          projectId,
-          controllers: viewControllers,
-        }}
-        currentState={currentViewState}
-        systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
-      />
+      >
+        <TableViewPresetsDrawerContent
+          viewConfig={{
+            tableName: TableViewPresetTableName.SessionDetail,
+            projectId,
+            controllers: viewControllers,
+          }}
+          currentState={currentViewState}
+          systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+        />
+      </TableViewPresetsDrawerRoot>
     </>
   );
 }
