@@ -104,9 +104,7 @@ describe("SessionObservationIO", () => {
       inputTruncated: true,
     } as SessionTraceObservation);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /open in trace view/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /open trace view/i }));
 
     expect(onOpenInTraceView).toHaveBeenCalledWith("obs-1");
     expect(capture).toHaveBeenCalledWith(
@@ -168,9 +166,7 @@ describe("SessionObservationIO", () => {
       screen.getByText(/metadata values are too large/i),
     ).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /open in trace view/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /open trace view/i }));
     expect(onOpenInTraceView).toHaveBeenCalledWith("obs-1");
   });
 });

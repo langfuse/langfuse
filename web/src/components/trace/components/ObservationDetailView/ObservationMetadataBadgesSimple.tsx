@@ -1,9 +1,11 @@
 /**
- * Simple metadata badges for ObservationDetailView
- * Each badge handles its own null checks and returns null when data is unavailable
+ * Simple overview-grid rows for ObservationDetailView.
+ * Each component handles its own null checks and returns null when data is
+ * unavailable. Rendered inside `OverviewGrid` (see _shared/InspectorElements),
+ * emitting a mono eyebrow label + mono value pair.
  */
 
-import { Badge } from "@/src/components/ui/badge";
+import { OverviewRow } from "@/src/components/trace/components/_shared/InspectorElements";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 export function LatencyBadge({
@@ -14,9 +16,9 @@ export function LatencyBadge({
   if (latencySeconds == null) return null;
 
   return (
-    <Badge variant="tertiary">
-      Latency: {formatIntervalSeconds(latencySeconds)}
-    </Badge>
+    <OverviewRow label="Latency">
+      {formatIntervalSeconds(latencySeconds)}
+    </OverviewRow>
   );
 }
 
@@ -28,9 +30,9 @@ export function TimeToFirstTokenBadge({
   if (timeToFirstToken == null) return null;
 
   return (
-    <Badge variant="tertiary">
-      Time to first token: {formatIntervalSeconds(timeToFirstToken)}
-    </Badge>
+    <OverviewRow label="TTFT" title="Time to first token">
+      {formatIntervalSeconds(timeToFirstToken)}
+    </OverviewRow>
   );
 }
 
@@ -41,7 +43,11 @@ export function EnvironmentBadge({
 }) {
   if (!environment) return null;
 
-  return <Badge variant="tertiary">Env: {environment}</Badge>;
+  return (
+    <OverviewRow label="Env" title={environment}>
+      {environment}
+    </OverviewRow>
+  );
 }
 
 export function VersionBadge({
@@ -51,24 +57,29 @@ export function VersionBadge({
 }) {
   if (!version) return null;
 
-  return <Badge variant="tertiary">Version: {version}</Badge>;
+  return (
+    <OverviewRow label="Version" title={version}>
+      {version}
+    </OverviewRow>
+  );
 }
 
 export function LevelBadge({ level }: { level: string | null | undefined }) {
   if (!level || level === "DEFAULT") return null;
 
   return (
-    <Badge
-      variant={
+    <OverviewRow
+      label="Level"
+      className={
         level === "ERROR"
-          ? "destructive"
+          ? "text-destructive"
           : level === "WARNING"
-            ? "warning"
-            : "tertiary"
+            ? "text-dark-yellow"
+            : undefined
       }
     >
       {level}
-    </Badge>
+    </OverviewRow>
   );
 }
 
@@ -79,5 +90,9 @@ export function StatusMessageBadge({
 }) {
   if (!statusMessage) return null;
 
-  return <Badge variant="tertiary">{statusMessage}</Badge>;
+  return (
+    <OverviewRow label="Status" title={statusMessage}>
+      {statusMessage}
+    </OverviewRow>
+  );
 }

@@ -6,9 +6,20 @@ import Link from "next/link";
 import React from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { deepParseJson, type FilterState } from "@langfuse/shared";
+import {
+  buildTurnModel,
+  ConversationTurn,
+} from "@/src/components/session/ConversationTurn";
 import { SessionObservationIO } from "@/src/components/session/SessionObservationIO";
+import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
 import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { FilterX } from "lucide-react";
+import {
+  formatIdleGap,
+  IDLE_GAP_THRESHOLD_SECONDS,
+} from "@/src/components/session/sessionIdleGap";
 import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
@@ -94,13 +105,44 @@ const ModernSessionObservation = ({
         )
       : !chatMLParserResult.allMessages.every(isOnlyJsonMessage));
 
+  const capture = usePostHogClientCapture();
+  const openInspector = useSessionDetailStore(
+    (state) => state.actions.openInspector,
+  );
+  const isInspected = useSessionDetailStore(
+    (state) => state.inspectedObservation?.observationId === observation.id,
+  );
+
+  // Selects the observation for the inspector panel. Clicks on interactive
+  // children (links, buttons, copy controls) and text selections pass through.
+  const handleInspectClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (
+      target.closest(
+        "a,button,input,textarea,select,[role='button'],[contenteditable='true']",
+      )
+    )
+      return;
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) return;
+    capture("session_detail:observation_inspector_open", {
+      observationType: observation.type,
+    });
+    openInspector({ traceId, observationId: observation.id });
+  };
+
   return (
     <div
-      className={
+      onClick={handleInspectClick}
+      className={cn(
+        "cursor-pointer rounded-md transition-shadow",
+        isInspected
+          ? "ring-primary/50 ring-1"
+          : "hover:ring-border hover:ring-1",
         isConversation
           ? "flex flex-col gap-2"
-          : "bg-muted/20 flex flex-col gap-2 rounded-md border p-3"
-      }
+          : "bg-muted/20 flex flex-col gap-2 border p-3",
+      )}
     >
       {!isConversation ? <ObservationHeader observation={observation} /> : null}
       <SessionObservationIO
@@ -213,6 +255,8 @@ type LazyTraceEventsRowProps = {
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
   isActive?: boolean;
+  idleGapSeconds?: number | null;
+  onSelectTurn?: () => void;
 };
 
 const areLazyTraceEventsRowPropsEqual = (
@@ -232,7 +276,9 @@ const areLazyTraceEventsRowPropsEqual = (
   previous.surface === next.surface &&
   previous.contentMode === next.contentMode &&
   previous.showSystemPrompt === next.showSystemPrompt &&
-  previous.isActive === next.isActive;
+  previous.isActive === next.isActive &&
+  previous.idleGapSeconds === next.idleGapSeconds &&
+  previous.onSelectTurn === next.onSelectTurn;
 
 export const TraceEventsRow = React.memo(
   ({
@@ -249,6 +295,9 @@ export const TraceEventsRow = React.memo(
     contentMode = "all",
     showSystemPrompt,
     isActive = false,
+    turnNumber,
+    idleGapSeconds,
+    onSelectTurn,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
     projectId: string;
@@ -263,6 +312,12 @@ export const TraceEventsRow = React.memo(
     contentMode?: IOPreviewContentMode;
     showSystemPrompt?: boolean;
     isActive?: boolean;
+    /** 1-based turn index shown in the redesigned conversation dividers. */
+    turnNumber?: number;
+    /** Idle gap (seconds) before this turn — renders a separator when ≥5min. */
+    idleGapSeconds?: number | null;
+    /** Selects this turn (rail sync + smooth scroll to it). */
+    onSelectTurn?: () => void;
   }) => {
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
@@ -375,6 +430,17 @@ export const TraceEventsRow = React.memo(
       return { visibleObservations, hasMoreObservations };
     }, [observations, trace.id]);
 
+    // Redesigned conversation turn (user bubble + generations). Null whenever
+    // the data doesn't fit that shape — the observation rendering below is
+    // the fallback, so nothing is ever hidden by the redesign.
+    const turnModel = React.useMemo(
+      () =>
+        surface === "modern" && visibleObservations
+          ? buildTurnModel(visibleObservations)
+          : null,
+      [surface, visibleObservations],
+    );
+
     const Frame = surface === "card" ? Card : "div";
     const showTracePanel = surface === "card" && !hideTracePanel;
 
@@ -383,9 +449,7 @@ export const TraceEventsRow = React.memo(
         className={
           surface === "card"
             ? "border-border shadow-none"
-            : isActive
-              ? "bg-background border-l-primary border-l-2"
-              : "bg-background border-l-2 border-l-transparent"
+            : "bg-card dark:bg-background"
         }
         data-modern-session-active={surface === "modern" && isActive}
       >
@@ -400,11 +464,41 @@ export const TraceEventsRow = React.memo(
             className={
               surface === "card"
                 ? "overflow-hidden py-4 pr-4 pl-4"
-                : "min-w-0 px-6 pb-10"
+                : "min-w-0 px-6 pb-4"
             }
           >
-            {surface === "modern" ? (
-              <div className="bg-background/95 sticky top-0 z-10 -mx-6 mb-5 flex min-w-0 items-center justify-between gap-3 px-6 py-3 backdrop-blur">
+            {/* Idle separator — the visible pause before this turn. */}
+            {surface === "modern" &&
+            idleGapSeconds != null &&
+            idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS ? (
+              // Idle band: subtle cross-hatch fill (mock), drawn from the
+              // theme's foreground so both modes stay defined.
+              <div className="mx-auto mt-6 mb-2 flex w-full max-w-[720px] items-center gap-2 rounded-sm bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-2.5 py-1.5">
+                <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap">
+                  +{formatIdleGap(idleGapSeconds)} idle
+                </span>
+              </div>
+            ) : null}
+            {/* Sticky turn divider: `TURN N` + dashed rule (mock), pinned to
+                the top of the feed while its turn scrolls (clicking selects). */}
+            {surface === "modern" && turnModel ? (
+              <div className="bg-card dark:bg-background sticky top-0 z-10">
+                <button
+                  type="button"
+                  onClick={onSelectTurn}
+                  className="text-muted-foreground hover:text-foreground mx-auto flex w-full max-w-[720px] cursor-pointer items-center gap-2 py-2 transition-colors duration-150"
+                >
+                  <span className="font-mono text-[11px] leading-4 uppercase">
+                    Turn {turnNumber}
+                  </span>
+                  <span className="border-border-contrast flex-1 border-t border-dashed" />
+                </button>
+              </div>
+            ) : null}
+            {/* Fallback-rendered turns keep the trace header for orientation
+                and as their peek entry point. */}
+            {surface === "modern" && !turnModel ? (
+              <div className="bg-card/95 sticky top-0 z-10 -mx-7 mb-5 flex min-w-0 items-center justify-between gap-3 px-7 py-3 backdrop-blur">
                 <button
                   type="button"
                   aria-label={`Open trace ${trace.name ?? "Trace"} (${trace.id})`}
@@ -436,6 +530,12 @@ export const TraceEventsRow = React.memo(
               <div className="text-destructive p-2 text-xs">
                 Failed to load observations.
               </div>
+            ) : turnModel ? (
+              <ConversationTurn
+                model={turnModel}
+                traceId={trace.id}
+                onSelectTurn={onSelectTurn}
+              />
             ) : visibleObservations && visibleObservations.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {visibleObservations.map((observation) => {
@@ -578,7 +678,11 @@ const LazyTraceEventsRowInner = (props: LazyTraceEventsRowProps) => {
 
   return (
     <div ref={setRowRef} className="pb-3" data-session-row-index={index}>
-      {shouldLoad ? <TraceEventsRow {...cardProps} /> : <TraceEventsSkeleton />}
+      {shouldLoad ? (
+        <TraceEventsRow {...cardProps} turnNumber={index + 1} />
+      ) : (
+        <TraceEventsSkeleton />
+      )}
     </div>
   );
 };

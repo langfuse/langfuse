@@ -44,6 +44,7 @@ export function CollapsibleBadgeRow({
           // like "Time to first token" wrap vertically into a multi-line row);
           // badges keep their natural width and overflow-hidden clips the rest.
           expanded ? "flex-wrap" : "flex-nowrap overflow-hidden [&>*]:shrink-0",
+          className,
         )}
       >
         {children}

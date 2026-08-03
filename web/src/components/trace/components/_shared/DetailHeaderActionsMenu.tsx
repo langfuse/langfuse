@@ -1,5 +1,10 @@
 import { useRouter } from "next/router";
-import { CheckIcon, CopyIcon, EllipsisVertical } from "lucide-react";
+import {
+  CheckIcon,
+  CopyIcon,
+  EllipsisVertical,
+  ExternalLink,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -32,6 +37,11 @@ type DetailHeaderActionsMenuProps = {
     observationId?: string | null;
     sessionId?: string | null;
   };
+  /**
+   * Escape hatch for panels that are NOT the trace view (e.g. the session
+   * inspector). The trace page/peek omit it — they ARE the trace view.
+   */
+  onOpenTraceView?: () => void;
 };
 
 export function DetailHeaderActionsMenu({
@@ -40,6 +50,7 @@ export function DetailHeaderActionsMenu({
   projectId,
   spanName,
   webCallout,
+  onOpenTraceView,
 }: DetailHeaderActionsMenuProps) {
   const router = useRouter();
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -84,6 +95,15 @@ export function DetailHeaderActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
+        {onOpenTraceView && (
+          <>
+            <DropdownMenuItem className="text-xs" onSelect={onOpenTraceView}>
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Open Trace View
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {webCallout && (
           <>
             <WebCalloutMenuItem

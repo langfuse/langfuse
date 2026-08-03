@@ -1260,10 +1260,14 @@ export function PrettyJsonView(props: {
     !isMarkdown &&
     !emptyValueDisplay;
 
-  const getBackgroundColorClass = () =>
+  // Markdown/string content gets the same 1px rounded box chrome the
+  // table/empty/JSON branches draw (uniform box chrome per section), with
+  // the role-based bg tint kept inside the border.
+  const getMarkdownContainerClasses = () =>
     cn(
+      "rounded-sm border",
       ASSISTANT_TITLES.includes(props.title || "")
-        ? "bg-accent-light-green"
+        ? "bg-accent-light-green dark:border-accent-dark-green/30"
         : "",
       SYSTEM_TITLES.includes(props.title || "") ? "bg-card" : "",
     );
@@ -1491,7 +1495,9 @@ export function PrettyJsonView(props: {
         <div
           className={cn(
             "flex h-full min-h-0 overflow-hidden",
-            isMarkdownMode ? getBackgroundColorClass() : "rounded-sm border",
+            isMarkdownMode
+              ? getMarkdownContainerClasses()
+              : "rounded-sm border",
           )}
         >
           <div className="max-h-full min-h-0 w-full overflow-y-auto">
@@ -1499,7 +1505,7 @@ export function PrettyJsonView(props: {
           </div>
         </div>
       ) : isMarkdownMode ? (
-        <div className={getBackgroundColorClass()}>{body}</div>
+        <div className={getMarkdownContainerClasses()}>{body}</div>
       ) : (
         body
       )}

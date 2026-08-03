@@ -21,7 +21,7 @@ export function useTableDateRange(
 ): UseTableDateRangeOutput {
   return useGlobalDateRange({
     allowedRanges: TABLE_AGGREGATION_OPTIONS,
-    fallback: options.defaultRelativeAggregation ?? "last1Day",
+    fallback: options.defaultRelativeAggregation ?? "last7Days",
     persistAsDefault: options.persistAsDefault,
   });
 }

@@ -36,3 +36,19 @@ export function useSessionDetailStore<TValue>(
 
   return useStore(store, selector);
 }
+
+/**
+ * Raw store handle for imperative reads/writes inside event handlers
+ * (e.g. turn selection retargeting an open inspector) — no subscription.
+ */
+export function useSessionDetailStoreApi(): SessionDetailStore {
+  const store = useContext(SessionDetailStoreContext);
+
+  if (!store) {
+    throw new Error(
+      "useSessionDetailStoreApi must be used within SessionDetailStoreProvider",
+    );
+  }
+
+  return store;
+}

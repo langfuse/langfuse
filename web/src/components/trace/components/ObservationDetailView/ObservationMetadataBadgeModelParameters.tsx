@@ -1,10 +1,10 @@
 /**
- * Model parameters badges for ObservationDetailView
- * Renders dynamic badges for each model parameter with truncation
+ * Model parameter overview-grid rows for ObservationDetailView.
+ * Renders one label+value row per model parameter with truncation.
  */
 
 import { type JsonNested } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
+import { OverviewRow } from "@/src/components/trace/components/_shared/InspectorElements";
 
 export function ModelParametersBadges({
   modelParameters,
@@ -35,14 +35,9 @@ export function ModelParametersBadges({
             : value?.toString();
 
         return (
-          <Badge variant="tertiary" key={key} className="max-w-md">
-            <span
-              className="overflow-hidden text-ellipsis whitespace-nowrap"
-              title={valueString}
-            >
-              {key}: {valueString}
-            </span>
-          </Badge>
+          <OverviewRow key={key} label={key} title={valueString}>
+            {valueString}
+          </OverviewRow>
         );
       })}
     </>
