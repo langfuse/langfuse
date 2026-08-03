@@ -5,6 +5,8 @@ export const eventsTableIsRootObservationSqlForAlias = (alias: string) =>
   `(${alias}.parent_span_id = '' OR ${alias}.is_app_root = true)`;
 export const eventsTableIsRootObservationSql =
   eventsTableIsRootObservationSqlForAlias("e");
+export const eventsTableTraceNameSql =
+  "COALESCE(nullIf(e.trace_name, ''), if(e.parent_span_id = '', nullIf(e.name, ''), NULL))";
 
 export const isRootObservation = ({
   parentObservationId,
@@ -108,7 +110,7 @@ const eventsTableColsDefinition = [
     name: "Trace Name",
     id: "traceName",
     type: "stringOptions",
-    internal: "e.trace_name",
+    internal: eventsTableTraceNameSql,
     options: [], // to be added at runtime
     nullable: true,
   },

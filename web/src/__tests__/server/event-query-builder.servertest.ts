@@ -146,6 +146,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.query).toContain(
       "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})",
     );
+    expect(built.query).toContain(
+      "COALESCE(nullIf(e.trace_name, ''), if(e.parent_span_id = '', nullIf(e.name, ''), NULL))",
+    );
     expect(built.query).toContain("GROUP BY value");
     expect(built.params).toMatchObject({
       projectId: "test-project",
