@@ -188,6 +188,7 @@ const StackedOutputRow = ({
         data={output}
         singleLine={singleLine}
         className="bg-accent-light-green"
+        enableExpandOnHover
       />
     </div>
   );

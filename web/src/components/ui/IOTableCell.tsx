@@ -164,8 +164,6 @@ export const IOTableCell = ({
   padding = "default",
   singleLine = false,
   enableExpandOnHover = false,
-  isExpandedDataLoading = false,
-  onExpandOpenChange,
 }: {
   data: unknown;
   isLoading?: boolean;
@@ -173,8 +171,6 @@ export const IOTableCell = ({
   padding?: IOTableCellPadding;
   singleLine?: boolean;
   enableExpandOnHover?: boolean;
-  isExpandedDataLoading?: boolean;
-  onExpandOpenChange?: (open: boolean) => void;
 }) => {
   const paddingClassName = ioTableCellPaddingClassNames[padding];
 
@@ -218,7 +214,6 @@ export const IOTableCell = ({
       onOpenChange={(open) => {
         if (open && isPointerOverMediaTag.current) return;
         setIsExpandOpen(open);
-        onExpandOpenChange?.(open);
       }}
     >
       <HoverCardTrigger asChild>
@@ -246,16 +241,11 @@ export const IOTableCell = ({
         side="top"
         align="start"
       >
-        {isExpandedDataLoading ? (
-          <JsonSkeleton borderless className="min-h-12 w-full" />
-        ) : (
-          <JSONView
-            json={data}
-            className="w-full"
-            codeClassName="p-0 border-none"
-            collapseStringsAfterLength={null}
-          />
-        )}
+        <JSONView
+          json={data}
+          className="w-full"
+          codeClassName="p-0 border-none"
+        />
       </HoverCardContent>
     </HoverCard>
   );
