@@ -182,6 +182,7 @@ export const inAppAgentRouter = createTRPCRouter({
           input.projectId,
           projectAvailability,
         ),
+        ctx.session.user.id,
         "in-app-agent-run",
       );
 
@@ -238,6 +239,7 @@ export const inAppAgentRouter = createTRPCRouter({
           input.projectId,
           projectAvailability,
         ),
+        ctx.session.user.id,
         "in-app-agent-run",
       );
 

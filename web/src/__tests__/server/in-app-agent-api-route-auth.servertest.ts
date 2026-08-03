@@ -1084,6 +1084,11 @@ describe("in-app agent public API route auth", () => {
           projectId: project.id,
         }),
         "in-app-agent-run",
+        {
+          type: "user",
+          userId: sessionUser.id,
+          pointsMultiplier: 0.5,
+        },
       );
       expect(instrumentationMocks.addUserToSpan).toHaveBeenLastCalledWith({
         userId: sessionUser.id,
@@ -1126,6 +1131,10 @@ describe("in-app agent public API route auth", () => {
         admin: true,
         includeProjectMembership: false,
       });
+      const sessionUser = session.user;
+      if (!sessionUser) {
+        throw new Error("Expected an authenticated session user");
+      }
       authMocks.getServerSession.mockResolvedValue(session);
       rateLimitMocks.rateLimitRequest.mockResolvedValue({
         isRateLimited: () => true,
@@ -1178,6 +1187,11 @@ describe("in-app agent public API route auth", () => {
           plan: "cloud:team",
         }),
         "in-app-agent-run",
+        {
+          type: "user",
+          userId: sessionUser.id,
+          pointsMultiplier: 0.5,
+        },
       );
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;

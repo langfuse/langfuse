@@ -26,7 +26,7 @@ const asScope = (scope: TestApiAccessScope): ApiAccessScope =>
 describe("RateLimitService", () => {
   const orgId = `rate-limit-test-org-${randomUUID()}`;
   const projectId = `rate-limit-test-project-${randomUUID()}`;
-  const rateLimitKeysPattern = `${RATE_LIMIT_REDIS_KEY_PREFIX}:*:${orgId}`;
+  const rateLimitKeysPattern = `${RATE_LIMIT_REDIS_KEY_PREFIX}:*:${orgId}*`;
   let redis: RedisTestClient;
 
   const createRedisClient = (): RedisTestClient => {
@@ -153,6 +153,58 @@ describe("RateLimitService", () => {
       isFirstInDuration: false,
     });
     expect(result?.isRateLimited()).toBe(false);
+  });
+
+  it("should isolate user buckets within an organization", async () => {
+    const scope = {
+      orgId,
+      plan: "cloud:team" as const,
+      projectId,
+      accessLevel: "project" as const,
+      rateLimitOverrides: [
+        {
+          resource: "in-app-agent-run" as const,
+          points: 4,
+          durationInSec: 60,
+        },
+      ],
+    };
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+    const firstUserResult = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "in-app-agent-run",
+      { type: "user", userId: "user-a", pointsMultiplier: 0.5 },
+    );
+    const secondUserResult = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "in-app-agent-run",
+      { type: "user", userId: "user-b", pointsMultiplier: 0.5 },
+    );
+
+    expect(firstUserResult.res).toMatchObject({
+      points: 2,
+      remainingPoints: 1,
+      consumedPoints: 1,
+    });
+    expect(secondUserResult.res).toMatchObject({
+      points: 2,
+      remainingPoints: 1,
+      consumedPoints: 1,
+    });
+    await expect(
+      redis.get(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:in-app-agent-run:user:${orgId}:user:user-a`,
+      ),
+    ).resolves.toBeDefined();
+    await expect(
+      redis.get(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:in-app-agent-run:user:${orgId}:user:user-b`,
+      ),
+    ).resolves.toBeDefined();
+    await expect(
+      redis.get(`${RATE_LIMIT_REDIS_KEY_PREFIX}:in-app-agent-run:${orgId}`),
+    ).resolves.toBeNull();
   });
 
   it("should reset the rate limit count after the window expires", async () => {

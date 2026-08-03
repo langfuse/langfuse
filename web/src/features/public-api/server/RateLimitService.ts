@@ -35,6 +35,14 @@ export type RateLimitResponseOptionsInput =
   | PublicApiErrorContract
   | RateLimitResponseOptions;
 
+export type RateLimitConsumptionScope =
+  | { type: "organization" }
+  | {
+      type: "user";
+      userId: string;
+      pointsMultiplier: number;
+    };
+
 const normalizeRateLimitResponseOptions = (
   options?: RateLimitResponseOptionsInput,
 ): RateLimitResponseOptions => {
@@ -80,6 +88,7 @@ export class RateLimitService {
   async rateLimitRequest(
     scope: ApiAccessScope,
     resource: z.infer<typeof RateLimitResource>,
+    consumptionScope: RateLimitConsumptionScope = { type: "organization" },
   ) {
     // if cloud config is not present, we don't apply rate limits and just return
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -95,14 +104,29 @@ export class RateLimitService {
       return new RateLimitHelper(undefined);
     }
 
-    return new RateLimitHelper(await this.checkRateLimit(scope, resource));
+    return new RateLimitHelper(
+      await this.checkRateLimit(scope, resource, consumptionScope),
+    );
   }
 
   async checkRateLimit(
     scope: ApiAccessScope,
     resource: z.infer<typeof RateLimitResource>,
+    consumptionScope: RateLimitConsumptionScope = { type: "organization" },
   ) {
-    const effectiveConfig = getRateLimitConfig(scope, resource);
+    const configuredRateLimit = getRateLimitConfig(scope, resource);
+    const effectiveConfig =
+      consumptionScope.type === "user" && configuredRateLimit?.points
+        ? {
+            ...configuredRateLimit,
+            points: Math.max(
+              1,
+              Math.floor(
+                configuredRateLimit.points * consumptionScope.pointsMultiplier,
+              ),
+            ),
+          }
+        : configuredRateLimit;
 
     // returning early if no rate limit is set
     if (
@@ -127,15 +151,19 @@ export class RateLimitService {
       points: effectiveConfig.points, // Number of points
       duration: effectiveConfig.durationInSec, // Per second(s)
 
-      keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
+      keyPrefix: this.rateLimitPrefix(resource, consumptionScope.type), // must be unique for limiters with different purpose
       storeClient: RateLimitService.redis,
       rejectIfRedisNotReady: true,
     });
 
+    const consumptionKey =
+      consumptionScope.type === "user"
+        ? `${scope.orgId}:user:${consumptionScope.userId}`
+        : scope.orgId;
+
     let res: RateLimitResult | undefined = undefined;
     try {
-      // orgId used as key for different resources
-      const libRes = await rateLimiter.consume(scope.orgId);
+      const libRes = await rateLimiter.consume(consumptionKey);
       res = {
         resource,
         scope,
@@ -169,14 +197,19 @@ export class RateLimitService {
         orgId: scope.orgId,
         plan: scope.plan,
         resource: resource,
+        rateLimitScope: consumptionScope.type,
       });
     }
 
     return res;
   }
 
-  rateLimitPrefix(resource: string) {
-    return `${RATE_LIMIT_REDIS_KEY_PREFIX}:${resource}`;
+  rateLimitPrefix(
+    resource: string,
+    consumptionScope: RateLimitConsumptionScope["type"] = "organization",
+  ) {
+    const basePrefix = `${RATE_LIMIT_REDIS_KEY_PREFIX}:${resource}`;
+    return consumptionScope === "user" ? `${basePrefix}:user` : basePrefix;
   }
 }
 

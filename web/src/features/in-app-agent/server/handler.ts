@@ -237,9 +237,9 @@ export default async function handler(request: Request) {
       plan: rateLimitScope.plan,
     });
 
-    // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
     const rateLimitResponse = await rateLimitInAppAgentRequest(
       rateLimitScope,
+      userId,
       "in-app-agent-run",
     );
 
@@ -653,9 +653,10 @@ function getInAppAgentUserAccess(
 
 async function rateLimitInAppAgentRequest(
   scope: ApiAccessScope,
+  userId: string,
   resource: Parameters<RateLimitService["rateLimitRequest"]>[1],
 ): Promise<Response | undefined> {
-  const rateLimitRes = await checkInAppAgentRateLimit(scope, resource);
+  const rateLimitRes = await checkInAppAgentRateLimit(scope, userId, resource);
 
   return rateLimitRes
     ? createInAppAgentRateLimitResponse(rateLimitRes)
