@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  stringify,
-  stringifyForCsv,
-} from "../../../packages/shared/src/server/utils/transforms/stringify";
+import { stringify, stringifyForCsv } from "./stringify";
 
 describe("stringify", () => {
   it("serializes bigint values as numbers", () => {
