@@ -87,4 +87,59 @@ describe("DatasetItemValidator", () => {
       expect(normalizeViaTrpc("Hello World")).toBe("Hello World");
     });
   });
+
+  // Update merge: fields the caller omits fall back to the existing DB value,
+  // which is already decoded and must not be parsed again even when the caller
+  // opted into parseJsonStrings (the tRPC updateDatasetItem path — #15342).
+  describe("update merge (existingItem)", () => {
+    const updateWith = (params: {
+      input?: unknown;
+      existing: {
+        input: unknown;
+        expectedOutput: unknown;
+        metadata: unknown;
+      };
+    }) => {
+      const validator = new DatasetItemValidator(noSchemas);
+      const result = validator.validateAndNormalize({
+        input: params.input,
+        expectedOutput: undefined,
+        metadata: undefined,
+        existingItem: params.existing as never,
+        normalizeOpts: { parseJsonStrings: true },
+        validateOpts: { normalizeUndefinedToNull: false },
+      });
+      if (!result.success) throw new Error(result.message);
+      return result;
+    };
+
+    it("carries over a stored numeric string without re-parsing it", () => {
+      const result = updateWith({
+        input: undefined,
+        existing: {
+          input: "123456",
+          expectedOutput: "true",
+          metadata: null,
+        },
+      });
+      expect(result.input).toBe("123456");
+      expect(result.expectedOutput).toBe("true");
+    });
+
+    it("still parses a freshly supplied JSON string on update", () => {
+      const result = updateWith({
+        input: '{"key":"value"}',
+        existing: { input: "123456", expectedOutput: null, metadata: null },
+      });
+      expect(result.input).toEqual({ key: "value" });
+    });
+
+    it("carries over a stored null as a DB null", () => {
+      const result = updateWith({
+        input: undefined,
+        existing: { input: null, expectedOutput: null, metadata: null },
+      });
+      expect(result.input).toBe(Prisma.DbNull);
+    });
+  });
 });

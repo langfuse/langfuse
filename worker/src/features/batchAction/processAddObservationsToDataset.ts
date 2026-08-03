@@ -88,8 +88,12 @@ async function processChunk(params: {
     const result = await createManyDatasetItems({
       projectId,
       items,
-      // Observation input/output arrive as JSON strings from ClickHouse
-      // (Nullable(String) columns), so they still need decoding here.
+      // Full-mode mappings pass the raw ClickHouse input/output through
+      // verbatim (Nullable(String) columns), so those JSON strings still need
+      // decoding here. Custom JSONPath mappings already decode in
+      // applyFieldMapping, so an extracted bare scalar string gets re-parsed a
+      // second time — a pre-existing #15342-class coercion tracked separately,
+      // not addressed here to avoid changing documented batch-action behaviour.
       normalizeOpts: { sanitizeControlChars: true, parseJsonStrings: true },
       validateOpts: { normalizeUndefinedToNull: true },
       allowPartialSuccess: true, // Allow partial success for bulk operations
