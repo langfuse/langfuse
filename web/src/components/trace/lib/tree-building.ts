@@ -28,6 +28,7 @@ import {
   type TraceDomain,
 } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { computeRootAggregates } from "./trace-aggregation";
 
 type TraceType = Omit<
   WithStringifiedMetadata<TraceDomain>,
@@ -544,25 +545,8 @@ export function buildTraceUiData(
     return { roots, searchItems: [], nodeMap };
   }
 
-  // TODO: Extract aggregation logic to shared utility - duplicated in TraceTree.tsx and TraceTimeline/index.tsx
-  // Calculate aggregated totals across all roots for heatmap scaling
-  const rootTotalCost = roots.reduce<Decimal | undefined>((acc, r) => {
-    if (!r.totalCost) return acc;
-    return acc ? acc.plus(r.totalCost) : r.totalCost;
-  }, undefined);
-
-  const rootDuration =
-    roots.length > 0
-      ? Math.max(
-          ...roots.map((r) =>
-            r.latency
-              ? r.latency * 1000
-              : r.endTime
-                ? r.endTime.getTime() - r.startTime.getTime()
-                : 0,
-          ),
-        )
-      : undefined;
+  const { totalCost: rootTotalCost, totalDurationMs: rootDuration } =
+    computeRootAggregates(roots);
 
   // Build flat search items list (iterative to avoid stack overflow on deep trees)
   const searchItems: TraceSearchListItem[] = [];

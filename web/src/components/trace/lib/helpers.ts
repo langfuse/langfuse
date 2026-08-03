@@ -9,6 +9,7 @@ import {
   type TraceDomain,
 } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { computeRootAggregates } from "./trace-aggregation";
 
 export function nestObservations(
   list: ObservationReturnType[],
@@ -432,61 +433,8 @@ export function buildTraceUiData(
     minLevel,
   );
 
-  // Calculate total cost directly from TreeNode structure
-  // This avoids unnecessary type conversions and is more straightforward
-  const calculateTreeNodeTotalCost = (node: TreeNode): Decimal | undefined => {
-    // Check if this node has cost data
-    let nodeCost: Decimal | undefined;
-
-    if (node.calculatedTotalCost != null) {
-      const cost = new Decimal(node.calculatedTotalCost);
-      if (!cost.isZero()) {
-        nodeCost = cost;
-      }
-    } else if (
-      node.calculatedInputCost != null ||
-      node.calculatedOutputCost != null
-    ) {
-      const inputCost =
-        node.calculatedInputCost != null
-          ? new Decimal(node.calculatedInputCost)
-          : new Decimal(0);
-      const outputCost =
-        node.calculatedOutputCost != null
-          ? new Decimal(node.calculatedOutputCost)
-          : new Decimal(0);
-      const combinedCost = inputCost.plus(outputCost);
-      if (!combinedCost.isZero()) {
-        nodeCost = combinedCost;
-      }
-    }
-
-    // Calculate total from all children
-    const childrenCost = node.children.reduce<Decimal | undefined>(
-      (acc, child) => {
-        const childCost = calculateTreeNodeTotalCost(child);
-        if (!childCost) return acc;
-        return acc ? acc.plus(childCost) : childCost;
-      },
-      undefined,
-    );
-
-    // Return the sum of node cost and children cost
-    if (nodeCost && childrenCost) {
-      return nodeCost.plus(childrenCost);
-    }
-    return nodeCost || childrenCost;
-  };
-
-  const rootTotalCost =
-    tree.type === "TRACE"
-      ? tree.children.reduce<Decimal | undefined>((acc, child) => {
-          const childCost = calculateTreeNodeTotalCost(child);
-          if (!childCost) return acc;
-          return acc ? acc.plus(childCost) : childCost;
-        }, undefined)
-      : calculateTreeNodeTotalCost(tree);
-  const rootDuration = tree.latency ? tree.latency * 1000 : undefined;
+  const { totalCost: rootTotalCost, totalDurationMs: rootDuration } =
+    computeRootAggregates([tree]);
 
   const out: TraceSearchListItem[] = [];
   const visit = (node: TreeNode) => {

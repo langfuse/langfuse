@@ -7,6 +7,7 @@
 
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type ObservationType, isGenerationLike } from "@langfuse/shared";
+import { type Decimal } from "decimal.js";
 import { type TreeNode } from "./types";
 
 export interface AggregatedTraceMetrics {
@@ -17,6 +18,41 @@ export interface AggregatedTraceMetrics {
   outputUsage: number;
   usageDetails: Record<string, number> | undefined;
   hasGenerationLike: boolean;
+}
+
+export interface RootAggregates {
+  totalCost?: Decimal;
+  totalDurationMs?: number;
+}
+
+/**
+ * Aggregates root-level cost and duration for trace heatmap scaling.
+ *
+ * Root costs are already aggregated bottom-up during tree construction, so
+ * summing them covers the full forest without double-counting descendants.
+ * Duration prefers an explicit latency (including zero) and otherwise falls
+ * back to the root's wall-clock span.
+ */
+export function computeRootAggregates(roots: TreeNode[]): RootAggregates {
+  const totalCost = roots.reduce<Decimal | undefined>((acc, root) => {
+    if (root.totalCost == null) return acc;
+    return acc ? acc.plus(root.totalCost) : root.totalCost;
+  }, undefined);
+
+  const totalDurationMs =
+    roots.length > 0
+      ? Math.max(
+          ...roots.map((root) =>
+            root.latency != null
+              ? root.latency * 1000
+              : root.endTime
+                ? root.endTime.getTime() - root.startTime.getTime()
+                : 0,
+          ),
+        )
+      : undefined;
+
+  return { totalCost, totalDurationMs };
 }
 
 /**

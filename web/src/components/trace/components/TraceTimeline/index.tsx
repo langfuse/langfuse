@@ -59,6 +59,7 @@ import { useDesktopLayoutContextOptional } from "../_layout/TraceLayoutDesktop";
 import { useMobileLayoutContextOptional } from "../_layout/TraceLayoutMobile";
 import { type TreeNode } from "../../lib/types";
 import { cn } from "@/src/utils/tailwind";
+import { computeRootAggregates } from "../../lib/trace-aggregation";
 
 // Width of the left name gutter. Resizable; these bound it. Kept slim so the
 // waterfall (the point of the timeline) gets the central space.
@@ -445,21 +446,8 @@ export function TraceTimeline() {
     }
   }, []);
 
-  // Parent totals for heatmap coloring (aggregate across all roots).
-  const parentTotalCost = useMemo(() => {
-    return roots.reduce(
-      (acc, r) => {
-        if (!r.totalCost) return acc;
-        return acc ? acc.plus(r.totalCost) : r.totalCost;
-      },
-      undefined as (typeof roots)[0]["totalCost"],
-    );
-  }, [roots]);
-  // MILLISECONDS: TimelineBar heat-maps ownDurationMs against this max, and
-  // the tree path (TraceTree rootTotalDuration) is ms too. traceDuration is
-  // seconds — passing it raw inflated the heat ratio ×1000, painting every
-  // duration label dark red.
-  const parentTotalDuration = traceDuration * 1000;
+  const { totalCost: parentTotalCost, totalDurationMs: parentTotalDuration } =
+    useMemo(() => computeRootAggregates(roots), [roots]);
 
   // Score lookup: one pass over the scores instead of an O(scores) filter per
   // row per render. Two maps preserve the exact TRACE-vs-observation keying:
