@@ -8,14 +8,6 @@ export type OtelIdRejectionReason = "absent" | "not_an_id";
  * Whether an OTLP trace/span id can be converted by
  * OtelIngestionProcessor.parseId, which returns strings unchanged and otherwise
  * calls `Buffer.from()`. Returns null when it can.
- *
- * Convertibility is the only property worth checking here. Length and encoding
- * are deliberately *not* validated: the OTLP protobuf declares both fields as
- * `bytes` with no length constraint, and ClickHouse stores the id as a plain
- * `String`, so a short, long, non-hex or all-zero id ingests without incident.
- * Rejecting those would break clients to no benefit — every production failure
- * behind this validation was `ERR_INVALID_ARG_TYPE` from an id that could not be
- * converted at all.
  */
 export function getOtelIdRejectionReason(
   value: unknown,
