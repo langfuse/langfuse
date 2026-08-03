@@ -1,4 +1,22 @@
 types:
+  # Migration signal attached as the top-level `_deprecation` key on responses
+  # from deprecated (legacy, pre-v4-data-model) endpoints. See LFE-10895.
+  Deprecation:
+    docs: Migration signal returned by deprecated endpoints. Optional fields are omitted when they have no value.
+    properties:
+      message:
+        type: string
+        docs: Human- and agent-readable summary of the deprecation and its replacement.
+      replacement:
+        type: optional<string>
+        docs: The replacement endpoint, e.g. "GET /api/public/v2/observations". Omitted when the endpoint is being removed without a direct replacement.
+      docsUrl:
+        type: optional<string>
+        docs: Link to the migration documentation (markdown), when available.
+      sunsetAt:
+        type: optional<string>
+        docs: ISO date after which the endpoint may stop working, when a removal date is committed.
+
   # Objects
   # Source: web/src/features/public-api/types/traces.ts - APITrace, APIExtendedTrace, GetTraceV1Response
   Trace:
@@ -78,6 +96,7 @@ types:
       scores:
         type: list<ScoreV1>
         docs: List of scores
+      _deprecation: optional<Deprecation>
   # Source: web/src/features/public-api/types/sessions.ts - APISession
   Session:
     properties:
@@ -91,6 +110,7 @@ types:
     extends: Session
     properties:
       traces: list<Trace>
+      _deprecation: optional<Deprecation>
   # Source: web/src/features/public-api/types/observations.ts - APIObservation
   Observation:
     properties:
@@ -194,6 +214,172 @@ types:
       timeToFirstToken:
         type: nullable<double>
         docs: The time to the first token in seconds
+
+  # Single-observation response (GET /observations/{observationId}); carries the
+  # deprecation signal without adding it to the shared ObservationsView (used as
+  # a list element and nested in TraceWithFullDetails).
+  ObservationsViewSingle:
+    extends: ObservationsView
+    properties:
+      _deprecation: optional<Deprecation>
+
+  # Source: web/src/features/public-api/types/observations.ts - APIObservationV2
+  ObservationV2:
+    docs: |
+      An observation from the v2 API with field-group-based selection.
+      Core fields are always present. Other fields are included only when their field group is requested.
+    properties:
+      # Core fields (always present)
+      id:
+        type: string
+        docs: The unique identifier of the observation
+      traceId:
+        type: nullable<string>
+        docs: The trace ID associated with the observation
+      startTime:
+        type: datetime
+        docs: The start time of the observation
+      endTime:
+        type: nullable<datetime>
+        docs: The end time of the observation
+      projectId:
+        type: string
+        docs: The project ID this observation belongs to
+      parentObservationId:
+        type: nullable<string>
+        docs: |
+          The physical parent observation ID, if present.
+          Observations marked as app roots by the SDK may retain a non-null parent ID.
+      type:
+        type: string
+        docs: The type of the observation (e.g. GENERATION, SPAN, EVENT)
+
+      # Basic fields (field group: basic)
+      isRootObservation:
+        type: optional<boolean>
+        docs: |
+          Whether this observation is a logical root.
+          This is true for observations without a physical parent and observations marked as app roots by the SDK.
+      name:
+        type: optional<nullable<string>>
+        docs: The name of the observation
+      level:
+        type: optional<ObservationLevel>
+        docs: The level of the observation
+      statusMessage:
+        type: optional<nullable<string>>
+        docs: The status message of the observation
+      version:
+        type: optional<nullable<string>>
+        docs: The version of the observation
+      environment:
+        type: optional<nullable<string>>
+        docs: The environment from which this observation originated
+      bookmarked:
+        type: optional<boolean>
+        docs: Whether the observation is bookmarked
+      public:
+        type: optional<boolean>
+        docs: Whether the observation is public
+      userId:
+        type: optional<nullable<string>>
+        docs: The user ID associated with the observation
+      sessionId:
+        type: optional<nullable<string>>
+        docs: The session ID associated with the observation
+
+      # Time fields (field group: time)
+      completionStartTime:
+        type: optional<nullable<datetime>>
+        docs: The completion start time of the observation
+      createdAt:
+        type: optional<datetime>
+        docs: The creation timestamp of the observation
+      updatedAt:
+        type: optional<datetime>
+        docs: The last update timestamp of the observation
+
+      # IO fields (field group: io)
+      input:
+        type: optional<unknown>
+        docs: The input data of the observation
+      output:
+        type: optional<unknown>
+        docs: The output data of the observation
+
+      # Metadata fields (field group: metadata)
+      metadata:
+        type: optional<unknown>
+        docs: Additional metadata of the observation
+
+      # Model fields (field group: model)
+      providedModelName:
+        type: optional<nullable<string>>
+        docs: The model name as provided by the user
+      internalModelId:
+        type: optional<nullable<string>>
+        docs: The internal model ID matched by Langfuse
+      modelParameters:
+        type: optional<unknown>
+        docs: The parameters of the model used for the observation
+
+      # Usage fields (field group: usage)
+      usageDetails:
+        type: optional<map<string, integer>>
+        docs: The usage details of the observation. Key is the usage metric name, value is the number of units consumed.
+      costDetails:
+        type: optional<map<string, double>>
+        docs: The cost details of the observation. Key is the cost metric name, value is the cost in USD.
+      totalCost:
+        type: optional<nullable<double>>
+        docs: The total cost of the observation in USD
+      usagePricingTierName:
+        type: optional<nullable<string>>
+        docs: The name of the pricing tier applied to this observation's usage costs
+
+      # Prompt fields (field group: prompt)
+      promptId:
+        type: optional<nullable<string>>
+        docs: The prompt ID associated with the observation
+      promptName:
+        type: optional<nullable<string>>
+        docs: The prompt name associated with the observation
+      promptVersion:
+        type: optional<nullable<integer>>
+        docs: The prompt version associated with the observation
+
+      # Metrics fields (field group: metrics)
+      latency:
+        type: optional<nullable<double>>
+        docs: The latency in seconds
+      timeToFirstToken:
+        type: optional<nullable<double>>
+        docs: The time to first token in seconds
+
+      # Enrichment fields (always present on v2 responses, null when `model` field group not requested)
+      modelId:
+        type: nullable<string>
+        docs: The matched model ID. Null when the `model` field group is not requested.
+      inputPrice:
+        type: nullable<string>
+        docs: The input token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+      outputPrice:
+        type: nullable<string>
+        docs: The output token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+      totalPrice:
+        type: nullable<string>
+        docs: The total token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+
+      # Trace context fields (field group: trace_context)
+      traceName:
+        type: optional<nullable<string>>
+        docs: The name of the parent trace
+      tags:
+        type: optional<nullable<list<string>>>
+        docs: Tags from the parent trace (denormalized onto the observation)
+      release:
+        type: optional<nullable<string>>
+        docs: The release version of the parent trace
 
   Usage:
     docs: (Deprecated. Use usageDetails and costDetails instead.) Standard interface for usage and cost
@@ -303,6 +489,12 @@ types:
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  TextScoreV1:
+    extends: BaseScoreV1
+    properties:
+      stringValue:
+        type: string
+        docs: The text content of the score (1-500 characters)
   ScoreV1:
     discriminant: "dataType"
     union:
@@ -315,6 +507,9 @@ types:
       BOOLEAN:
         type: BooleanScoreV1
         docs: "Score with BOOLEAN data type"
+      TEXT:
+        type: TextScoreV1
+        docs: "Score with TEXT data type"
 
   # Source: packages/shared/src/features/scores/interfaces/api/v2/schemas.ts - APIScoreSchemaV2
   BaseScore:
@@ -379,8 +574,25 @@ types:
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  CorrectionScore:
+    extends: BaseScore
+    properties:
+      value:
+        type: double
+        docs: The numeric value of the score. Always 0 for correction scores.
+      stringValue:
+        type: string
+        docs: The string representation of the correction content
+  TextScore:
+    extends: BaseScore
+    properties:
+      stringValue:
+        type: string
+        docs: The text content of the score (1-500 characters)
   Score:
     discriminant: "dataType"
+    base-properties:
+      _deprecation: optional<Deprecation>
     union:
       NUMERIC:
         type: NumericScore
@@ -391,13 +603,19 @@ types:
       BOOLEAN:
         type: BooleanScore
         docs: "Score with BOOLEAN data type"
+      CORRECTION:
+        type: CorrectionScore
+        docs: "Score with CORRECTION data type"
+      TEXT:
+        type: TextScore
+        docs: "Score with TEXT data type"
 
   CreateScoreValue:
     discriminated: false
     union:
       - double
       - string
-    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
+    docs: The value of the score. Must be passed as string for categorical and text scores, and numeric for boolean and numeric scores
 
   # Source: web/src/features/public-api/types/comments.ts - APIComment
   Comment:
@@ -457,6 +675,49 @@ types:
       datasetName: string
       createdAt: datetime
       updatedAt: datetime
+      mediaReferences:
+        type: list<DatasetItemMediaReference>
+        docs: Resolved Langfuse media references found in input, expectedOutput, and metadata.
+  # Source: web/src/features/public-api/types/datasets.ts - APIDatasetItemMediaReference
+  DatasetItemMediaReference:
+    properties:
+      field:
+        type: DatasetItemMediaReferenceField
+        docs: The dataset item field containing the reference
+      referenceString:
+        type: string
+        docs: The Langfuse media reference string, e.g. `@@@langfuseMedia:type=image/png|id=...|source=bytes@@@`
+      jsonPath:
+        type: string
+        docs: JSONPath of the string holding the reference within the field, e.g. `$['image']`
+      media:
+        type: DatasetItemMediaReferenceMedia
+        docs: The resolved media record.
+  DatasetItemMediaReferenceField:
+    enum:
+      - value: input
+        name: INPUT
+      - value: expectedOutput
+        name: EXPECTED_OUTPUT
+      - value: metadata
+        name: METADATA
+  DatasetItemMediaReferenceMedia:
+    properties:
+      mediaId:
+        type: string
+        docs: The unique langfuse identifier of the media record
+      contentType:
+        type: string
+        docs: The MIME type of the media record
+      contentLength:
+        type: integer
+        docs: The size of the media record in bytes
+      url:
+        type: string
+        docs: The signed download URL of the media record
+      urlExpiry:
+        type: string
+        docs: The expiry date and time of the download URL
   # Source: web/src/features/public-api/types/datasets.ts - APIDatasetRunItem
   DatasetRunItem:
     properties:
@@ -501,6 +762,7 @@ types:
     extends: DatasetRun
     properties:
       datasetRunItems: list<DatasetRunItem>
+      _deprecation: optional<Deprecation>
   # Source: web/src/features/public-api/types/models.ts - APIModelDefinition
   Model:
     docs: |
@@ -769,6 +1031,7 @@ types:
     union:
       - optional<string>
       - optional<integer>
+      - optional<float>
       - optional<boolean>
       - optional<list<string>>
   CommentObjectType:
@@ -791,6 +1054,7 @@ types:
       - NUMERIC
       - BOOLEAN
       - CATEGORICAL
+      - TEXT
 
   ScoreDataType:
     enum:
@@ -798,6 +1062,7 @@ types:
       - BOOLEAN
       - CATEGORICAL
       - CORRECTION
+      - TEXT
 
 errors:
   Error:

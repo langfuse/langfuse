@@ -1,0 +1,269 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+types:
+  PublicApiErrorCode:
+    docs: |
+      Machine-readable error code returned by the unstable evaluators API.
+
+      SDKs, CLIs, and agents should branch on `code` rather than parsing the human-readable `message`.
+      The HTTP status still indicates the broad error class, while `code` gives the specific failure reason.
+    enum:
+      - authentication_failed
+      - access_denied
+      - invalid_request
+      - invalid_query
+      - invalid_body
+      - invalid_filter_value
+      - invalid_json_path
+      - invalid_variable_mapping
+      - missing_variable_mapping
+      - duplicate_variable_mapping
+      - resource_not_found
+      - name_conflict
+      - evaluator_preflight_failed
+      - conflict
+      - unprocessable_content
+      - rate_limited
+      - method_not_allowed
+      - internal_error
+
+  PublicApiValidationIssue:
+    docs: |
+      One validation issue returned for malformed request bodies or query parameters.
+
+      This mirrors the most important parts of a Zod issue: a machine-readable `code`,
+      a human-readable `message`, and a structured `path`.
+    properties:
+      code:
+        type: string
+        docs: Machine-readable validation issue code emitted by the server validator.
+      message:
+        type: string
+        docs: Human-readable explanation of the validation failure.
+      path:
+        type: list<unknown>
+        docs: Path to the invalid field, for example `["mapping", 0, "jsonPath"]`.
+
+  PublicApiErrorDetails:
+    docs: |
+      Optional structured context attached to an unstable-evals error.
+
+      The populated fields depend on the error `code`:
+      - request parsing failures populate `issues`
+      - filter validation failures populate `field`, `column`, `invalidValues`, and `allowedValues`
+      - variable mapping failures populate `field`, `variable`, or `variables`
+      - JSONPath validation failures populate `field`, `variable`, and `value`
+      - evaluator preflight failures populate `evaluatorName`, `provider`, and `model`
+      - rate limiting populates `retryAfterSeconds`, `limit`, `remaining`, and `resetAt`
+    properties:
+      issues:
+        type: optional<list<PublicApiValidationIssue>>
+        docs: Validation issues for malformed request bodies or query parameters.
+      field:
+        type: optional<string>
+        docs: Path-like reference to the failing field, for example `mapping[1].jsonPath`.
+      column:
+        type: optional<string>
+        docs: Filter column that failed validation.
+      invalidValues:
+        type: optional<list<string>>
+        docs: Unsupported values supplied by the caller.
+      allowedValues:
+        type: optional<list<string>>
+        docs: Allowed values for the failing filter column.
+      variable:
+        type: optional<string>
+        docs: Evaluator variable involved in the failure.
+      variables:
+        type: optional<list<string>>
+        docs: Multiple evaluator variables involved in the failure, for example missing mappings.
+      value:
+        type: optional<string>
+        docs: Raw invalid value supplied by the caller.
+      evaluatorName:
+        type: optional<string>
+        docs: Evaluator name used during preflight validation.
+      provider:
+        type: optional<nullable<string>>
+        docs: Provider resolved during evaluator preflight, if any.
+      model:
+        type: optional<nullable<string>>
+        docs: Model resolved during evaluator preflight, if any.
+      retryAfterSeconds:
+        type: optional<integer>
+        docs: Suggested retry delay for rate-limited requests.
+      limit:
+        type: optional<integer>
+        docs: Numeric limit associated with the failure, for example the active evaluation-rule cap or the current rate-limit window.
+      remaining:
+        type: optional<integer>
+        docs: Remaining requests in the current rate-limit window.
+      resetAt:
+        type: optional<string>
+        docs: ISO-8601 timestamp when the current rate-limit window resets.
+
+  PublicApiError:
+    docs: |
+      Standard error envelope for the unstable evaluators API.
+
+      Response handling guidance:
+      - Use the HTTP status code for the broad class of failure.
+      - Use `code` for precise branching in SDKs, CLIs, or agents.
+      - Inspect `details` for field-level validation context such as invalid filter values, malformed JSONPath expressions, or missing variable mappings.
+      - Retry only after fixing the specific issue described by `code` and `details`.
+    properties:
+      message:
+        type: string
+        docs: Human-readable description of the failure.
+      code:
+        type: PublicApiErrorCode
+        docs: Stable machine-readable error code.
+      details:
+        type: optional<PublicApiErrorDetails>
+        docs: Optional structured error context. Inspect the populated fields based on `code`.
+    examples:
+      - name: InvalidFilterValue
+        value:
+          message: 'Filter column "type" contains unsupported value(s): INVALID'
+          code: invalid_filter_value
+          details:
+            field: filter[0].value
+            column: type
+            invalidValues:
+              - INVALID
+            allowedValues:
+              - GENERATION
+              - SPAN
+              - EVENT
+      - name: InvalidExperimentDatasetFilterValue
+        value:
+          message: 'Filter column "datasetId" contains dataset id(s) that do not exist in this project: dataset-prod'
+          code: invalid_filter_value
+          details:
+            field: filter[0].value
+            column: datasetId
+            invalidValues:
+              - dataset-prod
+      - name: EvaluatorPreflightFailed
+        value:
+          message: 'No valid LLM model found for evaluator "answer-correctness". No default model or custom model configured for project project_123'
+          code: evaluator_preflight_failed
+          details:
+            evaluatorName: answer-correctness
+            provider: null
+            model: null
+      - name: MissingVariableMapping
+        value:
+          message: "Missing mappings for evaluator variable(s): output"
+          code: missing_variable_mapping
+          details:
+            field: mapping
+            variables:
+              - output
+      - name: InvalidJsonPath
+        value:
+          message: 'Mapping for variable "customer_tier" has an invalid jsonPath "$[". JSONPath expressions must use balanced quotes, brackets, and parentheses.'
+          code: invalid_json_path
+          details:
+            field: mapping[0].jsonPath
+            variable: customer_tier
+            value: "$["
+      - name: NameConflict
+        value:
+          message: 'An evaluation rule named "answer-quality-live" already exists in this project. Use PATCH /api/public/unstable/evaluation-rules/erule_123 to update it instead of creating a duplicate.'
+          code: name_conflict
+          details:
+            field: name
+      - name: ActiveEvaluationRuleLimit
+        value:
+          message: This project already has the maximum number of active evaluation rules (50). Disable an existing active evaluation rule before enabling another one.
+          code: conflict
+          details:
+            limit: 50
+      - name: RateLimited
+        value:
+          message: Rate limit exceeded
+          code: rate_limited
+          details:
+            retryAfterSeconds: 60
+            limit: 1000
+            remaining: 0
+            resetAt: "2026-03-30T10:00:00.000Z"
+
+errors:
+  BadRequestError:
+    docs: |
+      Request parsing or validation failed.
+
+      Typical unstable-eval examples:
+      - malformed request body or query parameters
+      - unsupported filter value
+      - invalid JSONPath selector
+      - missing or duplicate variable mappings
+
+      Recovery guidance:
+      - read `details.issues` for malformed bodies or queries
+      - read `details.column`, `details.invalidValues`, and `details.allowedValues` for filter problems
+      - for `details.column=datasetId`, call `GET /api/public/v2/datasets` and retry with dataset `id` values from that response
+      - read `details.variable` or `details.variables` for mapping problems
+    status-code: 400
+    type: PublicApiError
+  UnauthorizedError:
+    docs: |
+      Authentication failed.
+
+      Typical unstable-eval examples:
+      - the API key or secret key is invalid
+      - the request uses the wrong host or stale credentials
+    status-code: 401
+    type: PublicApiError
+  AccessDeniedError:
+    docs: |
+      Authenticated, but the caller is not allowed to access the requested resource.
+
+      Typical unstable-eval examples:
+      - using an organization-scoped key against project-scoped evaluator endpoints
+      - using a valid key that lacks the required access level for this resource
+    status-code: 403
+    type: PublicApiError
+  NotFoundError:
+    docs: The requested evaluator or evaluation rule does not exist within the authorized project.
+    status-code: 404
+    type: PublicApiError
+  MethodNotAllowedError:
+    docs: The HTTP method is not supported for this endpoint.
+    status-code: 405
+    type: PublicApiError
+  ConflictError:
+    docs: |
+      The request conflicts with existing state.
+
+      Typical unstable-eval examples:
+      - evaluator version changed during concurrent creation
+      - an evaluation rule name already exists in the project, so the caller should PATCH the existing resource instead
+      - enabling another evaluation rule would exceed the project limit of 50 active evaluation rules
+      - the underlying state changed between read and write operations, so the client should retry
+
+      Recovery guidance:
+      - for `name_conflict`, PATCH the existing evaluation rule instead of creating another one
+      - for the active-limit conflict, disable another active evaluation rule before enabling a new one
+    status-code: 409
+    type: PublicApiError
+  UnprocessableContentError:
+    docs: |
+      The request is syntactically valid, but Langfuse cannot accept it in its current form.
+
+      The most important unstable-eval case is `code=evaluator_preflight_failed`, which means the evaluator cannot currently run with the resolved model configuration.
+
+      Recovery guidance:
+      - configure the project's default evaluation model, or send a valid explicit evaluator `modelConfig`
+      - once the model configuration is valid, retry the same request
+    status-code: 422
+    type: PublicApiError
+  TooManyRequestsError:
+    docs: The project is rate limited. Retry after the interval described in the response headers and error details.
+    status-code: 429
+    type: PublicApiError
+  InternalServerError:
+    docs: An unexpected server-side error occurred.
+    status-code: 500
+    type: PublicApiError

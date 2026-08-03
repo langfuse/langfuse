@@ -1,4 +1,5 @@
 import { UiColumnMappings } from "../../tableDefinitions";
+import { SCORE_BOOLEAN_VALUE_SQL } from "./mapScoresTable";
 
 export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [
   // scores native columns
@@ -19,6 +20,13 @@ export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "datasetRunIds",
     clickhouseTableName: "scores",
     clickhouseSelect: 's."dataset_run_id"',
+  },
+  {
+    uiTableName: "Boolean Value",
+    uiTableId: "booleanValue",
+    clickhouseTableName: "scores",
+    clickhouseSelect: SCORE_BOOLEAN_VALUE_SQL,
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Observation ID",
@@ -50,5 +58,12 @@ export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "datasetItemIds",
     clickhouseTableName: "dataset_run_items_rmt",
     clickhouseSelect: 'dri."dataset_item_id"',
+  },
+  // require join of scores with experiments via trace_id and project_id
+  {
+    uiTableName: "Experiment IDs",
+    uiTableId: "experimentIds",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: 'e."experiment_id"',
   },
 ];

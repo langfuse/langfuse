@@ -20,15 +20,26 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { ChevronDown, CheckIcon, PlusIcon, EyeIcon } from "lucide-react";
+import {
+  ChevronDown,
+  CheckIcon,
+  PlusIcon,
+  EyeIcon,
+  TriangleAlert,
+} from "lucide-react";
 import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
-import { type LlmSchema } from "@langfuse/shared";
-import { Switch } from "@/src/components/ui/switch";
+import {
+  hasPromptToolStructuredOutputConflict,
+  PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+  type LlmSchema,
+} from "@langfuse/shared";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { type PromptModelStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 
 export const PromptModelStep: React.FC<PromptModelStepProps> = ({
   projectId,
@@ -44,6 +55,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
     setSelectedPromptName,
     selectedPromptVersion,
     setSelectedPromptVersion,
+    selectedPromptToolConfig,
   } = promptModelState;
   const {
     modelParams,
@@ -61,6 +73,10 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
   const [open, setOpen] = useState(false);
   const [selectedSchema, setSelectedSchema] = useState<LlmSchema | null>(null);
   const [schemaPopoverOpen, setSchemaPopoverOpen] = useState(false);
+  const hasToolStructuredOutputConflict = hasPromptToolStructuredOutputConflict(
+    selectedPromptToolConfig,
+    structuredOutputEnabled,
+  );
 
   const savedSchemas = api.llmSchemas.getAll.useQuery(
     { projectId },
@@ -122,7 +138,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className="w-[--radix-popover-trigger-width] overflow-auto p-0"
+                  className="w-(--radix-popover-trigger-width) overflow-auto p-0"
                   align="start"
                 >
                   <InputCommand>
@@ -182,7 +198,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className="w-[--radix-popover-trigger-width] p-0"
+                  className="w-(--radix-popover-trigger-width) p-0"
                   align="start"
                 >
                   <InputCommand>
@@ -205,10 +221,21 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                 form.clearErrors("promptId");
                               }}
                             >
-                              Version {prompt.version}
+                              <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <span className="shrink-0">
+                                  Version {prompt.version}
+                                </span>
+                                {prompt.labels.length > 0 && (
+                                  <TruncatedLabels
+                                    labels={prompt.labels}
+                                    maxVisibleLabels={2}
+                                    className="min-w-0"
+                                  />
+                                )}
+                              </div>
                               <CheckIcon
                                 className={cn(
-                                  "ml-auto h-4 w-4",
+                                  "ml-auto h-4 w-4 shrink-0",
                                   prompt.version === selectedPromptVersion
                                     ? "opacity-100"
                                     : "opacity-0",
@@ -227,6 +254,13 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                 </PopoverContent>
               </Popover>
             </div>
+            {selectedPromptToolConfig.status === "invalid" && (
+              <p className="text-dark-yellow flex items-center gap-1.5 text-sm">
+                <TriangleAlert className="h-4 w-4 shrink-0" />
+                Invalid tool config detected on this prompt version. Its tools
+                will be ignored when running the experiment.
+              </p>
+            )}
             <FormMessage />
           </FormItem>
         )}
@@ -237,8 +271,8 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
         name="modelConfig"
         render={() => (
           <FormItem>
-            <FormLabel>Model</FormLabel>
             <ModelParameters
+              customHeader={<FormLabel>Model</FormLabel>}
               {...{
                 modelParams,
                 availableModels,
@@ -252,7 +286,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
             {form.formState.errors.modelConfig && (
               <p
                 id="modelConfig"
-                className={cn("text-sm font-medium text-destructive")}
+                className="text-destructive text-sm font-bold"
               >
                 {[
                   form.formState.errors.modelConfig?.model?.message,
@@ -297,7 +331,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent
-                        className="w-[--radix-popover-trigger-width] p-0"
+                        className="w-(--radix-popover-trigger-width) p-0"
                         align="start"
                       >
                         <InputCommand>
@@ -385,10 +419,16 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
               </>
             )}
 
-            <CardDescription>
-              {structuredOutputEnabled
-                ? "Configure the schema for structured LLM outputs"
-                : "Enable to enforce a specific output format"}
+            <CardDescription
+              className={cn(
+                hasToolStructuredOutputConflict && "text-destructive",
+              )}
+            >
+              {hasToolStructuredOutputConflict
+                ? PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE
+                : structuredOutputEnabled
+                  ? "Configure the schema for structured LLM outputs"
+                  : "Enable to enforce a specific output format"}
             </CardDescription>
             <FormMessage />
           </FormItem>

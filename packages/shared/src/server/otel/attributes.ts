@@ -33,6 +33,7 @@ export enum LangfuseOtelSpanAttributes {
 
   // Internal
   AS_ROOT = "langfuse.internal.as_root",
+  IS_APP_ROOT = "langfuse.internal.is_app_root",
 
   // Compatibility - Map properties that were documented in https://langfuse.com/docs/opentelemetry/get-started#property-mapping,
   // but have a new assignment

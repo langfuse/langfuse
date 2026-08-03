@@ -82,6 +82,9 @@ export function convertDatasetRunItemClickhouseToDomain<
       row.dataset_run_created_at,
     ),
     datasetItemId: row.dataset_item_id,
+    datasetItemVersion: row.dataset_item_version
+      ? parseClickhouseUTCDateTimeFormat(row.dataset_item_version)
+      : null,
     createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(row.updated_at),
     datasetId: row.dataset_id,
@@ -101,7 +104,7 @@ export function convertDatasetRunItemClickhouseToDomain<
         (row as any).dataset_item_metadata,
       ),
     } as DatasetRunItemDomain<WithIO>;
-  } else {
-    return baseConversion as DatasetRunItemDomain<WithIO>;
   }
+
+  return baseConversion as DatasetRunItemDomain<WithIO>;
 }

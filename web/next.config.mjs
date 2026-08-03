@@ -5,12 +5,26 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
-import bundleAnalyzer from "@next/bundle-analyzer";
 
 /**
  * CSP headers
  * img-src https to allow loading images from SSO providers
  */
+// Dataset attachments PUT media directly to presigned storage URLs, so
+// connect-src must allow AWS S3, Azure Blob Storage, GCS, and the configured
+// S3-compatible endpoint. The endpoint env var is only present at runtime in
+// official Docker images, so static wildcards cover the common providers too.
+const mediaUploadConnectSrc = (() => {
+  const endpoint = env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT;
+  if (!endpoint) return "";
+  try {
+    const url = new URL(endpoint);
+    const port = url.port ? `:${url.port}` : "";
+    return `${url.origin} ${url.protocol}//*.${url.hostname}${port} `;
+  } catch {
+    return "";
+  }
+})();
 const cspHeader = `
   default-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.posthog.com https://*.sentry.io;
   script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://*.langfuse.dev https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
@@ -23,7 +37,7 @@ const cspHeader = `
   base-uri 'self';
   form-action 'self' https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   frame-ancestors 'none';
-  connect-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.s3.amazonaws.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
+  connect-src 'self' ${mediaUploadConnectSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://*.blob.core.windows.net https://storage.googleapis.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
   media-src 'self' https: http://localhost:*;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
@@ -48,8 +62,26 @@ const reportToHeader = {
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  // Emit and serve browser source maps in production. Langfuse is open source,
+  // so there is nothing to hide by shipping maps, and browser devtools then
+  // de-minify client stacks automatically. NOTE: this alone does NOT make Sentry
+  // legible — the Sentry SDK rewrites frames to the `app:///` scheme, which is
+  // not a fetchable URL, so Sentry cannot pull these public maps. Sentry
+  // symbolication is handled separately by uploading maps with debug IDs (see
+  // `sourcemaps` in withSentryConfig below).
+  productionBrowserSourceMaps: true,
+  // Allow building to alternate directory for parallel build checks while dev server runs
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+  typescript: {
+    // CI test jobs run `pnpm run typecheck` separately and skip duplicate
+    // Next.js type checks to keep test builds fast. Production/Docker builds
+    // do not set this flag and still fail on TypeScript errors.
+    ignoreBuildErrors: process.env.NEXT_IGNORE_BUILD_ERRORS === "true",
+  },
+  // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
+  allowedDevOrigins: ["127.0.0.1"],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
-  transpilePackages: ["@langfuse/shared", "vis-network/standalone"],
+  transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
   serverExternalPackages: [
     "dd-trace",
@@ -58,26 +90,34 @@ const nextConfig = {
     "bullmq",
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
-    "kysely",
+    // The local-only dangerous-docker sandbox provider depends on dockerode,
+    // which pulls ssh2 assets that Turbopack cannot place into ESM chunks.
+    // Keep it external to the server bundle and load it only at runtime.
+    "dockerode",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
+  compiler: {
+    define: {
+      "import.meta.vitest": "undefined",
+    },
+  },
   turbopack: {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
-      // this is an ugly hack to get turbopack to work with react-resizable, used in the
-      // web/src/features/widgets/components/DashboardGrid.tsx file. This **only** affects
-      // the dev server. The CSS is included in the non-turbopack based prod build anyways.
-      // Also not needed for the non-turbopack based dev server.
-      "react-resizable/css/styles.css":
-        "../node_modules/.pnpm/react-resizable@3.0.5_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/react-resizable/css/styles.css",
+    },
+    rules: {
+      "*.md": {
+        loaders: ["raw-loader"],
+        as: "*.js",
+      },
     },
   },
+  logging: {
+    browserToTerminal: true,
+  },
   experimental: {
-    browserDebugInfoInTerminal: true, // Logs browser logs to terminal
-    // TODO: enable with new next version! 15.6
-    // see: https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopackPersistentCaching
-    // turbopackPersistentCaching: true,
+    turbopackFileSystemCacheForBuild: true,
   },
 
   /**
@@ -91,6 +131,15 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/mcp.json",
+        destination: "/api/well-known/mcp.json",
+      },
+    ];
+  },
 
   async headers() {
     return [
@@ -192,10 +241,23 @@ const nextConfig = {
     ];
   },
 
-  webpack(config, { isServer }) {
+  webpack(config, { isServer, webpack }) {
     // Exclude Datadog packages from webpack bundling to avoid issues
     // see: https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/nodejs/#bundling-with-nextjs
     config.externals.push("@datadog/pprof", "dd-trace");
+
+    config.module.rules.push({
+      test: /\.md$/i,
+      type: "asset/source",
+    });
+
+    // Setup in-source testing: https://vitest.dev/guide/in-source.html#other-bundlers
+    config.plugins.push(
+      new webpack.DefinePlugin({
+        "import.meta.vitest": "undefined",
+      }),
+    );
+
     return config;
   },
 };
@@ -218,36 +280,48 @@ const sentryConfig = withSentryConfig(nextConfig, {
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
 
-  // Automatically annotate React components to show their full name in breadcrumbs and session replay
-  reactComponentAnnotation: {
-    enabled: true,
-  },
-
   // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
   // This can increase your server load as well as your hosting bill.
   // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
   // side errors will fail.
   // tunnelRoute: "/api/monitoring-tunnel",
 
-  // Hides source maps from generated client bundles
+  // Upload source maps to Sentry with debug IDs so Sentry can symbolicate
+  // minified production stack traces. This restores upload that regressed in the
+  // Sentry v8->v10 upgrade (#8934): it mistranslated the old `hideSourceMaps:
+  // true` (upload, then hide from the public bundle) into `sourcemaps.disable`
+  // (do not upload at all) — the correct v10 equivalent was
+  // `deleteSourcemapsAfterUpload: true` — so Sentry stacks have been minified
+  // since. Upload worked across all regions/orgs/projects under v8 via the same
+  // per-region SENTRY_ORG/SENTRY_PROJECT/SENTRY_AUTH_TOKEN this reads. Debug IDs
+  // match a map to an event by an embedded id, independent of URLs and the
+  // `app:///` frame rewrite — which is why serving maps at a public
+  // sourceMappingURL (#15277) can't symbolicate Sentry. Upload runs only when
+  // SENTRY_AUTH_TOKEN is present (prod builds) and targets the per-region
+  // org/project/release baked into each region's build. We also keep serving the
+  // maps publicly (`productionBrowserSourceMaps` above, for devtools), so unlike
+  // the old `hideSourceMaps` we do NOT delete them after upload.
   sourcemaps: {
-    disable: true,
+    deleteSourcemapsAfterUpload: false,
   },
-
-  // Automatically tree-shake Sentry logger statements to reduce bundle size
-  disableLogger: true,
 
   // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
   // See the following for more information:
   // https://docs.sentry.io/product/crons/
   // https://vercel.com/docs/cron-jobs
   automaticVercelMonitors: false,
-});
 
-// Enable bundle analyzer in analyze mode, otherwise use standard config
-const withBundleAnalyzer = bundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
-  openAnalyzer: true, // Open analyzer in browser
-});
+  webpack: {
+    // Automatically annotate React components to show their full name in breadcrumbs and session replay.
+    reactComponentAnnotation: {
+      enabled: true,
+    },
 
-export default withBundleAnalyzer(sentryConfig);
+    // Automatically tree-shake Sentry logger statements to reduce bundle size.
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+  });
+
+export default sentryConfig;

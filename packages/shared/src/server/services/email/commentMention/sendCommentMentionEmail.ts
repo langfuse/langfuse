@@ -1,6 +1,5 @@
-import { createTransport } from "nodemailer";
-import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
+import { createMailTransport } from "../transport";
 
 import { CommentMentionEmailTemplate } from "./CommentMentionEmailTemplate";
 import { logger } from "../../../logger";
@@ -35,7 +34,7 @@ export const sendCommentMentionEmail = async ({
   }
 
   try {
-    const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
+    const mailer = createMailTransport(env.SMTP_CONNECTION_URL);
     // Sanitize the comment preview to prevent HTML/CRLF injection before rendering into HTML
     const safeCommentPreview = sanitizeEmailSubject(commentPreview);
     const htmlTemplate = await render(

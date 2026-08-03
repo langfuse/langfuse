@@ -34,7 +34,7 @@ export const AnnotationDrawerSection: React.FC<
   );
 
   return (
-    <Card className="col-span-2 flex h-full flex-col overflow-y-auto p-3">
+    <Card className="col-span-2 flex h-full flex-col overflow-y-auto border-none p-3">
       <AnnotationForm
         key={"annotation-drawer-content" + item.objectId}
         scoreTarget={scoreTarget}
@@ -51,9 +51,9 @@ export const AnnotationDrawerSection: React.FC<
         }}
         actionButtons={
           isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
-            <div className="flex items-center justify-center rounded-sm border border-dark-red bg-light-red p-1">
-              <TriangleAlertIcon className="mr-1 h-4 w-4 text-dark-red" />
-              <span className="text-xs text-dark-red">
+            <div className="border-dark-red bg-light-red flex items-center justify-center rounded-sm border p-1">
+              <TriangleAlertIcon className="text-dark-red mr-1 h-4 w-4" />
+              <span className="text-dark-red text-xs">
                 Currently edited by {item.lockedByUser.name}
               </span>
             </div>
@@ -61,8 +61,9 @@ export const AnnotationDrawerSection: React.FC<
         }
       />
       {hasNonAnnotationScores && (
-        <div className="mt-4 text-xs text-muted-foreground">
-          API and eval scores visible on left. Add manual annotations above.
+        <div className="text-muted-foreground mt-4 text-xs">
+          API and eval scores visible when toggling on the detailed view. Add
+          manual annotations above.
         </div>
       )}
     </Card>

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createTRPCRouter,
   authenticatedProcedure,
@@ -8,7 +8,7 @@ import { SurveyName } from "@prisma/client";
 import { logger } from "@langfuse/shared/src/server";
 
 const surveyResponseSchema = z.object({
-  surveyName: z.nativeEnum(SurveyName),
+  surveyName: z.enum(SurveyName),
   response: z.record(z.string(), z.string()),
   orgId: z.string().optional(),
 });

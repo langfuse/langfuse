@@ -1,14 +1,6 @@
 import { Trash } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
+import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
@@ -55,44 +47,24 @@ export const DeleteDatasetRunButton = ({
   );
 
   return hasAccess ? (
-    <Dialog
+    <ConfirmDialog
       open={isDialogOpen}
-      onOpenChange={(isOpen) => {
-        if (!mutDelete.isPending) {
-          setIsDialogOpen(isOpen);
-        }
+      onOpenChange={setIsDialogOpen}
+      trigger={button}
+      title="Please confirm"
+      description="This action cannot be undone. Traces linked to this run must be deleted manually."
+      confirmLabel="Delete Dataset Run"
+      loading={mutDelete.isPending}
+      onConfirm={async () => {
+        capture("dataset_run:delete_form_submit");
+        await mutDelete.mutateAsync({
+          projectId,
+          datasetId: datasetId,
+          datasetRunIds: [datasetRunId],
+        });
+        setIsDialogOpen(false);
       }}
-    >
-      <DialogTrigger asChild>{button}</DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle className="mb-4">Please confirm</DialogTitle>
-          <DialogDescription className="text-md p-0">
-            This action cannot be undone. Traces linked to this run must be
-            deleted manually.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button
-            variant="destructive"
-            loading={mutDelete.isPending}
-            disabled={mutDelete.isPending}
-            onClick={async (event) => {
-              event.preventDefault();
-              capture("dataset_run:delete_form_submit");
-              await mutDelete.mutateAsync({
-                projectId,
-                datasetId: datasetId,
-                datasetRunIds: [datasetRunId],
-              });
-              setIsDialogOpen(false);
-            }}
-          >
-            Delete Dataset Run
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    />
   ) : (
     button
   );

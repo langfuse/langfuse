@@ -46,7 +46,7 @@ export function ReactionPicker({
           <EmojiPicker.Header className="border-b px-2 py-2">
             <EmojiPicker.Input
               placeholder="Search emoji..."
-              className="w-full rounded border py-1 text-sm outline-none focus:border-primary"
+              className="focus:border-primary w-full rounded border py-1 text-sm outline-hidden"
             />
           </EmojiPicker.Header>
           <EmojiPicker.Group className="overflow-y-auto overscroll-contain">

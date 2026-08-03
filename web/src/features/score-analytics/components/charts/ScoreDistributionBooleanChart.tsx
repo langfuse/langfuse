@@ -1,7 +1,8 @@
 import { useMemo, useState, useCallback } from "react";
-import { Bar, BarChart, XAxis, YAxis, Legend } from "recharts";
+import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
+  ChartLegend,
   ChartTooltip,
   type ChartConfig,
 } from "@/src/components/ui/chart";
@@ -83,12 +84,11 @@ export function ScoreDistributionBooleanChart({
             pv: item.count,
             uv: dist2Map.get(item.binIndex) ?? 0,
           };
-        } else {
-          return {
-            name: label,
-            pv: item.count,
-          };
         }
+        return {
+          name: label,
+          pv: item.count,
+        };
       });
   }, [
     distribution1,
@@ -221,6 +221,7 @@ export function ScoreDistributionBooleanChart({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
           tickFormatter={(value) => value.toLocaleString()}
         />
         <ChartTooltip
@@ -246,7 +247,7 @@ export function ScoreDistributionBooleanChart({
           />
         )}
 
-        <Legend
+        <ChartLegend
           content={
             <ScoreChartLegendContent
               interactive={isComparisonMode}

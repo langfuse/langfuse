@@ -1,7 +1,3 @@
-import { api } from "@/src/utils/api";
-
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
-import { Card } from "@/src/components/ui/card";
 import {
   type ScoreSourceType,
   type FilterState,
@@ -19,11 +15,11 @@ import {
 } from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import {
-  type QueryType,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -34,6 +30,10 @@ export function NumericScoreTimeSeriesChart(props: {
   globalFilterState: FilterState;
   fromTimestamp: Date;
   toTimestamp: Date;
+  metricsVersion?: ViewVersion;
+  schedulerId?: string;
+  /** Shared hover-sync group so this chart joins the dashboard crosshair. */
+  syncId?: string;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -72,10 +72,11 @@ export function NumericScoreTimeSeriesChart(props: {
     orderBy: null,
   };
 
-  const scores = api.dashboard.executeQuery.useQuery(
+  const scores = useScheduledDashboardExecuteQuery(
     {
       projectId: props.projectId,
       query: scoresQuery,
+      version: props.metricsVersion,
     },
     {
       trpc: {
@@ -83,6 +84,7 @@ export function NumericScoreTimeSeriesChart(props: {
           skipBatch: true,
         },
       },
+      queryId: `${props.schedulerId ?? "home:score-analytics"}:numeric:${props.source}:${props.name}`,
     },
   );
 
@@ -107,14 +109,13 @@ export function NumericScoreTimeSeriesChart(props: {
     data: extractedScores,
     isNullValueAllowed: true,
   }) ? (
-    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
-      <BaseTimeSeriesChart
-        className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-        agg={props.agg}
+    <div className="h-80 w-full shrink-0">
+      <DashboardLineTimeSeriesChart
         data={extractedScores}
-        connectNulls
+        subtleFill
+        syncId={props.syncId}
       />
-    </Card>
+    </div>
   ) : (
     <NoDataOrLoading isLoading={scores.isLoading} />
   );

@@ -1,15 +1,19 @@
 import Decimal from "decimal.js";
 import { v4 as uuidv4 } from "uuid";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Price } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 
-import { pruneDatabase } from "../../../__tests__/utils";
 import { IngestionService } from "../../IngestionService";
 import * as clickhouseWriteExports from "../../ClickhouseWriter";
 
-const mockAddToClickhouseWriter = vi.fn();
+// vi.hoisted ensures this is declared before vi.mock's hoisted factory runs.
+// Without it, the variable would be undefined when the factory executes.
+const { mockAddToClickhouseWriter } = vi.hoisted(() => ({
+  mockAddToClickhouseWriter: vi.fn(),
+}));
 const mockClickhouseClient = {
   query: async () => ({
     json: async () => [],
@@ -30,6 +34,44 @@ vi.mock("../../ClickhouseWriter", async (importOriginal) => {
   };
 });
 
+// Tokenisation mocks delegate to the real implementations unless a test sets an
+// override, so tests relying on actual tokenization keep working.
+const tokenisationMocks = vi.hoisted(() => ({
+  tokenCountAsyncOverride: null as
+    | null
+    | ((...args: unknown[]) => Promise<number | undefined>),
+  syncTokenCountSpy: vi.fn(),
+}));
+
+vi.mock(
+  "../../../features/tokenisation/async-usage",
+  async (importOriginal) => {
+    const original = (await importOriginal()) as Record<string, unknown> & {
+      tokenCountAsync: (...args: unknown[]) => Promise<number | undefined>;
+    };
+    return {
+      ...original,
+      tokenCountAsync: (...args: unknown[]) =>
+        tokenisationMocks.tokenCountAsyncOverride
+          ? tokenisationMocks.tokenCountAsyncOverride(...args)
+          : original.tokenCountAsync(...args),
+    };
+  },
+);
+
+vi.mock("../../../features/tokenisation/usage", async (importOriginal) => {
+  const original = (await importOriginal()) as Record<string, unknown> & {
+    tokenCount: (...args: unknown[]) => number | undefined;
+  };
+  return {
+    ...original,
+    tokenCount: (...args: unknown[]) => {
+      tokenisationMocks.syncTokenCountSpy(...args);
+      return original.tokenCount(...args);
+    },
+  };
+});
+
 const mockIngestionService = new IngestionService(
   null as any,
   prisma,
@@ -38,23 +80,20 @@ const mockIngestionService = new IngestionService(
 );
 
 describe("Token Cost Calculation", () => {
-  const modelName = "gpt-test-" + uuidv4();
-  const matchPattern = `(?i)^(${modelName})$`;
-  const traceId = uuidv4();
-  const generationId = uuidv4();
-  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-
-  const modelId = uuidv4();
-  const tokenModelData = {
-    id: modelId,
-    modelName,
-    matchPattern,
-    tokenizerId: "openai",
+  let modelName: string;
+  let modelId: string;
+  let generationId: string;
+  let projectId: string;
+  let tokenModelData: {
+    id: string;
+    modelName: string;
+    matchPattern: string;
+    tokenizerId: string;
     tokenizerConfig: {
-      tokensPerName: 1,
-      tokenizerModel: "gpt-4o",
-      tokensPerMessage: 3,
-    },
+      tokensPerName: number;
+      tokenizerModel: string;
+      tokensPerMessage: number;
+    };
   };
 
   const modelPrices: Pick<Price, "price" | "usageType">[] = [
@@ -73,7 +112,23 @@ describe("Token Cost Calculation", () => {
   ];
 
   beforeEach(async () => {
-    await pruneDatabase();
+    modelName = `gpt-test-${uuidv4()}`;
+    modelId = uuidv4();
+    generationId = uuidv4();
+    ({ projectId } = await createOrgProjectAndApiKey());
+    const matchPattern = `(?i)^(${modelName})$`;
+    tokenModelData = {
+      id: modelId,
+      modelName,
+      matchPattern,
+      tokenizerId: "openai",
+      tokenizerConfig: {
+        tokensPerName: 1,
+        tokenizerModel: "gpt-4o",
+        tokensPerMessage: 3,
+      },
+    };
+
     const model = await prisma.model.create({
       data: tokenModelData,
     });
@@ -1273,6 +1328,62 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.total).toBeUndefined();
   });
 
+  it("should skip tokenization and leave usage details blank when cost details are provided", async () => {
+    const generationUsage1 = {
+      model: modelName,
+      input: "hello world",
+      output: "whassup",
+      usage: null,
+      costDetails: {
+        input: 1,
+        output: 2,
+      },
+    };
+
+    const events = [
+      {
+        id: uuidv4(),
+        type: "generation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          startTime: new Date().toISOString(),
+          ...generationUsage1,
+        },
+      },
+    ];
+
+    await (mockIngestionService as any).processObservationEventList({
+      projectId,
+      entityId: generationId,
+      createdAtTimestamp: new Date(),
+      observationEventList: events,
+    });
+
+    expect(mockAddToClickhouseWriter).toHaveBeenCalled();
+    const args = mockAddToClickhouseWriter.mock.calls[0];
+    const tableName = args[0];
+    const generation = args[1];
+
+    expect(tableName).toBe("observations");
+    expect(generation.type).toBe("GENERATION");
+    expect(generation.internal_model_id).toBe(tokenModelData.id);
+
+    // Provided costs are authoritative (calculateUsageCosts ignores computed
+    // usage once any cost point is provided)
+    expect(generation.provided_cost_details).toEqual({ input: 1, output: 2 });
+    expect(generation.cost_details).toEqual({ input: 1, output: 2, total: 3 });
+    expect(generation.total_cost).toBe(3);
+
+    // Tokenization must not run: usage details stay blank
+    expect(generation.usage_details).toEqual({});
+    expect(generation.provided_usage_details).toEqual({});
+
+    // No pricing tier gets stamped from an empty usage vector
+    expect(generation.usage_pricing_tier_id).toBeNull();
+    expect(generation.usage_pricing_tier_name).toBeNull();
+  });
+
   describe("string to number conversion in getUsageUnits", () => {
     // These tests verify that usage_details values are correctly converted to numbers
     // even when they come in as strings (which can happen when reading from ClickHouse,
@@ -1296,7 +1407,11 @@ describe("Token Cost Calculation", () => {
         },
       ];
 
-      await (mockIngestionService as any).writeEvent(events[0], "testfile.txt");
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        events[0],
+        "testfile.txt",
+      );
+      await (mockIngestionService as any).writeEventRecord(eventRecord);
 
       expect(mockAddToClickhouseWriter).toHaveBeenCalled();
       const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -1329,7 +1444,11 @@ describe("Token Cost Calculation", () => {
         },
       ];
 
-      await (mockIngestionService as any).writeEvent(events[0], "testfile.txt");
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        events[0],
+        "testfile.txt",
+      );
+      await (mockIngestionService as any).writeEventRecord(eventRecord);
 
       // Invalid values should be ignored
       expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -1342,6 +1461,312 @@ describe("Token Cost Calculation", () => {
 
       expect(generation.usage_details.input).toBe(100);
       expect(generation.usage_details.total).toBe(100);
+    });
+  });
+
+  describe("async tokenization failure handling", () => {
+    // Multi-megabyte payloads make the tokenization worker thread exceed its
+    // 30s timeout. The former synchronous fallback re-tokenized the same
+    // payload on the main thread and blocked the event loop for minutes.
+    // On failure, token counts must be skipped entirely — absent
+    // values are detectable by users, unlike a 0 or a bytes-based estimate.
+
+    afterEach(() => {
+      tokenisationMocks.tokenCountAsyncOverride = null;
+      tokenisationMocks.syncTokenCountSpy.mockClear();
+    });
+
+    it("should skip token counts instead of falling back to synchronous tokenization when async tokenization times out", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
+      tokenisationMocks.tokenCountAsyncOverride = () =>
+        Promise.reject(
+          new Error("Token count operation timed out after 30000ms"),
+        );
+
+      const events = [
+        {
+          id: uuidv4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            startTime: new Date().toISOString(),
+            model: modelName,
+            input: "hello world",
+            output: "whassup",
+            usage: null,
+          },
+        },
+      ];
+
+      await (mockIngestionService as any).processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList: events,
+      });
+
+      // The event loop must never run tokenization on the main thread
+      expect(tokenisationMocks.syncTokenCountSpy).not.toHaveBeenCalled();
+
+      // Exactly one structured warn identifies the affected tenant and payload
+      const skipWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("Skipping token counts"),
+      );
+      expect(skipWarnings).toHaveLength(1);
+      expect(skipWarnings[0][1]).toMatchObject({
+        projectId,
+        observationId: generationId,
+        modelId: tokenModelData.id,
+        tokenizerId: "openai",
+        inputBytes: expect.any(Number),
+        outputBytes: expect.any(Number),
+        error: expect.any(Error),
+      });
+
+      expect(mockAddToClickhouseWriter).toHaveBeenCalled();
+      const [tableName, generation] = mockAddToClickhouseWriter.mock.calls[0];
+      expect(tableName).toBe("observations");
+      expect(generation.internal_model_id).toBe(tokenModelData.id);
+      expect(generation.usage_details).toEqual({});
+      expect(generation.cost_details).toEqual({});
+    });
+  });
+
+  describe("usage details total consistency guard", () => {
+    // Detects the double-count class from https://github.com/langfuse/langfuse/issues/10592:
+    // instrumentors sending an inclusive `input` alongside cache buckets while also
+    // providing a smaller `total`.
+
+    it("should warn when provided non-total buckets sum to more than the provided total", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+      const generationId = uuidv4();
+
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        {
+          projectId,
+          spanId: generationId,
+          startTime: new Date().toISOString(),
+          modelName,
+          // Inclusive input alongside cache buckets: 100 + 80 + 50 > 150
+          providedUsageDetails: {
+            input: 100,
+            cache_read_input_tokens: 80,
+            output: 50,
+            total: 150,
+          },
+        },
+        "testfile.txt",
+      );
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(1);
+      expect(mismatchWarnings[0][1]).toMatchObject({
+        projectId,
+        observationId: generationId,
+        providedTotal: 150,
+        bucketSum: 230,
+        writePath: "events",
+      });
+
+      // Warn only — the provided values must be written unchanged
+      expect(eventRecord.usage_details).toEqual({
+        input: 100,
+        cache_read_input_tokens: 80,
+        output: 50,
+        total: 150,
+      });
+    });
+
+    it("should not warn when provided buckets are consistent with the provided total", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+      const generationId = uuidv4();
+
+      await (mockIngestionService as any).createEventRecord(
+        {
+          projectId,
+          spanId: generationId,
+          startTime: new Date().toISOString(),
+          modelName,
+          // Exclusive input: 20 + 80 + 50 === 150
+          providedUsageDetails: {
+            input: 20,
+            cache_read_input_tokens: 80,
+            output: 50,
+            total: 150,
+          },
+        },
+        "testfile.txt",
+      );
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(0);
+    });
+
+    it("should not warn when no total is provided", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+      const generationId = uuidv4();
+
+      await (mockIngestionService as any).createEventRecord(
+        {
+          projectId,
+          spanId: generationId,
+          startTime: new Date().toISOString(),
+          modelName,
+          providedUsageDetails: {
+            input: 100,
+            cache_read_input_tokens: 80,
+            output: 50,
+          },
+        },
+        "testfile.txt",
+      );
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(0);
+    });
+
+    it("should warn on the direct event path even when no model is provided", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+      const generationId = uuidv4();
+
+      await (mockIngestionService as any).createEventRecord(
+        {
+          projectId,
+          spanId: generationId,
+          startTime: new Date().toISOString(),
+          providedUsageDetails: {
+            input: 100,
+            cache_read_input_tokens: 80,
+            output: 50,
+            total: 150,
+          },
+        },
+        "testfile.txt",
+      );
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(1);
+      expect(mismatchWarnings[0][1]).toMatchObject({
+        projectId,
+        observationId: generationId,
+      });
+    });
+
+    it("should log the warning at most once per rate-limit interval", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      for (const spanId of [uuidv4(), uuidv4()]) {
+        await (mockIngestionService as any).createEventRecord(
+          {
+            projectId,
+            spanId,
+            startTime: new Date().toISOString(),
+            modelName,
+            providedUsageDetails: {
+              input: 100,
+              cache_read_input_tokens: 80,
+              output: 50,
+              total: 150,
+            },
+          },
+          "testfile.txt",
+        );
+      }
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(1);
+    });
+
+    it("should warn on the legacy merge path when incoming events carry inconsistent usage", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+      const generationId = uuidv4();
+
+      const events = [
+        {
+          id: uuidv4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            startTime: new Date().toISOString(),
+            model: modelName,
+            usageDetails: {
+              input: 100,
+              cache_read_input_tokens: 80,
+              output: 50,
+              total: 150,
+            },
+          },
+        },
+      ];
+
+      await (mockIngestionService as any).processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList: events,
+      });
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(1);
+      expect(mismatchWarnings[0][1]).toMatchObject({
+        projectId,
+        observationId: generationId,
+        writePath: "legacy",
+      });
+    });
+
+    it("should not warn on the legacy merge path when incoming events carry no usage", async () => {
+      (IngestionService as any).lastUsageTotalMismatchLogAt = 0;
+      const warnSpy = vi.spyOn(logger, "warn");
+      const generationId = uuidv4();
+
+      // Partial update without usage: the guard must not fire even if merged
+      // state contains usage (here there is none, but the gate is on the
+      // incoming events).
+      const events = [
+        {
+          id: uuidv4(),
+          type: "generation-update",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            startTime: new Date().toISOString(),
+            output: "updated output",
+          },
+        },
+      ];
+
+      await (mockIngestionService as any).processObservationEventList({
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList: events,
+      });
+
+      const mismatchWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("exceeds provided total"),
+      );
+      expect(mismatchWarnings).toHaveLength(0);
     });
   });
 });

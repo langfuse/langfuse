@@ -100,7 +100,10 @@ export const getActionById = async ({
   return actionDomain;
 };
 
-export type TriggerDomainWithActions = TriggerDomain & { actionIds: string[] };
+export type TriggerDomainWithActions = TriggerDomain & {
+  actionIds: string[];
+  automations: { id: string; actionId: string }[];
+};
 
 export const getTriggerConfigurations = async ({
   projectId,
@@ -129,6 +132,10 @@ export const getTriggerConfigurations = async ({
   const triggerConfigurations = triggers.map((trigger) => ({
     ...convertTriggerToDomain(trigger),
     actionIds: trigger.automations.map((automation) => automation.action.id),
+    automations: trigger.automations.map((automation) => ({
+      id: automation.id,
+      actionId: automation.action.id,
+    })),
   }));
 
   return triggerConfigurations;
@@ -210,16 +217,19 @@ export const getAutomations = async ({
   projectId,
   triggerId,
   actionId,
+  eventSource,
 }: {
   projectId: string;
   triggerId?: string;
   actionId?: string;
+  eventSource?: TriggerEventSource;
 }): Promise<AutomationDomain[]> => {
   const automations = await prisma.automation.findMany({
     where: {
       projectId,
       ...(triggerId ? { triggerId } : {}),
       ...(actionId ? { actionId } : {}),
+      ...(eventSource ? { trigger: { eventSource } } : {}),
     },
     include: {
       action: true,
@@ -230,12 +240,14 @@ export const getAutomations = async ({
     },
   });
 
-  return automations.map((automation) => ({
+  const domains = automations.map((automation) => ({
     id: automation.id,
     name: automation.name,
     trigger: convertTriggerToDomain(automation.trigger),
     action: convertActionToDomain(automation.action),
   }));
+
+  return domains;
 };
 
 export const getConsecutiveAutomationFailures = async ({

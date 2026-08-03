@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -13,33 +13,21 @@ import { InlineFilterState } from "@/src/features/filters/components/filter-buil
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
-import { type RouterOutputs, api } from "@/src/utils/api";
-import { safeExtract } from "@/src/utils/map-utils";
-import { type FilterState, singleFilter } from "@langfuse/shared";
+import { api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
-import {
-  useQueryParams,
-  withDefault,
-  NumberParam,
-  useQueryParam,
-  StringParam,
-} from "use-query-params";
-import { z } from "zod/v4";
-import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
+import { useEffect, useState, useMemo } from "react";
+import { useQueryParam, StringParam, withDefault } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
+import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
+import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
-import { MoreVertical, Loader2, ExternalLinkIcon, Edit } from "lucide-react";
+import { ExternalLinkIcon, Pen } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
-import {
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
+import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
 import { Button } from "@/src/components/ui/button";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   Dialog,
@@ -50,42 +38,37 @@ import {
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
-import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
+import {
+  type EvaluatorDataRow,
+  useEvaluatorTableData,
+} from "@/src/features/evals/hooks/useEvaluatorTableData";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import {
+  TableBadgeLoadingCell,
+  TableIconButtonLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
 
-export type EvaluatorDataRow = {
-  id: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  maintainer: string;
-  template?: {
-    id: string;
-    name: string;
-    version: number;
-  };
-  scoreName: string;
-  target: string; // "trace" or "dataset"
-  filter: FilterState;
-  result: {
-    level: string;
-    count: number;
-    symbol: string;
-  }[];
-  logs?: string;
-  actions?: string;
-  totalCost?: number | null;
-};
+function DeprecatedChipCell() {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+        Deprecated
+      </span>
+    </div>
+  );
+}
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -95,31 +78,33 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const utils = api.useUtils();
 
   const [orderByState, setOrderByState] = useOrderByState({
-    column: "createdAt",
-    order: "DESC",
+    column: "status",
+    order: "ASC",
   });
 
   const newFilterOptions = {
-    status: ["ACTIVE", "INACTIVE"],
-    target: ["trace", "dataset"],
+    status: ["ACTIVE", "PAUSED", "INACTIVE"],
+    target: evalConfigTargetValues,
   };
 
   const queryFilter = useSidebarFilterState(
     evaluatorFilterConfig,
     newFilterOptions,
-    projectId,
-    false,
+    {
+      loading: false,
+      stateLocation: "urlAndSessionStorage",
+      sessionFilterContextId: projectId,
+    },
   );
 
-  const evaluators = api.evals.allConfigs.useQuery({
+  const { evaluators, rows, totalCount } = useEvaluatorTableData({
+    projectId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
-    projectId,
     filter: queryFilter.filterState,
     orderBy: orderByState,
-    searchQuery: searchQuery,
+    searchQuery,
   });
-  const totalCount = evaluators.data?.totalCount ?? null;
 
   const existingEvaluator = api.evals.configById.useQuery(
     {
@@ -132,24 +117,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   );
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  // Deprecated evaluators are read-only where new legacy setups are not
+  // allowed (cloud); self-hosted deployments keep editing them.
+  const { allowLegacy } = useEvalCapabilities(projectId);
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
-
-  // Fetch costs for all evaluators
-  const evaluatorIds =
-    evaluators.data?.configs.map((config) => config.id) ?? [];
-  const costs = api.evals.costByEvaluatorIds.useQuery(
-    {
-      projectId,
-      evaluatorIds,
-    },
-    {
-      enabled: evaluators.isSuccess && evaluatorIds.length > 0,
-      meta: {
-        silentHttpCodes: [503],
-      },
-    },
-  );
 
   useEffect(() => {
     if (evaluators.isSuccess) {
@@ -177,13 +149,13 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Status",
       id: "status",
       size: 80,
+      loadingCell: <TableBadgeLoadingCell />,
       cell: (row) => {
         const status = row.getValue();
         return (
-          <StatusBadge
-            type={status.toLowerCase()}
-            className={row.getValue() === "FINISHED" ? "pl-3" : ""}
-          />
+          <div className={status === "FINISHED" ? "pl-3" : undefined}>
+            <StatusBadge type={status.toLowerCase()} />
+          </div>
         );
       },
     }),
@@ -194,7 +166,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       cell: (row) => {
         const totalCost = row.getValue();
 
-        if (!costs.data) return <Skeleton className="h-4 w-16" />;
+        if (row.row.original.isCostLoading) {
+          return <Skeleton className="h-4 w-16" />;
+        }
 
         if (totalCost != null) return usdFormatter(totalCost, 2, 4);
 
@@ -207,13 +181,19 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       size: 150,
       cell: (row) => {
         const result = row.getValue();
-        return <LevelCountsDisplay counts={result} />;
+        return (
+          <LevelCountsDisplay
+            counts={result}
+            isLoading={row.row.original.isResultLoading}
+          />
+        );
       },
     }),
     columnHelper.accessor("logs", {
       header: "Logs",
       id: "logs",
       size: 150,
+      loadingCell: <Skeleton className="h-6 w-16 rounded-md" />,
       cell: ({ row }) => {
         const id = row.original.id;
         return (
@@ -238,6 +218,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "template",
       header: "Referenced Evaluator",
       size: 200,
+      loadingCell: (
+        <div className="flex items-center gap-2">
+          <TableTextLoadingCell className="w-32" />
+          <TableBadgeLoadingCell className="w-6" />
+        </div>
+      ),
       cell: ({ row }) => {
         const template = row.original.template;
         if (!template) return "template not found";
@@ -263,11 +249,32 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableSorting: true,
       size: 150,
     }),
+    columnHelper.accessor("isLegacy", {
+      id: "isLegacy",
+      header: "Eval Version",
+      size: 180,
+      enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
+      cell: (row) => {
+        // Set by useEvaluatorTableData only for active legacy evaluators with
+        // a NEW time scope — the ones that actually require migration.
+        if (!row.row.original.isLegacy) return null;
+
+        return <DeprecatedChipCell />;
+      },
+    }),
     columnHelper.accessor("target", {
       id: "target",
-      header: "Target",
+      header: "Runs on",
       size: 150,
       enableHiding: true,
+      cell: (row) => {
+        const targetObject = row.getValue();
+        const renderText = isEventTarget(targetObject)
+          ? "observations"
+          : targetObject;
+        return <span className="text-muted-foreground">{renderText}</span>;
+      },
     }),
     columnHelper.accessor("filter", {
       id: "filter",
@@ -313,45 +320,40 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Actions",
       id: "actions",
       size: 100,
+      loadingCell: <TableIconButtonLoadingCell />,
       cell: ({ row }) => {
         const id = row.original.id;
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-8 w-8 p-0"
-                aria-label="actions"
-              >
-                <span className="sr-only [position:relative]">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem
-                key={id}
-                aria-label="edit"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setEditConfigId(id);
-                }}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <DeleteEvalConfigButton
-                  aria-label="delete"
-                  itemId={id}
-                  projectId={projectId}
-                  redirectUrl={`/project/${projectId}/evals`}
-                  deleteConfirmation={row.original.scoreName}
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <IconOnlyButton
+              key={id}
+              icon={<Pen className="h-4 w-4" />}
+              label="Edit"
+              aria-label="edit"
+              disabledReason={
+                !hasAccess
+                  ? "You don't have permission to edit this evaluator."
+                  : row.original.isLegacy && !allowLegacy
+                    ? "Deprecated evaluators are only available in read-only mode."
+                    : undefined
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                if (id) setEditConfigId(id);
+              }}
+            />
+            <DeleteEvalConfigButton
+              aria-label="delete"
+              itemId={id}
+              projectId={projectId}
+              isTableAction
+              deleteConfirmation={row.original.scoreName}
+              icon
+              variant="ghost"
+              size="icon-xs"
+              title="Delete"
+            />
+          </div>
         );
       },
     }),
@@ -365,38 +367,19 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   const peekNavigationProps = usePeekNavigation();
 
-  const convertToTableRow = (
-    jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
-  ): EvaluatorDataRow => {
-    const result = generateJobExecutionCounts(jobConfig.jobExecutionsByState);
-    const costData = costs.data?.[jobConfig.id];
-
-    return {
-      id: jobConfig.id,
-      status: jobConfig.finalStatus,
-      createdAt: jobConfig.createdAt.toLocaleString(),
-      updatedAt: jobConfig.updatedAt.toLocaleString(),
-      template: jobConfig.evalTemplate
-        ? {
-            id: jobConfig.evalTemplate.id,
-            name: jobConfig.evalTemplate.name,
-            version: jobConfig.evalTemplate.version,
-          }
-        : undefined,
-      scoreName: jobConfig.scoreName,
-      target: jobConfig.targetObject,
-      filter: z.array(singleFilter).parse(jobConfig.filter),
-      result: result,
-      maintainer: jobConfig.evalTemplate
-        ? jobConfig.evalTemplate.projectId
-          ? "User maintained"
-          : jobConfig.evalTemplate.name.startsWith(RAGAS_TEMPLATE_PREFIX)
-            ? "Langfuse and Ragas maintained"
-            : "Langfuse maintained"
-        : "Not available",
-      totalCost: costData,
-    };
-  };
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "RUNNING_EVALUATOR" as const,
+      detailNavigationKey: "evals",
+      peekEventOptions: {
+        ignoredSelectors: [
+          "[aria-label='edit'], [aria-label='view-logs'], [aria-label='delete']",
+        ],
+      },
+      ...peekNavigationProps,
+    }),
+    [peekNavigationProps],
+  );
 
   return (
     <DataTableControlsProvider
@@ -426,25 +409,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"evalConfigs"}
+              tableName="evalConfigs"
               columns={columns}
-              peekView={{
-                itemType: "RUNNING_EVALUATOR",
-                detailNavigationKey: "evals",
-                peekEventOptions: {
-                  ignoredSelectors: [
-                    "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
-                  ],
-                },
-                tableDataUpdatedAt: Math.max(
-                  evaluators.dataUpdatedAt,
-                  costs.dataUpdatedAt,
-                ),
-                children: (
-                  <PeekViewEvaluatorConfigDetail projectId={projectId} />
-                ),
-                ...peekNavigationProps,
-              }}
+              peekView={peekConfig}
               data={
                 evaluators.isLoading
                   ? { isLoading: true, isError: false }
@@ -457,9 +424,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                     : {
                         isLoading: false,
                         isError: false,
-                        data: safeExtract(evaluators.data, "configs", []).map(
-                          (evaluator) => convertToTableRow(evaluator),
-                        ),
+                        data: rows,
                       }
               }
               pagination={{
@@ -474,6 +439,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             />
           </div>
         </ResizableFilterLayout>
+        <TablePeekViewEvaluatorConfigDetail
+          {...peekConfig}
+          projectId={projectId}
+        />
       </div>
       <Dialog
         open={!!editConfigId && existingEvaluator.isSuccess}
@@ -481,13 +450,13 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           if (!open) setEditConfigId(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-xl) overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit configuration</DialogTitle>
           </DialogHeader>
           {existingEvaluator.isLoading ? (
             <div className="flex items-center justify-center p-4">
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Spinner size="lg" />
             </div>
           ) : (
             <EvaluatorForm
@@ -508,7 +477,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               mode="edit"
               onFormSuccess={() => {
                 setEditConfigId(null);
-                void utils.evals.allConfigs.invalidate();
+                utils.evals.allConfigs.invalidate();
                 showSuccessToast({
                   title: "Evaluator updated successfully",
                   description:

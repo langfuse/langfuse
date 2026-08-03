@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class BatchExportQueue {
@@ -16,17 +12,14 @@ export class BatchExportQueue {
   > | null {
     if (BatchExportQueue.instance) return BatchExportQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    BatchExportQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.BatchExport,
+    );
+    BatchExportQueue.instance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.BatchExport]>(
           QueueName.BatchExport,
           {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.BatchExport),
+            ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,

@@ -6,17 +6,20 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { ActionButton } from "@/src/components/ActionButton";
 import { SubHeader } from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
-import { ApiKeyRender } from "@/src/features/public-api/components/CreateApiKeyButton";
+import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
+import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { type RouterOutput } from "@/src/utils/types";
 import { useState } from "react";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
-const TracingSetup = ({
+export const TracingSetup = ({
   projectId,
   hasTracingConfigured,
 }: {
   projectId: string;
   hasTracingConfigured?: boolean;
 }) => {
+  const baseUrl = useLangfuseBaseUrl();
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["projectApiKeys"]["create"] | null
   >(null);
@@ -39,16 +42,19 @@ const TracingSetup = ({
   return (
     <div className="space-y-8">
       <div>
-        <SubHeader title="1. Get API Keys" />
+        <SubHeader title="1. Get API keys" />
         {apiKeys ? (
-          <ApiKeyRender
-            generatedKeys={apiKeys}
-            scope={"project"}
+          <ApiKeyDetailContent
+            scope="project"
+            secretKey={apiKeys.secretKey}
+            publicKey={apiKeys.publicKey}
+            baseUrl={baseUrl}
             className="mt-4"
+            showMcpSection={false}
           />
         ) : (
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               You need to create an API key to start tracing your application.
               You can create more keys later in the project settings.
             </p>
@@ -73,17 +79,17 @@ const TracingSetup = ({
 
       <div>
         <SubHeader
-          title="2. Instrument Your Application"
+          title="2. Add tracing to your application"
           status={hasTracingConfigured ? "active" : "pending"}
         />
-        <p className="mb-4 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mb-4 text-sm">
           Langfuse relies on OpenTelemetry to instrument your application and
           export LLM application/agent traces to Langfuse. You can use one of
           our SDKs or 50+ framework integrations. Please follow the quickstart
           in the documentation to add Langfuse to your application.
         </p>
         <ActionButton href="https://langfuse.com/docs/observability/get-started">
-          Instrumentation Quickstart
+          Quickstart guide
         </ActionButton>
       </div>
     </div>
@@ -93,14 +99,18 @@ const TracingSetup = ({
 export default function TracesSetupPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { project } = useQueryProject();
 
   // Check if the user has tracing configured
+  // Skip polling entirely if the project flag is already set in the session
   const { data: hasTracingConfigured } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
       {
         enabled: !!projectId,
-        refetchInterval: 5000,
+        refetchInterval: project?.hasTraces ? false : 5000,
+        initialData: project?.hasTraces ? true : undefined,
+        staleTime: project?.hasTraces ? Infinity : 0,
         trpc: {
           context: {
             skipBatch: true,

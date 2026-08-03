@@ -1,0 +1,237 @@
+# Shared Agent Setup
+
+This directory is the neutral, repo-owned source of truth for agent behavior in
+Langfuse.
+
+Use `.agents/` for configuration and guidance that should apply across tools.
+Do not put durable shared guidance only in `.claude/`, `.codex/`, `.cursor/`,
+or `.vscode/`.
+
+## Layout
+
+- `AGENTS.md`: canonical shared root instructions
+- `ARCHITECTURE_PRINCIPLES.md`: architecture principles for high-scale
+  observability
+- `config.json`: shared bootstrap and MCP configuration used to generate
+  tool-specific shims
+- `skills/`: shared, tool-neutral implementation guidance for recurring
+  workflows
+
+## `config.json`
+
+`.agents/config.json` contains four kinds of data:
+
+- `shared`: defaults used across tools
+- `mcpServers`: project MCP servers and how to connect to them
+- `claude`: Claude-specific generated settings inputs
+- `codex`: Codex-specific generated settings inputs
+- `cursor`: Cursor-specific generated settings inputs
+
+Current shape:
+
+```json
+{
+  "shared": {
+    "setupScript": "bash scripts/codex/setup.sh",
+    "devCommand": "pnpm run dev",
+    "devTerminalDescription": "Main development terminal running the development server"
+  },
+  "mcpServers": {
+    "playwright": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--isolated",
+        "--save-session",
+        "--output-dir",
+        "/tmp/playwright-mcp",
+        "--test-id-attribute",
+        "data-testid"
+      ]
+    },
+    "langfuse-docs": {
+      "transport": "http",
+      "url": "https://langfuse.com/api/mcp"
+    },
+    "linear": {
+      "transport": "http",
+      "url": "https://mcp.linear.app/mcp"
+    }
+  },
+  "claude": {
+    "settings": {
+      "permissions": {
+        "allow": [
+          "Bash(find:*)",
+          "Bash(rg:*)",
+          "Bash(grep:*)",
+          "Bash(ls:*)",
+          "Bash(cat:*)",
+          "Bash(head:*)",
+          "Bash(tail:*)"
+        ],
+        "deny": []
+      },
+      "enableAllProjectMcpServers": true
+    }
+  },
+  "codex": {
+    "environment": {
+      "version": 1,
+      "name": "langfuse"
+    }
+  },
+  "cursor": {
+    "environment": {
+      "agentCanUpdateSnapshot": false
+    }
+  }
+}
+```
+
+## How Shims Are Generated
+
+`scripts/agents/sync-agent-shims.mjs` reads `.agents/config.json` and writes the
+tool discovery files that those products require.
+
+Generated local artifacts:
+
+- `.claude/settings.json`
+- `.claude/skills/*`
+- `.cursor/environment.json`
+- `.cursor/mcp.json`
+- `.vscode/mcp.json`
+- `.mcp.json`
+- `.codex/config.toml`
+- `.codex/environments/environment.toml`
+
+Discovery files are committed as symlinks, not generated locally, so a fresh
+clone has guidance before `pnpm install` runs:
+
+- `AGENTS.md` -> `.agents/AGENTS.md`
+- `CLAUDE.md` -> `AGENTS.md`
+- a sibling `CLAUDE.md` -> `AGENTS.md` next to **every** `AGENTS.md` in the
+  tree, discovered by walking it (currently `web/`, `worker/`, `ee/`,
+  `packages/shared/`, `packages/shared/scripts/seeder/`)
+
+Claude reads a nested `CLAUDE.md` when it opens a file in that directory, so
+package-local guidance loads only when it is relevant. Dot-directories are
+skipped during discovery, which keeps vendored skill bundles such as
+`web/.agents/skills/vercel-*/AGENTS.md` from becoming directory-scoped
+instructions. A shim whose `AGENTS.md` is deleted or moved is swept on the next
+sync. Add an `AGENTS.md` anywhere and you must commit its generated shim —
+CI fails otherwise.
+
+This keeps provider discovery stable while `.agents/` remains the source of
+truth.
+
+## Validation
+
+Two levels, deliberately separated:
+
+- `node scripts/agents/sync-agent-shims.mjs --check` verifies the generated
+  config files and shims. This is what `postinstall` runs.
+- `pnpm run agents:check` adds `--check-paths`, which resolves every path an
+  `AGENTS.md` cites and fails on a broken one. The lint job runs this.
+
+Path validation is kept out of `postinstall` on purpose: failing it there would
+break `pnpm i`, and with it every CI job that installs, over a documentation
+typo. References that escape upward (`../langfuse-docs/**`) are reported only
+when they resolve, since a standalone clone legitimately lacks sibling
+checkouts.
+
+## When To Edit `config.json`
+
+Edit `.agents/config.json` when you need to:
+
+- add, remove, or update a shared MCP server
+- change the shared setup/bootstrap command
+- change the default dev command or terminal label used by generated shims
+- adjust generated Claude, Cursor, or Codex settings that are intentionally
+  modeled in the shared config
+
+Do not edit generated shim files by hand. Edit the canonical files in
+`.agents/` instead.
+
+## How To Extend `config.json`
+
+### Add an MCP server
+
+Add a new entry under `mcpServers`.
+
+For `stdio` servers:
+
+```json
+{
+  "mcpServers": {
+    "example": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "some-package"]
+    }
+  }
+}
+```
+
+For HTTP servers:
+
+```json
+{
+  "mcpServers": {
+    "example": {
+      "transport": "http",
+      "url": "https://example.com/mcp"
+    }
+  }
+}
+```
+
+Optional fields:
+
+- `env` for `stdio` servers
+- `headers` for HTTP servers
+
+### Change bootstrap or default dev command
+
+Update values in `shared`:
+
+- `setupScript`
+- `devCommand`
+- `devTerminalDescription`
+
+### Add tool-specific generated inputs
+
+Only add tool-specific fields when they are required to generate a discovery
+file for a supported tool. Keep the shared config minimal and neutral.
+
+## Workflow
+
+After editing `.agents/config.json`:
+
+1. Run `pnpm run agents:sync`
+2. Run `pnpm run agents:check`
+3. Verify you did not stage any generated files under `.claude/skills/` or the
+   generated MCP/runtime config paths
+4. Update `AGENTS.md` or `CONTRIBUTING.md` if the shared workflow materially
+   changed
+
+`pnpm install` also runs the sync and the shim check via `postinstall`. It does
+not run path validation — see [Validation](#validation).
+
+## Adding Shared Skills
+
+Shared skills live under `.agents/skills/`.
+
+Use them for durable, reusable guidance such as:
+
+- backend implementation patterns
+- provider-specific maintenance workflows
+- repeated repo-specific review checklists
+
+Do not use skills for one-off task notes or tool runtime configuration.
+
+Use `skills/skill-creator/SKILL.md` when creating or editing shared skills.
+`pnpm run agents:sync` projects the shared skills into `.claude/skills/` so
+Claude can discover the same repo-owned skills.

@@ -7,6 +7,7 @@ import { api } from "@/src/utils/api";
 import { Columns3, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useEffect } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   DropdownMenu,
@@ -21,8 +22,12 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
-export default function Dataset() {
+function DatasetRunLegacy() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -37,19 +42,23 @@ export default function Dataset() {
     projectId,
     runId,
   });
+  const breadcrumb = getDatasetBreadcrumb(
+    projectId,
+    datasetId,
+    dataset.data?.name,
+  );
 
   return (
     <Page
       headerProps={{
         title: run.data?.name ?? runId,
-        itemType: "DATASET_RUN",
+        itemType: "EXPERIMENT",
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
+          ...breadcrumb,
           {
-            name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            name: "Experiments",
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
           },
-          { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
         ],
         actionButtonsRight: (
           <>
@@ -83,7 +92,7 @@ export default function Dataset() {
                     projectId={projectId}
                     datasetRunId={runId}
                     datasetId={datasetId}
-                    redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
+                    redirectUrl={`/project/${projectId}/datasets/${datasetId}/experiments`}
                   />
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -92,12 +101,13 @@ export default function Dataset() {
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+      <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
           <DatasetRunItemsByRunTable
             projectId={projectId}
             datasetId={datasetId}
             datasetRunId={runId}
+            datasetVersion={run.data?.datasetVersion}
           />
         </div>
         <SidePanel
@@ -112,6 +122,17 @@ export default function Dataset() {
               <Skeleton className="h-full w-full" />
             ) : (
               <>
+                {run.data?.datasetVersion && (
+                  <div className="flex flex-col gap-2 p-1">
+                    <span className="text-sm font-bold">Dataset Version</span>
+                    <Link
+                      href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
+                      className="text-link hover:text-link-hover text-sm"
+                    >
+                      <LocalIsoDate date={run.data.datasetVersion} />
+                    </Link>
+                  </div>
+                )}
                 {!!run.data?.description && (
                   <JSONView
                     json={run.data.description}
@@ -127,7 +148,7 @@ export default function Dataset() {
                   />
                 )}
                 {!run.data?.description && !run.data?.metadata && (
-                  <div className="mt-1 px-1 text-sm text-muted-foreground">
+                  <div className="text-muted-foreground mt-1 px-1 text-sm">
                     No description or metadata for this run
                   </div>
                 )}
@@ -138,4 +159,31 @@ export default function Dataset() {
       </div>
     </Page>
   );
+}
+
+export default function DatasetRun() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const runId = router.query.runId as string;
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
+
+  useEffect(() => {
+    if (
+      !router.isReady ||
+      isInitializing ||
+      !isExperimentsBetaActive ||
+      !projectId ||
+      !runId
+    ) {
+      return;
+    }
+
+    router.replace(singleRunToExperimentsUrl(projectId, runId));
+  }, [isExperimentsBetaActive, isInitializing, projectId, router, runId]);
+
+  if (!router.isReady || isInitializing || isExperimentsBetaActive) {
+    return <Skeleton className="h-full w-full" />;
+  }
+
+  return <DatasetRunLegacy />;
 }

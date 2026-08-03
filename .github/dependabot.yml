@@ -11,6 +11,8 @@ updates:
     open-pull-requests-limit: 10
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     versioning-strategy: "increase"
     commit-message:
       prefix: chore
@@ -47,3 +49,17 @@ updates:
       radix-ui:
         patterns:
           - "@radix-ui/*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 8
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        patterns:
+          - "*"

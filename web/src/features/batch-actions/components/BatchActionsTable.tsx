@@ -2,7 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { InfoIcon } from "lucide-react";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
@@ -75,9 +75,7 @@ export function BatchActionsTable(props: { projectId: string }) {
       size: 110,
       cell: ({ row }) => {
         const status = row.getValue("status") as string;
-        return (
-          <StatusBadge type={status.toLowerCase()} className="capitalize" />
-        );
+        return <StatusBadge type={status.toLowerCase()} />;
       },
     },
     {
@@ -99,7 +97,7 @@ export function BatchActionsTable(props: { projectId: string }) {
               {processedCount} / {totalCount}
             </div>
             {failedCount > 0 && (
-              <div className="text-xs text-destructive">
+              <div className="text-destructive text-xs">
                 {failedCount} failed
               </div>
             )}
@@ -166,12 +164,14 @@ export function BatchActionsTable(props: { projectId: string }) {
             <Tooltip>
               <TooltipTrigger>
                 <div className="flex items-center gap-1">
-                  <InfoIcon className="h-3 w-3 text-muted-foreground" />
-                  <span className="max-w-[250px] truncate text-xs">{log}</span>
+                  <InfoIcon className="text-muted-foreground h-3 w-3" />
+                  <span className="max-w-[250px] truncate text-xs" title={log}>
+                    {log}
+                  </span>
                 </div>
               </TooltipTrigger>
               <TooltipContent className="max-w-md">
-                <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-xs">
+                <pre className="max-h-60 overflow-auto text-xs whitespace-pre-wrap">
                   {log}
                 </pre>
               </TooltipContent>
@@ -184,7 +184,7 @@ export function BatchActionsTable(props: { projectId: string }) {
 
   return (
     <DataTable
-      tableName={"batchActions"}
+      tableName="batchActions"
       columns={columns}
       data={
         batchActions.isPending
@@ -206,6 +206,7 @@ export function BatchActionsTable(props: { projectId: string }) {
         onChange: setPaginationState,
         state: paginationState,
       }}
+      cellPadding="comfortable"
     />
   );
 }

@@ -15,25 +15,36 @@ import { SuccessSection } from "@/src/features/support-chat/SuccessSection";
 import { SupportFormSection } from "@/src/features/support-chat/SupportFormSection";
 import { cn } from "@/src/utils/tailwind";
 
-export const SupportDrawer = ({
+export const SupportDrawer = (props: {
+  showCloseButton?: boolean;
+  className?: string;
+}) => {
+  const { open, openEpoch } = useSupportDrawer();
+
+  if (!open) return null;
+
+  // Keyed by openEpoch so re-opening (openWithMode while already open)
+  // remounts the content and re-seeds mode/topic from the provider.
+  return <SupportDrawerContent key={openEpoch} {...props} />;
+};
+
+const SupportDrawerContent = ({
   showCloseButton = true,
   className,
 }: {
   showCloseButton?: boolean;
   className?: string;
 }) => {
-  const { open, setOpen } = useSupportDrawer();
+  const { setOpen, initialMode } = useSupportDrawer();
   const [currentMode, setCurrentMode] = useState<"intro" | "form" | "success">(
-    "intro",
+    initialMode,
   );
   const close = () => setOpen(false);
-
-  if (!open) return null;
 
   return (
     <div
       className={cn([
-        "flex h-full w-full min-w-0 flex-col bg-background",
+        "bg-background flex h-full w-full min-w-0 flex-col",
         className,
       ])}
     >
@@ -82,7 +93,7 @@ export const SupportDrawer = ({
       </div>
       <div className="flex-1 overflow-y-auto border-t">
         <div className="px-2 py-1">
-          <div className="h-full bg-background">
+          <div className="bg-background h-full">
             <div className="p-2">
               {currentMode === "intro" && (
                 <IntroSection onStartForm={() => setCurrentMode("form")} />
@@ -94,10 +105,7 @@ export const SupportDrawer = ({
                 />
               )}
               {currentMode === "success" && (
-                <SuccessSection
-                  onClose={close}
-                  onAnother={() => setCurrentMode("form")}
-                />
+                <SuccessSection onAnother={() => setCurrentMode("form")} />
               )}
             </div>
           </div>

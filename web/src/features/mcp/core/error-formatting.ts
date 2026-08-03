@@ -6,7 +6,7 @@
  */
 
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { ZodError } from "zod/v4";
+import { ZodError } from "zod";
 import { isUserInputError, isApiServerError } from "./errors";
 import {
   BaseError,
@@ -74,6 +74,17 @@ export function formatErrorForUser(error: unknown): McpError {
 
   if (error instanceof InvalidRequestError) {
     return new McpError(ErrorCode.InvalidRequest, error.message);
+  }
+
+  if (error instanceof BaseError && error.httpCode >= 500) {
+    logger.error("MCP BaseError (server-side)", {
+      name: error.name,
+      httpCode: error.httpCode,
+    });
+    return new McpError(
+      ErrorCode.InternalError,
+      "An internal server error occurred. Please try again later.",
+    );
   }
 
   if (error instanceof BaseError) {

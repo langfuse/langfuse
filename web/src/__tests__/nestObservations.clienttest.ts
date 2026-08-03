@@ -1,5 +1,5 @@
 // Mock shared dependencies
-jest.mock("@langfuse/shared", () => ({
+vi.mock("@langfuse/shared", () => ({
   ObservationLevel: {
     DEBUG: "DEBUG",
     DEFAULT: "DEFAULT",
@@ -8,49 +8,53 @@ jest.mock("@langfuse/shared", () => ({
   },
 }));
 
-import { nestObservations } from "@/src/components/trace2/lib/helpers";
+import { nestObservations } from "@/src/components/trace/lib/helpers";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 
 describe("nestObservations", () => {
+  // nestObservations only reads id/parentObservationId/startTime, so the mock
+  // keeps its legacy shape (nulls and pre-v4 usage fields) and is cast as a
+  // whole instead of tracking every field of ObservationReturnType.
   const createMockObservation = (
     overrides: Partial<ObservationReturnType> = {},
-  ): ObservationReturnType => ({
-    id: "mock-id",
-    name: "Mock Observation",
-    type: "SPAN",
-    startTime: new Date("2024-01-01T00:00:00.000Z"),
-    endTime: new Date("2024-01-01T00:00:01.000Z"),
-    parentObservationId: null,
-    traceId: "mock-trace-id",
-    projectId: "mock-project-id",
-    createdAt: new Date("2024-01-01T00:00:00.000Z"),
-    updatedAt: new Date("2024-01-01T00:00:00.000Z"),
-    level: "DEFAULT",
-    statusMessage: null,
-    version: null,
-    model: null,
-    modelParameters: null,
-    promptTokens: null,
-    completionTokens: null,
-    totalTokens: null,
-    unit: null,
-    inputCost: null,
-    outputCost: null,
-    totalCost: null,
-    completionStartTime: null,
-    timeToFirstToken: null,
-    promptId: null,
-    modelId: null,
-    inputUsage: null,
-    outputUsage: null,
-    totalUsage: null,
-    costDetails: null,
-    calculatedInputCost: null,
-    calculatedOutputCost: null,
-    calculatedTotalCost: null,
-    latency: null,
-    ...overrides,
-  });
+  ): ObservationReturnType =>
+    ({
+      id: "mock-id",
+      name: "Mock Observation",
+      type: "SPAN",
+      startTime: new Date("2024-01-01T00:00:00.000Z"),
+      endTime: new Date("2024-01-01T00:00:01.000Z"),
+      parentObservationId: null,
+      traceId: "mock-trace-id",
+      projectId: "mock-project-id",
+      createdAt: new Date("2024-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2024-01-01T00:00:00.000Z"),
+      level: "DEFAULT",
+      statusMessage: null,
+      version: null,
+      model: null,
+      modelParameters: null,
+      promptTokens: null,
+      completionTokens: null,
+      totalTokens: null,
+      unit: null,
+      inputCost: null,
+      outputCost: null,
+      totalCost: null,
+      completionStartTime: null,
+      timeToFirstToken: null,
+      promptId: null,
+      modelId: null,
+      inputUsage: null,
+      outputUsage: null,
+      totalUsage: null,
+      costDetails: null,
+      calculatedInputCost: null,
+      calculatedOutputCost: null,
+      calculatedTotalCost: null,
+      latency: null,
+      ...overrides,
+    }) as unknown as ObservationReturnType;
 
   it("should build a nested tree from flat observations with parent-child relationships", () => {
     // Create a flat list of observations representing this tree structure:

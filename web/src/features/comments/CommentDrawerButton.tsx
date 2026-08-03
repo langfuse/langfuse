@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   Drawer,
   DrawerContent,
@@ -10,7 +10,10 @@ import {
 import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type CommentObjectType } from "@langfuse/shared";
-import { MessageCircleIcon, MessageCircleOff } from "lucide-react";
+// LFE-7628: general (trace/observation/session) comments use a square speech
+// bubble to stay visually distinct from per-score comments, which use the round
+// MessageCircle bubble in the annotation form.
+import { MessageSquare, MessageSquareOff } from "lucide-react";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
@@ -25,21 +28,30 @@ export function CommentDrawerButton({
   size = "default",
   pendingSelection,
   onSelectionUsed,
+  onCommentChange,
   isOpen: controlledIsOpen,
   onOpenChange: controlledOnOpenChange,
+  layout = "toolbar",
 }: {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
   count?: number;
-  variant?: "secondary" | "outline";
+  variant?: ButtonProps["variant"];
   className?: string;
-  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  size?: ButtonProps["size"];
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
+  onCommentChange?: () => void | Promise<void>;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * "toolbar" (default) is the inline button; "menu" renders the same drawer
+   * trigger as a full-width labeled row for the mobile header overflow popover.
+   */
+  layout?: "toolbar" | "menu";
 }) {
+  const isMenu = layout === "menu";
   const router = useRouter();
   const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
   const [internalIsDrawerOpen, setInternalIsDrawerOpen] = useState(false);
@@ -106,18 +118,23 @@ export function CommentDrawerButton({
     return (
       <Button
         type="button"
-        variant="secondary"
-        size={size}
-        className={className}
+        variant={isMenu ? "ghost" : "secondary"}
+        size={isMenu ? "sm" : size}
+        className={
+          isMenu ? "w-full justify-start gap-2 font-normal" : className
+        }
         disabled
       >
-        <MessageCircleOff
+        <MessageSquareOff
           className={
-            size === "sm"
-              ? "h-3.5 w-3.5 text-muted-foreground"
-              : "h-4 w-4 text-muted-foreground"
+            isMenu
+              ? "text-muted-foreground h-4 w-4"
+              : size === "sm"
+                ? "text-muted-foreground h-3.5 w-3.5"
+                : "text-muted-foreground h-4 w-4"
           }
         />
+        {isMenu ? <span className="text-sm">Add comment</span> : null}
       </Button>
     );
 
@@ -155,34 +172,38 @@ export function CommentDrawerButton({
       <DrawerTrigger asChild>
         <Button
           type="button"
-          variant={variant}
-          size={size}
-          className={className}
+          variant={isMenu ? "ghost" : variant}
+          size={isMenu ? "sm" : size}
+          className={
+            isMenu ? "w-full justify-start gap-2 font-normal" : className
+          }
           id="comment-drawer-button"
         >
-          {!!count ? (
-            <div className="flex items-center gap-1">
-              <MessageCircleIcon
-                className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
-              />
-              <span>Add comment</span>
-              <span className="flex h-3.5 w-fit items-center justify-center rounded-sm bg-primary/50 px-1 text-xs text-primary-foreground shadow-sm">
+          <div
+            className={
+              isMenu ? "flex items-center gap-2" : "flex items-center gap-1"
+            }
+          >
+            <MessageSquare
+              className={
+                isMenu ? "h-4 w-4" : size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"
+              }
+            />
+            <span className={isMenu ? "text-sm" : undefined}>Add comment</span>
+            {!!count ? (
+              <span className="bg-primary/50 text-primary-foreground flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                 {count > 99 ? "99+" : count}
               </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              <MessageCircleIcon
-                className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
-              />
-              <span>Add comment</span>
-            </div>
-          )}
+            ) : null}
+          </div>
         </Button>
       </DrawerTrigger>
-      <DrawerContent overlayClassName="bg-primary/10">
+      <DrawerContent
+        overlayClassName="bg-primary/10"
+        className="h-screen-with-banner max-h-screen-with-banner overflow-hidden"
+      >
         <div
-          className="mx-auto flex h-full w-full flex-col overflow-hidden focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 md:max-h-full"
+          className="mx-auto flex h-full w-full flex-col overflow-hidden focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:outline-hidden md:max-h-full"
           tabIndex={-1}
           ref={(el) => {
             // Auto-focus drawer content when it opens (only once)
@@ -192,12 +213,15 @@ export function CommentDrawerButton({
             }
           }}
         >
-          <DrawerHeader className="sr-only flex-shrink-0 rounded-sm bg-background">
+          <DrawerHeader className="bg-background sr-only shrink-0 rounded-sm">
             <DrawerTitle>
               <Header title="Comments"></Header>
             </DrawerTitle>
           </DrawerHeader>
-          <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pt-2">
+          <div
+            data-vaul-no-drag
+            className="min-h-0 flex-1 overflow-hidden px-2 py-2"
+          >
             <CommentList
               projectId={projectId}
               objectId={objectId}
@@ -206,6 +230,7 @@ export function CommentDrawerButton({
               isDrawerOpen={isDrawerOpen}
               pendingSelection={pendingSelection}
               onSelectionUsed={onSelectionUsed}
+              onCommentChange={onCommentChange}
             />
           </div>
         </div>

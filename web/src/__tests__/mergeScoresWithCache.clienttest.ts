@@ -4,12 +4,13 @@ import {
   mergeAnnotationScoresWithCache,
 } from "@/src/features/scores/lib/mergeScoresWithCache";
 import { type ScoreDomain, type ScoreAggregate } from "@langfuse/shared";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type CachedScore } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { type AnnotationScore } from "@/src/features/scores/types";
 
 describe("mergeScoresWithCache", () => {
   it("should return server scores when cache is empty", () => {
-    const serverScores: ScoreDomain[] = [
+    const serverScores: WithStringifiedMetadata<ScoreDomain>[] = [
       {
         id: "score-1",
         name: "quality",
@@ -30,7 +31,8 @@ describe("mergeScoresWithCache", () => {
         authorUserId: "user-1",
         queueId: null,
         datasetRunId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
         executionTraceId: null,
       },
     ];
@@ -42,7 +44,7 @@ describe("mergeScoresWithCache", () => {
   });
 
   it("should filter out deleted server scores", () => {
-    const serverScores: ScoreDomain[] = [
+    const serverScores: WithStringifiedMetadata<ScoreDomain>[] = [
       {
         id: "score-1",
         name: "quality",
@@ -63,7 +65,8 @@ describe("mergeScoresWithCache", () => {
         authorUserId: "user-1",
         queueId: null,
         datasetRunId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
         executionTraceId: null,
       },
       {
@@ -86,7 +89,8 @@ describe("mergeScoresWithCache", () => {
         authorUserId: "user-1",
         queueId: null,
         datasetRunId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
         executionTraceId: null,
       },
     ];
@@ -100,7 +104,7 @@ describe("mergeScoresWithCache", () => {
   });
 
   it("should overlay cached scores onto server scores", () => {
-    const serverScores: ScoreDomain[] = [
+    const serverScores: WithStringifiedMetadata<ScoreDomain>[] = [
       {
         id: "score-1",
         name: "quality",
@@ -121,7 +125,8 @@ describe("mergeScoresWithCache", () => {
         authorUserId: "user-1",
         queueId: null,
         datasetRunId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
         executionTraceId: null,
       },
     ];
@@ -153,7 +158,7 @@ describe("mergeScoresWithCache", () => {
   });
 
   it("should add cache-only scores", () => {
-    const serverScores: ScoreDomain[] = [
+    const serverScores: WithStringifiedMetadata<ScoreDomain>[] = [
       {
         id: "score-1",
         name: "quality",
@@ -174,7 +179,8 @@ describe("mergeScoresWithCache", () => {
         authorUserId: "user-1",
         queueId: null,
         datasetRunId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
         executionTraceId: null,
       },
     ];
@@ -207,7 +213,7 @@ describe("mergeScoresWithCache", () => {
   });
 
   it("should handle both delete and cache overlay", () => {
-    const serverScores: ScoreDomain[] = [
+    const serverScores: WithStringifiedMetadata<ScoreDomain>[] = [
       {
         id: "score-1",
         name: "quality",
@@ -228,7 +234,8 @@ describe("mergeScoresWithCache", () => {
         authorUserId: "user-1",
         queueId: null,
         datasetRunId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
         executionTraceId: null,
       },
       {
@@ -251,7 +258,8 @@ describe("mergeScoresWithCache", () => {
         authorUserId: "user-1",
         queueId: null,
         datasetRunId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
         executionTraceId: null,
       },
     ];

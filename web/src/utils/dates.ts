@@ -21,27 +21,45 @@ export const utcDate = (localDateTime: Date) =>
   );
 
 export const setBeginningOfDay = (date: Date) => {
-  date.setHours(0, 0, 0, 0);
-  return date;
+  const newDate = new Date(date);
+  newDate.setHours(0, 0, 0, 0);
+  return newDate;
 };
 
 export const setEndOfDay = (date: Date) => {
-  date.setHours(23, 59, 59, 999);
-  return date;
+  const newDate = new Date(date);
+  newDate.setHours(23, 59, 59, 999);
+  return newDate;
 };
 
 export const intervalInSeconds = (start: Date, end: Date | null) =>
   end ? (end.getTime() - start.getTime()) / 1000 : 0;
 
-export const formatIntervalSeconds = (seconds: number, scale: number = 2) => {
+export const formatIntervalSeconds = (seconds: number, scale = 2) => {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  const pad = (num: number) => `00${num}`.slice(2);
+  const pad = (num: number) => String(num).padStart(2, "0");
 
   if (hrs > 0) return `${hrs}h ${pad(mins)}m ${pad(secs)}s`;
   if (mins > 0) return `${mins}m ${pad(secs)}s`;
   return `${seconds.toFixed(scale)}s`;
+};
+
+export const formatApproximateDuration = (secondsRemaining: number) => {
+  const seconds = Math.max(1, secondsRemaining);
+
+  if (seconds < 60) {
+    return `${seconds} second${seconds === 1 ? "" : "s"}`;
+  }
+
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  const hours = Math.ceil(minutes / 60);
+  return `${hours} hour${hours === 1 ? "" : "s"}`;
 };
 
 export const getShortLocalTimezone = () => {
@@ -57,8 +75,23 @@ export const getTimezoneDetails = () => {
   return `${location} (UTC${utcDifference >= 0 ? "+" : ""}${utcDifference})`;
 };
 
+// Compact relative time: "just now", "3m ago", "5h ago", "15d ago",
+// "2mo ago", "1y ago" — largest sensible unit, no live refresh implied.
+export const formatCompactRelativeTime = (timestamp: Date): string => {
+  const diffInSeconds = Math.max(0, (Date.now() - timestamp.getTime()) / 1000);
+  if (diffInSeconds < 60) return "just now";
+  const minutes = diffInSeconds / 60;
+  if (minutes < 60) return `${Math.floor(minutes)}m ago`;
+  const hours = minutes / 60;
+  if (hours < 24) return `${Math.floor(hours)}h ago`;
+  const days = hours / 24;
+  if (days < 30) return `${Math.floor(days)}d ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+};
+
 export const getRelativeTimestampFromNow = (timestamp: Date): string => {
-  const diffInMs = new Date().getTime() - timestamp.getTime();
+  const diffInMs = Math.max(0, new Date().getTime() - timestamp.getTime());
   const diffInMinutes = diffInMs / (1000 * 60);
   const diffInHours = diffInMinutes / 60;
   const diffInDays = diffInHours / 24;
@@ -69,11 +102,10 @@ export const getRelativeTimestampFromNow = (timestamp: Date): string => {
     return `${Math.floor(diffInHours)} hours ago`;
   } else if (diffInDays < 7) {
     return `${Math.floor(diffInDays)} days ago`;
-  } else {
-    return timestamp.toLocaleDateString("en-US", {
-      year: "2-digit",
-      month: "numeric",
-      day: "numeric",
-    });
   }
+  return timestamp.toLocaleDateString("en-US", {
+    year: "2-digit",
+    month: "numeric",
+    day: "numeric",
+  });
 };

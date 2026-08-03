@@ -2,7 +2,11 @@ import { type UseFormReturn } from "react-hook-form";
 import { type CreateExperiment } from "@/src/features/experiments/types";
 import { type UIModelParams } from "@langfuse/shared/src/server";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
-import { type EvalTemplate, type PromptType } from "@langfuse/shared";
+import {
+  type EvalTemplate,
+  type PromptToolConfig,
+  type PromptType,
+} from "@langfuse/shared";
 import { type PartialConfig } from "@/src/features/evals/types";
 
 type ValidationResult =
@@ -43,8 +47,9 @@ export type PromptModelState = {
   selectedPromptVersion: number | null;
   setSelectedPromptVersion: (version: number | null) => void;
   promptsByName:
-    | Record<string, Array<{ id: string; version: number }>>
+    | Record<string, Array<{ id: string; version: number; labels: string[] }>>
     | undefined;
+  selectedPromptToolConfig: PromptToolConfig;
 };
 
 export type ModelState = {
@@ -67,6 +72,7 @@ export type DatasetState = {
   datasets: Array<{ id: string; name: string }> | undefined;
   selectedDatasetId: string | null;
   selectedDataset: { id: string; name: string } | undefined;
+  selectedDatasetVersion: Date | undefined;
   validationResult: ValidationResult;
   expectedColumnsForDataset: {
     inputVariables: string[];
@@ -76,8 +82,6 @@ export type DatasetState = {
 };
 
 export type EvaluatorState = {
-  activeEvaluators: string[];
-  pausedEvaluators: string[];
   evalTemplates: EvalTemplate[];
   activeEvaluatorNames: string[];
   selectedEvaluatorData: EvaluatorData | null;
@@ -86,7 +90,6 @@ export type EvaluatorState = {
   handleCloseEvaluatorForm: () => void;
   handleEvaluatorSuccess: () => void;
   handleSelectEvaluator: (templateId: string) => void;
-  handleEvaluatorToggled: () => void;
   preprocessFormValues: (values: any) => any;
 };
 
@@ -100,6 +103,7 @@ export interface PromptModelStepProps {
 }
 
 export interface DatasetStepProps {
+  projectId: string;
   formState: FormState;
   datasetState: DatasetState;
   promptInfo: {
@@ -122,6 +126,7 @@ export interface ExperimentDetailsStepProps {
 export interface ReviewStepProps {
   formState: FormState;
   navigationState: NavigationState;
+  errorMessage?: string;
   summary: {
     selectedPromptName: string;
     selectedPromptVersion: number | null;

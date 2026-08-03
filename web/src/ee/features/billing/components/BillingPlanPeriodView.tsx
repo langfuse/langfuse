@@ -13,7 +13,7 @@ export const BillingPlanPeriodView = () => {
   );
 
   return (
-    <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+    <div className="text-muted-foreground flex flex-col gap-1 text-sm">
       <BillingCurrentPlanLabel />
       <p>
         Billing period:{" "}
@@ -26,5 +26,3 @@ export const BillingPlanPeriodView = () => {
     </div>
   );
 };
-
-export default BillingPlanPeriodView;

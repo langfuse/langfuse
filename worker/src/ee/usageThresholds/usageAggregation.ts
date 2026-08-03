@@ -8,10 +8,12 @@ import {
   endOfDayUTC,
   getDaysToLookBack,
   recordIncrement,
+  instrumentAsync,
 } from "@langfuse/shared/src/server";
 
 import { parseDbOrg, type ParsedOrganization } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
+import { backOff } from "exponential-backoff";
 
 import {
   processThresholds,
@@ -19,6 +21,23 @@ import {
   type OrgUpdateData,
 } from "./thresholdProcessing";
 import { bulkUpdateOrganizationsRawSQL } from "./bulkUpdates";
+
+const DAILY_QUERY_MAX_ATTEMPTS = 3;
+
+async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  return backOff(fn, {
+    numOfAttempts: DAILY_QUERY_MAX_ATTEMPTS,
+    startingDelay: 500,
+    timeMultiple: 2,
+    retry: (error: Error, attemptNumber: number) => {
+      logger.warn(
+        `[FREE TIER USAGE THRESHOLDS] ${label} failed (attempt ${attemptNumber}/${DAILY_QUERY_MAX_ATTEMPTS}): ${error.message}`,
+        { error: error.message, attemptNumber },
+      );
+      return attemptNumber < DAILY_QUERY_MAX_ATTEMPTS;
+    },
+  });
+}
 
 /**
  * Map of projectId to orgId
@@ -230,102 +249,135 @@ export async function processUsageAggregationForAllOrgs(
     const dayEnd =
       daysAgo === 0 ? normalizedReferenceDate : endOfDayUTC(dayDate);
 
-    // Fetch counts from Clickhouse (3 queries for ALL projects)
-    const [traceCounts, obsCounts, scoreCounts] = await Promise.all([
-      getTraceCountsByProjectAndDay({ startDate: dayStart, endDate: dayEnd }),
-      getObservationCountsByProjectAndDay({
-        startDate: dayStart,
-        endDate: dayEnd,
-      }),
-      getScoreCountsByProjectAndDay({ startDate: dayStart, endDate: dayEnd }),
-    ]);
-
-    // Aggregate to org level
-    const orgDailyCounts = aggregateByOrg(
-      traceCounts,
-      obsCounts,
-      scoreCounts,
-      projectToOrgMap,
-    );
-
-    // Accumulate for all orgs and previous days
-    for (const [orgId, counts] of Object.entries(orgDailyCounts)) {
-      const state = usageByOrgMap[orgId];
-      if (state) {
-        state.traces += counts.traces;
-        state.observations += counts.observations;
-        state.scores += counts.scores;
-        state.total += counts.total;
-      }
-    }
-
-    // Process orgs with billing cycle starting THIS day
     const dayDateString = dayStart.toISOString().split("T")[0];
-    const orgsToProcess = orgsByBillingStartMap.get(dayDateString) || [];
 
-    // Collect updates instead of executing immediately
-    const updatesToProcess: OrgUpdateData[] = [];
+    await instrumentAsync(
+      { name: "cloud-free-tier-usage-threshold-day" },
+      async (span) => {
+        span.setAttribute(
+          "langfuse.free_tier.dayStart",
+          dayStart.toISOString(),
+        );
+        span.setAttribute("langfuse.free_tier.dayEnd", dayEnd.toISOString());
+        span.setAttribute("langfuse.free_tier.dayDate", dayDateString);
+        span.setAttribute("langfuse.free_tier.daysAgo", daysAgo);
 
-    for (const org of orgsToProcess) {
-      const state = usageByOrgMap[org.id];
-      if (state) {
-        const result: ThresholdProcessingResult = await processThresholds(
-          org,
-          state.total,
+        // Fetch counts from Clickhouse (3 queries for ALL projects).
+        // Each query gets an extended timeout and automatic retries — a single
+        // re-run is cheap compared to failing the whole job.
+        const [traceCounts, obsCounts, scoreCounts] = await Promise.all([
+          withRetry("getTraceCountsByProjectAndDay", () =>
+            getTraceCountsByProjectAndDay({
+              startDate: dayStart,
+              endDate: dayEnd,
+            }),
+          ),
+          withRetry("getObservationCountsByProjectAndDay", () =>
+            getObservationCountsByProjectAndDay({
+              startDate: dayStart,
+              endDate: dayEnd,
+            }),
+          ),
+          withRetry("getScoreCountsByProjectAndDay", () =>
+            getScoreCountsByProjectAndDay({
+              startDate: dayStart,
+              endDate: dayEnd,
+            }),
+          ),
+        ]);
+
+        // Aggregate to org level
+        const orgDailyCounts = aggregateByOrg(
+          traceCounts,
+          obsCounts,
+          scoreCounts,
+          projectToOrgMap,
         );
 
-        // Collect the update data for bulk processing
-        updatesToProcess.push(result.updateData);
-
-        // Track statistics with increments
-        recordIncrement("langfuse.queue.usage_threshold_queue.total_orgs", 1, {
-          unit: "organizations",
-        });
-
-        if (result.actionTaken === "PAID_PLAN") {
-          recordIncrement(
-            "langfuse.queue.usage_threshold_queue.paid_plan_orgs",
-            1,
-            {
-              unit: "organizations",
-            },
-          );
-        } else {
-          // Count as free tier if not paid plan
-          recordIncrement(
-            "langfuse.queue.usage_threshold_queue.free_tier_orgs",
-            1,
-            {
-              unit: "organizations",
-            },
-          );
+        // Accumulate for all orgs and previous days
+        for (const [orgId, counts] of Object.entries(orgDailyCounts)) {
+          const state = usageByOrgMap[orgId];
+          if (state) {
+            state.traces += counts.traces;
+            state.observations += counts.observations;
+            state.scores += counts.scores;
+            state.total += counts.total;
+          }
         }
-      }
-    }
 
-    // Execute bulk update after processing all orgs for this day
-    if (updatesToProcess.length > 0) {
-      const bulkResult = await bulkUpdateOrganizationsRawSQL(updatesToProcess);
+        // Process orgs with billing cycle starting THIS day
+        const orgsToProcess = orgsByBillingStartMap.get(dayDateString) || [];
 
-      logger.info(
-        `[FREE TIER USAGE THRESHOLDS] Day ${dayDateString}: Bulk updated ${bulkResult.successCount} orgs, ${bulkResult.failedCount} failed`,
-      );
+        // Collect updates instead of executing immediately
+        const updatesToProcess: OrgUpdateData[] = [];
 
-      // Track bulk update statistics
-      stats.totalOrgsProcessed += updatesToProcess.length;
-      stats.totalOrgsUpdatedSuccessfully += bulkResult.successCount;
-      stats.totalOrgsFailed += bulkResult.failedCount;
-      stats.failedOrgIds.push(...bulkResult.failedOrgIds);
+        for (const org of orgsToProcess) {
+          const state = usageByOrgMap[org.id];
+          if (state) {
+            const result: ThresholdProcessingResult = await processThresholds(
+              org,
+              state.total,
+            );
 
-      // Track bulk update failures metric
-      if (bulkResult.failedCount > 0) {
-        recordIncrement(
-          "langfuse.queue.usage_threshold_queue.bulk_update_failures",
-          bulkResult.failedCount,
-          { unit: "organizations" },
-        );
-      }
-    }
+            // Collect the update data for bulk processing
+            updatesToProcess.push(result.updateData);
+
+            // Track statistics with increments
+            recordIncrement(
+              "langfuse.queue.usage_threshold_queue.total_orgs",
+              1,
+              {
+                unit: "organizations",
+              },
+            );
+
+            if (result.actionTaken === "PAID_PLAN") {
+              recordIncrement(
+                "langfuse.queue.usage_threshold_queue.paid_plan_orgs",
+                1,
+                {
+                  unit: "organizations",
+                },
+              );
+            } else {
+              // Count as free tier if not paid plan
+              recordIncrement(
+                "langfuse.queue.usage_threshold_queue.free_tier_orgs",
+                1,
+                {
+                  unit: "organizations",
+                },
+              );
+            }
+          }
+        }
+
+        // Execute bulk update after processing all orgs for this day
+        if (updatesToProcess.length > 0) {
+          const bulkResult =
+            await bulkUpdateOrganizationsRawSQL(updatesToProcess);
+
+          logger.info(
+            `[FREE TIER USAGE THRESHOLDS] Day ${dayDateString}: Bulk updated ${bulkResult.successCount} orgs, ${bulkResult.failedCount} failed`,
+          );
+
+          // Track bulk update statistics
+          stats.totalOrgsProcessed += updatesToProcess.length;
+          stats.totalOrgsUpdatedSuccessfully += bulkResult.successCount;
+          stats.totalOrgsFailed += bulkResult.failedCount;
+          stats.failedOrgIds.push(...bulkResult.failedOrgIds);
+
+          // Track bulk update failures metric
+          if (bulkResult.failedCount > 0) {
+            recordIncrement(
+              "langfuse.queue.usage_threshold_queue.bulk_update_failures",
+              bulkResult.failedCount,
+              { unit: "organizations" },
+            );
+          }
+        }
+      },
+    );
 
     // Update progress
     if (onProgress) {

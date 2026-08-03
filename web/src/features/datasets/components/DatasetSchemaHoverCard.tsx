@@ -8,7 +8,7 @@ import { CodeMirrorEditor } from "@/src/components/editor";
 import type { Prisma } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Separator } from "@/src/components/ui/separator";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { generateSchemaExample } from "../lib/generateSchemaExample";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
@@ -29,7 +29,16 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
   const schemaString = JSON.stringify(schema, null, 2);
 
   // Generate example object from schema
-  const exampleObject = useMemo(() => generateSchemaExample(schema), [schema]);
+  const [exampleObject, setExampleObject] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    generateSchemaExample(schema).then((result) => {
+      if (!cancelled) setExampleObject(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [schema]);
 
   // State for copy button feedback
   const [copied, setCopied] = useState(false);
@@ -48,7 +57,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
       <HoverCardTrigger asChild>
         <Button
           variant="ghost"
-          className="inline-flex items-center gap-1.5 rounded p-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          className="text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1.5 rounded p-1 text-xs transition-colors"
           aria-label={`View ${title}`}
           size="sm"
         >
@@ -60,14 +69,14 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
         className="max-h-[80vh] w-[400px] overflow-auto"
         collisionPadding={20}
       >
-        <p className="text-sm font-medium">{title}</p>
-        <p className="pt-2 text-sm text-muted-foreground">
+        <p className="text-sm font-bold">{title}</p>
+        <p className="text-muted-foreground pt-2 text-sm">
           Learn more about{" "}
           <a
             href="https://json-schema.org/learn/miscellaneous-examples"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center underline hover:text-foreground"
+            className="hover:text-foreground inline-flex items-center underline"
           >
             JSON Schema
             <ArrowUpRight className="ml-0.5 h-3 w-3" />
@@ -78,7 +87,6 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
             mode="json"
             value={schemaString}
             onChange={() => {}} // Read-only
-            minHeight="none"
             className="max-h-[250px] overflow-y-auto"
             editable={false}
           />
@@ -88,7 +96,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
           <>
             <Separator className="my-4" />
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Example Object</p>
+              <p className="text-sm font-bold">Example Object</p>
               <Button
                 variant="ghost"
                 size="sm"
@@ -106,7 +114,6 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
               <CodeMirrorEditor
                 mode="json"
                 value={exampleObject}
-                minHeight="none"
                 className="max-h-[250px] overflow-y-auto"
                 editable={false}
               />

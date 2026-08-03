@@ -1,0 +1,15 @@
+-- CreateEnum
+CREATE TYPE "EvaluatorBlockReason" AS ENUM (
+'LLM_CONNECTION_AUTH_INVALID',
+'LLM_CONNECTION_MISSING',
+'DEFAULT_EVAL_MODEL_MISSING',
+'EVAL_MODEL_CONFIG_INVALID',
+'EVAL_MODEL_UNAVAILABLE',
+'PROVIDER_ACCOUNT_NOT_READY'
+);
+
+-- AlterTable
+ALTER TABLE "job_configurations"
+ADD COLUMN "blocked_at" TIMESTAMP(3),
+ADD COLUMN "block_reason" "EvaluatorBlockReason",
+ADD COLUMN "block_message" TEXT;

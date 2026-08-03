@@ -3,7 +3,10 @@ import { parseArgs } from "node:util";
 import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
+import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "../../src/in-app-agent/server/prompts/in-app-agent-system-prompt";
 import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
   type JobConfiguration,
   JobExecutionStatus,
   PrismaClient,
@@ -30,14 +33,16 @@ import {
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
+import { seedInAppAgentDemoConversation } from "./utils/in-app-agent-seed";
 import { seedDatasetVersions } from "./seed-dataset-versions";
-import { seedMediaTraces } from "./seed-media";
 
 const options = {
   environment: { type: "string" },
 } as const;
 
 const prisma = new PrismaClient();
+const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
+const inAppAgentSystemPrompt = IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE;
 
 async function main() {
   const environment = parseArgs({
@@ -83,6 +88,7 @@ async function main() {
     where: { id: seedOrgId },
     update: {
       name: "Seed Org",
+      aiFeaturesEnabled: true,
       cloudConfig: {
         plan: "Team",
       },
@@ -90,6 +96,7 @@ async function main() {
     create: {
       id: seedOrgId,
       name: "Seed Org",
+      aiFeaturesEnabled: true,
       cloudConfig: {
         plan: "Team",
       },
@@ -108,6 +115,9 @@ async function main() {
       orgId: seedOrgId,
     },
   });
+
+  await upsertInAppAgentSystemPrompt(project1.id);
+  await upsertNaturalLanguageFilterPrompt(project1.id);
 
   // Realistic support chat scenario
   await createSupportChatSession(project1);
@@ -160,7 +170,7 @@ async function main() {
     },
   });
 
-  await prisma.prompt.upsert({
+  const summaryPrompt = await prisma.prompt.upsert({
     where: {
       projectId_name_version: {
         projectId: seedProjectId,
@@ -177,6 +187,13 @@ async function main() {
       createdBy: "user-1",
     },
     update: {},
+  });
+
+  await seedInAppAgentDemoConversation({
+    prisma,
+    projectId: project1.id,
+    userId: user.id,
+    summaryPrompt,
   });
 
   const seedApiKey = {
@@ -241,6 +258,7 @@ async function main() {
       },
       update: {},
     });
+    await upsertInAppAgentSystemPrompt(project2.id);
 
     const secondKey = {
       id: "seed-api-key-2",
@@ -297,6 +315,8 @@ async function main() {
 
     // add eval objects
     for (const evalTemplate of SEED_EVALUATOR_TEMPLATES) {
+      const evalTemplateType = evalTemplate.type as EvalTemplateType;
+
       await prisma.evalTemplate.upsert({
         where: {
           projectId_name_version: {
@@ -310,12 +330,18 @@ async function main() {
           projectId: project1.id,
           name: evalTemplate.name,
           version: evalTemplate.version,
-          prompt: evalTemplate.prompt,
-          model: evalTemplate.model,
+          type: evalTemplateType,
+          prompt: evalTemplate.prompt ?? null,
+          model: evalTemplate.model ?? null,
           vars: evalTemplate.vars,
-          provider: evalTemplate.provider,
-          outputSchema: evalTemplate.outputSchema,
-          modelParams: evalTemplate.modelParams,
+          provider: evalTemplate.provider ?? null,
+          outputDefinition: evalTemplate.outputDefinition ?? undefined,
+          modelParams: evalTemplate.modelParams ?? undefined,
+          sourceCode: evalTemplate.sourceCode ?? null,
+          sourceCodeLanguage:
+            (evalTemplate.sourceCodeLanguage as
+              | EvalTemplateSourceCodeLanguage
+              | undefined) ?? null,
         },
         update: {},
       });
@@ -350,9 +376,6 @@ async function main() {
 
     await createDashboardsAndWidgets([project1, project2]);
     await seedDatasetVersions(prisma, [project1.id, project2.id]);
-
-    // Seed media test traces (uploads to MinIO + creates Media/TraceMedia records)
-    await seedMediaTraces(project1.id);
 
     await prisma.llmSchema.createMany({
       data: [
@@ -541,6 +564,8 @@ export async function createDatasets(
         datasetItemIds.push(itemId);
 
         // Create dataset items in versioned format with all required fields
+        // Set validFrom to 30 days ago so experiment runs can reference this version
+        const validFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         itemsToCreate.push({
           id: itemId,
           projectId,
@@ -551,7 +576,7 @@ export async function createDatasets(
           expectedOutput: item.output,
           metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
           status: "ACTIVE" as const,
-          validFrom: new Date(),
+          validFrom,
           isDeleted: false,
         });
       }
@@ -591,6 +616,121 @@ export async function createDatasets(
           update: {},
         });
       }
+
+      // Create multiple versions for test-dataset-versioning
+      if (datasetName === "test-dataset-versioning") {
+        const itemId = `test-version-item-${projectId.slice(-8)}`;
+        const baseTime = new Date("2025-01-20T10:00:00Z");
+
+        // Version 1: Initial version
+        const v1Time = new Date(baseTime.getTime());
+        await prisma.datasetItem.create({
+          data: {
+            id: itemId,
+            projectId,
+            datasetId: dataset.id,
+            sourceTraceId: null,
+            sourceObservationId: null,
+            input: { color: "red" },
+            expectedOutput: "#FF0000",
+            metadata: { version: "1", description: "Initial version" },
+            status: "ACTIVE",
+            validFrom: v1Time,
+            isDeleted: false,
+          },
+        });
+
+        // Version 2: Updated output (2 hours later)
+        const v2Time = new Date(baseTime.getTime() + 2 * 60 * 60 * 1000);
+        await prisma.$executeRaw`
+          UPDATE dataset_items
+          SET valid_to = ${v2Time}
+          WHERE project_id = ${projectId}
+            AND dataset_id = ${dataset.id}
+            AND id = ${itemId}
+            AND valid_from = ${v1Time}
+        `;
+
+        await prisma.datasetItem.create({
+          data: {
+            id: itemId,
+            projectId,
+            datasetId: dataset.id,
+            sourceTraceId: null,
+            sourceObservationId: null,
+            input: { color: "red" },
+            expectedOutput: "#FF0001", // Slightly different
+            metadata: {
+              version: "2",
+              description: "Fixed hex value precision",
+            },
+            status: "ACTIVE",
+            validFrom: v2Time,
+            isDeleted: false,
+          },
+        });
+
+        // Version 3: Updated input and output (1 day later)
+        const v3Time = new Date(baseTime.getTime() + 24 * 60 * 60 * 1000);
+        await prisma.$executeRaw`
+          UPDATE dataset_items
+          SET valid_to = ${v3Time}
+          WHERE project_id = ${projectId}
+            AND dataset_id = ${dataset.id}
+            AND id = ${itemId}
+            AND valid_from = ${v2Time}
+        `;
+
+        await prisma.datasetItem.create({
+          data: {
+            id: itemId,
+            projectId,
+            datasetId: dataset.id,
+            sourceTraceId: null,
+            sourceObservationId: null,
+            input: { color: "crimson" }, // Changed input
+            expectedOutput: "#DC143C",
+            metadata: {
+              version: "3",
+              description: "Changed to crimson color",
+            },
+            status: "ACTIVE",
+            validFrom: v3Time,
+            isDeleted: false,
+          },
+        });
+
+        // Version 4: Current version (2 days after initial)
+        const v4Time = new Date(baseTime.getTime() + 2 * 24 * 60 * 60 * 1000);
+        await prisma.$executeRaw`
+          UPDATE dataset_items
+          SET valid_to = ${v4Time}
+          WHERE project_id = ${projectId}
+            AND dataset_id = ${dataset.id}
+            AND id = ${itemId}
+            AND valid_from = ${v3Time}
+        `;
+
+        await prisma.datasetItem.create({
+          data: {
+            id: itemId,
+            projectId,
+            datasetId: dataset.id,
+            sourceTraceId: null,
+            sourceObservationId: null,
+            input: { color: "blue" }, // Changed to blue
+            expectedOutput: "#0000FF",
+            metadata: { version: "4", description: "Changed to blue color" },
+            status: "ACTIVE",
+            validFrom: v4Time,
+            isDeleted: false,
+          },
+        });
+
+        logger.info(
+          `Created 4 versions for test-dataset-versioning in project ${projectId}`,
+        );
+      }
     }
   }
 }
@@ -628,6 +768,7 @@ async function generateEvalJobExecutions(
             jobConfiguration.evalTemplateId!,
             i,
             project.id,
+            0,
           ),
         },
       });
@@ -647,6 +788,68 @@ async function generatePromptsForProject(projects: Project[]) {
   return promptIds;
 }
 
+async function upsertInAppAgentSystemPrompt(projectId: string) {
+  await prisma.prompt.upsert({
+    where: {
+      projectId_name_version: {
+        projectId,
+        name: IN_APP_AGENT_SYSTEM_PROMPT_NAME,
+        version: 1,
+      },
+    },
+    create: {
+      projectId,
+      createdBy: "user-1",
+      prompt: inAppAgentSystemPrompt,
+      name: IN_APP_AGENT_SYSTEM_PROMPT_NAME,
+      type: "text",
+      version: 1,
+      labels: ["production", "latest"],
+    },
+    update: {
+      prompt: inAppAgentSystemPrompt,
+      type: "text",
+      labels: ["production", "latest"],
+    },
+  });
+}
+
+// The legacy natural-language filter feature fetches this prompt from the
+// AI-features project at runtime; on self-referential deployments (previews)
+// that project is llm-app, so it must exist on the default seed path too.
+const NATURAL_LANGUAGE_FILTER_PROMPT_NAME = "get-filter-conditions-from-query";
+
+async function upsertNaturalLanguageFilterPrompt(projectId: string) {
+  const seedPrompt = SEED_PROMPT_VERSIONS.find(
+    (p) => p.name === NATURAL_LANGUAGE_FILTER_PROMPT_NAME,
+  );
+  if (!seedPrompt) return;
+
+  await prisma.prompt.upsert({
+    where: {
+      projectId_name_version: {
+        projectId,
+        name: seedPrompt.name,
+        version: seedPrompt.version,
+      },
+    },
+    create: {
+      projectId,
+      createdBy: seedPrompt.createdBy,
+      prompt: seedPrompt.prompt,
+      name: seedPrompt.name,
+      type: seedPrompt.type ?? "text",
+      version: seedPrompt.version,
+      labels: seedPrompt.labels,
+    },
+    update: {
+      prompt: seedPrompt.prompt,
+      type: seedPrompt.type ?? "text",
+      labels: seedPrompt.labels,
+    },
+  });
+}
+
 export const PROMPT_IDS: string[] = [];
 
 async function generatePrompts(project: Project) {
@@ -655,14 +858,13 @@ async function generatePrompts(project: Project) {
     const versions = Math.floor(Math.random() * 20) + 1;
     for (let i = 1; i <= versions; i++) {
       const promptId = `prompt-${v4()}`;
-      await prisma.prompt.upsert({
+      const seededPrompt = await prisma.prompt.upsert({
         where: {
           projectId_name_version: {
             projectId: project.id,
             name: prompt.name,
             version: i,
           },
-          id: promptId,
         },
         create: {
           id: promptId,
@@ -673,18 +875,16 @@ async function generatePrompts(project: Project) {
           version: i,
           labels: i === versions ? prompt.labels : [],
         },
-        update: {
-          id: promptId,
-        },
+        update: {},
       });
-      promptIds.push(promptId);
+      promptIds.push(seededPrompt.id);
     }
   }
 
   for (const prompt of SEED_CHAT_ML_PROMPTS) {
-    const promptId = `prompt-${v4()}`;
     const versions = Math.floor(Math.random() * 20) + 1;
     for (let i = 1; i <= versions; i++) {
+      const promptId = `prompt-${v4()}`;
       const versionAddition = [
         {
           role: "user",
@@ -692,14 +892,13 @@ async function generatePrompts(project: Project) {
         },
       ];
 
-      await prisma.prompt.upsert({
+      const seededPrompt = await prisma.prompt.upsert({
         where: {
           projectId_name_version: {
             projectId: project.id,
             name: prompt.name,
-            version: prompt.version,
+            version: i,
           },
-          id: promptId,
         },
         create: {
           id: promptId,
@@ -712,24 +911,21 @@ async function generatePrompts(project: Project) {
           labels: prompt.labels,
           tags: prompt.tags,
         },
-        update: {
-          id: promptId,
-        },
+        update: {},
       });
-      promptIds.push(promptId);
+      promptIds.push(seededPrompt.id);
     }
   }
 
   for (const version of SEED_PROMPT_VERSIONS) {
     const id = `prompt-${v4()}`;
-    await prisma.prompt.upsert({
+    const seededPrompt = await prisma.prompt.upsert({
       where: {
         projectId_name_version: {
           projectId: project.id,
           name: version.name,
           version: version.version,
         },
-        id: id,
       },
       create: {
         id: id,
@@ -742,11 +938,9 @@ async function generatePrompts(project: Project) {
         version: version.version,
         labels: version.labels,
       },
-      update: {
-        id: id,
-      },
+      update: {},
     });
-    promptIds.push(id);
+    promptIds.push(seededPrompt.id);
   }
 
   return promptIds;
@@ -843,6 +1037,14 @@ async function generateConfigs(project: Project) {
       ],
       description:
         "Used to indicate if text was harmful or offensive in nature.",
+      isArchived: false,
+    },
+    {
+      id: `config-${v4()}`,
+      projectId: project.id,
+      name: "Feedback",
+      dataType: ScoreDataTypeEnum.TEXT,
+      description: "Free-form text feedback on the output quality.",
       isArchived: false,
     },
   ];

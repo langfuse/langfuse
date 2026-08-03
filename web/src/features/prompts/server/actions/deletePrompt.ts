@@ -1,6 +1,6 @@
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma, type Prompt } from "@langfuse/shared/src/db";
-import { PromptService, redis, logger } from "@langfuse/shared/src/server";
+import { PromptService, redis } from "@langfuse/shared/src/server";
 
 export type DeletePromptParams = {
   promptName: string;
@@ -93,42 +93,35 @@ export const deletePrompt = async (params: DeletePromptParams) => {
 
   const promptService = new PromptService(prisma, redis);
 
-  try {
-    await promptService.lockCache({ projectId, promptName });
-    await promptService.invalidateCache({ projectId, promptName });
+  const deletingLatest = promptVersions.some((p) =>
+    p.labels.includes("latest"),
+  );
+  const latestRemainsAfterDeletion = remainingVersions.some((v) =>
+    v.labels.includes("latest"),
+  );
 
-    const deletingLatest = promptVersions.some((p) =>
-      p.labels.includes("latest"),
+  // reattach "latest" to highest remaining version
+  if (
+    deletingLatest &&
+    !latestRemainsAfterDeletion &&
+    remainingVersions.length > 0
+  ) {
+    const highestRemainingVersion = remainingVersions.reduce((max, v) =>
+      v.version > max.version ? v : max,
     );
-    const latestRemainsAfterDeletion = remainingVersions.some((v) =>
-      v.labels.includes("latest"),
-    );
 
-    // reattach "latest" to highest remaining version
-    if (
-      deletingLatest &&
-      !latestRemainsAfterDeletion &&
-      remainingVersions.length > 0
-    ) {
-      const highestRemainingVersion = remainingVersions.reduce((max, v) =>
-        v.version > max.version ? v : max,
-      );
-
-      await prisma.prompt.update({
-        where: { id: highestRemainingVersion.id },
-        data: {
-          labels: [...new Set([...highestRemainingVersion.labels, "latest"])],
-        },
-      });
-    }
-
-    await prisma.prompt.deleteMany({
-      where: { projectId, id: { in: promptVersions.map((p) => p.id) } },
+    await prisma.prompt.update({
+      where: { id: highestRemainingVersion.id },
+      data: {
+        labels: [...new Set([...highestRemainingVersion.labels, "latest"])],
+      },
     });
-  } catch (err) {
-    logger.error("Failed to delete prompt", err);
-    throw err;
-  } finally {
-    await promptService.unlockCache({ projectId, promptName });
   }
+
+  await prisma.prompt.deleteMany({
+    where: { projectId, id: { in: promptVersions.map((p) => p.id) } },
+  });
+
+  // Rotate cache epoch only after successful commit.
+  await promptService.invalidateCache({ projectId });
 };

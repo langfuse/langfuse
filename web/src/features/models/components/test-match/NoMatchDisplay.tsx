@@ -16,7 +16,7 @@ export function NoMatchDisplay({ modelName }: NoMatchDisplayProps) {
   return (
     <Card className="border-destructive/50 bg-destructive/5">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base text-destructive">
+        <CardTitle className="text-destructive flex items-center gap-2 text-base">
           <AlertCircle className="h-5 w-5" />
           No Match Found
         </CardTitle>
@@ -28,8 +28,8 @@ export function NoMatchDisplay({ modelName }: NoMatchDisplayProps) {
         </p>
 
         <div>
-          <p className="mb-2 text-sm font-medium">Suggestions:</p>
-          <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+          <p className="mb-2 text-sm font-bold">Suggestions:</p>
+          <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
             <li>Check your model name spelling</li>
             <li>View existing models and their match patterns</li>
             <li>Create a new model definition</li>

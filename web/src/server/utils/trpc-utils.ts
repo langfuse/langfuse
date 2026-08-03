@@ -1,4 +1,5 @@
-import type { TRPC_ERROR_CODE_KEY } from "@trpc/server";
+import type { TRPCError, TRPC_ERROR_CODE_KEY } from "@trpc/server";
+import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 
 // Note: copied from official documentation: https://trpc.io/docs/server/error-handling#error-codes
 const HTTP_STATUS_CODE_TO_TRPC_ERROR_CODE: Record<number, TRPC_ERROR_CODE_KEY> =
@@ -30,4 +31,31 @@ export const getTRPCErrorCodeFromHTTPStatusCode = (
   httpStatus: number,
 ): TRPC_ERROR_CODE_KEY => {
   return HTTP_STATUS_CODE_TO_TRPC_ERROR_CODE[httpStatus] ?? DEFAULT_ERROR_CODE;
+};
+
+type TRPCErrorLogLevel = "info" | "warn" | "error";
+
+const isServerErrorStatus = (httpStatus: number) =>
+  httpStatus >= 500 && httpStatus < 600;
+
+const getLogLevelFromHTTPStatus = (httpStatus: number): TRPCErrorLogLevel => {
+  if (isServerErrorStatus(httpStatus)) return "error";
+  if (httpStatus === 401 || httpStatus === 404) return "info";
+  return "warn";
+};
+
+export const getTRPCErrorReporting = (
+  error: TRPCError,
+): {
+  httpStatus: number;
+  logLevel: TRPCErrorLogLevel;
+  shouldTrace: boolean;
+} => {
+  const httpStatus = getHTTPStatusCodeFromError(error);
+
+  return {
+    httpStatus,
+    logLevel: getLogLevelFromHTTPStatus(httpStatus),
+    shouldTrace: isServerErrorStatus(httpStatus),
+  };
 };

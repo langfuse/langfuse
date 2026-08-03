@@ -1,3 +1,4 @@
+import { eventsTableIsRootObservationSql } from "../../eventsTable";
 import { filterOperators } from "../../interfaces/filters";
 import {
   FilterList,
@@ -7,11 +8,15 @@ import {
   CategoryOptionsFilter,
   StringFilter,
   NumberFilter,
+  BooleanFilter,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
-import { z } from "zod/v4";
-import type { FilterState } from "../../types";
-import type { UiColumnMappings } from "../../tableDefinitions";
+import { z } from "zod";
+import type { EventsTableFilterState } from "../../types";
+import type {
+  UiColumnMappings,
+  ColumnDefinition,
+} from "../../tableDefinitions";
 import { createFilterFromFilterState } from "./clickhouse-sql/factory";
 
 export type ApiColumnMapping = {
@@ -83,8 +88,8 @@ const TRACES_COLUMN_DEFINITIONS = [
  * Convenience function: Get just the simple filter mappings for public API
  */
 export function createPublicApiTracesColumnMapping(
-  tableName: "traces" | "events",
-  tablePrefix: "t" | "e",
+  tableName: "traces",
+  tablePrefix: "t",
 ): ApiColumnMapping[] {
   const timestampColumn = "timestamp";
   const simpleFilters: ApiColumnMapping[] = [];
@@ -128,18 +133,39 @@ export function createPublicApiTracesColumnMapping(
  * Eliminates duplication between events and observations filter mappings.
  */
 export function createPublicApiObservationsColumnMapping(
-  tableName: "events" | "observations",
+  tableName: "events_proto" | "observations",
   tablePrefix: "e" | "o",
   parentFieldName: "parent_span_id" | "parent_observation_id",
 ): ApiColumnMapping[] {
+  // user_id and session_id are denormalized onto events_core/events_full, so
+  // the events_proto path filters directly without joining the traces CTE.
+  // The legacy observations table does not carry either field, so that path
+  // still joins traces.
+  const traceFieldMapping =
+    tableName === "events_proto"
+      ? {
+          clickhouseTable: tableName,
+          clickhousePrefix: tablePrefix,
+        }
+      : {
+          clickhouseTable: "traces",
+          clickhousePrefix: "t",
+        };
+  const userIdMapping: ApiColumnMapping = {
+    id: "userId",
+    clickhouseSelect: "user_id",
+    filterType: "StringFilter",
+    ...traceFieldMapping,
+  };
+  const sessionIdMapping: ApiColumnMapping = {
+    id: "sessionId",
+    clickhouseSelect: "session_id",
+    filterType: "StringFilter",
+    ...traceFieldMapping,
+  };
   return [
-    {
-      id: "userId",
-      clickhouseSelect: "user_id",
-      filterType: "StringFilter",
-      clickhouseTable: "traces",
-      clickhousePrefix: "t",
-    },
+    userIdMapping,
+    sessionIdMapping,
     {
       id: "traceId",
       clickhouseSelect: "trace_id",
@@ -175,6 +201,16 @@ export function createPublicApiObservationsColumnMapping(
       clickhouseTable: tableName,
       clickhousePrefix: tablePrefix,
     },
+    ...(tableName === "events_proto"
+      ? [
+          {
+            id: "isRootObservation",
+            clickhouseSelect: eventsTableIsRootObservationSql,
+            filterType: "BooleanFilter",
+            clickhouseTable: tableName,
+          },
+        ]
+      : []),
     {
       id: "fromStartTime",
       clickhouseSelect: "start_time",
@@ -201,7 +237,7 @@ export function createPublicApiObservationsColumnMapping(
     {
       id: "environment",
       clickhouseSelect: "environment",
-      filterType: "StringFilter",
+      filterType: "StringOptionsFilter",
       clickhouseTable: tableName,
       clickhousePrefix: tablePrefix,
     },
@@ -227,15 +263,11 @@ export function convertApiProvidedFilterToClickhouseFilter(
       let filterInstance;
       switch (columnMapping.filterType) {
         case "DateTimeFilter": {
-          // get filter options from the filterOperators
-          // validate that the user provided operator is in the list of available operators
-          const availableOperators = z.enum(filterOperators.datetime);
-          const parsedOperator = availableOperators.safeParse(filter.operator);
-
-          // otherwise fall back to the operator provided in the column mapping
-          const finalOperator = parsedOperator.success
-            ? parsedOperator.data
-            : columnMapping.operator;
+          // The operator of a datetime column is fixed in the column mapping
+          // (e.g. fromTimestamp => ">=", toTimestamp => "<"). The user-provided
+          // `operator` query param targets the value filter and must not
+          // override it (#8630).
+          const finalOperator = columnMapping.operator;
 
           finalOperator &&
           typeof value === "string" &&
@@ -329,6 +361,17 @@ export function convertApiProvidedFilterToClickhouseFilter(
           }
           break;
         }
+        case "BooleanFilter":
+          if (typeof value === "boolean") {
+            filterInstance = new BooleanFilter({
+              clickhouseTable: columnMapping.clickhouseTable,
+              field: columnMapping.clickhouseSelect,
+              operator: "=",
+              value,
+              tablePrefix: columnMapping.clickhousePrefix,
+            });
+          }
+          break;
       }
 
       filterInstance && filterList.push(filterInstance);
@@ -351,12 +394,17 @@ export function convertApiProvidedFilterToClickhouseFilter(
 export function deriveFilters<T extends BaseQueryType>(
   simpleFilterProps: T,
   filterParamsMapping: ApiColumnMapping[],
-  advancedFilters: FilterState | undefined,
+  advancedFilters: EventsTableFilterState | undefined,
   uiColumnDefinitions: UiColumnMappings,
+  columnDefinitions?: ColumnDefinition[],
 ): FilterList {
   // Start with advanced filters converted to FilterList
   const filterList = new FilterList(
-    createFilterFromFilterState(advancedFilters ?? [], uiColumnDefinitions),
+    createFilterFromFilterState(
+      advancedFilters ?? [],
+      uiColumnDefinitions,
+      columnDefinitions,
+    ),
   );
 
   // Convert simple parameters to filters
@@ -365,12 +413,16 @@ export function deriveFilters<T extends BaseQueryType>(
     filterParamsMapping,
   );
 
-  // Advanced filter takes precedence. Remove all simple filters that are also in advanced filter
-  const advancedFilterColumns = new Set<string>();
-  filterList.forEach((f) => advancedFilterColumns.add(f.field));
-
+  // tablePrefix is a query alias, not part of a physical column identity.
   simpleFilters
-    .filter((sf) => !advancedFilterColumns.has(sf.field))
+    .filter(
+      (simpleFilter) =>
+        !filterList.some(
+          (advancedFilter) =>
+            advancedFilter.clickhouseTable === simpleFilter.clickhouseTable &&
+            advancedFilter.field === simpleFilter.field,
+        ),
+    )
     .forEach((f) => filterList.push(f));
 
   // Return merged filters

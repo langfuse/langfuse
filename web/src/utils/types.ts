@@ -3,6 +3,10 @@ import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { type AppRouter } from "@/src/server/api/root";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 
+// unreachable code check
+
+export { assertUnreachable } from "@langfuse/shared";
+
 // primitive type checks
 
 export function isString(value: unknown): value is string {

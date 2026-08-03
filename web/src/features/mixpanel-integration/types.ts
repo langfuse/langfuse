@@ -1,4 +1,5 @@
-import { z } from "zod/v4";
+import { AnalyticsIntegrationExportSource } from "@langfuse/shared";
+import { z } from "zod";
 
 export const MIXPANEL_REGIONS = [
   {
@@ -19,12 +20,11 @@ export type MixpanelRegion = (typeof MIXPANEL_REGIONS)[number]["subdomain"];
 
 export const mixpanelIntegrationFormSchema = z.object({
   mixpanelRegion: z.enum(MIXPANEL_REGIONS.map((r) => r.subdomain)),
-  mixpanelProjectToken: z
-    .string()
-    .min(1, "Project Token is required")
-    .refine(
-      (v) => v.length > 0,
-      "Mixpanel Project Token is required. You can find it in your Mixpanel project settings.",
-    ),
+  // Write-only: blank keeps the persisted credential (required on create,
+  // enforced server-side and via page-level superRefine).
+  mixpanelProjectToken: z.string().optional(),
   enabled: z.boolean(),
+  exportSource: z
+    .enum(AnalyticsIntegrationExportSource)
+    .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
 });

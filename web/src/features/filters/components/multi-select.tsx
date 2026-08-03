@@ -63,9 +63,19 @@ export function MultiSelect({
   );
   const [freeText, setFreeText] = useState(freeTextInput || "");
 
+  // Merge options with selected values that might not be in options
+  // This ensures selected values are always visible and removable
+  const mergedOptions = useMemo(() => {
+    const optionSet = new Set(options.map((o) => o.value));
+    const missingSelectedOptions: FilterOption[] = values
+      .filter((v) => !optionSet.has(v) && v.length > 0)
+      .map((v) => ({ value: v }));
+    return [...options, ...missingSelectedOptions];
+  }, [options, values]);
+
   const selectableOptions = useMemo(
-    () => options.filter((option) => option.value.length > 0),
-    [options],
+    () => mergedOptions.filter((option) => option.value.length > 0),
+    [mergedOptions],
   );
 
   const allSelectedState = useMemo(() => {
@@ -130,13 +140,15 @@ export function MultiSelect({
         <Button
           variant="outline"
           className={cn(
-            "flex h-8 w-full items-center justify-between gap-x-2 rounded-md border border-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            // min-w-0 + overflow-hidden: the trigger must never grow past its
+            // container — wide selected values truncate instead.
+            "border-input ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full min-w-0 items-center justify-between gap-x-2 overflow-hidden rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
         >
           {label ?? "Select"}
-          <ChevronDown className="h-4 w-4 opacity-50" />
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
           {selectedValues.size > 0 && (
             <>
               <Separator orientation="vertical" className="mr-auto h-4" />
@@ -146,7 +158,7 @@ export function MultiSelect({
               >
                 {selectedValues.size}
               </Badge>
-              <div className="hidden space-x-1 lg:flex">
+              <div className="hidden min-w-0 space-x-1 overflow-hidden lg:flex">
                 {selectedValues.size > labelTruncateCutOff ? (
                   <Badge
                     variant="secondary"
@@ -164,11 +176,13 @@ export function MultiSelect({
                         variant="secondary"
                         key={option.value}
                         className={cn(
-                          "rounded-sm px-1 font-normal",
+                          "min-w-0 rounded-sm px-1 font-normal",
                           option.value === "" && "italic",
                         )}
                       >
-                        {displayValue}
+                        <span className="truncate" title={displayValue}>
+                          {displayValue}
+                        </span>
                       </Badge>
                     );
                   })
@@ -192,22 +206,22 @@ export function MultiSelect({
                   <InputCommandItem key="select-all" onSelect={handleSelectAll}>
                     <div
                       className={cn(
-                        "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                        "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                         allSelectedState
-                          ? "bg-primary text-primary-foreground"
+                          ? "bg-control-fill border-control-fill text-primary-foreground"
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className={cn("h-4 w-4")} />
+                      <Check className="h-4 w-4" />
                     </div>
-                    <div className="font-medium">
+                    <div className="font-bold">
                       {allSelectedState ? "Deselect All" : "Select All"}
                     </div>
                   </InputCommandItem>
                   <InputCommandSeparator />
                 </>
               )}
-              {options.map((option) => {
+              {mergedOptions.map((option) => {
                 if (option.value.length === 0) return;
                 const isSelected = selectedValues.has(option.value);
                 const displayValue =
@@ -232,18 +246,18 @@ export function MultiSelect({
                   >
                     <div
                       className={cn(
-                        "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                        "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                         isSelected
-                          ? "bg-primary text-primary-foreground"
+                          ? "bg-control-fill border-control-fill text-primary-foreground"
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
-                      <Check className={cn("h-4 w-4")} />
+                      <Check className="h-4 w-4" />
                     </div>
                     <div
                       className={cn(
                         "overflow-x-hidden text-ellipsis whitespace-nowrap",
-                        option.value === "" && "italic text-muted-foreground",
+                        option.value === "" && "text-muted-foreground italic",
                       )}
                       title={displayTitle}
                     >
@@ -294,7 +308,7 @@ export function MultiSelect({
                 >
                   <div
                     className={cn(
-                      "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                      "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                       getFreeTextInput(
                         isCustomSelectEnabled,
                         values,
@@ -302,7 +316,7 @@ export function MultiSelect({
                       ) ||
                         (optionValues.has(freeText) &&
                           selectedValues.has(freeText))
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-control-fill border-control-fill text-primary-foreground"
                         : "opacity-50 [&_svg]:invisible",
                     )}
                   >
@@ -324,7 +338,7 @@ export function MultiSelect({
                       e.stopPropagation();
                     }}
                     placeholder="Enter custom value"
-                    className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dotted p-0 text-sm"
+                    className="h-6 w-full rounded-none border-t-0 border-r-0 border-b-2 border-l-0 border-dotted p-0 text-sm"
                   />
                 </InputCommandItem>
               </InputCommandGroup>

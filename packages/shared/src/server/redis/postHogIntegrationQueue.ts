@@ -1,11 +1,9 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
+
+export const POSTHOG_SYNC_CRON_PATTERN = "30 * * * *"; // every hour at :30
 
 export class PostHogIntegrationQueue {
   private static instance: Queue | null = null;
@@ -15,15 +13,12 @@ export class PostHogIntegrationQueue {
       return PostHogIntegrationQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    PostHogIntegrationQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.PostHogIntegrationQueue,
+    );
+    PostHogIntegrationQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.PostHogIntegrationQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.PostHogIntegrationQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
@@ -47,7 +42,7 @@ export class PostHogIntegrationQueue {
           QueueJobs.PostHogIntegrationJob,
           {},
           {
-            repeat: { pattern: "30 * * * *" }, // every hour at 30 minutes past
+            repeat: { pattern: POSTHOG_SYNC_CRON_PATTERN },
           },
         )
         .catch((err) => {

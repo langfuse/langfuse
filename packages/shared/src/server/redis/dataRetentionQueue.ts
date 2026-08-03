@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class DataRetentionQueue {
@@ -15,15 +11,12 @@ export class DataRetentionQueue {
       return DataRetentionQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    DataRetentionQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.DataRetentionQueue,
+    );
+    DataRetentionQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.DataRetentionQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.DataRetentionQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

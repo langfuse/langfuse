@@ -3,7 +3,7 @@ import { DatasetCompareRunsTable } from "@/src/features/datasets/components/Data
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -24,8 +24,11 @@ import {
 } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
-function DatasetCompareInternal() {
+function DatasetCompareLegacy() {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
@@ -45,7 +48,6 @@ function DatasetCompareInternal() {
     runs,
     dataset,
     runsData,
-    localRuns,
     handleExperimentSettled: handleExperimentSettledBase,
     setRunState,
     setLocalRuns,
@@ -82,7 +84,11 @@ function DatasetCompareInternal() {
   };
 
   if (!runsData.data || runs.length === 0) {
-    return <span>Loading...</span>;
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Spinner size="xl" variant="muted" />
+      </div>
+    );
   }
 
   return (
@@ -97,6 +103,10 @@ function DatasetCompareInternal() {
           {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
+          },
+          {
+            name: "Experiments",
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
           },
         ],
         help: {
@@ -138,7 +148,7 @@ function DatasetCompareInternal() {
             </Dialog>
             <MultiSelectKeyValues
               key="select-runs"
-              title="Runs"
+              title="Experiments"
               showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"
@@ -171,7 +181,7 @@ function DatasetCompareInternal() {
                       | undefined;
                     if (baselineRunId === changedValueId) {
                       const { baseline, ...restQuery } = router.query;
-                      void router.push({
+                      router.push({
                         pathname: router.pathname,
                         query: { ...restQuery, runs: newRunIds },
                       });
@@ -187,14 +197,13 @@ function DatasetCompareInternal() {
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+      <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
           <DatasetCompareRunsTable
             key={runIds?.join(",") ?? "empty"}
             projectId={projectId}
             datasetId={datasetId}
             runIds={runIds ?? []}
-            localExperiments={localRuns}
           />
         </div>
         <SidePanel
@@ -210,7 +219,7 @@ function DatasetCompareInternal() {
               <AnnotationPanel projectId={projectId} />
             ) : (
               <div className="flex items-center justify-center p-4">
-                <span className="text-sm text-muted-foreground">
+                <span className="text-muted-foreground text-sm">
                   Loading annotation data...
                 </span>
               </div>
@@ -222,10 +231,37 @@ function DatasetCompareInternal() {
   );
 }
 
+function asArrayValue(value: string | string[] | undefined) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
 export default function DatasetCompare() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const runsQuery = router.query.runs;
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
+
+  useEffect(() => {
+    if (
+      !router.isReady ||
+      isInitializing ||
+      !isExperimentsBetaActive ||
+      !projectId
+    ) {
+      return;
+    }
+
+    router.replace(toExperimentsResultsUrl(projectId, asArrayValue(runsQuery)));
+  }, [isExperimentsBetaActive, isInitializing, projectId, router, runsQuery]);
+
+  if (!router.isReady || isInitializing || isExperimentsBetaActive) {
+    return <Spinner size="xl" variant="muted" />;
+  }
+
   return (
     <ActiveCellProvider>
-      <DatasetCompareInternal />
+      <DatasetCompareLegacy />
     </ActiveCellProvider>
   );
 }

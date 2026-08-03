@@ -1,25 +1,35 @@
 import {
+  BatchExportFileFormat,
   FilterCondition,
-  ScoreDataTypeEnum,
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
+  observationsTableCols,
+  eventsTableCols,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
   queryClickhouseStream,
-  logger,
   ObservationRecordReadType,
+  EventsObservationRecordReadType,
   StringFilter,
   FilterList,
   createFilterFromFilterState,
   observationsTableUiColumnDefinitions,
+  eventsTableUiColumnDefinitions,
   enrichObservationWithModelData,
+  createModelCache,
   clickhouseSearchCondition,
   convertObservation,
+  convertEventsObservation,
   shouldSkipObservationsFinal,
+  EventsQueryBuilder,
+  eventSearchCondition,
+  eventsScoresAggregation,
+  eventsTracesScoresAggregation,
+  toLevelAgnosticScoreFilter,
+  scoreBooleansAggregation,
 } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
 import { Readable } from "stream";
 import { env } from "../../env";
 import {
@@ -27,61 +37,31 @@ import {
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
-import type { Model, Price } from "@prisma/client";
 
-const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
+const DEFAULT_BATCH_SIZE = 1000;
+const REDUCED_BATCH_SIZE = 200; // Smaller batch for JSON/JSONL which hold parsed objects in memory
 
-type ModelWithPrice = Model & { Price: Price[] };
-
-/**
- * Creates a model cache that fetches models from the database on demand and stores them in memory.
- * Only queries the database if a model ID is not already in the cache.
- *
- * @param projectId - The project ID to filter models by
- * @returns Object with getModel function to retrieve models by ID
- */
-const createModelCache = (projectId: string) => {
-  const modelCache = new Map<string, ModelWithPrice | null>();
-
-  const getModel = async (
-    internalModelId: string | null | undefined,
-  ): Promise<ModelWithPrice | null> => {
-    if (!internalModelId) return null;
-
-    // Check if model is already in cache
-    if (modelCache.has(internalModelId)) {
-      return modelCache.get(internalModelId) ?? null;
-    }
-
-    // Fetch model from database
-    const model = await prisma.model.findFirst({
-      where: {
-        id: internalModelId,
-        OR: [{ projectId }, { projectId: null }],
-      },
-      include: {
-        Price: true,
-      },
-    });
-
-    // Store in cache (even if null to avoid repeated queries)
-    modelCache.set(internalModelId, model);
-
-    logger.debug(`Model ${internalModelId} fetched from database`);
-    return model;
-  };
-
-  return { getModel };
-};
-
-export const getObservationStream = async (props: {
+type ObservationStreamProps = {
   projectId: string;
   cutoffCreatedAt: Date;
   filter: FilterCondition[] | null;
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
-}): Promise<Readable> => {
+  fileFormat?: BatchExportFileFormat;
+  // Snapshotted at dispatch time from the user's v4 beta flag (see
+  // BatchExportQuerySchema). When true, read from the ClickHouse events table
+  // instead of the legacy observations/traces tables.
+  useEventsTable?: boolean;
+};
+
+export const getObservationStream = async (
+  props: ObservationStreamProps,
+): Promise<Readable> => {
+  if (props.useEventsTable) {
+    return getObservationStreamFromEvents(props);
+  }
+
   const {
     projectId,
     cutoffCreatedAt,
@@ -90,6 +70,9 @@ export const getObservationStream = async (props: {
     searchType,
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
+
+  const isCsv = props.fileFormat === BatchExportFileFormat.CSV;
+  const batchSize = isCsv ? DEFAULT_BATCH_SIZE : REDUCED_BATCH_SIZE;
 
   // Check if we should skip deduplication for OTEL projects
   const skipDedup = await shouldSkipObservationsFinal(projectId);
@@ -158,12 +141,17 @@ export const getObservationStream = async (props: {
         },
       ],
       observationsTableUiColumnDefinitions,
+      observationsTableCols,
     ),
   );
 
   const appliedObservationsFilter = observationsFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "o");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    searchType,
+    tablePrefix: "o",
+  });
 
   const query = `
 
@@ -176,11 +164,18 @@ export const getObservationStream = async (props: {
             tuple(name, avg_value, data_type, string_value),
             data_type IN ('NUMERIC', 'BOOLEAN')
           ) AS scores_avg,
-          -- For categorical scores, use name:value format for improved query performance
+          -- concat encoding for hasAny filter compatibility
           groupArrayIf(
             concat(name, ':', string_value),
-            data_type = 'CATEGORICAL' AND notEmpty(string_value)
-          ) AS score_categories
+            data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
+          ) AS score_categories,
+          -- tuple encoding for accurate output parsing (names may contain colons)
+          groupArrayIf(
+            tuple(name, string_value, data_type),
+            data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
+          ) AS score_categories_tuples,
+          -- boolean score existence entries for booleanObject filters (has())
+          ${scoreBooleansAggregation()} AS score_booleans
         FROM (
           SELECT
             trace_id,
@@ -245,7 +240,8 @@ export const getObservationStream = async (props: {
         t.timestamp as traceTimestamp,
         t.user_id as userId,
         s.scores_avg as scores_avg,
-        s.score_categories as score_categories
+        s.score_categories as score_categories,
+        s.score_categories_tuples as score_categories_tuples
       FROM observations o
         LEFT JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
         LEFT JOIN scores_agg s ON s.trace_id = o.trace_id AND s.observation_id = o.id
@@ -266,6 +262,7 @@ export const getObservationStream = async (props: {
           }[]
         | undefined;
       score_categories: string[] | undefined;
+      score_categories_tuples: [string, string | null, string][] | undefined;
     } & {
       traceName: string;
       traceTags: string[];
@@ -282,12 +279,7 @@ export const getObservationStream = async (props: {
       ...search.params,
     },
     clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "observation",
-      kind: "export",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   // Helper function to process a single observation row
@@ -307,6 +299,7 @@ export const getObservationStream = async (props: {
         }[]
       | undefined;
     score_categories: string[] | undefined;
+    score_categories_tuples: [string, string | null, string][] | undefined;
   } & {
     traceName: string;
     traceTags: string[];
@@ -330,17 +323,14 @@ export const getObservationStream = async (props: {
       stringValue: score[3],
     }));
 
-    // Process categorical scores (format: "name:value")
-    const categoricalScores = (bufferedRow.score_categories ?? []).map(
-      (cat: string) => {
-        const [name, ...valueParts] = cat.split(":");
-        return {
-          name,
-          value: null,
-          dataType: ScoreDataTypeEnum.CATEGORICAL,
-          stringValue: valueParts.join(":"),
-        };
-      },
+    // Process categorical scores (tuples from ClickHouse)
+    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
+      (cat) => ({
+        name: cat[0],
+        value: null,
+        dataType: cat[2],
+        stringValue: cat[1],
+      }),
     );
 
     const outputScores: Record<string, string[] | number[]> =
@@ -354,7 +344,7 @@ export const getObservationStream = async (props: {
         {
           ...convertObservation(bufferedRow, {
             truncated: false,
-            shouldJsonParse: true,
+            shouldJsonParse: props.fileFormat !== BatchExportFileFormat.CSV,
           }),
           traceName: bufferedRow.traceName,
           traceTags: bufferedRow.traceTags,
@@ -386,7 +376,7 @@ export const getObservationStream = async (props: {
         observationIds.push(row.id);
 
         // Process in batches
-        if (rowBuffer.length >= BATCH_SIZE) {
+        if (rowBuffer.length >= batchSize) {
           // Fetch comments for this batch
           const commentsByObservation = await fetchCommentsForExport(
             projectId,
@@ -421,6 +411,315 @@ export const getObservationStream = async (props: {
         for (const bufferedRow of rowBuffer) {
           recordsProcessed++;
           yield await processObservationRow(bufferedRow, commentsByObservation);
+        }
+      }
+    })(),
+  );
+};
+
+/**
+ * Events-table variant of getObservationStream for v4 users (useEventsTable
+ * snapshot). Queries the denormalized ClickHouse events table — no joins to
+ * the legacy observations/traces tables — and maps rows to the same field
+ * names as the legacy observation export so the export schema stays stable.
+ * traceTimestamp is not carried by the events table and is exported as null,
+ * matching getObservationsWithModelDataFromEventsTable.
+ */
+const getObservationStreamFromEvents = async (
+  props: ObservationStreamProps,
+): Promise<Readable> => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter = [],
+    searchQuery,
+    searchType,
+    rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
+  } = props;
+
+  const isCsv = props.fileFormat === BatchExportFileFormat.CSV;
+  const batchSize = isCsv ? DEFAULT_BATCH_SIZE : REDUCED_BATCH_SIZE;
+
+  const clickhouseConfigs = {
+    request_timeout: 180_000, // 3 minutes
+    clickhouse_settings: {
+      join_algorithm: "partial_merge" as const,
+      // Increase HTTP timeouts to prevent Code 209 errors during slow blob storage uploads
+      // See: https://github.com/ClickHouse/ClickHouse/issues/64731
+      http_send_timeout: 300,
+      http_receive_timeout: 300,
+    },
+  };
+
+  // Trace-level filters are kept: the events table carries trace fields
+  // denormalized, so they apply directly. Observation-scoped score filters
+  // (`scores_avg` / `score_categories`, the "s." alias) are kept too — they are
+  // rewritten below into a level-agnostic union across the obs (`s.`) and trace
+  // (`ts.`) score CTEs so a trace-level score matches on export exactly as it
+  // does in the UI (LFE-10596). Dropped are the explicit trace-only score
+  // filters (the "ts." alias — the `traceScores.` escape hatch, not wired on
+  // this export path) and comment filters (comments live in Postgres and are
+  // resolved before the stream via applyCommentFilters).
+  const exportableFilters = (filter ?? []).filter((f) => {
+    const columnDef = eventsTableUiColumnDefinitions.find(
+      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    );
+    if (columnDef?.clickhouseTableName === "comments") return false;
+    if (columnDef?.clickhouseTableName === "scores") {
+      // Observation-scoped score columns select from the "s." alias,
+      // trace-only ones from "ts.".
+      return columnDef.clickhouseSelect.startsWith("s.");
+    }
+    return true;
+  });
+
+  const distinctScoreNames = await getDistinctScoreNames({
+    projectId,
+    cutoffCreatedAt,
+    filter: exportableFilters,
+    isTimestampFilter: (
+      filterItem: FilterCondition,
+    ): filterItem is TimeFilter =>
+      filterItem.column === "Start Time" && filterItem.type === "datetime",
+    clickhouseConfigs,
+  });
+
+  const emptyScoreColumns = distinctScoreNames.reduce(
+    (acc, name) => ({ ...acc, [name]: null }),
+    {} as Record<string, null>,
+  );
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      [
+        ...exportableFilters,
+        {
+          column: "startTime",
+          operator: "<" as const,
+          value: cutoffCreatedAt,
+          type: "datetime" as const,
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ).map(toLevelAgnosticScoreFilter),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const search = eventSearchCondition({
+    query: searchQuery,
+    searchType,
+  });
+
+  const eventsQuery = new EventsQueryBuilder({ projectId })
+    .selectFieldSet("base")
+    .selectIO(false) // Full I/O, no truncation
+    .selectMetadataExpanded() // Full metadata values from events_full
+    .selectRaw(
+      "s.scores_avg as scores_avg",
+      "s.score_categories as score_categories",
+      "s.score_categories_tuples as score_categories_tuples",
+      "ts.scores_avg as trace_scores_avg",
+      "ts.score_categories_tuples as trace_score_categories_tuples",
+    )
+    .withCTE(
+      "scores_agg",
+      eventsScoresAggregation({ projectId, includeTupleEncoding: true }),
+    )
+    .leftJoin(
+      "scores_agg s",
+      "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
+    )
+    // Trace-level scores are always joined and exported so the export matches
+    // the UI's unified Scores column, and so the level-agnostic score-filter
+    // union (which references `ts.*`) resolves (LFE-10596).
+    .withCTE(
+      "trace_scores_agg",
+      eventsTracesScoresAggregation({
+        projectId,
+        hasScoreAggregationFilters: true,
+        includeTupleEncoding: true,
+      }),
+    )
+    .leftJoin(
+      "trace_scores_agg AS ts",
+      "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
+    )
+    .when(search.requiresEventsFull, (b) => b.forceFullTable())
+    .where(appliedEventsFilter)
+    .where(search)
+    .whereRaw("e.is_deleted = 0")
+    .orderByDefault()
+    .limitBy("e.span_id", "e.project_id")
+    .limit(rowLimit);
+
+  const { query, params: queryParams } = eventsQuery.buildWithParams();
+
+  type EventsObservationRow = EventsObservationRecordReadType & {
+    scores_avg:
+      | {
+          name: string;
+          value: number;
+          dataType: ScoreDataTypeType;
+          stringValue: string;
+        }[]
+      | undefined;
+    score_categories: string[] | undefined;
+    score_categories_tuples: [string, string | null, string][] | undefined;
+    // Trace-level scores (observation_id NULL), merged into the exported
+    // scores so the export matches the UI's unified Scores column (LFE-10596).
+    trace_scores_avg:
+      | {
+          name: string;
+          value: number;
+          dataType: ScoreDataTypeType;
+          stringValue: string;
+        }[]
+      | undefined;
+    trace_score_categories_tuples:
+      | [string, string | null, string][]
+      | undefined;
+  };
+
+  const asyncGenerator = queryClickhouseStream<EventsObservationRow>({
+    query,
+    params: queryParams,
+    clickhouseConfigs,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  const modelCache = createModelCache(projectId);
+
+  const processEventsObservationRow = async (
+    bufferedRow: EventsObservationRow,
+    commentsByObservation: Map<string, any[]>,
+  ) => {
+    const converted = convertEventsObservation(
+      bufferedRow,
+      {
+        truncated: false,
+        shouldJsonParse: props.fileFormat !== BatchExportFileFormat.CSV,
+      },
+      true,
+    );
+
+    // Fetch model pricing from cache (or database if not cached)
+    const model = await modelCache.getModel(converted.internalModelId);
+    const modelData = enrichObservationWithModelData(model);
+
+    // Process numeric/boolean scores (tuples from ClickHouse), merging the
+    // observation-level and trace-level aggregates so the export matches the
+    // UI's unified Scores column (LFE-10596).
+    const numericScores = [
+      ...(bufferedRow.scores_avg ?? []),
+      ...(bufferedRow.trace_scores_avg ?? []),
+    ].map((score: any) => ({
+      name: score[0],
+      value: score[1],
+      dataType: score[2],
+      stringValue: score[3],
+    }));
+
+    // Process categorical scores (tuples from ClickHouse)
+    const categoricalScores = [
+      ...(bufferedRow.score_categories_tuples ?? []),
+      ...(bufferedRow.trace_score_categories_tuples ?? []),
+    ].map((cat) => ({
+      name: cat[0],
+      value: null,
+      dataType: cat[2],
+      stringValue: cat[1],
+    }));
+
+    const outputScores: Record<string, string[] | number[]> =
+      prepareScoresForOutput([...numericScores, ...categoricalScores]);
+
+    const observationComments = commentsByObservation.get(bufferedRow.id) ?? [];
+
+    // Drop events-only fields so the exported row matches the legacy export
+    // schema exactly: CSV headers are derived from the first row's keys in
+    // insertion order, so both the column set and the column order must match
+    // the legacy path. userId and traceName are destructured out here and
+    // re-inserted below at their legacy positions; raw trace tags are exported
+    // as traceTags instead, matching the legacy row shape.
+    const {
+      tags: _tags,
+      sessionId: _sessionId,
+      release: _release,
+      bookmarked: _bookmarked,
+      public: _public,
+      userId,
+      traceName,
+      ...observationFields
+    } = converted;
+
+    return getChunkWithFlattenedScores(
+      [
+        {
+          ...observationFields,
+          traceName,
+          traceTags: converted.tags ?? [],
+          traceTimestamp: null,
+          userId,
+          toolDefinitionsCount: converted.toolDefinitions
+            ? Object.keys(converted.toolDefinitions).length
+            : null,
+          toolCallsCount: converted.toolCalls
+            ? converted.toolCalls.length
+            : null,
+          ...modelData,
+          scores: outputScores,
+          comments: observationComments,
+        },
+      ],
+      emptyScoreColumns,
+    )[0];
+  };
+
+  return Readable.from(
+    (async function* () {
+      let rowBuffer: EventsObservationRow[] = [];
+      let observationIds: string[] = [];
+
+      for await (const row of asyncGenerator) {
+        rowBuffer.push(row);
+        observationIds.push(row.id);
+
+        // Process in batches
+        if (rowBuffer.length >= batchSize) {
+          const commentsByObservation = await fetchCommentsForExport(
+            projectId,
+            "OBSERVATION",
+            observationIds,
+          );
+
+          for (const bufferedRow of rowBuffer) {
+            yield await processEventsObservationRow(
+              bufferedRow,
+              commentsByObservation,
+            );
+          }
+
+          rowBuffer = [];
+          observationIds = [];
+        }
+      }
+
+      // Process remaining rows in buffer
+      if (rowBuffer.length > 0) {
+        const commentsByObservation = await fetchCommentsForExport(
+          projectId,
+          "OBSERVATION",
+          observationIds,
+        );
+
+        for (const bufferedRow of rowBuffer) {
+          yield await processEventsObservationRow(
+            bufferedRow,
+            commentsByObservation,
+          );
         }
       }
     })(),

@@ -99,11 +99,11 @@ export const BillingSwitchPlanDialog = ({
                 return (
                   <div
                     key={product.stripeProductId}
-                    className="relative flex flex-col rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md"
+                    className="bg-card relative flex flex-col rounded-xl border p-4 shadow-xs transition-all hover:shadow-md"
                   >
                     <div className="mb-4">
                       {/* Labels above plan title */}
-                      <div className="mb-1 h-5 text-xs font-medium text-blue-700">
+                      <div className="mb-1 h-5 text-xs font-bold text-blue-700">
                         {isCurrentPlan && <span>Current Plan</span>}
                         {scheduledPlanSwitch &&
                           scheduledPlanSwitch.newPlanId ===
@@ -126,10 +126,10 @@ export const BillingSwitchPlanDialog = ({
                         {product.checkout?.title}
                       </h3>
                       <div className="mt-4 space-y-1">
-                        <div className="text-2xl font-bold text-primary">
+                        <div className="text-primary text-2xl font-bold">
                           {product.checkout?.price}
                         </div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-muted-foreground text-sm">
                           + {product.checkout?.usagePrice},{" "}
                           <a
                             href="https://langfuse.com/pricing#pricing-calculator"
@@ -142,12 +142,12 @@ export const BillingSwitchPlanDialog = ({
                         </div>
                       </div>
                     </div>
-                    <div className="mb-4 text-sm text-muted-foreground">
+                    <div className="text-muted-foreground mb-4 text-sm">
                       {product.checkout?.description}
                     </div>
                     <div className="space-y-2">
-                      <div className="text-sm font-medium">Main features:</div>
-                      <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+                      <div className="text-sm font-bold">Main features:</div>
+                      <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
                         {product.checkout?.mainFeatures.map(
                           (feature, index) => (
                             <li key={index}>{feature}</li>
@@ -158,7 +158,7 @@ export const BillingSwitchPlanDialog = ({
                     <Link
                       href="https://langfuse.com/pricing"
                       target="_blank"
-                      className="mt-auto block py-4 text-sm text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground mt-auto block py-4 text-sm"
                     >
                       Learn more about plan →
                     </Link>
@@ -256,43 +256,47 @@ export const BillingSwitchPlanDialog = ({
                     ) : (
                       // The default behavior when the user is not on a paid plan.
                       <div className="mt-2 flex gap-1">
-                        <ActionButton
-                          onClick={() => {
-                            if (organization) {
-                              setProcessingPlanId(product.stripeProductId);
+                        <div className="grid w-full">
+                          <ActionButton
+                            onClick={() => {
+                              if (organization) {
+                                setProcessingPlanId(product.stripeProductId);
 
-                              // idempotency key for mutation operations with the stripe api
-                              let opId = _opId;
-                              if (!opId) {
-                                opId = nanoid();
-                                setOpId(opId);
+                                // idempotency key for mutation operations with the stripe api
+                                let opId = _opId;
+                                if (!opId) {
+                                  opId = nanoid();
+                                  setOpId(opId);
+                                }
+
+                                mutCreateCheckoutSession.mutate({
+                                  orgId: organization.id,
+                                  stripeProductId: product.stripeProductId,
+                                  opId: opId,
+                                });
                               }
-
-                              mutCreateCheckoutSession.mutate({
-                                orgId: organization.id,
-                                stripeProductId: product.stripeProductId,
-                                opId: opId,
-                              });
+                            }}
+                            disabled={
+                              organization?.cloudConfig?.stripe
+                                ?.activeProductId === product.stripeProductId
                             }
-                          }}
-                          disabled={
-                            organization?.cloudConfig?.stripe
-                              ?.activeProductId === product.stripeProductId
-                          }
-                          className="w-full"
-                          loading={processingPlanId === product.stripeProductId}
-                        >
-                          {product.checkout?.cta ? "Select" : "Select plan"}
-                        </ActionButton>
+                            loading={
+                              processingPlanId === product.stripeProductId
+                            }
+                          >
+                            {product.checkout?.cta ? "Select" : "Select plan"}
+                          </ActionButton>
+                        </div>
                         {/* Optional checkout CTA button for non-paid plan users */}
                         {product.checkout?.cta && (
-                          <ActionButton
-                            variant="secondary"
-                            href={product.checkout.cta.href}
-                            className="w-full"
-                          >
-                            {product.checkout.cta.label}
-                          </ActionButton>
+                          <div className="grid w-full">
+                            <ActionButton
+                              variant="secondary"
+                              href={product.checkout.cta.href}
+                            >
+                              {product.checkout.cta.label}
+                            </ActionButton>
+                          </div>
                         )}
                       </div>
                     )}

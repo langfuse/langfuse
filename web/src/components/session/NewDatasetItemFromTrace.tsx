@@ -1,3 +1,4 @@
+import { type ButtonProps } from "@/src/components/ui/button";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { api } from "@/src/utils/api";
 
@@ -5,7 +6,8 @@ export const NewDatasetItemFromTraceId = (props: {
   projectId: string;
   traceId: string;
   timestamp: Date;
-  buttonVariant?: "outline" | "secondary";
+  buttonVariant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
 }) => {
   // SessionIO already fetches the trace, so this doesn't add an extra request
   const trace = api.traces.byId.useQuery(
@@ -35,6 +37,7 @@ export const NewDatasetItemFromTraceId = (props: {
       output={trace.data.output ?? null}
       metadata={trace.data.metadata ?? null}
       buttonVariant={props.buttonVariant}
+      size={props.size}
     />
   );
 };

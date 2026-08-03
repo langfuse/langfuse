@@ -7,12 +7,18 @@ service:
   base-path: /api/public
   endpoints:
     create:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, create experiment data via the SDK experiment runner or the OpenTelemetry endpoint at POST /api/public/otel/v1/traces."
       method: POST
       docs: Create a dataset run item
       path: /dataset-run-items
       request: CreateDatasetRunItemRequest
       response: commons.DatasetRunItem
     list:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset run items are replaced by experiment items; use GET /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to> instead."
       method: GET
       docs: List dataset run items
       path: /dataset-run-items
@@ -44,7 +50,18 @@ types:
       traceId:
         type: optional<string>
         docs: traceId should always be provided. For compatibility with older SDK versions it can also be inferred from the provided observationId.
+      datasetVersion:
+        type: optional<datetime>
+        docs: |
+          ISO 8601 timestamp (RFC 3339, Section 5.6) in UTC (e.g., "2026-01-21T14:35:42Z").
+          Specifies the dataset version to use for this experiment run. 
+          If provided, the experiment will use dataset items as they existed at or before this timestamp.
+          If not provided, uses the latest version of dataset items.
+      createdAt:
+        type: optional<datetime>
+        docs: Optional timestamp to set the createdAt field of the dataset run item. If not provided or null, defaults to current timestamp.
   PaginatedDatasetRunItems:
     properties:
       data: list<commons.DatasetRunItem>
       meta: pagination.MetaResponse
+      _deprecation: optional<commons.Deprecation>

@@ -4,8 +4,10 @@ import {
   stringifyToolResultContent,
   parseMetadata,
   isRichToolResult,
+  attachToolDefinitionsToMessages,
+  normalizeToolDefinitionsForChatMl,
 } from "../helpers";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 // Detection schemas for LangChain/LangGraph formats
 
@@ -31,6 +33,14 @@ const LangGraphMessageSchema = z
   )
   .refine(
     (data) => {
+      const hasLangGraphMessageShape = data.every(
+        (msg) =>
+          typeof msg === "object" &&
+          msg !== null &&
+          ("role" in msg || "additional_kwargs" in msg),
+      );
+      if (!hasLangGraphMessageShape) return false;
+
       // Reject if any message has top-level parts (Microsoft Agent/Gemini format)
       return !data.some(
         (msg) =>
@@ -200,10 +210,10 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
-    } else {
-      // Simple object: stringify for text rendering
-      normalized.content = stringifyToolResultContent(normalized.content);
     }
+
+    // Simple object: stringify for text rendering
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;
@@ -225,10 +235,10 @@ function preprocessData(data: unknown): unknown {
 
     if (extractedTools.length > 0) {
       // Attach tools to all messages
-      return normalizedMessages.map((msg) => ({
-        ...(msg as Record<string, unknown>),
-        tools: extractedTools,
-      }));
+      return attachToolDefinitionsToMessages(
+        normalizedMessages,
+        extractedTools,
+      );
     }
 
     return normalizedMessages;
@@ -239,15 +249,14 @@ function preprocessData(data: unknown): unknown {
     const obj = data as Record<string, unknown>;
     if (Array.isArray(obj.messages)) {
       const extractedTools = extractToolDefinitions(obj.messages);
+      const rootTools = normalizeToolDefinitionsForChatMl(obj.tools);
+      const tools = [...extractedTools, ...rootTools];
       const normalizedMessages = filterAndNormalizeMessages(obj.messages);
 
-      if (extractedTools.length > 0) {
+      if (tools.length > 0) {
         return {
           ...obj,
-          messages: normalizedMessages.map((msg) => ({
-            ...(msg as Record<string, unknown>),
-            tools: extractedTools,
-          })),
+          messages: attachToolDefinitionsToMessages(normalizedMessages, tools),
         };
       }
 
@@ -275,10 +284,14 @@ export const langgraphAdapter: ProviderAdapter = {
     // EXPLICIT: Framework hint
     if (ctx.framework === "langgraph") return true;
 
-    // REJECTIONS: Reject AI SDK v5, OpenAI Agents SDK, and Semantic Kernel formats
+    // REJECTIONS: Reject AI SDK v5, OpenAI Agents SDK, Semantic Kernel and Pydantic formats
     if (meta && typeof meta === "object") {
       // Check scope.name for AI SDK, OpenAI Agents, or Semantic Kernel
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
 
         // Reject AI SDK v5 (scope.name === "ai")
@@ -299,7 +312,12 @@ export const langgraphAdapter: ProviderAdapter = {
         ) {
           return false;
         }
+
+        if (scope?.name === "pydantic-ai") return false;
       }
+
+      // Reject AI SDK metadata
+      if (meta["scope.name"] === "ai") return false;
 
       // Check attributes["operation.name"] for AI SDK pattern
       if ("attributes" in meta && typeof meta.attributes === "object") {
@@ -311,6 +329,22 @@ export const langgraphAdapter: ProviderAdapter = {
         ) {
           return false;
         }
+      }
+
+      const flatOperationName = meta["attributes.operation.name"];
+      if (
+        typeof flatOperationName === "string" &&
+        flatOperationName.startsWith("ai.")
+      ) {
+        return false;
+      }
+
+      const flatAiOperationId = meta["attributes.ai.operationId"];
+      if (
+        typeof flatAiOperationId === "string" &&
+        flatAiOperationId.startsWith("ai.")
+      ) {
+        return false;
       }
     }
 

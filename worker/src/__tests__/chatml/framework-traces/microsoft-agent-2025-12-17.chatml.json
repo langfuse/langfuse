@@ -1,0 +1,106 @@
+{
+  "4cd6caa32861956a": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "system",
+          "content": "You are a helpful assistant."
+        },
+        {
+          "role": "user",
+          "content": "What's the weather in Tokyo?"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "call_CwaJHuXTm9dmHFQPlVbqyzJ0",
+              "name": "get_weather",
+              "arguments": "{\"location\":\"Tokyo, Japan\"}",
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "{\"type\": \"function_result\", \"call_id\": \"call_CwaJHuXTm9dmHFQPlVbqyzJ0\", \"result\": \"The weather in Tokyo, Japan is stormy with a high of 23\\u00b0C.\"}",
+          "tool_call_id": "call_CwaJHuXTm9dmHFQPlVbqyzJ0"
+        },
+        {
+          "role": "assistant",
+          "content": "Current conditions in Tokyo, Japan: stormy, high around 23°C."
+        }
+      ]
+    }
+  },
+  "2406e8343fd49c0e": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What's the weather in Tokyo?"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "call_CwaJHuXTm9dmHFQPlVbqyzJ0",
+              "name": "get_weather",
+              "arguments": "{\"location\":\"Tokyo, Japan\"}",
+              "type": "function"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "b0913e7cd82d72b8": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "tool",
+          "content": "{\"type\": \"function_result\", \"call_id\": \"call_CwaJHuXTm9dmHFQPlVbqyzJ0\", \"result\": \"The weather in Tokyo, Japan is stormy with a high of 23\\u00b0C.\"}",
+          "tool_call_id": "call_CwaJHuXTm9dmHFQPlVbqyzJ0"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "Current conditions in Tokyo, Japan: stormy, high around 23°C."
+        }
+      ]
+    }
+  },
+  "a2de97aac476c036": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received string\"\n  }\n]"
+      }
+    }
+  }
+}

@@ -33,6 +33,13 @@ export const observationsTableCols: ColumnDefinition[] = [
   },
   { name: "Trace ID", id: "traceId", type: "string", internal: 't."id"' },
   {
+    name: "Parent Observation ID",
+    id: "parentObservationId",
+    type: "string",
+    internal: 'o."parent_observation_id"',
+    nullable: true,
+  },
+  {
     name: "Trace Name",
     id: "traceName",
     type: "stringOptions",
@@ -192,6 +199,13 @@ export const observationsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Scores (boolean)",
+    id: "score_booleans",
+    type: "booleanObject",
+    internal: "score_booleans",
+    nullable: true,
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",
@@ -274,6 +288,7 @@ export type ObservationOptions = {
   environment: Array<SingleValueOption>;
   scores_avg: Array<string>;
   score_categories: Array<MultiValueOption>;
+  score_booleans: Array<string>;
   promptName: Array<SingleValueOption>;
   tags: Array<SingleValueOption>;
   type: Array<SingleValueOption>;
@@ -305,6 +320,9 @@ export function observationsTableColsWithOptions(
     }
     if (col.id === "score_categories") {
       return formatColumnOptions(col, options?.score_categories ?? []);
+    }
+    if (col.id === "score_booleans") {
+      return formatColumnOptions(col, options?.score_booleans ?? []);
     }
     if (col.id === "promptName") {
       return formatColumnOptions(col, options?.promptName ?? []);

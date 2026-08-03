@@ -1,0 +1,4 @@
+interface:
+  display_name: "Analyze Cloud Costs"
+  short_description: "Analyze Langfuse Cloud cost structure"
+  default_prompt: "Use $analyze-cloud-costs to explain recent Langfuse Cloud cost drivers from Metabase."

@@ -2,8 +2,9 @@ import { Prisma } from "@prisma/client";
 import { ColumnDefinition, type TableNames } from "../tableDefinitions";
 import { FilterState } from "../types";
 import { filterOperators, timeFilter } from "../interfaces/filters";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { logger } from "./index";
+import { InvalidRequestError } from "../errors";
 
 const operatorReplacements = {
   "any of": "IN",
@@ -53,7 +54,7 @@ export function tableColumnsToSqlFilter(
     );
     if (!col) {
       logger.error("Invalid filter column", filter.column);
-      throw new Error("Invalid filter column: " + filter.column);
+      throw new InvalidRequestError("Invalid filter column: " + filter.column);
     }
     const colPrisma = Prisma.raw(col.internal);
     return {
@@ -113,9 +114,15 @@ export function tableColumnsToSqlFilter(
         // LFE-4815: Support category options in postgres
         logger.warn("Category options not supported in postgres yet");
         throw new Error("Category options not supported in postgres yet");
+      case "booleanObject":
+        logger.warn("Boolean object filters not supported in postgres yet");
+        throw new Error("Boolean object filters not supported in postgres yet");
       case "null":
         valuePrisma = Prisma.sql``;
         break;
+      case "positionInTrace":
+        logger.warn("Position-in-trace filters are not supported in postgres");
+        throw new Error("Position-in-trace filters not supported in postgres");
     }
     const jsonKeyPrisma =
       filter.type === "stringObject" || filter.type === "numberObject"

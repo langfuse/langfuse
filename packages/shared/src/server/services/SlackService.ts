@@ -14,19 +14,60 @@ import { env } from "../../env";
 import { prisma } from "../../db";
 import { encrypt, decrypt } from "../../encryption";
 
+/**
+ * Error thrown by SlackService when a Slack API call fails.
+ * Preserves the Slack error code so callers can provide user-friendly messages.
+ */
+export class SlackApiError extends Error {
+  constructor(
+    message: string,
+    public readonly slackErrorCode?: string,
+  ) {
+    super(message);
+    this.name = "SlackApiError";
+  }
+}
+
+/** OAuth scopes requested when installing the Slack app. */
+export const SLACK_BOT_SCOPES = [
+  "channels:read", // read public channels
+  "groups:read", // read private channels that the bot is a member of
+  "chat:write", // send messages to channels the bot is a member of
+  "chat:write.public", // send messages to public channels that the bot is not a member of
+] as const;
+
 // Types for Slack integration
 export interface SlackChannel {
   id: string;
   name: string;
-  isPrivate: boolean;
-  isMember: boolean;
+  isPrivate?: boolean;
+  isMember?: boolean;
 }
 
-export interface SlackMessageParams {
-  client: WebClient;
-  channelId: string;
+export interface GetChannelsResult {
+  channels: SlackChannel[];
+  hasPrivateChannelAccess: boolean;
+  nextCursor?: string;
+}
+
+/** SlackMessage is the Block Kit payload sent to Slack. */
+export interface SlackMessage {
   blocks: any[];
   text?: string;
+  attachments?: { color: string; fallback?: string; blocks?: any[] }[];
+}
+
+export interface SlackMessageParams extends SlackMessage {
+  client: WebClient;
+  channelId: string;
+}
+
+/** escapeSlackMrkdwn escapes Slack mrkdwn special characters to prevent injection. */
+export function escapeSlackMrkdwn(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 export interface SlackMessageResponse {
@@ -95,8 +136,9 @@ export class SlackService {
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
       stateSecret: env.SLACK_STATE_SECRET!,
+      directInstall: false,
       installUrlOptions: {
-        scopes: ["channels:read", "chat:write", "chat:write.public"],
+        scopes: SLACK_BOT_SCOPES as unknown as string[],
       },
       installationStore: {
         storeInstallation: async (installation) => {
@@ -280,7 +322,9 @@ export class SlackService {
         throw new Error("No bot token found for project");
       }
 
-      const client = new WebClient(auth.botToken);
+      const client = new WebClient(auth.botToken, {
+        retryConfig: { retries: 3, maxRetryTime: 90_000 },
+      });
       logger.debug("Created WebClient for project", { projectId });
 
       return client;
@@ -296,19 +340,19 @@ export class SlackService {
   }
 
   /**
-   * Recursively fetch all channels accessible to the bot
-   * Uses cursor-based pagination defined by Slack API https://api.slack.com/apis/pagination
+   * Fetch one page of channels accessible to the bot.
+   * Uses cursor-based pagination defined by Slack API https://api.slack.com/apis/pagination.
    */
-  private async getChannelsRecursive(
+  private async getChannelsPage(
     client: WebClient,
+    channelTypes = "public_channel,private_channel",
     cursor?: string,
-    fetchedRecords: number = 0,
-  ): Promise<SlackChannel[]> {
+  ): Promise<Omit<GetChannelsResult, "hasPrivateChannelAccess">> {
     try {
       const result = await client.conversations.list({
         exclude_archived: true,
-        types: "public_channel",
-        limit: 200,
+        types: channelTypes,
+        limit: env.SLACK_PAGE_SIZE,
         cursor: cursor,
       });
 
@@ -326,27 +370,67 @@ export class SlackService {
       );
 
       const nextCursor = result.response_metadata?.next_cursor;
-      if (
-        nextCursor &&
-        fetchedRecords + channels.length < env.SLACK_FETCH_LIMIT
-      ) {
+      return {
+        channels,
+        nextCursor: nextCursor || undefined,
+      };
+    } catch (error) {
+      logger.error("Failed to fetch Slack channels page", { error, cursor });
+      throw error;
+    }
+  }
+
+  /**
+   * Get channels accessible to the bot.
+   */
+  async getChannels(
+    client: WebClient,
+    cursor?: string,
+  ): Promise<GetChannelsResult> {
+    try {
+      const { channels, nextCursor } = await this.getChannelsPage(
+        client,
+        "public_channel,private_channel",
+        cursor,
+      );
+
+      logger.debug("Retrieved channels from Slack", {
+        channelCount: channels.length,
+        hasNextPage: Boolean(nextCursor),
+      });
+
+      return { channels, hasPrivateChannelAccess: true, nextCursor };
+    } catch (error: any) {
+      // we added `groups:read` scope after initial release, so older installations may not have it.
+      // Detect this case and fall back to fetching only public channels instead of failing completely.
+      const isMissingGroupsRead =
+        error?.data?.error === "missing_scope" &&
+        error?.data?.needed === "groups:read";
+
+      if (isMissingGroupsRead) {
+        logger.info(
+          "Bot token lacks groups:read scope, falling back to public channels only",
+        );
+
         try {
-          const nextPageChannels = await this.getChannelsRecursive(
+          const { channels, nextCursor } = await this.getChannelsPage(
             client,
-            nextCursor,
-            fetchedRecords + channels.length,
+            "public_channel",
+            cursor,
           );
-          return [...channels, ...nextPageChannels];
-        } catch (error) {
-          logger.error(
-            `Failed to retrieve next page of channels, returning only already fetched`,
-            error,
+
+          return { channels, hasPrivateChannelAccess: false, nextCursor };
+        } catch (fallbackError) {
+          logger.error("Failed to fetch public channels fallback", {
+            error: fallbackError,
+          });
+          throw new Error(
+            `Failed to fetch channels: ${fallbackError instanceof Error ? fallbackError.message : "Unknown error"}`,
           );
         }
       }
-      return channels;
-    } catch (error) {
-      logger.error("Failed to fetch channels recursively", { error, cursor });
+
+      logger.error("Failed to fetch channels", { error });
       throw new Error(
         `Failed to fetch channels: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -354,22 +438,24 @@ export class SlackService {
   }
 
   /**
-   * Get channels accessible to the bot
+   * Get channel info by ID via conversations.info.
    */
-  async getChannels(client: WebClient): Promise<SlackChannel[]> {
+  async getChannelInfo(
+    client: WebClient,
+    channelId: string,
+  ): Promise<SlackChannel | null> {
     try {
-      const channels = await this.getChannelsRecursive(client);
-
-      logger.debug("Retrieved channels from Slack", {
-        channelCount: channels.length,
-      });
-
-      return channels;
+      const result = await client.conversations.info({ channel: channelId });
+      if (!result.ok || !result.channel) return null;
+      return {
+        id: result.channel.id!,
+        name: result.channel.name!,
+        isPrivate: result.channel.is_private || false,
+        isMember: result.channel.is_member || false,
+      };
     } catch (error) {
-      logger.error("Failed to fetch channels", { error });
-      throw new Error(
-        `Failed to fetch channels: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
+      logger.warn("Failed to fetch channel info", { error, channelId });
+      return null;
     }
   }
 
@@ -381,7 +467,12 @@ export class SlackService {
       const result = await params.client.chat.postMessage({
         channel: params.channelId,
         blocks: params.blocks,
-        text: params.text || "Langfuse Notification",
+        attachments: params.attachments as any,
+        text:
+          params.text ||
+          (params.blocks?.length || params.attachments?.length
+            ? undefined
+            : "Langfuse Notification"),
         unfurl_links: false,
         unfurl_media: false,
       });
@@ -401,13 +492,16 @@ export class SlackService {
       });
 
       return response;
-    } catch (error) {
+    } catch (error: any) {
       logger.error("Failed to send message", {
         error,
         channelId: params.channelId,
       });
-      throw new Error(
+
+      const slackErrorCode = error?.data?.error as string | undefined;
+      throw new SlackApiError(
         `Failed to send message: ${error instanceof Error ? error.message : "Unknown error"}`,
+        slackErrorCode,
       );
     }
   }

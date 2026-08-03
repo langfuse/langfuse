@@ -5,17 +5,23 @@ import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 
+const DATASET_IO_CELL_STALE_MS = 60 * 1000;
+
+const silentHttpCodes = [404];
+
 export const DatasetItemIOCell = ({
   projectId,
   datasetId,
   datasetItemId,
   io,
+  datasetItemVersion,
   singleLine = false,
 }: {
   projectId: string;
   datasetId: string;
   datasetItemId: string;
   io: "expectedOutput" | "input";
+  datasetItemVersion?: Date;
   singleLine?: boolean;
 }) => {
   const datasetItem = api.datasets.itemById.useQuery(
@@ -23,15 +29,9 @@ export const DatasetItemIOCell = ({
       projectId: projectId,
       datasetId: datasetId,
       datasetItemId: datasetItemId,
+      version: datasetItemVersion,
     },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false, // prevents refetching loops
-    },
+    { staleTime: DATASET_IO_CELL_STALE_MS },
   );
 
   return (
@@ -46,8 +46,6 @@ export const DatasetItemIOCell = ({
     />
   );
 };
-
-const silentHttpCodes = [404];
 
 export const TraceObservationIOCell = ({
   traceId,

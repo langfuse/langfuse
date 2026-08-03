@@ -384,7 +384,7 @@ if (isSingleScoreColors(colors)) {
 
 ## Testing
 
-Backend tests: `/web/src/__tests__/async/score-comparison-analytics.servertest.ts`
+Backend tests: `/web/src/__tests__/server/score-comparison-analytics.servertest.ts`
 
 Test coverage:
 - All data types (NUMERIC, BOOLEAN, CATEGORICAL)
@@ -397,7 +397,7 @@ Test coverage:
 
 Run tests:
 ```bash
-pnpm --filter=web test -- --testPathPattern="score-comparison-analytics"
+pnpm --filter=web test "score-comparison-analytics"
 ```
 
 ## Troubleshooting

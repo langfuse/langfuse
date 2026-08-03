@@ -1,0 +1,4 @@
+interface:
+  display_name: "Linear Bug Triage"
+  short_description: "Deduplicate and file Linear bug evidence"
+  default_prompt: "Use $linear-bug-triage to deduplicate measured bug evidence and create or comment Linear triage issues."

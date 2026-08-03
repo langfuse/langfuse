@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { prisma, PrismaClient } from "@langfuse/shared/src/db";
 import defaultModelPrices from "../constants/default-model-prices.json";
 import { clearFullModelCache, logger } from "@langfuse/shared/src/server";
@@ -33,18 +33,15 @@ export const DefaultModelPriceSchema = z
     const tierValidation = validatePricingTiers(data.pricingTiers);
 
     if (!tierValidation.valid) {
-      ctx.addIssue({
-        message: tierValidation.error,
-      });
+      ctx.addIssue(tierValidation.error);
     }
 
     const defaultTiers = data.pricingTiers.filter((t) => t.isDefault);
 
     if (defaultTiers.length !== 1) {
-      ctx.addIssue({
-        message:
-          "Each model must have exactly one default pricing tier (isDefault: true)",
-      });
+      ctx.addIssue(
+        "Each model must have exactly one default pricing tier (isDefault: true)",
+      );
     }
   });
 

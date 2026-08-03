@@ -75,7 +75,7 @@ function CellWithData({
   const sharedClassName = cn(
     "h-full w-full rounded-sm border-[0.5px]",
     "flex items-center justify-center",
-    "text-xs font-medium",
+    "text-xs font-bold",
     "transition-all duration-150",
     "whitespace-pre-line text-center leading-tight",
     hasInteraction && "cursor-pointer",
@@ -109,7 +109,7 @@ function CellWithData({
       type="button"
       className={cn(
         sharedClassName,
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "focus-visible:ring-ring focus:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2",
       )}
       style={sharedStyle}
       onMouseEnter={handleMouseEnter}

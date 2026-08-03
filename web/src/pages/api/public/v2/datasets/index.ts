@@ -4,12 +4,10 @@ import {
   GetDatasetsV2Response,
   PostDatasetsV2Body,
   PostDatasetsV2Response,
-  transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { upsertDataset } from "@/src/features/datasets/server/actions/createDataset";
+import { createDatasetForApi } from "@/src/features/datasets/server/publicDatasetService";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -18,31 +16,13 @@ export default withMiddlewares({
     responseSchema: PostDatasetsV2Response,
     rateLimitResource: "datasets",
     fn: async ({ body, auth }) => {
-      const { name, description, metadata, inputSchema, expectedOutputSchema } =
-        body;
-
-      const dataset = await upsertDataset({
-        input: {
-          name,
-          description: description ?? undefined,
-          metadata: metadata ?? undefined,
-          inputSchema,
-          expectedOutputSchema,
-        },
+      const dataset = await createDatasetForApi({
+        input: body,
         projectId: auth.scope.projectId,
+        auditScope: auth.scope,
       });
 
-      await auditLog({
-        action: "create",
-        resourceType: "dataset",
-        resourceId: dataset.id,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-        after: dataset,
-      });
-
-      return transformDbDatasetToAPIDataset(dataset);
+      return dataset;
     },
   }),
   GET: createAuthedProjectAPIRoute({
@@ -66,9 +46,7 @@ export default withMiddlewares({
         where: {
           projectId: auth.scope.projectId,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         take: query.limit,
         skip: (query.page - 1) * query.limit,
       });

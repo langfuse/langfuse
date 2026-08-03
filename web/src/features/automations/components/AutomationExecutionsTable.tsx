@@ -3,7 +3,7 @@ import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { formatDistanceToNow } from "date-fns";
@@ -41,12 +41,17 @@ export const AutomationExecutionsTable: React.FC<
   );
 
   const { data, isLoading, isError, error } =
-    api.automations.getAutomationExecutions.useQuery({
-      projectId,
-      automationId,
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
-    });
+    api.automations.getAutomationExecutions.useQuery(
+      {
+        projectId,
+        automationId,
+        page: paginationState.pageIndex,
+        limit: paginationState.pageSize,
+      },
+      // Suppress 404 toast: invalidation after deletion can refetch this query
+      // before the component unmounts.
+      { meta: { silentHttpCodes: [404] } },
+    );
 
   const columns: LangfuseColumnDef<ActionExecutionRow>[] = [
     {
@@ -71,7 +76,7 @@ export const AutomationExecutionsTable: React.FC<
             <span className="text-xs">
               {formatDistanceToNow(date, { addSuffix: true })}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               {date.toLocaleString()}
             </span>
           </div>
@@ -158,7 +163,7 @@ export const AutomationExecutionsTable: React.FC<
         setRowHeight={setRowHeight}
       />
       <DataTable
-        tableName={"automationExecutions"}
+        tableName="automationExecutions"
         columns={columns}
         data={{
           isLoading,

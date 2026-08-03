@@ -1,5 +1,6 @@
 import { type OrderByState } from "@langfuse/shared";
 import { ObjectParam, useQueryParam, withDefault } from "use-query-params";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 type OrderByQueryParamState =
   | OrderByState
@@ -12,10 +13,30 @@ type OrderByQueryParamState =
  * @returns [orderByState, setOrderByState]
  */
 export const useOrderByState = (initialState: OrderByState = null) => {
+  const peekContext = usePeekTableState();
+
   const [orderByState, setOrderByState] = useQueryParam<OrderByQueryParamState>(
     "orderBy",
     withDefault(ObjectParam, initialState),
   );
+
+  if (peekContext) {
+    const setState = (newSorting: OrderByState) => {
+      peekContext.setTableState((currentState) => ({
+        ...currentState,
+        sorting: newSorting,
+      }));
+    };
+    const sorting =
+      peekContext.tableState.sorting === undefined
+        ? initialState
+        : peekContext.tableState.sorting;
+
+    return [sorting, setState] as [
+      OrderByState,
+      (orderByState: OrderByState) => void,
+    ];
+  }
 
   return [orderByState, setOrderByState] as [
     OrderByState,

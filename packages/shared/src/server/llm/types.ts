@@ -1,10 +1,15 @@
 import { LlmApiKeys } from "@prisma/client";
-import z from "zod/v4";
+import z from "zod";
 import {
   BedrockConfigSchema,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
+import type {
+  InternalTraceEventInput,
+  InternalTraceExperimentContext,
+} from "./internalTraceEvents";
 
 // disable lint as this is exported and used in web/worker
 
@@ -19,7 +24,7 @@ export const JSONSchemaFormSchema = z
       return parsed;
     } catch {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Parameters must be valid JSON",
       });
       return z.NEVER;
@@ -33,9 +38,17 @@ export const JSONSchemaFormSchema = z
         required: z.array(z.string()).optional(),
         additionalProperties: z.boolean().optional(),
       })
-      .passthrough()
+      .loose()
       .transform((data) => JSON.stringify(data, null, 2)),
   );
+
+export const LLMToolNameSchema = z
+  .string()
+  .regex(
+    /^[a-zA-Z0-9._-]+$/,
+    "Name must contain only alphanumeric letters, hyphens, periods and underscores",
+  )
+  .min(1, "Name is required");
 
 export const LLMToolDefinitionSchema = z.object({
   name: z.string(),
@@ -43,26 +56,6 @@ export const LLMToolDefinitionSchema = z.object({
   parameters: LLMJSONSchema,
 });
 export type LLMToolDefinition = z.infer<typeof LLMToolDefinitionSchema>;
-
-const AnthropicMessageContentWithToolUse = z.union([
-  z.object({
-    type: z.literal("text"),
-    text: z.string(),
-  }),
-  z.object({
-    type: z.literal("tool_use"),
-    id: z.string(),
-    name: z.string(),
-    input: z.unknown(),
-  }),
-]);
-
-const GoogleAIStudioMessageContentWithToolUse = z.object({
-  functionCall: z.object({
-    name: z.string(),
-    args: z.unknown(),
-  }),
-});
 
 export const LLMToolCallSchema = z.object({
   name: z.string(),
@@ -110,12 +103,17 @@ export const OpenAIResponseFormatSchema = z.object({
   }),
 });
 
+// Legacy playground tool-call content can be either text or an array of
+// provider-normalized blocks. Keep the discriminator loose while persisted
+// responses migrate to native AI SDK tool-call results.
+const StandardContentBlockSchema = z
+  .object({
+    type: z.string(),
+  })
+  .loose();
+
 export const ToolCallResponseSchema = z.object({
-  content: z.union([
-    z.string(),
-    z.array(AnthropicMessageContentWithToolUse),
-    z.array(GoogleAIStudioMessageContentWithToolUse),
-  ]),
+  content: z.union([z.string(), z.array(StandardContentBlockSchema)]),
   tool_calls: z.array(LLMToolCallSchema),
 });
 export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>;
@@ -254,6 +252,15 @@ export enum LLMAdapter {
   GoogleAIStudio = "google-ai-studio",
 }
 
+// Some providers require at least one user message. The persisted-message
+// conversion boundary turns a lone message into a user message for them.
+export const PROVIDERS_WITH_REQUIRED_USER_MESSAGE: readonly LLMAdapter[] = [
+  LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
+  LLMAdapter.Anthropic,
+  LLMAdapter.Bedrock,
+];
+
 export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
 
 export const PromptContentSchema = z.union([
@@ -283,6 +290,7 @@ export const ZodModelConfig = z.object({
   max_tokens: z.coerce.number().optional(),
   temperature: z.coerce.number().optional(),
   top_p: z.coerce.number().optional(),
+  maxReasoningTokens: z.coerce.number().optional(),
   providerOptions: JSONObjectSchema.optional(),
 });
 
@@ -297,6 +305,7 @@ export const ExperimentMetadataSchema = z
     experiment_name: z.string().optional(),
     experiment_run_name: z.string().optional(),
     error: z.string().optional(),
+    dataset_version: z.coerce.date().optional(),
   })
   .strict();
 export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
@@ -310,6 +319,22 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
+  "gpt-5.5",
+  "gpt-5.5-2026-04-23",
+  "gpt-5.5-pro",
+  "gpt-5.5-pro-2026-04-23",
+  "gpt-5.4",
+  "gpt-5.4-2026-03-05",
+  "gpt-5.4-pro",
+  "gpt-5.4-pro-2026-03-05",
+  "gpt-5.4-mini",
+  "gpt-5.4-mini-2026-03-17",
+  "gpt-5.4-nano",
+  "gpt-5.4-nano-2026-03-17",
+  "gpt-5.3-codex",
   "gpt-5.2-2025-12-11",
   "gpt-5.1",
   "gpt-5.1-2025-11-13",
@@ -350,67 +375,21 @@ export const openAIModels = [
   "gpt-3.5-turbo",
 ] as const;
 
-type OpenAIReasoningMap = Record<OpenAIModel, boolean>;
-export const openAIModelToReasoning: OpenAIReasoningMap = {
-  // reasoning models
-  "gpt-5.2-2025-12-11": true,
-  "gpt-5.1": true,
-  "gpt-5.1-2025-11-13": true,
-  "gpt-5": true,
-  "gpt-5-2025-08-07": true,
-  "gpt-5-mini": true,
-  "gpt-5-mini-2025-08-07": true,
-  "gpt-5-nano": true,
-  "gpt-5-nano-2025-08-07": true,
-  o3: true,
-  "o3-2025-04-16": true,
-  "o4-mini": true,
-  "o4-mini-2025-04-16": true,
-  "o3-mini": true,
-  "o3-mini-2025-01-31": true,
-  "o1-preview": true,
-  "o1-preview-2024-09-12": true,
-  "o1-mini": true,
-  "o1-mini-2024-09-12": true,
-  // non-reasoning models
-  "gpt-4.5-preview": false,
-  "gpt-4.5-preview-2025-02-27": false,
-  "gpt-4-turbo-preview": false,
-  "gpt-4-1106-preview": false,
-  "gpt-4-0613": false,
-  "gpt-4-0125-preview": false,
-  "gpt-4": false,
-  "gpt-3.5-turbo-16k-0613": false,
-  "gpt-3.5-turbo-16k": false,
-  "gpt-3.5-turbo-1106": false,
-  "gpt-3.5-turbo-0613": false,
-  "gpt-3.5-turbo-0301": false,
-  "gpt-3.5-turbo-0125": false,
-  "gpt-3.5-turbo": false,
-  "gpt-4.1": false,
-  "gpt-4.1-2025-04-14": false,
-  "gpt-4.1-mini": false,
-  "gpt-4.1-mini-2025-04-14": false,
-  "gpt-4.1-nano": false,
-  "gpt-4.1-nano-2025-04-14": false,
-  "gpt-4o": false,
-  "gpt-4o-2024-08-06": false,
-  "gpt-4o-2024-05-13": false,
-  "gpt-4o-mini": false,
-  "gpt-4o-mini-2024-07-18": false,
-};
-
-export const isOpenAIReasoningModel = (model: OpenAIModel): boolean => {
-  return openAIModelToReasoning[model];
-};
-
 export type OpenAIModel = (typeof openAIModels)[number];
 
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
+  "claude-sonnet-5",
+  "claude-fable-5",
+  "claude-mythos-5",
+  "claude-opus-5",
   "claude-haiku-4-5-20251001",
+  "claude-opus-4-8",
+  "claude-opus-4-7",
+  "claude-sonnet-4-6",
+  "claude-opus-4-6",
   "claude-opus-4-5-20251101",
   "claude-sonnet-4-20250514",
   "claude-opus-4-1-20250805",
@@ -431,11 +410,18 @@ export const anthropicModels = [
 export const vertexAIModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-pro-preview",
+  "gemini-3.1-flash-lite",
+  "gemini-3.1-flash-lite-preview",
   "gemini-3-pro-preview",
   "gemini-3-flash-preview",
   "gemini-2.5-flash-preview-09-2025",
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash-lite-preview-09-2025",
+  "gemini-live-2.5-flash-native-audio",
   "gemini-2.0-flash",
   "gemini-2.0-pro-exp-02-05",
   "gemini-2.0-flash-001",
@@ -449,6 +435,12 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-pro-preview",
+  "gemini-3.1-flash-lite",
+  "gemini-3.1-flash-lite-preview",
   "gemini-3-pro-preview",
   "gemini-3-flash-preview",
   "gemini-2.5-flash-lite",
@@ -474,7 +466,7 @@ export const supportedModels = {
 export type LLMFunctionCall = {
   name: string;
   description: string;
-  parameters: z.ZodTypeAny; // this has to be a json schema for OpenAI
+  parameters: z.ZodType; // this has to be a json schema for OpenAI
 };
 
 export const LLMApiKeySchema = z
@@ -492,7 +484,9 @@ export const LLMApiKeySchema = z
     baseURL: z.string().nullable(),
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
-    config: z.union([BedrockConfigSchema, VertexAIConfigSchema]).nullish(), // Bedrock and VertexAI have additional config
+    config: z
+      .union([BedrockConfigSchema, VertexAIConfigSchema, OpenAIConfigSchema])
+      .nullish(),
   })
   // strict mode to prevent extra keys. Thorws error otherwise
   // https://github.com/colinhacks/zod?tab=readme-ov-file#strict
@@ -506,7 +500,34 @@ export type LLMApiKey =
 export enum LangfuseInternalTraceEnvironment {
   PromptExperiments = "langfuse-prompt-experiment",
   LLMJudge = "langfuse-llm-as-a-judge",
+  CodeEval = "langfuse-code-eval",
+  NaturalLanguageFilter = "langfuse-natural-language-filter",
+  InAppAgent = "langfuse-in-app-agent",
 }
+
+export type ProcessedTraceEvent = {
+  type: string;
+  timestamp: string;
+  body: Record<string, unknown>;
+};
+
+export type InternalTraceWriteInput = {
+  rootSpanId: string;
+  eventInputs: InternalTraceEventInput[];
+};
+
+export type InternalTraceWriter = (
+  params: InternalTraceWriteInput,
+) => Promise<void>;
+
+/**
+ * Configuration for direct writing of trace events to the events table.
+ * Used by internal tracing (prompt experiments, evaluations).
+ */
+export type InternalEventsWriter = {
+  experimentContext?: InternalTraceExperimentContext;
+  write: InternalTraceWriter;
+};
 
 export type TraceSinkParams = {
   /**
@@ -523,4 +544,11 @@ export type TraceSinkParams = {
     name: string;
     version: number;
   };
+  /**
+   * When provided, traced events are written directly to the events table,
+   * bypassing the legacy traces/observations ingestion pipeline for the events write.
+   * Used for internal tracing (prompt experiments, LLM-as-a-judge evaluations). Traced
+   * events are still written to the legacy traces/observations tables.
+   */
+  eventsWriter?: InternalEventsWriter;
 };

@@ -7,7 +7,6 @@ type TagListProps = {
   isLoading: boolean;
   viewOnly?: boolean;
   isTableCell?: boolean;
-  className?: string;
 };
 
 const TagList = ({

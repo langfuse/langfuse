@@ -4,11 +4,16 @@
  */
 
 export const PATH_CONSTANTS = {
-  withoutNavigation: ["/onboarding", "/auth/reset-password"] as const,
+  withoutNavigation: [
+    "/onboarding",
+    "/auth/reset-password",
+    "/auth/setup-password",
+  ] as const,
   unauthenticated: [
     "/auth/sign-in",
     "/auth/sign-up",
     "/auth/sso-initiate",
+    "/auth/enterprise-sso-required",
     "/auth/error",
     "/auth/hf-spaces",
   ] as const,
@@ -16,6 +21,7 @@ export const PATH_CONSTANTS = {
     "/project/[projectId]/sessions/[sessionId]",
     "/project/[projectId]/traces/[traceId]",
     "/auth/reset-password",
+    "/auth/setup-password",
   ] as const,
 };
 

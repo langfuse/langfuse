@@ -3,7 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const validateQueryParams = (
   query: unknown,
@@ -32,6 +32,7 @@ export async function handleDeleteApiKey(
       id: apiKeyId,
       projectId,
       scope: "PROJECT",
+      isInAppAgentKey: false,
     },
   });
 

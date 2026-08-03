@@ -1,102 +1,28 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { addMinutes, format } from "date-fns";
-import { type DateTrunc } from "@langfuse/shared/src/server";
 
-interface TimeRangeDefinition {
-  label: string;
-  abbreviation: string;
-  minutes: number | null;
-  dateTrunc: DateTrunc | null;
-}
-
-export const TIME_RANGES = {
-  last5Minutes: {
-    label: "Past 5 min",
-    abbreviation: "5m",
-    minutes: 5,
-    dateTrunc: "minute",
-  },
-  last30Minutes: {
-    label: "Past 30 min",
-    abbreviation: "30m",
-    minutes: 30,
-    dateTrunc: "minute",
-  },
-  last1Hour: {
-    label: "Past 1 hour",
-    abbreviation: "1h",
-    minutes: 60,
-    dateTrunc: "minute",
-  },
-  last3Hours: {
-    label: "Past 3 hours",
-    abbreviation: "3h",
-    minutes: 3 * 60,
-    dateTrunc: "minute",
-  },
-  last6Hours: {
-    label: "Past 6 hours",
-    abbreviation: "6h",
-    minutes: 6 * 60,
-    dateTrunc: "minute",
-  },
-  last1Day: {
-    label: "Past 1 day",
-    abbreviation: "1d",
-    minutes: 24 * 60,
-    dateTrunc: "hour",
-  },
-  last3Days: {
-    label: "Past 3 days",
-    abbreviation: "3d",
-    minutes: 3 * 24 * 60,
-    dateTrunc: "hour",
-  },
-  last7Days: {
-    label: "Past 7 days",
-    abbreviation: "7d",
-    minutes: 7 * 24 * 60,
-    dateTrunc: "hour",
-  },
-  last14Days: {
-    label: "Past 14 days",
-    abbreviation: "14d",
-    minutes: 14 * 24 * 60,
-    dateTrunc: "day",
-  },
-  last30Days: {
-    label: "Past 30 days",
-    abbreviation: "30d",
-    minutes: 30 * 24 * 60,
-    dateTrunc: "day",
-  },
-  last90Days: {
-    label: "Past 90 days",
-    abbreviation: "90d",
-    minutes: 90 * 24 * 60,
-    dateTrunc: "week",
-  },
-  last1Year: {
-    label: "Past 1 year",
-    abbreviation: "1y",
-    minutes: 365 * 24 * 60,
-    dateTrunc: "month",
-  },
-  allTime: {
-    label: "All time",
-    abbreviation: "All",
-    minutes: null,
-    dateTrunc: null,
-  },
-  custom: {
-    label: "Custom",
-    abbreviation: "Custom",
-    minutes: null,
-    dateTrunc: null,
-  },
-} satisfies Record<string, TimeRangeDefinition>;
-
-export type TimeRangePresets = Exclude<keyof typeof TIME_RANGES, "custom">;
+// Time-range presets, table aggregation options, and the TimeRange type
+// moved to @langfuse/shared (utils/dateRanges); re-exported here for the
+// existing web import surface.
+export {
+  TIME_RANGES,
+  type TimeRangePresets,
+  TABLE_AGGREGATION_OPTIONS,
+  type TableDateRangeAggregationOption,
+  type RelativeTimeRange,
+  type AbsoluteTimeRange,
+  type TimeRange,
+  getAbbreviatedTimeRange,
+  rangeToString,
+} from "@langfuse/shared";
+import {
+  TIME_RANGES,
+  TABLE_AGGREGATION_OPTIONS,
+  type TableDateRangeAggregationOption,
+  type TimeRange,
+  type TimeRangeDefinition,
+  type AbsoluteTimeRange,
+} from "@langfuse/shared";
 
 const ABBREVIATION_TO_KEY = new Map(
   Object.entries(TIME_RANGES).map(([key, def]) => [def.abbreviation, key]),
@@ -118,18 +44,6 @@ export const DASHBOARD_AGGREGATION_OPTIONS = [
   "last1Year",
 ] as const;
 
-export const TABLE_AGGREGATION_OPTIONS = [
-  "last30Minutes",
-  "last1Hour",
-  "last6Hours",
-  "last1Day",
-  "last3Days",
-  "last7Days",
-  "last14Days",
-  "last30Days",
-  "last90Days",
-] as const;
-
 export type DashboardDateRangeAggregationOption =
   (typeof DASHBOARD_AGGREGATION_OPTIONS)[number];
 
@@ -137,9 +51,6 @@ export type TableDateRange = {
   from: Date;
   to?: Date;
 };
-
-export type TableDateRangeAggregationOption =
-  (typeof TABLE_AGGREGATION_OPTIONS)[number];
 
 export type DashboardDateRange = {
   from: Date;
@@ -267,12 +178,6 @@ export function isValidTableDateRangeAggregationOption(
   return (TABLE_AGGREGATION_OPTIONS as readonly string[]).includes(value);
 }
 
-export function getAbbreviatedTimeRange(option: string): string {
-  return (
-    TIME_RANGES[option as keyof typeof TIME_RANGES]?.abbreviation || option
-  );
-}
-
 export function getFullTimeRangeFromAbbreviated(
   abbreviated: string,
 ): DateRangeAggregationOption | null {
@@ -335,24 +240,12 @@ export const formatDateRange = (from: Date, to: Date) => {
     const fromPattern = showFromYear ? "LLL dd, yyyy" : "LLL dd";
     const toPattern = showToYear ? "LLL dd, yyyy" : "LLL dd";
     return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
-  } else {
-    // Show dates with times for partial day ranges
-    const fromPattern = showFromYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
-    const toPattern = showToYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
-    return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
   }
+  // Show dates with times for partial day ranges
+  const fromPattern = showFromYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
+  const toPattern = showToYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
+  return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
 };
-
-export type RelativeTimeRange = {
-  range: string;
-};
-
-export type AbsoluteTimeRange = {
-  from: Date;
-  to: Date;
-};
-
-export type TimeRange = RelativeTimeRange | AbsoluteTimeRange;
 
 /**
  * =======================
@@ -480,9 +373,9 @@ function getIntervalDuration(interval: IntervalConfig): number {
 export function getOptimalInterval(
   fromDate: Date,
   toDate: Date,
-  targetPoints: number = 13,
-  minPoints: number = 10,
-  maxPoints: number = 16,
+  targetPoints = 13,
+  minPoints = 10,
+  maxPoints = 16,
 ): IntervalConfig {
   const durationMs = toDate.getTime() - fromDate.getTime();
 
@@ -586,22 +479,8 @@ export function getScoreAnalyticsInterval(
     return "week";
   }
   // > 1 year → month (yields 12+ points)
-  else {
-    return "month";
-  }
-}
 
-/**
- * Converts a range object to a string for URL serialization
- * - Named ranges: "last7Days" -> "7d" (abbreviated)
- * - Custom ranges: {from, to} -> "1693872000000-1694131199999"
- */
-export function rangeToString(range: TimeRange): string {
-  if ("range" in range) {
-    return getAbbreviatedTimeRange(range.range);
-  } else {
-    return `${range.from.getTime()}-${range.to.getTime()}`;
-  }
+  return "month";
 }
 
 /**
@@ -643,6 +522,41 @@ export function rangeFromString<T extends string>(
   }
 
   return { range: fallback };
+}
+
+/**
+ * Resolves the active time range from its two possible sources using the
+ * presence-XOR rule (no merging):
+ * - If the URL carries an explicit `dateRange` value, it wins outright — shared
+ *   links are authoritative and we ignore the persisted preference.
+ * - Otherwise we fall back to the per-user stored default (relative
+ *   meta-format), so clean navigations keep the last chosen range.
+ * - Otherwise the view's fallback preset.
+ *
+ * A stored value that is not valid for this view's `allowedRanges` (e.g. a
+ * table-only preset surfacing on a dashboard) degrades to the fallback rather
+ * than merging.
+ */
+export function resolveTimeRange<T extends string>(
+  sources: { urlValue?: string | null; storedValue?: string | null },
+  allowedRanges: readonly T[],
+  fallback: T,
+): TimeRange {
+  const fromUrl =
+    sources.urlValue != null && sources.urlValue !== ""
+      ? sources.urlValue
+      : null;
+  const fromStorage =
+    sources.storedValue != null && sources.storedValue !== ""
+      ? sources.storedValue
+      : null;
+
+  const source = fromUrl ?? fromStorage;
+  if (source == null) {
+    return { range: fallback };
+  }
+
+  return rangeFromString(source, allowedRanges, fallback);
 }
 
 /**
@@ -691,10 +605,9 @@ export function getChartAxisFormat(
       if (durationHours !== null && durationHours <= 24) {
         // Within 1 day: time only
         return "HH:mm";
-      } else {
-        // Multiple days: date + time
-        return "MMM dd, HH:mm";
       }
+      // Multiple days: date + time
+      return "MMM dd, HH:mm";
 
     case "day":
       // 7 days - 90 days: date without time

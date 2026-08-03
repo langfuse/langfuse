@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   LLMAdapter,
   LLMJSONSchema,
@@ -14,6 +14,7 @@ const ModelParamsSchema = z.object({
   temperature: z.number().optional(),
   max_tokens: z.number().optional(),
   top_p: z.number().optional(),
+  maxReasoningTokens: z.number().optional(),
   providerOptions: JSONObjectSchema.optional(),
 });
 

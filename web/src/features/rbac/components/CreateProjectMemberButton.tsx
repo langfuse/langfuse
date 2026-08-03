@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -42,7 +42,7 @@ import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { ActionButton } from "@/src/components/ActionButton";
 
 const formSchema = z.object({
-  email: z.string().trim().email(),
+  email: z.string().trim().pipe(z.email()),
   orgRole: z.enum(Role),
   projectRole: z.enum(Role),
 });
@@ -142,8 +142,14 @@ export function CreateProjectMemberButton(props: {
             variant="secondary"
             loading={mutCreateProjectMember.isPending}
             hasAccess={hasOrgAccess || hasOnlySingleProjectAccess}
-            limit={orgMemberLimit}
-            limitValue={(orgMemberCount ?? 0) + (inviteCount ?? 0)}
+            usageLimit={
+              typeof orgMemberLimit === "number"
+                ? {
+                    current: (orgMemberCount ?? 0) + (inviteCount ?? 0),
+                    max: orgMemberLimit,
+                  }
+                : undefined
+            }
             icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
           >
             {hasOnlySingleProjectAccess

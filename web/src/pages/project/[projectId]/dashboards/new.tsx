@@ -110,7 +110,7 @@ export default function NewDashboard() {
           />
         </div>
 
-        <div className="text-sm text-muted-foreground">
+        <div className="text-muted-foreground text-sm">
           <p>
             After creating the dashboard, you can add widgets to visualize your
             data.

@@ -1,12 +1,22 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "noUpdateNotifier": true,
   "globalDependencies": [".env"],
+  "globalEnv": [
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF"
+  ],
   "envMode": "loose",
   "tasks": {
     "build": {
       "dependsOn": ["db:generate", "^build"],
+      // NEXT_IGNORE_BUILD_ERRORS toggles the Next.js type check, so builds
+      // with and without it must not share a cache entry — a cached
+      // unchecked build would otherwise replay as a "type-checked" one.
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
-      "cache": true
+      "cache": true,
+      "outputLogs": "errors-only"
     },
     "start": {
       "dependsOn": ["^start"]
@@ -14,11 +24,21 @@
     "db:migrate": {
       "cache": false
     },
-    "db:deploy": {},
-    "db:reset": {},
-    "db:push": {},
-    "db:seed": {},
-    "db:seed:examples": {},
+    "db:deploy": {
+      "cache": false
+    },
+    "db:reset": {
+      "cache": false
+    },
+    "db:push": {
+      "cache": false
+    },
+    "db:seed": {
+      "cache": false
+    },
+    "db:seed:examples": {
+      "cache": false
+    },
     "dev": {
       "cache": false,
       "persistent": true,
@@ -34,17 +54,62 @@
       "persistent": true,
       "dependsOn": ["db:generate"]
     },
+    // Prisma generate writes client types into node_modules. Turbo cache hits
+    // only replay logs and do not restore those side effects on fresh CI runners.
     "db:generate": {
+      "inputs": ["packages/shared/prisma/schema.prisma"],
       "cache": false,
       "dependsOn": ["^db:generate"]
     },
+    "@langfuse/shared#db:generate": {
+      "inputs": ["packages/shared/prisma/schema.prisma"],
+      "cache": false,
+      "dependsOn": ["^db:generate"],
+      "outputLogs": "errors-only"
+    },
+    "@langfuse/shared#db:seed": {
+      "cache": false,
+      "outputLogs": "errors-only"
+    },
+    "@langfuse/shared#db:seed:examples": {
+      "cache": false,
+      "outputLogs": "errors-only"
+    },
     "lint": {
+      "dependsOn": ["@repo/eslint-plugin#build", "^build"],
       "cache": true,
+      "outputLogs": "errors-only",
       "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["db:generate", "^build"],
+      "cache": true,
+      "outputLogs": "errors-only",
+      "outputs": []
+    },
+    "build:check": {
+      "dependsOn": ["db:generate", "^build"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
+      "outputs": [".next-check/**", "!.next-check/cache/**"],
+      "cache": true,
+      "outputLogs": "errors-only"
     },
     "test": {
       "dependsOn": ["^test", "db:generate"],
       "cache": true
+    },
+    "@repo/eslint-plugin#build": {
+      "dependsOn": [],
+      "outputs": ["dist/**"],
+      "cache": true,
+      "outputLogs": "errors-only"
+    },
+    "@repo/in-app-agent-sandbox-runtime#build:docker-image": {
+      "dependsOn": ["build"],
+      "inputs": ["Dockerfile", "package.json", "tsconfig.json"],
+      "outputs": [".local-image-built"],
+      "cache": true,
+      "outputLogs": "errors-only"
     },
     "worker#dev": {
       "cache": false,

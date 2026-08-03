@@ -1,13 +1,15 @@
-import z from "zod/v4";
+import z from "zod";
 import { prisma } from "../../../db";
 import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
-import { LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
+import { getClientInitiatedNonStreamingLlmTimeoutMs } from "../../llm/llmText";
+import { LLMAdapter, LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 import { testModelCall } from "../../llm/testModelCall";
 
 type ValidConfig = {
   provider: string;
   model: string;
   modelParams: z.infer<typeof ZodModelConfig>;
+  adapter: LLMAdapter;
 };
 
 export class DefaultEvalModelService {
@@ -56,6 +58,7 @@ export class DefaultEvalModelService {
           model,
           apiKey: llmApiKey as z.infer<typeof LLMApiKeySchema>,
           modelConfig: modelParams,
+          timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
         });
       }
     } catch (err) {
@@ -136,6 +139,7 @@ export class DefaultEvalModelService {
           model: string;
           modelParams?: z.infer<typeof ZodModelConfig>;
           apiKey: z.infer<typeof LLMApiKeySchema>;
+          adapter: LLMAdapter;
         };
       }
     | {

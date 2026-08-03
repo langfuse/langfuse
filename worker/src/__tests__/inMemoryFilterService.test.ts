@@ -23,6 +23,7 @@ describe("InMemoryFilterService", () => {
       precision: 0.87,
       recall: 0.92,
     },
+    scoreBooleans: ["flag:true", "other:false"],
     categories: {
       type: "classification",
       model: "gpt-4",
@@ -61,6 +62,8 @@ describe("InMemoryFilterService", () => {
         return data.metadata;
       case "scores":
         return data.scores;
+      case "scoreBooleans":
+        return data.scoreBooleans;
       case "categories":
         return data.categories;
       case "cost":
@@ -889,6 +892,40 @@ describe("InMemoryFilterService", () => {
           fieldMapper,
         ),
       ).toBe(false);
+    });
+
+    test("evaluates booleanObject filters correctly", () => {
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "scoreBooleans",
+              type: "booleanObject",
+              key: "flag",
+              operator: "=",
+              value: true,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "scoreBooleans",
+              type: "booleanObject",
+              key: "flag",
+              operator: "<>",
+              value: false,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
     });
 
     test("evaluates null filters correctly", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Decimal } from "decimal.js";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { validateRegexPattern } from "@langfuse/shared";
 import {
   matchPricingTier,
@@ -211,6 +211,30 @@ describe("default-model-prices.json", () => {
     }
   });
 
+  it("should match AWS geographic inference profiles for Claude Haiku 4.5", () => {
+    const claudeModel = defaultModelPrices.find(
+      (model) => model.modelName === "claude-haiku-4-5-20251001",
+    );
+    expect(claudeModel).toBeDefined();
+
+    expect(claudeModel!.matchPattern).toContain(
+      "(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0",
+    );
+  });
+
+  it("should consistently support JP and AU prefixes for Anthropic Bedrock models", () => {
+    const bedrockModels = defaultModelPrices.filter((model) =>
+      model.matchPattern.includes("anthropic\\.claude"),
+    );
+    expect(bedrockModels.length).toBeGreaterThan(0);
+
+    for (const model of bedrockModels) {
+      expect(model.matchPattern, model.modelName).toContain(
+        "(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude",
+      );
+    }
+  });
+
   it("should correctly match claude-sonnet-4-5 model with tiered pricing", () => {
     const claudeModel = defaultModelPrices.find(
       (m) => m.id === "c5qmrqolku82tra3vgdixmys",
@@ -251,6 +275,34 @@ describe("default-model-prices.json", () => {
     expect(largeContextResult).not.toBeNull();
     expect(largeContextResult?.pricingTierName).toBe("Large Context");
     expect(largeContextResult?.prices.input.toNumber()).toBe(0.000006);
+  });
+
+  it("should price Gemini 3 Google Search grounding queries", () => {
+    const gemini3ModelNames = [
+      "gemini-3-pro-preview",
+      "gemini-3.1-pro-preview",
+      "gemini-3.5-flash",
+      "gemini-3-flash-preview",
+      "gemini-3.1-flash-lite",
+      "gemini-3.1-flash-lite-preview",
+    ];
+    const groundingUsageKeys = [
+      "grounding_queries",
+      "groundingQueries",
+      "web_search_queries",
+      "webSearchQueries",
+    ];
+
+    for (const modelName of gemini3ModelNames) {
+      const model = defaultModelPrices.find((m) => m.modelName === modelName);
+      expect(model, modelName).toBeDefined();
+
+      for (const tier of model!.pricingTiers) {
+        for (const usageKey of groundingUsageKeys) {
+          expect(tier.prices[usageKey], `${modelName}/${usageKey}`).toBe(14e-3);
+        }
+      }
+    }
   });
 });
 

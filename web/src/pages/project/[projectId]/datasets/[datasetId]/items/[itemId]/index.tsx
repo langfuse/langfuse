@@ -8,7 +8,7 @@ import { DatasetVersionWarningBanner } from "@/src/features/datasets/components/
 import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -96,7 +96,7 @@ function DatasetItemContent() {
           )}
 
           {/* Version panel toggle button */}
-          <div className="sticky top-0 z-10 flex justify-end border-b bg-background p-2">
+          <div className="bg-background sticky top-0 z-10 flex justify-end border-b p-2">
             <Button
               variant="ghost"
               size="sm"
@@ -143,7 +143,7 @@ function DatasetItemContent() {
             {isViewingOldVersion &&
               selectedVersion &&
               !itemChangedAtVersion && (
-                <div className="mb-4 text-sm text-muted-foreground">
+                <div className="text-muted-foreground mb-4 text-sm">
                   Item unchanged in this version
                 </div>
               )}

@@ -3,14 +3,6 @@
 
 import { Prisma, PrismaClient } from "@prisma/client";
 import { env } from "process";
-import kyselyExtension from "prisma-extension-kysely";
-import {
-  Kysely,
-  PostgresAdapter,
-  PostgresIntrospector,
-  PostgresQueryCompiler,
-} from "kysely";
-import { DB } from ".";
 import { logger } from "./server";
 
 export class PrismaClientSingleton {
@@ -37,6 +29,14 @@ const createPrismaInstance = () => {
       { emit: "event", level: "error" },
       { emit: "event", level: "warn" },
     ],
+    // Secret-bearing columns are excluded from every query result by default.
+    // Delivery paths that need them must opt back in with an explicit `select`.
+    omit: {
+      dataset: {
+        remoteExperimentSecretKey: true,
+        remoteExperimentRequestHeaders: true,
+      },
+    },
   });
 
   if (env.NODE_ENV === "development") {
@@ -55,62 +55,16 @@ const createPrismaInstance = () => {
   return client;
 };
 
-export class KyselySingleton {
-  private static instance: { $kysely: Kysely<DB> };
-
-  public static getInstance() {
-    if (KyselySingleton.instance) {
-      return KyselySingleton.instance;
-    }
-
-    KyselySingleton.instance = PrismaClientSingleton.getInstance().$extends(
-      kyselyExtension({
-        kysely: (driver) =>
-          new Kysely<DB>({
-            dialect: {
-              // This is where the magic happens!
-              createDriver: () => driver,
-              // Don't forget to customize these to match your database!
-              createAdapter: () => new PostgresAdapter(),
-              createIntrospector: (db) => new PostgresIntrospector(db),
-              createQueryCompiler: () => new PostgresQueryCompiler(),
-            },
-          }),
-      }),
-    );
-
-    return KyselySingleton.instance;
-  }
-}
-
 declare const globalThis: {
   prismaGlobal: PrismaClient | undefined;
-  kyselyPrismaGlobal: { $kysely: Kysely<DB> } | undefined;
 } & typeof global;
 
 // eslint-disable-next-line turbo/no-undeclared-env-vars
 if (process.env.NODE_ENV === "development") {
   globalThis.prismaGlobal ??= createPrismaInstance(); // regular instantiation
-  globalThis.kyselyPrismaGlobal ??= globalThis.prismaGlobal.$extends(
-    kyselyExtension({
-      kysely: (driver) =>
-        new Kysely<DB>({
-          dialect: {
-            // This is where the magic happens!
-            createDriver: () => driver,
-            // Don't forget to customize these to match your database!
-            createAdapter: () => new PostgresAdapter(),
-            createIntrospector: (db) => new PostgresIntrospector(db),
-            createQueryCompiler: () => new PostgresQueryCompiler(),
-          },
-        }),
-    }),
-  );
 }
 
 export const prisma =
   globalThis.prismaGlobal ?? PrismaClientSingleton.getInstance();
-export const kyselyPrisma =
-  globalThis.kyselyPrismaGlobal ?? KyselySingleton.getInstance();
 
 export * from "@prisma/client";

@@ -1,0 +1,918 @@
+{
+  "4f6535aaebcda355": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Be helpful!",
+          "tools": [
+            {
+              "name": "Web-Search",
+              "description": "Dummy web search tool.",
+              "parameters": {
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize.",
+          "tools": [
+            {
+              "name": "Web-Search",
+              "description": "Dummy web search tool.",
+              "parameters": {
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+              "name": "Web-Search",
+              "arguments": "{\"query\":\"example\"}",
+              "type": "function"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "5ba09605e0929d78": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Be helpful!",
+          "tools": [
+            {
+              "name": "Web-Search",
+              "description": "Dummy web search tool.",
+              "parameters": {
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize.",
+          "tools": [
+            {
+              "name": "Web-Search",
+              "description": "Dummy web search tool.",
+              "parameters": {
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tools": [
+            {
+              "name": "Web-Search",
+              "description": "Dummy web search tool.",
+              "parameters": {
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "type": "object"
+              }
+            }
+          ],
+          "tool_calls": [
+            {
+              "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+              "name": "Web-Search",
+              "arguments": "{\"query\":\"example\"}",
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "[{\"url\": \"https://example.com\", \"title\": \"Example Result\", \"q\": \"example\"}]",
+          "tools": [
+            {
+              "name": "Web-Search",
+              "description": "Dummy web search tool.",
+              "parameters": {
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "type": "object"
+              }
+            }
+          ],
+          "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl"
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "The search for \"example\" primarily leads to the website [example.com](https://example.com), which is often used as a placeholder or demonstration site in various contexts. It serves as a generic example for illustrating how a website might look or function.",
+          "json": {
+            "refusal": null
+          }
+        }
+      ]
+    }
+  },
+  "21441266a9f21251": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "tool",
+          "name": "Web-Search",
+          "content": [
+            {
+              "url": "https://example.com",
+              "title": "Example Result",
+              "q": "example"
+            }
+          ],
+          "type": "tool",
+          "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl",
+          "json": {
+            "response_metadata": {},
+            "status": "success",
+            "_originalType": "tool"
+          }
+        }
+      ]
+    }
+  },
+  "3b239b11cbb2ac0b": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize.",
+          "type": "human",
+          "json": {
+            "json": {
+              "response_metadata": {},
+              "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+              "example": false,
+              "_originalType": "human"
+            }
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "type": "ai",
+          "tool_calls": [
+            {
+              "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+              "name": "Web-Search",
+              "arguments": "{\"query\":\"example\"}",
+              "type": "tool_call"
+            }
+          ],
+          "json": {
+            "json": {
+              "response_metadata": {
+                "token_usage": {
+                  "completion_tokens": 15,
+                  "prompt_tokens": 60,
+                  "total_tokens": 75,
+                  "completion_tokens_details": {
+                    "accepted_prediction_tokens": 0,
+                    "audio_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "rejected_prediction_tokens": 0
+                  },
+                  "prompt_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0
+                  }
+                },
+                "model_name": "gpt-4o-2024-08-06",
+                "system_fingerprint": "fp_46bff0e0c8",
+                "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+                "service_tier": "default",
+                "finish_reason": "tool_calls",
+                "logprobs": null
+              },
+              "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+              "example": false,
+              "invalid_tool_calls": [],
+              "usage_metadata": {
+                "input_tokens": 60,
+                "output_tokens": 15,
+                "total_tokens": 75,
+                "input_token_details": {
+                  "audio": 0,
+                  "cache_read": 0
+                },
+                "output_token_details": {
+                  "audio": 0,
+                  "reasoning": 0
+                }
+              },
+              "_originalType": "ai"
+            }
+          }
+        },
+        {
+          "role": "tool",
+          "name": "Web-Search",
+          "content": "[{\"url\": \"https://example.com\", \"title\": \"Example Result\", \"q\": \"example\"}]",
+          "type": "tool",
+          "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl",
+          "json": {
+            "json": {
+              "response_metadata": {},
+              "id": "85ffdeba-3d69-4851-bd78-993403a10fd6",
+              "status": "success",
+              "_originalType": "tool"
+            }
+          }
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "The search for \"example\" primarily leads to the website [example.com](https://example.com), which is often used as a placeholder or demonstration site in various contexts. It serves as a generic example for illustrating how a website might look or function.",
+          "type": "ai",
+          "tool_calls": [],
+          "json": {
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 51,
+                "prompt_tokens": 108,
+                "total_tokens": 159,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWXZL0b6BLNuyEMr369PF4PEpSs",
+              "service_tier": "default",
+              "finish_reason": "stop",
+              "logprobs": null
+            },
+            "id": "run--a6270d77-8cd6-4c1b-a80b-c1da054d9f9a-0",
+            "example": false,
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 108,
+              "output_tokens": 51,
+              "total_tokens": 159,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            },
+            "_originalType": "ai",
+            "refusal": null
+          }
+        }
+      ]
+    }
+  },
+  "98d3e02591797c04": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize.",
+          "type": "human",
+          "json": {
+            "json": {
+              "response_metadata": {},
+              "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+              "example": false,
+              "_originalType": "human"
+            }
+          }
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "",
+          "type": "ai",
+          "tool_calls": [
+            {
+              "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+              "name": "Web-Search",
+              "arguments": "{\"query\":\"example\"}",
+              "type": "tool_call"
+            }
+          ],
+          "json": {
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 15,
+                "prompt_tokens": 60,
+                "total_tokens": 75,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+              "service_tier": "default",
+              "finish_reason": "tool_calls",
+              "logprobs": null
+            },
+            "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+            "example": false,
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 60,
+              "output_tokens": 15,
+              "total_tokens": 75,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            },
+            "_originalType": "ai"
+          }
+        }
+      ]
+    }
+  },
+  "b024c7ee7680b708": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize.",
+          "type": "human",
+          "json": {
+            "json": {
+              "response_metadata": {},
+              "example": false,
+              "_originalType": "human"
+            }
+          }
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize.",
+          "type": "human",
+          "json": {
+            "response_metadata": {},
+            "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+            "example": false,
+            "_originalType": "human"
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "type": "ai",
+          "tool_calls": [
+            {
+              "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+              "name": "Web-Search",
+              "arguments": "{\"query\":\"example\"}",
+              "type": "tool_call"
+            }
+          ],
+          "json": {
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 15,
+                "prompt_tokens": 60,
+                "total_tokens": 75,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+              "service_tier": "default",
+              "finish_reason": "tool_calls",
+              "logprobs": null
+            },
+            "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+            "example": false,
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 60,
+              "output_tokens": 15,
+              "total_tokens": 75,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            },
+            "_originalType": "ai"
+          }
+        },
+        {
+          "role": "tool",
+          "name": "Web-Search",
+          "content": "[{\"url\": \"https://example.com\", \"title\": \"Example Result\", \"q\": \"example\"}]",
+          "type": "tool",
+          "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl",
+          "json": {
+            "response_metadata": {},
+            "id": "85ffdeba-3d69-4851-bd78-993403a10fd6",
+            "status": "success",
+            "_originalType": "tool"
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "The search for \"example\" primarily leads to the website [example.com](https://example.com), which is often used as a placeholder or demonstration site in various contexts. It serves as a generic example for illustrating how a website might look or function.",
+          "type": "ai",
+          "tool_calls": [],
+          "json": {
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 51,
+                "prompt_tokens": 108,
+                "total_tokens": 159,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWXZL0b6BLNuyEMr369PF4PEpSs",
+              "service_tier": "default",
+              "finish_reason": "stop",
+              "logprobs": null
+            },
+            "id": "run--a6270d77-8cd6-4c1b-a80b-c1da054d9f9a-0",
+            "example": false,
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 108,
+              "output_tokens": 51,
+              "total_tokens": 159,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            },
+            "_originalType": "ai",
+            "refusal": null
+          }
+        }
+      ]
+    }
+  },
+  "c7fbfdc6ab70ca4d": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize.",
+          "type": "human",
+          "json": {
+            "json": {
+              "response_metadata": {},
+              "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+              "example": false,
+              "_originalType": "human"
+            }
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "type": "ai",
+          "tool_calls": [
+            {
+              "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+              "name": "Web-Search",
+              "arguments": "{\"query\":\"example\"}",
+              "type": "tool_call"
+            }
+          ],
+          "json": {
+            "json": {
+              "response_metadata": {
+                "token_usage": {
+                  "completion_tokens": 15,
+                  "prompt_tokens": 60,
+                  "total_tokens": 75,
+                  "completion_tokens_details": {
+                    "accepted_prediction_tokens": 0,
+                    "audio_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "rejected_prediction_tokens": 0
+                  },
+                  "prompt_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0
+                  }
+                },
+                "model_name": "gpt-4o-2024-08-06",
+                "system_fingerprint": "fp_46bff0e0c8",
+                "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+                "service_tier": "default",
+                "finish_reason": "tool_calls",
+                "logprobs": null
+              },
+              "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+              "example": false,
+              "invalid_tool_calls": [],
+              "usage_metadata": {
+                "input_tokens": 60,
+                "output_tokens": 15,
+                "total_tokens": 75,
+                "input_token_details": {
+                  "audio": 0,
+                  "cache_read": 0
+                },
+                "output_token_details": {
+                  "audio": 0,
+                  "reasoning": 0
+                }
+              },
+              "_originalType": "ai"
+            }
+          }
+        }
+      ]
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received string\"\n  }\n]"
+      }
+    }
+  },
+  "c8a18a38a3a115cb": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize.",
+          "type": "human",
+          "json": {
+            "json": {
+              "response_metadata": {},
+              "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+              "example": false,
+              "_originalType": "human"
+            }
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "type": "ai",
+          "tool_calls": [
+            {
+              "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+              "name": "Web-Search",
+              "arguments": "{\"query\":\"example\"}",
+              "type": "tool_call"
+            }
+          ],
+          "json": {
+            "json": {
+              "response_metadata": {
+                "token_usage": {
+                  "completion_tokens": 15,
+                  "prompt_tokens": 60,
+                  "total_tokens": 75,
+                  "completion_tokens_details": {
+                    "accepted_prediction_tokens": 0,
+                    "audio_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "rejected_prediction_tokens": 0
+                  },
+                  "prompt_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0
+                  }
+                },
+                "model_name": "gpt-4o-2024-08-06",
+                "system_fingerprint": "fp_46bff0e0c8",
+                "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+                "service_tier": "default",
+                "finish_reason": "tool_calls",
+                "logprobs": null
+              },
+              "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+              "example": false,
+              "invalid_tool_calls": [],
+              "usage_metadata": {
+                "input_tokens": 60,
+                "output_tokens": 15,
+                "total_tokens": 75,
+                "input_token_details": {
+                  "audio": 0,
+                  "cache_read": 0
+                },
+                "output_token_details": {
+                  "audio": 0,
+                  "reasoning": 0
+                }
+              },
+              "_originalType": "ai"
+            }
+          }
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "tool",
+          "name": "Web-Search",
+          "content": "[{\"url\": \"https://example.com\", \"title\": \"Example Result\", \"q\": \"example\"}]",
+          "type": "tool",
+          "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl",
+          "json": {
+            "response_metadata": {},
+            "status": "success",
+            "_originalType": "tool"
+          }
+        }
+      ]
+    }
+  },
+  "e638064431445dce": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize.",
+          "type": "human",
+          "json": {
+            "json": {
+              "response_metadata": {},
+              "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+              "example": false,
+              "_originalType": "human"
+            }
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "type": "ai",
+          "tool_calls": [
+            {
+              "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+              "name": "Web-Search",
+              "arguments": "{\"query\":\"example\"}",
+              "type": "tool_call"
+            }
+          ],
+          "json": {
+            "json": {
+              "response_metadata": {
+                "token_usage": {
+                  "completion_tokens": 15,
+                  "prompt_tokens": 60,
+                  "total_tokens": 75,
+                  "completion_tokens_details": {
+                    "accepted_prediction_tokens": 0,
+                    "audio_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "rejected_prediction_tokens": 0
+                  },
+                  "prompt_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0
+                  }
+                },
+                "model_name": "gpt-4o-2024-08-06",
+                "system_fingerprint": "fp_46bff0e0c8",
+                "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+                "service_tier": "default",
+                "finish_reason": "tool_calls",
+                "logprobs": null
+              },
+              "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+              "example": false,
+              "invalid_tool_calls": [],
+              "usage_metadata": {
+                "input_tokens": 60,
+                "output_tokens": 15,
+                "total_tokens": 75,
+                "input_token_details": {
+                  "audio": 0,
+                  "cache_read": 0
+                },
+                "output_token_details": {
+                  "audio": 0,
+                  "reasoning": 0
+                }
+              },
+              "_originalType": "ai"
+            }
+          }
+        },
+        {
+          "role": "tool",
+          "name": "Web-Search",
+          "content": "[{\"url\": \"https://example.com\", \"title\": \"Example Result\", \"q\": \"example\"}]",
+          "type": "tool",
+          "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl",
+          "json": {
+            "json": {
+              "response_metadata": {},
+              "id": "85ffdeba-3d69-4851-bd78-993403a10fd6",
+              "status": "success",
+              "_originalType": "tool"
+            }
+          }
+        },
+        {
+          "role": "assistant",
+          "content": "The search for \"example\" primarily leads to the website [example.com](https://example.com), which is often used as a placeholder or demonstration site in various contexts. It serves as a generic example for illustrating how a website might look or function.",
+          "type": "ai",
+          "tool_calls": [],
+          "json": {
+            "json": {
+              "response_metadata": {
+                "token_usage": {
+                  "completion_tokens": 51,
+                  "prompt_tokens": 108,
+                  "total_tokens": 159,
+                  "completion_tokens_details": {
+                    "accepted_prediction_tokens": 0,
+                    "audio_tokens": 0,
+                    "reasoning_tokens": 0,
+                    "rejected_prediction_tokens": 0
+                  },
+                  "prompt_tokens_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0
+                  }
+                },
+                "model_name": "gpt-4o-2024-08-06",
+                "system_fingerprint": "fp_46bff0e0c8",
+                "id": "chatcmpl-C7IWXZL0b6BLNuyEMr369PF4PEpSs",
+                "service_tier": "default",
+                "finish_reason": "stop",
+                "logprobs": null
+              },
+              "id": "run--a6270d77-8cd6-4c1b-a80b-c1da054d9f9a-0",
+              "example": false,
+              "invalid_tool_calls": [],
+              "usage_metadata": {
+                "input_tokens": 108,
+                "output_tokens": 51,
+                "total_tokens": 159,
+                "input_token_details": {
+                  "audio": 0,
+                  "cache_read": 0
+                },
+                "output_token_details": {
+                  "audio": 0,
+                  "reasoning": 0
+                }
+              },
+              "_originalType": "ai",
+              "refusal": null
+            }
+          }
+        }
+      ]
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received string\"\n  }\n]"
+      }
+    }
+  }
+}

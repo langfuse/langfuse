@@ -1,18 +1,24 @@
-import { api } from "@/src/utils/api";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import { BarList } from "@tremor/react";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
-import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
+import { costFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import {
-  type QueryType,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
+import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
+import { cn } from "@/src/utils/tailwind";
+
+// Target height of one bar row (bar + spacing) and the x-axis strip; matches
+// TracesBarListChart so bars are the same thickness across the two cards.
+const BAR_ROW_HEIGHT = 40;
+const CHART_AXIS_PADDING = 30;
 
 type BarChartDataPoint = {
   name: string;
@@ -26,6 +32,8 @@ export const UserChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  metricsVersion,
+  schedulerId,
 }: {
   className?: string;
   projectId: string;
@@ -33,8 +41,12 @@ export const UserChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
+
   const userCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "userId" }],
@@ -54,13 +66,18 @@ export const UserChart = ({
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+    chartConfig: {
+      type: "HORIZONTAL_BAR",
+      row_limit: maxNumberOfEntries.expanded,
+    },
   };
 
-  const user = api.dashboard.executeQuery.useQuery(
+  const user = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: userCostQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -68,25 +85,42 @@ export const UserChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:users"}:cost`,
       enabled: !isLoading,
     },
   );
 
+  const isV2 = metricsVersion === "v2";
+  const countField = isV2 ? "uniq_traceId" : "count_count";
+
+  const traceViewBase = traceViewQuery({ metricsVersion, globalFilterState });
+  const traceMetric = traceViewBase.metrics[0] ?? {
+    aggregation: "count",
+    measure: "count",
+  };
   const traceCountQuery: QueryType = {
-    view: "traces",
+    ...traceViewBase,
     dimensions: [{ field: "userId" }],
-    metrics: [{ measure: "count", aggregation: "count" }],
-    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [
+      {
+        field: `${traceMetric.aggregation}_${traceMetric.measure}`,
+        direction: "desc",
+      },
+    ],
+    chartConfig: {
+      type: "HORIZONTAL_BAR",
+      row_limit: maxNumberOfEntries.expanded,
+    },
   };
 
-  const traces = api.dashboard.executeQuery.useQuery(
+  const traces = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: traceCountQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -94,6 +128,7 @@ export const UserChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:users"}:traces`,
       enabled: !isLoading,
     },
   );
@@ -104,7 +139,7 @@ export const UserChart = ({
         .map((item) => {
           return {
             name: item.userId as string,
-            value: item.count_count ? Number(item.count_count) : 0,
+            value: item[countField] ? Number(item[countField]) : 0,
           };
         })
     : [];
@@ -126,68 +161,88 @@ export const UserChart = ({
   );
 
   const totalTraces = traces.data?.reduce(
-    (acc, curr) => acc + (Number(curr.count_count) || 0),
+    (acc, curr) => acc + (Number(curr[countField]) || 0),
     0,
   );
 
-  const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
-
-  const localUsdFormatter = (value: number) =>
-    totalCostDashboardFormatted(value);
+  // Fit the number of bars to the tile height (see TracesBarListChart): render
+  // exactly the bars that fill the measured chart area, no scrollbar, and defer
+  // the rest to "Show all". The measured `height` flows one-way into the pure
+  // BarListChartArea chart. (LFE-11035, LFE-11060)
+  const { containerRef, rowCount, height } = useFitRowCount({
+    rowHeightPx: BAR_ROW_HEIGHT,
+    reservedPx: CHART_AXIS_PADDING,
+    min: 1,
+    fallback: maxNumberOfEntries.collapsed,
+  });
 
   const data = [
     {
       tabTitle: "Token cost",
-      data: isExpanded
-        ? transformedCost.slice(0, maxNumberOfEntries.expanded)
-        : transformedCost.slice(0, maxNumberOfEntries.collapsed),
-      totalMetric: totalCostDashboardFormatted(totalCost),
+      data: transformedCost,
+      totalMetric: costFormatter(totalCost),
       metricDescription: "Total cost",
-      formatter: localUsdFormatter,
+      chartMetricLabel: "USD",
+      chartUnit: "USD",
     },
     {
       tabTitle: "Count of Traces",
-      data: isExpanded
-        ? transformedNumberOfTraces.slice(0, maxNumberOfEntries.expanded)
-        : transformedNumberOfTraces.slice(0, maxNumberOfEntries.collapsed),
+      data: transformedNumberOfTraces,
       totalMetric: totalTraces
         ? compactNumberFormatter(totalTraces)
         : compactNumberFormatter(0),
       metricDescription: "Total traces",
+      chartMetricLabel: "Traces",
+      chartUnit: "traces",
     },
-  ];
+  ] as const;
 
   return (
     <DashboardCard
-      className={className}
+      // h-full pins the card to the tile so the chart area measures the
+      // AVAILABLE height, not its own content; min-h-0 lets the flex column
+      // shrink so the chart viewport scrolls internally. (LFE-11035)
+      className={cn(className, "h-full")}
+      cardContentClassName="min-h-0"
       title="User consumption"
       isLoading={isLoading || user.isPending}
     >
       <TabComponent
         tabs={data.map((item) => {
+          const shown = item.data.slice(
+            0,
+            isExpanded
+              ? Math.min(maxNumberOfEntries.expanded, item.data.length)
+              : Math.min(rowCount, item.data.length),
+          );
           return {
             tabTitle: item.tabTitle,
             content: (
               <>
                 {item.data.length > 0 ? (
-                  <>
+                  <div className="flex min-h-0 grow flex-col">
                     <TotalMetric
                       metric={item.totalMetric}
                       description={item.metricDescription}
                     />
-                    <BarList
-                      data={item.data}
-                      valueFormatter={item.formatter}
-                      className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-                      showAnimation={true}
-                      color={"indigo"}
+                    <BarListChartArea
+                      containerRef={containerRef}
+                      measuredHeightPx={height}
+                      isExpanded={isExpanded}
+                      data={shown}
+                      barRowHeightPx={BAR_ROW_HEIGHT}
+                      axisPaddingPx={CHART_AXIS_PADDING}
+                      maxExpandedBars={maxNumberOfEntries.expanded}
+                      metricLabel={item.chartMetricLabel}
+                      unit={item.chartUnit}
                     />
-                  </>
+                  </div>
                 ) : (
                   <NoDataOrLoading
                     isLoading={isLoading || user.isPending}
                     description="Consumption per user is tracked by passing their ids on traces."
                     href="https://langfuse.com/docs/observability/features/users"
+                    className="h-auto grow"
                   />
                 )}
               </>
@@ -199,7 +254,7 @@ export const UserChart = ({
         isExpanded={isExpanded}
         setExpanded={setIsExpanded}
         totalLength={transformedCost.length}
-        maxLength={maxNumberOfEntries.collapsed}
+        maxLength={Math.min(rowCount, transformedCost.length)}
         expandText={
           transformedCost.length > maxNumberOfEntries.expanded
             ? `Show top ${maxNumberOfEntries.expanded}`

@@ -18,6 +18,8 @@ import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { env } from "@/src/env.mjs";
+import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -29,7 +31,13 @@ type OrganizationSettingsPage = {
 export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const { organization } = useQueryProjectOrOrganization();
   const showBillingSettings = useHasEntitlement("cloud-billing");
-  const showOrgApiKeySettings = useHasEntitlement("admin-api");
+  const hasAdminApiEntitlement = useHasEntitlement("admin-api");
+  const hasOrgApiKeyAccess = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organization:CRUD_apiKeys",
+  });
+  const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
+  const showAuditLogs = useHasEntitlement("audit-logs");
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
@@ -40,6 +48,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organization,
     showBillingSettings: showBillingSettings && isCloudBillingAvailable,
     showOrgApiKeySettings,
+    showAuditLogs,
     isLangfuseCloud,
   });
 }
@@ -48,11 +57,13 @@ export const getOrganizationSettingsPages = ({
   organization,
   showBillingSettings,
   showOrgApiKeySettings,
+  showAuditLogs,
   isLangfuseCloud,
 }: {
   organization: { id: string; name: string; metadata: Record<string, unknown> };
   showBillingSettings: boolean;
   showOrgApiKeySettings: boolean;
+  showAuditLogs: boolean;
   isLangfuseCloud: boolean;
 }): OrganizationSettingsPage[] => [
   {
@@ -117,6 +128,13 @@ export const getOrganizationSettingsPages = ({
     ),
   },
   {
+    title: "Audit Logs",
+    slug: "audit-logs",
+    cmdKKeywords: ["audit", "logs", "history", "changes"],
+    content: <OrgAuditLogsSettingsPage orgId={organization.id} />,
+    show: showAuditLogs,
+  },
+  {
     title: "Billing",
     slug: "billing",
     cmdKKeywords: ["payment", "subscription", "plan", "invoice"],
@@ -126,8 +144,19 @@ export const getOrganizationSettingsPages = ({
   {
     title: "SSO",
     slug: "sso",
-    cmdKKeywords: ["sso", "login", "auth", "okta", "saml", "azure"],
-    content: <SSOSettings />,
+    cmdKKeywords: [
+      "sso",
+      "login",
+      "auth",
+      "okta",
+      "saml",
+      "azure",
+      "domain",
+      "dns",
+      "txt",
+      "verify",
+    ],
+    content: <SSOSettings orgId={organization.id} />,
     show: isLangfuseCloud,
   },
   {

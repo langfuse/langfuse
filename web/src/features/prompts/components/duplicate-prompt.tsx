@@ -25,7 +25,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { useForm } from "react-hook-form";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/src/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
@@ -64,9 +64,7 @@ const DuplicatePromptForm: React.FC<{
   const duplicatePrompt = api.prompts.duplicatePrompt.useMutation({
     onSuccess: ({ name }) => {
       utils.prompts.invalidate();
-      void router.push(
-        `/project/${projectId}/prompts/${encodeURIComponent(name)}`,
-      );
+      router.push(`/project/${projectId}/prompts/${encodeURIComponent(name)}`);
     },
   });
 
@@ -140,7 +138,7 @@ const DuplicatePromptForm: React.FC<{
                     defaultValue={field.value}
                     className="flex flex-col space-y-1"
                   >
-                    <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormItem className="flex items-center space-y-0 space-x-3">
                       <FormControl>
                         <RadioGroupItem value={CopySettings.SINGLE_VERSION} />
                       </FormControl>
@@ -148,7 +146,7 @@ const DuplicatePromptForm: React.FC<{
                         Copy only version {promptVersion}
                       </FormLabel>
                     </FormItem>
-                    <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormItem className="flex items-center space-y-0 space-x-3">
                       <FormControl>
                         <RadioGroupItem value={CopySettings.ALL_VERSIONS} />
                       </FormControl>
@@ -189,7 +187,6 @@ export const DuplicatePromptButton: React.FC<{
     scope: "prompts:CUD",
   });
   const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
-  const capture = usePostHogClientCapture();
 
   const allPromptNames = api.prompts.allNames.useQuery(
     {
@@ -209,13 +206,17 @@ export const DuplicatePromptButton: React.FC<{
         <ActionButton
           icon={<Copy className="h-4 w-4" aria-hidden="true" />}
           hasAccess={hasAccess}
+          trackingEventName="prompt_detail:duplicate_button_click"
           variant="outline"
-          limit={promptLimit}
           title="Duplicate prompt"
-          limitValue={allPromptNames.data?.length ?? undefined}
-          onClick={() => {
-            capture("prompt_detail:duplicate_button_click");
-          }}
+          usageLimit={
+            typeof promptLimit === "number"
+              ? {
+                  current: allPromptNames.data?.length ?? undefined,
+                  max: promptLimit,
+                }
+              : undefined
+          }
         >
           <span className="hidden md:ml-1 md:inline">Duplicate</span>
         </ActionButton>

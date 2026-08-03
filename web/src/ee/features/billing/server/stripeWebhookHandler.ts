@@ -11,6 +11,7 @@ import {
   CloudConfigSchema,
   InternalServerError,
   type Organization,
+  type Plan,
   parseDbOrg,
 } from "@langfuse/shared";
 import {
@@ -21,6 +22,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
+import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeCatalogue";
+import { syncOrgPlanChangeToSfdc } from "@/src/ee/features/sfdc-sync/server";
 
 /**
  * Stripe webhook handler for managing subscription events, billing alerts, and invoice notifications.
@@ -373,7 +376,96 @@ export async function updateOrgBillingCycleAnchor(
   });
 }
 
-async function handleSubscriptionChanged(
+type PlanWithoutSpendAlerts =
+  | "oss"
+  | "cloud:hobby"
+  | "self-hosted:pro"
+  | "self-hosted:enterprise";
+
+const DEFAULT_SPEND_ALERT_THRESHOLDS: Record<
+  Exclude<Plan, PlanWithoutSpendAlerts>,
+  number
+> = {
+  "cloud:core": 200,
+  "cloud:pro": 1000,
+  "cloud:team": 1000,
+  "cloud:enterprise": 2000,
+};
+
+// Universal threshold applied to all plans in addition to the plan-specific threshold
+const UNIVERSAL_SPEND_ALERT_THRESHOLD = 4000;
+
+export async function createDefaultSpendAlerts({
+  orgId,
+  productId,
+}: {
+  orgId: string;
+  productId: string;
+}) {
+  const plan = mapStripeProductIdToPlan(productId) as Exclude<
+    Plan,
+    PlanWithoutSpendAlerts
+  >;
+  if (!plan) {
+    logger.error(
+      `[Stripe Webhook] createDefaultSpendAlerts: Unknown product ID ${productId}, skipping`,
+    );
+    return;
+  }
+
+  const planThreshold = DEFAULT_SPEND_ALERT_THRESHOLDS[plan];
+  if (!planThreshold) {
+    logger.error(
+      `[Stripe Webhook] createDefaultSpendAlerts: No spend alerts configured for plan ${plan}, skipping`,
+    );
+    return;
+  }
+
+  // Skip if org already has spend alerts (idempotency / don't overwrite user-configured alerts)
+  const existingAlerts = await prisma.cloudSpendAlert.findFirst({
+    where: { orgId },
+    select: { id: true },
+  });
+  if (existingAlerts) {
+    logger.info(
+      `[Stripe Webhook] createDefaultSpendAlerts: Org ${orgId} already has spend alerts, skipping`,
+    );
+    return;
+  }
+
+  // Create plan-specific alert plus the universal $4K alert (deduplicated)
+  const thresholds = [
+    ...new Set([planThreshold, UNIVERSAL_SPEND_ALERT_THRESHOLD]),
+  ];
+
+  for (const threshold of thresholds) {
+    const alert = await prisma.cloudSpendAlert.create({
+      data: {
+        orgId,
+        title: `Default Spend alert ($${threshold})`,
+        threshold,
+      },
+    });
+
+    await auditLog({
+      session: {
+        user: { id: "stripe-webhook" },
+        orgId,
+      },
+      orgId,
+      resourceType: "cloudSpendAlert",
+      resourceId: alert.id,
+      action: "create",
+      after: alert,
+    });
+
+    logger.info(
+      `[Stripe Webhook] createDefaultSpendAlerts: Created default alert over $${threshold} for org ${orgId} on plan ${plan}`,
+    );
+  }
+}
+
+export async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
 ) {
@@ -541,12 +633,21 @@ async function handleSubscriptionChanged(
       },
     };
 
+    // Only clear free-tier suspension when payment is credibly current.
+    // Stripe fires subscription.created/updated for non-paying states too
+    // (incomplete, past_due, unpaid, ...); unblocking on those would let a
+    // failed-payment org resume ingestion. The worker's hourly threshold job
+    // remains the fallback that reconciles this column from usage + plan.
+    const isPaidAndCurrent =
+      subscription.status === "active" || subscription.status === "trialing";
+
     await prisma.organization.update({
       where: {
         id: parsedOrg.id,
       },
       data: {
         cloudConfig: updatedCloudConfig,
+        ...(isPaidAndCurrent ? { cloudFreeTierUsageThresholdState: null } : {}),
       },
     });
 
@@ -557,10 +658,26 @@ async function handleSubscriptionChanged(
       await updateOrgBillingCycleAnchor(parsedOrg.id, anchorDate);
     }
 
+    // Auto-create default spend alerts for new subscriptions (best-effort)
+    if (action === "created") {
+      try {
+        await createDefaultSpendAlerts({
+          orgId: parsedOrg.id,
+          productId: productId,
+        });
+      } catch (err) {
+        logger.error(
+          "[Stripe Webhook] Failed to create default spend alerts",
+          err,
+        );
+        traceException(err);
+      }
+    }
+
     // Invalidate API keys in Redis for it to be updated
     await invalidateCachedOrgApiKeys(parsedOrg.id);
 
-    void auditLog({
+    auditLog({
       session: {
         user: { id: "stripe-webhook" },
         orgId: parsedOrg.id,
@@ -571,6 +688,17 @@ async function handleSubscriptionChanged(
       action: `BillingService.subscription.${action}`,
       before: parsedOrg.cloudConfig,
       after: updatedCloudConfig,
+    });
+
+    await syncOrgPlanChangeToSfdc({
+      orgBeforeUpdate: parsedOrg,
+      updatedCloudConfig,
+      // On "created" the anchor was just re-persisted from this subscription;
+      // mirror that value here since parsedOrg still holds the stale one.
+      billingCycleAnchor:
+        action === "created" && subscription.billing_cycle_anchor
+          ? new Date(subscription.billing_cycle_anchor * 1000)
+          : parsedOrg.cloudBillingCycleAnchor,
     });
   } else if (action === "deleted") {
     // When subscription is deleted, only keep customerId and remove all other subscription fields
@@ -598,7 +726,7 @@ async function handleSubscriptionChanged(
     await updateOrgBillingCycleAnchor(parsedOrg.id);
     await invalidateCachedOrgApiKeys(parsedOrg.id);
 
-    void auditLog({
+    auditLog({
       session: {
         user: { id: "stripe-webhook" },
         orgId: parsedOrg.id,
@@ -609,6 +737,14 @@ async function handleSubscriptionChanged(
       action: "BillingService.subscription.deleted",
       before: parsedOrg.cloudConfig,
       after: updatedCloudConfig,
+    });
+
+    // Downgrade to Hobby: convertedToPaidAt is omitted for Hobby pushes, so
+    // the (just reset) anchor value is irrelevant here.
+    await syncOrgPlanChangeToSfdc({
+      orgBeforeUpdate: parsedOrg,
+      updatedCloudConfig,
+      billingCycleAnchor: null,
     });
   }
 

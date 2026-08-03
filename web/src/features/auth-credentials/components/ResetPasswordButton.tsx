@@ -1,8 +1,8 @@
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { useEffect, useState } from "react";
-import { z } from "zod/v4";
+import { useState } from "react";
+import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
 
@@ -10,23 +10,20 @@ export function RequestResetPasswordEmailButton({
   email,
   className,
   variant = "default",
+  callbackUrl,
 }: {
   email: string;
   className?: string;
   variant?: "default" | "secondary";
+  callbackUrl?: string;
 }) {
   const [isEmailSent, setIsEmailSent] = useState(false);
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isValidEmail, setIsValidEmail] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const session = useSession();
   const capture = usePostHogClientCapture();
-
-  useEffect(() => {
-    const isValidEmail = z.string().email().safeParse(email).success;
-    setIsValidEmail(isValidEmail);
-  }, [email]);
+  const isValidEmail = z.email().safeParse(email).success;
 
   const handleResetPassword = async () => {
     if (!isValidEmail) return;
@@ -34,9 +31,12 @@ export function RequestResetPasswordEmailButton({
     setIsLoading(true);
     setErrorMessage(null);
     try {
+      const targetCallbackUrl = callbackUrl
+        ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
+        : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
       const res = await signIn("email", {
         email: email,
-        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
+        callbackUrl: targetCallbackUrl,
         redirect: false,
       });
       if (res?.error) {
@@ -63,9 +63,10 @@ export function RequestResetPasswordEmailButton({
     try {
       const formattedEmail = encodeURIComponent(email.toLowerCase().trim());
       const formattedCode = encodeURIComponent(code.trim());
-      const callback = encodeURIComponent(
-        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`,
-      );
+      const targetCb = callbackUrl
+        ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
+        : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
+      const callback = encodeURIComponent(targetCb);
       const url = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
       window.location.href = url;
     } catch (error) {
@@ -80,7 +81,7 @@ export function RequestResetPasswordEmailButton({
     <>
       {isEmailSent ? (
         <div>
-          <label htmlFor="otp-code" className="mb-2 block text-sm font-medium">
+          <label htmlFor="otp-code" className="mb-2 block text-sm font-bold">
             Check your inbox for the code
           </label>
           <Input
@@ -117,7 +118,7 @@ export function RequestResetPasswordEmailButton({
         </Button>
       )}
       {errorMessage && (
-        <div className="mt-3 text-center text-sm text-destructive">
+        <div className="text-destructive mt-3 text-center text-sm">
           {errorMessage}
         </div>
       )}

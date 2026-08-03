@@ -6,24 +6,28 @@ import {
   GetMetricsV2Query,
   GetMetricsV2Response,
 } from "@/src/features/public-api/types/metrics";
-import { InvalidRequestError, NotImplementedError } from "@langfuse/shared";
-import {
-  executeQuery,
-  validateQuery,
-} from "@/src/features/query/server/queryExecutor";
-
+import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import { executeQuery } from "@langfuse/shared/query/server";
+import { validateQuery } from "@langfuse/shared/query";
 const DEFAULT_ROW_LIMIT = 100;
+
+export function isMetricsV2Available(): boolean {
+  return (
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" &&
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy"
+  );
+}
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Metrics V2",
-    rateLimitResource: "public-api-metrics", // Same rate limit as v1
+    rateLimitResource: "public-api-v2-metrics",
     querySchema: GetMetricsV2Query,
     responseSchema: GetMetricsV2Response,
     fn: async ({ query, auth }) => {
-      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") {
-        throw new NotImplementedError(
-          "v2 APIs are currently in beta and only available on Langfuse Cloud",
+      if (!isMetricsV2Available()) {
+        throw new LangfuseNotFoundError(
+          "The metrics v2 API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
         );
       }
 

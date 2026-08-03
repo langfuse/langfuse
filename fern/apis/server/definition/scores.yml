@@ -1,0 +1,265 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    create:
+      docs: Create a score (supports trace, observation, session, and dataset run scores)
+      method: POST
+      path: /scores
+      request: CreateScoreRequest
+      response: CreateScoreResponse
+    get-many:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. Use GET /api/public/v3/scores instead."
+      docs: |
+        **Deprecated.** Use `GET /api/public/v3/scores` instead. This endpoint
+        is no longer available on Langfuse v4 and later.
+
+        Get a list of scores (supports both trace and session scores)
+      method: GET
+      path: /v2/scores
+      request:
+        name: GetScoresRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: Page number, starts at 1.
+          limit:
+            type: optional<integer>
+            docs: Limit of items per page. Maximum 100. Defaults to 50. Requests with a limit greater than 100 return HTTP 400. If you encounter api issues due to too large page sizes, try to reduce the limit.
+          userId:
+            type: optional<string>
+            docs: Retrieve only scores with this userId associated to the trace.
+          name:
+            type: optional<string>
+            docs: Retrieve only scores with this name.
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include scores created on or after a certain datetime (ISO 8601)
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include scores created before a certain datetime (ISO 8601)
+          environment:
+            type: optional<string>
+            allow-multiple: true
+            docs: Optional filter for scores where the environment is one of the provided values.
+          source:
+            type: optional<commons.ScoreSource>
+            docs: Retrieve only scores from a specific source.
+          operator:
+            type: optional<string>
+            docs: Retrieve only scores with <operator> value.
+          value:
+            type: optional<double>
+            docs: Retrieve only scores with <operator> value.
+          scoreIds:
+            type: optional<string>
+            docs: Comma-separated list of score IDs to limit the results to.
+          configId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific configId.
+          sessionId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific sessionId.
+          datasetRunId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific datasetRunId.
+          traceId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific traceId.
+          observationId:
+            type: optional<string>
+            docs: Comma-separated list of observation IDs to filter scores by.
+          queueId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific annotation queueId.
+          dataType:
+            type: optional<commons.ScoreDataType>
+            docs: Retrieve only scores with a specific dataType.
+          traceTags:
+            type: optional<string>
+            allow-multiple: true
+            docs: Only scores linked to traces that include all of these tags will be returned.
+          fields:
+            type: optional<string>
+            docs: "Comma-separated list of field groups to include in the response. Available field groups: 'score' (core score fields), 'trace' (trace properties: userId, tags, environment, sessionId). If not specified, both 'score' and 'trace' are returned by default. Example: 'score' to exclude trace data, 'score,trace' to include both. Note: When filtering by trace properties (using userId or traceTags parameters), the 'trace' field group must be included, otherwise a 400 error will be returned."
+          filter:
+            type: optional<string>
+            docs: >
+              A JSON stringified array of filter objects. Each object requires type, column, operator, and value.
+              Supports filtering by score metadata using the stringObject type.
+              Example: [{"type":"stringObject","column":"metadata","key":"user_id","operator":"=","value":"abc123"}].
+              Supported types: stringObject (metadata key-value filtering), string, number, datetime, stringOptions, arrayOptions.
+              Supported operators for stringObject: =, contains, does not contain, starts with, ends with.
+      response: GetScoresResponse
+    get-by-id:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. Use GET /api/public/v3/scores with the id filter instead."
+      docs: |
+        **Deprecated.** Use `GET /api/public/v3/scores` with the `id` filter
+        instead. This endpoint is no longer available on Langfuse v4 and later.
+
+        Get a score (supports both trace and session scores)
+      method: GET
+      path: /v2/scores/{scoreId}
+      path-parameters:
+        scoreId:
+          type: string
+          docs: The unique langfuse identifier of a score
+      response: commons.Score
+
+types:
+  CreateScoreRequest:
+    properties:
+      id: optional<string>
+      traceId: optional<string>
+      sessionId: optional<string>
+      observationId: optional<string>
+      datasetRunId: optional<string>
+      name: string
+      value:
+        type: commons.CreateScoreValue
+        docs: The value of the score. Must be passed as string for categorical and text scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false). Text score values must be between 1 and 500 characters.
+      comment: optional<string>
+      metadata: optional<map<string, unknown>>
+      environment:
+        type: optional<string>
+        docs: The environment of the score. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
+      queueId:
+        type: optional<string>
+        docs: The annotation queue referenced by the score. Indicates if score was initially created while processing annotation queue.
+      dataType:
+        type: optional<commons.ScoreDataType>
+        docs: The data type of the score. When passing a configId this field is inferred. Otherwise, this field must be passed or will default to numeric.
+      configId:
+        type: optional<string>
+        docs: Reference a score config on a score. The unique langfuse identifier of a score config. When passing this field, the dataType and stringValue fields are automatically populated.
+      source:
+        type: optional<CreateScoreSource>
+        docs: The source of the score. Defaults to API. Set to ANNOTATION to prefill scores (e.g. from an LLM) for a human reviewer to verify in an annotation queue. When source is ANNOTATION, a configId is required unless dataType is CORRECTION. EVAL is reserved for internal evaluator outputs and is not accepted on this endpoint.
+    examples:
+      - value:
+          name: "novelty"
+          value: 0.9
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "consistency"
+          value: 1.2
+          dataType: "NUMERIC"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "accuracy"
+          value: 0.9
+          dataType: "NUMERIC"
+          configId: "9203-4567-89ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+          environment: "test"
+      - value:
+          name: "toxicity"
+          value: "not toxic"
+          traceId: "cdef-1234-5678-90ab"
+          environment: "production"
+      - value:
+          name: "correctness"
+          value: "partially correct"
+          dataType: "CATEGORICAL"
+          configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "hallucination"
+          value: 0
+          dataType: "BOOLEAN"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "helpfulness"
+          value: 1
+          dataType: "BOOLEAN"
+          configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "feedback"
+          value: "Great explanation of the concept"
+          dataType: "TEXT"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "accuracy"
+          value: 0.9
+          dataType: "NUMERIC"
+          configId: "9203-4567-89ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+          source: "ANNOTATION"
+          queueId: "aq-1234-5678-90ab-cdef"
+  CreateScoreSource:
+    docs: |
+      Source values accepted when creating a score via the public REST API.
+      EVAL is reserved for internal evaluator outputs and is intentionally not
+      exposed here — use commons.ScoreSource when reading scores.
+    enum:
+      - API
+      - ANNOTATION
+  CreateScoreResponse:
+    properties:
+      id:
+        type: string
+        docs: The id of the created object in Langfuse
+
+  GetScoresResponseTraceData:
+    properties:
+      userId:
+        type: optional<string>
+        docs: The user ID associated with the trace referenced by score
+      tags:
+        type: optional<list<string>>
+        docs: A list of tags associated with the trace referenced by score
+      environment:
+        type: optional<string>
+        docs: The environment of the trace referenced by score
+      sessionId:
+        type: optional<string>
+        docs: The session ID associated with the trace referenced by score
+
+  GetScoresResponseDataNumeric:
+    extends: commons.NumericScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+
+  GetScoresResponseDataCategorical:
+    extends: commons.CategoricalScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+
+  GetScoresResponseDataBoolean:
+    extends: commons.BooleanScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+
+  GetScoresResponseDataCorrection:
+    extends: commons.CorrectionScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+
+  GetScoresResponseDataText:
+    extends: commons.TextScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+
+  GetScoresResponseData:
+    discriminant: dataType
+    union:
+      NUMERIC: GetScoresResponseDataNumeric
+      CATEGORICAL: GetScoresResponseDataCategorical
+      BOOLEAN: GetScoresResponseDataBoolean
+      CORRECTION: GetScoresResponseDataCorrection
+      TEXT: GetScoresResponseDataText
+
+  GetScoresResponse:
+    properties:
+      data: list<GetScoresResponseData>
+      meta: pagination.MetaResponse
+      _deprecation: optional<commons.Deprecation>

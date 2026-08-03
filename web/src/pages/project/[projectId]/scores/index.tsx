@@ -48,7 +48,7 @@ export default function ScoresPage() {
       {showOnboarding ? (
         <ScoresOnboarding />
       ) : (
-        <ScoresTable projectId={projectId} />
+        <ScoresTable projectId={projectId} showControlsInPageHeader />
       )}
     </Page>
   );

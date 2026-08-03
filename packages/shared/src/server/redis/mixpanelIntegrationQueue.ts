@@ -1,11 +1,9 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
+
+export const MIXPANEL_SYNC_CRON_PATTERN = "30 * * * *"; // every hour at :30
 
 export class MixpanelIntegrationQueue {
   private static instance: Queue | null = null;
@@ -15,15 +13,12 @@ export class MixpanelIntegrationQueue {
       return MixpanelIntegrationQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    MixpanelIntegrationQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.MixpanelIntegrationQueue,
+    );
+    MixpanelIntegrationQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.MixpanelIntegrationQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.MixpanelIntegrationQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
@@ -47,7 +42,7 @@ export class MixpanelIntegrationQueue {
           QueueJobs.MixpanelIntegrationJob,
           {},
           {
-            repeat: { pattern: "30 * * * *" }, // every hour at 30 minutes past
+            repeat: { pattern: MIXPANEL_SYNC_CRON_PATTERN },
           },
         )
         .catch((err) => {

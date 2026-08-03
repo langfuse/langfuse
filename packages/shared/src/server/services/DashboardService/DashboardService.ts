@@ -1,9 +1,11 @@
-import { prisma } from "../../../db";
+import { prisma, Prisma } from "../../../db";
 import {
   LangfuseConflictError,
   LangfuseNotFoundError,
   type OrderByState,
 } from "../../../";
+import { InvalidRequestError } from "../../../errors";
+import { env } from "../../../env";
 import {
   CreateWidgetInput,
   WidgetDomain,
@@ -13,9 +15,77 @@ import {
   DashboardDomainSchema,
   WidgetDomainSchema,
   DashboardDefinitionSchema,
+  dashboardWidgetViewToQueryView,
 } from "./types";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { singleFilter } from "../../../";
+import {
+  getValidAggregationsForMeasureType,
+  getViewDeclaration,
+  requiresV2,
+} from "../../../features/query";
+
+type WidgetQueryShape = Parameters<typeof requiresV2>[0];
+
+/**
+ * `minVersion` is the lowest query-engine version that can represent a widget
+ * definition. It is derived from the definition, never requested by a caller.
+ * Same-view updates retain an already-persisted floor and promote it when the
+ * updated definition requires v2.
+ */
+export const resolveDashboardWidgetMinVersion = (
+  shape: WidgetQueryShape,
+  persistedMinVersion?: number,
+) => {
+  const maxVersion = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? 1 : 2;
+  const requiredVersion = requiresV2(shape) ? 2 : 1;
+
+  if (requiredVersion > maxVersion) {
+    throw new InvalidRequestError(
+      "This widget uses v2-only fields, but the current deployment only supports legacy widget queries",
+    );
+  }
+
+  return Math.min(
+    Math.max(persistedMinVersion ?? 1, requiredVersion),
+    maxVersion,
+  );
+};
+
+const toWidgetQueryShape = (input: CreateWidgetInput): WidgetQueryShape => ({
+  view: dashboardWidgetViewToQueryView[input.view],
+  dimensions: input.dimensions,
+  measures: input.metrics,
+  filters: input.filters,
+});
+
+const validateDashboardWidgetQuery = (
+  input: CreateWidgetInput,
+  minVersion: number,
+) => {
+  const view = dashboardWidgetViewToQueryView[input.view];
+  const declaration = getViewDeclaration(view, minVersion >= 2 ? "v2" : "v1");
+
+  for (const metric of input.metrics) {
+    const measure = declaration.measures[metric.measure];
+    if (!measure) continue;
+    const validAggregations = getValidAggregationsForMeasureType(measure.type);
+    if (!validAggregations.some((aggregation) => aggregation === metric.agg)) {
+      throw new InvalidRequestError(
+        `Aggregation "${metric.agg}" is not valid for measure "${metric.measure}" (type: ${measure.type}). Valid aggregations: ${validAggregations.join(", ")}`,
+      );
+    }
+  }
+
+  const hiddenDimensions = input.dimensions.filter(
+    ({ field }) => declaration.dimensions[field]?.uiHidden,
+  );
+  if (hiddenDimensions.length > 0) {
+    throw new InvalidRequestError(
+      `Dimensions not available for widgets: ${hiddenDimensions.map(({ field }) => field).join(", ")}`,
+    );
+  }
+};
 
 export class DashboardService {
   /**
@@ -26,17 +96,27 @@ export class DashboardService {
     limit?: number;
     page?: number;
     orderBy?: OrderByState;
+    /** Include Langfuse-managed dashboards (projectId null). Defaults to true. */
+    includeLangfuseOwned?: boolean;
   }): Promise<DashboardListResponse> {
-    const { projectId, limit, page, orderBy } = props;
+    const {
+      projectId,
+      limit,
+      page,
+      orderBy,
+      includeLangfuseOwned = true,
+    } = props;
 
     const skip = page && limit ? (page - 1) * limit : undefined;
     const take = limit;
 
+    const where = includeLangfuseOwned
+      ? { OR: [{ projectId }, { projectId: null }] }
+      : { projectId };
+
     const [dashboards, totalCount] = await Promise.all([
       prisma.dashboard.findMany({
-        where: {
-          OR: [{ projectId }, { projectId: null }],
-        },
+        where,
         orderBy: orderBy
           ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
           : [{ updatedAt: "desc" }],
@@ -44,9 +124,7 @@ export class DashboardService {
         take,
       }),
       prisma.dashboard.count({
-        where: {
-          OR: [{ projectId }, { projectId: null }],
-        },
+        where,
       }),
     ]);
 
@@ -74,6 +152,7 @@ export class DashboardService {
     initialDefinition: z.infer<typeof DashboardDefinitionSchema> = {
       widgets: [],
     },
+    filters?: z.infer<typeof singleFilter>[],
   ): Promise<DashboardDomain> {
     const newDashboard = await prisma.dashboard.create({
       data: {
@@ -83,6 +162,7 @@ export class DashboardService {
         createdBy: userId,
         updatedBy: userId,
         definition: initialDefinition,
+        ...(filters !== undefined && { filters }),
       },
     });
 
@@ -90,6 +170,42 @@ export class DashboardService {
       ...newDashboard,
       owner: newDashboard.projectId ? "PROJECT" : "LANGFUSE",
     });
+  }
+
+  /**
+   * Updates a project-owned dashboard, translating Prisma's P2025 into a 404.
+   */
+  private static async updateDashboardRecord(
+    dashboardId: string,
+    projectId: string,
+    data: Prisma.DashboardUncheckedUpdateInput,
+  ): Promise<DashboardDomain> {
+    try {
+      const updatedDashboard = await prisma.dashboard.update({
+        where: {
+          id: dashboardId,
+          projectId,
+        },
+        data,
+      });
+
+      return DashboardDomainSchema.parse({
+        ...updatedDashboard,
+        owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
+      });
+    } catch (e) {
+      // P2025 = row not found; also thrown for cross-project ids, so the 404
+      // does not leak whether the dashboard exists in another project.
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2025"
+      ) {
+        throw new LangfuseNotFoundError(
+          `Dashboard ${dashboardId} not found in project ${projectId}`,
+        );
+      }
+      throw e;
+    }
   }
 
   /**
@@ -101,30 +217,13 @@ export class DashboardService {
     definition: z.infer<typeof DashboardDefinitionSchema>,
     userId?: string,
   ): Promise<DashboardDomain> {
-    const updatedDashboard = await prisma.dashboard.update({
-      where: {
-        id: dashboardId,
-        projectId,
+    return this.updateDashboardRecord(dashboardId, projectId, {
+      updatedBy: userId,
+      definition: {
+        // Already sanitized: the input is parsed against
+        // DashboardDefinitionSchema, which strips unknown keys.
+        widgets: definition.widgets,
       },
-      data: {
-        updatedBy: userId,
-        definition: {
-          widgets: definition.widgets.map((widget) => ({
-            type: "widget",
-            id: widget.id,
-            widgetId: widget.widgetId,
-            x: widget.x,
-            y: widget.y,
-            x_size: widget.x_size,
-            y_size: widget.y_size,
-          })),
-        },
-      },
-    });
-
-    return DashboardDomainSchema.parse({
-      ...updatedDashboard,
-      owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
     });
   }
 
@@ -138,21 +237,10 @@ export class DashboardService {
     description: string,
     userId?: string,
   ): Promise<DashboardDomain> {
-    const updatedDashboard = await prisma.dashboard.update({
-      where: {
-        id: dashboardId,
-        projectId,
-      },
-      data: {
-        name,
-        description,
-        updatedBy: userId,
-      },
-    });
-
-    return DashboardDomainSchema.parse({
-      ...updatedDashboard,
-      owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
+    return this.updateDashboardRecord(dashboardId, projectId, {
+      name,
+      description,
+      updatedBy: userId,
     });
   }
 
@@ -165,20 +253,9 @@ export class DashboardService {
     filters: z.infer<typeof singleFilter>[],
     userId?: string,
   ): Promise<DashboardDomain> {
-    const updatedDashboard = await prisma.dashboard.update({
-      where: {
-        id: dashboardId,
-        projectId,
-      },
-      data: {
-        updatedBy: userId,
-        filters,
-      },
-    });
-
-    return DashboardDomainSchema.parse({
-      ...updatedDashboard,
-      owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
+    return this.updateDashboardRecord(dashboardId, projectId, {
+      updatedBy: userId,
+      filters,
     });
   }
 
@@ -213,12 +290,26 @@ export class DashboardService {
     dashboardId: string,
     projectId: string,
   ): Promise<void> {
-    await prisma.dashboard.delete({
-      where: {
-        id: dashboardId,
-        projectId,
-      },
-    });
+    try {
+      await prisma.dashboard.delete({
+        where: {
+          id: dashboardId,
+          projectId,
+        },
+      });
+    } catch (e) {
+      // P2025 = row not found; also thrown for cross-project ids, so the 404
+      // does not leak whether the dashboard exists in another project.
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2025"
+      ) {
+        throw new LangfuseNotFoundError(
+          `Dashboard ${dashboardId} not found in project ${projectId}`,
+        );
+      }
+      throw e;
+    }
   }
 
   /**
@@ -274,6 +365,10 @@ export class DashboardService {
     input: CreateWidgetInput,
     userId?: string,
   ): Promise<WidgetDomain> {
+    const minVersion = resolveDashboardWidgetMinVersion(
+      toWidgetQueryShape(input),
+    );
+    validateDashboardWidgetQuery(input, minVersion);
     const newWidget = await prisma.dashboardWidget.create({
       data: {
         name: input.name,
@@ -285,6 +380,7 @@ export class DashboardService {
         filters: input.filters,
         chartType: input.chartType,
         chartConfig: input.chartConfig,
+        minVersion,
         createdBy: userId,
         updatedBy: userId,
       },
@@ -329,6 +425,19 @@ export class DashboardService {
     input: CreateWidgetInput,
     userId?: string,
   ): Promise<WidgetDomain> {
+    const existingWidget = await prisma.dashboardWidget.findFirst({
+      where: { id: widgetId, projectId },
+      select: { minVersion: true, view: true },
+    });
+    const persistedMinVersion =
+      existingWidget && existingWidget.view === input.view
+        ? existingWidget.minVersion
+        : undefined;
+    const minVersion = resolveDashboardWidgetMinVersion(
+      toWidgetQueryShape(input),
+      persistedMinVersion,
+    );
+    validateDashboardWidgetQuery(input, minVersion);
     const updatedWidget = await prisma.dashboardWidget.update({
       where: {
         id: widgetId,
@@ -343,6 +452,7 @@ export class DashboardService {
         filters: input.filters,
         chartType: input.chartType,
         chartConfig: input.chartConfig,
+        minVersion,
         updatedBy: userId,
       },
     });
@@ -420,7 +530,15 @@ export class DashboardService {
         `Source widget ${sourceWidgetId} not found`,
       );
     }
-
+    const sourceWidgetDomain = WidgetDomainSchema.parse({
+      ...sourceWidget,
+      owner: "LANGFUSE",
+    });
+    const minVersion = resolveDashboardWidgetMinVersion(
+      toWidgetQueryShape(sourceWidgetDomain),
+      sourceWidgetDomain.minVersion,
+    );
+    validateDashboardWidgetQuery(sourceWidgetDomain, minVersion);
     // Duplicate widget and update dashboard definition atomically
     return prisma.$transaction(async (tx) => {
       // 1. create duplicate in project scope
@@ -434,6 +552,7 @@ export class DashboardService {
           filters: sourceWidget.filters ?? [],
           chartType: sourceWidget.chartType,
           chartConfig: sourceWidget.chartConfig ?? {},
+          minVersion,
           projectId, // project owned
           createdBy: userId,
           updatedBy: userId,

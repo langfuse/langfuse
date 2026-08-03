@@ -1,5 +1,4 @@
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
   extractTimeSeriesData,
@@ -8,7 +7,7 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
+import { costFormatter } from "@/src/utils/numbers";
 import { api } from "@/src/utils/api";
 import {
   type DashboardDateRangeAggregationOption,
@@ -20,11 +19,12 @@ import {
   ModelSelectorPopover,
   useModelSelection,
 } from "@/src/features/dashboard/components/ModelSelector";
-import {
-  type QueryType,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useMemo } from "react";
 
 export const ModelUsageChart = ({
   className,
@@ -35,6 +35,9 @@ export const ModelUsageChart = ({
   toTimestamp,
   userAndEnvFilterState,
   isLoading = false,
+  metricsVersion,
+  schedulerId,
+  syncId,
 }: {
   className?: string;
   projectId: string;
@@ -44,6 +47,9 @@ export const ModelUsageChart = ({
   toTimestamp: Date;
   userAndEnvFilterState: FilterState;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
+  schedulerId?: string;
+  syncId?: string;
 }) => {
   const {
     allModels,
@@ -57,7 +63,14 @@ export const ModelUsageChart = ({
     userAndEnvFilterState,
     fromTimestamp,
     toTimestamp,
+    metricsVersion,
+    {
+      enabled: !isLoading,
+      queryId: `${schedulerId ?? "home:model-usage"}:all-models`,
+    },
   );
+  const hasModelSelection = selectedModels.length > 0 && allModels.length > 0;
+  const isModelUsageEnabled = !isLoading && hasModelSelection;
 
   const modelUsageQuery: QueryType = {
     view: "observations",
@@ -90,18 +103,21 @@ export const ModelUsageChart = ({
     orderBy: null,
   };
 
-  const queryResult = api.dashboard.executeQuery.useQuery(
+  const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: modelUsageQuery,
+      version: metricsVersion,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
+      enabled: isModelUsageEnabled,
       trpc: {
         context: {
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:model-usage"}:timeseries`,
+      priority: 1001,
     },
   );
 
@@ -145,9 +161,10 @@ export const ModelUsageChart = ({
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],
       queryName: "observations-cost-by-type-timeseries",
+      version: metricsVersion,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
+      enabled: isModelUsageEnabled,
       trpc: {
         context: {
           skipBatch: true,
@@ -194,9 +211,10 @@ export const ModelUsageChart = ({
       ],
       orderBy: [{ column: "totalTokens", direction: "DESC", agg: "SUM" }],
       queryName: "observations-usage-by-type-timeseries",
+      version: metricsVersion,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
+      enabled: isModelUsageEnabled,
       trpc: {
         context: {
           skipBatch: true,
@@ -205,65 +223,80 @@ export const ModelUsageChart = ({
     },
   );
 
-  const costByType =
-    queryCostByType.data && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(queryCostByType.data, "intervalStart", [
-            {
-              uniqueIdentifierColumns: [{ accessor: "key" }],
-              valueColumn: "sum",
-            },
-          ]),
-          [],
-        )
-      : [];
-
-  const unitsByType =
-    queryUsageByType.data && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(queryUsageByType.data, "intervalStart", [
-            {
-              uniqueIdentifierColumns: [{ accessor: "key" }],
-              valueColumn: "sum",
-            },
-          ]),
-          [],
-        )
-      : [];
-
-  const unitsByModel =
-    queryResult.data && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(
-            queryResult.data as DatabaseRow[],
-            "time_dimension",
-            [
+  // Each series is memoized on its raw query result (+ model selection) so the
+  // reference stays stable across the scheduler's page re-renders — that's what
+  // lets the chart's React.memo bail. (LFE-10549)
+  const costByType = useMemo(
+    () =>
+      queryCostByType.data && allModels.length > 0
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(queryCostByType.data, "intervalStart", [
               {
-                uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
-                valueColumn: "sum_totalTokens",
+                uniqueIdentifierColumns: [{ accessor: "key" }],
+                valueColumn: "sum",
               },
-            ],
-          ),
-          selectedModels,
-        )
-      : [];
+            ]),
+            [],
+          )
+        : [],
+    [queryCostByType.data, allModels],
+  );
 
-  const costByModel =
-    queryResult.data && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(
-            queryResult.data as DatabaseRow[],
-            "time_dimension",
-            [
+  const unitsByType = useMemo(
+    () =>
+      queryUsageByType.data && allModels.length > 0
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(queryUsageByType.data, "intervalStart", [
               {
-                uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
-                valueColumn: "sum_totalCost",
+                uniqueIdentifierColumns: [{ accessor: "key" }],
+                valueColumn: "sum",
               },
-            ],
-          ),
-          selectedModels,
-        )
-      : [];
+            ]),
+            [],
+          )
+        : [],
+    [queryUsageByType.data, allModels],
+  );
+
+  const unitsByModel = useMemo(
+    () =>
+      queryResult.data && allModels.length > 0
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(
+              queryResult.data as DatabaseRow[],
+              "time_dimension",
+              [
+                {
+                  uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
+                  valueColumn: "sum_totalTokens",
+                },
+              ],
+            ),
+            selectedModels,
+          )
+        : [],
+    [queryResult.data, allModels, selectedModels],
+  );
+
+  const costByModel = useMemo(
+    () =>
+      queryResult.data && allModels.length > 0
+        ? fillMissingValuesAndTransform(
+            extractTimeSeriesData(
+              queryResult.data as DatabaseRow[],
+              "time_dimension",
+              [
+                {
+                  uniqueIdentifierColumns: [{ accessor: "providedModelName" }],
+                  valueColumn: "sum_totalCost",
+                },
+              ],
+            ),
+            selectedModels,
+          )
+        : [],
+    [queryResult.data, allModels, selectedModels],
+  );
 
   const totalCost = queryResult.data?.reduce(
     (acc, curr) =>
@@ -279,26 +312,22 @@ export const ModelUsageChart = ({
     0,
   );
 
-  // had to add this function as tremor under the hodd adds more variables
-  // to the function call which would break usdFormatter.
-  const oneValueUsdFormatter = (value: number) => {
-    return totalCostDashboardFormatted(value);
-  };
-
   const data = [
     {
       tabTitle: "Cost by model",
       data: costByModel,
-      totalMetric: totalCostDashboardFormatted(totalCost),
+      totalMetric: costFormatter(totalCost),
       metricDescription: `Cost`,
-      formatter: oneValueUsdFormatter,
+      chartMetricLabel: "USD",
+      chartUnit: "USD",
     },
     {
       tabTitle: "Cost by type",
       data: costByType,
-      totalMetric: totalCostDashboardFormatted(totalCost),
+      totalMetric: costFormatter(totalCost),
       metricDescription: `Cost`,
-      formatter: oneValueUsdFormatter,
+      chartMetricLabel: "USD",
+      chartUnit: "USD",
     },
     {
       tabTitle: "Usage by model",
@@ -307,6 +336,8 @@ export const ModelUsageChart = ({
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
       metricDescription: `Units`,
+      chartMetricLabel: "Tokens",
+      chartUnit: "tokens",
     },
     {
       tabTitle: "Usage by type",
@@ -315,6 +346,8 @@ export const ModelUsageChart = ({
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
       metricDescription: `Units`,
+      chartMetricLabel: "Tokens",
+      chartUnit: "tokens",
     },
   ];
 
@@ -354,16 +387,25 @@ export const ModelUsageChart = ({
                 queryResult.isPending ? (
                   <NoDataOrLoading
                     isLoading={isLoading || queryResult.isPending}
+                    className="h-auto grow"
                   />
                 ) : (
-                  <BaseTimeSeriesChart
-                    className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-                    agg={agg}
-                    data={item.data}
-                    showLegend={true}
-                    connectNulls={true}
-                    valueFormatter={item.formatter}
-                  />
+                  // The height is the flex basis (floor); grow lets the chart absorb
+                  // extra tile height. On grid (lg) screens the floor is smaller so
+                  // tiles fit narrow viewports — grow recovers the height above the
+                  // grid's rowHeight floor. (LFE-10813)
+                  <div className="h-80 w-full shrink-0 grow lg:h-56">
+                    <DashboardLineTimeSeriesChart
+                      data={item.data}
+                      label={item.chartMetricLabel}
+                      unit={item.chartUnit}
+                      // Token/cost totals are additive sums. (LFE-10498)
+                      legendSummary="sum"
+                      syncId={syncId}
+                      // Additive sums: a bucket without data honestly sums to 0. (LFE-10694)
+                      missingValue="zero"
+                    />
+                  </div>
                 )}
               </>
             ),

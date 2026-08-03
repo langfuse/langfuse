@@ -1,10 +1,50 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const base = z.object({
   domain: z.string().refine((v) => v === v.toLowerCase(), {
     message: "Domain must be lowercase",
   }),
 });
+
+const tokenEndpointAuthMethod = z
+  .enum([
+    "client_secret_basic",
+    "client_secret_post",
+    "client_secret_jwt",
+    "private_key_jwt",
+    "tls_client_auth",
+    "self_signed_tls_client_auth",
+    "none",
+  ])
+  .optional();
+
+const idTokenSignedResponseAlg = z
+  .enum([
+    "RS256",
+    "RS384",
+    "RS512",
+    "ES256",
+    "ES384",
+    "ES512",
+    "PS256",
+    "PS384",
+    "PS512",
+    "HS256",
+    "HS384",
+    "HS512",
+  ])
+  .optional();
+
+// OIDC Discovery (§4) requires the issuer to be served over TLS, and OAuth
+// credential exchange likewise cannot ride on HTTP without leaking tokens, so
+// every user-supplied URL we build OAuth/OIDC endpoints from must start with
+// https://. `z.url()` enforces RFC 3986 grammar so values like `"https://"`
+// or `"https:// foo"` don't sneak through and only blow up at sign-in.
+const oidcIssuer = z
+  .url({ message: "OIDC issuer urls must be a valid URL" })
+  .startsWith("https://", {
+    message: "OIDC issuer urls must start with https://",
+  });
 
 export const GoogleProviderSchema = base.extend({
   authProvider: z.literal("google"),
@@ -13,6 +53,8 @@ export const GoogleProviderSchema = base.extend({
       clientId: z.string(),
       clientSecret: z.string(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });
@@ -24,6 +66,7 @@ export const GithubProviderSchema = base.extend({
       clientId: z.string(),
       clientSecret: z.string(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
     })
     .nullish(),
 });
@@ -35,9 +78,14 @@ export const GithubEnterpriseProviderSchema = base.extend({
       clientId: z.string(),
       clientSecret: z.string(),
       enterprise: z.object({
-        baseUrl: z.string().url(),
+        baseUrl: z
+          .url({ message: "Github Enterprise baseUrls must be a valid URL" })
+          .startsWith("https://", {
+            message: "Github Enterprise baseUrls must start with https://",
+          }),
       }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
     })
     .nullish(),
 });
@@ -48,8 +96,10 @@ export const GitlabProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string().optional(),
+      issuer: oidcIssuer.optional(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });
@@ -60,8 +110,10 @@ export const Auth0ProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: oidcIssuer,
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });
@@ -72,10 +124,10 @@ export const OktaProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string().startsWith("https://", {
-        message: "Okta issuer must start with https://",
-      }),
+      issuer: oidcIssuer,
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });
@@ -86,11 +138,13 @@ export const AuthentikProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string().regex(/^https:\/\/.+\/application\/o\/[^/]+$/, {
+      issuer: oidcIssuer.regex(/^https:\/\/.+\/application\/o\/[^/]+$/, {
         message:
           "Authentik issuer must be in format https://<domain>/application/o/<slug> without trailing slash",
       }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });
@@ -101,8 +155,10 @@ export const OneLoginProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: oidcIssuer,
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });
@@ -113,8 +169,16 @@ export const AzureAdProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      tenantId: z.string(),
+      // NextAuth interpolates tenantId straight into
+      // https://login.microsoftonline.com/<tenantId>/v2.0/...; an empty
+      // string saves cleanly and only blows up at sign-in (double slash,
+      // no tenant). Same class of footgun as a schemeless issuer URL.
+      tenantId: z.string().min(1, {
+        message: "Azure AD tenantId is required",
+      }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });
@@ -125,8 +189,10 @@ export const CognitoProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: oidcIssuer,
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });
@@ -138,8 +204,10 @@ export const KeycloakProviderSchema = base.extend({
       name: z.string().optional(),
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: oidcIssuer,
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });
@@ -148,13 +216,18 @@ export const CustomProviderSchema = base.extend({
   authProvider: z.literal("custom"),
   authConfig: z
     .object({
-      name: z.string(),
+      // Display label rendered as "Display Name" in the form. Surfaced as
+      // a required field; reject empty strings so the schema matches the
+      // form contract.
+      name: z.string().min(1, { message: "Name is required" }),
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.string(),
+      issuer: oidcIssuer,
       scope: z.string().nullish(),
       idToken: z.boolean().optional().default(true),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });
@@ -165,9 +238,11 @@ export const JumpCloudProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
-      issuer: z.url(),
+      issuer: oidcIssuer,
       scope: z.string().nullish(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      tokenEndpointAuthMethod: tokenEndpointAuthMethod,
+      idTokenSignedResponseAlg: idTokenSignedResponseAlg,
     })
     .nullish(),
 });

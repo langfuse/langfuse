@@ -1,0 +1,74 @@
+{
+  "231c43964b7e7e63": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "system",
+          "content": "You are Software developer. An expert coder with a keen eye for software trends.\nYour personal goal is: Write clear, concise code on demand\nTo give my best complete final answer to the task respond using the exact following format:\n\nThought: I now can give a great answer\nFinal Answer: Your final answer must be the great and the most complete as possible, it must be outcome described.\n\nI MUST use these formats, my job depends on it!"
+        },
+        {
+          "role": "user",
+          "content": "\nCurrent Task: Define the HTML for making a simple website with heading- Hello World! Langfuse monitors your CrewAI agent!\n\nThis is the expected criteria for your final answer: A clear and concise HTML code\nyou MUST return the actual complete content as the final answer, not a summary.\n\nBegin! This is VERY important to you, use the tools available and give your best Final Answer, your job depends on it!\n\nThought:"
+        }
+      ]
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received string\"\n  }\n]"
+      }
+    }
+  },
+  "0dd92fffb354f15b": {
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "json": {
+            "raw": "```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Hello World</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            display: flex;\n            justify-content: center;\n            align-items: center;\n            height: 100vh;\n            background-color: #f0f0f0;\n        }\n        h1 {\n            color: #333;\n        }\n    </style>\n</head>\n<body>\n    <h1>Hello World! Langfuse monitors your CrewAI agent!</h1>\n</body>\n</html>\n```",
+            "pydantic": null,
+            "json_dict": null,
+            "tasks_output": [
+              {
+                "description": "Define the HTML for making a simple website with heading- Hello World! Langfuse monitors your CrewAI agent!",
+                "name": null,
+                "expected_output": "A clear and concise HTML code",
+                "summary": "Define the HTML for making a simple website with heading-...",
+                "raw": "```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Hello World</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            display: flex;\n            justify-content: center;\n            align-items: center;\n            height: 100vh;\n            background-color: #f0f0f0;\n        }\n        h1 {\n            color: #333;\n        }\n    </style>\n</head>\n<body>\n    <h1>Hello World! Langfuse monitors your CrewAI agent!</h1>\n</body>\n</html>\n```",
+                "pydantic": null,
+                "json_dict": null,
+                "agent": "Software developer",
+                "output_format": "raw"
+              }
+            ],
+            "token_usage": {
+              "total_tokens": 354,
+              "prompt_tokens": 190,
+              "cached_prompt_tokens": 0,
+              "completion_tokens": 164,
+              "successful_requests": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  "a8bf77474d6f9a1d": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"name\"\n    ],\n    \"message\": \"Invalid input: expected string, received null\"\n  }\n]"
+      }
+    }
+  }
+}

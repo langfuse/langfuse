@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
@@ -65,9 +65,15 @@ type JumpToPlaygroundButtonProps = (
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
 ) & {
-  variant?: "outline" | "secondary";
+  variant?: ButtonProps["variant"];
   className?: string;
-  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  size?: ButtonProps["size"];
+  /**
+   * "toolbar" (default) is the inline button; "menu" renders the same dropdown
+   * trigger as a full-width labeled row ("Test in playground") for the mobile
+   * header overflow popover.
+   */
+  layout?: "toolbar" | "menu";
 };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
@@ -189,26 +195,42 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     ? "Test in LLM playground"
     : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
 
+  const isMenu = props.layout === "menu";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant={props.variant ?? "secondary"}
-          size={props.size ?? "default"}
+          variant={isMenu ? "ghost" : (props.variant ?? "secondary")}
+          size={isMenu ? "sm" : (props.size ?? "default")}
           disabled={!isAvailable}
           title={tooltipMessage}
           className={cn(
-            "flex items-center gap-1",
+            isMenu
+              ? "w-full justify-start gap-2 font-normal"
+              : "flex items-center gap-1",
             !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer",
           )}
         >
           <Terminal
-            className={props.size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+            className={
+              isMenu
+                ? "h-4 w-4"
+                : props.size === "sm"
+                  ? "h-3.5 w-3.5"
+                  : "h-4 w-4"
+            }
           />
-          <span className={cn("hidden md:inline", props.className)}>
-            Playground
-          </span>
-          <ChevronDown className="h-3 w-3" />
+          {isMenu ? (
+            <span className="text-sm">Test in playground</span>
+          ) : (
+            <>
+              <span className={cn("hidden md:inline", props.className)}>
+                Playground
+              </span>
+              <ChevronDown className="h-3 w-3" />
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -280,7 +302,7 @@ const parseGeneration = (
     output: string | null;
   },
   modelToProviderMap: Record<string, string>,
-  includeOutput: boolean = false,
+  includeOutput = false,
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 

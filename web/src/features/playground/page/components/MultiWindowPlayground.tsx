@@ -8,6 +8,7 @@ import { ModelParameters } from "@/src/components/ModelParameters";
 import { usePlaygroundContext } from "../context";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
+import { useMessageSearchActions } from "@/src/components/ChatMessages/MessageSearch";
 import {
   Tooltip,
   TooltipContent,
@@ -153,6 +154,9 @@ function PlaygroundWindowContent({
   isMobile?: boolean;
 }) {
   const playgroundContext = usePlaygroundContext();
+  const { registerPageTarget, unregisterPageTarget } =
+    useMessageSearchActions();
+  const windowContainerRef = useRef<HTMLDivElement | null>(null);
 
   const handleRemove = useCallback(() => {
     onRemove(windowId);
@@ -162,16 +166,29 @@ function PlaygroundWindowContent({
     onCopy(windowId);
   }, [windowId, onCopy]);
 
+  useEffect(() => {
+    registerPageTarget(windowId, {
+      pageRef: windowContainerRef,
+    });
+
+    return () => {
+      unregisterPageTarget(windowId);
+    };
+  }, [registerPageTarget, unregisterPageTarget, windowId]);
+
   return (
-    <div className="playground-window flex h-full min-w-0 flex-col rounded-lg border bg-background shadow-sm @container">
+    <div
+      ref={windowContainerRef}
+      className="playground-window bg-background @container flex h-full min-w-0 flex-col rounded-lg border shadow-xs"
+    >
       {/* Window Header */}
-      <div className="relative flex-shrink-0 border-b bg-muted/50 px-3 py-1">
+      <div className="bg-muted/50 relative shrink-0 border-b px-3 py-1">
         <div className="flex items-center pr-32 @xl:pr-96">
           <div className="flex items-center gap-2">
             <ModelParameters {...playgroundContext} layout="compact" />
           </div>
 
-          <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
+          <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2">
             <TooltipProvider delayDuration={300}>
               <SaveToPromptButton />
 
@@ -209,7 +226,7 @@ function PlaygroundWindowContent({
                     <Button
                       variant="ghost"
                       onClick={handleRemove}
-                      className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                      className="hover:bg-destructive/10 hover:text-destructive h-6 w-6 p-0"
                     >
                       <X size={14} />
                       <span className="sr-only">Remove window</span>

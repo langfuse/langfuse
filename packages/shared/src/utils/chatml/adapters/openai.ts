@@ -4,8 +4,9 @@ import {
   stringifyToolResultContent,
   parseMetadata,
   isRichToolResult,
+  getNestedProperty,
 } from "../helpers";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Detection schemas for OpenAI formats
@@ -62,12 +63,72 @@ const OpenAIOutputSingleMessageSchema = z.looseObject({
   ),
 });
 
+/**
+ * Extract thinking content from OpenAI Responses API reasoning item
+ * Format: { type: "reasoning", content: [...], summary: [...] }
+ */
+function extractReasoningContent(item: Record<string, unknown>): {
+  thinking: Array<{ type: "thinking"; content: string; summary?: string }>;
+} | null {
+  if (item.type !== "reasoning") return null;
+
+  const contentArr = Array.isArray(item.content) ? item.content : [];
+  const summaryArr = Array.isArray(item.summary) ? item.summary : [];
+
+  // Extract text from content array (may contain {type: "text", text: "..."})
+  const contentText = contentArr
+    .map((c: unknown) => {
+      if (typeof c === "string") return c;
+      if (c && typeof c === "object" && "text" in c) {
+        return (c as { text: string }).text;
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  // Extract summary text
+  const summaryText = summaryArr
+    .map((s: unknown) => {
+      if (typeof s === "string") return s;
+      if (s && typeof s === "object" && "text" in s) {
+        return (s as { text: string }).text;
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  if (!contentText && !summaryText) return null;
+
+  return {
+    thinking: [
+      {
+        type: "thinking" as const,
+        content: contentText || summaryText,
+        ...(summaryText && contentText ? { summary: summaryText } : {}),
+      },
+    ],
+  };
+}
+
 function normalizeMessage(msg: unknown): Record<string, unknown> {
   if (!msg || typeof msg !== "object") return {};
 
   // we want to do type-based conversions BEFORE removeNullFields
   // because removeNullFields moves unrecognized fields to json passthrough
   let working = msg as Record<string, unknown>;
+
+  // Handle OpenAI Responses API reasoning item
+  // Format: { type: "reasoning", content: [...], summary: [...] }
+  const reasoningContent = extractReasoningContent(working);
+  if (reasoningContent) {
+    return {
+      role: "assistant",
+      content: "",
+      ...reasoningContent,
+    };
+  }
 
   // Convert direct function call message to tool_calls array format
   // Format: { type: "function_call", name: "...", arguments: {...}, call_id: "..." }
@@ -197,10 +258,10 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
-    } else {
-      // Simple object: stringify for text rendering
-      normalized.content = stringifyToolResultContent(normalized.content);
     }
+
+    // Simple object: stringify for text rendering
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;
@@ -279,6 +340,16 @@ function preprocessData(data: unknown): unknown {
     }
   }
 
+  if (
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    ["function_call", "tool_call", "function_call_output"].includes(
+      String((data as Record<string, unknown>).type),
+    )
+  ) {
+    return normalizeMessage(data);
+  }
+
   // Array of messages
   if (Array.isArray(data)) {
     return data.map(normalizeMessage);
@@ -309,7 +380,7 @@ export const openAIAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    // REJECTIONS: Explicit rejection of LangGraph/LangChain/Semantic Kernel formats
+    // REJECTIONS: Explicit rejection of LangGraph/LangChain/Semantic/Pydantic Kernel formats
     if (meta && typeof meta === "object") {
       // LangGraph
       if (
@@ -323,12 +394,43 @@ export const openAIAdapter: ProviderAdapter = {
       }
 
       // Semantic Kernel (scope.name starts with Microsoft.SemanticKernel)
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
         if (
           typeof scope.name === "string" &&
           scope.name.startsWith("Microsoft.SemanticKernel")
         ) {
+          return false;
+        }
+
+        if (
+          scope.name === "agent_framework" ||
+          (typeof scope.name === "string" &&
+            scope.name.includes("Microsoft.Extensions.AI"))
+        ) {
+          return false;
+        }
+      }
+
+      const providerName = getNestedProperty(
+        meta,
+        "attributes",
+        "gen_ai.provider.name",
+      );
+      if (providerName === "microsoft.agent_framework") return false;
+
+      // Pydantic ai
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
+        const scope = meta.scope as Record<string, unknown>;
+        if (scope.name === "pydantic-ai") {
           return false;
         }
       }

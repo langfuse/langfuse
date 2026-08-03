@@ -257,6 +257,7 @@ describe("URL Normalization and Edge Cases", () => {
     it("should block attempts to access cloud metadata services", async () => {
       const metadataAttempts = [
         "http://169.254.169.254/latest/meta-data/",
+        "http://[fd00:ec2::254]/latest/meta-data/",
         "http://metadata.google.internal/computeMetadata/v1/",
         "http://metadata/latest/meta-data/",
         "http://169.254.169.254/v1.0/metadata/",

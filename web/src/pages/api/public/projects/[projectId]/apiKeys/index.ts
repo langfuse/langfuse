@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import {
   validateQueryAndExtractId,
   handleGetApiKeys,
@@ -56,6 +57,15 @@ export default async function handler(
       });
     }
 
+    const rateLimitCheck =
+      await RateLimitService.getInstance().rateLimitRequest(
+        authCheck.scope,
+        "public-api",
+      );
+    if (rateLimitCheck?.isRateLimited()) {
+      return rateLimitCheck.sendRestResponseIfLimited(res);
+    }
+
     const projectId = validateQueryAndExtractId(req.query);
     if (!projectId) {
       return res.status(400).json({ message: "Invalid project ID" });
@@ -85,6 +95,7 @@ export default async function handler(
           res,
           projectId,
           authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
         );
       default:
         res.status(405).json({ message: "Method Not Allowed" });

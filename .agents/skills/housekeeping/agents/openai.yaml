@@ -1,0 +1,4 @@
+interface:
+  display_name: "Housekeeping"
+  short_description: "Review issues, support, and PR queues"
+  default_prompt: "Use $housekeeping to review my Linear, Pylon, and GitHub review queues with recommended actions."

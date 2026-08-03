@@ -52,7 +52,7 @@ const SetupTracingButton = () => {
   if (!hasAccess)
     return (
       <Button disabled>
-        <LockIcon className="-ml-0.5 mr-2 h-4 w-4" aria-hidden="true" />
+        <LockIcon className="mr-2 -ml-0.5 h-4 w-4" aria-hidden="true" />
         Configure Tracing
       </Button>
     );

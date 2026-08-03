@@ -1,11 +1,17 @@
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { type Status, StatusBadge } from "./status-badge";
+import { Badge } from "@/src/components/ui/badge";
+import {
+  type Status,
+  StatusBadge,
+} from "@/src/components/ui/StatusBadge/StatusBadge";
 import { cn } from "@/src/utils/tailwind";
 
 type HeaderProps = {
   title: string;
   status?: Status;
+  /** Plain informational badge next to the title, e.g. "Demo Org". Not a status. */
+  labelBadge?: string;
   label?: {
     text: string;
     href: string;
@@ -34,13 +40,19 @@ function HeaderTitle({
   level: "h3" | "h4" | "h5";
   title: string;
 }) {
+  // Top-level titles are bold (the font-relative role) and sit on the
+  // primary emphasis tier (the shell's sidebar tint would dim them);
+  // sub-levels follow the text-* token weight — hierarchy below h3 is
+  // carried by size.
   switch (level) {
     case "h3":
-      return <h3 className="text-xl font-bold leading-7">{title}</h3>;
+      return (
+        <h3 className="text-primary text-lg leading-7 font-bold">{title}</h3>
+      );
     case "h4":
-      return <h4 className="text-lg font-medium leading-6">{title}</h4>;
+      return <h4 className="text-lg leading-6">{title}</h4>;
     case "h5":
-      return <h5 className="text-base font-medium leading-6">{title}</h5>;
+      return <h5 className="text-base leading-6">{title}</h5>;
   }
 }
 
@@ -60,6 +72,9 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
             ) : null}
           </div>
           {props.status && <StatusBadge type={props.status} />}
+          {props.labelBadge && (
+            <Badge variant="secondary">{props.labelBadge}</Badge>
+          )}
           {props.label && (
             <Link href={props.label.href}>
               <StatusBadge type={props.label.text} />

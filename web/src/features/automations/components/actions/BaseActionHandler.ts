@@ -4,6 +4,7 @@ import {
   type ActionDomain,
   type ActionType,
   type AutomationDomain,
+  type TriggerEventSource,
 } from "@langfuse/shared";
 
 export interface BaseActionHandler<
@@ -12,7 +13,10 @@ export interface BaseActionHandler<
   actionType: ActionType;
 
   // Get default values for this action type
-  getDefaultValues(automation?: AutomationDomain): TFormData;
+  getDefaultValues(
+    automation?: AutomationDomain,
+    eventSource?: TriggerEventSource,
+  ): TFormData;
 
   // Validate the form data for this action type
   validateFormData(formData: TFormData): {

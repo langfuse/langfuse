@@ -5,7 +5,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { MetricCard } from "../charts/MetricCard";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
@@ -21,6 +20,7 @@ import {
   interpretMAE,
   interpretRMSE,
 } from "@/src/features/score-analytics/lib/statistics-utils";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * StatisticsCard - Smart card component for displaying score statistics
@@ -48,7 +48,7 @@ export function StatisticsCard() {
           <CardDescription>Loading statistics...</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size="xl" variant="muted" />
         </CardContent>
       </Card>
     );
@@ -62,7 +62,7 @@ export function StatisticsCard() {
           <CardTitle>Statistics</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="py-12 text-center text-sm text-muted-foreground">
+        <CardContent className="text-muted-foreground py-12 text-center text-sm">
           Select a score to view statistics
         </CardContent>
       </Card>
@@ -127,7 +127,7 @@ export function StatisticsCard() {
       <CardContent className="space-y-4">
         {/* Section 1: Score 1 Data */}
         <div>
-          <h4 className="mb-2 text-xs font-semibold">
+          <h4 className="mb-2 text-xs font-bold">
             {score1.name} ({score1.source})
           </h4>
           {dataType === "NUMERIC" ? (
@@ -216,7 +216,7 @@ export function StatisticsCard() {
         {/* Section 2: Score 2 Data - Always show to set expectations */}
         {showScore2Section && (
           <div>
-            <h4 className="mb-2 text-xs font-semibold">
+            <h4 className="mb-2 text-xs font-bold">
               {score2?.name ?? "Score 2"}
               {score2?.source ? ` (${score2.source})` : ""}
             </h4>
@@ -313,7 +313,7 @@ export function StatisticsCard() {
         {/* Section 3: Comparison Metrics - Always show to set expectations */}
         {showComparisonSection && (
           <div>
-            <h4 className="mb-2 text-xs font-semibold">Comparison</h4>
+            <h4 className="mb-2 text-xs font-bold">Comparison</h4>
             {dataType === "NUMERIC" ? (
               <div className="space-y-4">
                 {/* First row: Matched, Pearson, Spearman */}
@@ -332,7 +332,7 @@ export function StatisticsCard() {
                             show: true,
                             content: (
                               <div className="space-y-2 text-xs">
-                                <p className="font-semibold">
+                                <p className="font-bold">
                                   Matched count exceeds individual score counts
                                   due to Cartesian product
                                 </p>
@@ -468,7 +468,7 @@ export function StatisticsCard() {
                             show: true,
                             content: (
                               <div className="space-y-2 text-xs">
-                                <p className="font-semibold">
+                                <p className="font-bold">
                                   Matched count exceeds individual score counts
                                   due to Cartesian product
                                 </p>

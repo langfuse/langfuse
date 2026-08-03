@@ -1,20 +1,21 @@
 export function getIsCharOrUnderscore(value: string): boolean {
-  const charOrUnderscore = /^[A-Za-z_]+$/;
+  const charOrUnderscore = /^[\p{L}\p{N}_]+$/u;
 
   return charOrUnderscore.test(value);
 }
 
-// Regex for valid variable names (letters, underscores, starting with letter)
-export const VARIABLE_REGEX = /^[a-zA-Z][a-zA-Z_]*$/;
+// Regex for valid variable names (unicode letters, underscores, starting with letter)
+export const VARIABLE_REGEX = /^\p{L}[\p{L}\p{N}_]*$/u;
 
-// Regex to find variables in mustache syntax
-export const MUSTACHE_REGEX = /{{([^{}]*)}}+/g;
+// Regex to find variables in mustache syntax. Extra surrounding braces are
+// treated as literals by SDK/compiler behavior, e.g. {{{name}}} -> {value}.
+export const MUSTACHE_REGEX = /{{([^{}]*)}}/g;
 
 // Regex to find multiline variables
-export const MULTILINE_VARIABLE_REGEX = /{{[^}]*\n[^}]*}}/g;
+export const MULTILINE_VARIABLE_REGEX = /{{[^{}]*\n[^{}]*}}/g;
 
 // Regex to find unclosed variables
-export const UNCLOSED_VARIABLE_REGEX = /{{(?![^{]*}})/g;
+export const UNCLOSED_VARIABLE_REGEX = /{{(?!{)(?![^{]*}})/g;
 
 export function isValidVariableName(variable: string): boolean {
   return VARIABLE_REGEX.test(variable);
@@ -39,4 +40,12 @@ export function stringifyValue(value: unknown) {
     default:
       return JSON.stringify(value);
   }
+}
+
+export function truncate(str: string, n = 16) {
+  // '...' suffix if the string is longer than n
+  if (str.length > n) {
+    return str.substring(0, n) + "...";
+  }
+  return str;
 }

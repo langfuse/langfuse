@@ -500,38 +500,44 @@ class BillingService {
           .filter((d) => d !== null);
 
         // Check if customer has a valid payment method
+        // Invoice/wire-transfer customers don't need a card on file —
+        // only check payment methods for auto-charge subscriptions
         let hasValidPaymentMethod = false;
-        try {
-          const customerId =
-            typeof subscription.customer === "string"
-              ? subscription.customer
-              : subscription.customer.id;
+        if (subscription.collection_method === "send_invoice") {
+          hasValidPaymentMethod = true;
+        } else {
+          try {
+            const customerId =
+              typeof subscription.customer === "string"
+                ? subscription.customer
+                : subscription.customer.id;
 
-          const paymentMethods = await client.customers.listPaymentMethods(
-            customerId,
-            { limit: 1 },
-          );
+            const paymentMethods = await client.customers.listPaymentMethods(
+              customerId,
+              { limit: 1 },
+            );
 
-          hasValidPaymentMethod = paymentMethods.data.length > 0;
-        } catch (error) {
-          logger.error(
-            "StripeBillingService.getSubscriptionInfo:failed to check payment method",
-            {
-              userId: this.ctx.session.user?.id,
-              userEmail: this.ctx.session.user?.email,
-              customerId:
-                typeof subscription.customer === "string"
-                  ? subscription.customer
-                  : subscription.customer.id,
-              subscriptionId:
-                parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
-              orgId: parsedOrg.id,
-              error,
-            },
-          );
-          traceException(error);
-          // Default to false if there's an error checking
-          hasValidPaymentMethod = false;
+            hasValidPaymentMethod = paymentMethods.data.length > 0;
+          } catch (error) {
+            logger.error(
+              "StripeBillingService.getSubscriptionInfo:failed to check payment method",
+              {
+                userId: this.ctx.session.user?.id,
+                userEmail: this.ctx.session.user?.email,
+                customerId:
+                  typeof subscription.customer === "string"
+                    ? subscription.customer
+                    : subscription.customer.id,
+                subscriptionId:
+                  parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
+                orgId: parsedOrg.id,
+                error,
+              },
+            );
+            traceException(error);
+            // Default to false if there's an error checking
+            hasValidPaymentMethod = false;
+          }
         }
 
         return {
@@ -733,7 +739,7 @@ class BillingService {
             });
           }
 
-          void auditLog({
+          auditLog({
             session: this.ctx.session,
             orgId: parsedOrg.id,
             resourceType: "organization",
@@ -904,7 +910,7 @@ class BillingService {
             { idempotencyKey: legacyUpdateKey },
           );
 
-          void auditLog({
+          auditLog({
             session: this.ctx.session,
             orgId: parsedOrg.id,
             resourceType: "organization",
@@ -1016,7 +1022,7 @@ class BillingService {
             { idempotencyKey: upgradeKey },
           );
 
-          void auditLog({
+          auditLog({
             session: this.ctx.session,
             orgId: parsedOrg.id,
             resourceType: "organization",
@@ -1149,7 +1155,7 @@ class BillingService {
           { idempotencyKey: updateScheduleKey },
         );
 
-        void auditLog({
+        auditLog({
           session: this.ctx.session,
           orgId: parsedOrg.id,
           resourceType: "organization",
@@ -1248,7 +1254,7 @@ class BillingService {
           });
         }
 
-        void auditLog({
+        auditLog({
           session: this.ctx.session,
           orgId: parsedOrg.id,
           resourceType: "organization",
@@ -1347,7 +1353,7 @@ class BillingService {
           });
         }
 
-        void auditLog({
+        auditLog({
           session: this.ctx.session,
           orgId: parsedOrg.id,
           resourceType: "organization",
@@ -1463,7 +1469,7 @@ class BillingService {
           });
         }
 
-        void auditLog({
+        auditLog({
           session: this.ctx.session,
           orgId: parsedOrg.id,
           resourceType: "organization",
@@ -1514,7 +1520,7 @@ class BillingService {
 
         await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
 
-        void auditLog({
+        auditLog({
           session: this.ctx.session,
           orgId: parsedOrg.id,
           resourceType: "organization",
@@ -2058,7 +2064,7 @@ class BillingService {
           });
         }
 
-        void auditLog({
+        auditLog({
           session: this.ctx.session,
           orgId: parsedOrg.id,
           resourceType: "organization",

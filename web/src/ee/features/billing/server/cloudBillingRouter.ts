@@ -1,4 +1,4 @@
-import * as z from "zod/v4";
+import * as z from "zod";
 
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
@@ -86,7 +86,7 @@ export const cloudBillingRouter = createTRPCRouter({
         input.stripeProductId,
       );
 
-      void auditLog({
+      auditLog({
         session: ctx.session,
         orgId: input.orgId,
         resourceType: "organization",

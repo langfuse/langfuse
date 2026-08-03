@@ -8,13 +8,18 @@ import {
   generateDailyMetrics,
   getDailyMetricsCount,
 } from "@/src/features/public-api/server/dailyMetrics";
+import { METRICS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Daily Metrics",
     querySchema: GetMetricsDailyV1Query,
     responseSchema: GetMetricsDailyV1Response,
+    deprecation: METRICS_DEPRECATION,
     rateLimitResource: "public-api-daily-metrics-legacy",
+    // Aggregates over the legacy traces and observations tables without an
+    // events_full fallback.
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const filterProps = {
         projectId: auth.scope.projectId,

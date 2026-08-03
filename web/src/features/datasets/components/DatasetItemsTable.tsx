@@ -27,7 +27,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
@@ -195,13 +195,7 @@ export function DatasetItemsTable({
       size: 80,
       cell: ({ row }) => {
         const status: DatasetStatus = row.getValue("status");
-        return (
-          <StatusBadge
-            className="capitalize"
-            type={status.toLowerCase()}
-            isLive={false}
-          />
-        );
+        return <StatusBadge type={status.toLowerCase()} isLive={false} />;
       },
     },
     {
@@ -272,7 +266,7 @@ export function DatasetItemsTable({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only [position:relative]">Open menu</span>
+                <span className="sr-only relative">Open menu</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -392,6 +386,7 @@ export function DatasetItemsTable({
     <>
       <DataTableToolbar
         columns={columns}
+        tableName="dataset-items"
         filterColumnDefinition={datasetItemFilterColumns}
         filterState={filterState}
         setFilterState={setFilterStateWithDebounce}
@@ -417,7 +412,7 @@ export function DatasetItemsTable({
         }}
       />
       <DataTable
-        tableName={"datasetItems"}
+        tableName="datasetItems"
         columns={columns}
         data={
           items.isPending

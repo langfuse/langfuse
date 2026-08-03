@@ -75,7 +75,7 @@ export const PagedSettingsContainer = ({
           </Select>
         </nav>
         <nav
-          className="hidden gap-4 text-sm text-muted-foreground md:sticky md:top-5 md:grid"
+          className="text-muted-foreground hidden gap-4 text-sm md:sticky md:top-5 md:grid"
           x-chunk="dashboard-04-chunk-0"
         >
           {availablePages.map((page) =>
@@ -83,7 +83,7 @@ export const PagedSettingsContainer = ({
               <Link
                 key={page.title}
                 href={page.href}
-                className="flex flex-row items-center gap-2 font-semibold"
+                className="flex flex-row items-center gap-2 font-bold"
               >
                 {page.title}
                 <ArrowUpRight size={14} className="inline" />
@@ -93,7 +93,7 @@ export const PagedSettingsContainer = ({
                 key={page.title}
                 onClick={() => onChange(page.slug)}
                 className={cn(
-                  "cursor-pointer font-semibold",
+                  "cursor-pointer font-bold",
                   page.slug === currentPage.slug && "text-primary",
                 )}
               >

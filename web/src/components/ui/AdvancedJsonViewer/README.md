@@ -259,7 +259,7 @@ AdvancedJsonViewer/
 Tests use `.clienttest.ts` extension and are colocated with utils:
 
 ```bash
-pnpm --filter=web run test-client --testPathPattern="AdvancedJsonViewer"
+pnpm --filter=web run test-client "AdvancedJsonViewer"
 ```
 
 Key test files:

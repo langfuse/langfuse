@@ -5,21 +5,55 @@ import {
   type OrderByState,
 } from "@langfuse/shared";
 import { normalizeFilterColumnNames } from "@/src/features/filters/lib/filter-transform";
+import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
 
 /**
- * Validates if an orderBy state references valid columns
+ * Validates if an orderBy state references valid columns.
+ * Normalizes legacy column IDs (e.g. "name" → "traceName") via aliases.
  */
 export function validateOrderBy(
   orderBy: OrderByState | null,
   columns?: LangfuseColumnDef<any, any>[],
+  filterColumnDefinitions?: ColumnDefinition[],
 ): OrderByState | null {
   if (!orderBy || !columns || columns.length === 0) return null;
 
-  // Check if the column exists and supports sorting
-  const isValid = columns.some(
-    (col) => col.id === orderBy.column && col.enableSorting !== false,
-  );
-  return isValid ? orderBy : null;
+  // Flatten group columns: a sortable column can live inside a group def
+  // (e.g. the events table's totalTokens under "Usage"), and a flat lookup
+  // would silently drop a saved orderBy that references it.
+  const flatColumns = columns.flatMap(function flatten(
+    col: LangfuseColumnDef<any, any>,
+  ): LangfuseColumnDef<any, any>[] {
+    return [col, ...(col.columns?.flatMap(flatten) ?? [])];
+  });
+
+  const isSortableColumn = (columnId: string) =>
+    flatColumns.some(
+      (col) => col.id === columnId && col.enableSorting !== false,
+    );
+
+  // If the column already exists in the active table, keep it.
+  if (isSortableColumn(orderBy.column)) {
+    return orderBy;
+  }
+
+  // Resolve legacy/canonical IDs via filter-layer aliases (e.g. "name" ↔ "traceName")
+  let resolvedColumn: string | null = null;
+  if (filterColumnDefinitions) {
+    const colDef = filterColumnDefinitions.find(
+      (c) =>
+        c.id === orderBy.column ||
+        c.name === orderBy.column ||
+        c.aliases?.includes(orderBy.column),
+    );
+    if (colDef) {
+      const candidates = [colDef.id, ...(colDef.aliases ?? [])];
+      resolvedColumn =
+        candidates.find((candidate) => isSortableColumn(candidate)) ?? null;
+    }
+  }
+
+  return resolvedColumn ? { ...orderBy, column: resolvedColumn } : null;
 }
 
 /**
@@ -41,6 +75,7 @@ export function validateOrderBy(
 export function validateFilters(
   filters: FilterState,
   filterColumnDefinition?: ColumnDefinition[],
+  migrateFilterState?: FilterStateMigration,
 ): FilterState {
   if (!filterColumnDefinition || filterColumnDefinition.length === 0)
     return filters;
@@ -50,11 +85,13 @@ export function validateFilters(
     filters,
     filterColumnDefinition,
   );
+  const migrated = migrateFilterState
+    ? migrateFilterState(normalized)
+    : normalized;
 
   // Validate that columns exist (remove invalid ones)
-  return normalized.filter((filter) => {
-    return filterColumnDefinition.some(
-      (def) => def.id === filter.column || def.name === filter.column,
-    );
+  // After normalization, filter.column is always a canonical ID
+  return migrated.filter((filter) => {
+    return filterColumnDefinition.some((def) => def.id === filter.column);
   });
 }

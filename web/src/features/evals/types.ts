@@ -1,10 +1,5 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { JobConfigState, type JobConfiguration } from "@langfuse/shared";
-
-export enum EvalReferencedEvaluators {
-  UPDATE = "update",
-  PERSIST = "persist",
-}
 
 export const EvaluatorStatus = JobConfigState;
 export const EvaluatorStatusSchema = z.enum(EvaluatorStatus);
@@ -19,6 +14,7 @@ export type PartialConfig = Pick<
   | "sampling"
   | "delay"
   | "timeScope"
+  | "status"
 > & { id?: string };
 
 export const RAGAS_TEMPLATE_PREFIX = "__ragas__";

@@ -35,28 +35,28 @@ export function SamplingDetailsHoverCard({
         <button
           className={
             showLabel
-              ? "inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-              : "inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-muted-foreground/10"
+              ? "text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+              : "hover:bg-muted-foreground/10 inline-flex h-4 w-4 items-center justify-center rounded-full"
           }
           aria-label="View sampling details"
         >
           {showLabel && <span>Sampled Data</span>}
           <Info
-            className={showLabel ? "h-3 w-3" : "h-3 w-3 text-muted-foreground"}
+            className={showLabel ? "h-3 w-3" : "text-muted-foreground h-3 w-3"}
           />
         </button>
       </HoverCardTrigger>
       <HoverCardContent className="w-80" align="start">
         <div className="space-y-3">
           <div>
-            <h4 className="mb-2 text-sm font-semibold">
+            <h4 className="mb-2 text-sm font-bold">
               {mode === "single" ? "Estimated Score Count" : "Estimated Scores"}
             </h4>
             <dl className="space-y-1 text-sm">
               {mode === "single" ? (
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Total Scores:</dt>
-                  <dd className="font-medium">
+                  <dd className="font-bold">
                     ~
                     {samplingMetadata.preflightEstimates?.score1Count.toLocaleString()}
                   </dd>
@@ -65,14 +65,14 @@ export function SamplingDetailsHoverCard({
                 <>
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Score 1:</dt>
-                    <dd className="font-medium">
+                    <dd className="font-bold">
                       ~
                       {samplingMetadata.preflightEstimates?.score1Count.toLocaleString()}
                     </dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Score 2:</dt>
-                    <dd className="font-medium">
+                    <dd className="font-bold">
                       ~
                       {samplingMetadata.preflightEstimates?.score2Count.toLocaleString()}
                     </dd>
@@ -81,7 +81,7 @@ export function SamplingDetailsHoverCard({
                     <dt className="text-muted-foreground">
                       Estimated Matches:
                     </dt>
-                    <dd className="font-medium">
+                    <dd className="font-bold">
                       ~
                       {samplingMetadata.preflightEstimates?.estimatedMatchedCount.toLocaleString()}
                     </dd>
@@ -92,11 +92,11 @@ export function SamplingDetailsHoverCard({
           </div>
 
           <div>
-            <h4 className="mb-2 text-sm font-semibold">Query Optimizations</h4>
+            <h4 className="mb-2 text-sm font-bold">Query Optimizations</h4>
             <dl className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Sampling:</dt>
-                <dd className="font-medium">
+                <dd className="font-bold">
                   {(samplingMetadata.samplingRate * 100).toFixed(1)}%
                   (hash-based)
                 </dd>
@@ -104,7 +104,7 @@ export function SamplingDetailsHoverCard({
               {samplingMetadata.adaptiveFinal && (
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Deduplication:</dt>
-                  <dd className="font-medium">
+                  <dd className="font-bold">
                     {samplingMetadata.adaptiveFinal.usedFinal
                       ? "Enabled"
                       : "Skipped for performance"}
@@ -114,7 +114,7 @@ export function SamplingDetailsHoverCard({
             </dl>
           </div>
 
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Hash-based sampling ensures consistent, repeatable results while
             maintaining statistical accuracy.
           </p>

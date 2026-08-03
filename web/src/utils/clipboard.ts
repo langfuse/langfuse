@@ -24,6 +24,7 @@ const _unsafeNonSecureCopyToClipboard = (text: string) => {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Fallback for non-secure contexts where the Clipboard API is unavailable.
     document.execCommand("copy");
     document.body.removeChild(textArea);
   } catch (error) {
@@ -42,4 +43,21 @@ export const copyTextToClipboard = async (text: string) => {
     return navigator.clipboard.writeText(text);
   }
   return _unsafeNonSecureCopyToClipboard(text);
+};
+
+/**
+ * Read text from the clipboard. Returns null when the async Clipboard API is
+ * unavailable (non-secure context) or the user/browser denied the read —
+ * there is no legacy fallback for reading. Callers should treat null as
+ * "cannot know what's in the clipboard", not as "clipboard is empty".
+ */
+export const readTextFromClipboard = async (): Promise<string | null> => {
+  if (typeof navigator.clipboard?.readText !== "function") {
+    return null;
+  }
+  try {
+    return await navigator.clipboard.readText();
+  } catch {
+    return null;
+  }
 };

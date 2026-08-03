@@ -8,21 +8,17 @@ import {
   InternalServerError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import {
-  logger,
-  traceException,
-  ScoreDeleteQueue,
-} from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { QueueJobs } from "@langfuse/shared/src/server";
-import { randomUUID } from "crypto";
+import { logger, traceException } from "@langfuse/shared/src/server";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Score",
     querySchema: GetScoreQueryV1,
     responseSchema: GetScoreResponseV1,
+    deprecation: SCORES_DEPRECATION,
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const scoresApiService = new ScoresApiService("v1");
       const score = await scoresApiService.getScoreById({
@@ -49,35 +45,18 @@ export default withMiddlewares({
     name: "Delete Score",
     querySchema: DeleteScoreQueryV1,
     responseSchema: DeleteScoreResponseV1,
+    rateLimitResource: "score-delete",
     successStatusCode: 202,
     fn: async ({ query, auth }) => {
       const { scoreId } = query;
 
-      const scoreDeleteQueue = ScoreDeleteQueue.getInstance();
-      if (!scoreDeleteQueue) {
-        throw new InternalServerError("ScoreDeleteQueue not initialized");
-      }
-
-      await auditLog({
-        action: "delete",
-        resourceType: "score",
-        resourceId: scoreId,
+      const scoresApiService = new ScoresApiService("v1");
+      return await scoresApiService.deleteScore({
+        scoreId,
         projectId: auth.scope.projectId,
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
       });
-
-      await scoreDeleteQueue.add(QueueJobs.ScoreDelete, {
-        timestamp: new Date(),
-        id: randomUUID(),
-        payload: {
-          projectId: auth.scope.projectId,
-          scoreIds: [scoreId],
-        },
-        name: QueueJobs.ScoreDelete,
-      });
-
-      return { message: "Score deletion queued successfully" };
     },
   }),
 });
