@@ -139,8 +139,11 @@ export function resolveDeclaredValue(
   depth = 0,
 ): string {
   if (depth > 6) return value;
+  // Whitespace inside var() survives collapseWhitespace when the source
+  // declaration is multi-line (e.g. `--text-on-bright: var(\n  --surface-2\n)`
+  // collapses to `var( --surface-2 )`), so the pattern tolerates it.
   return value.replace(
-    /var\((--[\w-]+)(?:,\s*((?:[^()]|\([^()]*\))*))?\)/g,
+    /var\(\s*(--[\w-]+)\s*(?:,\s*((?:[^()]|\([^()]*\))*))?\)/g,
     (whole, name: string, fallback: string | undefined) => {
       const target = map.get(name);
       if (target !== undefined) {

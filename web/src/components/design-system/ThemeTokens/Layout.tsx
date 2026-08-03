@@ -183,9 +183,8 @@ export function LayoutOffsetsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
 
 const LAYERS: Array<{ token: string; label: string }> = [
   { token: "--background", label: "app canvas" },
-  { token: "--card", label: "elevated panel" },
-  { token: "--popover", label: "menus & tooltips" },
-  { token: "--modal", label: "dialogs" },
+  { token: "--card", label: "elevated: card + dialogs (--modal is this tier)" },
+  { token: "--popover", label: "menus & tooltips — above modals by design" },
 ];
 
 function LayerStack({
@@ -232,7 +231,7 @@ export function LayeringSection({
   return (
     <PageSection
       title="Layering model"
-      blurb="Surfaces stack from the canvas outward. Use the tiers in order; skipping flattens the depth cues."
+      blurb="Surfaces stack from the canvas outward: each dark layer steps lighter; light alternates back to white. Elevation is these lightness steps plus hairline borders, not shadows. Never paint a surface darker than what it floats above."
       aside={<InlineCode>{layers.length} tiers</InlineCode>}
     >
       <div className="grid gap-4 lg:grid-cols-2">
@@ -246,6 +245,14 @@ export function LayeringSection({
           </div>
         ))}
       </div>
+      <p className="text-muted-foreground text-sm">
+        Two tiers sit outside this stack: the sidebar frame (
+        <InlineCode>--sidebar-background</InlineCode>) lifts one step above the
+        canvas beside the content, and the code well (
+        <InlineCode>--surface-code</InlineCode>) is the one recessed tier. The
+        full ladder, light and dark side by side, is on the Color page&apos;s
+        background ramp.
+      </p>
     </PageSection>
   );
 }

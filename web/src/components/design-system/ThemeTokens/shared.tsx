@@ -132,6 +132,13 @@ export const PAGE_TOKEN_MATCHERS: Array<{
   test: (name: string) => boolean;
 }> = [
   {
+    // Neutral PRIMITIVES (:root/.dark ladder steps: surfaces, lines, text
+    // tiers). Claimed for Color BEFORE typography's --text-* net so the
+    // --text-1..4 ramp lands on the Color ramps, not the type-scale page.
+    page: "color",
+    test: (n) => /^--(?:surface-\d+|line-\d+|text-\d+|text-on-bright)$/.test(n),
+  },
+  {
     page: "charts",
     test: (n) => /^--(?:chart-\d+|chart-grid|color-\d+)$/.test(n),
   },

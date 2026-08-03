@@ -244,11 +244,14 @@
        the same names, so every semantic token that rides a primitive is
        defined ONCE on :root and resolves per mode through it.
        Surfaces: 1 well < 2 canvas < 3 frame < 4 elevated < 5 popover
-         < 6 muted fill < 7 focus fill < 8 tertiary fill — in light the
-         ladder alternates back to white per Carbon's light-layer model
-         (steps 2/4/5 are all white); in dark every step is lighter than
-         the one below (see the ladder narrative on the .dark block).
-       Lines: 1 hairline < 2 contrast.
+         < 6 muted fill < 7 focus fill — in light the ladder alternates
+         back to white per Carbon's light-layer model (steps 2/4/5 are
+         all white); in dark it compresses to four levels: canvas 3 <
+         raised 6 (frame + elevated) < popover/muted 10 < focus 18 (see
+         the ladder narrative on the .dark block). A step may only be
+         DELETED when both modes agree it's redundant — steps exist for
+         the union of the two modes' distinctions.
+       Lines: 1 hairline < 2 edge (inputs, popover borders) < 3 contrast.
        Text: 1 faint < 2 meta < 3 body < 4 bright, plus text-on-bright for
          text sitting on bright fills.
        Components must NEVER reference a primitive directly — only the
@@ -260,10 +263,10 @@
     --surface-5: 0 0% 100%; /* popover */
     --surface-6: 210 40% 96.1%; /* muted fill */
     --surface-7: 210 40% 96.1%; /* focus fill */
-    --surface-8: 214 32% 91%; /* tertiary fill */
 
     --line-1: 214.3 31.8% 91.4%; /* hairline */
-    --line-2: 214.3 20% 80%; /* contrast line */
+    --line-2: 214.3 31.8% 91.4%; /* edge: input + popover borders (dark lifts it above the hairline; light coincides) */
+    --line-3: 214.3 20% 80%; /* contrast line */
 
     --text-1: 215 12% 62%; /* faint */
     --text-2: 215.4 16.3% 46.9%; /* meta */
@@ -290,7 +293,10 @@
 
     --popover: var(--surface-5);
     --popover-foreground: var(--foreground);
-    --popover-border: var(--border);
+    /* Popover edge: rides the edge tier — in dark the 13% hairline is
+       near-invisible on the 10% popover, so the top layer carries its own
+       faint border. */
+    --popover-border: var(--line-2);
 
     --card: var(--surface-4);
     --card-foreground: var(--foreground);
@@ -304,10 +310,11 @@
     --border: var(--line-1);
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
        one clear step stronger than the hairline --border. */
-    --border-contrast: var(--line-2);
+    --border-contrast: var(--line-3);
     /* Rides the hairline in light; dark keeps its own stronger line (see
        .dark) so fields keep a visible edge on the near-black canvas. */
-    --input: var(--line-1);
+    /* Text fields keep a visible edge above the hairline (dark-only split). */
+    --input: var(--line-2);
 
     --primary: var(--text-4);
     --primary-foreground: var(--text-on-bright);
@@ -315,7 +322,7 @@
     --secondary: var(--surface-6);
     --secondary-foreground: var(--text-4);
 
-    --tertiary: var(--surface-8);
+    --tertiary: var(--surface-7);
     --tertiary-foreground: var(--text-4);
 
     --accent: var(--surface-7);
@@ -324,14 +331,14 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --ring: 215 100% 51%;
+    --ring: 219 99% 53%;
 
-    --primary-accent: 215 100% 51%;
+    --primary-accent: 219 99% 53%;
     /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
-       same Kumo blue family as dark, but deeper — links shouldn't be the
+       Carbon blue family (IBM blue-60/70 light, blue-40/30 dark), hover a step deeper — links shouldn't be the
        loudest thing on a light page — with a clearly darker hover step. */
-    --link: 227 76% 41%;
-    --link-hover: 227 76% 32%;
+    --link: 219 99% 53%;
+    --link-hover: 220 100% 40%;
     /* Preview-deployment strip (PR previews only): soft blue tint with text
        darker than the fill, links a step brighter than body text. Values are
        the blue-100/950/200/700/800 ramp. */
@@ -356,7 +363,7 @@
     /* Rides the tertiary fill. In dark that tier stays clearly above --card
        so chart grids (--chart-grid) and disabled badge fills stay discernible
        on elevated surfaces, without the harshness of --border-contrast (26%). */
-    --muted-gray: var(--surface-8);
+    --muted-gray: var(--surface-7);
 
     --accent-light-green: 138 76.5% 96.7%;
     --accent-dark-green: 112 100% 32%;
@@ -402,7 +409,7 @@
     --radius: 0.5rem;
     /* Frame tint: one step off the canvas so the nav reads as chrome. */
     --sidebar-background: var(--surface-3);
-    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-foreground: var(--foreground);
     --sidebar-primary: var(--text-4);
     --sidebar-primary-foreground: var(--text-on-bright);
     --sidebar-accent: 214 32% 91%;
@@ -445,7 +452,7 @@
        the GLOBAL FRAME (the sidebar chrome) lifts one step above it
        (Linear-style lifted panels), and every layer stacked on the canvas
        steps up from there:
-         canvas 3% < chrome 5% < elevated 8% (card + modal) < popover 10%.
+         canvas 3% < raised 6% (chrome, card, modal — one dark tier; light splits tint vs white) < popover 10%.
        The bottom step is the widest (canvas→chrome) — equal pp steps read
        smaller near black, and the frame/content split carries the layout.
        Popovers outrank modals because menus/tooltips open on top of dialogs.
@@ -455,7 +462,7 @@
        lightness steps plus hairline borders, not shadows. */
     /* Neutral (zero-saturation) ladder — de-tinted per Trang's call after a
        cool/neutral/warm A-B. Text hierarchy comes from the WIDE GAP between
-       tiers: bright 88% > body 60% > faint 40% (meta merged into body —
+       tiers: bright 88% > body 60% > meta 50% (trial) > faint 40% (meta merged into body —
        the 6pp step failed the visibility test; captions rely on size and
        position), with sidebar nav dimmer than content until active.
        ONE bright tier (88%, merged from 90/82, then re-brightened 84→88 by
@@ -465,47 +472,40 @@
        hierarchy. */
     --surface-1: 0 0% 3%; /* = canvas: the well collapses in dark (Trang call); light keeps its 92% grey */
     --surface-2: 0 0% 3%; /* canvas */
-    --surface-3: 0 0% 5%; /* frame: sidebar chrome */
-    --surface-4: 0 0% 8%; /* elevated: card + modal */
+    --surface-3: 0 0% 6%; /* frame: sidebar chrome */
+    --surface-4: 0 0% 6%; /* elevated: card + modal */
     --surface-5: 0 0% 10%; /* popover */
-    --surface-6: 0 0% 11%; /* muted fill */
+    --surface-6: 0 0% 10%; /* muted fill */
     /* Focus fill: one clear step above --popover (10%) — focus:bg-accent is
        the only focus cue in menus/selects/⌘K, and 14.3% was a near-invisible
        ~1.13:1. */
     --surface-7: 0 0% 18%;
-    --surface-8: 0 0% 18%; /* tertiary fill */
 
-    /* Hairline must read on every surface tier up to the elevated 8% —
+    /* Hairline must read on every surface tier up to the elevated 7% —
        popovers carry their own brighter --popover-border, so the hairline
        can stay quiet on the 3% canvas. */
     --line-1: 0 0% 13%;
-    --line-2: 0 0% 26%; /* contrast line */
+    --line-2: 0 0% 13%; /* edge: TRIAL merge into hairline (was 16) — if this holds, the edge tier dissolves entirely */
+    --line-3: 0 0% 26%; /* contrast line */
 
     --text-1: 0 0% 40%; /* faint */
-    --text-2: 0 0% 60%; /* meta (merged into body in dark) */
+    --text-2: 0 0% 50%; /* meta — TRIAL re-split from body (was merged at 60; 54 failed the visibility test, 50 widens the step to 10pp) */
     --text-3: 0 0% 60%; /* body */
     --text-4: 0 0% 88%; /* bright */
 
     /* ── Raw per-mode overrides (no shared primitive) ────────────────── */
     --surface-code-header: 0 0% 8%;
 
-    /* Popover edge: the 13% hairline is near-invisible on the 10%+ tier,
-       so the top layer carries its own faint border. */
-    --popover-border: 0 0% 16%;
-
-    /* Above the 13% hairline so text fields keep a visible edge. */
-    --input: 0 0% 18%;
-
     --accent-foreground: 0 0% 88%;
 
     --destructive: 0 78.7% 63.1%;
     --destructive-foreground: 0 0% 88%;
 
-    --ring: 212 100% 66%;
+    --ring: 218 100% 74%;
 
-    --primary-accent: 212 100% 66%;
-    --link: 212 100% 66%;
-    --link-hover: 212 100% 80%;
+    --primary-accent: 218 100% 74%;
+    --link: 218 100% 74%;
+    --link-hover: 217 100% 83%;
     /* Preview-deployment strip: fill is blue-500/25 precomposed over the
        dark canvas, border is blue-300/20 precomposed over that fill — the
        strip needs opaque colors. Body text stays on the neutral foreground
@@ -560,7 +560,6 @@
     --qlang-number: 27 96% 61%;
     --qlang-keyword: 213 94% 68%;
 
-    --sidebar-foreground: 0 0% 60%;
     --sidebar-accent: 0 0% 9%;
     --sidebar-ring: var(--ring);
 

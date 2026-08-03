@@ -556,7 +556,7 @@ export function DashboardWidget({
 
   if (widget.isPending) {
     return (
-      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
+      <div className="bg-card flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
@@ -564,7 +564,7 @@ export function DashboardWidget({
 
   if (!widget.data) {
     return (
-      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
+      <div className="bg-card flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Widget not found</div>
       </div>
     );
@@ -613,7 +613,7 @@ export function DashboardWidget({
   };
 
   return (
-    <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
+    <div className="bg-card group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
       {isCopyDialogOpen && (
         <CopyWidgetDialog
           open={isCopyDialogOpen}
@@ -776,7 +776,7 @@ export function DashboardWidget({
               showHintImmediately={true}
               hintText={queryValidation.reason}
               layout={loadingStateLayout}
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+              className="bg-card/80 absolute inset-0 z-20 backdrop-blur-xs"
             />
           </div>
         ) : (
@@ -816,7 +816,7 @@ export function DashboardWidget({
               onRetry={queryResult.isError ? handleRetry : undefined}
               progress={loadingProgress}
               layout={loadingStateLayout}
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+              className="bg-card/80 absolute inset-0 z-20 backdrop-blur-xs"
             />
           </div>
         )}

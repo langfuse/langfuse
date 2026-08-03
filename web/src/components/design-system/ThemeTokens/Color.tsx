@@ -1,8 +1,14 @@
 /**
  * Storybook-only color reference (Design → Color), modeled on Carbon's color
  * docs (interaction states) and Kumo's semantic-token tables (token rows
- * grouped by role, purpose-first blurbs). The surface layering model lives on
- * the Layout page.
+ * grouped by role, purpose-first blurbs).
+ *
+ * Primary content: the three NEUTRAL RAMPS (text, background/surface,
+ * border/line) of the redesigned two-layer token system — private primitives
+ * rebound per mode, semantic tokens riding them. Each ramp step renders its
+ * light and dark cells side by side (independent of the toolbar theme) so
+ * both modes review at a glance. The nested surface stack also appears on
+ * the Layout page's layering model.
  *
  * Every value is parsed at build time from `src/styles/globals.css` (see
  * parseThemeTokens.ts), so the page cannot drift from the stylesheet. Dense
@@ -31,7 +37,440 @@ import {
 } from "./shared";
 import { toCssColor } from "./parseThemeTokens";
 
+/* ------------------------------------------------------------------------- *
+ * Neutral ramps (the redesigned two-layer token system).
+ *
+ * globals.css defines PRIVATE primitives (--surface-1..8, --line-1..2,
+ * --text-1..4, --text-on-bright) bound per mode in :root/.dark, and the
+ * semantic tokens ride them via var() — defined once. The three ramp
+ * sections below are the primary review surface: every step shows LIGHT AND
+ * DARK side by side (independent of the toolbar theme), the semantic
+ * token(s) riding the step, and the resolved HSL per mode. All of it is
+ * derived from the parsed stylesheet, never hardcoded.
+ * ------------------------------------------------------------------------- */
+
+/** The private ladder-step primitives components must never reference. */
+const PRIMITIVE_PATTERN =
+  /^--(?:surface-\d+|line-\d+|text-\d+|text-on-bright)$/;
+
+/**
+ * The approved role vocabulary. The docs present these as THE names (final
+ * state); the underlying CSS custom property is shown as small print until
+ * the code migration lands and they become one and the same.
+ */
+const UPCOMING_ROLES: Record<string, string> = {
+  "--primary": "text-primary",
+  "--foreground": "text-secondary",
+  "--muted-foreground": "text-tertiary",
+  "--foreground-tertiary": "text-disabled",
+  "--primary-foreground": "text-on-fill",
+  "--accent-foreground": "text-on-hover",
+  "--background": "bg-canvas",
+  "--sidebar-background": "bg-sidebar",
+  "--card": "bg-card",
+  "--modal": "bg-modal",
+  "--popover": "bg-popover",
+  "--surface-code": "bg-code",
+  "--muted": "bg-muted",
+  "--accent": "bg-hover",
+  "--border": "border",
+  "--input": "border-edge",
+  "--popover-border": "border-edge",
+  "--ring": "focus",
+};
+
+/**
+ * Semantic tokens whose :root declaration rides `var(--primitive)` directly.
+ * Computed from the parsed stylesheet so rewiring a semantic token in
+ * globals.css re-labels the ramp automatically.
+ */
+function ridersOf(primitive: string): string[] {
+  const reference = new RegExp(`var\\(\\s*${primitive}\\s*\\)`);
+  return parsed.light
+    .filter(
+      (declaration) =>
+        !PRIMITIVE_PATTERN.test(declaration.name) &&
+        reference.test(declaration.value),
+    )
+    .map((declaration) => declaration.name);
+}
+
+type RampKind = "text" | "surface" | "border";
+
+type RampStep = {
+  /** The primitive the step documents (a semantic token also works: its
+   *  declared per-mode values render instead of a "rides …" caption). */
+  token: string;
+  label: string;
+  note?: string;
+};
+
+const TEXT_RAMP: RampStep[] = [
+  { token: "--text-1", label: "faint", note: "placeholders, disabled, hints" },
+  {
+    token: "--text-2",
+    label: "meta",
+    note: "captions and labels — merges into body in dark (60 = 60); distinct in light",
+  },
+  { token: "--text-3", label: "body", note: "default copy" },
+  {
+    token: "--text-4",
+    label: "bright",
+    note: "emphasis, titles, active nav — and the primary button fill. Light runs the ramp the other way: bright is the DARKEST step (9 < 22 < 46.9 < 62).",
+  },
+  {
+    token: "--text-on-bright",
+    label: "on-bright",
+    note: "ink on bright fills — rides --surface-2, the canvas color (inverted ink)",
+  },
+];
+
+const SURFACE_RAMP: RampStep[] = [
+  {
+    token: "--surface-1",
+    label: "code well",
+    note: "the one recessed tier (code is a well); collapses to the canvas in dark, stays a 92% grey in light",
+  },
+  { token: "--surface-2", label: "canvas" },
+  {
+    token: "--surface-3",
+    label: "frame",
+    note: "sidebar chrome, lifted above the canvas; light gets a 98% tint while dark shares the raised tier with cards",
+  },
+  {
+    token: "--surface-4",
+    label: "elevated",
+    note: "card + modal share the tier; light alternates back to white (Carbon's light-layer model), dark joins the frame on the raised tier",
+  },
+  {
+    token: "--surface-5",
+    label: "popover",
+    note: "top of the ladder — popovers outrank modals (menus open on top of dialogs)",
+  },
+  {
+    token: "--surface-6",
+    label: "muted fill",
+    note: "level with the popover in dark; --secondary also rides it and is slated for retirement",
+  },
+  {
+    token: "--surface-7",
+    label: "hover / focus fill",
+    note: "focus:bg-accent is the only focus cue in menus, so it steps clearly above the popover. --tertiary also rides it (slated for retirement), as does --muted-gray (chart grid, disabled badges).",
+  },
+];
+
+const BORDER_RAMP: RampStep[] = [
+  {
+    token: "--line-1",
+    label: "hairline",
+    note: "the default edge on every surface tier",
+  },
+  {
+    token: "--line-2",
+    label: "edge",
+    note: "inputs + popover borders — dark lifts it above the hairline so the top layer keeps an edge on the near-black canvas; light coincides with the hairline",
+  },
+  {
+    token: "--line-3",
+    label: "contrast",
+    note: "structural/viz lines: tree connectors, timeline grid",
+  },
+];
+
+/** One mode's cell: a self-contained mini-mode tile + the resolved HSL. */
+function RampModeCell({
+  paint,
+  token,
+  kind,
+}: {
+  paint: TokenContext;
+  token: string;
+  kind: RampKind;
+}) {
+  const triplet = paint.resolve(`var(${token})`).trim();
+  const canvas = paint.color("--background");
+  const hairline = paint.color("--border");
+  let demo: ReactNode;
+  if (kind === "text") {
+    const onBright = token === "--text-on-bright";
+    demo = (
+      <div
+        className="truncate rounded-sm px-2.5 py-1.5 text-xs"
+        title="Aa · The quick brown fox"
+        style={{
+          background: onBright ? paint.color("--primary") : canvas,
+          color: paint.color(token),
+        }}
+      >
+        Aa · The quick brown fox
+      </div>
+    );
+  } else if (kind === "surface") {
+    demo = (
+      <div className="p-2" style={{ background: canvas }}>
+        <div
+          className="h-7 rounded-sm border"
+          style={{ background: paint.color(token), borderColor: hairline }}
+        />
+      </div>
+    );
+  } else {
+    demo = (
+      <div className="p-2" style={{ background: canvas }}>
+        <div
+          className="h-7 rounded-sm border"
+          style={{
+            background: paint.color("--card"),
+            borderColor: paint.color(token),
+          }}
+        />
+      </div>
+    );
+  }
+  return (
+    <div
+      className="flex min-w-0 flex-col overflow-hidden rounded-md border"
+      style={{ background: canvas, borderColor: hairline }}
+    >
+      {demo}
+      <code
+        className="truncate border-t px-2 py-1 font-mono text-[10px] leading-4"
+        style={{
+          color: paint.color("--muted-foreground"),
+          borderColor: hairline,
+        }}
+        title={triplet}
+      >
+        {triplet}
+      </code>
+    </div>
+  );
+}
+
+const RAMP_GRID =
+  "grid grid-cols-[minmax(240px,1.3fr)_minmax(170px,1fr)_minmax(170px,1fr)] gap-x-4";
+
+function RampRow({
+  step,
+  index,
+  kind,
+  lightCtx,
+  darkCtx,
+}: {
+  step: RampStep;
+  index: number;
+  kind: RampKind;
+  lightCtx: TokenContext;
+  darkCtx: TokenContext;
+}) {
+  const isPrimitive = PRIMITIVE_PATTERN.test(step.token);
+  const riders = isPrimitive ? ridersOf(step.token) : [];
+  const names = riders.length > 0 ? riders : [step.token];
+  return (
+    <div className={`${RAMP_GRID} items-center border-b py-2.5`}>
+      <div className="flex min-w-0 flex-col gap-1">
+        <Eyebrow>
+          {index + 1} · {step.label}
+        </Eyebrow>
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          {names.map((name) => (
+            <span key={name} className="font-mono text-[11px] leading-4">
+              <code className="text-foreground break-all">
+                {UPCOMING_ROLES[name] ?? name}
+              </code>
+              {UPCOMING_ROLES[name] && (
+                <span className="text-muted-foreground text-[10px]">
+                  {" "}
+                  ({name})
+                </span>
+              )}
+            </span>
+          ))}
+        </div>
+        <span className="text-muted-foreground font-mono text-[10px] leading-4">
+          {isPrimitive
+            ? `rides ${step.token}`
+            : `light: ${lightCtx.decl(step.token) ?? "—"} · dark: ${darkCtx.decl(step.token) ?? "—"}`}
+        </span>
+        {step.note && (
+          <span className="text-muted-foreground text-[11px] leading-4">
+            {step.note}
+          </span>
+        )}
+      </div>
+      <RampModeCell paint={lightCtx} token={step.token} kind={kind} />
+      <RampModeCell paint={darkCtx} token={step.token} kind={kind} />
+    </div>
+  );
+}
+
+/** Text tiers stacked as one specimen, so the gap between tiers is legible. */
+function TextHierarchySample({ paint }: { paint: TokenContext }) {
+  return (
+    <div
+      className="flex flex-col gap-0.5 rounded-md border p-3"
+      style={{
+        background: paint.color("--background"),
+        borderColor: paint.color("--border"),
+      }}
+    >
+      <span
+        className="text-sm font-bold"
+        style={{ color: paint.color("--primary") }}
+      >
+        Bright — titles, active states
+      </span>
+      <span className="text-sm" style={{ color: paint.color("--foreground") }}>
+        Body — default copy sits one tier down.
+      </span>
+      <span
+        className="text-xs"
+        style={{ color: paint.color("--muted-foreground") }}
+      >
+        meta — captions and labels
+      </span>
+      <span
+        className="text-xs"
+        style={{ color: paint.color("--foreground-tertiary") }}
+      >
+        faint — placeholders and disabled
+      </span>
+    </div>
+  );
+}
+
+/** The surface ladder nested the way the app stacks it, per mode. */
+function SurfaceLadderSample({ paint }: { paint: TokenContext }) {
+  const hairline = paint.color("--border");
+  const label = { color: paint.color("--muted-foreground") };
+  return (
+    <div
+      className="flex overflow-hidden rounded-md border font-mono text-[10px] leading-4"
+      style={{
+        background: paint.color("--sidebar-background"),
+        borderColor: hairline,
+      }}
+    >
+      <div
+        className="w-14 shrink-0 p-2"
+        style={{ color: paint.color("--sidebar-foreground") }}
+      >
+        frame
+      </div>
+      <div
+        className="flex grow flex-col gap-1.5 border-l p-2"
+        style={{
+          background: paint.color("--background"),
+          borderColor: hairline,
+          ...label,
+        }}
+      >
+        <span>canvas</span>
+        <div
+          className="rounded-sm border px-2 py-1"
+          style={{
+            background: paint.color("--surface-code"),
+            borderColor: hairline,
+            color: paint.color("--foreground"),
+          }}
+        >
+          code well (recessed)
+        </div>
+        <div
+          className="rounded-sm border p-2"
+          style={{ background: paint.color("--card"), borderColor: hairline }}
+        >
+          <span style={label}>card / modal</span>
+          <div
+            className="mt-1.5 rounded-sm border p-1.5"
+            style={{
+              background: paint.color("--popover"),
+              borderColor: paint.color("--popover-border"),
+              color: paint.color("--popover-foreground"),
+            }}
+          >
+            popover
+            <div
+              className="mt-1 rounded-sm px-1.5 py-0.5"
+              style={{
+                background: paint.color("--accent"),
+                color: paint.color("--accent-foreground"),
+              }}
+            >
+              hover / focus fill
+            </div>
+          </div>
+        </div>
+        <div
+          className="rounded-sm px-2 py-1"
+          style={{ background: paint.color("--muted"), ...label }}
+        >
+          muted fill
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RampSection({
+  title,
+  blurb,
+  steps,
+  kind,
+  renderModeSample,
+  lightCtx,
+  darkCtx,
+}: {
+  title: string;
+  blurb: string;
+  steps: RampStep[];
+  kind: RampKind;
+  renderModeSample?: (paint: TokenContext) => ReactNode;
+  lightCtx: TokenContext;
+  darkCtx: TokenContext;
+}) {
+  return (
+    <PageSection
+      title={title}
+      blurb={blurb}
+      aside={<InlineCode>{steps.length} steps</InlineCode>}
+    >
+      {renderModeSample && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[
+            { label: "light", paint: lightCtx },
+            { label: "dark", paint: darkCtx },
+          ].map(({ label, paint }) => (
+            <div key={label} className="flex flex-col gap-1.5">
+              <Eyebrow>{label}</Eyebrow>
+              {renderModeSample(paint)}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-col">
+        <div className={`${RAMP_GRID} border-b pb-1.5`}>
+          <Eyebrow>Step · tokens</Eyebrow>
+          <Eyebrow>Light</Eyebrow>
+          <Eyebrow>Dark</Eyebrow>
+        </div>
+        {steps.map((step, index) => (
+          <RampRow
+            key={step.token}
+            step={step}
+            index={index}
+            kind={kind}
+            lightCtx={lightCtx}
+            darkCtx={darkCtx}
+          />
+        ))}
+      </div>
+    </PageSection>
+  );
+}
+
 type SectionId =
+  | "primitives"
   | "surfaces"
   | "fills"
   | "borders"
@@ -53,6 +492,7 @@ const SECTION_MATCHERS: Array<{
   id: SectionId;
   test: (name: string) => boolean;
 }> = [
+  { id: "primitives", test: (n) => PRIMITIVE_PATTERN.test(n) },
   {
     id: "status",
     test: (n) =>
@@ -74,7 +514,8 @@ const SECTION_MATCHERS: Array<{
   },
   {
     id: "borders",
-    test: (n) => /^--(?:border|border-contrast|input|ring)$/.test(n),
+    test: (n) =>
+      /^--(?:border|border-contrast|popover-border|input|ring)$/.test(n),
   },
   {
     id: "fills",
@@ -86,7 +527,7 @@ const SECTION_MATCHERS: Array<{
   {
     id: "surfaces",
     test: (n) =>
-      /^--(?:background|foreground|foreground-tertiary|muted|surface-code(?:-header)?|popover|card|modal|header)(?:-foreground)?$/.test(
+      /^--(?:background|foreground|foreground-tertiary|muted|surface-code(?:-header)?|popover|card|modal)(?:-foreground)?$/.test(
         n,
       ),
   },
@@ -105,7 +546,8 @@ const VISIBLE_SECTIONS: SectionDef[] = [
   {
     id: "fills",
     title: "Interactive fills",
-    blurb: "Button / hover / selection fills with their paired foregrounds.",
+    blurb:
+      "Button / hover / selection fills with their paired foregrounds. --secondary and --tertiary are slated for retirement.",
   },
   {
     id: "borders",
@@ -142,6 +584,12 @@ const VISIBLE_SECTIONS: SectionDef[] = [
 
 /** Low-traffic sections, collapsed at the bottom. */
 const COLLAPSED_SECTIONS: SectionDef[] = [
+  {
+    id: "primitives",
+    title: "Neutral primitives",
+    blurb:
+      "The private :root/.dark ladder steps behind the ramps above. Components never reference these — use the semantic tokens.",
+  },
   {
     id: "qlang",
     title: "Query syntax highlighting",
@@ -848,10 +1296,41 @@ export function Color() {
             <>
               Parsed at build time from{" "}
               <code className="font-mono">src/styles/globals.css</code>. The
-              toolbar switcher previews light/dark.
+              three neutral ramps up top show light and dark side by side —
+              independent of the toolbar switcher — labeled with the role
+              vocabulary (the underlying CSS variable in parentheses until the
+              code migration lands) on each token. The tables below are the full
+              token reference; the toolbar switcher previews their samples per
+              theme.
             </>
           }
           meta={<>{colorEntryCount} color tokens · light and dark</>}
+        />
+        <RampSection
+          title="Text ramp"
+          blurb="Four tiers on the canvas — faint < meta < body < bright — plus the inverted ink for bright fills. Color carries state; weight never changes."
+          steps={TEXT_RAMP}
+          kind="text"
+          renderModeSample={(paint) => <TextHierarchySample paint={paint} />}
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <RampSection
+          title="Background / surface ramp"
+          blurb="The surface ladder in order: code well < canvas < sidebar frame < card + modal < popover < muted < hover. Light mostly alternates back to white inside a tinted frame; dark compresses to four levels — canvas < raised (frame + card/modal) < popover/muted < focus. Elevation is lightness steps plus hairlines, not shadows."
+          steps={SURFACE_RAMP}
+          kind="surface"
+          renderModeSample={(paint) => <SurfaceLadderSample paint={paint} />}
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <RampSection
+          title="Border / line ramp"
+          blurb="Three line tiers, hairline to contrast. Light collapses the first two; dark spreads them so inputs and popovers keep an edge on the near-black canvas."
+          steps={BORDER_RAMP}
+          kind="border"
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
         />
         <InteractionStatesSection ctx={ctx} />
         {VISIBLE_SECTIONS.map(({ id, title, blurb }) => {

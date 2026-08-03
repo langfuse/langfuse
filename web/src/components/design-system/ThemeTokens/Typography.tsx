@@ -20,6 +20,8 @@ import {
   PageSection,
   Panel,
   parsed,
+  type TokenContext,
+  useTokenContexts,
 } from "./shared";
 
 /** `@theme static` values (font stacks + weight roles) by token name. */
@@ -176,6 +178,103 @@ function WeightRoleRow({ token }: { token: TokenDeclaration }) {
   );
 }
 
+/**
+ * The four text-color tiers (full light/dark ramp on the Color page).
+ * Real token names first; the planned role name rides alongside.
+ */
+const TEXT_TIERS: Array<{
+  tier: string;
+  token: string;
+  role: string;
+  usage: string;
+}> = [
+  {
+    tier: "primary",
+    token: "--primary",
+    role: "text-primary",
+    usage: "titles, emphasis, active nav & tabs",
+  },
+  {
+    tier: "body",
+    token: "--foreground",
+    role: "text-secondary",
+    usage: "default copy",
+  },
+  {
+    tier: "meta",
+    token: "--muted-foreground",
+    role: "text-tertiary",
+    usage: "captions, labels, secondary cells",
+  },
+  {
+    tier: "faint",
+    token: "--foreground-tertiary",
+    role: "text-disabled",
+    usage: "placeholders, disabled, hints",
+  },
+];
+
+function TextTierRow({
+  tier,
+  ctx,
+}: {
+  tier: (typeof TEXT_TIERS)[number];
+  ctx: TokenContext;
+}) {
+  return (
+    <div className="grid items-center gap-x-8 gap-y-1 border-t py-3 md:grid-cols-[minmax(0,1fr)_260px_minmax(0,1fr)]">
+      <span
+        className="block truncate text-sm"
+        title={SAMPLE_LINE}
+        style={{ color: ctx.color(tier.token) }}
+      >
+        {SAMPLE_LINE}
+      </span>
+      <div className="flex flex-wrap items-baseline gap-x-2 font-mono text-[11px] leading-4">
+        <code className="text-foreground">{tier.token}</code>
+        <span className="text-muted-foreground">→ {tier.role}</span>
+      </div>
+      <div className="text-muted-foreground min-w-0 font-mono text-[11px] leading-4">
+        {tier.tier} · {tier.usage}
+      </div>
+    </div>
+  );
+}
+
+/** Text color tiers + the active-state rule. Repaints with the toolbar theme. */
+function TextTiersSection() {
+  const { ctx } = useTokenContexts();
+  return (
+    <PageSection
+      title="Text color tiers"
+      blurb="Four tiers, one rule: color carries state, weight never changes. An element brightens a tier when it activates — it never gains weight."
+      aside={<InlineCode>{TEXT_TIERS.length} tiers</InlineCode>}
+    >
+      <div className="flex flex-col">
+        {TEXT_TIERS.map((tier) => (
+          <TextTierRow key={tier.token} tier={tier} ctx={ctx} />
+        ))}
+      </div>
+      <div className="bg-card flex max-w-md flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-sm">
+        <span style={{ color: ctx.color("--primary") }}>Active item</span>
+        <span style={{ color: ctx.color("--muted-foreground") }}>
+          Idle item
+        </span>
+        <span className="text-muted-foreground font-mono text-[10px]">
+          same weight — only the tier changes
+        </span>
+      </div>
+      <p className="text-muted-foreground text-sm">
+        On bright fills, ink inverts to{" "}
+        <InlineCode>--primary-foreground</InlineCode> (→ text-on-fill). In dark,
+        meta merges into body — captions rely on size and position; light keeps
+        four distinct steps. Light/dark values side by side on the Color
+        page&apos;s text ramp.
+      </p>
+    </PageSection>
+  );
+}
+
 /** Mono conventions, each rendered with the exact classes the app uses. */
 const MONO_EXAMPLES: Array<{
   label: string;
@@ -219,8 +318,8 @@ export function Typography() {
           title="Typography"
           lede={
             <>
-              Two typefaces, two weights, {sizeTokens.length} sizes. Parsed at
-              build time from{" "}
+              Two typefaces, two weights, {sizeTokens.length} sizes, four
+              text-color tiers. Parsed at build time from{" "}
               <code className="font-mono">src/styles/globals.css</code>.
             </>
           }
@@ -272,6 +371,8 @@ export function Typography() {
             <InlineCode>font-semibold</InlineCode> and raw numbers are drift.
           </p>
         </PageSection>
+
+        <TextTiersSection />
 
         <PageSection
           title="Type scale"

@@ -1398,7 +1398,7 @@ export function WidgetForm({
                   showHintImmediately={chartLoadingState.showHintImmediately}
                   hintText={chartLoadingState.hintText}
                   progress={loadingProgress}
-                  className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+                  className="bg-card/80 absolute inset-0 z-20 backdrop-blur-xs"
                 />
               </div>
             </div>
