@@ -50,6 +50,14 @@ describe("getOtelIdRejectionReason", () => {
     // Values Buffer.from() cannot handle: parseId throws ERR_INVALID_ARG_TYPE.
     { value: 42, kind: "traceId", reason: "not_an_id" },
     { value: { foo: "bar" }, kind: "spanId", reason: "not_an_id" },
+    // All-zero ids are spec-invalid and would make unrelated entities collide
+    // on a single zero id.
+    { value: "0".repeat(32), kind: "traceId", reason: "all_zero" },
+    { value: "0".repeat(16), kind: "spanId", reason: "all_zero" },
+    { value: Buffer.alloc(16), kind: "traceId", reason: "all_zero" },
+    { value: new Array(8).fill(0), kind: "spanId", reason: "all_zero" },
+    // Entries that coerce to 0x00 the same way Buffer.from() coerces them.
+    { value: new Array(8).fill("x"), kind: "spanId", reason: "all_zero" },
   ] as const)(
     "rejects $value as $kind ($reason)",
     ({ value, kind, reason }) => {
@@ -108,6 +116,9 @@ describe("validateOtelSpanIds", () => {
     expect(result).toMatchObject({ totalSpanCount: 3, invalidSpanCount: 1 });
   });
 
+  // This runs on the request path, so a malformed collection must not throw:
+  // that would surface as a 500 instead of a rejection. A `?? []` fallback is
+  // not enough, since a non-nullish non-iterable still breaks for...of.
   it.each([
     { shape: "empty array", payload: [] },
     { shape: "non-array", payload: undefined },
@@ -116,7 +127,13 @@ describe("validateOtelSpanIds", () => {
       shape: "null scope and spans",
       payload: [{ scopeSpans: [{ scope: null, spans: null }] }],
     },
-  ])("tolerates $shape", ({ payload }) => {
+    { shape: "object scopeSpans", payload: [{ scopeSpans: {} }] },
+    { shape: "numeric scopeSpans", payload: [{ scopeSpans: 42 }] },
+    { shape: "string scopeSpans", payload: [{ scopeSpans: "nope" }] },
+    { shape: "object spans", payload: [{ scopeSpans: [{ spans: {} }] }] },
+    { shape: "numeric spans", payload: [{ scopeSpans: [{ spans: 7 }] }] },
+  ])("tolerates $shape without throwing", ({ payload }) => {
+    expect(() => validateOtelSpanIds(payload)).not.toThrow();
     expect(validateOtelSpanIds(payload).invalidSpanCount).toBe(0);
   });
 

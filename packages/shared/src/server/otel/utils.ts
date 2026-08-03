@@ -8,7 +8,16 @@ const HEX_ONLY = /^[0-9a-fA-F]+$/;
 
 export type OtelIdKind = "traceId" | "spanId";
 
-export type OtelIdRejectionReason = "absent" | "not_an_id" | "wrong_length";
+export type OtelIdRejectionReason =
+  | "absent"
+  | "not_an_id"
+  | "wrong_length"
+  /**
+   * An all-zero id is invalid per the OTel spec. It is also actively harmful:
+   * ingestion persists it as the entity id, so unrelated traces and
+   * observations would collide on a single zero id and merge.
+   */
+  | "all_zero";
 
 /**
  * Unwrap the `{ data: [...] }` envelope produced when a Buffer is serialized to
@@ -56,11 +65,19 @@ export function getOtelIdRejectionReason(
   if (typeof unwrapped === "string") {
     if (unwrapped.length === 0) return "absent";
     if (!HEX_ONLY.test(unwrapped)) return null;
-    return unwrapped.length === expectedBytes * 2 ? null : "wrong_length";
+    if (unwrapped.length !== expectedBytes * 2) return "wrong_length";
+    return /^0+$/.test(unwrapped) ? "all_zero" : null;
   }
 
   if (unwrapped instanceof Uint8Array || Array.isArray(unwrapped)) {
-    return unwrapped.length === expectedBytes ? null : "wrong_length";
+    if (unwrapped.length !== expectedBytes) return "wrong_length";
+    // Mirror how Buffer.from() coerces array entries, so an array of values
+    // that all land on 0x00 is caught as well.
+    const bytes = Array.from(unwrapped as Iterable<unknown>, (entry) => {
+      const n = Number(entry);
+      return Number.isFinite(n) ? n & 0xff : 0;
+    });
+    return bytes.every((byte) => byte === 0) ? "all_zero" : null;
   }
 
   // Numbers, booleans and plain objects reach Buffer.from() in parseId and
@@ -102,8 +119,17 @@ export function validateOtelSpanIds(
   }
 
   for (const resourceSpan of resourceSpans) {
-    for (const scopeSpan of (resourceSpan as any)?.scopeSpans ?? []) {
-      for (const span of scopeSpan?.spans ?? []) {
+    // Only iterate actual arrays. A `?? []` fallback still hands a non-nullish
+    // non-iterable (`{}`, a number) to for...of, which throws — and this runs on
+    // the request path, so that would surface as a 500 rather than a rejection.
+    const scopeSpans = (resourceSpan as any)?.scopeSpans;
+    if (!Array.isArray(scopeSpans)) continue;
+
+    for (const scopeSpan of scopeSpans) {
+      const spans = scopeSpan?.spans;
+      if (!Array.isArray(spans)) continue;
+
+      for (const span of spans) {
         totalSpanCount++;
 
         const spanReasons: string[] = [];
