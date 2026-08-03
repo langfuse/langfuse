@@ -252,11 +252,51 @@
 
 @layer base {
   :root {
+    /* ── PRIVATE palette ramps ──────────────────────────────────────────
+       {family}-{mode}-{decade}, ascending = LIGHTER; decades leave
+       insertion gaps. Light "greys" are blue-tinted — hence the family is
+       `neutral`, not gray. PRIVATE: only the role tokens below may
+       reference these — never @theme inline, never components. */
+    --neutral-dark-10: 0 0% 3.5%;
+    --neutral-dark-20: 0 0% 6%;
+    --neutral-dark-30: 0 0% 10%;
+    --neutral-dark-40: 0 0% 13%;
+    --neutral-dark-50: 0 0% 18%;
+    --neutral-dark-60: 0 0% 26%;
+    --neutral-dark-70: 0 0% 40%;
+    --neutral-dark-80: 0 0% 50%;
+    --neutral-dark-90: 0 0% 60%;
+    --neutral-dark-100: 0 0% 70%;
+    --neutral-dark-110: 0 0% 88%;
+
+    --neutral-light-10: 222.2 47.4% 9%;
+    --neutral-light-20: 222 16% 22%;
+    --neutral-light-30: 215.4 16.3% 46.9%;
+    --neutral-light-40: 215 12% 60%;
+    --neutral-light-50: 215 12% 62%;
+    --neutral-light-60: 214.3 20% 80%;
+    --neutral-light-70: 0 0% 86%;
+    /* 80 (91%) vs 90 (91.4%): merge candidate, pending approval. */
+    --neutral-light-80: 214 32% 91%;
+    --neutral-light-90: 214.3 31.8% 91.4%;
+    --neutral-light-100: 0 0% 92%;
+    --neutral-light-110: 210 40% 96.1%;
+    --neutral-light-120: 210 40% 98%;
+    --neutral-light-130: 0 0% 100%;
+
+    /* Carbon blue family (light = blue-70/60, dark = blue-40/30). */
+    --blue-light-10: 220 100% 40%;
+    --blue-light-20: 219 99% 53%;
+    --blue-dark-10: 218 100% 74%;
+    --blue-dark-20: 217 100% 83%;
+
     /* ── Design-token vocabulary ────────────────────────────────────────
-       ONE layer of role-named tokens (no numbered primitives): the
-       ladder-DEFINING tokens hold raw values, and every other token rides
-       one via var() — sharing between roles is a reference, never a
-       repeated value. Shared definitions live here on :root; `.dark`
+       Role-named tokens riding the private palette ramps above: raw
+       values live on the palette, role tokens reference a palette step —
+       or another role — via var(); sharing between roles is a reference,
+       never a repeated value. (Status pairs, charts, and the muted-*
+       chromatics still hold raw values — their palette pass is a future
+       task.) Shared definitions live here on :root; `.dark`
        rebinds ONLY the tokens whose value or reference differs, and
        un-rebound references resolve per mode at use time.
        Fills: canvas < sidebar (frame chrome) < card/modal (elevated)
@@ -277,24 +317,28 @@
 
     /* Text roles. Light ramp: primary 9% < secondary 22% < tertiary 46.9%
        < disabled 62% — darker is louder on a light canvas. */
-    --text-primary: 222.2 47.4% 9%; /* brightest tier: titles, active nav/tabs, links, button fills */
-    --text-secondary: 222 16% 22%; /* body */
-    --text-tertiary: 215.4 16.3% 46.9%; /* meta, captions, secondary labels */
+    --text-primary: var(
+      --neutral-light-10
+    ); /* brightest tier: titles, active nav/tabs, links, button fills */
+    --text-secondary: var(--neutral-light-20); /* body */
+    --text-tertiary: var(
+      --neutral-light-30
+    ); /* meta, captions, secondary labels */
     /* Faintest text tier: placeholders, disabled, hints — one step below
        tertiary (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1 on
        white — flagged in review, kept per design preference for now. */
-    --text-disabled: 215 12% 62%;
+    --text-disabled: var(--neutral-light-50);
     /* Text on bright fills = the canvas color (inverted ink). */
     --text-on-fill: var(--canvas);
     /* Text on the hover fill rides the brightest tier. */
     --text-on-hover: var(--text-primary);
 
     /* Fill roles */
-    --canvas: 0 0% 100%;
+    --canvas: var(--neutral-light-130);
 
     /* Elevated: card + modal. Light alternates back to white; dark is the
        raised tier shared with the sidebar chrome. */
-    --card: 0 0% 100%;
+    --card: var(--neutral-light-130);
     --card-foreground: var(--text-secondary);
 
     /* Blocking overlay surfaces (Dialog/AlertDialog/Sheet/Drawer/peek)
