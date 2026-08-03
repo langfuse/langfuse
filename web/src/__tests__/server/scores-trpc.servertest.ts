@@ -99,7 +99,6 @@ describe("scores trpc", () => {
         featureFlags: {
           excludeClickhouseRead: false,
           templateFlag: true,
-          searchBar: false,
           v4BetaToggleVisible: false,
           observationEvals: false,
           experimentsV4Enabled: false,

@@ -681,7 +681,6 @@ function buildOwnerSession(orgId: string): Session {
         },
       ],
       featureFlags: {
-        searchBar: false,
         excludeClickhouseRead: false,
         templateFlag: true,
         v4BetaToggleVisible: false,
