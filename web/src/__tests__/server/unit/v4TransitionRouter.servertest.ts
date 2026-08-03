@@ -334,6 +334,7 @@ describe("v4TransitionRouter", () => {
       "GET /api/public/v2/scores",
       "GET /api/public/metrics",
       "GET /api/public/metrics/daily",
+      "GET /api/public/dataset-run-items",
     ].forEach((route) => expect(clickhouseQuery?.query).toContain(route));
 
     [
@@ -342,10 +343,14 @@ describe("v4TransitionRouter", () => {
       "GET /api/public/observations/{id}",
       "GET /api/public/scores/{id}",
       "GET /api/public/v2/scores/{id}",
+      "GET /api/public/datasets/{datasetName}/runs/{runName}",
     ].forEach((route) => expect(clickhouseQuery?.query).toContain(route));
+    expect(clickhouseQuery?.query).toContain(
+      "match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1",
+    );
 
     expect(clickhouseQuery?.query).toContain(
-      "'GET /api/public/traces',\n        'GET /api/public/observations',\n        'GET /api/public/scores',\n        'GET /api/public/v2/scores',\n        'GET /api/public/metrics/daily'\n      ), 2",
+      "'GET /api/public/traces',\n        'GET /api/public/observations',\n        'GET /api/public/scores',\n        'GET /api/public/v2/scores',\n        'GET /api/public/metrics/daily',\n        'GET /api/public/dataset-run-items'\n      ), 2",
     );
     expect(clickhouseQuery?.query).toContain(
       "'GET /api/public/sessions',\n        'GET /api/public/metrics'\n      ), 1",

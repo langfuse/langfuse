@@ -7,6 +7,7 @@ import {
   uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 import {
+  MediaAssociationOrigin,
   MediaContentType,
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
 } from "@langfuse/shared";
@@ -216,6 +217,7 @@ async function uploadOverflowCandidate(
     contentBytes: Buffer.from(value, "utf8"),
     mediaBucket,
     mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+    origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
   }).catch((error) => {
     logger.warn(
       "Oversized observation field upload failed; persisting original field",

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import {
   Avatar,
   AvatarFallback,

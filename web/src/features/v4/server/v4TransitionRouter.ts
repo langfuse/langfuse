@@ -1115,13 +1115,15 @@ classified AS (
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
         'GET /api/public/metrics',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), route_path,
       match(route_path, '^GET /api/public/traces/[^/?#]+$'), 'GET /api/public/traces/{id}',
       match(route_path, '^GET /api/public/sessions/[^/?#]+$'), 'GET /api/public/sessions/{id}',
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 'GET /api/public/observations/{id}',
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 'GET /api/public/scores/{id}',
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/{id}',
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 'GET /api/public/datasets/{datasetName}/runs/{runName}',
       NULL
     ) AS legacy_route,
     multiIf(
@@ -1132,7 +1134,8 @@ classified AS (
         'GET /api/public/observations',
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), 2,
       route_path IN (
         'GET /api/public/sessions',
@@ -1143,6 +1146,7 @@ classified AS (
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 1,
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1,
       NULL
     ) AS clickhouse_queries_per_api_call
   FROM selected
@@ -1226,13 +1230,15 @@ classified AS (
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
         'GET /api/public/metrics',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), route_path,
       match(route_path, '^GET /api/public/traces/[^/?#]+$'), 'GET /api/public/traces/{id}',
       match(route_path, '^GET /api/public/sessions/[^/?#]+$'), 'GET /api/public/sessions/{id}',
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 'GET /api/public/observations/{id}',
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 'GET /api/public/scores/{id}',
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/{id}',
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 'GET /api/public/datasets/{datasetName}/runs/{runName}',
       NULL
     ) AS legacy_route,
     multiIf(
@@ -1243,7 +1249,8 @@ classified AS (
         'GET /api/public/observations',
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), 2,
       route_path IN (
         'GET /api/public/sessions',
@@ -1254,6 +1261,7 @@ classified AS (
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 1,
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1,
       NULL
     ) AS clickhouse_queries_per_api_call
   FROM selected

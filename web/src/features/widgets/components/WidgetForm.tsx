@@ -121,13 +121,14 @@ import {
   effectiveWidgetName,
   makeWidgetFormSchema,
   normalizeWidgetFormValues,
-  resolveWidgetViewVersion,
+  resolveWidgetFormVersion,
   toDefaultValues,
   toSavePayload,
   widgetChartTypeSupportsBreakdown,
   type SortField,
   type WidgetFormValues,
   type WidgetInitialValues,
+  type WidgetSavePayload,
 } from "./widgetFormSchema";
 
 // Re-exported from the schema module so co-located tests keep importing it from
@@ -246,28 +247,17 @@ export function WidgetForm({
     minVersion?: number;
   };
   projectId: string;
-  onSave: (widgetData: {
-    name: string;
-    description: string;
-    view: string;
-    dimensions: { field: string }[];
-    metrics: { measure: string; agg: string }[];
-    filters: any[];
-    chartType: DashboardWidgetChartType;
-    chartConfig: NonNullable<WidgetInitialValues["chartConfig"]>;
-    minVersion: number;
-  }) => void;
+  onSave: (widgetData: WidgetSavePayload) => void;
   widgetId?: string;
 }) {
   const { isBetaEnabled } = useV4Beta();
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  // The widget's frozen, view-shape-derived base minVersion. It is a pure
-  // function of `initialValues`, so it is mount-stable; the edit page remounts
-  // via `key={widgetId}` while the create page does NOT remount on a beta
-  // toggle (viewVersion re-derives reactively from isBetaEnabled + view). No
-  // widgetMinVersion state, no sync effect.
+  // The initial widget's persisted version is a local hint frozen at mount.
+  // The resolver and live viewVersion additionally derive v2 from the current
+  // form shape; the server derives the value that gets persisted.
   const baseMinVersion = deriveWidgetBaseMinVersion(initialValues);
+  const activeVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
 
   // The auto-suggestions change on every keystroke; a ref keeps the resolver
   // closure from being rebuilt on each one (the filled name/description do not
@@ -288,10 +278,10 @@ export function WidgetForm({
     [],
   );
   // The schema version is derived INSIDE the resolver from the (mapped) view
-  // being validated — not from a render-written ref — so it is never a render
-  // stale after a version-flipping view change. baseMinVersion is mount-stable
-  // and isBetaEnabled is read live; both are in the dep list so a beta toggle
-  // rebuilds the closure (react-hook-form re-reads control._options each render).
+  // being validated — not from a render-written ref — so it is never render
+  // stale after a version-flipping view or import. baseMinVersion and
+  // activeVersion are in the dep list so either promotion rebuilds the closure
+  // (react-hook-form re-reads control._options each render).
   const resolver = useMemo<Resolver<WidgetFormValues>>(() => {
     return (values, context, options) => {
       const v = values as WidgetFormValues;
@@ -308,22 +298,23 @@ export function WidgetForm({
         // map them to view space independently.
         filters: mapWidgetUiTableFilterToView(v.view, v.filters ?? []),
       };
-      const version = resolveWidgetViewVersion({
+      const version = resolveWidgetFormVersion({
         view: mapped.view,
         baseMinVersion,
-        isBetaEnabled,
+        activeVersion,
+        shape: mapped,
       });
       return resolversByVersion[version](mapped as any, context, options);
     };
-  }, [resolversByVersion, baseMinVersion, isBetaEnabled]);
+  }, [resolversByVersion, baseMinVersion, activeVersion]);
 
   // The initial view version, derived from initialValues alone (view is known
   // before the form mounts) so the seed can normalize against the right view
   // declaration.
-  const initialViewVersion = resolveWidgetViewVersion({
+  const initialViewVersion = resolveWidgetFormVersion({
     view: initialValues.view,
     baseMinVersion,
-    isBetaEnabled,
+    activeVersion,
   });
 
   const form = useForm<WidgetFormValues>({
@@ -337,17 +328,25 @@ export function WidgetForm({
 
   const selectedView = values.view;
   const chartType = values.chart.type;
-  const viewVersion = resolveWidgetViewVersion({
+  const viewVersion = resolveWidgetFormVersion({
     view: selectedView,
     baseMinVersion,
-    isBetaEnabled,
+    activeVersion,
+    shape: values,
   });
   const suggestions = deriveWidgetSuggestions(values);
   const effectiveSort = deriveEffectiveSort(values);
 
   suggestionsRef.current = suggestions;
 
-  const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
+  // `viewsV2` is the public/new-widget v2 allowlist and intentionally excludes
+  // `traces`. Existing legacy trace widgets are a compatibility exception:
+  // their v2 query uses the internal events-backed declaration, so the current
+  // `traces` value must remain selectable while editing. Once the user leaves
+  // traces, return to the public allowlist so traces stays unavailable for
+  // new V4 widget definitions.
+  const availableViewOptions =
+    viewVersion === "v2" && selectedView !== "traces" ? viewsV2 : views;
 
   // Valid aggregations for a given measure on the current (view, version).
   const getValidAggregationsForMeasure = (
@@ -867,10 +866,11 @@ export function WidgetForm({
   // resolve/breakdown-wipe healing so the post-view-change state is valid).
   const onViewChange = (newView: z.infer<typeof views>) => {
     if (newView === selectedView) return;
-    const newViewVersion = resolveWidgetViewVersion({
+    const newViewVersion = resolveWidgetFormVersion({
       view: newView,
       baseMinVersion,
-      isBetaEnabled,
+      activeVersion,
+      shape: values,
     });
     const newViewDeclaration = viewDeclarations[newViewVersion][newView];
 
@@ -985,13 +985,12 @@ export function WidgetForm({
 
       const snapshot = result.snapshot;
       const importIsPivot = snapshot.selectedChartType === "PIVOT_TABLE";
-      // The preview version for the imported widget, re-derived from the
-      // snapshot's own minVersion (not the mount's) so a v2-requiring import
-      // normalizes against the right view declaration.
-      const importViewVersion = resolveWidgetViewVersion({
+      // The preview version for the imported widget is re-derived from the
+      // snapshot's own version hint (not the mount's).
+      const importViewVersion = resolveWidgetFormVersion({
         view: snapshot.selectedView,
         baseMinVersion: snapshot.widgetMinVersion,
-        isBetaEnabled,
+        activeVersion,
       });
       // Explicit user-event reset (allowed — not an effect). The imported name
       // is a non-empty override, so it sticks and does not auto-update. The

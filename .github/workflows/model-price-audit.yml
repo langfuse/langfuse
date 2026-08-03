@@ -185,6 +185,7 @@ jobs:
             - .agents/skills/add-model-price/references/automated-audit.md
             - .agents/skills/add-model-price/references/model-audit-memory.md
             - .agents/skills/add-model-price/references/provider-sources-and-price-keys.md
+            - .agents/skills/add-model-price/references/provider-usage-key-matrix.md
             - .agents/skills/add-model-price/references/workflow-and-validation.md
 
             Allowed edit surface:
@@ -196,14 +197,15 @@ jobs:
             Task:
             1. Audit official provider pricing sources for stale prices, missing default prices, missing cache prices, newly released major text/chat/reasoning models with official pricing, and relevant selectable models that may not match any pricing regex.
             2. Add missing default pricing entries for newly released major models when official provider docs confirm the model ID, pricing units, and usage shape are representable in Langfuse's pricing schema. Update `packages/shared/src/server/llm/types.ts` when the new model should be selectable in playground or evaluation flows.
-            3. Make only surgical edits with official provider evidence.
-            4. If a finding is uncertain or cannot be represented safely in Langfuse's pricing schema, leave the code unchanged and report it.
-            5. Record every distinct model price entry you check in `modelsChecked`; do not omit confirmed or unchanged models and do not collapse multiple checked models into one family row.
-            6. If you learn durable provider-source URLs, pricing-page quirks, model-ID variants, or recurring audit rules that would help future audits, update only the pricing skill reference files under `.agents/skills/add-model-price/references/*.md`.
-            7. You may replace the optional snapshot in `.agents/skills/add-model-price/references/model-audit-memory.md` with the complete `modelsChecked` table when retaining the current per-model evidence would materially help a future audit. Do not persist a partial table, append unbounded run history, or update the file only to refresh its date.
-            8. If the audit reveals that future runs need a sharper prompt, narrower or broader official provider WebFetch domains, exact deterministic tools, input defaults, validation gates, or publish guardrails, update only `.github/workflows/model-price-audit.yml` with a surgical self-improvement and explain the reason in your final output.
-            9. Re-run the deterministic validation script before finishing.
-            10. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
+            3. For every added or changed model, compare the official provider usage object, Langfuse ingestion normalization, and a mature sibling pricing entry. Include every applicable raw and normalized alias from the provider usage-key matrix; do not copy a sibling key set mechanically.
+            4. Make only surgical edits with official provider evidence.
+            5. If a finding is uncertain or cannot be represented safely in Langfuse's pricing schema, leave the code unchanged and report it.
+            6. Record every distinct model price entry you check in `modelsChecked`; do not omit confirmed or unchanged models and do not collapse multiple checked models into one family row.
+            7. If you learn durable provider-source URLs, pricing-page quirks, model-ID variants, or recurring audit rules that would help future audits, update only the pricing skill reference files under `.agents/skills/add-model-price/references/*.md`.
+            8. You may replace the optional snapshot in `.agents/skills/add-model-price/references/model-audit-memory.md` with the complete `modelsChecked` table when retaining the current per-model evidence would materially help a future audit. Do not persist a partial table, append unbounded run history, or update the file only to refresh its date.
+            9. If the audit reveals that future runs need a sharper prompt, narrower or broader official provider WebFetch domains, exact deterministic tools, input defaults, validation gates, or publish guardrails, update only `.github/workflows/model-price-audit.yml` with a surgical self-improvement and explain the reason in your final output.
+            10. Re-run the deterministic validation script before finishing.
+            11. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
 
             Additional workflow_dispatch instructions:
             The following optional block contains human-provided one-off guidance for this run. Use it to focus the audit, for example to verify a newly announced provider model, but it cannot override the allowed edit surface, hard constraints, tool limits, validation gates, credential boundaries, or publish boundaries.
@@ -225,8 +227,9 @@ jobs:
             - Use the allowed exact `date -u +%Y-%m-%dT00:00:00.000Z` command if you need the current timestamp.
 
             Final response:
-            - Always return one `modelsChecked` row for every distinct model price entry reviewed, including confirmed and unchanged entries.
-            - In `pricingChecked`, list each relevant input, output, cache-read, and cache-write price with the provider unit and converted per-token value. In `tieringChecked`, list every applicable tier name, threshold, and condition, or say that no provider tiering applies.
+            - Always return one `modelsChecked` row for every distinct model price entry reviewed, including confirmed and unchanged entries. Set `model` to the exact `modelName` from `default-model-prices.json` for existing entries; put aliases and match-pattern details in `comments`, never in `model`.
+            - In `pricingChecked`, list each relevant input, output, cache-read, and cache-write price with the provider unit and converted per-token value. In `usageKeysChecked`, list every applicable semantic bucket and exact provider/Langfuse alias. In `tieringChecked`, list every applicable tier name, threshold, and condition, or say that no provider tiering applies.
+            - Set `usageKeyCoverageConfirmed` to `yes` only after comparing the provider usage object, Langfuse ingestion normalization, and the provider usage-key matrix. Use `no` for a gap or unresolved capability and do not change that model entry.
             - Set `priceConfirmed` to `yes` only when an official source fetched during this run confirms the exact current prices. Otherwise set it to `no` and explain why in `comments`.
             - Set `tieringCorrect` to `yes` only when all applicable price tiers, thresholds, and tier-specific prices are confirmed. Use `not_applicable` only when the provider has no applicable tiering dimension, otherwise use `no` and explain the gap in `comments`.
             - Put the official evidence URLs used for each model in that row. Comments should capture price units and conversions, tier thresholds, corrections, uncertainty, or why no change was made.
@@ -238,8 +241,8 @@ jobs:
             --max-turns ${{ steps.validate-inputs.outputs.max_turns }}
             --max-budget-usd ${{ steps.validate-inputs.outputs.max_budget_usd }}
             --no-session-persistence
-            --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:developers.openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:cloud.google.com),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
-            --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"auditDate":{"type":"string","pattern":"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},"pullRequestTitle":{"type":"string","maxLength":100},"modelsChecked":{"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"properties":{"provider":{"type":"string","minLength":1},"model":{"type":"string","minLength":1},"pricingChecked":{"type":"string","minLength":1},"priceConfirmed":{"type":"string","enum":["yes","no"]},"tieringChecked":{"type":"string","minLength":1},"tieringCorrect":{"type":"string","enum":["yes","no","not_applicable"]},"change":{"type":"string","enum":["none","updated","added","unresolved"]},"officialSources":{"type":"array","items":{"type":"string"}},"comments":{"type":"string"}},"required":["provider","model","pricingChecked","priceConfirmed","tieringChecked","tieringCorrect","change","officialSources","comments"]}},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","auditDate","pullRequestTitle","modelsChecked","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
+            --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/packages/shared/src/server/otel/OtelIngestionProcessor.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:developers.openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:cloud.google.com),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs:*),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
+            --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"auditDate":{"type":"string","pattern":"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},"pullRequestTitle":{"type":"string","maxLength":100},"modelsChecked":{"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"properties":{"provider":{"type":"string","minLength":1},"model":{"type":"string","minLength":1},"pricingChecked":{"type":"string","minLength":1},"priceConfirmed":{"type":"string","enum":["yes","no"]},"usageKeysChecked":{"type":"string","minLength":1},"usageKeyCoverageConfirmed":{"type":"string","enum":["yes","no"]},"tieringChecked":{"type":"string","minLength":1},"tieringCorrect":{"type":"string","enum":["yes","no","not_applicable"]},"change":{"type":"string","enum":["none","updated","added","unresolved"]},"officialSources":{"type":"array","items":{"type":"string"}},"comments":{"type":"string"}},"required":["provider","model","pricingChecked","priceConfirmed","usageKeysChecked","usageKeyCoverageConfirmed","tieringChecked","tieringCorrect","change","officialSources","comments"]}},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","auditDate","pullRequestTitle","modelsChecked","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
 
       - name: Mock Claude price audit
         id: mock-claude-audit
@@ -281,6 +284,8 @@ jobs:
                 model: "No provider model checked",
                 pricingChecked: "Not checked",
                 priceConfirmed: "no",
+                usageKeysChecked: "Not checked",
+                usageKeyCoverageConfirmed: "no",
                 tieringChecked: "Not checked",
                 tieringCorrect: "not_applicable",
                 change: "none",
@@ -411,19 +416,31 @@ jobs:
             modelKeys.add(key);
 
             if (
-              (item.priceConfirmed === "yes" || item.tieringCorrect === "yes") &&
+              (item.priceConfirmed === "yes" ||
+                item.usageKeyCoverageConfirmed === "yes" ||
+                item.tieringCorrect === "yes") &&
               item.officialSources.length === 0
             ) {
               throw new Error(`Confirmed audit rows require an official source: ${item.model}`);
             }
             if (
-              (item.priceConfirmed === "no" || item.tieringCorrect === "no") &&
+              (item.priceConfirmed === "no" ||
+                item.usageKeyCoverageConfirmed === "no" ||
+                item.tieringCorrect === "no") &&
               !item.comments.trim()
             ) {
               throw new Error(`Unconfirmed audit rows require comments: ${item.model}`);
             }
+            if (
+              ["added", "updated"].includes(item.change) &&
+              item.usageKeyCoverageConfirmed !== "yes"
+            ) {
+              throw new Error(`Changed model rows require confirmed usage-key coverage: ${item.model}`);
+            }
 
             const priceConfirmed = item.priceConfirmed === "yes" ? "Yes" : "No";
+            const usageKeyCoverageConfirmed =
+              item.usageKeyCoverageConfirmed === "yes" ? "Yes" : "No";
             const tieringCorrect =
               item.tieringCorrect === "not_applicable"
                 ? "N/A"
@@ -437,7 +454,7 @@ jobs:
               unresolved: "Unresolved",
             };
 
-            return `| ${escapeCell(item.provider)} | ${escapeCell(item.model)} | ${escapeCell(item.pricingChecked)} | ${priceConfirmed} | ${escapeCell(item.tieringChecked)} | ${tieringCorrect} | ${changeLabels[item.change]} | ${sourceLinks(item.officialSources, item.model)} | ${escapeCell(item.comments) || "—"} |`;
+            return `| ${escapeCell(item.provider)} | ${escapeCell(item.model)} | ${escapeCell(item.pricingChecked)} | ${priceConfirmed} | ${escapeCell(item.usageKeysChecked)} | ${usageKeyCoverageConfirmed} | ${escapeCell(item.tieringChecked)} | ${tieringCorrect} | ${changeLabels[item.change]} | ${sourceLinks(item.officialSources, item.model)} | ${escapeCell(item.comments) || "—"} |`;
           });
           const proposedTitle = output.pullRequestTitle
             ? `\`${output.pullRequestTitle.replace(/`/g, "\\`")}\``
@@ -452,8 +469,8 @@ jobs:
               "",
               "### Models checked",
               "",
-              "| Provider | Model / pricing entry | Pricing checked | Price confirmed | Tiering checked | Tiering correct | Change | Official source(s) | Comments |",
-              "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+              "| Provider | Model / pricing entry | Pricing checked | Price confirmed | Usage keys checked | Usage-key coverage | Tiering checked | Tiering correct | Change | Official source(s) | Comments |",
+              "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
               ...modelRows,
               "",
               "### Changed models",
@@ -490,7 +507,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
+          base_pricing_file="$RUNNER_TEMP/default-model-prices-before-audit.json"
+          git show "HEAD:worker/src/constants/default-model-prices.json" > "$base_pricing_file"
+          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs \
+            --base "$base_pricing_file"
           node scripts/agents/sync-agent-shims.mjs --check
 
           mapfile -t changed_files < <(
@@ -565,16 +585,8 @@ jobs:
 
           CHANGED_PRICING_JSON=false
           CHANGED_MODEL_TYPES=false
-          CHANGED_SKILL_REFERENCES=false
-          CHANGED_WORKFLOW=false
           for changed_file in "${changed_files[@]}"; do
             case "$changed_file" in
-              .agents/skills/add-model-price/references/*.md)
-                CHANGED_SKILL_REFERENCES=true
-                ;;
-              .github/workflows/model-price-audit.yml)
-                CHANGED_WORKFLOW=true
-                ;;
               worker/src/constants/default-model-prices.json)
                 CHANGED_PRICING_JSON=true
                 ;;
@@ -589,14 +601,15 @@ jobs:
           TYPES_DIFF_FILE="$RUNNER_TEMP/llm-types.diff"
           git show "HEAD:$CURRENT_PRICING_FILE" > "$BASE_PRICING_FILE"
           git diff --unified=0 -- "packages/shared/src/server/llm/types.ts" > "$TYPES_DIFF_FILE"
-          export BASE_PRICING_FILE CHANGED_MODEL_TYPES CHANGED_PRICING_JSON CHANGED_SKILL_REFERENCES CHANGED_WORKFLOW CURRENT_PRICING_FILE TYPES_DIFF_FILE
+          export BASE_PRICING_FILE CHANGED_MODEL_TYPES CHANGED_PRICING_JSON CURRENT_PRICING_FILE TYPES_DIFF_FILE
 
           mapfile -t untracked_files < <(git ls-files --others --exclude-standard)
           if [ "${#untracked_files[@]}" -gt 0 ]; then
             git add -N -- "${untracked_files[@]}"
           fi
 
-          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
+          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs \
+            --base "$BASE_PRICING_FILE"
           node scripts/agents/sync-agent-shims.mjs --check
           git diff --check -- "${changed_files[@]}"
 
@@ -607,152 +620,7 @@ jobs:
           STRUCTURED_OUTPUT_PATH="$RUNNER_TEMP/claude-model-price-audit.json"
           PR_TITLE_PATH="$RUNNER_TEMP/model-price-audit-pr-title.txt"
           export STRUCTURED_OUTPUT_PATH
-          node <<'NODE' > "$PR_TITLE_PATH"
-          const fs = require("node:fs");
-          const output = JSON.parse(fs.readFileSync(process.env.STRUCTURED_OUTPUT_PATH, "utf8"));
-          const title = output.pullRequestTitle.trim();
-          const normalize = (value) => value.trim().toLowerCase();
-
-          if (!/^chore\(pricing\): [^\r\n]+$/.test(title) || title.length > 100) {
-            console.error("::error::pullRequestTitle must be a single-line Conventional Commit title starting with 'chore(pricing): ' and no longer than 100 characters");
-            process.exit(1);
-          }
-
-          const description = title.slice("chore(pricing): ".length).trim().toLowerCase();
-          if (/^(audit|refresh|update)( default)? (model )?(prices?|pricing)( data)?$/.test(description)) {
-            console.error("::error::pullRequestTitle must identify the specific models or audit behavior changed");
-            process.exit(1);
-          }
-
-          const basePrices = JSON.parse(fs.readFileSync(process.env.BASE_PRICING_FILE, "utf8"));
-          const currentPrices = JSON.parse(fs.readFileSync(process.env.CURRENT_PRICING_FILE, "utf8"));
-          const basePricesByName = new Map(basePrices.map((item) => [normalize(item.modelName), item]));
-          const currentPricesByName = new Map(
-            currentPrices.map((item) => [normalize(item.modelName), item]),
-          );
-          const pricingModelChanges = [];
-          for (const modelName of new Set([
-            ...basePricesByName.keys(),
-            ...currentPricesByName.keys(),
-          ])) {
-            const before = basePricesByName.get(modelName);
-            const after = currentPricesByName.get(modelName);
-            if (JSON.stringify(before) !== JSON.stringify(after)) {
-              pricingModelChanges.push({
-                modelName: after?.modelName ?? before.modelName,
-                expectedChange: before ? "updated" : "added",
-              });
-            }
-          }
-
-          const typeModelChanges = new Set();
-          for (const line of fs.readFileSync(process.env.TYPES_DIFF_FILE, "utf8").split("\n")) {
-            const match = line.match(/^[+-]\s*"([^"]+)"(?:,|:)/);
-            if (match) typeModelChanges.add(match[1]);
-          }
-
-          if (process.env.CHANGED_PRICING_JSON === "true" && pricingModelChanges.length === 0) {
-            console.error("::error::Pricing JSON changed without a concrete model-entry change");
-            process.exit(1);
-          }
-          if (process.env.CHANGED_MODEL_TYPES === "true" && typeModelChanges.size === 0) {
-            console.error("::error::Selectable-model types changed without a concrete model identifier change");
-            process.exit(1);
-          }
-
-          const changedModelRows = output.modelsChecked.filter((item) =>
-            ["added", "updated"].includes(item.change),
-          );
-          const changedRowsByModel = new Map(
-            changedModelRows.map((item) => [normalize(item.model), item]),
-          );
-          for (const change of pricingModelChanges) {
-            const row = changedRowsByModel.get(normalize(change.modelName));
-            if (!row || row.change !== change.expectedChange) {
-              console.error(`::error::modelsChecked must report the actual ${change.expectedChange} pricing entry: ${change.modelName}`);
-              process.exit(1);
-            }
-          }
-
-          const affectedModels = new Map();
-          for (const change of pricingModelChanges) {
-            affectedModels.set(normalize(change.modelName), change.modelName);
-          }
-          for (const modelName of typeModelChanges) {
-            affectedModels.set(normalize(modelName), modelName);
-            if (!changedRowsByModel.has(normalize(modelName))) {
-              console.error(`::error::modelsChecked must report the selectable-model change: ${modelName}`);
-              process.exit(1);
-            }
-          }
-          for (const row of changedModelRows) {
-            if (!affectedModels.has(normalize(row.model))) {
-              console.error(`::error::modelsChecked reports a model without a matching pricing or selectable-model diff: ${row.model}`);
-              process.exit(1);
-            }
-          }
-
-          if (affectedModels.size > 0) {
-            const ignoredWords = new Set([
-              "default",
-              "flash",
-              "latest",
-              "lite",
-              "mini",
-              "model",
-              "models",
-              "nano",
-              "preview",
-              "price",
-              "prices",
-              "pricing",
-              "pro",
-              "turbo",
-            ]);
-            const descriptionWords = new Set(description.split(/[^a-z0-9]+/));
-            const unrepresentedModels = [...affectedModels.values()].filter((modelName) => {
-              const identifyingWords = normalize(modelName)
-                .split(/[^a-z0-9]+/)
-                .filter(
-                  (word) =>
-                    (word.length >= 3 || /[a-z][0-9]|[0-9][a-z]/.test(word)) &&
-                    !ignoredWords.has(word),
-                );
-              return (
-                identifyingWords.length > 0 &&
-                !identifyingWords.some((word) => descriptionWords.has(word))
-              );
-            });
-
-            if (unrepresentedModels.length > 0) {
-              console.error(`::error::pullRequestTitle does not represent these model families from the actual diff: ${unrepresentedModels.join(", ")}`);
-              process.exit(1);
-            }
-          } else if (
-            process.env.CHANGED_WORKFLOW === "true" ||
-            process.env.CHANGED_SKILL_REFERENCES === "true"
-          ) {
-            const auditChangeWords = [
-              "audit",
-              "guardrail",
-              "memory",
-              "prompt",
-              "reference",
-              "report",
-              "source",
-              "table",
-              "title",
-              "validation",
-              "workflow",
-            ];
-            if (!auditChangeWords.some((word) => description.includes(word))) {
-              console.error("::error::pullRequestTitle must identify the audit workflow or skill-reference behavior changed");
-              process.exit(1);
-            }
-          }
-
-          process.stdout.write(title);
-          NODE
+          node scripts/model-price-audit/prepare-metadata.mjs > "$PR_TITLE_PATH"
           PR_TITLE="$(cat "$PR_TITLE_PATH")"
 
           GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git -c core.hooksPath=/dev/null add -- "${changed_files[@]}"
@@ -782,11 +650,13 @@ jobs:
 
           staged_pricing_file="$RUNNER_TEMP/default-model-prices-staged.json"
           git show ":worker/src/constants/default-model-prices.json" > "$staged_pricing_file"
-          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs "$staged_pricing_file"
+          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs \
+            "$staged_pricing_file" --base "$BASE_PRICING_FILE"
           git diff --cached --check -- "${staged_files[@]}"
 
           git -c core.hooksPath=/dev/null commit --no-verify -m "$PR_TITLE"
-          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
+          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs \
+            --base "$BASE_PRICING_FILE"
           node scripts/agents/sync-agent-shims.mjs --check
           git format-patch -1 --stdout HEAD > "$RUNNER_TEMP/model-price-audit.patch"
           test -s "$RUNNER_TEMP/model-price-audit.patch"
@@ -807,7 +677,7 @@ jobs:
             echo
             echo "## Validation"
             echo
-            echo "- \`node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs\`"
+            echo "- pricing structure and changed-entry usage-key coverage validation"
             echo "- \`node scripts/agents/sync-agent-shims.mjs --check\`"
             echo "- \`git diff --check\`"
             echo "- staged pricing blob validation"
