@@ -10,6 +10,7 @@ import {
   type OtelMediaWritePath,
   uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
+import { MediaAssociationOrigin } from "@langfuse/shared";
 
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
@@ -71,7 +72,11 @@ export async function processOtelEventMedia(params: {
             writePath,
             mediaBucket,
             mediaPrefix,
-            uploadMedia: uploadMediaForTrace,
+            uploadMedia: (uploadParams) =>
+              uploadMediaForTrace({
+                ...uploadParams,
+                origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+              }),
           });
 
           span.setAttributes({
