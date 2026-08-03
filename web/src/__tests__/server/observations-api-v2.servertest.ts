@@ -100,6 +100,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
         span_id: observationId,
         trace_id: traceId,
         project_id: projectId,
+        parent_span_id: "external-parent",
+        is_app_root: true,
         name: "test-observation",
         type: "GENERATION",
         level: "DEFAULT",

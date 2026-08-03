@@ -972,12 +972,11 @@ export class QueryBuilder {
 
     // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
     // When the view has a rootEventCondition, prefer the root event's timestamp for
-    // time bucketing. Falls back to min(start_time) when no root event exists for a
-    // trace (e.g. parent_span_id is not populated).
+    // time bucketing. Falls back to min(start_time) when no semantic-root event
+    // exists for a trace.
     let wrappedSql: string;
     if (wrapInAgg && view.rootEventCondition) {
-      const alias = this.tableAlias(view);
-      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${alias}.${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
+      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
     } else if (wrapInAgg) {
       wrappedSql = `${wrapInAgg}(${timeDimensionSql})`;
     } else {

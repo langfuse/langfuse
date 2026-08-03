@@ -6,7 +6,11 @@ import {
   type views,
 } from "./types";
 import { InvalidRequestError } from "../../errors";
-import { eventsTableIsRootObservationSqlForAlias } from "../../eventsTable";
+import {
+  eventsTableIsRootObservationSqlForAlias,
+  eventsTableTraceNameAggregationSqlForAlias,
+  eventsTableTraceNameSqlForAlias,
+} from "../../eventsTable";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -173,14 +177,14 @@ export const eventsTracesView: ViewDeclarationType = {
       // This is the GROUP BY identity column
     },
     name: {
-      sql: "COALESCE(nullIf(events_traces.trace_name, ''), if(events_traces.parent_span_id = '', nullIf(events_traces.name, ''), NULL))",
+      sql: eventsTableTraceNameSqlForAlias("events_traces"),
       alias: "name",
       type: "string",
       description:
         "Name assigned to the trace (often the endpoint or operation).",
       // First try most-recent non-empty trace_name, then fall back to root event's name
       aggregationFunction:
-        "COALESCE(nullIf(argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> ''), ''), argMaxIf(events_traces.name, events_traces.event_ts, events_traces.parent_span_id = '' AND events_traces.name <> ''))",
+        eventsTableTraceNameAggregationSqlForAlias("events_traces"),
       // Pruning columns for WHERE: OR'd together to help ClickHouse skip blocks,
       // then dimension.sql is AND'd for exact row-level match.
       filterSql: {
@@ -346,7 +350,7 @@ export const eventsTracesView: ViewDeclarationType = {
   timeDimension: "start_time",
   rootEventCondition: {
     column: "trace_id",
-    condition: "parent_span_id = ''",
+    condition: eventsTableIsRootObservationSqlForAlias(""),
   },
   baseCte: `events_core events_traces`,
 };
@@ -731,7 +735,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
   },
   // Trace metadata on events table (accessed via events_traces JOIN)
   traceName: {
-    sql: "COALESCE(nullIf(events_traces.trace_name, ''), nullIf(events_traces.name, ''))",
+    sql: eventsTableTraceNameSqlForAlias("events_traces"),
     alias: "traceName",
     type: "string",
     relationTable: "events_traces",
@@ -921,8 +925,7 @@ const createScoreTableRelations = (
   return {
     events_traces: {
       name: "events_core",
-      joinConditionSql:
-        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
+      joinConditionSql: `ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND ${eventsTableIsRootObservationSqlForAlias("events_traces")}`,
       timeDimension: "start_time",
       useFinal: false,
     },
@@ -1189,7 +1192,7 @@ export const eventsObservationsView: ViewDeclarationType = {
     },
     // Backwards-compatible field definitions (for API parity with v1)
     traceName: {
-      sql: "COALESCE(nullIf(events_observations.trace_name, ''), if(events_observations.parent_span_id = '', nullIf(events_observations.name, ''), NULL))",
+      sql: eventsTableTraceNameSqlForAlias("events_observations"),
       alias: "traceName",
       type: "string",
       description: "Name of the parent trace (backwards-compatible with v1).",

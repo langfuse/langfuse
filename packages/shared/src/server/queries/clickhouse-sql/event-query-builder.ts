@@ -4,6 +4,7 @@ import {
 } from "../../../domain/observation-field-groups";
 import {
   eventsTableIsRootObservationSql,
+  eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSql,
 } from "../../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
@@ -524,7 +525,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   projectId: "project_id",
 
   // Aggregated fields
-  name: "argMaxIf(trace_name, event_ts, trace_name <> '') AS name",
+  name: `${eventsTableTraceNameAggregationSql} AS name`,
   timestamp: "min(start_time) as timestamp",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",

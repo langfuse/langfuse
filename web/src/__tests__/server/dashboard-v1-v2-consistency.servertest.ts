@@ -1497,9 +1497,9 @@ describe("dashboard v1 vs v2 consistency", () => {
     });
   });
 
-  // ─── v2 empty trace_name fallback to root event name ─────────────────
+  // ─── v2 empty trace_name fallback to semantic-root name ─────────────
 
-  maybe("v2 empty trace_name fallback to root event name", () => {
+  maybe("v2 empty trace_name fallback to semantic-root name", () => {
     let fallbackProjectId: string;
     let fallbackFromTimestamp: string;
     let fallbackToTimestamp: string;
@@ -1515,7 +1515,7 @@ describe("dashboard v1 vs v2 consistency", () => {
       // events_core uses DateTime64(6) — timestamps in microseconds
       const baseTimeUs = baseTime * 1000;
 
-      // ── Trace 1: empty trace_name, root event name = "FallbackTraceName" ──
+      // ── Trace 1: empty trace_name, app-root name = "FallbackTraceName" ──
       emptyTraceNameTraceId = v4();
       const childObsId = v4();
 
@@ -1525,7 +1525,8 @@ describe("dashboard v1 vs v2 consistency", () => {
           span_id: `t-${emptyTraceNameTraceId}`,
           trace_id: emptyTraceNameTraceId,
           project_id: fallbackProjectId,
-          parent_span_id: "",
+          parent_span_id: "external-parent",
+          is_app_root: true,
           name: "FallbackTraceName",
           type: "SPAN",
           environment: "default",
@@ -1830,7 +1831,7 @@ describe("dashboard v1 vs v2 consistency", () => {
       const nameMap = new Map(
         result.map((r) => [r.traceName as string, Number(r.count_count)]),
       );
-      // Score on trace with empty trace_name should resolve via root event name
+      // Score on trace with empty trace_name should resolve via semantic-root name
       expect(nameMap.get("FallbackTraceName")).toBe(1);
       // Score on trace with populated trace_name should resolve normally
       expect(nameMap.get("PopulatedTraceName")).toBe(1);

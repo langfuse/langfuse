@@ -1,12 +1,19 @@
 import { type ColumnDefinition } from "./tableDefinitions";
 
 export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
-export const eventsTableIsRootObservationSqlForAlias = (alias: string) =>
-  `(${alias}.parent_span_id = '' OR ${alias}.is_app_root = true)`;
+export const eventsTableIsRootObservationSqlForAlias = (alias: string) => {
+  const prefix = alias ? `${alias}.` : "";
+  return `(${prefix}parent_span_id = '' OR ${prefix}is_app_root = true)`;
+};
 export const eventsTableIsRootObservationSql =
   eventsTableIsRootObservationSqlForAlias("e");
-export const eventsTableTraceNameSql =
-  "COALESCE(nullIf(e.trace_name, ''), if(e.parent_span_id = '', nullIf(e.name, ''), NULL))";
+export const eventsTableTraceNameSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(${alias}.trace_name, ''), if(${eventsTableIsRootObservationSqlForAlias(alias)}, nullIf(${alias}.name, ''), NULL))`;
+export const eventsTableTraceNameSql = eventsTableTraceNameSqlForAlias("e");
+export const eventsTableTraceNameAggregationSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, ${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> ''), ''))`;
+export const eventsTableTraceNameAggregationSql =
+  eventsTableTraceNameAggregationSqlForAlias("e");
 
 export const isRootObservation = ({
   parentObservationId,
