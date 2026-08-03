@@ -102,6 +102,10 @@ import {
   type LegacySessionTrace,
 } from "@/src/components/session/sessionDetailPageTypes";
 import { getSessionFilterOptionsStartTimeFilters } from "@/src/components/session/sessionFilterOptions";
+import {
+  SessionMessageSearchToolbar,
+  useSessionMessageSearchController,
+} from "@/src/components/session/SessionMessageSearch";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 const INITIAL_USERS_DISPLAY_COUNT = 3;
@@ -1182,6 +1186,18 @@ const LoadedSessionEventsPage: React.FC<{
     () => JSON.stringify(visibleFilterState),
     [visibleFilterState],
   );
+  const messageSearchCaptureRootRef = React.useRef<HTMLDivElement>(null);
+  const messageSearch = useSessionMessageSearchController({
+    enabled: isModernSessionEnabled,
+    traces: traces ?? [],
+    projectId,
+    sessionId,
+    filterState: visibleFilterState,
+    scopeKey: `${sessionId}:${traces?.length ?? 0}:${traces?.[0]?.id ?? ""}:${traces?.at(-1)?.id ?? ""}:${visibleFilterMeasurementKey}:${showInlineToolCalls}:${showSystemPrompt}`,
+    showInlineToolCalls,
+    showSystemPrompt,
+    captureRootRef: messageSearchCaptureRootRef,
+  });
 
   // Stub state for Saved Views (no actual table columns in this view)
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
@@ -1398,6 +1414,12 @@ const LoadedSessionEventsPage: React.FC<{
                 sessionId={sessionId}
               />
               {isModernSessionEnabled ? (
+                <SessionMessageSearchToolbar
+                  controller={messageSearch}
+                  className="h-8 max-w-[28rem]"
+                />
+              ) : null}
+              {isModernSessionEnabled ? (
                 <>
                   <div className="hidden items-center gap-3 pr-2 min-[1900px]:flex">
                     <span className="text-muted-foreground text-xs">Show:</span>
@@ -1593,6 +1615,7 @@ const LoadedSessionEventsPage: React.FC<{
         }}
       >
         <div
+          ref={messageSearchCaptureRootRef}
           className={
             isModernSessionEnabled
               ? "flex h-full min-h-0 flex-col overflow-hidden"
@@ -1725,6 +1748,13 @@ const LoadedSessionEventsPage: React.FC<{
 
             {/* Scores */}
             <SessionScores scores={session.scores} />
+
+            {isModernSessionEnabled ? (
+              <SessionMessageSearchToolbar
+                controller={messageSearch}
+                className="ml-auto max-w-[28rem] md:hidden"
+              />
+            ) : null}
           </SessionControlsBar>
           {!isModernSessionEnabled ? (
             <div ref={parentRef} className="flex-1 overflow-auto p-4">
@@ -1778,6 +1808,7 @@ const LoadedSessionEventsPage: React.FC<{
               totalCost={session.totalCost ?? 0}
               showInlineToolCalls={showInlineToolCalls}
               showSystemPrompt={showSystemPrompt}
+              messageSearch={messageSearch}
             />
           )}
         </div>

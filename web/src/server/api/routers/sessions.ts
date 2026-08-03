@@ -53,6 +53,10 @@ import {
 } from "@langfuse/shared/src/server";
 import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import {
+  searchSessionMessages,
+  SESSION_MESSAGE_SEARCH_RESULT_LIMIT,
+} from "@/src/features/sessions/server/searchSessionMessages";
 import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 const SessionCountOptions = z.object({
@@ -69,6 +73,20 @@ const SessionTraceObservationsInput = z.object({
   sessionId: z.string(),
   traceId: z.string(),
   filter: z.array(singleFilter).nullable(),
+});
+
+const SessionMessageSearchInput = z.object({
+  projectId: z.string(),
+  sessionId: z.string(),
+  query: z.string().trim().min(1).max(500),
+  filter: z.array(singleFilter).nullable(),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(SESSION_MESSAGE_SEARCH_RESULT_LIMIT)
+    .default(SESSION_MESSAGE_SEARCH_RESULT_LIMIT),
+  offset: z.number().int().min(0).default(0),
 });
 
 /**
@@ -968,6 +986,18 @@ export const sessionRouter = createTRPCRouter({
 
       return observations;
     }),
+  searchMessages: protectedGetSessionProcedure
+    .input(SessionMessageSearchInput)
+    .query(({ input }) =>
+      searchSessionMessages({
+        projectId: input.projectId,
+        sessionId: input.sessionId,
+        query: input.query,
+        filter: input.filter ?? [],
+        limit: input.limit,
+        offset: input.offset,
+      }),
+    ),
   /**
    * Full raw I/O for one observation, for the session card's download
    * fallback (LFE-10958). Session-authorized (public sessions included); the

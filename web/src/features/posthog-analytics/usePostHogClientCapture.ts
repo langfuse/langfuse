@@ -141,6 +141,8 @@ export const events = {
     "truncated_observation_download_click",
     "inline_tools_toggled",
     "system_prompt_toggled",
+    "message_search_open",
+    "message_search_remote_result_select",
   ],
   eval_config: [
     "new_form_submit",

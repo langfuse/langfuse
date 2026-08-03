@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
@@ -8,6 +8,8 @@ import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionT
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import { SessionMessageSearchProvider } from "@/src/components/session/SessionMessageSearch";
+import { type SessionMessageSearchController } from "@/src/components/session/sessionMessageSearchController";
 import { cn } from "@/src/utils/tailwind";
 import { usdFormatter } from "@/src/utils/numbers";
 
@@ -27,6 +29,7 @@ type ModernSessionProps = {
   totalCost: number;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
+  messageSearch: SessionMessageSearchController;
 };
 
 const ModernSessionMinimapItem = React.memo(
@@ -219,6 +222,7 @@ export function ModernSession({
   totalCost,
   showInlineToolCalls,
   showSystemPrompt,
+  messageSearch,
 }: ModernSessionProps) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [selectedTraceId, setSelectedTraceId] = useState<string>();
@@ -264,6 +268,29 @@ export function ModernSession({
 
   const restoreScrollSpy = () => setSelectedTraceId(undefined);
 
+  const openRemoteSearchResult = useCallback(
+    (result: Parameters<typeof messageSearch.openRemoteResult>[0]) => {
+      const trace = traces[result.traceIndex];
+      if (!trace) return;
+      setSelectedTraceId(trace.id);
+      scrollToTrace(result.traceIndex);
+      openPeek(trace.id, {
+        ...trace,
+        observationId: result.observationId,
+      });
+    },
+    [messageSearch, openPeek, scrollToTrace, traces],
+  );
+
+  useEffect(() => {
+    messageSearch.setTraceNavigator(selectTrace);
+    messageSearch.setRemoteNavigator(openRemoteSearchResult);
+    return () => {
+      messageSearch.setTraceNavigator(null);
+      messageSearch.setRemoteNavigator(null);
+    };
+  }, [messageSearch, openRemoteSearchResult, selectTrace]);
+
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-1">
       <ModernSessionMinimap
@@ -304,20 +331,22 @@ export function ModernSession({
                 virtualItem={virtualItem}
                 virtualizer={virtualizer}
               >
-                <LazySessionTraceEventsRow
-                  trace={trace}
-                  projectId={projectId}
-                  sessionId={sessionId}
-                  openPeek={openPeek}
-                  traceCommentCounts={traceCommentCounts}
-                  index={virtualItem.index}
-                  filterState={filterState}
-                  viewLabel={viewLabel}
-                  surface="modern"
-                  contentMode={showInlineToolCalls ? "all" : "conversation"}
-                  showSystemPrompt={showSystemPrompt}
-                  isActive={trace.id === activeTraceId}
-                />
+                <SessionMessageSearchProvider controller={messageSearch}>
+                  <LazySessionTraceEventsRow
+                    trace={trace}
+                    projectId={projectId}
+                    sessionId={sessionId}
+                    openPeek={openPeek}
+                    traceCommentCounts={traceCommentCounts}
+                    index={virtualItem.index}
+                    filterState={filterState}
+                    viewLabel={viewLabel}
+                    surface="modern"
+                    contentMode={showInlineToolCalls ? "all" : "conversation"}
+                    showSystemPrompt={showSystemPrompt}
+                    isActive={trace.id === activeTraceId}
+                  />
+                </SessionMessageSearchProvider>
               </SessionVirtualizedRow>
             );
           })}

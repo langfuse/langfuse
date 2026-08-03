@@ -14,6 +14,9 @@ feature-flagged choice between the existing card layout and Modern Session.
   DOM-safe dynamic row measurement.
 - `SessionObservationIO.tsx`: bounded observation payload rendering and the
   bridge into `IOPreview` full/conversation modes.
+- `SessionMessageSearch.tsx` + `sessionMessageSearchController.ts`: the
+  page-scoped search toolbar, bounded observation loading, virtual-row target
+  registration, match navigation, and DOM highlights for Pretty/JSON views.
 
 Modern Session prepares each events-backed observation once inside its narrow
 row container and passes the parsed I/O plus ChatML result through `IOPreview`.
@@ -32,3 +35,9 @@ Server/query state remains in tRPC and React Query. Active Modern Session state
 is derived from TanStack Virtual's current scroll offset unless the user
 explicitly selects a minimap item that cannot reach the feed's top edge. User
 scrolling restores scroll-spy ownership; no effect mirrors either state.
+
+Message search is also page-scoped: the controller and corpus survive virtual
+row unmounts, while mounted rows only register their visible I/O DOM. The first
+non-empty query loads the same capped observation pages used by the feed in
+bounded batches and reuses that corpus until session filters or display options
+change.

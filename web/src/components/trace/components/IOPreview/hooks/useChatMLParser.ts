@@ -88,7 +88,7 @@ function getToolCallArguments(toolCall: unknown): unknown {
  * result has any conversation representation without relying on observation
  * types.
  */
-function parseChatML(
+export function parseChatML(
   parsedInput: unknown,
   parsedOutput: unknown,
   parsedMetadata: unknown,

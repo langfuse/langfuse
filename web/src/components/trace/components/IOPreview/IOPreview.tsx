@@ -70,6 +70,8 @@ export interface IOPreviewProps extends ExpansionStateProps {
   currentView?: ViewMode;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  searchQuery?: string;
+  searchMatchIndex?: number;
   setIsPrettyViewAvailable?: (value: boolean) => void;
   // Inline comment props (JSON Beta view only)
   enableInlineComments?: boolean;
@@ -120,6 +122,8 @@ export function IOPreview({
   currentView,
   contentMode = "all",
   showSystemPrompt,
+  searchQuery,
+  searchMatchIndex,
   inputExpansionState,
   outputExpansionState,
   metadataExpansionState,
@@ -175,6 +179,7 @@ export function IOPreview({
   };
 
   // Shared props for both view components
+  const searchExpansionState = searchQuery ? true : undefined;
   const sharedProps = {
     input,
     output,
@@ -190,9 +195,9 @@ export function IOPreview({
     hideInput,
     hideOutput,
     media,
-    inputExpansionState,
-    outputExpansionState,
-    metadataExpansionState,
+    inputExpansionState: searchExpansionState ?? inputExpansionState,
+    outputExpansionState: searchExpansionState ?? outputExpansionState,
+    metadataExpansionState: searchExpansionState ?? metadataExpansionState,
     onInputExpansionChange,
     onOutputExpansionChange,
     onMetadataExpansionChange,
@@ -249,7 +254,7 @@ export function IOPreview({
           hideInput={hideInput}
           hideOutput={hideOutput}
           media={media}
-          expansionState={advancedJsonExpansionState}
+          expansionState={searchExpansionState ?? advancedJsonExpansionState}
           onExpansionChange={onAdvancedJsonExpansionChange}
           onVirtualizationChange={onVirtualizationChange}
           enableInlineComments={enableInlineComments}
@@ -260,6 +265,8 @@ export function IOPreview({
           traceId={traceId}
           environment={environment}
           showCorrections={showCorrections}
+          externalSearchQuery={searchQuery}
+          externalMatchIndex={searchMatchIndex}
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
@@ -276,9 +283,9 @@ export function IOPreview({
           hideInput={hideInput}
           hideOutput={hideOutput}
           media={media}
-          inputExpanded={jsonInputExpanded}
-          outputExpanded={jsonOutputExpanded}
-          metadataExpanded={jsonMetadataExpanded}
+          inputExpanded={searchQuery ? true : jsonInputExpanded}
+          outputExpanded={searchQuery ? true : jsonOutputExpanded}
+          metadataExpanded={searchQuery ? true : jsonMetadataExpanded}
           onInputExpandedChange={onJsonInputExpandedChange}
           onOutputExpandedChange={onJsonOutputExpandedChange}
           onMetadataExpandedChange={onJsonMetadataExpandedChange}
@@ -294,6 +301,7 @@ export function IOPreview({
           showMetadata={showMetadata}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}
+          searchQuery={searchQuery}
         />
       )}
 
