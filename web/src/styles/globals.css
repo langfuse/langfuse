@@ -346,33 +346,33 @@
     --modal: var(--card);
     --modal-foreground: var(--text-secondary);
 
-    --popover: 0 0% 100%;
+    --popover: var(--neutral-light-130);
     --popover-foreground: var(--text-secondary);
 
-    --muted: 210 40% 96.1%;
+    --muted: var(--neutral-light-110);
 
     /* The interactive fill: hovered/highlighted rows, menu items, chips
        (hover = the fill, focus = the ring). */
-    --hover: 210 40% 96.1%;
+    --hover: var(--neutral-light-110);
 
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
        well"), matching the docs site's --surface-code convention. */
-    --code: 0 0% 92%;
+    --code: var(--neutral-light-100);
     /* Deliberately off-ladder: the header strip sits darker than the 92%
        code well so it reads as the well's chrome. */
-    --surface-code-header: 0 0% 86%;
+    --surface-code-header: var(--neutral-light-70);
 
     /* Line roles */
-    --border: 214.3 31.8% 91.4%; /* default hairline */
+    --border: var(--neutral-light-90); /* default hairline */
     /* Inputs + popover borders: coincides with the hairline in light; dark
        lifts it above the hairline (see .dark) so text fields and the top
        layer keep a visible edge on the near-black surfaces. */
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
        one clear step stronger than the hairline --border. */
-    --border-contrast: 214.3 20% 80%;
+    --border-contrast: var(--neutral-light-60);
 
     /* Focus ring (hover = the fill, focus = the ring). */
-    --focus: 219 99% 53%;
+    --focus: var(--blue-light-20);
 
     /* Primary action fill: buttons paint the brightest ink — same tier as
        text-primary (the text-primary utility resolves through this token
@@ -402,29 +402,28 @@
     --ring: var(--focus);
     --sidebar-ring: var(--focus);
 
-    --primary-accent: 219 99% 53%;
+    --primary-accent: var(--blue-light-20);
     /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
        same Kumo blue family as dark, but deeper — links shouldn't be the
        loudest thing on a light page — with a clearly darker hover step. */
-    --link: 219 99% 53%;
-    --link-hover: 220 100% 40%;
+    --link: var(--blue-light-20);
+    --link-hover: var(--blue-light-10);
     /* Preview-deployment strip (PR previews only): soft blue tint with text
-       darker than the fill, links a step brighter than body text. Values are
-       the blue-100/950/200/700/800 ramp. */
+       darker than the fill. Its links are links — they ride --link. */
     --preview-banner: 214 95% 93%;
     --preview-banner-foreground: 226 57% 21%;
     --preview-banner-border: 213 97% 87%;
-    --preview-banner-link: 224 76% 48%;
-    --preview-banner-link-hover: 226 71% 40%;
+    --preview-banner-link: var(--link);
+    --preview-banner-link-hover: var(--link-hover);
     /* Checked selection controls (checkbox/switch): monochrome in BOTH
        modes — dark fill + light glyph in light, muted-white fill + dark
        glyph in dark (rides the bright text tier).
        --control-track is the switch's off-state track. */
     --control-fill: var(--text-primary);
-    --control-track: 214.3 31.8% 91.4%;
+    --control-track: var(--neutral-light-90);
     /* Unchecked control boundary — quieter than the near-black fill in light,
        a touch above --input in dark so the box still reads on the canvas. */
-    --control-border: 215 12% 60%;
+    --control-border: var(--neutral-light-40);
 
     --muted-green: 84 81% 44%;
     --muted-magenta: 330 90% 70%;
@@ -470,24 +469,25 @@
        than the app palette: field=violet, value=green, number=orange,
        keyword=blue. Scoped to the filter grammar (key:value pills); retune
        freely, a designer can own these later. Operators reuse muted-foreground.
-       Values from the langfuse-search-bar prototype. */
+       Values from the langfuse-search-bar prototype; keyword snapped onto the
+       app's blue ramp. */
     --qlang-field: 262 60% 47%;
     --qlang-value: 152 60% 30%;
     --qlang-number: 24 75% 42%;
-    --qlang-keyword: 221 83% 53%;
+    --qlang-keyword: var(--blue-light-20);
 
     --radius: 0.5rem;
     /* Frame tint: one step off the canvas so the nav reads as chrome
        (dark shares the raised --card tier, see .dark). */
-    --sidebar-background: 210 40% 98%;
+    --sidebar-background: var(--neutral-light-120);
     --sidebar-foreground: var(--text-secondary);
     --sidebar-primary: var(--text-primary);
     --sidebar-primary-foreground: var(--text-on-fill);
     /* Selected-nav fill: light needs a stronger fill than any ladder step
        (the 96% muted tier is too faint against the 98% chrome — per
-       conversation with Trang), so it keeps its own raw value; dark aligns
-       with the muted/popover level (see .dark). */
-    --sidebar-accent: 214 32% 91%;
+       conversation with Trang), so it keeps its own palette step; dark
+       aligns with the muted/popover level (see .dark). */
+    --sidebar-accent: var(--neutral-light-80);
     --sidebar-accent-foreground: var(--text-primary);
     --sidebar-border: var(--border);
 
@@ -546,21 +546,23 @@
        side): emphasis, active nav, titles, tabs, table links, button text.
        Bright caps at 88% — never near-white. Don't compress the ramp — the
        gap is the hierarchy. */
-    --text-primary: 0 0% 88%;
-    --text-secondary: 0 0% 60%;
-    --text-tertiary: 0 0% 50%; /* meta — TRIAL re-split from body (was merged at 60) */
-    --text-disabled: 0 0% 40%;
+    --text-primary: var(--neutral-dark-110);
+    --text-secondary: var(--neutral-dark-90);
+    --text-tertiary: var(
+      --neutral-dark-80
+    ); /* meta — TRIAL re-split from body (was merged at 60) */
+    --text-disabled: var(--neutral-dark-70);
 
-    --canvas: 0 0% 3.5%;
-    --card: 0 0% 6%;
+    --canvas: var(--neutral-dark-10);
+    --card: var(--neutral-dark-20);
     /* Frame and elevated share the raised tier in dark. */
     --sidebar-background: var(--card);
-    --popover: 0 0% 10%;
-    --muted: 0 0% 10%;
+    --popover: var(--neutral-dark-30);
+    --muted: var(--neutral-dark-30);
     /* Hover fill: one clear step above --popover (10%) — focus:bg-hover is
        the only focus cue in menus/selects/⌘K, and 14.3% was a
        near-invisible ~1.13:1. */
-    --hover: 0 0% 18%;
+    --hover: var(--neutral-dark-50);
     /* The code well collapses into the canvas in dark (Trang call); light
        keeps its recessed 92% grey. */
     --code: var(--canvas);
@@ -572,28 +574,26 @@
 
     /* One quiet line for everything non-assertive — dividers, inputs,
        popover edges (edge tier merged down per Trang, 2026-08-03). */
-    --border: 0 0% 13%;
-    --border-contrast: 0 0% 18%;
+    --border: var(--neutral-dark-40);
+    --border-contrast: var(--neutral-dark-50);
 
-    --focus: 218 100% 74%;
+    --focus: var(--blue-dark-10);
 
     /* ── Raw per-mode overrides (no shared role) ─────────────────────── */
     --destructive: 0 78.7% 63.1%;
     --destructive-foreground: 0 0% 88%;
 
-    --primary-accent: 218 100% 74%;
-    --link: 218 100% 74%;
-    --link-hover: 217 100% 83%;
+    --primary-accent: var(--blue-dark-10);
+    --link: var(--blue-dark-10);
+    --link-hover: var(--blue-dark-20);
     /* Preview-deployment strip: fill is blue-500/25 precomposed over the
        dark canvas, border is blue-300/20 precomposed over that fill — the
        strip needs opaque colors. Body text stays on the neutral foreground
-       tier; links are blue-400/300. */
+       tier; links ride --link (see :root). */
     --preview-banner: 217 47% 19%;
-    --preview-banner-foreground: 0 0% 70%;
+    --preview-banner-foreground: var(--neutral-dark-100);
     --preview-banner-border: 215 37% 31%;
-    --preview-banner-link: 213 94% 68%;
-    --preview-banner-link-hover: 212 96% 78%;
-    --control-track: 0 0% 26%;
+    --control-track: var(--neutral-dark-60);
     /* Matches --border-contrast: unchecked checkboxes/radios read by their
        border alone; 20% was ~1.58:1 on the canvas. */
     --control-border: var(--border-contrast);
@@ -636,7 +636,7 @@
     --qlang-field: 255 92% 76%;
     --qlang-value: 158 64% 52%;
     --qlang-number: 27 96% 61%;
-    --qlang-keyword: 213 94% 68%;
+    --qlang-keyword: var(--blue-dark-10);
 
     --find-match-background: 60 100% 20%;
     --find-match-selected-background: 60 100% 50%;
