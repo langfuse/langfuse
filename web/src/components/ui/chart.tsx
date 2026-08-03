@@ -320,7 +320,7 @@ const ChartTooltipContent = React.forwardRef<
                             // Color-only emphasis: a weight change alters text
                             // metrics, so the highlighted name would truncate
                             // differently than its neighbors. (LFE-10576)
-                            highlighted && "text-foreground",
+                            highlighted && "text-secondary",
                           )}
                           title={itemDisplayTitle}
                         >
@@ -328,7 +328,7 @@ const ChartTooltipContent = React.forwardRef<
                         </span>
                       </div>
                       {item.value !== undefined && item.value !== null && (
-                        <span className="text-foreground shrink-0 font-mono font-bold whitespace-nowrap tabular-nums">
+                        <span className="text-secondary shrink-0 font-mono font-bold whitespace-nowrap tabular-nums">
                           {valueFormatter
                             ? valueFormatter(Number(item.value))
                             : item.value.toLocaleString()}

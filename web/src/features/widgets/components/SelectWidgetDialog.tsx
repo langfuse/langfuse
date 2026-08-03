@@ -39,7 +39,7 @@ export type WidgetItem = {
 };
 
 const rowClassName =
-  "flex w-full items-center gap-4 rounded-lg border p-3 text-left hover:bg-hover/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
+  "flex w-full items-center gap-4 rounded-lg border p-3 text-left hover:bg-hover/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-focus";
 
 function RowIllustration({ type }: { type: string }) {
   return (
@@ -68,13 +68,13 @@ function WidgetRow({
         </div>
         {widget.description ? (
           <div
-            className="text-muted-foreground truncate text-xs"
+            className="text-tertiary truncate text-xs"
             title={widget.description}
           >
             {widget.description}
           </div>
         ) : null}
-        <div className="text-muted-foreground/80 mt-0.5 text-xs">
+        <div className="text-tertiary/80 mt-0.5 text-xs">
           {getChartTypeDisplayName(
             widget.chartType as DashboardWidgetChartType,
           )}{" "}
@@ -179,7 +179,7 @@ export function SelectWidgetDialog({
                 <RowIllustration type="CUSTOM" />
                 <div className="min-w-0 flex-1">
                   <div className="font-bold">Custom Chart</div>
-                  <div className="text-muted-foreground text-xs">
+                  <div className="text-tertiary text-xs">
                     Pick a data view, metrics, and chart type from scratch
                   </div>
                 </div>
@@ -206,7 +206,7 @@ export function SelectWidgetDialog({
                 <TabsContent value="project">
                   <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
                     {projectWidgets.length === 0 ? (
-                      <div className="text-muted-foreground py-8 text-center text-sm">
+                      <div className="text-tertiary py-8 text-center text-sm">
                         No saved widgets in this project yet — build one with
                         Custom Chart.
                       </div>
@@ -245,12 +245,12 @@ export function SelectWidgetDialog({
                                 {meta.name}
                               </div>
                               <div
-                                className="text-muted-foreground truncate text-xs"
+                                className="text-tertiary truncate text-xs"
                                 title={meta.description}
                               >
                                 {meta.description}
                               </div>
-                              <div className="text-muted-foreground/80 mt-0.5 text-xs">
+                              <div className="text-tertiary/80 mt-0.5 text-xs">
                                 Home card · fixed configuration
                               </div>
                             </div>

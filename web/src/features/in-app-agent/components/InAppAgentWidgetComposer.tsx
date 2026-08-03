@@ -77,7 +77,7 @@ export function InAppAgentWidgetComposer({
         <Sparkles className="h-4 w-4" />
         Add with Langfuse Assistant
       </div>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-tertiary text-xs">
         Describe the chart you need. The Assistant will create it as a widget
         and add it to this dashboard.
       </p>

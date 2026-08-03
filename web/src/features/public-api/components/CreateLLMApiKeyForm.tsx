@@ -733,7 +733,7 @@ export function CreateLLMApiKeyForm({
           />
 
           {showOtherModelInfo && (
-            <div className="bg-muted/40 text-muted-foreground space-y-2 rounded-md border p-4 text-sm">
+            <div className="bg-muted/40 text-tertiary space-y-2 rounded-md border p-4 text-sm">
               <p>
                 You can use any model provider as LLM connection that supports
                 one of the adapters in the list. Many providers support the
@@ -926,7 +926,7 @@ export function CreateLLMApiKeyForm({
                             <FormLabel>
                               AWS Access Key ID
                               {!isLangfuseCloud && (
-                                <span className="text-muted-foreground font-normal">
+                                <span className="text-tertiary font-normal">
                                   {" "}
                                   (optional)
                                 </span>
@@ -969,7 +969,7 @@ export function CreateLLMApiKeyForm({
                             <FormLabel>
                               AWS Secret Access Key
                               {!isLangfuseCloud && (
-                                <span className="text-muted-foreground font-normal">
+                                <span className="text-tertiary font-normal">
                                   {" "}
                                   (optional)
                                 </span>
@@ -1001,7 +1001,7 @@ export function CreateLLMApiKeyForm({
                   )}
                   {!isLangfuseCloud &&
                     currentAuthMethod === AuthMethod.AccessKeys && (
-                      <div className="text-muted-foreground space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
+                      <div className="text-tertiary space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
                         <p>
                           <strong>Default credential provider chain:</strong>{" "}
                           When AWS credentials are omitted, the system will
@@ -1124,7 +1124,7 @@ export function CreateLLMApiKeyForm({
                   {!isLangfuseCloud &&
                     form.watch("secretKey") ===
                       VERTEXAI_USE_DEFAULT_CREDENTIALS && (
-                      <div className="text-muted-foreground space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
+                      <div className="text-tertiary space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
                         <p>
                           <strong>
                             Application Default Credentials (ADC):

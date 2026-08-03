@@ -71,9 +71,9 @@ export function ChartViewPrototype({
   const isTimeSeries = isTimeSeriesChartType(config.chartType);
 
   return (
-    <div className="bg-background flex h-full flex-col overflow-hidden rounded-lg border">
+    <div className="bg-canvas flex h-full flex-col overflow-hidden rounded-lg border">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
-        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+        <div className="text-tertiary flex items-center gap-2 text-xs">
           <Button variant="outline" size="sm" disabled className="h-7 gap-1.5">
             <SlidersHorizontal className="h-3.5 w-3.5" />
             Filters
@@ -119,7 +119,7 @@ function InlineField({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-muted-foreground text-xs">{label}</span>
+      <span className="text-tertiary text-xs">{label}</span>
       {children}
     </div>
   );
@@ -185,7 +185,7 @@ function InlineTake({
         </InlineField>
       </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 p-3">
-        <div className="text-foreground text-sm font-bold">
+        <div className="text-secondary text-sm font-bold">
           {describeConfig(config)}
         </div>
         <div className="min-h-0 flex-1">

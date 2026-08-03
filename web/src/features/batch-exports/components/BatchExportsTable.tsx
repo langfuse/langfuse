@@ -77,7 +77,7 @@ export function BatchExportsTable(props: { projectId: string }) {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
-                  <InfoIcon className="text-muted-foreground size-3" />
+                  <InfoIcon className="text-tertiary size-3" />
                 </TooltipTrigger>
                 <TooltipContent>
                   <div className="space-y-1">
@@ -164,7 +164,7 @@ export function BatchExportsTable(props: { projectId: string }) {
           );
         }
         if (status === "COMPLETED" && isExpired) {
-          return <span className="text-muted-foreground">Expired</span>;
+          return <span className="text-tertiary">Expired</span>;
         }
         if (status === "QUEUED" || status === "PROCESSING") {
           return (

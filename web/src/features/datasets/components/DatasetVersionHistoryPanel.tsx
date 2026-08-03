@@ -108,7 +108,7 @@ export function DatasetVersionHistoryPanel({
   if (!versions || versions.length === 0) {
     return (
       <div className="flex h-full items-center justify-center p-4">
-        <div className="text-muted-foreground text-center text-sm">
+        <div className="text-tertiary text-center text-sm">
           <Clock className="mx-auto mb-2 h-8 w-8" />
           <p>No versions found</p>
         </div>
@@ -160,7 +160,7 @@ export function DatasetVersionHistoryPanel({
                 />
               )}
               <span
-                className={cn("truncate", isSelected && "text-foreground")}
+                className={cn("truncate", isSelected && "text-secondary")}
                 title={dateLabel}
               >
                 {dateLabel}
@@ -175,7 +175,7 @@ export function DatasetVersionHistoryPanel({
           <span
             className={cn(
               "text-xs",
-              isSelected ? "text-muted-foreground" : "text-muted-foreground",
+              isSelected ? "text-tertiary" : "text-tertiary",
             )}
           >
             {formatDistanceToNow(version, { addSuffix: true })}
@@ -223,7 +223,7 @@ export function DatasetVersionHistoryPanel({
       {/* Header */}
       <div className="border-b p-4">
         <h3 className="text-lg font-bold">Version History</h3>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-tertiary text-sm">
           {versions.length} version{versions.length !== 1 ? "s" : ""}
         </p>
       </div>

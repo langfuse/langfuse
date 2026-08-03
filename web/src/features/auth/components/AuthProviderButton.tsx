@@ -30,7 +30,7 @@ export function AuthProviderButton({
       </Button>
       <div
         className={cn(
-          "text-muted-foreground mt-0.5 text-center text-xs",
+          "text-tertiary mt-0.5 text-center text-xs",
           showLastUsedBadge ? "visible" : "invisible",
         )}
       >

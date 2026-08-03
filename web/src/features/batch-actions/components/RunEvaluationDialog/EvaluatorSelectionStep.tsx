@@ -95,7 +95,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
     <div className="flex h-full min-h-0 flex-col gap-2">
       <div className="flex min-h-0 flex-1 flex-col">
         {isQueryLoading ? (
-          <p className="text-muted-foreground text-sm">Loading evaluators...</p>
+          <p className="text-tertiary text-sm">Loading evaluators...</p>
         ) : isQueryError ? (
           <Card>
             <CardContent className="text-destructive p-4 text-sm">
@@ -104,7 +104,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
           </Card>
         ) : eligibleEvaluators.length === 0 ? (
           <Card>
-            <CardContent className="text-muted-foreground p-4 text-sm">
+            <CardContent className="text-tertiary p-4 text-sm">
               No {evaluatorScopeLabel}-scoped evaluators found. Create a new{" "}
               {evaluatorScopeLabel}-scoped evaluator and it will appear here.
             </CardContent>
@@ -163,7 +163,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                     />
                   ))
                 ) : (
-                  <p className="text-muted-foreground text-xs">
+                  <p className="text-tertiary text-xs">
                     No evaluators selected
                   </p>
                 )}
@@ -172,7 +172,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
 
             {filteredEvaluators.length === 0 ? (
               <div className="flex min-h-0 flex-1 items-center justify-center rounded-md border">
-                <p className="text-muted-foreground p-4 text-sm">
+                <p className="text-tertiary p-4 text-sm">
                   No evaluators match your search.
                 </p>
               </div>
@@ -195,7 +195,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                             {item.scoreName}
                           </p>
                           <p
-                            className="text-muted-foreground truncate text-[11px]"
+                            className="text-tertiary truncate text-[11px]"
                             title={templateLabel}
                           >
                             {templateLabel}

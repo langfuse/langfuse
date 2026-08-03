@@ -101,10 +101,10 @@ function InAppAgentQuickActionPicker({
 
   return (
     <>
-      <p className="text-foreground mt-3 text-sm font-bold">
+      <p className="text-secondary mt-3 text-sm font-bold">
         Welcome to the Langfuse Assistant
       </p>
-      <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
+      <p className="text-tertiary mt-1 max-w-xs text-center text-xs leading-relaxed">
         What do you want to do?
       </p>
       <Tabs
@@ -125,7 +125,7 @@ function InAppAgentQuickActionPicker({
               key={context}
               value={context}
               disabled={isDisabled}
-              className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-7 min-w-0 flex-1 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="text-tertiary data-[state=active]:border-primary-accent data-[state=active]:text-secondary h-7 min-w-0 flex-1 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
             </TabsTrigger>
@@ -151,11 +151,11 @@ function InAppAgentQuickActionPicker({
                 <ActionIcon aria-hidden="true" className="size-3.5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="text-foreground block text-xs leading-snug font-bold">
+                <span className="text-secondary block text-xs leading-snug font-bold">
                   {action.label}
                 </span>
                 <span
-                  className="text-muted-foreground mt-0.5 block truncate text-xs leading-snug font-normal"
+                  className="text-tertiary mt-0.5 block truncate text-xs leading-snug font-normal"
                   title={action.description}
                 >
                   {action.description}
@@ -163,7 +163,7 @@ function InAppAgentQuickActionPicker({
               </span>
               <ArrowRight
                 aria-hidden="true"
-                className="text-muted-foreground size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
+                className="text-tertiary size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
               />
             </Button>
           );
@@ -321,7 +321,7 @@ function InAppAgentRateLimitError({
     <div
       role="alert"
       className={cn(
-        "border-border bg-muted/60 text-foreground w-full rounded-lg border px-2 py-1",
+        "border-border bg-muted/60 text-secondary w-full rounded-lg border px-2 py-1",
         isExpanded ? "text-sm" : "text-xs",
       )}
     >
@@ -527,7 +527,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           <p className="shrink-0 truncate text-sm font-bold" title="Assistant">
             Assistant
           </p>
-          <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
+          <span className="text-tertiary rounded border px-1.5 py-1 text-xs leading-none font-bold">
             Beta
           </span>
         </div>
@@ -620,7 +620,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         type="button"
                         variant="ghost"
                         size="icon-xs"
-                        className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
+                        className="text-tertiary hover:text-destructive -mr-1.5 shrink-0"
                         disabled={
                           isConversationInteractionDisabled ||
                           isAssistantTurnInProgress
@@ -728,7 +728,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             {messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
-                  <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
+                  <BotMessageSquare className="text-tertiary mx-auto h-7 w-7" />
                 </div>
                 <InAppAgentQuickActionPicker
                   key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
@@ -862,7 +862,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             >
               <p
                 className={cn(
-                  "border-border bg-muted/60 text-foreground flex w-full items-center gap-1 rounded-lg border px-2 py-1",
+                  "border-border bg-muted/60 text-secondary flex w-full items-center gap-1 rounded-lg border px-2 py-1",
                   isExpanded ? "text-sm" : "text-xs",
                 )}
               >
@@ -904,9 +904,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {isExpanded && (
                 <>
                   {/* Gradient overlays for expanded state so that the edges fade out */}
-                  {/* Match the assistant surface (bg-background) so edges fade cleanly */}
-                  <div className="from-background absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
-                  <div className="from-background absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
+                  {/* Match the assistant surface (bg-canvas) so edges fade cleanly */}
+                  <div className="from-canvas absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
+                  <div className="from-canvas absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
                 </>
               )}
             </div>
@@ -957,7 +957,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               placeholder="Let me know what I can do for you..."
               rows={1}
               className={cn(
-                "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
+                "bg-canvas placeholder:text-disabled w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
                 isExpanded
                   ? "max-h-40 min-h-14 border-none ring-0"
                   : "border-input max-h-40 min-h-8 px-3 py-1",

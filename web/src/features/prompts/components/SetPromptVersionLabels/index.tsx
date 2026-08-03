@@ -245,7 +245,7 @@ export function SetPromptVersionLabels({
                       className={cn(
                         "text-primary text-xs underline-offset-2 hover:underline",
                         filteredUnselectedCount === 0 &&
-                          "text-muted-foreground cursor-default no-underline opacity-50",
+                          "text-tertiary cursor-default no-underline opacity-50",
                       )}
                       disabled={filteredUnselectedCount === 0}
                       onClick={() =>
@@ -258,13 +258,13 @@ export function SetPromptVersionLabels({
                         ? `Select all ${filteredUnselectedCount}`
                         : "Select all"}
                     </button>
-                    <span className="text-muted-foreground text-xs">·</span>
+                    <span className="text-tertiary text-xs">·</span>
                     <button
                       type="button"
                       className={cn(
                         "text-primary text-xs underline-offset-2 hover:underline",
                         !hasFilteredSelection &&
-                          "text-muted-foreground cursor-default no-underline opacity-50",
+                          "text-tertiary cursor-default no-underline opacity-50",
                       )}
                       disabled={!hasFilteredSelection}
                       onClick={() =>
@@ -299,7 +299,7 @@ export function SetPromptVersionLabels({
                     <button
                       type="button"
                       className={cn(
-                        "text-muted-foreground flex w-full items-center px-2 py-1.5 text-left text-sm",
+                        "text-tertiary flex w-full items-center px-2 py-1.5 text-left text-sm",
                         isValidNewLabel
                           ? "hover:bg-hover hover:text-on-hover cursor-pointer"
                           : "cursor-default opacity-50",
@@ -312,7 +312,7 @@ export function SetPromptVersionLabels({
                         title={`Create a new label: ${trimmedSearch}`}
                       >
                         Create a new label:{" "}
-                        <strong className="text-foreground">
+                        <strong className="text-secondary">
                           {trimmedSearch}
                         </strong>
                       </span>

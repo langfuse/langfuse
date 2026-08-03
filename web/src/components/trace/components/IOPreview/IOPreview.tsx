@@ -320,13 +320,13 @@ export function IOPreview({
             </Button>
             <div className="flex w-full flex-row items-center gap-2 pr-6">
               <div className="bg-hover flex h-8 w-8 items-center justify-center rounded-full">
-                <BookOpen className="text-muted-foreground h-4 w-4" />
+                <BookOpen className="text-tertiary h-4 w-4" />
               </div>
               <h3 className="text-sm font-bold">
                 Looks like this trace didn&apos;t receive an input or output.
               </h3>
             </div>
-            <p className="text-muted-foreground max-w-sm text-sm">
+            <p className="text-tertiary max-w-sm text-sm">
               Add it in your code to make debugging a lot easier.
             </p>
             <ActionButton

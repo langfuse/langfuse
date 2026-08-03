@@ -613,9 +613,7 @@ export function DataTableControls({
           )}
         >
           {displayedFilters.length === 0 && (
-            <p className="text-muted-foreground pb-2 text-xs">
-              No active filters.
-            </p>
+            <p className="text-tertiary pb-2 text-xs">No active filters.</p>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -663,7 +661,7 @@ export function DataTableControls({
       {/* Collapsed rail: shown when the sidebar is collapsed on desktop, where
           the resizable panel keeps a thin strip (see ResizableFilterLayout).
           Mirrors the trace peek's collapsed-panel rail. */}
-      <div className="bg-background hidden h-full w-full flex-col items-center border-t group-data-[expanded=false]/controls:flex">
+      <div className="bg-canvas hidden h-full w-full flex-col items-center border-t group-data-[expanded=false]/controls:flex">
         {/* Mirror the expanded header's metrics (h-10 row, border-b, 24px
             button) so the toggle icon doesn't shift when collapsing. */}
         <div className="flex h-10 w-full shrink-0 items-center justify-center border-b">
@@ -732,14 +730,14 @@ export function DataTableControls({
       </div>
       <div
         className={cn(
-          "bg-background flex w-full flex-col border-t",
+          "bg-canvas flex w-full flex-col border-t",
           // panel: a bounded, self-scrolling column. inline: natural height so
           // the host's outer scroll owns scrolling (no clip, no forced height).
           layout === "panel" && "h-full overflow-hidden",
           "group-data-[expanded=false]/controls:hidden",
         )}
       >
-        <div className="bg-background flex h-10 shrink-0 items-center justify-between border-b px-3">
+        <div className="bg-canvas flex h-10 shrink-0 items-center justify-between border-b px-3">
           <div className="flex items-center gap-1.5">
             {/* Three contexts for the header's close affordance:
                 - inline (events MobileFiltersSheet): the sheet owns its own X +
@@ -1061,7 +1059,7 @@ const FilterAccordionTrigger = ({
   // (ScrollArea wraps only the facet list), so triggers stick to its top.
   // The expand chevron leads the row (> closed, v open); the clear button
   // sits at the row's right edge and stays visible whenever a value is set.
-  <AccordionPrimitive.Header className="bg-background sticky top-0 z-[1] flex px-2 py-0.5">
+  <AccordionPrimitive.Header className="bg-canvas sticky top-0 z-[1] flex px-2 py-0.5">
     <AccordionPrimitive.Trigger
       className={cn(
         // min-w-0: without it the trigger's automatic min width equals the
@@ -1072,7 +1070,7 @@ const FilterAccordionTrigger = ({
       )}
       {...props}
     >
-      <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform" />
+      <ChevronRight className="text-tertiary h-3.5 w-3.5 shrink-0 transition-transform" />
       {children}
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
@@ -1129,10 +1127,10 @@ export function FilterAccordionItem({
     >
       <FilterAccordionTrigger
         className={cn(
-          "text-muted-foreground hover:text-foreground bg-muted hover:bg-hover min-h-6 rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline",
-          isActive && "text-foreground font-bold",
+          "text-tertiary hover:text-secondary bg-muted hover:bg-hover min-h-6 rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline",
+          isActive && "text-secondary font-bold",
           isDisabled &&
-            "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent",
+            "text-tertiary/60 hover:text-tertiary/60 cursor-not-allowed hover:bg-transparent",
         )}
       >
         {/* Two-line-max header: line 1 is the label, which NEVER wraps —
@@ -1172,7 +1170,7 @@ export function FilterAccordionItem({
               </span>
               <Tooltip delayDuration={80}>
                 <TooltipTrigger asChild>
-                  <InfoIcon className="text-muted-foreground h-3 w-3 shrink-0" />
+                  <InfoIcon className="text-tertiary h-3 w-3 shrink-0" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-80 text-xs">
                   {tooltip}
@@ -1197,13 +1195,13 @@ export function FilterAccordionItem({
                 // closed states.
                 "h-4 max-w-full min-w-0 truncate text-[11px] leading-4",
                 "group-data-[state=open]/facet:hidden",
-                // bg-background pops the chip out of the tinted header band
+                // bg-canvas pops the chip out of the tinted header band
                 // in both themes. No border/vertical padding: the chip's box
                 // must equal the label's line height so headers with and
                 // without a value render at the same height.
                 isActive
-                  ? "bg-background text-foreground rounded px-1 font-bold"
-                  : "text-muted-foreground/60 font-normal",
+                  ? "bg-canvas text-secondary rounded px-1 font-bold"
+                  : "text-tertiary/60 font-normal",
               )}
               title={summary}
             >
@@ -1240,7 +1238,7 @@ export function FilterAccordionItem({
                     onReset();
                   }
                 }}
-                className="text-muted-foreground hover:text-foreground flex shrink-0 cursor-pointer items-center gap-0.5 self-start rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
+                className="text-tertiary hover:text-secondary flex shrink-0 cursor-pointer items-center gap-0.5 self-start rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
                 aria-label={`Clear ${label} filter`}
               >
                 <IconX className="h-3 w-3 shrink-0" />
@@ -1607,7 +1605,7 @@ function CategoricalSelectContent({
       ) : visibleOptionValues.length === 0 ? (
         // px-2 on top of the outer px-2 = the same 16px inset as the mode
         // tabs and inputs, so empty states don't stick to the panel edge.
-        <div className="text-muted-foreground px-2 py-1 text-xs">
+        <div className="text-tertiary px-2 py-1 text-xs">
           {filterKey === "sessionId" ? (
             <span>
               Sessions group {tableName} together, which is useful for tracing
@@ -1616,7 +1614,7 @@ function CategoricalSelectContent({
                 href="https://langfuse.com/docs/observability/features/sessions"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-foreground underline"
+                className="hover:text-secondary underline"
               >
                 See docs
               </a>{" "}
@@ -1632,7 +1630,7 @@ function CategoricalSelectContent({
                 href="https://langfuse.com/docs/observability/features/tags"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-foreground underline"
+                className="hover:text-secondary underline"
               >
                 See docs
               </a>{" "}
@@ -1648,7 +1646,7 @@ function CategoricalSelectContent({
           {hasMoreOptions && (
             <div className="mb-2 px-2">
               <div className="relative">
-                <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+                <Search className="text-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
                 <Input
                   placeholder="Filter values"
                   value={searchQuery}
@@ -1661,7 +1659,7 @@ function CategoricalSelectContent({
 
           {/* Checkbox list */}
           {filteredOptions.length === 0 ? (
-            <div className="text-muted-foreground py-1 text-center text-sm">
+            <div className="text-tertiary py-1 text-center text-sm">
               No matches found
             </div>
           ) : (
@@ -1716,12 +1714,12 @@ function CategoricalSelectContent({
           {filterKey === "environment" &&
           visibleOptionValues.length === 1 &&
           visibleOptionValues[0]?.toLowerCase() === "default" ? (
-            <div className="text-muted-foreground mt-2 px-2 text-xs">
+            <div className="text-tertiary mt-2 px-2 text-xs">
               <a
                 href="https://langfuse.com/docs/observability/features/environments"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-foreground underline"
+                className="hover:text-secondary underline"
               >
                 See docs
               </a>{" "}
@@ -1836,14 +1834,14 @@ export function NumericFacet({
     >
       <div className="px-4 py-2">
         {loading ? (
-          <div className="text-muted-foreground text-sm">Loading...</div>
+          <div className="text-tertiary text-sm">Loading...</div>
         ) : (
           <div className="grid gap-4">
             <div className="flex items-center gap-4">
               <div className="grid w-full gap-1.5">
                 <Label
                   htmlFor={`min-${filterKey}`}
-                  className="text-muted-foreground text-xs"
+                  className="text-tertiary text-xs"
                 >
                   Min.
                 </Label>
@@ -1859,16 +1857,14 @@ export function NumericFacet({
                     className="h-8"
                   />
                   {unit && (
-                    <span className="text-muted-foreground text-xs">
-                      {unit}
-                    </span>
+                    <span className="text-tertiary text-xs">{unit}</span>
                   )}
                 </div>
               </div>
               <div className="grid w-full gap-1.5">
                 <Label
                   htmlFor={`max-${filterKey}`}
-                  className="text-muted-foreground text-xs"
+                  className="text-tertiary text-xs"
                 >
                   Max.
                 </Label>
@@ -1884,9 +1880,7 @@ export function NumericFacet({
                     className="h-8"
                   />
                   {unit && (
-                    <span className="text-muted-foreground text-xs">
-                      {unit}
-                    </span>
+                    <span className="text-tertiary text-xs">{unit}</span>
                   )}
                 </div>
               </div>
@@ -1970,7 +1964,7 @@ export function StringFacet({
     >
       <div className="px-4">
         {loading ? (
-          <div className="text-muted-foreground text-sm">Loading...</div>
+          <div className="text-tertiary text-sm">Loading...</div>
         ) : (
           <Input
             type="text"
@@ -2018,9 +2012,7 @@ export function KeyValueFacet({
       onReset={onReset}
     >
       {loading ? (
-        <div className="text-muted-foreground px-4 py-2 text-sm">
-          Loading...
-        </div>
+        <div className="text-tertiary px-4 py-2 text-sm">Loading...</div>
       ) : (
         <KeyValueFilterBuilder
           mode="categorical"
@@ -2067,9 +2059,7 @@ export function NumericKeyValueFacet({
       onReset={onReset}
     >
       {loading ? (
-        <div className="text-muted-foreground px-4 py-2 text-sm">
-          Loading...
-        </div>
+        <div className="text-tertiary px-4 py-2 text-sm">Loading...</div>
       ) : (
         <KeyValueFilterBuilder
           mode="numeric"
@@ -2115,9 +2105,7 @@ export function BooleanKeyValueFacet({
       onReset={onReset}
     >
       {loading ? (
-        <div className="text-muted-foreground px-4 py-2 text-sm">
-          Loading...
-        </div>
+        <div className="text-tertiary px-4 py-2 text-sm">Loading...</div>
       ) : (
         <KeyValueFilterBuilder
           mode="boolean"
@@ -2162,9 +2150,7 @@ export function StringKeyValueFacet({
       onReset={onReset}
     >
       {loading ? (
-        <div className="text-muted-foreground px-4 py-2 text-sm">
-          Loading...
-        </div>
+        <div className="text-tertiary px-4 py-2 text-sm">Loading...</div>
       ) : (
         <KeyValueFilterBuilder
           mode="string"
@@ -2287,7 +2273,7 @@ function TextFilterSection({
               key={idx}
               className="group/textfilter border-border/40 bg-muted/30 flex items-center gap-2 rounded border px-2 py-1 text-xs"
             >
-              <span className="text-muted-foreground shrink-0 text-[11px] font-bold">
+              <span className="text-tertiary shrink-0 text-[11px] font-bold">
                 {f.operator === "contains" ? "contains" : "does not contain"}
               </span>
               <span
@@ -2300,7 +2286,7 @@ function TextFilterSection({
                 size="sm"
                 variant="ghost"
                 onClick={() => onRemove?.(f.operator, f.value)}
-                className="text-muted-foreground hover:text-foreground h-4 w-4 shrink-0 p-0 opacity-0 transition-opacity group-hover/textfilter:opacity-100"
+                className="text-tertiary hover:text-secondary h-4 w-4 shrink-0 p-0 opacity-0 transition-opacity group-hover/textfilter:opacity-100"
               >
                 ×
               </Button>
@@ -2374,7 +2360,7 @@ export function FilterValueCheckbox({
         <span
           className={cn(
             "min-w-0 flex-1 truncate text-xs",
-            label === "" && "text-muted-foreground italic",
+            label === "" && "text-tertiary italic",
           )}
           title={displayTitle}
         >
@@ -2385,13 +2371,13 @@ export function FilterValueCheckbox({
             whitespace-nowrap: appearing may only re-truncate the label —
             never widen the row. */}
         {onLabelClick && !disabled && (
-          <span className="text-muted-foreground hidden shrink-0 pl-1 text-xs whitespace-nowrap group-hover/label:block">
+          <span className="text-tertiary hidden shrink-0 pl-1 text-xs whitespace-nowrap group-hover/label:block">
             {labelText}
           </span>
         )}
 
         {count > 0 ? (
-          <span className="text-muted-foreground ml-auto w-7 shrink-0 pl-1 text-right text-xs">
+          <span className="text-tertiary ml-auto w-7 shrink-0 pl-1 text-right text-xs">
             {compactNumberFormatter(count, 0)}
           </span>
         ) : null}
@@ -2409,7 +2395,7 @@ export function DataTableControlsSection({
 }) {
   return (
     <div className="space-y-3">
-      <h3 className="text-foreground text-sm font-bold">{title}</h3>
+      <h3 className="text-secondary text-sm font-bold">{title}</h3>
       <div>{children}</div>
     </div>
   );

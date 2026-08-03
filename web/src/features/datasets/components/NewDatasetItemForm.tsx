@@ -361,7 +361,7 @@ export const NewDatasetItemForm = (props: {
                           role="combobox"
                           className={cn(
                             "w-full justify-between",
-                            !field.value.length && "text-muted-foreground",
+                            !field.value.length && "text-tertiary",
                           )}
                         >
                           {field.value.length > 0
@@ -407,7 +407,7 @@ export const NewDatasetItemForm = (props: {
                                 />
                                 {dataset.name}
                                 {dataset.id === props.currentDatasetId && (
-                                  <span className="text-muted-foreground ml-1">
+                                  <span className="text-tertiary ml-1">
                                     (current)
                                   </span>
                                 )}

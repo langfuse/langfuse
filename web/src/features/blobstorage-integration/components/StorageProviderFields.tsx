@@ -172,7 +172,7 @@ export const StorageProviderFields = ({
                   : "Access Key ID"}
               {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
               {isSelfHosted && integrationType === "S3" && (
-                <span className="text-muted-foreground"> (optional)</span>
+                <span className="text-tertiary"> (optional)</span>
               )}
             </FormLabel>
             <FormControl>
@@ -205,7 +205,7 @@ export const StorageProviderFields = ({
                   : "Secret Access Key"}
               {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
               {isSelfHosted && integrationType === "S3" && (
-                <span className="text-muted-foreground"> (optional)</span>
+                <span className="text-tertiary"> (optional)</span>
               )}
             </FormLabel>
             <FormControl>

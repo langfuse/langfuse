@@ -149,7 +149,7 @@ export default function EnterpriseSsoRequiredPage() {
           <h1 className="text-primary mt-6 text-center text-2xl font-bold">
             Use your Enterprise SSO
           </h1>
-          <p className="text-muted-foreground mt-2 text-center text-sm leading-6">
+          <p className="text-tertiary mt-2 text-center text-sm leading-6">
             {description} Enter your company email so we can send you to the
             correct identity provider.
           </p>
@@ -201,7 +201,7 @@ export default function EnterpriseSsoRequiredPage() {
               if this keeps happening.
             </div>
           ) : null}
-          <div className="text-muted-foreground mt-6 text-center text-sm">
+          <div className="text-tertiary mt-6 text-center text-sm">
             <Link
               href="/auth/sign-in"
               className="text-link hover:text-link-hover"
@@ -211,7 +211,7 @@ export default function EnterpriseSsoRequiredPage() {
           </div>
         </div>
 
-        <div className="text-muted-foreground mt-4 text-center text-xs">
+        <div className="text-tertiary mt-4 text-center text-xs">
           Need help? Contact{" "}
           <a
             href="mailto:support@langfuse.com"

@@ -7,7 +7,7 @@ export const EXPERIMENT_COLOR_STYLES = [
   {
     textClass: "text-dark-gray",
     markerClass: "bg-muted-foreground",
-    badgeClass: "border-border-contrast/80 bg-muted/70 text-foreground/80",
+    badgeClass: "border-border-contrast/80 bg-muted/70 text-secondary/80",
   }, // Baseline - index 0
   {
     textClass: "text-blue-700 dark:text-blue-300",

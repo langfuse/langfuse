@@ -71,7 +71,7 @@ export function TruncatedLabels({
             <Button
               variant="outline"
               size="sm"
-              className="text-muted-foreground hover:text-foreground h-6 cursor-pointer text-xs"
+              className="text-tertiary hover:text-secondary h-6 cursor-pointer text-xs"
             >
               +{hiddenLabels.length} more
             </Button>

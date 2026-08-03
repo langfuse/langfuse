@@ -78,8 +78,8 @@ export function VirtualizedTreeNodeWrapper({
         // Dim unselected rows in dark only — in light the gray read as washed
         // out, an accepted light/dark inconsistency.
         isSelected
-          ? "bg-muted text-foreground"
-          : "hover:bg-muted/50 dark:text-muted-foreground",
+          ? "bg-muted text-secondary"
+          : "hover:bg-muted/50 dark:text-tertiary",
         className,
       )}
       style={{

@@ -510,10 +510,10 @@ export function TableViewPresetsDrawer({
                       title="Reflects your current table settings without applying any saved custom table views"
                     >
                       <div className="flex flex-col">
-                        <span className="text-muted-foreground text-sm">
+                        <span className="text-tertiary text-sm">
                           {SYSTEM_PRESETS.DEFAULT.name}
                         </span>
-                        <span className="text-muted-foreground w-fit pl-0 text-xs">
+                        <span className="text-tertiary w-fit pl-0 text-xs">
                           Your working view
                         </span>
                       </div>
@@ -541,7 +541,7 @@ export function TableViewPresetsDrawer({
                           {preset.name}
                         </span>
                         {preset.description && (
-                          <span className="text-muted-foreground w-fit pl-0 text-xs">
+                          <span className="text-tertiary w-fit pl-0 text-xs">
                             {preset.description}
                           </span>
                         )}
@@ -599,13 +599,13 @@ export function TableViewPresetsDrawer({
                           </div>
                           {isSystemView ? (
                             view.description ? (
-                              <span className="text-muted-foreground w-fit pl-0 text-xs">
+                              <span className="text-tertiary w-fit pl-0 text-xs">
                                 {view.description}
                               </span>
                             ) : null
                           ) : previewText ? (
                             <span
-                              className="text-muted-foreground truncate text-xs"
+                              className="text-tertiary truncate text-xs"
                               title={previewText}
                             >
                               {previewText}
@@ -619,7 +619,7 @@ export function TableViewPresetsDrawer({
                                 "w-fit pl-0 text-xs",
                                 hasWriteAccess
                                   ? "text-primary-accent"
-                                  : "text-muted-foreground",
+                                  : "text-tertiary",
                               )}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -828,7 +828,7 @@ export function TableViewPresetsDrawer({
                             </DropdownMenuContent>
                           </DropdownMenu>
                           {!isSystemView && (
-                            <div className="text-muted-foreground flex items-center text-xs">
+                            <div className="text-tertiary flex items-center text-xs">
                               <Avatar className="h-6 w-6">
                                 <AvatarImage
                                   src={view.createdByUser?.image ?? undefined}
@@ -909,7 +909,7 @@ export function TableViewPresetsDrawer({
                   )}
                 />
 
-                <div className="text-muted-foreground mt-4 text-sm">
+                <div className="text-tertiary mt-4 text-sm">
                   <p>This will save the current:</p>
                   <ul className="mt-2 list-disc pl-5">
                     <li>

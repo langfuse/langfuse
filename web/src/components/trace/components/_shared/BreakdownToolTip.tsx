@@ -115,13 +115,13 @@ export const BreakdownTooltip = ({
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
               {Array.isArray(details) && details.length > 0 && (
-                <span className="text-muted-foreground text-xs italic">
+                <span className="text-tertiary text-xs italic">
                   Aggregate across {details.length}{" "}
                   {details.length === 1 ? "generation" : "generations"}
                 </span>
               )}
               {pricingTierName && (
-                <div className="text-muted-foreground flex justify-between text-xs">
+                <div className="text-tertiary flex justify-between text-xs">
                   <span>Pricing Tier:</span>
                   <span className="font-mono">{pricingTierName}</span>
                 </div>
@@ -197,10 +197,7 @@ const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
         </span>
       </div>
       {filteredEntries.map(([key, value]) => (
-        <div
-          key={key}
-          className="text-muted-foreground flex justify-between text-xs"
-        >
+        <div key={key} className="text-tertiary flex justify-between text-xs">
           <span className="mr-4">{key}</span>
           <span className="font-mono">{formatValue(value ?? 0)}</span>
         </div>
@@ -242,10 +239,7 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
         </span>
       </div>
       {otherEntries.map(([key, value]) => (
-        <div
-          key={key}
-          className="text-muted-foreground flex justify-between text-xs"
-        >
+        <div key={key} className="text-tertiary flex justify-between text-xs">
           <span className="mr-4">{key}</span>
           <span className="font-mono">{formatValue(value ?? 0)}</span>
         </div>

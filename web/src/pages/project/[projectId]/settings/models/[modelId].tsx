@@ -167,14 +167,14 @@ export default function ModelDetailPage() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <div>
-              <div className="text-muted-foreground text-sm font-bold">
+              <div className="text-tertiary text-sm font-bold">
                 Match Pattern
               </div>
               <div className="mt-1 font-mono text-sm">{model.matchPattern}</div>
             </div>
 
             <div>
-              <div className="text-muted-foreground text-sm font-bold">
+              <div className="text-tertiary text-sm font-bold">
                 Maintained by
               </div>
               <div className="mt-1 text-sm">
@@ -183,15 +183,13 @@ export default function ModelDetailPage() {
             </div>
 
             <div>
-              <div className="text-muted-foreground text-sm font-bold">
-                Tokenizer
-              </div>
+              <div className="text-tertiary text-sm font-bold">Tokenizer</div>
               <div className="mt-1 text-sm">{model.tokenizerId || "None"}</div>
             </div>
 
             {model.tokenizerId && (
               <div>
-                <div className="text-muted-foreground text-sm font-bold">
+                <div className="text-tertiary text-sm font-bold">
                   Tokenizer Config
                 </div>
                 <pre className="bg-muted mt-1 rounded p-2 text-sm">
@@ -208,7 +206,7 @@ export default function ModelDetailPage() {
               <CardTitle>Pricing</CardTitle>
               {model.pricingTiers.length > 1 && (
                 <div className="flex items-center gap-4">
-                  <label className="text-muted-foreground text-sm font-bold">
+                  <label className="text-tertiary text-sm font-bold">
                     Pricing Tier
                   </label>
                   <Select
@@ -231,7 +229,7 @@ export default function ModelDetailPage() {
                       <HoverCardTrigger asChild>
                         <Button
                           variant="ghost"
-                          className="text-muted-foreground hover:text-on-hover inline-flex h-auto items-center gap-1.5 p-0 text-xs hover:bg-transparent"
+                          className="text-tertiary hover:text-on-hover inline-flex h-auto items-center gap-1.5 p-0 text-xs hover:bg-transparent"
                           size="sm"
                         >
                           <InfoIcon className="h-3 w-3" />
@@ -245,7 +243,7 @@ export default function ModelDetailPage() {
                         <p className="text-sm font-bold">
                           Pricing Tier Conditions
                         </p>
-                        <p className="text-muted-foreground pt-2 text-sm">
+                        <p className="text-tertiary pt-2 text-sm">
                           This tier is applied when the following conditions are
                           met:
                         </p>
@@ -271,7 +269,7 @@ export default function ModelDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-2">
-              <div className="border-border text-muted-foreground grid grid-cols-2 gap-2 border-b text-sm font-bold">
+              <div className="border-border text-tertiary grid grid-cols-2 gap-2 border-b text-sm font-bold">
                 <span>Usage Type</span>
                 <span className="flex items-center gap-2">
                   <span>Price {priceUnit}</span>

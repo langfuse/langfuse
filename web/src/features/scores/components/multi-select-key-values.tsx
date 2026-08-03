@@ -140,13 +140,13 @@ export function MultiSelectKeyValues<
         <span
           className={cn(
             "capitalize",
-            option.isArchived ? "text-foreground/50" : "",
+            option.isArchived ? "text-secondary/50" : "",
           )}
         >
           {option.value}
         </span>
         {option.isArchived && (
-          <Archive className="text-foreground/50 ml-2 h-4 w-4" />
+          <Archive className="text-secondary/50 ml-2 h-4 w-4" />
         )}
         {option.count !== undefined && (
           <span className="ml-auto font-mono text-xs">{option.count}</span>
@@ -176,7 +176,7 @@ export function MultiSelectKeyValues<
         <Button
           variant={variant}
           className={cn(
-            "ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full items-center justify-between rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "ring-offset-canvas placeholder:text-disabled focus:ring-focus flex h-8 w-full items-center justify-between rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -273,7 +273,7 @@ export function MultiSelectKeyValues<
               !groupedOptions.some(
                 (group) => filterOptions(group.options).length > 0,
               )) && (
-              <div className="text-muted-foreground px-2 py-1.5 text-sm">
+              <div className="text-tertiary px-2 py-1.5 text-sm">
                 No results found.
               </div>
             )}

@@ -74,7 +74,7 @@ export function HomeDashboardSelect({
         variant="ghost"
         disabled
         title="The dashboard shown on this project's home page"
-        className="text-muted-foreground my-0"
+        className="text-tertiary my-0"
       >
         <LayoutDashboard className="mr-1 h-4 w-4" />
         {currentDashboardName}

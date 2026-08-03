@@ -14,7 +14,7 @@ export const ExperimentOverviewField = ({
   children: ReactNode;
 }) => (
   <div>
-    <div className="text-muted-foreground text-xs">{label}</div>
+    <div className="text-tertiary text-xs">{label}</div>
     {children}
   </div>
 );

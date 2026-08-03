@@ -48,7 +48,7 @@ const CodeTemplateLanguageIcon = ({
     <span
       title={language.title}
       aria-label={language.title}
-      className="text-muted-foreground ml-1 inline-flex shrink-0"
+      className="text-tertiary ml-1 inline-flex shrink-0"
     >
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
     </span>
@@ -75,7 +75,7 @@ const TemplatePreviewTooltipContent = ({
         <p className="mb-1 font-bold">
           {getCodeTemplateLanguageTitle(template.sourceCodeLanguage)} source
         </p>
-        <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
+        <pre className="text-tertiary text-xs wrap-break-word whitespace-pre-wrap">
           {template.sourceCode}
         </pre>
       </>
@@ -85,7 +85,7 @@ const TemplatePreviewTooltipContent = ({
   return (
     <>
       <p className="mb-1 font-bold">Evaluation prompt</p>
-      <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
+      <pre className="text-tertiary text-xs wrap-break-word whitespace-pre-wrap">
         {template.prompt}
       </pre>
     </>

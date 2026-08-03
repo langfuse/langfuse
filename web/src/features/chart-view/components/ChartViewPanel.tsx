@@ -80,7 +80,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
       <div className="flex min-h-64 min-w-0 flex-1 flex-col gap-1 p-3 md:min-h-0">
         <div className="flex items-center justify-between gap-2">
           <div
-            className="text-foreground min-w-0 truncate text-sm font-bold"
+            className="text-secondary min-w-0 truncate text-sm font-bold"
             title={describeConfig(config)}
           >
             {describeConfig(config)}
@@ -89,12 +89,12 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
         </div>
         <div className="min-h-0 flex-1">
           {error ? (
-            <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+            <div className="text-tertiary flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
               <AlertCircle className="h-10 w-10 opacity-40" />
               <p className="max-w-md text-sm">{error}</p>
             </div>
           ) : isLoading ? (
-            <div className="text-muted-foreground flex h-full items-center justify-center">
+            <div className="text-tertiary flex h-full items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : (
@@ -170,7 +170,7 @@ function PanelField({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-muted-foreground text-xs font-bold">{label}</span>
+      <span className="text-tertiary text-xs font-bold">{label}</span>
       {children}
     </div>
   );

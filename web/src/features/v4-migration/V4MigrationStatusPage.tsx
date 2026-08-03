@@ -54,13 +54,13 @@ function FaqLink({ href, children }: { href: string; children: ReactNode }) {
 
 function AffectedCell({ count }: { count: MigrationCountState }) {
   if (count.status === "loading") {
-    return <span className="text-foreground-tertiary">Checking…</span>;
+    return <span className="text-disabled">Checking…</span>;
   }
   if (count.status === "error") {
-    return <span className="text-foreground-tertiary">Unavailable</span>;
+    return <span className="text-disabled">Unavailable</span>;
   }
   if (count.count === 0) {
-    return <span className="text-foreground-tertiary">0</span>;
+    return <span className="text-disabled">0</span>;
   }
   return <span>{count.count}</span>;
 }
@@ -82,7 +82,7 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
         readiness === "ready"
           ? "bg-light-green text-dark-green"
           : readiness === "checking" || readiness === "unavailable"
-            ? "bg-muted text-muted-foreground"
+            ? "bg-muted text-tertiary"
             : "bg-light-yellow text-dark-yellow",
       )}
     >
@@ -249,7 +249,7 @@ function OrgStatusSection({
 
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-muted-foreground truncate text-sm" title={org.name}>
+      <h3 className="text-tertiary truncate text-sm" title={org.name}>
         {org.name}
       </h3>
       <Card className="overflow-hidden">
@@ -333,23 +333,15 @@ function OrgStatusSection({
                     </TableCell>
                     <TableCell density="comfortable">
                       {row.status.sdk.status === "latest" ? (
-                        <span className="text-foreground-tertiary">Latest</span>
+                        <span className="text-disabled">Latest</span>
                       ) : row.status.sdk.status === "otel_realtime" ? (
-                        <span className="text-foreground-tertiary">
-                          OTel real-time
-                        </span>
+                        <span className="text-disabled">OTel real-time</span>
                       ) : row.status.sdk.status === "no_data" ? (
-                        <span className="text-foreground-tertiary">
-                          No data detected
-                        </span>
+                        <span className="text-disabled">No data detected</span>
                       ) : row.status.sdk.status === "checking" ? (
-                        <span className="text-foreground-tertiary">
-                          Checking…
-                        </span>
+                        <span className="text-disabled">Checking…</span>
                       ) : row.status.sdk.status === "unknown" ? (
-                        <span className="text-foreground-tertiary">
-                          Unknown
-                        </span>
+                        <span className="text-disabled">Unknown</span>
                       ) : row.status.sdk.status === "otel_header_required" ? (
                         <span>
                           {row.status.sdk.delayedOtelIngestionCount} OTel header{" "}
@@ -358,9 +350,7 @@ function OrgStatusSection({
                             : "issues"}
                         </span>
                       ) : row.status.sdk.status === "error" ? (
-                        <span className="text-foreground-tertiary">
-                          Unavailable
-                        </span>
+                        <span className="text-disabled">Unavailable</span>
                       ) : (
                         <span>
                           {row.status.sdk.upgradeRequiredCount} outdated
@@ -378,7 +368,7 @@ function OrgStatusSection({
                     </TableCell>
                     <TableCell
                       density="comfortable"
-                      className="text-muted-foreground truncate"
+                      className="text-tertiary truncate"
                       title={row.lastTraceLabel}
                     >
                       {row.lastTraceLabel}
@@ -524,11 +514,11 @@ function V4MigrationStatusPageContent() {
             </p>
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
               {isChecking ? (
-                <span className="text-muted-foreground text-sm">
+                <span className="text-tertiary text-sm">
                   Checking project status…
                 </span>
               ) : totalProjects === 0 ? (
-                <span className="text-muted-foreground text-sm">
+                <span className="text-tertiary text-sm">
                   No active projects
                 </span>
               ) : (
@@ -536,7 +526,7 @@ function V4MigrationStatusPageContent() {
                   <span className="text-2xl leading-none font-bold tracking-tight">
                     {readyProjects}
                   </span>
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-tertiary text-sm">
                     of {totalProjects} projects migrated
                   </span>
                 </>
@@ -560,7 +550,7 @@ function V4MigrationStatusPageContent() {
               {faqItems.map(({ q, a }) => (
                 <div key={q} className="py-3">
                   <p className="text-sm font-bold">{q}</p>
-                  <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
+                  <p className="text-tertiary mt-1 text-sm leading-relaxed">
                     {a}
                   </p>
                 </div>

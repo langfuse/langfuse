@@ -219,7 +219,7 @@ function GroupVisibilityHeader<TData, TValue>({
                 ? column.header
                 : column.accessorKey}
             </span>
-            <span className="text-muted-foreground text-xs">
+            <span className="text-tertiary text-xs">
               ({groupVisibleCount}/{groupTotalCount})
             </span>
           </div>

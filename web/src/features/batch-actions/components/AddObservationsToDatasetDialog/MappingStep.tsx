@@ -130,7 +130,7 @@ export function MappingStep({
               />
             )}
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             Configure how observation data maps to the Dataset Item {fieldLabel}
             .
           </p>

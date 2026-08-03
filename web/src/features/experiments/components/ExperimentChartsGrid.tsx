@@ -20,7 +20,7 @@ function AddChartButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       className="border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/50 flex h-56 w-12 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors duration-200"
     >
-      <Plus className="text-muted-foreground/50 h-5 w-5" />
+      <Plus className="text-tertiary/50 h-5 w-5" />
     </button>
   );
 }

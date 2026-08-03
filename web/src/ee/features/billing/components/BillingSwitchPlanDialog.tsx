@@ -129,7 +129,7 @@ export const BillingSwitchPlanDialog = ({
                         <div className="text-primary text-2xl font-bold">
                           {product.checkout?.price}
                         </div>
-                        <div className="text-muted-foreground text-sm">
+                        <div className="text-tertiary text-sm">
                           + {product.checkout?.usagePrice},{" "}
                           <a
                             href="https://langfuse.com/pricing#pricing-calculator"
@@ -142,12 +142,12 @@ export const BillingSwitchPlanDialog = ({
                         </div>
                       </div>
                     </div>
-                    <div className="text-muted-foreground mb-4 text-sm">
+                    <div className="text-tertiary mb-4 text-sm">
                       {product.checkout?.description}
                     </div>
                     <div className="space-y-2">
                       <div className="text-sm font-bold">Main features:</div>
-                      <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
+                      <ul className="text-tertiary list-inside list-disc space-y-1 text-sm">
                         {product.checkout?.mainFeatures.map(
                           (feature, index) => (
                             <li key={index}>{feature}</li>
@@ -158,7 +158,7 @@ export const BillingSwitchPlanDialog = ({
                     <Link
                       href="https://langfuse.com/pricing"
                       target="_blank"
-                      className="text-muted-foreground hover:text-foreground mt-auto block py-4 text-sm"
+                      className="text-tertiary hover:text-secondary mt-auto block py-4 text-sm"
                     >
                       Learn more about plan →
                     </Link>

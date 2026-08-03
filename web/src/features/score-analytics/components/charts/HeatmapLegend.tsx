@@ -55,7 +55,7 @@ export function HeatmapLegend({
     return (
       <div className={cn("flex flex-col gap-2", className)}>
         {title && (
-          <div className="text-muted-foreground text-xs font-bold">{title}</div>
+          <div className="text-tertiary text-xs font-bold">{title}</div>
         )}
         <div className="flex flex-col gap-1">
           {colors
@@ -77,7 +77,7 @@ export function HeatmapLegend({
                     onMouseEnter={() => setHoveredIdx(idx)}
                     onMouseLeave={() => setHoveredIdx(null)}
                   />
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-tertiary text-xs">
                     {labels[labelIdx]}
                   </span>
                 </div>
@@ -91,7 +91,7 @@ export function HeatmapLegend({
   // Horizontal orientation
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <span className="text-muted-foreground text-xs">{min}</span>
+      <span className="text-tertiary text-xs">{min}</span>
       <div className="flex items-center gap-0.5">
         {colors.map((color, idx) => {
           const isHovered = hoveredIdx === idx;
@@ -111,7 +111,7 @@ export function HeatmapLegend({
           );
         })}
       </div>
-      <span className="text-muted-foreground text-xs">{max}</span>
+      <span className="text-tertiary text-xs">{max}</span>
     </div>
   );
 }

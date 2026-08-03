@@ -147,7 +147,7 @@ export const RemoteExperimentDatasetStep = ({
         ) : (
           <div className="rounded-md border p-4 text-sm">
             <div className="font-bold">No datasets found</div>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-tertiary mt-1">
               Create a dataset before setting up a remote experiment trigger.
             </p>
           </div>

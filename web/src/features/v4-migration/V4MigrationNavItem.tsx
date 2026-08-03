@@ -61,7 +61,7 @@ export function V4MigrationNavItem() {
         <span className="truncate font-bold" title={label}>
           {label}
         </span>
-        <ChevronRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+        <ChevronRight className="text-tertiary ml-auto h-4 w-4 shrink-0" />
       </SidebarMenuButton>
     </div>
   );

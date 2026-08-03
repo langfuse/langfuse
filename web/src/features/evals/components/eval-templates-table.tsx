@@ -407,7 +407,7 @@ export default function EvalsTemplateTable({
         return (
           <div className="flex items-center gap-2">
             <MaintainerTooltip maintainer={row.getValue()} />
-            <span className="text-muted-foreground">
+            <span className="text-tertiary">
               {getMaintainerLabel(row.getValue())}
             </span>
           </div>

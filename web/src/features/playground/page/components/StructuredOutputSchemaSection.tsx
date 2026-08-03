@@ -107,12 +107,12 @@ export const StructuredOutputSchemaPopover = () => {
               className="flex items-center justify-between px-1 py-2"
             >
               <div className="flex min-w-0 flex-1 items-center gap-2">
-                <BoxIcon className="text-muted-foreground h-4 w-4 shrink-0" />
+                <BoxIcon className="text-tertiary h-4 w-4 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-bold" title={schema.name}>
                     {schema.name}
                   </div>
-                  <div className="text-muted-foreground line-clamp-1 text-xs">
+                  <div className="text-tertiary line-clamp-1 text-xs">
                     {schema.description}
                   </div>
                 </div>
@@ -243,7 +243,7 @@ export const StructuredOutputSchemaSection = () => {
     <ScrollArea className="max-h-[min(45vh,18rem)]">
       {!structuredOutputSchema ? (
         <div className="flex h-16 flex-col items-center justify-center p-4 text-center">
-          <p className="text-muted-foreground text-xs">No schema provided.</p>
+          <p className="text-tertiary text-xs">No schema provided.</p>
         </div>
       ) : (
         <div className="space-y-1">
@@ -266,7 +266,7 @@ export const StructuredOutputSchemaSection = () => {
                 : undefined
             }
           >
-            <div className="bg-background hover:bg-hover/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200">
+            <div className="bg-canvas hover:bg-hover/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200">
               <Button
                 variant="ghost"
                 size="sm"
@@ -281,7 +281,7 @@ export const StructuredOutputSchemaSection = () => {
                 <MinusCircle className="h-4 w-4" />
               </Button>
               <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
-                <BoxIcon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+                <BoxIcon className="text-tertiary mt-0.5 h-4 w-4 shrink-0" />
                 <div className="min-w-0">
                   <h3
                     className="truncate text-sm font-bold"
@@ -290,13 +290,13 @@ export const StructuredOutputSchemaSection = () => {
                     {structuredOutputSchema.name}
                   </h3>
                   {!isSchemaSaved(structuredOutputSchema) ? (
-                    <span className="bg-muted text-muted-foreground mt-1 inline-flex rounded px-1 py-0.5 text-xs">
+                    <span className="bg-muted text-tertiary mt-1 inline-flex rounded px-1 py-0.5 text-xs">
                       Unsaved
                     </span>
                   ) : null}
                 </div>
                 <p
-                  className="text-muted-foreground col-start-2 line-clamp-2 text-xs break-words"
+                  className="text-tertiary col-start-2 line-clamp-2 text-xs break-words"
                   title={structuredOutputSchema.description}
                 >
                   {structuredOutputSchema.description}

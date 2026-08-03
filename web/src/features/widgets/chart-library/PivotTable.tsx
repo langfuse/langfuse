@@ -348,7 +348,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <p className="text-muted-foreground text-sm">No data available</p>
+          <p className="text-tertiary text-sm">No data available</p>
         </div>
       </div>
     );
@@ -363,7 +363,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             Unable to process data for pivot table
           </p>
         </div>

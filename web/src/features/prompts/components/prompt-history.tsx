@@ -91,7 +91,7 @@ const PromptHistoryTraceNode = (props: {
                       : props.setCurrentPromptVersion(prompt.version);
                   }}
                   variant="outline"
-                  className="bg-background/50 h-6 shrink-0"
+                  className="bg-canvas/50 h-6 shrink-0"
                   data-version-trigger="false"
                 >
                   # {prompt.version}
@@ -135,14 +135,14 @@ const PromptHistoryTraceNode = (props: {
               {prompt.commitMessage && (
                 <div className="flex flex-1 flex-nowrap gap-2">
                   <span
-                    className="text-muted-foreground max-w-full min-w-0 truncate text-xs"
+                    className="text-tertiary max-w-full min-w-0 truncate text-xs"
                     title={prompt.commitMessage}
                   >
                     {prompt.commitMessage}
                   </span>
                 </div>
               )}
-              <div className="text-muted-foreground flex flex-wrap gap-1 text-xs">
+              <div className="text-tertiary flex flex-wrap gap-1 text-xs">
                 {prompt.createdAt.toLocaleString()} by{" "}
                 {prompt.creator || prompt.createdBy}
               </div>

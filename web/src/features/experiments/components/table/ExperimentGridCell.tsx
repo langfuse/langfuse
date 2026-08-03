@@ -89,7 +89,7 @@ const ScoreCommentPeek = ({ comment }: { comment: string }) => {
   return (
     <HoverCard>
       <HoverCardTrigger className="inline-flex cursor-pointer">
-        <MessageCircleMore size={12} className="text-muted-foreground" />
+        <MessageCircleMore size={12} className="text-tertiary" />
       </HoverCardTrigger>
       <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
         <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-end px-1">
@@ -151,7 +151,7 @@ const ScoreMetadataPeek = ({
   return (
     <HoverCard onOpenChange={setIsOpen}>
       <HoverCardTrigger className="inline-flex cursor-pointer">
-        <BracesIcon size={12} className="text-muted-foreground" />
+        <BracesIcon size={12} className="text-tertiary" />
       </HoverCardTrigger>
       <HoverCardContent className="overflow-hidden rounded-md border-none p-0 text-xs break-normal whitespace-normal">
         {metadataLoaded ? (
@@ -206,7 +206,7 @@ const ScoreItem = ({
     <div className="flex items-center justify-between gap-1 text-xs">
       <HoverCard>
         <HoverCardTrigger className="max-w-[50%] cursor-default">
-          <span className="text-muted-foreground block truncate" title={name}>
+          <span className="text-tertiary block truncate" title={name}>
             {name}
           </span>
         </HoverCardTrigger>
@@ -217,11 +217,11 @@ const ScoreItem = ({
         >
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Source:</span>
+              <span className="text-tertiary">Source:</span>
               <span className="capitalize">{source.toLowerCase()}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Type:</span>
+              <span className="text-tertiary">Type:</span>
               <span className="capitalize">{dataType.toLowerCase()}</span>
             </div>
           </div>
@@ -229,7 +229,7 @@ const ScoreItem = ({
       </HoverCard>
       <div className="flex items-center gap-1">
         {displayValue === "-" ? (
-          <span className="text-muted-foreground font-mono text-xs">-</span>
+          <span className="text-tertiary font-mono text-xs">-</span>
         ) : (
           <Badge variant="secondary" className="font-mono text-xs">
             {displayValue}
@@ -256,7 +256,7 @@ const MetadataItem = ({
   children: React.ReactNode;
 }) => (
   <div className="flex items-center justify-between gap-4 text-xs">
-    <span className="text-muted-foreground shrink-0">{label}</span>
+    <span className="text-tertiary shrink-0">{label}</span>
     <div
       className="min-w-0 truncate"
       title={getPlainTextFromReactNode(children)}
@@ -289,7 +289,7 @@ const GroupSection = ({
             )}
           />
         )}
-        <span className="text-muted-foreground text-[10px] font-bold uppercase">
+        <span className="text-tertiary text-[10px] font-bold uppercase">
           {header}
         </span>
       </div>
@@ -467,7 +467,7 @@ export const ExperimentGridCell = ({
                   {data.totalCost != null ? (
                     usdFormatter(data.totalCost, 2, 6)
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <span className="text-tertiary">-</span>
                   )}
                 </span>
               </MetadataItem>
@@ -568,7 +568,7 @@ export const ExperimentGridCell = ({
 export const ExperimentGridCellEmpty = () => {
   return (
     <div className="flex h-full w-full items-start justify-start p-2">
-      <span className="text-muted-foreground text-xs">No data</span>
+      <span className="text-tertiary text-xs">No data</span>
     </div>
   );
 };

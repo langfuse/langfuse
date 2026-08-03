@@ -20,7 +20,7 @@ export function MatchedModelCard({ model }: MatchedModelCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
+        <CardTitle className="text-tertiary text-xs font-bold tracking-wide uppercase">
           Matched Model
         </CardTitle>
       </CardHeader>
@@ -36,9 +36,7 @@ export function MatchedModelCard({ model }: MatchedModelCardProps) {
           )}
         </div>
         <div className="space-y-1">
-          <div className="text-muted-foreground text-xs font-bold">
-            Pattern:
-          </div>
+          <div className="text-tertiary text-xs font-bold">Pattern:</div>
           <code className="bg-muted/50 block rounded p-2 text-xs break-all">
             {model.matchPattern}
           </code>

@@ -81,7 +81,7 @@ const PageHeader = ({
   return (
     <div
       className={cn([
-        "top-banner-offset bg-background sticky z-30 w-full border-b shadow-xs",
+        "top-banner-offset bg-canvas sticky z-30 w-full border-b shadow-xs",
         className,
       ])}
       id="page-header"
@@ -160,7 +160,7 @@ const PageHeader = ({
                       text-sidebar-foreground (60% grey in dark) on the whole
                       app, so unstyled text here would inherit the dimmed
                       sidebar tint. text-primary is the emphasis tier —
-                      brighter than body text-foreground in dark. */}
+                      brighter than body text-secondary in dark. */}
                   <h2 className="text-primary line-clamp-1 text-lg leading-7 font-bold">
                     {titleContent ? (
                       titleContent

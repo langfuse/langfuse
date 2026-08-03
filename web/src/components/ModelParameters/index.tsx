@@ -138,7 +138,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
       >
         <div className="mb-3">
           <h4 className="mb-1 text-sm font-bold">Model Advanced Settings</h4>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-tertiary text-xs">
             Configure advanced parameters for your model.
           </p>
         </div>
@@ -417,12 +417,7 @@ const ModelParamsSelect = ({
   return (
     <div className="flex items-center gap-4">
       <div className="w-24 shrink-0">
-        <p
-          className={cn(
-            "text-xs font-bold",
-            disabled && "text-muted-foreground",
-          )}
-        >
+        <p className={cn("text-xs font-bold", disabled && "text-tertiary")}>
           {title}
         </p>
       </div>
@@ -491,7 +486,7 @@ const ModelParamsSlider = ({
         <p
           className={cn(
             "flex-1 text-xs font-bold",
-            (!enabled || formDisabled) && "text-muted-foreground",
+            (!enabled || formDisabled) && "text-tertiary",
           )}
         >
           {title}
@@ -565,14 +560,14 @@ const ProviderOptionsInput = ({
           <span
             className={cn(
               "text-xs font-bold",
-              (!enabled || formDisabled) && "text-muted-foreground",
+              (!enabled || formDisabled) && "text-tertiary",
             )}
           >
             Additional options
           </span>
           <Tooltip>
             <TooltipTrigger>
-              <InfoIcon className="text-muted-foreground size-3" />
+              <InfoIcon className="text-tertiary size-3" />
             </TooltipTrigger>
             <TooltipContent className="max-w-[200px] p-2">
               Additional options to pass to the invocation. Please check your

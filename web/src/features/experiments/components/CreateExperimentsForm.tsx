@@ -179,7 +179,7 @@ export const CreateExperimentsForm = ({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="text-muted-foreground list-disc space-y-2 pl-4 text-sm">
+                <ul className="text-tertiary list-disc space-y-2 pl-4 text-sm">
                   <li>Compare prompt versions</li>
                   <li>Compare model configurations</li>
                   <li>No code required</li>
@@ -224,7 +224,7 @@ export const CreateExperimentsForm = ({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="text-muted-foreground list-disc space-y-2 pl-4 text-sm">
+                <ul className="text-tertiary list-disc space-y-2 pl-4 text-sm">
                   <li>Run custom evaluation logic in your service</li>
                   <li>Keep experiment results in Langfuse</li>
                 </ul>

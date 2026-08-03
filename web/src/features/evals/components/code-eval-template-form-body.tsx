@@ -265,7 +265,7 @@ export function CodeEvalTemplateFormBody({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-muted-foreground text-sm">{languageLabel}</span>
+          <span className="text-tertiary text-sm">{languageLabel}</span>
           {headerAction}
         </div>
         {shouldShowFormatButton ? (
@@ -302,7 +302,7 @@ export function CodeEvalTemplateFormBody({
         onChange={handleSourceCodeChange}
         className="overflow-hidden rounded-md border text-xs"
       />
-      <p className="text-muted-foreground text-xs">
+      <p className="text-tertiary text-xs">
         The evaluate function receives an EvaluationContext and returns an
         EvaluationResult with one or more scores.{" "}
         <a

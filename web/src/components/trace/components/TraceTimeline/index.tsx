@@ -554,7 +554,7 @@ export function TraceTimeline() {
           live in the shared navigation header (see PlaybackControls). */}
       <div className="flex shrink-0">
         <div
-          className="bg-background text-muted-foreground flex shrink-0 items-center pl-2 text-xs font-bold"
+          className="bg-canvas text-tertiary flex shrink-0 items-center pl-2 text-xs font-bold"
           style={{ width: `${gutterWidth}px` }}
         >
           <span className="truncate" title="Name">
@@ -591,7 +591,7 @@ export function TraceTimeline() {
                 onKeyDown={handleHandleKeyDown}
                 className={cn(
                   "absolute top-0 bottom-0 z-30 -ml-1.5 w-3 cursor-ew-resize select-none",
-                  "focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none",
+                  "focus-visible:ring-focus rounded focus-visible:ring-2 focus-visible:outline-none",
                 )}
                 style={{
                   transform: `translateX(${secToX(getPlayheadSec())}px)`,

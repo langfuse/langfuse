@@ -59,13 +59,13 @@ export default function ExperimentAnalytics() {
       <div className="flex h-full flex-col items-center justify-center p-8">
         <div className="border-border bg-card/50 flex max-w-md flex-col items-center gap-4 rounded-xl border p-8 text-center shadow-sm backdrop-blur-sm">
           <div className="bg-muted flex h-16 w-16 items-center justify-center rounded-full">
-            <FlaskConical className="text-muted-foreground h-8 w-8" />
+            <FlaskConical className="text-tertiary h-8 w-8" />
           </div>
           <div className="space-y-2">
             <h3 className="text-xl font-bold tracking-tight">
               Analytics Coming Soon
             </h3>
-            <p className="text-muted-foreground text-sm leading-relaxed">
+            <p className="text-tertiary text-sm leading-relaxed">
               We are working on adding advanced analytics capabilities for
               experiments.
             </p>

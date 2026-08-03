@@ -62,7 +62,7 @@ export function StatisticsCard() {
           <CardTitle>Statistics</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="text-muted-foreground py-12 text-center text-sm">
+        <CardContent className="text-tertiary py-12 text-center text-sm">
           Select a score to view statistics
         </CardContent>
       </Card>
@@ -342,7 +342,7 @@ export function StatisticsCard() {
                                   (trace/observation/session/run). Each
                                   combination creates a match.
                                 </p>
-                                <p className="text-muted-foreground">
+                                <p className="text-tertiary">
                                   <strong>Example:</strong> If one trace has 2
                                   &quot;gpt4&quot; scores and 3
                                   &quot;gemini&quot; scores, this creates 6
@@ -478,7 +478,7 @@ export function StatisticsCard() {
                                   (trace/observation/session/run). Each
                                   combination creates a match.
                                 </p>
-                                <p className="text-muted-foreground">
+                                <p className="text-tertiary">
                                   <strong>Example:</strong> If one trace has 2
                                   &quot;gpt4&quot; scores and 3
                                   &quot;gemini&quot; scores, this creates 6

@@ -67,12 +67,12 @@ export function MetricCard({
     <div className="flex flex-col gap-0.5">
       {/* Label with optional help icon */}
       <div className="flex items-center gap-1">
-        <p className="text-muted-foreground text-xs">{label}</p>
+        <p className="text-tertiary text-xs">{label}</p>
         {helpText && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <HelpCircle className="text-muted-foreground h-3 w-3" />
+                <HelpCircle className="text-tertiary h-3 w-3" />
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs">
                 <p className="text-xs">{helpText}</p>
@@ -86,7 +86,7 @@ export function MetricCard({
       <div className="flex items-center gap-2">
         {isNA ? (
           // Muted styling for N/A values - use em dash and reduced opacity
-          <span className="text-muted-foreground/50 text-sm">—</span>
+          <span className="text-tertiary/50 text-sm">—</span>
         ) : (
           // Normal styling for actual values
           <p className={isContext ? "text-lg font-bold" : "text-lg font-bold"}>

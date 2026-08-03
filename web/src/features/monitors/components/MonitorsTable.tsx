@@ -44,7 +44,7 @@ const monitorsRefetchInterval = 5_000;
 
 /** rowActionIconColors ramps an inline row-action icon from faint to full foreground, scaling on its own hover. */
 const rowActionIconColors =
-  "text-foreground/40 transition-[color,transform] group-hover/monitor-row:text-foreground/70 hover:scale-110 hover:text-foreground";
+  "text-secondary/40 transition-[color,transform] group-hover/monitor-row:text-secondary/70 hover:scale-110 hover:text-secondary";
 
 /** MonitorRow is one row of the monitors list, shaped by the `monitors.all` tRPC output. */
 type MonitorRow = RouterOutputs["monitors"]["all"]["monitors"][number];

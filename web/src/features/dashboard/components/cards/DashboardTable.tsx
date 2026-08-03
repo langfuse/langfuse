@@ -80,13 +80,13 @@ export const DashboardTable = ({
                   </tr>
                 </thead>
 
-                <tbody className="divide-accent divide-y">
+                <tbody className="divide-hover divide-y">
                   {visibleRows.map((row, i) => (
                     <tr key={i}>
                       {row.map((cell, j) => (
                         <td
                           key={j}
-                          className="text-muted-foreground py-2 pr-2 pl-3 text-xs whitespace-nowrap sm:pl-0"
+                          className="text-tertiary py-2 pr-2 pl-3 text-xs whitespace-nowrap sm:pl-0"
                         >
                           {cell}
                         </td>

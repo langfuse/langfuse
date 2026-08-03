@@ -4,7 +4,7 @@ import { cn } from "@/src/utils/tailwind";
 
 export const LevelColors = {
   DEFAULT: { text: "", bg: "" },
-  DEBUG: { text: "text-muted-foreground", bg: "bg-muted-gray" },
+  DEBUG: { text: "text-tertiary", bg: "bg-muted-gray" },
   WARNING: { text: "text-dark-yellow", bg: "bg-light-yellow" },
   ERROR: { text: "text-dark-red", bg: "bg-light-red" },
 };

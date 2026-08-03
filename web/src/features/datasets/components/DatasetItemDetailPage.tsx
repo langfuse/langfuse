@@ -165,7 +165,7 @@ export const DatasetItemDetailPage = ({
                           ? "Archive this item?"
                           : "Unarchive this item?"}
                       </h4>
-                      <p className="text-muted-foreground text-sm">
+                      <p className="text-tertiary text-sm">
                         {item.data.status === DatasetStatus.ACTIVE
                           ? "Archiving an item will exclude it from new dataset runs."
                           : "Unarchiving an item will include it back in new dataset runs."}

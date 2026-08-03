@@ -59,7 +59,7 @@ export function InlineCommentBubble({
         size="xs"
         variant="secondary"
         onClick={handleClick}
-        className="border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground border px-3 py-2.5 shadow-md"
+        className="border-border bg-canvas text-tertiary hover:bg-muted hover:text-secondary border px-3 py-2.5 shadow-md"
       >
         <MessageSquarePlus className="h-3 w-3" />
         <span className="ml-1">Comment</span>

@@ -151,7 +151,7 @@ export function TableActionDialog({
                 {isInProgress.data && (
                   <div className="flex items-center gap-1">
                     <Spinner size="xxs" />
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-tertiary text-sm">
                       Batch action is in progress, please wait.
                     </p>
                   </div>
@@ -179,7 +179,7 @@ export function TableActionDialog({
               {isInProgress.data && (
                 <div className="flex items-center gap-1">
                   <Spinner size="xxs" />
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-tertiary text-sm">
                     Batch action is in progress, please wait.
                   </p>
                 </div>

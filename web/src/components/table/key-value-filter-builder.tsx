@@ -268,7 +268,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                       <span
                         className={cn(
                           "min-w-0 truncate",
-                          !filter.key && "text-muted-foreground",
+                          !filter.key && "text-tertiary",
                         )}
                         title={filter.key || keyPlaceholder}
                       >

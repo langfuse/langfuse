@@ -25,9 +25,9 @@ export const CrashModal = ({
         <h1 className="text-2xl font-bold tracking-tight">
           Something went wrong
         </h1>
-        <p className="text-muted-foreground mt-2 text-sm leading-5">
+        <p className="text-tertiary mt-2 text-sm leading-5">
           {statusCode ? (
-            <span className="text-foreground mr-2 font-bold whitespace-nowrap">
+            <span className="text-secondary mr-2 font-bold whitespace-nowrap">
               Error {statusCode}
             </span>
           ) : null}
@@ -38,9 +38,7 @@ export const CrashModal = ({
           <div className="border-border bg-muted/40 mt-5 rounded-lg border p-4">
             <dl>
               <div>
-                <dt className="text-muted-foreground text-xs font-bold">
-                  Error ID
-                </dt>
+                <dt className="text-tertiary text-xs font-bold">Error ID</dt>
                 <dd className="mt-1.5 font-mono text-xs leading-5 break-all">
                   {sentryEventId}
                 </dd>

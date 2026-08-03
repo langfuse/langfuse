@@ -28,7 +28,7 @@ const NoData = ({
         className,
       )}
     >
-      <p className="text-muted-foreground">{noDataText}</p>
+      <p className="text-tertiary">{noDataText}</p>
       {children}
     </div>
   );

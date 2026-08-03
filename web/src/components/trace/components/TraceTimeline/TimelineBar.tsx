@@ -67,7 +67,7 @@ export function TimelineBar({
   // Trailing label: rides just after the bar so metrics stay readable no matter
   // how thin the bar is. Respects the same view toggles as the tree.
   const label = (
-    <div className="text-muted-foreground flex items-center gap-2 text-xs whitespace-nowrap">
+    <div className="text-tertiary flex items-center gap-2 text-xs whitespace-nowrap">
       {showComments && commentCount ? (
         <CommentCountIcon count={commentCount} />
       ) : null}

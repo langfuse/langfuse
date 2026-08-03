@@ -50,7 +50,7 @@ export function QueryProgressBar({
       {showProgressLabel ? (
         <p
           className={cn(
-            "text-muted-foreground mt-2 tabular-nums",
+            "text-tertiary mt-2 tabular-nums",
             compactLayout ? "text-[11px] leading-4" : "text-xs",
           )}
         >

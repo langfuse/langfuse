@@ -116,7 +116,7 @@ function Section({
   return (
     <Collapsible>
       <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-1.5 text-left">
-        <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+        <ChevronRight className="text-tertiary h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
         <span className="flex-1 text-sm">{title}</span>
         {chip}
       </CollapsibleTrigger>
@@ -128,7 +128,7 @@ function Section({
 }
 
 function MonoValue({ children }: { children: ReactNode }) {
-  return <span className="text-foreground font-bold">{children}</span>;
+  return <span className="text-secondary font-bold">{children}</span>;
 }
 
 function ExternalLink({
@@ -163,7 +163,7 @@ function ApiKeyCopyField({
 
   return (
     <div className="flex min-w-0 items-stretch overflow-hidden rounded-md border">
-      <div className="bg-muted text-muted-foreground flex w-24 shrink-0 items-center justify-center border-r text-xs font-bold">
+      <div className="bg-muted text-tertiary flex w-24 shrink-0 items-center justify-center border-r text-xs font-bold">
         {label}
       </div>
       <CodeView
@@ -224,7 +224,7 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
 
   return (
     <Section title="Tracing Instrumentation" chip={chip}>
-      <p className="text-muted-foreground text-sm leading-relaxed">
+      <p className="text-tertiary text-sm leading-relaxed">
         {sdk.status === "checking" ? (
           "Checking the latest traces for this project…"
         ) : sdk.status === "otel_header_required" ? (
@@ -275,7 +275,7 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
             return (
               <li
                 key={`${series.sdkName}:${series.sdkVersion}:${series.publicKey}`}
-                className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 text-xs"
+                className="text-tertiary flex flex-wrap items-baseline gap-x-1.5 text-xs"
               >
                 <MonoValue>{sdkLabel}</MonoValue>
                 <span title={series.publicKey || undefined}>{publicKey}</span>
@@ -407,7 +407,7 @@ export function V4MigrationHeaderContent({
           View Status
         </Link>
       </div>
-      <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
+      <p className="text-tertiary mb-3 text-sm leading-relaxed">
         <ExternalLink href={V4_DOCS_URL} className="text-inherit underline">
           Langfuse v4
         </ExternalLink>{" "}
@@ -419,7 +419,7 @@ export function V4MigrationHeaderContent({
       <div className="flex flex-col gap-2">
         {promptVisible && (
           <div className="bg-muted/50 max-h-44 overflow-y-auto rounded-md border p-3">
-            <code className="text-muted-foreground font-mono text-xs leading-5 break-words whitespace-pre-wrap">
+            <code className="text-tertiary font-mono text-xs leading-5 break-words whitespace-pre-wrap">
               {V4_CODING_AGENT_PROMPT}
             </code>
           </div>
@@ -446,7 +446,7 @@ export function V4MigrationHeaderContent({
           hasApiKeyCreateAccess &&
           generatedKeysForProject && (
             <div className="mt-1 flex flex-col gap-2">
-              <p className="text-muted-foreground text-sm leading-relaxed">
+              <p className="text-tertiary text-sm leading-relaxed">
                 If you are setting up the Langfuse CLI or skills for the first
                 time, use these project API keys.
               </p>
@@ -539,7 +539,7 @@ export function V4MigrationDetailsContent({
               </div>
               <V4PreviewToggleRow projectId={projectId} />
             </div>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-tertiary text-sm">
               The latest SDK no longer sets trace input and output; v4{" "}
               <ExternalLink
                 href={OBSERVATIONS_DATA_MODEL_URL}
@@ -566,12 +566,12 @@ export function V4MigrationDetailsContent({
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => capture("v4_migration:panel_docs_link_clicked")}
-            className="text-foreground shrink-0 text-sm underline"
+            className="text-secondary shrink-0 text-sm underline"
           >
             Documentation
           </a>
         </div>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-tertiary text-sm">
           Some features will stop working soon.
         </p>
         <div>
@@ -587,16 +587,16 @@ export function V4MigrationDetailsContent({
             }
           >
             {migrationData.evals.status === "loading" ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 Checking configured evals…
               </p>
             ) : migrationData.evals.status === "error" ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 We could not check configured evals. Try again later.
               </p>
             ) : migrationData.evals.count > 0 ? (
               <>
-                <p className="text-muted-foreground mb-2 text-sm">
+                <p className="text-tertiary mb-2 text-sm">
                   {migrationData.evals.count} configured{" "}
                   {migrationData.evals.count === 1
                     ? "eval targets"
@@ -638,7 +638,7 @@ export function V4MigrationDetailsContent({
                 </div>
               </>
             ) : (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 No deprecated evals detected.
               </p>
             )}
@@ -654,16 +654,16 @@ export function V4MigrationDetailsContent({
             }
           >
             {migrationData.apis.status === "loading" ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 Checking public API usage…
               </p>
             ) : migrationData.apis.status === "error" ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 We could not check public API usage. Try again later.
               </p>
             ) : migrationData.apiUsage.length > 0 ? (
               <>
-                <p className="text-muted-foreground mb-2 text-sm">
+                <p className="text-tertiary mb-2 text-sm">
                   You&apos;ve called these deprecated endpoints in the last{" "}
                   {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working soon; the{" "}
                   <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
@@ -684,7 +684,7 @@ export function V4MigrationDetailsContent({
                         {usage.endpoint}
                       </ExternalLink>
                       <span
-                        className="text-muted-foreground text-xs whitespace-nowrap"
+                        className="text-tertiary text-xs whitespace-nowrap"
                         title={`Last seen at ${usage.lastSeen}`}
                       >
                         {numberFormatter(usage.count, 0, 2)} calls · last seen{" "}
@@ -695,7 +695,7 @@ export function V4MigrationDetailsContent({
                 </div>
               </>
             ) : (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 No deprecated public API usage detected in the last{" "}
                 {V4_MIGRATION_LOOKBACK_DAYS} days.
               </p>
@@ -712,16 +712,14 @@ export function V4MigrationDetailsContent({
             }
           >
             {migrationData.exports.status === "loading" ? (
-              <p className="text-muted-foreground text-sm">
-                Checking integrations…
-              </p>
+              <p className="text-tertiary text-sm">Checking integrations…</p>
             ) : migrationData.exports.status === "error" ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 We could not check integrations. Try again later.
               </p>
             ) : migrationData.legacyIntegrations.length > 0 ? (
               <>
-                <p className="text-muted-foreground mb-2 text-sm">
+                <p className="text-tertiary mb-2 text-sm">
                   These exports still read from the old data source. Switching
                   them over can change what downstream consumers receive, so
                   worth a quick check.
@@ -743,7 +741,7 @@ export function V4MigrationDetailsContent({
                       ) : (
                         <span className="text-sm">{name}</span>
                       )}
-                      <span className="text-muted-foreground text-xs">·</span>
+                      <span className="text-tertiary text-xs">·</span>
                       <ExternalLink
                         href={
                           DEPRECATED_INTEGRATION_MIGRATION_URLS[name] ??
@@ -758,7 +756,7 @@ export function V4MigrationDetailsContent({
                 </div>
               </>
             ) : (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 No deprecated integration exports detected.
               </p>
             )}
@@ -772,7 +770,7 @@ export function V4MigrationDetailsContent({
         <div className="flex items-center gap-2 text-base font-bold">
           <LifeBuoy className="h-4 w-4 shrink-0" /> Contact us
         </div>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-tertiary text-sm">
           Need a hand with the update? We&apos;re here to help!
         </p>
         <div className="flex items-center gap-2">

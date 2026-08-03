@@ -52,7 +52,7 @@ export function DatePicker({
             disabled={disabled}
             className={cn(
               "justify-start text-left font-normal",
-              !date && "text-muted-foreground",
+              !date && "text-tertiary",
               className,
             )}
           >
@@ -232,7 +232,7 @@ export function DatePickerWithRange({
             variant="outline"
             className={cn(
               "w-[330px] justify-start text-left font-normal",
-              !internalDateRange && "text-muted-foreground",
+              !internalDateRange && "text-tertiary",
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -570,7 +570,7 @@ export function TimeRangePicker({
             variant="outline"
             className={cn(
               "hover:bg-hover hover:text-on-hover w-fit justify-start text-left font-normal",
-              !timeRange && "text-muted-foreground",
+              !timeRange && "text-tertiary",
               // Let the trigger shrink below content so the label truncates in
               // a tight header instead of widening the row.
               compact && "min-w-0",

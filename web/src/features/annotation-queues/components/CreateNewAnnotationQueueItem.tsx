@@ -150,7 +150,7 @@ export const CreateNewAnnotationQueueItem = ({
               <ListPlus className="h-4 w-4" />
               <span className="text-sm">Add to queue</span>
               {!!queues.data?.totalCount && (
-                <span className="bg-primary/50 text-primary-foreground ml-auto flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
+                <span className="bg-primary/50 text-on-fill ml-auto flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {queues.data.totalCount > 99 ? "99+" : queues.data.totalCount}
                 </span>
               )}
@@ -158,7 +158,7 @@ export const CreateNewAnnotationQueueItem = ({
           ) : queues.data?.totalCount ? (
             <span className="relative mr-1 text-xs">
               <ChevronDown className="text-primary h-3 w-3" />
-              <span className="bg-primary text-primary-foreground absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm px-0.5 text-[8px] font-bold shadow-xs">
+              <span className="bg-primary text-on-fill absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm px-0.5 text-[8px] font-bold shadow-xs">
                 {queues.data?.totalCount > 99 ? "99+" : queues.data?.totalCount}
               </span>
             </span>

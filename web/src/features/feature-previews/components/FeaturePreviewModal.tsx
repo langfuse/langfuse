@@ -139,10 +139,10 @@ export function FeaturePreviewModal({
         size="lg"
         closeOnInteractionOutside
         overlayMode="blocking"
-        className="border-border bg-background text-foreground max-h-[88vh] p-0 shadow-2xl sm:rounded-2xl"
+        className="border-border bg-canvas text-secondary max-h-[88vh] p-0 shadow-2xl sm:rounded-2xl"
       >
         <DialogHeader>
-          <DialogTitle className="text-foreground text-lg font-bold">
+          <DialogTitle className="text-secondary text-lg font-bold">
             {FEATURE_PREVIEW_MODAL_TITLE}
           </DialogTitle>
           <DialogDescription className="mt-0">
@@ -164,15 +164,15 @@ export function FeaturePreviewModal({
                     className={cn(
                       "flex min-w-48 items-start rounded-md border px-3 py-3 text-left transition-colors md:min-w-0",
                       isSelected
-                        ? "bg-muted text-foreground border-transparent"
-                        : "text-muted-foreground hover:bg-muted/50 border-transparent",
+                        ? "bg-muted text-secondary border-transparent"
+                        : "text-tertiary hover:bg-muted/50 border-transparent",
                     )}
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-bold">
                         {item.sidebarLabel}
                       </span>
-                      <span className="text-muted-foreground mt-1 line-clamp-2 block text-xs">
+                      <span className="text-tertiary mt-1 line-clamp-2 block text-xs">
                         {state[item.flag]?.disabled
                           ? "Unavailable"
                           : state[item.flag]?.enabled
@@ -186,7 +186,7 @@ export function FeaturePreviewModal({
             </div>
           </aside>
 
-          <section className="bg-background min-h-0 overflow-y-auto p-6">
+          <section className="bg-canvas min-h-0 overflow-y-auto p-6">
             {selected && selectedState ? (
               <>
                 {selectedState.warningReason ? (
@@ -197,10 +197,10 @@ export function FeaturePreviewModal({
 
                 <div className="flex items-start justify-between gap-6">
                   <div>
-                    <h2 className="text-foreground text-xl font-bold">
+                    <h2 className="text-secondary text-xl font-bold">
                       {selected.title}
                     </h2>
-                    <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-5">
+                    <p className="text-tertiary mt-2 max-w-2xl text-sm leading-5">
                       {selected.description}
                     </p>
                     <Button asChild className="mt-4">
@@ -228,7 +228,7 @@ export function FeaturePreviewModal({
 
                 <PreviewMockupPanel illustration={selected.illustration} />
 
-                <p className="text-muted-foreground mt-5 text-sm leading-5">
+                <p className="text-tertiary mt-5 text-sm leading-5">
                   {selected.details}
                 </p>
               </>

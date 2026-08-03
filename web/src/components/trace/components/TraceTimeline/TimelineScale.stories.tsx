@@ -7,7 +7,7 @@ const meta = preview.meta({
   // The scale is wider than most viewports; host it in a scrollable box.
   decorators: [
     (Story) => (
-      <div className="bg-background w-[700px] overflow-x-auto rounded border p-2">
+      <div className="bg-canvas w-[700px] overflow-x-auto rounded border p-2">
         <Story />
       </div>
     ),

@@ -82,7 +82,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
           <CardDescription>Checking connection status...</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-muted-foreground flex items-center gap-2">
+          <div className="text-tertiary flex items-center gap-2">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
             <span>Loading...</span>
           </div>
@@ -134,7 +134,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
           )}
 
           <div className="space-y-2">
-            <p className="text-muted-foreground text-sm">
+            <p className="text-tertiary text-sm">
               Connect your Slack workspace to enable real-time notifications for
               your automations.
             </p>

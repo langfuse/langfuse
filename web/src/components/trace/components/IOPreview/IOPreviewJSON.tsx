@@ -584,7 +584,7 @@ function IOPreviewJSONInner({
     return (
       <div className="flex min-h-0 flex-1 flex-col border-t border-b">
         <div className="flex h-full items-center justify-center">
-          <div className="text-muted-foreground text-sm">Parsing data...</div>
+          <div className="text-tertiary text-sm">Parsing data...</div>
         </div>
       </div>
     );
@@ -624,7 +624,7 @@ function IOPreviewJSONInner({
       )}
 
       {/* Header - matches LogViewToolbar styling */}
-      <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
+      <div className="bg-canvas flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
         {/* Search input - expands to fill available width */}
         <Command className="flex-1 rounded-none border-0 bg-transparent">
           <CommandInput
@@ -650,7 +650,7 @@ function IOPreviewJSONInner({
 
         {/* Match counter - inline text (only when searching) */}
         {searchQuery && (
-          <span className="text-muted-foreground text-xs whitespace-nowrap">
+          <span className="text-tertiary text-xs whitespace-nowrap">
             {searchMatchCount > 0
               ? `${currentMatchIndex + 1} of ${searchMatchCount}`
               : "No matches"}
@@ -705,8 +705,8 @@ function IOPreviewJSONInner({
       </div>
 
       {/* Section navigation hint bar */}
-      <div className="bg-background flex h-6 shrink-0 items-center gap-1.5 border-b px-2">
-        <span className="text-muted-foreground text-xs">Jump to:</span>
+      <div className="bg-canvas flex h-6 shrink-0 items-center gap-1.5 border-b px-2">
+        <span className="text-tertiary text-xs">Jump to:</span>
         {sections.map((section, index) => (
           <span key={section.key} className="flex items-center">
             <button
@@ -716,21 +716,21 @@ function IOPreviewJSONInner({
               {section.title}
             </button>
             {index < sections.length - 1 && (
-              <span className="text-muted-foreground text-xs">,&nbsp;</span>
+              <span className="text-tertiary text-xs">,&nbsp;</span>
             )}
           </span>
         ))}
         {needsVirtualization && (
           <HoverCard>
             <HoverCardTrigger asChild>
-              <span className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-bold">
+              <span className="bg-muted text-tertiary ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-bold">
                 Virtualized
               </span>
             </HoverCardTrigger>
             <HoverCardContent className="w-80" side="bottom" align="end">
               <div className="space-y-2">
                 <p className="text-sm font-bold">Virtualized View</p>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-tertiary text-xs">
                   This view is using virtualization due to a large number of
                   keys ({rowCounts.input.toLocaleString()} input,{" "}
                   {rowCounts.output.toLocaleString()} output,{" "}

@@ -177,7 +177,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
                   <li>• Delete stored workspace credentials</li>
                 </ul>
               </div>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 You can reconnect at any time, but you&apos;ll need to
                 reconfigure your automations.
               </p>

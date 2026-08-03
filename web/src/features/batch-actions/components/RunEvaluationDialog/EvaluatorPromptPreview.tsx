@@ -20,7 +20,7 @@ export function EvaluatorPromptPreview(props: EvaluatorPromptPreviewProps) {
         align="end"
         onWheel={(event) => event.stopPropagation()}
       >
-        <p className="text-muted-foreground mb-2 text-xs">
+        <p className="text-tertiary mb-2 text-xs">
           Prompt preview with the first selected observation
         </p>
         <pre

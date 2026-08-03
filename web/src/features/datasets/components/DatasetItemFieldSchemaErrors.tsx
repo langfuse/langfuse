@@ -31,7 +31,7 @@ export const DatasetItemFieldSchemaErrors: React.FC<
           {errors.map((error, idx) => (
             <div key={`${error.datasetId}-${idx}`} className="space-y-1">
               {showDatasetName && (
-                <p className="text-muted-foreground text-xs font-bold">
+                <p className="text-tertiary text-xs font-bold">
                   {error.datasetName}
                 </p>
               )}

@@ -29,7 +29,7 @@ const PeekViewEvaluatorTemplateDetail = ({
         <div className="border-border bg-muted/50 mb-1 w-full rounded-md border p-4">
           <h3 className="mb-1 text-sm font-bold">Selected Evaluator</h3>
           <div className="flex items-center gap-2">
-            <p className="text-muted-foreground text-sm">{template.name}</p>
+            <p className="text-tertiary text-sm">{template.name}</p>
             <MaintainerTooltip maintainer={getMaintainer(template)} />
           </div>
         </div>

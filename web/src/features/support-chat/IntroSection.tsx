@@ -54,7 +54,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
         <div className="flex items-center gap-2 text-base font-bold">
           <Sparkles className="h-4 w-4" /> Ask AI
         </div>
-        <p className="text-muted-foreground mt-1 text-sm">
+        <p className="text-tertiary mt-1 text-sm">
           Get instant, helpful answers. Our AI knows the docs, examples, and
           best practices to guide you fast.
         </p>
@@ -76,7 +76,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
         <div className="flex items-center gap-2 text-base font-bold">
           <LibraryBig className="h-4 w-4" /> Docs
         </div>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-tertiary text-sm">
           Dive into guides, concepts, and API reference — clear steps and
           examples to move quickly.
         </p>
@@ -102,7 +102,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
             <div className="flex items-center gap-2 text-base font-bold">
               <LifeBuoy className="h-4 w-4" /> Support
             </div>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-tertiary text-sm">
               Ask AI & Docs did not unblock you? Get in touch with the support
               team.
             </p>
@@ -160,7 +160,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
             <div className="flex items-center gap-2 text-base font-bold">
               <LifeBuoy className="h-4 w-4" /> Email a Support Engineer
             </div>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-tertiary text-sm">
               Ask AI & Docs did not unblock you? One of our support engineers
               will help you get unblocked.
             </p>
@@ -179,7 +179,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
             <div className="flex items-center gap-2 text-base font-bold">
               <LifeBuoy className="h-4 w-4" /> Community Support
             </div>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-tertiary text-sm">
               Ask AI & Docs did not unblock you? Get help from and share
               feedback with the community.
             </p>
@@ -221,7 +221,7 @@ export function IntroSection({ onStartForm }: { onStartForm: () => void }) {
           <div className="flex items-center gap-2 text-base font-bold">
             <SiGithub className="h-4 w-4" /> Community & Resources
           </div>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <p className="text-tertiary mt-1 text-sm">
             Join the conversation and connect with the Langfuse community.
           </p>
           <div className="mt-3 grid grid-cols-1 gap-2">

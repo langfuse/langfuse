@@ -42,8 +42,8 @@ export function CopyWidgetDialog({
           <DialogTitle>Edit your copy of this widget</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-muted-foreground py-4 text-sm">
-            <span className="text-foreground font-bold">
+          <p className="text-tertiary py-4 text-sm">
+            <span className="text-secondary font-bold">
               &ldquo;{widgetName}&rdquo;
             </span>{" "}
             is maintained by Langfuse and can&rsquo;t be edited directly.

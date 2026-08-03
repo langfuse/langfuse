@@ -20,7 +20,7 @@ export function ThinkingBlock({
     <div className="my-2 px-1">
       <button
         type="button"
-        className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-start gap-1 text-left"
+        className="text-tertiary hover:text-secondary flex w-full cursor-pointer items-start gap-1 text-left"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
       >
@@ -37,7 +37,7 @@ export function ThinkingBlock({
       </button>
 
       {expanded && (
-        <div className="text-muted-foreground mt-1 ml-4 text-sm whitespace-pre-wrap italic">
+        <div className="text-tertiary mt-1 ml-4 text-sm whitespace-pre-wrap italic">
           {content}
         </div>
       )}
@@ -61,7 +61,7 @@ export function RedactedThinkingBlock({
     <div className="my-2 px-1">
       <button
         type="button"
-        className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-start gap-1 text-left"
+        className="text-tertiary hover:text-secondary flex w-full cursor-pointer items-start gap-1 text-left"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
       >
@@ -78,7 +78,7 @@ export function RedactedThinkingBlock({
       </button>
 
       {expanded && (
-        <div className="bg-muted/50 text-muted-foreground mt-1 ml-4 rounded p-2 font-mono text-xs break-all">
+        <div className="bg-muted/50 text-tertiary mt-1 ml-4 rounded p-2 font-mono text-xs break-all">
           {data}
         </div>
       )}

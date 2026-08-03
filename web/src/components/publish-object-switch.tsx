@@ -275,7 +275,7 @@ const Base = (props: {
                 <Label className="text-base capitalize">
                   {props.itemName} Shared
                 </Label>
-                <span className="text-muted-foreground text-sm">
+                <span className="text-tertiary text-sm">
                   This {props.itemName} is public. Anyone with the link can view
                   this {props.itemName}.
                 </span>
@@ -308,7 +308,7 @@ const Base = (props: {
                 <Label className="text-base capitalize">
                   {props.itemName} Private
                 </Label>
-                <span className="text-muted-foreground text-sm">
+                <span className="text-tertiary text-sm">
                   This {props.itemName} is private. Only authorized project
                   members can view this {props.itemName}.
                 </span>

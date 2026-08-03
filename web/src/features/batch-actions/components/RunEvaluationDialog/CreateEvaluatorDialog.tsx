@@ -76,13 +76,11 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
         <DialogBody className="max-h-[72vh] overflow-y-auto pr-1 pb-0">
           {!templateId ? (
             <div className="space-y-4 px-1 pb-1">
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 Select an evaluator template to configure.
               </p>
               {templatesQuery.isLoading ? (
-                <p className="text-muted-foreground text-sm">
-                  Loading templates...
-                </p>
+                <p className="text-tertiary text-sm">Loading templates...</p>
               ) : templatesQuery.isError ? (
                 <p className="text-destructive text-sm">
                   Failed to load templates: {templatesQuery.error.message}

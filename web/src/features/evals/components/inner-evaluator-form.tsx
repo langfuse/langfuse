@@ -216,10 +216,10 @@ const ObservationsPreview = memo(
               <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
                 <AlertTriangle className="text-dark-yellow h-8 w-8" />
                 <div className="flex flex-col gap-1">
-                  <span className="text-foreground font-bold">
+                  <span className="text-secondary font-bold">
                     Please verify your SDK version
                   </span>
-                  <span className="text-muted-foreground max-w-md text-sm">
+                  <span className="text-tertiary max-w-md text-sm">
                     We did not find any data ingested with langfuse
                     OTEL-compatible SDKs in the last 7 days. Observation-level
                     evaluators require JS SDK v4+ or Python SDK v3+. You can
@@ -312,7 +312,7 @@ function CodeEvalSourceLink({
 
   return (
     <div className="bg-muted/20 flex max-w-[500px] items-center justify-between gap-3 rounded-md border px-3 py-2">
-      <span className="text-muted-foreground text-sm">{languageLabel}</span>
+      <span className="text-tertiary text-sm">{languageLabel}</span>
       {editButton}
     </div>
   );
@@ -845,7 +845,7 @@ export const InnerEvaluatorForm = (props: {
                       {props.mode === "edit" && (
                         <Tooltip>
                           <TooltipTrigger>
-                            <InfoIcon className="text-muted-foreground size-3" />
+                            <InfoIcon className="text-tertiary size-3" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-[200px] p-2">
                             <span className="leading-4">
@@ -1046,7 +1046,7 @@ export const InnerEvaluatorForm = (props: {
                                 (props.mode === "edit" ? (
                                   <Tooltip>
                                     <TooltipTrigger>
-                                      <InfoIcon className="text-muted-foreground size-3" />
+                                      <InfoIcon className="text-tertiary size-3" />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-[300px] p-2">
                                       <span className="leading-4">
@@ -1112,7 +1112,7 @@ export const InnerEvaluatorForm = (props: {
                           </FormControl>
                         </FormItem>
                         {!field.value && isEventTarget(target) && (
-                          <p className="text-muted-foreground text-xs">
+                          <p className="text-tertiary text-xs">
                             This evaluator can still be used for batched
                             evaluation of historic observations.{" "}
                             <a
@@ -1172,7 +1172,7 @@ export const InnerEvaluatorForm = (props: {
                         <FormControl>
                           <div className="max-w-[500px]">
                             {props.disabled && !hasFilters ? (
-                              <p className="text-muted-foreground text-xs">
+                              <p className="text-tertiary text-xs">
                                 All {getTargetDisplayName(target)} will be
                                 evaluated
                               </p>

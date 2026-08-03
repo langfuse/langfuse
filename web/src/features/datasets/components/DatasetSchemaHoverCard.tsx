@@ -57,7 +57,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
       <HoverCardTrigger asChild>
         <Button
           variant="ghost"
-          className="text-muted-foreground hover:bg-hover hover:text-on-hover inline-flex items-center gap-1.5 rounded p-1 text-xs transition-colors"
+          className="text-tertiary hover:bg-hover hover:text-on-hover inline-flex items-center gap-1.5 rounded p-1 text-xs transition-colors"
           aria-label={`View ${title}`}
           size="sm"
         >
@@ -70,13 +70,13 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
         collisionPadding={20}
       >
         <p className="text-sm font-bold">{title}</p>
-        <p className="text-muted-foreground pt-2 text-sm">
+        <p className="text-tertiary pt-2 text-sm">
           Learn more about{" "}
           <a
             href="https://json-schema.org/learn/miscellaneous-examples"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-foreground inline-flex items-center underline"
+            className="hover:text-secondary inline-flex items-center underline"
           >
             JSON Schema
             <ArrowUpRight className="ml-0.5 h-3 w-3" />

@@ -100,7 +100,7 @@ function SmartLink({
   const currentProjectId = useProjectIdFromURL();
 
   if (!safeHref) {
-    return <span className="text-muted-foreground underline">{children}</span>;
+    return <span className="text-tertiary underline">{children}</span>;
   }
 
   try {
@@ -217,8 +217,8 @@ const MessageCard = forwardRef<
           ? "rounded-xl px-2.5 py-1 text-[0.775rem]"
           : "rounded-2xl px-3 py-1.5 text-sm",
         isUser
-          ? "bg-primary text-primary-foreground"
-          : "bg-muted text-foreground border-border border",
+          ? "bg-primary text-on-fill"
+          : "bg-muted text-secondary border-border border",
       )}
     >
       {content.type === "loading" ? (
@@ -321,11 +321,11 @@ function InAppAgentReasoningBlock({
         }
       }}
       className={cn(
-        "text-muted-foreground max-w-full",
+        "text-tertiary max-w-full",
         isCompact ? "text-[0.775rem]" : "text-sm",
       )}
     >
-      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+      <summary className="hover:text-secondary focus-visible:ring-focus flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
         <span
           className={cn(
             "min-w-0 flex-1",
@@ -469,7 +469,7 @@ function MessageFeedbackControls({
           <ThumbsUp
             className={cn(
               isCompact ? "size-3" : "size-3.5",
-              selectedValue === "thumbs_up" && "text-foreground",
+              selectedValue === "thumbs_up" && "text-secondary",
             )}
           />
         </FeedbackButton>
@@ -485,14 +485,14 @@ function MessageFeedbackControls({
         <ThumbsDown
           className={cn(
             isCompact ? "size-3" : "size-3.5",
-            selectedValue === "thumbs_down" && "text-foreground",
+            selectedValue === "thumbs_down" && "text-secondary",
           )}
         />
       </FeedbackButton>
       {committedComment ? (
         <button
           type="button"
-          className="text-muted-foreground hover:text-foreground ml-1 min-w-0 flex-1 truncate text-left text-xs disabled:cursor-not-allowed disabled:opacity-60"
+          className="text-tertiary hover:text-secondary ml-1 min-w-0 flex-1 truncate text-left text-xs disabled:cursor-not-allowed disabled:opacity-60"
           title={commentButtonText}
           disabled={isDisabled}
           onClick={() => {
@@ -519,7 +519,7 @@ function MessageFeedbackControls({
               rows={3}
               maxLength={500}
               className={cn(
-                "border-input bg-background text-foreground placeholder:text-foreground-tertiary w-full resize-none rounded-md border px-2 py-1",
+                "border-input bg-canvas text-secondary placeholder:text-disabled w-full resize-none rounded-md border px-2 py-1",
                 isCompact ? "text-xs" : "text-sm",
               )}
             />
@@ -552,7 +552,7 @@ function SourcesPopover({
         <button
           type="button"
           className={cn(
-            "text-muted-foreground/70 hover:text-muted-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-bold",
+            "text-tertiary/70 hover:text-tertiary inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-bold",
             isCompact && "py-0.5",
           )}
         >
@@ -576,7 +576,7 @@ function SourcesPopover({
                 style={{ backgroundImage: `url("${source.faviconUrl}")` }}
               />
               <span
-                className="text-foreground min-w-0 flex-1 truncate text-xs"
+                className="text-secondary min-w-0 flex-1 truncate text-xs"
                 title={source.title}
               >
                 {source.title}
@@ -598,7 +598,7 @@ const CommentButton = forwardRef<
       ref={ref}
       type="button"
       className={cn(
-        "text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-md border px-1.5 py-1 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60",
+        "text-tertiary hover:text-secondary flex items-center gap-1 rounded-md border px-1.5 py-1 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
       {...props}
@@ -628,7 +628,7 @@ function FeedbackButton({
       aria-pressed={isSelected}
       disabled={disabled}
       onClick={onClick}
-      className="text-muted-foreground/50 hover:text-muted-foreground rounded-md p-1 disabled:cursor-not-allowed"
+      className="text-tertiary/50 hover:text-tertiary rounded-md p-1 disabled:cursor-not-allowed"
     >
       {children}
     </button>
@@ -684,11 +684,11 @@ function ToolCallGroup({
         }
       }}
       className={cn(
-        "text-muted-foreground max-w-full",
+        "text-tertiary max-w-full",
         isCompact ? "text-[0.775rem]" : "text-sm",
       )}
     >
-      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+      <summary className="hover:text-secondary focus-visible:ring-focus flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
         <span className={cn(isLoading && styles.thinkingShimmer)}>{label}</span>
         <ChevronDown
           className={cn(
@@ -724,7 +724,7 @@ function ToolCallDisclosure({
       <summary
         aria-label={`${tool.name}: ${status}`}
         className={cn(
-          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
+          "hover:text-secondary focus-visible:ring-focus flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
           isCompact && "px-0.5",
         )}
       >
@@ -998,7 +998,7 @@ function CodeBlock({ children }: { children: ReactNode }) {
         onClick={() => {
           copy(code).catch(() => undefined);
         }}
-        className="bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition select-none hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        className="bg-canvas/90 text-tertiary hover:text-secondary focus-visible:ring-focus absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition select-none hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
       >
         {isCopied ? (
           <Check className="size-3.5" />

@@ -120,7 +120,7 @@ function DefaultEvalModelFields({
         setModelParamEnabled={setup.setModelParamEnabled}
         formDisabled={!setup.hasWriteAccess}
       />
-      <p className="text-muted-foreground text-xs">
+      <p className="text-tertiary text-xs">
         Select a model which supports function calling.
       </p>
       {setup.formError ? (

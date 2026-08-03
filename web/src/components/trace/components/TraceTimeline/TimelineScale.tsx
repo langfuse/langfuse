@@ -59,7 +59,7 @@ export function TimelineScale({
               style={{ left: `${tickLeft(timeValue)}px` }}
             >
               <span
-                className="text-muted-foreground absolute left-2 text-xs whitespace-nowrap"
+                className="text-tertiary absolute left-2 text-xs whitespace-nowrap"
                 title={formatTickLabel(timeValue)}
               >
                 {formatTickLabel(timeValue)}

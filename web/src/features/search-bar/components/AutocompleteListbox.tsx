@@ -80,13 +80,13 @@ export function AutocompleteListbox({
       {plan.loading && (
         <div
           data-testid="search-bar-autocomplete-loading"
-          className="text-muted-foreground mx-1 flex min-h-8 items-center gap-2 px-3 text-xs"
+          className="text-tertiary mx-1 flex min-h-8 items-center gap-2 px-3 text-xs"
         >
           Loading values…
         </div>
       )}
       {!plan.loading && plan.sections.length === 0 && (
-        <div className="text-muted-foreground mx-1 flex min-h-8 items-center gap-2 px-3 text-xs">
+        <div className="text-tertiary mx-1 flex min-h-8 items-center gap-2 px-3 text-xs">
           No suggestions
         </div>
       )}
@@ -99,7 +99,7 @@ export function AutocompleteListbox({
         >
           <div
             data-testid="search-bar-autocomplete-section"
-            className="text-muted-foreground px-3 pt-1.5 pb-1 text-[10px] tracking-[0.06em] uppercase"
+            className="text-tertiary px-3 pt-1.5 pb-1 text-[10px] tracking-[0.06em] uppercase"
           >
             {sec.title}
           </div>
@@ -140,12 +140,12 @@ export function AutocompleteListbox({
                 ))}
               {o.kind === "value" && o.active && (
                 <Check
-                  className="text-foreground/80 h-3.5 w-3.5 flex-none"
+                  className="text-secondary/80 h-3.5 w-3.5 flex-none"
                   aria-label="selected"
                 />
               )}
               {"detail" in o && o.detail !== undefined && (
-                <span className="text-muted-foreground ml-auto pl-6 font-sans text-[11px]">
+                <span className="text-tertiary ml-auto pl-6 font-sans text-[11px]">
                   {o.detail}
                 </span>
               )}

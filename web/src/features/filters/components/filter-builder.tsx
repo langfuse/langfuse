@@ -314,7 +314,7 @@ export function PopoverFilterBuilder({
                 variant="ghost"
                 type="button"
                 size="icon-xs"
-                className="hover:bg-background ml-0.5"
+                className="hover:bg-canvas ml-0.5"
               >
                 <X className="h-3 w-3" />
               </Button>
@@ -583,7 +583,7 @@ function FilterBuilderForm({
                 ? "AI features are disabled for your organization. Click to enable them in organization settings."
                 : undefined
             }
-            className="text-muted-foreground w-full justify-start"
+            className="text-tertiary w-full justify-start"
           >
             <WandSparkles className="mr-2 h-4 w-4" />
             {!organization?.aiFeaturesEnabled ? (
@@ -632,7 +632,7 @@ function FilterBuilderForm({
                 </Button>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="text-muted-foreground h-4 w-4" />
+                    <Info className="text-tertiary h-4 w-4" />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="text-xs">

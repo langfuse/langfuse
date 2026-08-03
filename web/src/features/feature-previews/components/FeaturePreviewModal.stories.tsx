@@ -47,7 +47,7 @@ const meta = preview.meta({
   },
   decorators: [
     (Story) => (
-      <div className="bg-background flex min-h-screen items-center justify-center p-8">
+      <div className="bg-canvas flex min-h-screen items-center justify-center p-8">
         <Story />
       </div>
     ),

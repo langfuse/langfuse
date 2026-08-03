@@ -49,9 +49,7 @@ export function SetupPage() {
           <BreadcrumbItem>
             <BreadcrumbPage
               className={cn(
-                stepInt !== 1
-                  ? "text-muted-foreground"
-                  : "text-foreground font-bold",
+                stepInt !== 1 ? "text-tertiary" : "text-secondary font-bold",
               )}
             >
               1. Create Organization
@@ -62,9 +60,7 @@ export function SetupPage() {
           <BreadcrumbItem>
             <BreadcrumbPage
               className={cn(
-                stepInt !== 2
-                  ? "text-muted-foreground"
-                  : "text-foreground font-bold",
+                stepInt !== 2 ? "text-tertiary" : "text-secondary font-bold",
               )}
             >
               2. Create Project
@@ -78,7 +74,7 @@ export function SetupPage() {
           stepInt === 1 && (
             <div>
               <Header title="New Organization" />
-              <p className="text-muted-foreground mb-4 text-sm">
+              <p className="text-tertiary mb-4 text-sm">
                 Organizations are used to manage your projects and teams.
               </p>
               <NewOrganizationForm
@@ -94,7 +90,7 @@ export function SetupPage() {
           stepInt === 2 && organization && (
             <div>
               <Header title="New Project" />
-              <p className="text-muted-foreground mb-4 text-sm">
+              <p className="text-tertiary mb-4 text-sm">
                 Projects are used to group traces, datasets, evals and prompts.
                 Environments can be separated using the built-in environment
                 feature.

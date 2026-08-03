@@ -70,7 +70,7 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
       {isLoading && (
         <div className="flex items-center justify-center py-4">
           <Spinner size="sm" variant="muted" />
-          <span className="text-muted-foreground ml-2 text-xs">Loading...</span>
+          <span className="text-tertiary ml-2 text-xs">Loading...</span>
         </div>
       )}
 
@@ -97,7 +97,7 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
       )}
 
       {!jsonData && !isLoading && !isError && (
-        <div className="text-muted-foreground py-2 pl-6 text-xs">
+        <div className="text-tertiary py-2 pl-6 text-xs">
           No input/output/metadata
         </div>
       )}

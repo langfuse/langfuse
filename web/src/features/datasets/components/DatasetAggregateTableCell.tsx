@@ -202,7 +202,7 @@ const DatasetAggregateCellContent = ({
                 />
               ))
             ) : (
-              <span className="text-muted-foreground text-xs">No scores</span>
+              <span className="text-tertiary text-xs">No scores</span>
             )}
           </div>
         </div>

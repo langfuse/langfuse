@@ -118,7 +118,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               <TableHead />
             </TableRow>
           </TableHeader>
-          <TableBody className="text-muted-foreground">
+          <TableBody className="text-tertiary">
             {apiKeysQuery.data?.length === 0 ? (
               <TableRow>
                 <TableCell

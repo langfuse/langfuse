@@ -87,9 +87,7 @@ const PeekViewEvaluatorConfigDetail = ({
               Deprecated
             </span>
           )}
-          <span
-            className={cn("text-sm", isEditMode ? "" : "text-muted-foreground")}
-          >
+          <span className={cn("text-sm", isEditMode ? "" : "text-tertiary")}>
             Edit Mode
           </span>
           <Switch

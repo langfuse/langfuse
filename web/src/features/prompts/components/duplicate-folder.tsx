@@ -133,7 +133,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
             className="flex h-full flex-1 flex-col gap-4"
           >
             <DialogBody>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 Copy all prompts from{" "}
                 <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-bold break-all">
                   {folderPath}/
@@ -220,7 +220,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
               />
               {form.watch("copySettings") === CopySettings.LATEST_ONLY &&
                 form.watch("rewritePromptReferences") && (
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-tertiary text-sm">
                     When copying latest only, labels referenced within the
                     folder may be added to copied prompts so rewritten
                     references continue to work.

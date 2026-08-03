@@ -45,11 +45,11 @@ const SupportDrawerContent = ({
   return (
     <div
       className={cn([
-        "bg-background flex h-full w-full min-w-0 flex-col",
+        "bg-canvas flex h-full w-full min-w-0 flex-col",
         className,
       ])}
     >
-      <div className="bg-background">
+      <div className="bg-canvas">
         <div className="flex min-h-11 w-full items-center justify-between gap-1 px-4 py-1">
           <Breadcrumb>
             <BreadcrumbList>
@@ -64,7 +64,7 @@ const SupportDrawerContent = ({
                       <button
                         type="button"
                         onClick={() => setCurrentMode("intro")}
-                        className="text-foreground"
+                        className="text-secondary"
                       >
                         Support
                       </button>
@@ -94,7 +94,7 @@ const SupportDrawerContent = ({
       </div>
       <div className="flex-1 overflow-y-auto border-t">
         <div className="px-2 py-1">
-          <div className="bg-background h-full">
+          <div className="bg-canvas h-full">
             <div className="p-2">
               {currentMode === "intro" && (
                 <IntroSection onStartForm={() => setCurrentMode("form")} />

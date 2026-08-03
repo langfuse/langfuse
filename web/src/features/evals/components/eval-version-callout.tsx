@@ -151,8 +151,8 @@ export function EvalVersionCallout({
       <AlertDescription>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <span className="text-foreground font-bold">{content.title}</span>
-            <span className="text-foreground text-sm">
+            <span className="text-secondary font-bold">{content.title}</span>
+            <span className="text-secondary text-sm">
               {content.description}
             </span>
           </div>

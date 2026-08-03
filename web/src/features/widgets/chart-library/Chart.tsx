@@ -285,7 +285,7 @@ const ChartComponent = ({
     <div className="flex flex-col items-center justify-center p-6 text-center">
       <AlertCircle className="mb-4 h-12 w-12" />
       <h3 className="mb-2 text-lg font-bold">Large Dataset Warning</h3>
-      <p className="text-muted-foreground mb-6 text-sm">
+      <p className="text-tertiary mb-6 text-sm">
         This chart has more than 2,000 unique data points. Rendering it may be
         slow or may crash your browser. Try to reduce the number of dimensions
         by adding more selective filters or choosing a coarser breakdown

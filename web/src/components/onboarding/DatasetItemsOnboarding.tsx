@@ -39,7 +39,7 @@ const DatasetItemEntryPointRow = ({
       className={cn(
         "border-border flex h-20 items-center gap-4 rounded-lg border p-4 transition-colors",
         disabled
-          ? "bg-muted text-muted-foreground opacity-60"
+          ? "bg-muted text-tertiary opacity-60"
           : "bg-card hover:bg-hover/50 cursor-pointer",
       )}
       onClick={!disabled ? onClick : undefined}
@@ -62,7 +62,7 @@ const DatasetItemEntryPointRow = ({
       <div className="flex items-center">{icon}</div>
       <div className="flex flex-1 flex-col gap-1">
         <h3 className="font-bold">{title}</h3>
-        <p className="text-muted-foreground text-sm">{description}</p>
+        <p className="text-tertiary text-sm">{description}</p>
       </div>
     </div>
   );

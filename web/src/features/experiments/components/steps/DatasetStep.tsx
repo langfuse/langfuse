@@ -150,7 +150,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                       <h4 className="leading-none font-bold">
                         Expected Dataset Structure
                       </h4>
-                      <p className="text-muted-foreground text-sm">
+                      <p className="text-tertiary text-sm">
                         Based on prompt {selectedPromptName} v
                         {selectedPromptVersion}
                       </p>
@@ -234,7 +234,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                   <span>Invalid configuration</span>
                   <Info className="h-4 w-4" />
                 </CardTitle>
-                <CardDescription className="text-foreground">
+                <CardDescription className="text-secondary">
                   {validationResult?.message}
                 </CardDescription>
               </CardHeader>

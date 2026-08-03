@@ -77,16 +77,16 @@ const ModernSessionMinimapItem = React.memo(
               {trace.name ?? "Trace"}
             </span>
           </span>
-          <time className="text-muted-foreground text-xs">
+          <time className="text-tertiary text-xs">
             {trace.timestamp.toLocaleString()}
           </time>
           <span
-            className="text-muted-foreground truncate font-mono text-[11px]"
+            className="text-tertiary truncate font-mono text-[11px]"
             title={trace.id}
           >
             {trace.id}
           </span>
-          <span className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
+          <span className="text-tertiary flex flex-wrap items-center gap-1 text-xs">
             <span>{observationLabel}</span>
             <span>·</span>
             {trace.scores.length > 0 ? (
@@ -159,11 +159,11 @@ const ModernSessionMinimap = React.memo(
         aria-label="Session traces"
         className="bg-muted/10 min-h-0 overflow-y-auto border-r"
       >
-        <div className="bg-background sticky top-0 z-10 flex items-center justify-between gap-2 border-b px-3 py-2">
-          <span className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
+        <div className="bg-canvas sticky top-0 z-10 flex items-center justify-between gap-2 border-b px-3 py-2">
+          <span className="text-tertiary text-xs font-bold tracking-wide uppercase">
             Traces · {traces.length}
           </span>
-          <span className="text-muted-foreground text-xs font-bold">
+          <span className="text-tertiary text-xs font-bold">
             Total cost · {usdFormatter(totalCost, 2)}
           </span>
         </div>

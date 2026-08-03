@@ -88,8 +88,7 @@ export function BatchActionsTable(props: { projectId: string }) {
         const processedCount = row.original.processedCount ?? 0;
         const failedCount = row.original.failedCount ?? 0;
 
-        if (!totalCount)
-          return <span className="text-muted-foreground">-</span>;
+        if (!totalCount) return <span className="text-tertiary">-</span>;
 
         return (
           <div className="space-y-1">
@@ -125,7 +124,7 @@ export function BatchActionsTable(props: { projectId: string }) {
         return finishedAt ? (
           <LocalIsoDate date={finishedAt} />
         ) : (
-          <span className="text-muted-foreground">-</span>
+          <span className="text-tertiary">-</span>
         );
       },
     },
@@ -164,7 +163,7 @@ export function BatchActionsTable(props: { projectId: string }) {
             <Tooltip>
               <TooltipTrigger>
                 <div className="flex items-center gap-1">
-                  <InfoIcon className="text-muted-foreground h-3 w-3" />
+                  <InfoIcon className="text-tertiary h-3 w-3" />
                   <span className="max-w-[250px] truncate text-xs" title={log}>
                     {log}
                   </span>

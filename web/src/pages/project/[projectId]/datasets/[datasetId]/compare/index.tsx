@@ -219,7 +219,7 @@ function DatasetCompareLegacy() {
               <AnnotationPanel projectId={projectId} />
             ) : (
               <div className="flex items-center justify-center p-4">
-                <span className="text-muted-foreground text-sm">
+                <span className="text-tertiary text-sm">
                   Loading annotation data...
                 </span>
               </div>

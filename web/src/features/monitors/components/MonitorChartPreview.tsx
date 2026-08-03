@@ -159,7 +159,7 @@ export const MonitorChartPreview = ({
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold tracking-tight">Live Preview</h3>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-tertiary text-sm">
               {renderChartSubtitle({
                 view,
                 metric: { measure, aggregation },
@@ -188,7 +188,7 @@ export const MonitorChartPreview = ({
             hintText={
               queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
             }
-            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+            className="bg-canvas/80 absolute inset-0 z-20 backdrop-blur-xs"
           />
         </div>
       </CardContent>

@@ -35,7 +35,7 @@ function JSONTableViewRowInner<T>({
   const expandedContentId = `expanded-content-${itemKey}`;
 
   return (
-    <div className="border-border bg-background border-b">
+    <div className="border-border bg-canvas border-b">
       {/* Preview row - always visible */}
       <div
         className={cn(
@@ -64,7 +64,7 @@ function JSONTableViewRowInner<T>({
 
         {/* Expand icon */}
         {expandable && (
-          <ChevronIcon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+          <ChevronIcon className="text-tertiary h-3.5 w-3.5 shrink-0" />
         )}
 
         {/* Column cells */}

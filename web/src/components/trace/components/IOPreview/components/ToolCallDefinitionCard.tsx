@@ -79,12 +79,12 @@ function ToolCallArgumentsList({
             className="min-w-0"
           >
             <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2">
-              <div className="text-foreground font-mono text-xs font-bold">
+              <div className="text-secondary font-mono text-xs font-bold">
                 Call {toolCall.invocationNumber}
               </div>
               {toolCall.id && (
                 <div
-                  className="text-muted-foreground truncate font-mono text-xs"
+                  className="text-tertiary truncate font-mono text-xs"
                   title={toolCall.id}
                 >
                   {toolCall.id}
@@ -98,7 +98,7 @@ function ToolCallArgumentsList({
                 codeClassName="text-xs"
               />
             ) : (
-              <div className="text-muted-foreground rounded-sm border px-2 py-1.5 text-xs">
+              <div className="text-tertiary rounded-sm border px-2 py-1.5 text-xs">
                 No arguments
               </div>
             )}
@@ -144,9 +144,9 @@ function ToolGroupHoverContent({
               className="flex min-w-0 items-center justify-between gap-2 rounded-sm px-2 py-1"
             >
               <div className="flex min-w-0 items-center gap-2">
-                <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                <Wrench className="text-tertiary h-3.5 w-3.5 shrink-0" />
                 <span
-                  className="text-foreground block truncate font-mono text-xs font-bold"
+                  className="text-secondary block truncate font-mono text-xs font-bold"
                   title={tool.name}
                 >
                   {toolDefinitionNumber !== undefined && (
@@ -207,14 +207,14 @@ function ToolGroupSummary({
       <div className="flex min-w-0 items-center gap-2">
         <Wrench
           className={cn(
-            "text-muted-foreground h-3.5 w-3.5 shrink-0",
+            "text-tertiary h-3.5 w-3.5 shrink-0",
             isCalledGroup && "text-dark-green",
           )}
         />
         <span
           className={cn(
             "truncate text-sm font-bold",
-            isCalledGroup ? "text-dark-green" : "text-foreground",
+            isCalledGroup ? "text-dark-green" : "text-secondary",
           )}
           title={summaryText}
         >
@@ -233,9 +233,9 @@ function ToolGroupSummary({
           {expanded ? "hide" : "show"}
         </Badge>
         {expanded ? (
-          <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+          <ChevronDown className="text-tertiary h-3.5 w-3.5" />
         ) : (
-          <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+          <ChevronRight className="text-tertiary h-3.5 w-3.5" />
         )}
       </div>
     </button>
@@ -295,10 +295,10 @@ function ToolCallStatusBadge({
         className="max-h-96 w-96 max-w-[calc(100vw-2rem)] overflow-auto p-0"
       >
         <div className="border-border border-b px-3 py-2">
-          <div className="text-foreground text-xs font-bold">
+          <div className="text-secondary text-xs font-bold">
             Tool call arguments
           </div>
-          <div className="text-muted-foreground text-xs">
+          <div className="text-tertiary text-xs">
             {toolCalls.length === 1 ? "1 call" : `${toolCalls.length} calls`}
           </div>
         </div>
@@ -339,9 +339,9 @@ function ToolDefinitionRow({
         aria-expanded={isExpanded}
       >
         <div className="flex min-w-0 items-center gap-2">
-          <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+          <Wrench className="text-tertiary h-3.5 w-3.5 shrink-0" />
           <span
-            className="text-foreground block truncate font-mono text-xs font-bold"
+            className="text-secondary block truncate font-mono text-xs font-bold"
             title={tool.name}
           >
             {toolDefinitionNumber !== undefined && (
@@ -359,9 +359,9 @@ function ToolDefinitionRow({
           />
 
           {isExpanded ? (
-            <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+            <ChevronDown className="text-tertiary h-3.5 w-3.5" />
           ) : (
-            <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+            <ChevronRight className="text-tertiary h-3.5 w-3.5" />
           )}
         </div>
       </button>
@@ -391,10 +391,10 @@ function ToolDefinitionRow({
             <div className="space-y-4">
               {tool.description && (
                 <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+                  <div className="text-tertiary mb-1.5 text-xs font-bold">
                     Description
                   </div>
-                  <div className="text-foreground text-sm">
+                  <div className="text-secondary text-sm">
                     {tool.description}
                   </div>
                 </div>
@@ -402,7 +402,7 @@ function ToolDefinitionRow({
 
               {tool.parameters && (
                 <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+                  <div className="text-tertiary mb-1.5 text-xs font-bold">
                     Parameters
                   </div>
                   <PrettyJsonView
@@ -415,7 +415,7 @@ function ToolDefinitionRow({
 
               {toolCalls.length > 0 && (
                 <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+                  <div className="text-tertiary mb-1.5 text-xs font-bold">
                     Tool call arguments
                   </div>
                   <ToolCallArgumentsList toolCalls={toolCalls} />
@@ -425,7 +425,7 @@ function ToolDefinitionRow({
               {!tool.description &&
                 !tool.parameters &&
                 toolCalls.length === 0 && (
-                  <div className="text-muted-foreground text-sm">
+                  <div className="text-tertiary text-sm">
                     No additional details available
                   </div>
                 )}

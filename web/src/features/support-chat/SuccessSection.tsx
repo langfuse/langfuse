@@ -12,7 +12,7 @@ export function SuccessSection({ onAnother }: { onAnother: () => void }) {
           <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-600" />
           <div className="space-y-0.5">
             <div className="text-sm font-bold">Thanks for your message</div>
-            <div className="text-muted-foreground text-sm">
+            <div className="text-tertiary text-sm">
               We created a support ticket and will reply via email.
             </div>
           </div>

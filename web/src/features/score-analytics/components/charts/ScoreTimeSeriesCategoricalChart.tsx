@@ -130,7 +130,7 @@ export function ScoreTimeSeriesCategoricalChart({
 
   if (chartData.length === 0 || categories.length === 0) {
     return (
-      <div className="text-muted-foreground flex h-[200px] items-center justify-center text-sm">
+      <div className="text-tertiary flex h-[200px] items-center justify-center text-sm">
         No time series data available
       </div>
     );
@@ -143,7 +143,7 @@ export function ScoreTimeSeriesCategoricalChart({
 
   if (!hasAnyData) {
     return (
-      <div className="text-muted-foreground flex h-[200px] items-center justify-center text-sm">
+      <div className="text-tertiary flex h-[200px] items-center justify-center text-sm">
         No data points available for the selected time range
       </div>
     );

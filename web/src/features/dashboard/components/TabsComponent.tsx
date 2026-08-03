@@ -24,7 +24,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
         <select
           id="tabs"
           name="tabs"
-          className="border-border bg-background focus:border-primary-accent focus:ring-primary-accent block w-full rounded-md py-2 pr-10 pl-3 text-base focus:outline-hidden sm:text-sm"
+          className="border-border bg-canvas focus:border-primary-accent focus:ring-primary-accent block w-full rounded-md py-2 pr-10 pl-3 text-base focus:outline-hidden sm:text-sm"
           defaultValue={0}
           onChange={(e) => setSelectedIndex(Number(e.target.selectedIndex))}
         >
@@ -44,8 +44,8 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
                 key={tab.tabTitle}
                 className={cn(
                   index === selectedIndex
-                    ? "border-primary-accent text-foreground"
-                    : "text-muted-foreground hover:border-border hover:text-foreground border-transparent",
+                    ? "border-primary-accent text-secondary"
+                    : "text-tertiary hover:border-border hover:text-secondary border-transparent",
                   "cursor-pointer border-b-2 px-1 py-2 text-sm font-bold whitespace-nowrap",
                 )}
                 aria-current={index === selectedIndex ? "page" : undefined}

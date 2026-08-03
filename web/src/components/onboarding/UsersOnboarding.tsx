@@ -11,7 +11,7 @@ export function UsersOnboarding() {
     >
       <div className="mt-8">
         <h3 className="mb-4 text-2xl font-bold">Start tracking users</h3>
-        <p className="text-muted-foreground mb-4 text-sm">
+        <p className="text-tertiary mb-4 text-sm">
           To start tracking users, you need to add a <code>userId</code> to your
           traces.
         </p>

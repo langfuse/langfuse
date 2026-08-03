@@ -46,7 +46,7 @@ export default function DocPopup({
           e.g. a filter facet's accordion trigger. */}
       <HoverCardTrigger className="mx-1 cursor-help" asChild>
         <div
-          className="text-muted-foreground inline-block whitespace-nowrap sm:pl-0"
+          className="text-tertiary inline-block whitespace-nowrap sm:pl-0"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -78,7 +78,7 @@ export default function DocPopup({
                   description: description,
                 });
               }}
-              className="text-muted-foreground hover:text-primary mt-2 inline-flex items-center gap-1 text-xs underline underline-offset-2"
+              className="text-tertiary hover:text-primary mt-2 inline-flex items-center gap-1 text-xs underline underline-offset-2"
             >
               Read docs
               <ExternalLink className="h-3 w-3" />

@@ -41,7 +41,7 @@ export function ProjectNotificationChannelsList({
   return (
     <div className="flex flex-col gap-4">
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Loading channels...</p>
+        <p className="text-tertiary text-sm">Loading channels...</p>
       ) : !channels || channels.length === 0 ? null : (
         <div className="flex flex-col gap-3">
           {channels.map((channel) => (

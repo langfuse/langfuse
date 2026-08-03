@@ -231,10 +231,10 @@ export const SyncedTimeline = meta.story({
   parameters: { controls: { disable: true } },
   render: () => (
     <div className="flex w-[640px] flex-col gap-4 p-4">
-      <p className="text-muted-foreground text-xs">
+      <p className="text-tertiary text-xs">
         Hover either chart to move the shared timeline across both.
       </p>
-      <div className="bg-background h-[220px] rounded-md border p-3">
+      <div className="bg-canvas h-[220px] rounded-md border p-3">
         <LineChartTimeSeries
           data={syncedRequestsData}
           syncId="synced-timeline"
@@ -243,7 +243,7 @@ export const SyncedTimeline = meta.story({
           showDataPointDots={false}
         />
       </div>
-      <div className="bg-background h-[220px] rounded-md border p-3">
+      <div className="bg-canvas h-[220px] rounded-md border p-3">
         <LineChartTimeSeries
           data={syncedLatencyData}
           syncId="synced-timeline"

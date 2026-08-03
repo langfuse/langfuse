@@ -200,8 +200,8 @@ export function SearchBarAiPrompt({
     <div className="relative w-full">
       <div
         className={cn(
-          "border-input bg-background rounded-md border px-2 py-1.5",
-          "focus-within:ring-ring focus-within:ring-1",
+          "border-input bg-canvas rounded-md border px-2 py-1.5",
+          "focus-within:ring-focus focus-within:ring-1",
           error && "border-destructive focus-within:ring-destructive/40",
         )}
       >
@@ -212,11 +212,11 @@ export function SearchBarAiPrompt({
             // preventDefault so clicking the shown filter keeps the input focused
             // — it never drops you back to the grammar bar or loses your prompt.
             onMouseDown={(event) => event.preventDefault()}
-            className="text-muted-foreground mb-1.5 flex min-w-0 items-center gap-1.5 pl-1 text-xs"
+            className="text-tertiary mb-1.5 flex min-w-0 items-center gap-1.5 pl-1 text-xs"
           >
             <span className="shrink-0">Refining</span>
             <code
-              className="bg-muted text-foreground/80 min-w-0 truncate rounded px-1.5 py-0.5 font-mono text-[11px]"
+              className="bg-muted text-secondary/80 min-w-0 truncate rounded px-1.5 py-0.5 font-mono text-[11px]"
               title={refineContext}
             >
               {refineContext}
@@ -232,7 +232,7 @@ export function SearchBarAiPrompt({
             title="Back (Esc)"
             onMouseDown={(event) => event.preventDefault()}
             onClick={onExit}
-            className="text-muted-foreground hover:text-foreground hover:bg-hover -ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+            className="text-tertiary hover:text-secondary hover:bg-hover -ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -250,7 +250,7 @@ export function SearchBarAiPrompt({
             // ring box-shadow (the "blue box"). border-0 + focus:ring-0 drop both
             // (it's `:focus`, not `:focus-visible`), so the only focus indicator
             // is the container's subtle focus-within ring, matching the grammar bar.
-            className="placeholder:text-foreground-tertiary min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
+            className="placeholder:text-disabled min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
             onChange={(event) => {
               setValue(event.target.value);
               if (error) setError(null);
@@ -274,7 +274,7 @@ export function SearchBarAiPrompt({
             // prompt you typed.
           />
           {pending ? (
-            <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 pr-1 text-xs">
+            <span className="text-tertiary flex shrink-0 items-center gap-1.5 pr-1 text-xs">
               <Loader2
                 className="h-3.5 w-3.5 animate-spin"
                 aria-hidden="true"
@@ -298,7 +298,7 @@ export function SearchBarAiPrompt({
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => submit()}
                 className={cn(
-                  "text-muted-foreground hover:text-foreground hover:bg-hover inline-flex h-5 w-5 items-center justify-center rounded-sm",
+                  "text-tertiary hover:text-secondary hover:bg-hover inline-flex h-5 w-5 items-center justify-center rounded-sm",
                   "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
                 )}
               >

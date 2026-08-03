@@ -30,9 +30,9 @@ export const VariantMatrix = meta.story({
   },
   render: () => (
     <div className="grid w-fit grid-cols-[auto_auto_auto] items-center gap-x-6 gap-y-2 text-sm">
-      <span className="text-muted-foreground text-xs">Level</span>
-      <span className="text-muted-foreground text-xs">Full</span>
-      <span className="text-muted-foreground text-xs">Compact</span>
+      <span className="text-tertiary text-xs">Level</span>
+      <span className="text-tertiary text-xs">Full</span>
+      <span className="text-tertiary text-xs">Compact</span>
       {ALL_LEVELS.map((level) => (
         <Fragment key={level}>
           <span>{SCORE_LEVEL_LABELS[level]}</span>
@@ -58,12 +58,12 @@ export const InContext = meta.story({
     <div className="flex w-fit flex-col gap-3">
       <div className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm">
         <span className="font-mono">scores.CSAT</span>
-        <span className="text-muted-foreground text-xs">numeric score</span>
+        <span className="text-tertiary text-xs">numeric score</span>
         <ScoreTag level="trace" />
       </div>
       <div className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm">
         <span className="font-mono">scores.accuracy</span>
-        <span className="text-muted-foreground text-xs">numeric score</span>
+        <span className="text-tertiary text-xs">numeric score</span>
         <ScoreTag level="observation" />
       </div>
       <div className="flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs">

@@ -322,7 +322,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   return (
     <div className="@container/graphcanvas relative h-full w-full">
       {limitExceeded ? (
-        <div className="text-muted-foreground flex h-full items-center justify-center px-4 text-center text-sm">
+        <div className="text-tertiary flex h-full items-center justify-center px-4 text-center text-sm">
           This trace branches too widely for the expanded graph — use the
           aggregated view.
         </div>

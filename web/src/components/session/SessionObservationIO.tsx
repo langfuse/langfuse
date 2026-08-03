@@ -45,7 +45,7 @@ const TruncatedIOSection = ({
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+      <div className="text-tertiary flex flex-wrap items-center gap-2 text-xs">
         <span className="font-bold">{label}</span>
         {(truncated || shown.length < text.length) && (
           <span>
@@ -178,7 +178,7 @@ export const SessionObservationIO = ({
       <>
         {ioPreview}
         {observation.metadataTruncated && (
-          <p className="text-muted-foreground text-xs">
+          <p className="text-tertiary text-xs">
             Some metadata values are too large to show here.{" "}
             <button
               type="button"
@@ -196,7 +196,7 @@ export const SessionObservationIO = ({
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
-      <p className="text-muted-foreground text-xs">
+      <p className="text-tertiary text-xs">
         This observation&apos;s input/output is too large to display in the
         session view.
       </p>

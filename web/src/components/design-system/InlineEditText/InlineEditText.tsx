@@ -77,7 +77,7 @@ export const InlineEditText = ({
         size={Math.max(draft.length, 4)}
         // h-[1lh] + align-bottom keep the box exactly one text line tall in
         // both modes so swapping display/edit never changes layout height.
-        className="ring-input focus:ring-ring field-sizing-content h-[1lh] max-w-full min-w-16 rounded-sm border-0 bg-transparent p-0 px-1 align-bottom ring-1 outline-hidden [font:inherit]"
+        className="ring-input focus:ring-focus field-sizing-content h-[1lh] max-w-full min-w-16 rounded-sm border-0 bg-transparent p-0 px-1 align-bottom ring-1 outline-hidden [font:inherit]"
       />
     );
   }
@@ -91,11 +91,11 @@ export const InlineEditText = ({
       }}
       aria-label={ariaLabel ?? "Edit text"}
       title="Click to edit"
-      className="hover:bg-hover/50 focus-visible:ring-ring inline-flex h-[1lh] max-w-full items-center rounded-sm px-1 text-left align-bottom [font:inherit] focus-visible:ring-2 focus-visible:outline-hidden"
+      className="hover:bg-hover/50 focus-visible:ring-focus inline-flex h-[1lh] max-w-full items-center rounded-sm px-1 text-left align-bottom [font:inherit] focus-visible:ring-2 focus-visible:outline-hidden"
     >
       <span
         title={value || placeholder}
-        className={cn("truncate", !value && "text-muted-foreground")}
+        className={cn("truncate", !value && "text-tertiary")}
       >
         {value || placeholder}
       </span>

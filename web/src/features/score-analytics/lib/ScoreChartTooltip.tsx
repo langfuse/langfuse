@@ -111,12 +111,10 @@ export function ScoreChartTooltip({
   }
 
   return (
-    <div className="border-border bg-background rounded-md border opacity-100 shadow-lg">
+    <div className="border-border bg-canvas rounded-md border opacity-100 shadow-lg">
       {/* Header with timestamp/label */}
       <div className="border-border border-b px-3 py-1.5">
-        <p className="text-muted-foreground text-sm font-bold">
-          {formattedLabel}
-        </p>
+        <p className="text-tertiary text-sm font-bold">{formattedLabel}</p>
       </div>
 
       {/* Data series with values */}
@@ -140,11 +138,11 @@ export function ScoreChartTooltip({
               />
 
               {/* Series label from config */}
-              <span className="text-muted-foreground flex-1 text-sm">
+              <span className="text-tertiary flex-1 text-sm">
                 {seriesLabel?.toString() ?? ""}
               </span>
               {/* Formatted value */}
-              <span className="text-foreground text-sm font-bold">
+              <span className="text-secondary text-sm font-bold">
                 {valueFormatter(Number(entry.value ?? 0))}
               </span>
             </div>

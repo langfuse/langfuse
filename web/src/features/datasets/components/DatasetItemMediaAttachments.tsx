@@ -196,7 +196,7 @@ export function DatasetItemMediaUploadButton({
         type="button"
         variant="ghost"
         size="icon-xs"
-        className="text-muted-foreground"
+        className="text-tertiary"
         disabled={disabled || isUploading}
         title="Attach media"
         onClick={() => inputRef.current?.click()}
@@ -224,7 +224,7 @@ function CopyFieldValueButton({ value }: { value: string }) {
       type="button"
       variant="ghost"
       size="icon-xs"
-      className="text-muted-foreground"
+      className="text-tertiary"
       title="Copy to clipboard"
       onClick={async () => {
         await copyTextToClipboard(value);
@@ -267,11 +267,8 @@ export function DatasetItemFieldToolbar({
 function PendingMediaTile({ fileName }: { fileName: string }) {
   return (
     <div className="flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border px-2 text-center">
-      <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
-      <span
-        className="text-muted-foreground w-full truncate text-xs"
-        title={fileName}
-      >
+      <Loader2 className="text-tertiary h-5 w-5 animate-spin" />
+      <span className="text-tertiary w-full truncate text-xs" title={fileName}>
         {fileName}
       </span>
     </div>

@@ -86,7 +86,7 @@ const SetupMonitorAutomationsCard = ({
   projectId: string;
 }) => (
   <MonitorAutomationsCard>
-    <p className="text-muted-foreground px-4 py-6 text-center text-base">
+    <p className="text-tertiary px-4 py-6 text-center text-base">
       Set up Slack, Webhook, and Github Action Automations to Receive Alerts
     </p>
     <AddAutomationDropdown
@@ -211,7 +211,7 @@ const MonitorAutomationsListRow = ({
       }
     }}
     className={cn(
-      "hover:bg-muted/60 focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs outline-hidden transition-colors focus-visible:ring-2",
+      "hover:bg-muted/60 focus-visible:ring-focus flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs outline-hidden transition-colors focus-visible:ring-2",
       isDisabled && "pointer-events-none opacity-50",
     )}
   >
@@ -232,7 +232,7 @@ const RowCheckbox = ({ checked }: { checked: boolean }) => (
     aria-hidden
     className={cn(
       "border-primary flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
-      checked && "bg-primary text-primary-foreground",
+      checked && "bg-primary text-on-fill",
     )}
   >
     {checked && <Check className="h-3.5 w-3.5" />}

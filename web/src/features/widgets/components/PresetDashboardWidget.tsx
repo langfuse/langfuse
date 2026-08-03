@@ -198,7 +198,7 @@ export function PresetDashboardWidget({
   if (!renderPreset) {
     return (
       <div className="bg-card flex h-full items-center justify-center rounded-lg border p-4">
-        <div className="text-muted-foreground">
+        <div className="text-tertiary">
           Unknown preset: {placement.presetId}
         </div>
       </div>
@@ -215,11 +215,11 @@ export function PresetDashboardWidget({
           <>
             <GripVerticalIcon
               size={16}
-              className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
+              className="drag-handle text-tertiary hover:text-secondary hidden cursor-grab active:cursor-grabbing lg:block"
             />
             <button
               onClick={handleDelete}
-              className="text-muted-foreground hover:text-destructive"
+              className="text-tertiary hover:text-destructive"
               aria-label="Delete widget"
             >
               <TrashIcon size={16} />
@@ -229,7 +229,7 @@ export function PresetDashboardWidget({
         <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
           <DropdownMenuTrigger asChild>
             <button
-              className="text-muted-foreground hover:text-foreground"
+              className="text-tertiary hover:text-secondary"
               aria-label="Widget actions"
             >
               <MoreVerticalIcon size={16} />

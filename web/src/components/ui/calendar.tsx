@@ -50,7 +50,7 @@ function Calendar({
           buttonVariants({ variant: "ghost" }),
           "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
           // can't use SelectionState.range_start here because Tailwind classes can't be constructed dynamically
-          "group-[.selection-edge]:bg-primary group-[.selection-edge]:text-primary-foreground group-[.today]:font-bold",
+          "group-[.selection-edge]:bg-primary group-[.selection-edge]:text-on-fill group-[.today]:font-bold",
         ),
         [SelectionState.range_start]:
           "group selection-edge bg-hover text-on-hover hover:bg-hover hover:text-on-hover focus:bg-hover focus:text-on-hover rounded-l-md rounded-r-none",

@@ -98,13 +98,13 @@ export function MentionAutocomplete({
                           {user.name ? user.name[0] : user.email?.[0] || "U"}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="text-foreground flex-1 overflow-hidden">
+                      <div className="text-secondary flex-1 overflow-hidden">
                         <div className="truncate font-bold" title={userLabel}>
                           {userLabel}
                         </div>
                         {user.email && (
                           <div
-                            className="text-muted-foreground truncate text-xs"
+                            className="text-tertiary truncate text-xs"
                             title={user.email}
                           >
                             {user.email}
@@ -117,7 +117,7 @@ export function MentionAutocomplete({
               </CommandGroup>
               {remainingCount > 0 && (
                 <div
-                  className="text-muted-foreground border-t px-2 py-2 text-xs"
+                  className="text-tertiary border-t px-2 py-2 text-xs"
                   role="status"
                   aria-live="polite"
                 >

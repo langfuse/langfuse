@@ -273,7 +273,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         const renderText = isEventTarget(targetObject)
           ? "observations"
           : targetObject;
-        return <span className="text-muted-foreground">{renderText}</span>;
+        return <span className="text-tertiary">{renderText}</span>;
       },
     }),
     columnHelper.accessor("filter", {

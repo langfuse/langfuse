@@ -103,12 +103,12 @@ export const ExportFieldGroupsField = ({
                     <div className="text-sm leading-none font-bold">
                       {option.label}
                       {isCore && (
-                        <span className="text-muted-foreground ml-1 font-normal">
+                        <span className="text-tertiary ml-1 font-normal">
                           (required)
                         </span>
                       )}
                     </div>
-                    <div className="text-muted-foreground text-xs">
+                    <div className="text-tertiary text-xs">
                       {isParquetExport
                         ? isLegacyOnlyExport
                           ? option.legacyParquetDescription

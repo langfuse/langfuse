@@ -48,7 +48,7 @@ function HeatmapTooltipContent({
     <div className="space-y-2">
       {/* Header Section */}
       <div className="border-border border-b pb-2">
-        <p className="text-muted-foreground text-sm font-bold">
+        <p className="text-tertiary text-sm font-bold">
           {dataType === "NUMERIC"
             ? `Bin ${cell.row}×${cell.col}`
             : `${cell.metadata?.rowCategory as string} → ${cell.metadata?.colCategory as string}`}
@@ -57,10 +57,10 @@ function HeatmapTooltipContent({
 
       {/* Primary Metrics Section */}
       <div className="space-y-1">
-        <p className="text-foreground text-base font-bold">
+        <p className="text-secondary text-base font-bold">
           {cell.value.toLocaleString()} observations
         </p>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-tertiary text-xs">
           {percentage.toFixed(1)}% of {totalMatchedPairs.toLocaleString()}{" "}
           matched pairs
         </p>
@@ -75,10 +75,10 @@ function HeatmapTooltipContent({
                 className="h-3 w-3 shrink-0 rounded-sm"
                 style={{ backgroundColor: score1Color }}
               />
-              <span className="text-muted-foreground flex-1 text-xs">
+              <span className="text-tertiary flex-1 text-xs">
                 {score1.name} ({score1.source})
               </span>
-              <span className="text-muted-foreground text-xs">
+              <span className="text-tertiary text-xs">
                 {(cell.metadata?.yRange as [number, number])?.[0]?.toFixed(2)} -{" "}
                 {(cell.metadata?.yRange as [number, number])?.[1]?.toFixed(2)}
               </span>
@@ -88,10 +88,10 @@ function HeatmapTooltipContent({
                 className="h-3 w-3 shrink-0 rounded-sm"
                 style={{ backgroundColor: score2Color }}
               />
-              <span className="text-muted-foreground flex-1 text-xs">
+              <span className="text-tertiary flex-1 text-xs">
                 {score2?.name} ({score2?.source})
               </span>
-              <span className="text-muted-foreground text-xs">
+              <span className="text-tertiary text-xs">
                 {(cell.metadata?.xRange as [number, number])?.[0]?.toFixed(2)} -{" "}
                 {(cell.metadata?.xRange as [number, number])?.[1]?.toFixed(2)}
               </span>
@@ -104,7 +104,7 @@ function HeatmapTooltipContent({
                 className="h-3 w-3 shrink-0 rounded-sm"
                 style={{ backgroundColor: score1Color }}
               />
-              <span className="text-muted-foreground text-xs">
+              <span className="text-tertiary text-xs">
                 {score1.name} ({score1.source})
               </span>
             </div>
@@ -113,7 +113,7 @@ function HeatmapTooltipContent({
                 className="h-3 w-3 shrink-0 rounded-sm"
                 style={{ backgroundColor: score2Color }}
               />
-              <span className="text-muted-foreground text-xs">
+              <span className="text-tertiary text-xs">
                 {score2?.name} ({score2?.source})
               </span>
             </div>
@@ -180,7 +180,7 @@ export function HeatmapCard() {
           <CardTitle>Score Comparison</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="text-muted-foreground flex flex-1 flex-col items-center justify-center pl-0 text-sm">
+        <CardContent className="text-tertiary flex flex-1 flex-col items-center justify-center pl-0 text-sm">
           Select a score to view comparison
         </CardContent>
       </Card>
@@ -222,7 +222,7 @@ export function HeatmapCard() {
             showLabels={true}
             showAxisLabels={true}
           />
-          <p className="text-muted-foreground text-center text-sm">
+          <p className="text-tertiary text-center text-sm">
             Select a second score to view comparison heatmap
           </p>
         </CardContent>

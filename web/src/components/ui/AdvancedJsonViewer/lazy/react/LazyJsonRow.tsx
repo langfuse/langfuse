@@ -23,8 +23,8 @@ const TYPE_CLASS: Record<JsonNodeType, string> = {
   number: "text-blue-700 dark:text-blue-400",
   boolean: "text-purple-700 dark:text-purple-400",
   null: "text-tertiary",
-  object: "text-foreground",
-  array: "text-foreground",
+  object: "text-secondary",
+  array: "text-secondary",
 };
 
 export interface LazyJsonRowProps {
@@ -60,7 +60,7 @@ function LazyJsonRowImpl({
         <button
           type="button"
           disabled={pending}
-          className="text-tertiary hover:text-foreground rounded px-1 underline decoration-dotted underline-offset-2 disabled:opacity-60"
+          className="text-tertiary hover:text-secondary rounded px-1 underline decoration-dotted underline-offset-2 disabled:opacity-60"
           onClick={() => onLoadMore(row.nodeId)}
         >
           {row.preview}
@@ -87,7 +87,7 @@ function LazyJsonRowImpl({
             <button
               type="button"
               aria-label={row.expanded ? "Collapse" : "Expand"}
-              className="text-tertiary hover:text-foreground flex h-4 w-4 items-center justify-center"
+              className="text-tertiary hover:text-secondary flex h-4 w-4 items-center justify-center"
               onClick={() => onToggle(row.nodeId, row.expanded)}
             >
               <ChevronRight
@@ -139,7 +139,7 @@ function LazyJsonRowImpl({
           type="button"
           aria-label="Copy full value"
           title="Copy full value"
-          className="text-tertiary hover:text-foreground ml-1 shrink-0 opacity-0 group-hover:opacity-100"
+          className="text-tertiary hover:text-secondary ml-1 shrink-0 opacity-0 group-hover:opacity-100"
           onClick={() => onCopyValue(row.nodeId)}
         >
           <Copy className="h-3 w-3" />

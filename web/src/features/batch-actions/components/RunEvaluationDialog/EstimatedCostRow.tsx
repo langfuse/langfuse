@@ -33,9 +33,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
   if (avgCostQuery.isLoading) {
     return (
       <div className="flex gap-2">
-        <span className="text-muted-foreground shrink-0">
-          Est. LLM API Key Cost:
-        </span>
+        <span className="text-tertiary shrink-0">Est. LLM API Key Cost:</span>
         <Skeleton className="h-4 w-16" />
       </div>
     );
@@ -45,10 +43,8 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
   if (!data || Object.keys(data).length === 0) {
     return (
       <div className="flex gap-2">
-        <span className="text-muted-foreground shrink-0">
-          Est. LLM API Key Cost:
-        </span>
-        <span className="text-muted-foreground">No data</span>
+        <span className="text-tertiary shrink-0">Est. LLM API Key Cost:</span>
+        <span className="text-tertiary">No data</span>
       </div>
     );
   }
@@ -64,16 +60,14 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
 
   return (
     <div className="flex gap-2">
-      <span className="text-muted-foreground shrink-0">
-        Est. LLM API Key Cost:
-      </span>
+      <span className="text-tertiary shrink-0">Est. LLM API Key Cost:</span>
       <span className="flex items-center gap-1 font-bold">
         {formatCostEstimate(totalEstimate)}
         {isPartial ? "*" : ""}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <InfoIcon className="text-muted-foreground h-3 w-3" />
+              <InfoIcon className="text-tertiary h-3 w-3" />
             </TooltipTrigger>
             <TooltipContent className="max-w-xs space-y-2 p-3">
               <p className="text-xs">
@@ -101,7 +95,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
                 })}
               </div>
               {isPartial ? (
-                <p className="text-muted-foreground text-xs">
+                <p className="text-tertiary text-xs">
                   *Partial estimate. Some evaluators have no execution history.
                 </p>
               ) : null}

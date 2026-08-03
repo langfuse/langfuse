@@ -46,9 +46,7 @@ export function PersonalNotificationSettings() {
     return (
       <div>
         <Header title="Personal Notifications" />
-        <p className="text-muted-foreground mt-4 text-sm">
-          Loading preferences...
-        </p>
+        <p className="text-tertiary mt-4 text-sm">Loading preferences...</p>
       </div>
     );
   }
@@ -63,7 +61,7 @@ export function PersonalNotificationSettings() {
       <div className="flex flex-col gap-4">
         <div>
           <h3 className="text-lg font-bold">Email Notifications</h3>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             Manage your personal email notification preferences for this
             project.
           </p>
@@ -74,7 +72,7 @@ export function PersonalNotificationSettings() {
             <Label htmlFor="comment-mention" className="text-base">
               Comment Mentions
             </Label>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-tertiary text-sm">
               Receive an email when someone mentions you in a comment
             </p>
           </div>

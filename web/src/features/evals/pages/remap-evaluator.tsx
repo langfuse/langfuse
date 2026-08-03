@@ -153,7 +153,7 @@ export default function RemapEvaluatorPage() {
     >
       <div className="space-y-4">
         <div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             Review your legacy evaluator on the left and configure the new eval
             settings on the right.{" "}
             <a
@@ -205,9 +205,7 @@ export default function RemapEvaluatorPage() {
                       ? "(runs on traces)"
                       : ""}
                   </h3>
-                  <span className="text-muted-foreground text-xs">
-                    Read-only
-                  </span>
+                  <span className="text-tertiary text-xs">Read-only</span>
                 </div>
                 <InnerEvaluatorForm
                   projectId={projectId}

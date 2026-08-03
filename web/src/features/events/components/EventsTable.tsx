@@ -2000,7 +2000,7 @@ export default function ObservationsEventsTable({
               // top-banner-offset here pushes the band down by the viewport
               // header/banner offset and leaves a large blank gap above it.
               // pb-1.5 gives the band a bit more breathing room above the table.
-              searchBarMode && "bg-background sticky top-0 z-30 pb-1.5",
+              searchBarMode && "bg-canvas sticky top-0 z-30 pb-1.5",
             )}
           >
             {/* Search bar row: full-width query composer. In bar mode it sticks
@@ -2254,7 +2254,7 @@ export default function ObservationsEventsTable({
                 }
                 noResultsMessage={
                   isSilencedError ? (
-                    <span className="text-muted-foreground">
+                    <span className="text-tertiary">
                       {RESOURCE_LIMIT_ERROR_MESSAGE}
                     </span>
                   ) : undefined

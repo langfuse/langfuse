@@ -291,7 +291,7 @@ export const TraceLogView = ({
       {/* Empty states */}
       {hasNoObservations && (
         <div className="flex flex-1 items-center justify-center">
-          <div className="text-muted-foreground text-sm">
+          <div className="text-tertiary text-sm">
             No observations in this trace
           </div>
         </div>
@@ -299,7 +299,7 @@ export const TraceLogView = ({
 
       {hasNoSearchResults && (
         <div className="flex flex-1 items-center justify-center">
-          <div className="text-muted-foreground text-sm">
+          <div className="text-tertiary text-sm">
             No observations match &quot;{searchQuery}&quot;
           </div>
         </div>

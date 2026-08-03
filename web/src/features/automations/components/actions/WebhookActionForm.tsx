@@ -276,7 +276,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 {isSecret ? (
                   <Lock className="h-4 w-4 text-orange-500" />
                 ) : (
-                  <LockOpen className="text-muted-foreground h-4 w-4" />
+                  <LockOpen className="text-tertiary h-4 w-4" />
                 )}
               </Button>
               <Button
@@ -331,13 +331,13 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 />
               </div>
             </div>
-            <div className="text-muted-foreground mt-1 text-xs">
+            <div className="text-tertiary mt-1 text-xs">
               Secret is encrypted and can only be viewed when generated or
               regenerated
             </div>
           </div>
         ) : (
-          <div className="bg-muted/50 text-muted-foreground rounded-md border p-3 text-sm">
+          <div className="bg-muted/50 text-tertiary rounded-md border p-3 text-sm">
             Webhook secret will be generated when the automation is created.
           </div>
         )}

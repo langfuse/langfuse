@@ -322,7 +322,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
 
   if (!graph.nodes.length) {
     return (
-      <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+      <div className="text-tertiary flex h-full items-center justify-center text-sm">
         No graph data available
       </div>
     );
@@ -333,19 +333,19 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       ref={containerRef}
       role="group"
       aria-label="Trace agent graph"
-      className="bg-background/50 relative h-full w-full cursor-grab overflow-hidden active:cursor-grabbing"
+      className="bg-canvas/50 relative h-full w-full cursor-grab overflow-hidden active:cursor-grabbing"
       onPointerDown={(e) =>
         (pointerDownPos.current = { x: e.clientX, y: e.clientY })
       }
       onClick={handleBackgroundClick}
     >
       {!layout && !layoutError && (
-        <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-sm">
+        <div className="text-tertiary absolute inset-0 flex items-center justify-center text-sm">
           Laying out graph…
         </div>
       )}
       {layoutError && (
-        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm">
+        <div className="text-tertiary absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm">
           <span>Could not lay out the graph.</span>
           <Button
             variant="outline"
@@ -362,7 +362,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       {layout?.tooLarge && (
         // Budget exceeded: ELK was skipped rather than freeze the tab. No retry
         // — it would just wedge again. Point the user at the tree/timeline.
-        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
+        <div className="text-tertiary absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
           <span>
             This graph is too large to lay out
             {layout.nodeCount != null && layout.edgeCount != null
@@ -499,7 +499,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           onClick={() => zoomBy(ZOOM_STEP)}
           variant="outline"
           size="icon"
-          className="bg-background/80 h-7 w-7 backdrop-blur"
+          className="bg-canvas/80 h-7 w-7 backdrop-blur"
           title="Zoom in"
         >
           <ZoomIn className="h-4 w-4" />
@@ -508,7 +508,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           onClick={() => zoomBy(1 / ZOOM_STEP)}
           variant="outline"
           size="icon"
-          className="bg-background/80 h-7 w-7 backdrop-blur"
+          className="bg-canvas/80 h-7 w-7 backdrop-blur"
           title="Zoom out"
         >
           <ZoomOut className="h-4 w-4" />
@@ -517,7 +517,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           onClick={handleFit}
           variant="outline"
           size="icon"
-          className="bg-background/80 h-7 w-7 backdrop-blur"
+          className="bg-canvas/80 h-7 w-7 backdrop-blur"
           title="Fit to view"
         >
           <Maximize className="h-4 w-4" />

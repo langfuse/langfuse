@@ -27,7 +27,7 @@ export function V4MigrationBadgeContent({
       <button
         type="button"
         onClick={onClick}
-        className="group ring-input hover:bg-muted/50 hover:text-foreground col-start-1 row-start-1 inline-flex w-fit flex-none shrink-0 items-center gap-1.5 justify-self-start rounded-full bg-transparent px-2 py-0.5 text-xs font-bold whitespace-nowrap ring"
+        className="group ring-input hover:bg-muted/50 hover:text-secondary col-start-1 row-start-1 inline-flex w-fit flex-none shrink-0 items-center gap-1.5 justify-self-start rounded-full bg-transparent px-2 py-0.5 text-xs font-bold whitespace-nowrap ring"
       >
         <span
           aria-hidden

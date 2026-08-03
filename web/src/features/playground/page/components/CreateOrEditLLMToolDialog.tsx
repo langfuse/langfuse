@@ -252,7 +252,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                           </Button>
                         </div>
                       </FormControl>
-                      <p className="text-muted-foreground text-xs">
+                      <p className="text-tertiary text-xs">
                         Parameters must be a valid JSON Schema object
                       </p>
                       <FormMessage />
@@ -264,7 +264,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
 
             <DialogFooter className="bg-modal sticky bottom-0 mt-4 flex flex-col gap-2 border-t pt-4">
               <div className="flex w-full flex-col gap-2">
-                <p className="text-muted-foreground text-xs">
+                <p className="text-tertiary text-xs">
                   Note: Changes to tools are reflected to all members of this
                   project.
                 </p>

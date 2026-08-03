@@ -193,7 +193,7 @@ export function SessionUsers({
                 >
                   Previous
                 </Button>
-                <span className="text-muted-foreground text-sm">
+                <span className="text-tertiary text-sm">
                   Page {page + 1} of{" "}
                   {Math.ceil(remainingUsers.length / USERS_PER_PAGE_IN_POPOVER)}
                 </span>
@@ -248,7 +248,7 @@ const SessionControlsBar = ({
   }
 
   return (
-    <div className="bg-background sticky top-0 z-40 flex shrink-0 flex-col border-b">
+    <div className="bg-canvas sticky top-0 z-40 flex shrink-0 flex-col border-b">
       <Button
         variant="ghost"
         className="flex w-full justify-between gap-2 rounded-none px-4 py-3 text-left"
@@ -581,9 +581,7 @@ export const SessionPage: React.FC<{
                     size="sm"
                   />
                 </div>
-                <span className="text-muted-foreground text-xs">
-                  Show corrections
-                </span>
+                <span className="text-tertiary text-xs">Show corrections</span>
               </div>
             </>
           ),
@@ -665,12 +663,12 @@ export const SessionPage: React.FC<{
         <div className="flex h-full flex-col overflow-auto">
           <SessionControlsBar
             isMobile={isMobile}
-            desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4"
+            desktopClassName="bg-canvas sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4"
             summary={
               <>
                 <span className="text-sm font-bold">Session controls</span>
                 <span
-                  className="text-muted-foreground min-w-0 truncate text-xs"
+                  className="text-tertiary min-w-0 truncate text-xs"
                   title={`${session.data?.traces.length ?? 0} traces · ${usdFormatter(
                     session.data?.totalCost ?? 0,
                     2,
@@ -1400,7 +1398,7 @@ const LoadedSessionEventsPage: React.FC<{
               {isModernSessionEnabled ? (
                 <>
                   <div className="hidden items-center gap-3 pr-2 min-[1900px]:flex">
-                    <span className="text-muted-foreground text-xs">Show:</span>
+                    <span className="text-tertiary text-xs">Show:</span>
                     {displayOptions.map(
                       ({ label, checked, onCheckedChange }) => (
                         <label
@@ -1412,15 +1410,13 @@ const LoadedSessionEventsPage: React.FC<{
                             onCheckedChange={onCheckedChange}
                             size="sm"
                           />
-                          <span className="text-muted-foreground text-xs">
-                            {label}
-                          </span>
+                          <span className="text-tertiary text-xs">{label}</span>
                         </label>
                       ),
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 pr-2 min-[1900px]:hidden">
-                    <span className="text-muted-foreground text-xs">Show:</span>
+                    <span className="text-tertiary text-xs">Show:</span>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
@@ -1503,7 +1499,7 @@ const LoadedSessionEventsPage: React.FC<{
                     onCheckedChange={setShowCorrectionsForSession}
                     size="sm"
                   />
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-tertiary text-xs">
                     Show corrections
                   </span>
                 </label>
@@ -1601,12 +1597,12 @@ const LoadedSessionEventsPage: React.FC<{
         >
           <SessionControlsBar
             isMobile={isMobile && !isModernSessionEnabled}
-            desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
+            desktopClassName="bg-canvas sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
             summary={
               <>
                 <span className="text-sm font-bold">Session controls</span>
                 <span
-                  className="text-muted-foreground min-w-0 truncate text-xs"
+                  className="text-tertiary min-w-0 truncate text-xs"
                   title={`${session.countTraces} traces · ${usdFormatter(
                     session.totalCost ?? 0,
                     2,
@@ -1634,7 +1630,7 @@ const LoadedSessionEventsPage: React.FC<{
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-72 p-1">
-                  <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
+                  <div className="text-tertiary px-2 py-1.5 text-xs font-bold">
                     LLM Calls per Trace
                   </div>
                   {SESSION_DETAIL_LLM_CALL_PRESETS.map((preset) => {
@@ -1650,7 +1646,7 @@ const LoadedSessionEventsPage: React.FC<{
                           <span className="flex flex-col">
                             <span className="font-bold">{preset.name}</span>
                             {preset.description ? (
-                              <span className="text-muted-foreground text-xs">
+                              <span className="text-tertiary text-xs">
                                 {preset.description}
                               </span>
                             ) : null}
@@ -1852,7 +1848,7 @@ export const SessionIO = ({
           showCorrections={showCorrections}
         />
       ) : (
-        <div className="text-muted-foreground p-2 text-xs">
+        <div className="text-tertiary p-2 text-xs">
           This trace has no input or output.
         </div>
       )}

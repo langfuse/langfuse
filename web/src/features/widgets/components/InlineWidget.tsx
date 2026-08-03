@@ -137,10 +137,7 @@ export function WidgetHeader({
         {actions && <div className="flex space-x-2">{actions}</div>}
       </div>
       {description && (
-        <div
-          className="text-muted-foreground truncate text-sm"
-          title={description}
-        >
+        <div className="text-tertiary truncate text-sm" title={description}>
           {description}
         </div>
       )}
@@ -427,7 +424,7 @@ export function WidgetContent({
   if (isExternalLoading) {
     return (
       <div className="bg-card flex items-center justify-center rounded-lg border p-4">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-tertiary">Loading...</div>
       </div>
     );
   }

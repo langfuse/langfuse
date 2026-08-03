@@ -40,7 +40,7 @@ export const BlobStorageStatusSection = ({
       )}
       <Card className="p-3">
         <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">
-          <span className="text-muted-foreground">Data exported up to</span>
+          <span className="text-tertiary">Data exported up to</span>
           <span>
             {config.lastSyncAt
               ? new Date(config.lastSyncAt).toLocaleString()
@@ -48,19 +48,17 @@ export const BlobStorageStatusSection = ({
           </span>
           {config.nextSyncAt && (
             <>
-              <span className="text-muted-foreground">
-                Next export scheduled
-              </span>
+              <span className="text-tertiary">Next export scheduled</span>
               <span>{new Date(config.nextSyncAt).toLocaleString()}</span>
             </>
           )}
-          <span className="text-muted-foreground">Export mode</span>
+          <span className="text-tertiary">Export mode</span>
           <span>{EXPORT_MODE_LABELS[config.exportMode] ?? "Unknown"}</span>
           {(config.exportMode === BlobStorageExportMode.FROM_CUSTOM_DATE ||
             config.exportMode === BlobStorageExportMode.FROM_TODAY) &&
             config.exportStartDate && (
               <>
-                <span className="text-muted-foreground">Export start date</span>
+                <span className="text-tertiary">Export start date</span>
                 <span>
                   {new Date(config.exportStartDate).toLocaleDateString()}
                 </span>

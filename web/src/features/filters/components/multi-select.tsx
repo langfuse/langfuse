@@ -143,7 +143,7 @@ export function MultiSelect({
           className={cn(
             // min-w-0 + overflow-hidden: the trigger must never grow past its
             // container — wide selected values truncate instead.
-            "border-input ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full min-w-0 items-center justify-between gap-x-2 overflow-hidden rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "border-input ring-offset-canvas placeholder:text-disabled focus:ring-focus flex h-8 w-full min-w-0 items-center justify-between gap-x-2 overflow-hidden rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -209,7 +209,7 @@ export function MultiSelect({
                       className={cn(
                         "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                         allSelectedState
-                          ? "bg-control-fill border-control-fill text-primary-foreground"
+                          ? "bg-control-fill border-control-fill text-on-fill"
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
@@ -249,7 +249,7 @@ export function MultiSelect({
                       className={cn(
                         "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
                         isSelected
-                          ? "bg-control-fill border-control-fill text-primary-foreground"
+                          ? "bg-control-fill border-control-fill text-on-fill"
                           : "opacity-50 [&_svg]:invisible",
                       )}
                     >
@@ -258,7 +258,7 @@ export function MultiSelect({
                     <div
                       className={cn(
                         "overflow-x-hidden text-ellipsis whitespace-nowrap",
-                        option.value === "" && "text-muted-foreground italic",
+                        option.value === "" && "text-tertiary italic",
                       )}
                       title={displayTitle}
                     >
@@ -317,7 +317,7 @@ export function MultiSelect({
                       ) ||
                         (optionValues.has(freeText) &&
                           selectedValues.has(freeText))
-                        ? "bg-control-fill border-control-fill text-primary-foreground"
+                        ? "bg-control-fill border-control-fill text-on-fill"
                         : "opacity-50 [&_svg]:invisible",
                     )}
                   >

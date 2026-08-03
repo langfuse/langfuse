@@ -5,8 +5,8 @@ import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
 import { makeItem, makeTreeNode } from "./timeline.fixtures";
 
 const ROW_BOX =
-  "bg-background relative h-[26px] w-[320px] overflow-hidden rounded border";
-const PANEL_BOX = "bg-background w-[320px] overflow-hidden rounded border";
+  "bg-canvas relative h-[26px] w-[320px] overflow-hidden rounded border";
+const PANEL_BOX = "bg-canvas w-[320px] overflow-hidden rounded border";
 
 // fn() gives Storybook actions; cast to the prop type so meta args and the
 // per-story decorators agree (story-level decorators are typed against the

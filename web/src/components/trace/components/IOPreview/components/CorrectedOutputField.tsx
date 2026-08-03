@@ -179,7 +179,7 @@ export function CorrectedOutputField({
               </span>
               <HoverCard>
                 <HoverCardTrigger asChild>
-                  <button className="text-muted-foreground hover:text-foreground">
+                  <button className="text-tertiary hover:text-secondary">
                     <Info className="h-3.5 w-3.5" />
                   </button>
                 </HoverCardTrigger>
@@ -191,7 +191,7 @@ export function CorrectedOutputField({
                       href="https://langfuse.com/docs/observability/features/corrections"
                       target="_blank"
                       rel="noreferrer"
-                      className="hover:text-foreground underline"
+                      className="hover:text-secondary underline"
                     >
                       documentation
                     </Link>
@@ -212,15 +212,13 @@ export function CorrectedOutputField({
                 {isValidJson && saveStatus === "saving" && (
                   <div className="mr-2 flex items-center gap-1">
                     <Spinner size="xxs" />
-                    <span className="text-muted-foreground text-xs">
-                      Saving
-                    </span>
+                    <span className="text-tertiary text-xs">Saving</span>
                   </div>
                 )}
                 {isValidJson && saveStatus === "saved" && (
                   <div className="mr-2 flex items-center gap-1">
                     <Check className="h-3 w-3" />
-                    <span className="text-muted-foreground text-xs">Saved</span>
+                    <span className="text-tertiary text-xs">Saved</span>
                   </div>
                 )}
                 {hasContent && (
@@ -268,7 +266,7 @@ export function CorrectedOutputField({
                     size="sm"
                   />
                 </div>
-                <span className="text-muted-foreground text-xs">JSON</span>
+                <span className="text-tertiary text-xs">JSON</span>
               </div>
             </div>
           </div>
@@ -277,7 +275,7 @@ export function CorrectedOutputField({
             <button
               onClick={handleEdit}
               disabled={!hasAccess}
-              className="text-muted-foreground hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors"
+              className="text-tertiary hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors"
             >
               Click to add corrected output
             </button>

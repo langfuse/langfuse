@@ -51,7 +51,7 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
     // the heading is its only rendered child, so no bare label floats over empty
     // space.
     <section className="flex flex-col gap-2 [&:has(>h3:only-child)]:hidden">
-      <h3 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
+      <h3 className="text-tertiary text-xs font-bold tracking-wide uppercase">
         {label}
       </h3>
       {children}
@@ -112,7 +112,7 @@ export function MobileFiltersSheet({
             The controls that used to sit in the body move up here so the body
             below is a single uninterrupted scroll. */}
         <div className="flex shrink-0 items-center gap-2 border-b px-4 py-3">
-          <span className="text-foreground text-lg font-bold">Filters</span>
+          <span className="text-secondary text-lg font-bold">Filters</span>
           <div className="ml-auto flex min-w-0 items-center gap-1">
             {headerControls}
             <SheetClose asChild>

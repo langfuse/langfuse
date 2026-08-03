@@ -23,7 +23,7 @@ const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
   if (!traceId) {
     return (
       <div className="flex h-full items-center justify-center p-4">
-        <span className="text-muted-foreground text-sm">
+        <span className="text-tertiary text-sm">
           No run for this item in the selected experiment
         </span>
       </div>

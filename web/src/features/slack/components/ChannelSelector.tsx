@@ -239,9 +239,9 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   const renderChannelItem = (channel: SlackChannel) => (
     <div className="flex w-full items-center gap-2">
       {channel.isPrivate ? (
-        <Lock className="text-muted-foreground h-4 w-4" />
+        <Lock className="text-tertiary h-4 w-4" />
       ) : (
-        <Hash className="text-muted-foreground h-4 w-4" />
+        <Hash className="text-tertiary h-4 w-4" />
       )}
       <span className="flex-1 truncate" title={channel.name}>
         {channel.name}
@@ -277,7 +277,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               {selectedChannel ? (
                 renderChannelItem(selectedChannel)
               ) : (
-                <span className="text-muted-foreground">{placeholder}</span>
+                <span className="text-tertiary">{placeholder}</span>
               )}
               <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
@@ -297,7 +297,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                       onSelect={handleSelectByName}
                       className="cursor-pointer"
                     >
-                      <Hash className="text-muted-foreground h-4 w-4" />
+                      <Hash className="text-tertiary h-4 w-4" />
                       <span
                         className="flex-1 truncate"
                         title={`Use &quot; ${effectiveName} &quot;`}
@@ -345,7 +345,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
                     <CommandItem
                       value="loading-slack-channels"
                       disabled
-                      className="text-muted-foreground"
+                      className="text-tertiary"
                     >
                       <RefreshCw className="h-4 w-4 animate-spin" />
                       <span
@@ -379,7 +379,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
 
       {/* Channel stats */}
       {channelsData?.channels && !isLoadingChannels ? (
-        <div className="text-muted-foreground text-xs">
+        <div className="text-tertiary text-xs">
           {filteredChannels.length} of {channelsData.channels.length} channels
           {memberOnly && " (member only)"}
         </div>

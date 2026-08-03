@@ -94,7 +94,7 @@ export function ExperimentOverviewPanel({
 
   return (
     <div className="space-y-4">
-      <div className="bg-background sticky -top-4 z-30 -mx-4 -mt-4 space-y-4 px-4 pt-4 pb-4">
+      <div className="bg-canvas sticky -top-4 z-30 -mx-4 -mt-4 space-y-4 px-4 pt-4 pb-4">
         <h3 className="text-lg font-bold">Experiment Details</h3>
 
         <div>
@@ -106,7 +106,7 @@ export function ExperimentOverviewPanel({
                   <button
                     type="button"
                     aria-label="What is a baseline experiment?"
-                    className="text-muted-foreground hover:text-primary"
+                    className="text-tertiary hover:text-primary"
                   >
                     <InfoIcon className="h-3.5 w-3.5" />
                   </button>
@@ -187,7 +187,7 @@ export function ExperimentOverviewPanel({
                   >
                     {promptName}
                     {promptVersion !== null && (
-                      <span className="text-muted-foreground ml-1">
+                      <span className="text-tertiary ml-1">
                         (v{promptVersion})
                       </span>
                     )}

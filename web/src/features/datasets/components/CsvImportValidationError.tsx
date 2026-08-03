@@ -27,7 +27,7 @@ export const CsvImportValidationError: React.FC<
             ? `${errorCount}+ items failed validation. Showing first ${errorCount} errors.`
             : `${errorCount} item${errorCount === 1 ? "" : "s"} failed validation.`}
         </p>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-tertiary text-sm">
           The CSV data does not match the required schema for this dataset. Fix
           the errors in your CSV file and try importing again.
         </p>
@@ -55,7 +55,7 @@ export const CsvImportValidationError: React.FC<
                 className="border-destructive/10 space-y-1 border-b pb-3 last:border-0 last:pb-0"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground font-mono text-xs">
+                  <span className="text-tertiary font-mono text-xs">
                     #{idx + 1}
                   </span>
                   <span className="text-sm font-bold">
@@ -72,7 +72,7 @@ export const CsvImportValidationError: React.FC<
                   {error.errors.map((err, errIdx) => (
                     <li key={errIdx} className="text-destructive">
                       {err.path !== "/" && (
-                        <span className="text-muted-foreground font-mono text-xs">
+                        <span className="text-tertiary font-mono text-xs">
                           {err.path}:{" "}
                         </span>
                       )}
@@ -84,7 +84,7 @@ export const CsvImportValidationError: React.FC<
             ))}
 
             {hasMoreThan10 && (
-              <p className="text-muted-foreground pt-2 text-xs">
+              <p className="text-tertiary pt-2 text-xs">
                 Fix these errors to see if there are additional validation
                 issues.
               </p>

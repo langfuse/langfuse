@@ -145,16 +145,14 @@ export const UserAssignmentSection = ({
                     {userName}
                   </p>
                   <p
-                    className="text-muted-foreground truncate text-xs"
+                    className="text-tertiary truncate text-xs"
                     title={user.email}
                   >
                     {user.email}
                   </p>
                 </div>
               </div>
-              {isSelected && (
-                <div className="text-muted-foreground text-xs">✓</div>
-              )}
+              {isSelected && <div className="text-tertiary text-xs">✓</div>}
             </div>
           );
         }}
@@ -164,10 +162,10 @@ export const UserAssignmentSection = ({
       {queueAssignmentsQuery.data &&
         queueAssignmentsQuery.data?.totalCount > 0 && (
           <div className="space-y-2">
-            <h4 className="text-muted-foreground text-sm">
+            <h4 className="text-tertiary text-sm">
               Assigned to ({queueAssignmentsQuery.data?.totalCount})
             </h4>
-            <div className="bg-background max-h-32 overflow-y-auto rounded-md border">
+            <div className="bg-canvas max-h-32 overflow-y-auto rounded-md border">
               {queueAssignmentsQuery.data?.assignments.map(
                 (user: any, index: number) => {
                   const userName = user.name || "Unnamed User";
@@ -184,7 +182,7 @@ export const UserAssignmentSection = ({
                               {userName}
                             </p>
                             <p
-                              className="text-muted-foreground truncate text-xs"
+                              className="text-tertiary truncate text-xs"
                               title={user.email}
                             >
                               {user.email}
@@ -213,7 +211,7 @@ export const UserAssignmentSection = ({
                 },
               )}
               {hasMoreAssignedUsers && (
-                <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
+                <div className="text-tertiary flex items-center gap-3 px-3 py-2">
                   <MoreHorizontal className="h-4 w-4" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs italic">

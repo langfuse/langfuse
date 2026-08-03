@@ -24,16 +24,16 @@ function DraggableColumn({ column }: { column: CsvColumnPreview }) {
       {...listeners}
       {...attributes}
       className={cn(
-        "bg-background hover:border-primary hover:bg-hover group flex cursor-grab items-center gap-2 rounded-md border p-2 active:cursor-grabbing",
+        "bg-canvas hover:border-primary hover:bg-hover group flex cursor-grab items-center gap-2 rounded-md border p-2 active:cursor-grabbing",
         isDragging && "opacity-30",
       )}
     >
-      <GripVertical className="text-muted-foreground/70 group-hover:text-primary h-4 w-4 shrink-0" />
+      <GripVertical className="text-tertiary/70 group-hover:text-primary h-4 w-4 shrink-0" />
       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
         <span className="truncate text-sm" title={column.name}>
           {column.name}
         </span>
-        <span className="text-muted-foreground shrink-0 text-xs">
+        <span className="text-tertiary shrink-0 text-xs">
           {column.inferredType}
         </span>
       </div>
@@ -53,7 +53,7 @@ export function CsvColumnsCard({
       <CardHeader className="shrink-0 p-4 pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-bold">CSV Columns</CardTitle>
-          <span className="bg-muted text-muted-foreground rounded-full px-2.5 py-0.5 text-xs font-bold">
+          <span className="bg-muted text-tertiary rounded-full px-2.5 py-0.5 text-xs font-bold">
             {columnCount} {columnCount === 1 ? "column" : "columns"}
           </span>
         </div>

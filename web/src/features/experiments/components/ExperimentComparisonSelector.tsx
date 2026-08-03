@@ -125,7 +125,7 @@ export function ExperimentComparisonSelector({
         )}
       />
       {selectedIds.length > 0 && (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-tertiary text-xs">
           {selectedIds.length} of {maxSelections} comparisons selected
         </p>
       )}

@@ -82,7 +82,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
               <TableHead />
             </TableRow>
           </TableHeader>
-          <TableBody className="text-muted-foreground">
+          <TableBody className="text-tertiary">
             {apiKeys.data?.data.length === 0 ? (
               <TableRow>
                 <TableCell

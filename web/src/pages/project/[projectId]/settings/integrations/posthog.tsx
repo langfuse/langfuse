@@ -117,7 +117,7 @@ export default function PosthogIntegrationSettings() {
         <>
           <Header title="Configuration" />
           <Card className="p-3">
-            <PostHogLogo className="text-foreground mb-4 w-36" />
+            <PostHogLogo className="text-secondary mb-4 w-36" />
             <PostHogIntegrationSettings
               state={state.data?.config ?? undefined}
               projectId={projectId}
@@ -326,7 +326,7 @@ const PostHogIntegrationSettings = ({
                   Export Source
                   <Tooltip>
                     <TooltipTrigger>
-                      <Info className="text-muted-foreground h-3.5 w-3.5" />
+                      <Info className="text-tertiary h-3.5 w-3.5" />
                     </TooltipTrigger>
                     <TooltipContent
                       side="bottom"
@@ -335,7 +335,7 @@ const PostHogIntegrationSettings = ({
                       {exportSourceOptions.map((option) => (
                         <div key={option.value} className="space-y-0.5">
                           <div className="font-bold">{option.label}</div>
-                          <div className="text-muted-foreground text-xs">
+                          <div className="text-tertiary text-xs">
                             {option.description}
                           </div>
                         </div>
@@ -345,7 +345,7 @@ const PostHogIntegrationSettings = ({
                           href="https://langfuse.com/docs/integrations/export-sources"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
+                          className="text-tertiary hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
                           For further information see
                           <ExternalLink className="h-3 w-3" />

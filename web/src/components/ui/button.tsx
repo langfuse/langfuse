@@ -10,11 +10,11 @@ import { default as SpinnerLib } from "@/src/components/design-system/Spinner/Sp
 const buttonVariants = cva(
   // No font-* here: buttons follow the text-sm token weight (one weight per
   // token; heavier text must be an explicit, deliberate exception).
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-canvas transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-primary text-on-fill hover:bg-primary/90",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         "destructive-secondary":
