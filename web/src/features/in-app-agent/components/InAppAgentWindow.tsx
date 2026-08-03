@@ -489,6 +489,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     previousIsAssistantTurnInProgressRef.current = isAssistantTurnInProgress;
   }, [isAssistantTurnInProgress, isComposerDisabled]);
 
+  const focusInputAtEnd = useCallback(() => {
+    const input = inputRef.current;
+
+    if (!input || isMobile) {
+      return;
+    }
+
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, [isMobile]);
+
   const setInputRef = useCallback(
     (input: HTMLTextAreaElement | null) => {
       inputRef.current = input;
@@ -508,16 +519,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         shouldPlaceCaretAtEndRef.current && !isMobile && input.value.length > 0;
 
       if (shouldRefocusInput || shouldFocusDraftAtEnd) {
-        input.focus();
-
-        if (shouldFocusDraftAtEnd) {
-          input.setSelectionRange(input.value.length, input.value.length);
-        }
+        focusInputAtEnd();
       }
 
       shouldPlaceCaretAtEndRef.current = false;
     },
-    [isAssistantTurnInProgress, isComposerDisabled, isMobile],
+    [focusInputAtEnd, isAssistantTurnInProgress, isComposerDisabled, isMobile],
   );
 
   useEffect(() => {
@@ -684,7 +691,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 aria-label={isExpanded ? "Collapse window" : "Expand window"}
                 onMouseDown={(event) => {
                   shouldRestoreComposerFocusRef.current =
-                    !isExpanded &&
                     event.button === 0 &&
                     document.activeElement === inputRef.current;
                 }}
@@ -695,7 +701,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   onExpandedChange(!isExpanded);
 
                   if (shouldRestoreComposerFocus) {
-                    inputRef.current?.focus();
+                    focusInputAtEnd();
                   }
                 }}
               >
