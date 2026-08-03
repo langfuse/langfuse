@@ -75,6 +75,7 @@ export function ExperimentComparisonSelector({
   return (
     <div className="space-y-2">
       <MultiSelectCombobox<ExperimentOption>
+        className="rounded-l-none"
         selectedItems={selectedExperiments}
         onItemsChange={handleItemsChange}
         searchQuery={searchQuery}
@@ -87,6 +88,7 @@ export function ExperimentComparisonSelector({
             : "Search experiments..."
         }
         disabled={isLoading}
+        showSearchIcon={false}
         getItemKey={(item) => item.experimentId}
         renderItem={(item, isSelected, onToggle) => (
           <button

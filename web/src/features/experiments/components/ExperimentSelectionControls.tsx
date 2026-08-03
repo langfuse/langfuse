@@ -28,7 +28,7 @@ export function ExperimentSelectionControls({
         <div className="border-input bg-muted/30 flex h-8 w-auto shrink-0 items-center rounded-l-md border px-3 text-xs">
           Baseline
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="w-full max-w-64 min-w-0 flex-1">
           <ExperimentBaselineControls
             projectId={projectId}
             baselineId={baselineId}
@@ -43,7 +43,7 @@ export function ExperimentSelectionControls({
         <div className="border-input bg-muted/30 flex h-8 w-auto shrink-0 items-center rounded-l-md border px-3 text-xs">
           Experiment selection
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="w-full max-w-64 min-w-0 flex-1">
           <ExperimentComparisonSelector
             projectId={projectId}
             baselineExperimentId={baselineId}

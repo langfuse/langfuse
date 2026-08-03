@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { Search, X, MoreHorizontal } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 
 interface MultiSelectComboboxProps<T> {
   selectedItems: T[];
@@ -22,7 +23,9 @@ interface MultiSelectComboboxProps<T> {
   disabled?: boolean;
   onOpenChange?: (open: boolean) => void;
   showSelectedItemsInInput?: boolean;
+  showSearchIcon?: boolean;
   dropdownClassName?: string;
+  className?: string;
 }
 
 export function MultiSelectCombobox<T>({
@@ -40,7 +43,9 @@ export function MultiSelectCombobox<T>({
   disabled = false,
   onOpenChange,
   showSelectedItemsInInput = true,
+  showSearchIcon = true,
   dropdownClassName,
+  className,
 }: MultiSelectComboboxProps<T>) {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -136,11 +141,21 @@ export function MultiSelectCombobox<T>({
       <div className="relative">
         <div
           ref={containerRef}
-          className="border-input bg-background flex max-h-14 min-h-9 w-full overflow-y-auto rounded-md border text-xs"
+          className={cn(
+            "border-input bg-background flex h-8 min-h-8 w-full overflow-hidden rounded-md border text-xs",
+            className,
+          )}
           style={{ overflowAnchor: "none" }}
         >
-          <Search className="text-muted-foreground absolute top-2.5 left-2 z-10 h-4 w-4" />
-          <div className="flex max-h-full flex-1 flex-wrap items-center gap-1 pl-8">
+          {showSearchIcon && (
+            <Search className="text-muted-foreground absolute top-2.5 left-2 z-10 h-4 w-4" />
+          )}
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto pr-8",
+              showSearchIcon ? "pl-8" : "pl-2",
+            )}
+          >
             {/* Selected Items Pills */}
             {showSelectedItemsInInput
               ? selectedItems.map((item) => (
