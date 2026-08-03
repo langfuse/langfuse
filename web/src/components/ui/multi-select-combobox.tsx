@@ -25,7 +25,8 @@ interface MultiSelectComboboxProps<T> {
   showSelectedItemsInInput?: boolean;
   showSearchIcon?: boolean;
   dropdownClassName?: string;
-  className?: string;
+  /** Square the left corners so the control can sit flush against a left-adjacent element. */
+  flushLeft?: boolean;
 }
 
 export function MultiSelectCombobox<T>({
@@ -45,7 +46,7 @@ export function MultiSelectCombobox<T>({
   showSelectedItemsInInput = true,
   showSearchIcon = true,
   dropdownClassName,
-  className,
+  flushLeft = false,
 }: MultiSelectComboboxProps<T>) {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -143,7 +144,7 @@ export function MultiSelectCombobox<T>({
           ref={containerRef}
           className={cn(
             "border-input bg-background flex h-8 min-h-8 w-full overflow-hidden rounded-md border text-xs",
-            className,
+            flushLeft && "rounded-l-none",
           )}
           style={{ overflowAnchor: "none" }}
         >
