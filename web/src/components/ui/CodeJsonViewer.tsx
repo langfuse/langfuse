@@ -122,7 +122,7 @@ export function JSONView(props: {
           </code>
         ) : (
           <div
-            className="max-w-full min-w-0 flex-1 overflow-hidden"
+            className="max-w-full min-w-0 flex-1"
             onClick={() => {
               // If externally collapsed and user clicks to expand, sync the state
               if (props.externalJsonCollapsed && props.onToggleCollapse) {
