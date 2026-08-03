@@ -144,7 +144,7 @@ export default withMiddlewares({
             { reason },
           );
         }
-        logger.warn("Rejecting unprocessable OTEL trace export", {
+        const rejectionContext = {
           projectId: auth.scope.projectId,
           invalidSpanCount: idValidation.invalidSpanCount,
           malformedCollectionCount: idValidation.malformedCollectionCount,
@@ -152,7 +152,26 @@ export default withMiddlewares({
           reasonCounts: idValidation.reasonCounts,
           instrumentationScopes: idValidation.scopeNames,
           sdkName: req.headers["x-langfuse-sdk-name"],
-        });
+        };
+        logger.warn(
+          "Rejecting unprocessable OTEL trace export",
+          rejectionContext,
+        );
+
+        // Rejecting the batch as a unit rests on the assumption that a bad
+        // export is bad throughout: an OTLP logs payload decoded as spans
+        // yields uniformly id-less spans, so invalidSpanCount should equal
+        // totalSpanCount. Any gap means this rejection just discarded spans
+        // that would have ingested fine, which is data loss and invalidates
+        // the assumption — escalate so it cannot pass unnoticed among warns.
+        const discardedValidSpans =
+          idValidation.totalSpanCount - idValidation.invalidSpanCount;
+        if (discardedValidSpans > 0) {
+          logger.error(
+            "Rejected OTEL trace export contained valid spans — batch rejection discarded them",
+            { ...rejectionContext, discardedValidSpans },
+          );
+        }
 
         const problems: string[] = [];
         if (idValidation.invalidSpanCount > 0) {
