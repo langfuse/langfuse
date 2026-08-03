@@ -104,7 +104,7 @@
   /* Role utilities — the design-system vocabulary (tokens in :root below):
      text-primary/secondary/tertiary/disabled/on-fill/on-hover,
      bg-canvas/sidebar/card/modal/popover/muted/code/hover,
-     border/border-edge/border-contrast, ring-focus.
+     border/border-contrast, ring-focus.
      NOTE: --color-secondary and --color-tertiary now carry the TEXT roles;
      the old secondary/tertiary FILLS are gone — use bg-muted /
      bg-muted-gray. text-primary keeps resolving through --primary (the
@@ -113,7 +113,6 @@
   --color-code: hsl(var(--code));
   --color-hover: hsl(var(--hover));
   --color-focus: hsl(var(--focus));
-  --color-border-edge: hsl(var(--border-edge));
   --color-secondary: hsl(var(--text-secondary));
   --color-tertiary: hsl(var(--text-tertiary));
   --color-disabled: hsl(var(--text-disabled));
@@ -272,8 +271,8 @@
          inherited default) > tertiary (meta) > disabled (faint), plus
          on-fill (ink on inverted fills) and on-hover (ink on the hover
          fill).
-       Lines: border hairline < border-edge (inputs, popover borders)
-         < border-contrast.
+       Lines: border (quiet structure — also inputs and popover edges)
+         < border-contrast (assertive: outline buttons, viz lines, controls).
        Interaction rule: hover = the fill, focus = the ring. */
 
     /* Text roles. Light ramp: primary 9% < secondary 22% < tertiary 46.9%
@@ -324,7 +323,6 @@
     /* Inputs + popover borders: coincides with the hairline in light; dark
        lifts it above the hairline (see .dark) so text fields and the top
        layer keep a visible edge on the near-black surfaces. */
-    --border-edge: var(--border);
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
        one clear step stronger than the hairline --border. */
     --border-contrast: 214.3 20% 80%;
@@ -355,8 +353,8 @@
     --accent: var(--hover);
     --accent-foreground: var(--text-on-hover);
     --surface-code: var(--code);
-    --input: var(--border-edge);
-    --popover-border: var(--border-edge);
+    --input: var(--border);
+    --popover-border: var(--border);
     --ring: var(--focus);
     --sidebar-ring: var(--focus);
 
@@ -528,14 +526,9 @@
     /* Selected-nav fill aligns with the muted/popover level in dark. */
     --sidebar-accent: var(--muted);
 
-    /* Hairline must read on every surface tier up to the raised 6% —
-       popovers carry their own brighter --border-edge, so the hairline
-       can stay quiet on the 3% canvas. */
-    --border: 0 0% 13%;
-    /* Inputs + popover borders lift above the 13% hairline, which is
-       near-invisible on the 10% popover — text fields and the top layer
-       carry their own visible edge. */
-    --border-edge: 0 0% 13%; /* TRIAL merge into hairline (was 16) */
+    /* One quiet line for everything non-assertive — dividers, inputs,
+       popover edges (edge tier merged down per Trang, 2026-08-03). */
+    --border: 0 0% 12%;
     --border-contrast: 0 0% 20%;
 
     --focus: 218 100% 74%;

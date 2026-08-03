@@ -301,7 +301,10 @@ export function DataTableToolbar<TData, TValue>({
           <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
             <div
               className={cn(
-                "border-input bg-background flex h-8 flex-1 items-center border pl-2",
+                // border-contrast, not border-input: this box fuses with the
+                // attached outline Button (search-type selector) into ONE
+                // composite control — both halves must share a border tier.
+                "border-border-contrast bg-background flex h-8 flex-1 items-center border pl-2",
                 showSearchTypeSelector
                   ? "rounded-l-md rounded-r-none border-r-0"
                   : "rounded-l-md rounded-r-md",

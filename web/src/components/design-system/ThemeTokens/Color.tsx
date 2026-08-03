@@ -74,8 +74,6 @@ const UPCOMING_ROLES: Record<string, string> = {
   "--muted": "bg-muted",
   "--accent": "bg-hover",
   "--border": "border",
-  "--input": "border-edge",
-  "--popover-border": "border-edge",
   "--ring": "focus",
 };
 
@@ -168,11 +166,6 @@ const BORDER_RAMP: RampStep[] = [
     token: "--border",
     label: "hairline",
     note: "the default edge on every surface tier",
-  },
-  {
-    token: "--border-edge",
-    label: "edge",
-    note: "inputs + popover borders — dark lifts it above the hairline so the top layer keeps an edge on the near-black canvas; light coincides with the hairline",
   },
   {
     token: "--border-contrast",
