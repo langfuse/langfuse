@@ -6,7 +6,8 @@ import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 
-const { mockDlqAdd, mockUploadJson } = vi.hoisted(() => ({
+const { mockDeleteFiles, mockDlqAdd, mockUploadJson } = vi.hoisted(() => ({
+  mockDeleteFiles: vi.fn().mockResolvedValue(undefined),
   mockDlqAdd: vi.fn().mockResolvedValue(undefined),
   mockUploadJson: vi.fn().mockResolvedValue(undefined),
 }));
@@ -24,6 +25,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
       getInstance: vi.fn(() => ({ add: mockDlqAdd })),
     },
     getS3EventStorageClient: vi.fn(() => ({
+      deleteFiles: mockDeleteFiles,
       uploadJson: mockUploadJson,
     })),
     logger: {
@@ -251,6 +253,27 @@ describe("ClickhouseWriter", () => {
       expect.any(Error),
     );
     expect(mockDlqAdd).not.toHaveBeenCalled();
+  });
+
+  it("should delete the uploaded payload when DLQ enqueueing fails", async () => {
+    vi.spyOn(clickhouseClientMock, "insert").mockRejectedValue(
+      new Error("DB Error"),
+    );
+    mockDlqAdd.mockRejectedValueOnce(new Error("Redis unavailable"));
+
+    writer.addToQueue(TableName.Traces, {
+      id: "1",
+      project_id: "project-1",
+      name: "test",
+    } as any);
+
+    for (let i = 0; i < writer.maxAttempts; i++) {
+      await vi.advanceTimersByTimeAsync(writer.writeInterval);
+    }
+
+    const fileKey = mockUploadJson.mock.calls[0][0];
+    expect(mockDeleteFiles).toHaveBeenCalledWith([fileKey]);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(1);
   });
 
   it("should retry client request timeouts within the same flush", async () => {

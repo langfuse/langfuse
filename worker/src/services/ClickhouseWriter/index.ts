@@ -570,23 +570,36 @@ export class ClickhouseWriter {
     tableName: T,
     records: RecordInsertType<T>[],
   ): Promise<string> {
-    const fileKey = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}clickhouse-writer-dlq/${tableName}/${randomUUID()}.json`;
-    await getS3EventStorageClient(
-      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    ).uploadJson(fileKey, records as Record<string, unknown>[]);
-
     const queue = ClickhouseWriterDeadLetterQueue.getInstance();
     if (!queue) {
-      throw new Error("Dead letter retry queue is unavailable");
+      throw new Error("ClickhouseWriter dead letter queue is unavailable");
     }
 
+    const fileKey = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}clickhouse-writer-dlq/${tableName}/${randomUUID()}.json`;
+    const storage = getS3EventStorageClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
+    await storage.uploadJson(fileKey, records as Record<string, unknown>[]);
+
     const id = randomUUID();
-    await queue.add(QueueJobs.ClickhouseWriterDeadLetterJob, {
-      timestamp: new Date(),
-      id,
-      name: QueueJobs.ClickhouseWriterDeadLetterJob,
-      payload: { tableName, fileKey },
-    });
+    try {
+      await queue.add(QueueJobs.ClickhouseWriterDeadLetterJob, {
+        timestamp: new Date(),
+        id,
+        name: QueueJobs.ClickhouseWriterDeadLetterJob,
+        payload: { tableName, fileKey },
+      });
+    } catch (error) {
+      try {
+        await storage.deleteFiles([fileKey]);
+      } catch (cleanupError) {
+        logger.error(
+          `ClickhouseWriter: Failed to clean up dead-letter payload ${fileKey} after enqueue failure`,
+          cleanupError,
+        );
+      }
+      throw error;
+    }
 
     return fileKey;
   }
