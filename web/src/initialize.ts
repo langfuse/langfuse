@@ -7,10 +7,12 @@ import { getOrganizationPlanServerSide } from "@/src/features/entitlements/serve
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
   initializeClickhouseCompatibility,
+  initializeClickhouseShardingContract,
   logger,
 } from "@langfuse/shared/src/server";
 
 await initializeClickhouseCompatibility();
+await initializeClickhouseShardingContract();
 
 // Warn if LANGFUSE_INIT_* variables are set but LANGFUSE_INIT_ORG_ID is missing
 if (!env.LANGFUSE_INIT_ORG_ID) {

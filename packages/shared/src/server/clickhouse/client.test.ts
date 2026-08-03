@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
     CLICKHOUSE_DB: "default",
     CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: 9000,
     CLICKHOUSE_MAX_OPEN_CONNECTIONS: 25,
+    CLICKHOUSE_LOCAL_MAX_OPEN_CONNECTIONS: 2,
+    CLICKHOUSE_SHARDING_ENABLED: "false",
     CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: undefined,
     CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: undefined,
     CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS: undefined,
@@ -34,7 +36,11 @@ vi.mock("@clickhouse/client", async (importOriginal) => {
   };
 });
 
-import { ClickHouseClientManager, clickhouseClient } from "./client";
+import {
+  ClickHouseClientManager,
+  clickhouseClient,
+  clickhouseClientForUrl,
+} from "./client";
 import { setClickHouseCompatibilityVersionForTests } from "./compatibility";
 
 describe("ClickHouseClientManager compatibility settings", () => {
@@ -45,6 +51,7 @@ describe("ClickHouseClientManager compatibility settings", () => {
     mocks.createClient.mockReset();
     mocks.createClient.mockReturnValue({ close: mocks.close });
     mocks.env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION = "auto";
+    mocks.env.CLICKHOUSE_SHARDING_ENABLED = "false";
     setClickHouseCompatibilityVersionForTests(null);
   });
 
@@ -83,6 +90,40 @@ describe("ClickHouseClientManager compatibility settings", () => {
     clickhouseClient();
 
     expect(mocks.createClient).toHaveBeenCalledTimes(2);
+  });
+
+  it("caches clients independently by node URL", () => {
+    clickhouseClientForUrl("http://shard-1:8123");
+    clickhouseClientForUrl("http://shard-1:8123");
+    clickhouseClientForUrl("http://shard-2:8123");
+
+    expect(mocks.createClient).toHaveBeenCalledTimes(2);
+    expect(mocks.createClient.mock.calls[0][0].url).toBe("http://shard-1:8123");
+    expect(mocks.createClient.mock.calls[1][0].url).toBe("http://shard-2:8123");
+    expect(mocks.createClient.mock.calls[0][0].max_open_connections).toBe(2);
+  });
+
+  it("applies compatibility settings to node clients", () => {
+    setClickHouseCompatibilityVersionForTests("26.5.1.882");
+
+    clickhouseClientForUrl("http://shard-1:8123");
+
+    expect(
+      mocks.createClient.mock.calls[0][0].clickhouse_settings,
+    ).toMatchObject({ query_plan_optimize_lazy_materialization: 0 });
+  });
+
+  it("fails Distributed operations when a shard is unavailable", () => {
+    mocks.env.CLICKHOUSE_SHARDING_ENABLED = "true";
+
+    clickhouseClient();
+
+    expect(
+      mocks.createClient.mock.calls[0][0].clickhouse_settings,
+    ).toMatchObject({
+      distributed_foreground_insert: 1,
+      skip_unavailable_shards: 0,
+    });
   });
 
   it("sets ClickHouse server timeout after the default client request timeout", () => {

@@ -163,6 +163,27 @@ jobs:
       - name: typecheck
         run: pnpm run typecheck
 
+  clickhouse-multishard:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install golang-migrate
+        run: |
+          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+            --output /tmp/migrate.linux-amd64.tar.gz \
+            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+          echo "2ac648fbd1b127b69ab5a7b33cf96212178f71e22379fc50573630c6f4c7ce18  /tmp/migrate.linux-amd64.tar.gz" | sha256sum -c -
+          tar xzf /tmp/migrate.linux-amd64.tar.gz -C /tmp
+          sudo mv /tmp/migrate /usr/bin/migrate
+      - name: Verify the 2-shard 2-replica ClickHouse contract
+        run: bash packages/shared/clickhouse/tests/multishard/run.sh
+
   knip:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:

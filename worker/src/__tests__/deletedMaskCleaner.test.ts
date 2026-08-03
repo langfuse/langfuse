@@ -338,6 +338,19 @@ describe("DeletedMaskCleaner helpers", () => {
     );
   });
 
+  it("targets every replicated local table in sharded mode", () => {
+    expect(
+      buildApplyDeletedMaskQuery(workCandidate({ table: "events_full" }), {
+        database: "default",
+        clusterEnabled: true,
+        clusterName: "default",
+        shardingEnabled: true,
+      }),
+    ).toBe(
+      "ALTER TABLE `default`.`events_full_local` ON CLUSTER `default` APPLY DELETED MASK IN PARTITION '202405'",
+    );
+  });
+
   it("quotes ClickHouse DDL identifiers with non-bare identifier characters", () => {
     expect(
       buildApplyDeletedMaskQuery(workCandidate({ table: "events_full" }), {

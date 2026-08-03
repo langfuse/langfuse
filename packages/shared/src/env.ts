@@ -121,6 +121,27 @@ const EnvSchema = z.object({
   CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
+  CLICKHOUSE_SHARDING_ENABLED: z.enum(["true", "false"]).default("false"),
+  CLICKHOUSE_LOCAL_HTTP_PORT: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(65535)
+    .default(8123),
+  CLICKHOUSE_LOCAL_MAX_OPEN_CONNECTIONS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  CLICKHOUSE_LOCAL_HTTP_PROTOCOL: z.enum(["http", "https"]).default("http"),
+  CLICKHOUSE_LOCAL_HOST_FIELD: z
+    .enum(["host_address", "host_name"])
+    .default("host_address"),
+  CLICKHOUSE_LOCAL_TOPOLOGY_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60_000),
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_PASSWORD: z.string(),

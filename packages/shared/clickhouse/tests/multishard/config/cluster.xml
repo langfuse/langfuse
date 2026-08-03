@@ -1,0 +1,26 @@
+<clickhouse>
+  <remote_servers>
+    <default>
+      <shard>
+        <internal_replication>true</internal_replication>
+        <replica><host>ch-1a</host><port>9000</port><user>clickhouse</user><password>clickhouse</password></replica>
+        <replica><host>ch-1b</host><port>9000</port><user>clickhouse</user><password>clickhouse</password></replica>
+      </shard>
+      <shard>
+        <internal_replication>true</internal_replication>
+        <replica><host>ch-2a</host><port>9000</port><user>clickhouse</user><password>clickhouse</password></replica>
+        <replica><host>ch-2b</host><port>9000</port><user>clickhouse</user><password>clickhouse</password></replica>
+      </shard>
+    </default>
+  </remote_servers>
+  <zookeeper>
+    <node><host>keeper</host><port>9181</port></node>
+  </zookeeper>
+  <distributed_ddl>
+    <path>/clickhouse/task_queue/ddl</path>
+  </distributed_ddl>
+  <macros>
+    <shard from_env="SHARD_ID" />
+    <replica from_env="REPLICA_ID" />
+  </macros>
+</clickhouse>

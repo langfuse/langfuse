@@ -119,6 +119,23 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
+  CLICKHOUSE_SHARDING_ENABLED: z.enum(["true", "false"]).default("false"),
+  CLICKHOUSE_WRITE_LOCAL_ENABLED: z.enum(["true", "false"]).default("false"),
+  CLICKHOUSE_LOCAL_BATCH_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5_000_000),
+  CLICKHOUSE_LOCAL_QUEUE_MAX_ROWS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100_000),
+  CLICKHOUSE_LOCAL_QUEUE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(256_000_000),
   LANGFUSE_EVAL_CREATOR_LIMITER_DURATION: z.coerce
     .number()
     .positive()

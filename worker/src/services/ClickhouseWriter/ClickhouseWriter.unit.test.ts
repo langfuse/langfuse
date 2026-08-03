@@ -8,9 +8,12 @@ import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 
 // Mock recordHistogram, recordCount, recordGauge
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
-  const original = (await importOriginal()) as {};
+  const original = (await importOriginal()) as Record<string, unknown>;
   return {
     ...original,
+    resolveClickhouseDeploymentMode: original.resolveClickhouseDeploymentMode,
+    getClusterTopologyContractState: original.getClusterTopologyContractState,
+    CLICKHOUSE_ROUTING_VERSION: original.CLICKHOUSE_ROUTING_VERSION,
     recordHistogram: vi.fn(),
     recordIncrement: vi.fn(),
     recordCount: vi.fn(),
@@ -32,6 +35,9 @@ vi.mock("../../env", async (importOriginal) => {
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: 100,
       LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: 5000,
       LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: 3,
+      CLICKHOUSE_CLUSTER_ENABLED: "true",
+      CLICKHOUSE_SHARDING_ENABLED: "false",
+      CLICKHOUSE_WRITE_LOCAL_ENABLED: "false",
     },
   };
 });
@@ -224,6 +230,32 @@ describe("ClickhouseWriter", () => {
     expect(logger.info).toHaveBeenCalledWith(
       "ClickhouseWriter shutdown complete.",
     );
+  });
+
+  it("waits for an in-flight size-triggered flush during shutdown", async () => {
+    let resolveInsert: (() => void) | undefined;
+    vi.spyOn(clickhouseClientMock, "insert").mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveInsert = resolve;
+        }) as any,
+    );
+
+    for (let i = 0; i < writer.batchSize; i++) {
+      writer.addToQueue(TableName.Traces, { id: String(i), name: "test" });
+    }
+    await vi.advanceTimersByTimeAsync(0);
+
+    let shutdownFinished = false;
+    const shutdown = writer.shutdown().then(() => {
+      shutdownFinished = true;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(shutdownFinished).toBe(false);
+
+    resolveInsert?.();
+    await shutdown;
+    expect(shutdownFinished).toBe(true);
   });
 
   it("should handle multiple table types", async () => {

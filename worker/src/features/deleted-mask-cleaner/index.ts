@@ -9,9 +9,9 @@ import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import {
   buildApplyDeletedMaskQuery,
+  buildDeletedMaskCleanerWorkQuery,
   buildMutationCountQuery,
   DELETED_MASK_CLEANER_TABLES,
-  DELETED_MASK_CLEANER_WORK_QUERY,
   isAbortError,
   normalizeMutationCounts,
   selectCandidateToProcess,
@@ -127,7 +127,10 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
 
   private async getCandidates(): Promise<WorkCandidateRow[]> {
     const rows = await queryClickhouse<WorkCandidateRow>({
-      query: DELETED_MASK_CLEANER_WORK_QUERY,
+      query: buildDeletedMaskCleanerWorkQuery(
+        env.CLICKHOUSE_SHARDING_ENABLED === "true",
+        env.CLICKHOUSE_CLUSTER_NAME,
+      ),
       params: {
         database: env.CLICKHOUSE_DB,
         tables: Array.from(DELETED_MASK_CLEANER_TABLES),
@@ -148,6 +151,7 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
       query: buildMutationCountQuery(
         this.useCleanerClusterMode(),
         env.CLICKHOUSE_CLUSTER_NAME,
+        env.CLICKHOUSE_SHARDING_ENABLED === "true",
       ),
       params: {
         database: env.CLICKHOUSE_DB,
@@ -162,6 +166,7 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
       cleanerClusterModeEnabled:
         env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED ===
         "true",
+      shardingEnabled: env.CLICKHOUSE_SHARDING_ENABLED === "true",
     });
   }
 
@@ -170,6 +175,7 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
       database: env.CLICKHOUSE_DB,
       clusterEnabled: this.useCleanerClusterMode(),
       clusterName: env.CLICKHOUSE_CLUSTER_NAME,
+      shardingEnabled: env.CLICKHOUSE_SHARDING_ENABLED === "true",
     });
 
     logger.info(`${this.instanceName}: Applying deleted mask`, {

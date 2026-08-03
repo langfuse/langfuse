@@ -52,6 +52,7 @@ import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { prisma } from "../../db";
+import { getClickhouseDeleteTarget } from "../clickhouse/mutationRoutingEnv";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -880,7 +881,7 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
 
   await commandClickhouse({
     query: `
-      DELETE FROM traces
+      DELETE FROM ${getClickhouseDeleteTarget("traces")}
       WHERE project_id = {projectId: String}
       AND id IN ({traceIds: Array(String)})
       AND timestamp >= {minTs: String}::DateTime64(3)
@@ -932,7 +933,7 @@ export const deleteTracesOlderThanDays = async (
   }
 
   const query = `
-    DELETE FROM traces
+    DELETE FROM ${getClickhouseDeleteTarget("traces")}
     WHERE project_id = {projectId: String}
     AND timestamp < {cutoffDate: DateTime64(3)};
   `;
@@ -960,7 +961,7 @@ export const deleteTracesByProjectId = async (
   }
 
   const query = `
-    DELETE FROM traces
+    DELETE FROM ${getClickhouseDeleteTarget("traces")}
     WHERE project_id = {projectId: String};
   `;
 

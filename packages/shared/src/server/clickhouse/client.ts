@@ -71,6 +71,7 @@ export class ClickHouseClientManager {
   private generateClientSettings(
     opts: NodeClickHouseClientConfigOptions,
     preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
+    url?: string,
   ): {
     settings: NodeClickHouseClientConfigOptions;
     serviceClickhouseSettings: ServiceClickhouseSettings;
@@ -79,11 +80,12 @@ export class ClickHouseClientManager {
       preferredClickhouseService,
     );
     const keyParams = {
-      url: this.getClickhouseUrl(preferredClickhouseService),
+      url: url ?? this.getClickhouseUrl(preferredClickhouseService),
       username: env.CLICKHOUSE_USER,
       password: env.CLICKHOUSE_PASSWORD,
       database: env.CLICKHOUSE_DB,
       http_headers: opts?.http_headers ?? {},
+      max_open_connections: opts.max_open_connections,
       settings: {
         ...serviceClickhouseSettings,
         ...opts?.clickhouse_settings,
@@ -166,10 +168,12 @@ export class ClickHouseClientManager {
   public getClient(
     opts: NodeClickHouseClientConfigOptions,
     preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
+    url?: string,
   ): ClickhouseClientType {
     const { settings, serviceClickhouseSettings } = this.generateClientSettings(
       opts,
       preferredClickhouseService,
+      url,
     );
     const key = this.generateClientSettingsKey(settings);
     if (!this.clientMap.has(key)) {
@@ -200,7 +204,8 @@ export class ClickHouseClientManager {
         keep_alive: {
           idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,
         },
-        max_open_connections: env.CLICKHOUSE_MAX_OPEN_CONNECTIONS,
+        max_open_connections:
+          opts.max_open_connections ?? env.CLICKHOUSE_MAX_OPEN_CONNECTIONS,
         log: {
           LoggerClass: ClickHouseLogger,
           level: mapLogLevel(env.LANGFUSE_LOG_LEVEL ?? "info"),
@@ -235,6 +240,12 @@ export class ClickHouseClientManager {
           ...serviceClickhouseSettings,
           ...this.getRequestTimeoutClickHouseSettings(clickHouseRequestTimeout),
           ...opts.clickhouse_settings,
+          ...(env.CLICKHOUSE_SHARDING_ENABLED === "true"
+            ? {
+                distributed_foreground_insert: 1,
+                skip_unavailable_shards: 0,
+              }
+            : {}),
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
           ...(shouldSendProgressInHttpHeaders
@@ -273,6 +284,20 @@ export const clickhouseClient = (
     preferredClickhouseService,
   );
 };
+
+export const clickhouseClientForUrl = (
+  url: string,
+  opts?: NodeClickHouseClientConfigOptions,
+) =>
+  ClickHouseClientManager.getInstance().getClient(
+    {
+      ...opts,
+      max_open_connections:
+        opts?.max_open_connections ?? env.CLICKHOUSE_LOCAL_MAX_OPEN_CONNECTIONS,
+    },
+    "ReadWrite",
+    url,
+  );
 
 /**
  * Accepts a JavaScript date and returns the DateTime in format YYYY-MM-DD HH:MM:SS

@@ -12,6 +12,7 @@ import {
   recordGauge,
   recordIncrement,
   traceException,
+  getClickhouseDeleteTarget,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getRetentionCutoffDate } from "../utils";
@@ -705,7 +706,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       workloads,
     );
 
-    const query = `DELETE FROM ${this.tableName} WHERE ${conditions}`;
+    const query = `DELETE FROM ${getClickhouseDeleteTarget(this.tableName)} WHERE ${conditions}`;
 
     // Reset the full lease immediately before the only destructive query. Its
     // TTL includes the configured DELETE timeout plus the existing buffer.

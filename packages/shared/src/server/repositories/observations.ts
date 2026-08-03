@@ -60,6 +60,7 @@ import {
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
+import { getClickhouseDeleteTarget } from "../clickhouse/mutationRoutingEnv";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -1230,7 +1231,7 @@ export const deleteObservationsByTraceIds = async (
 
   await commandClickhouse({
     query: `
-      DELETE FROM observations
+      DELETE FROM ${getClickhouseDeleteTarget("observations")}
       WHERE project_id = {projectId: String}
       AND trace_id IN ({traceIds: Array(String)})
       AND start_time >= {minTs: String}::DateTime64(3)
@@ -1275,7 +1276,7 @@ export const deleteObservationsByProjectId = async (
   }
 
   const query = `
-    DELETE FROM observations
+    DELETE FROM ${getClickhouseDeleteTarget("observations")}
     WHERE project_id = {projectId: String};
   `;
   const tags = { projectId };
@@ -1326,7 +1327,7 @@ export const deleteObservationsOlderThanDays = async (
   }
 
   const query = `
-    DELETE FROM observations
+    DELETE FROM ${getClickhouseDeleteTarget("observations")}
     WHERE project_id = {projectId: String}
     AND start_time < {cutoffDate: DateTime64(3)};
   `;

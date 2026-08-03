@@ -91,6 +91,7 @@ import {
   EventsObservationRecordReadType,
   TraceRecordReadType,
 } from "./definitions";
+import { getClickhouseDeleteTarget } from "../clickhouse/mutationRoutingEnv";
 import {
   INTERNAL_INGESTION_SDK_NAMES,
   UNKNOWN_INGESTION_SDK_VALUE,
@@ -2282,14 +2283,14 @@ export const deleteEventsByTraceIds = async (
     minTs: preflight[0].min_ts,
     maxTs: preflight[0].max_ts,
   };
-  const deleteQuery = (table: string) => `
-    DELETE FROM ${table}
+  const deleteQuery = (table: "events_full" | "events_core") => `
+    DELETE FROM ${getClickhouseDeleteTarget(table)}
     WHERE project_id = {projectId: String}
     AND trace_id IN ({traceIds: Array(String)})
     AND start_time >= {minTs: String}::DateTime64(3)
     AND start_time <= {maxTs: String}::DateTime64(3)
   `;
-  const deleteOpts = (table: string) => ({
+  const deleteOpts = (table: "events_full" | "events_core") => ({
     query: deleteQuery(table),
     params: deleteParams,
     clickhouseConfigs: {
@@ -2340,8 +2341,8 @@ export const deleteEventsByProjectId = async (
   }
 
   // Delete from both tables in parallel
-  const deleteOpts = (table: string) => ({
-    query: `DELETE FROM ${table} WHERE project_id = {projectId: String}`,
+  const deleteOpts = (table: "events_full" | "events_core") => ({
+    query: `DELETE FROM ${getClickhouseDeleteTarget(table)} WHERE project_id = {projectId: String}`,
     params: { projectId },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
@@ -2434,9 +2435,9 @@ export const deleteEventsOlderThanDays = async (
     return false;
   }
 
-  const deleteOpts = (table: string) => ({
+  const deleteOpts = (table: "events_full" | "events_core") => ({
     query: `
-      DELETE FROM ${table}
+      DELETE FROM ${getClickhouseDeleteTarget(table)}
       WHERE project_id = {projectId: String}
       AND start_time < {cutoffDate: DateTime64(3)}
     `,

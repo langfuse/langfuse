@@ -4,6 +4,7 @@ import {
   queryClickhouse,
   commandClickhouse,
   recordIncrement,
+  getClickhouseDeleteTarget,
 } from "@langfuse/shared/src/server";
 
 export const BATCH_DELETION_TABLES = [
@@ -314,7 +315,7 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
     }
 
     const query = `
-      DELETE FROM ${this.tableName}
+      DELETE FROM ${getClickhouseDeleteTarget(this.tableName)}
       WHERE project_id IN ({projectIds: Array(String)})
     `;
 

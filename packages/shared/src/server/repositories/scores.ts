@@ -75,6 +75,7 @@ import {
   findUiColumnMapping,
   matchesUiColumnMapping,
 } from "../../tableDefinitions";
+import { getClickhouseDeleteTarget } from "../clickhouse/mutationRoutingEnv";
 
 const FILTER_OPTION_SCORE_NAME_LIMIT = 200;
 const FILTER_OPTION_CATEGORICAL_VALUE_LIMIT = 20;
@@ -1784,7 +1785,7 @@ export const getScoreStringValues = async (
 
 export const deleteScores = async (projectId: string, scoreIds: string[]) => {
   const query = `
-    DELETE FROM scores
+    DELETE FROM ${getClickhouseDeleteTarget("scores")}
     WHERE project_id = {projectId: String}
     AND id in ({scoreIds: Array(String)});
   `;
@@ -1806,7 +1807,7 @@ export const deleteScoresByTraceIds = async (
   traceIds: string[],
 ) => {
   const query = `
-    DELETE FROM scores
+    DELETE FROM ${getClickhouseDeleteTarget("scores")}
     WHERE project_id = {projectId: String}
     AND trace_id IN ({traceIds: Array(String)});
   `;
@@ -1832,7 +1833,7 @@ export const deleteScoresByProjectId = async (
   }
 
   const query = `
-    DELETE FROM scores
+    DELETE FROM ${getClickhouseDeleteTarget("scores")}
     WHERE project_id = {projectId: String};
   `;
   const tags = { projectId };
@@ -1883,7 +1884,7 @@ export const deleteScoresOlderThanDays = async (
   }
 
   const query = `
-    DELETE FROM scores
+    DELETE FROM ${getClickhouseDeleteTarget("scores")}
     WHERE project_id = {projectId: String}
     AND timestamp < {cutoffDate: DateTime64(3)};
   `;
