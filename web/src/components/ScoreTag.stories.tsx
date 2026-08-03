@@ -68,11 +68,11 @@ export const InContext = meta.story({
       </div>
       <div className="flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
         <span>generate-answer</span>
-        <span className="bg-tertiary text-tertiary-foreground inline-flex items-center gap-1 rounded-md px-1">
+        <span className="bg-muted-gray text-primary inline-flex items-center gap-1 rounded-md px-1">
           accuracy: 0.92
           <ScoreTag level="observation" compact />
         </span>
-        <span className="bg-tertiary text-tertiary-foreground inline-flex items-center gap-1 rounded-md px-1">
+        <span className="bg-muted-gray text-primary inline-flex items-center gap-1 rounded-md px-1">
           CSAT: 1
           <ScoreTag level="trace" compact />
         </span>

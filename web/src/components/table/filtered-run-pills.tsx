@@ -96,7 +96,7 @@ export function FilteredRunPills({
             <HoverCardTrigger asChild>
               <Badge
                 variant="secondary"
-                className="hover:bg-secondary/80 cursor-pointer text-xs transition-colors"
+                className="hover:bg-muted/80 cursor-pointer text-xs transition-colors"
               >
                 <ListFilter className="mr-1 h-3 w-3" />
                 <div className="font-normal">

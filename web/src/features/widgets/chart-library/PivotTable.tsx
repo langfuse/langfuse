@@ -137,7 +137,7 @@ const SortableHeader: React.FC<{
         )}
 
         {/* Visual indicator that appears on hover - matches traces table behavior */}
-        <div className="bg-secondary pointer-events-none absolute top-0 right-0 h-full w-1.5 touch-none opacity-0 select-none group-hover/header:opacity-100" />
+        <div className="bg-muted pointer-events-none absolute top-0 right-0 h-full w-1.5 touch-none opacity-0 select-none group-hover/header:opacity-100" />
       </div>
     </TableHead>
   );

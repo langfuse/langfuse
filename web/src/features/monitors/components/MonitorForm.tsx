@@ -1024,7 +1024,7 @@ const NoDataField = ({
         <SelectItem value={MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO}>
           <span className="inline-flex items-center gap-1.5">
             Treat missing data as
-            <code className="bg-secondary rounded border px-0.5">0</code>
+            <code className="bg-muted rounded border px-0.5">0</code>
           </span>
         </SelectItem>
         <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>

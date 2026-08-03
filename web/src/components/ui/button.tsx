@@ -18,7 +18,7 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         "destructive-secondary":
-          "bg-secondary text-secondary-foreground border border-destructive disabled:hover:bg-secondary disabled:hover:text-secondary-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
+          "bg-muted text-primary border border-destructive disabled:hover:bg-muted disabled:hover:text-primary hover:bg-destructive/90 hover:text-destructive-foreground",
         outline:
           // border-contrast, not border-input: on dark surfaces the filled
           // primary reads optically larger than an outlined twin of the same
@@ -26,10 +26,8 @@ const buttonVariants = cva(
           "border-border-contrast bg-background hover:bg-accent hover:text-accent-foreground border",
         "outline-success":
           "border border-accent-dark-green bg-background text-accent-dark-green hover:bg-accent-light-green hover:text-accent-dark-green dark:border-dark-green dark:text-dark-green dark:hover:bg-light-green dark:hover:text-dark-green",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        tertiary:
-          "bg-tertiary text-tertiary-foreground hover:bg-tertiary/80 text-xs",
+        secondary: "bg-muted text-primary hover:bg-muted/80",
+        tertiary: "bg-muted-gray text-primary hover:bg-muted-gray/80 text-xs",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         // Same color as real hyperlinks (--link pair), not text-primary —
         // one link color across the app.

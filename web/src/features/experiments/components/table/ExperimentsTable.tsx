@@ -541,7 +541,7 @@ export default function ExperimentsTable({
           >
             <Badge
               variant="secondary"
-              className="hover:bg-secondary/80 max-w-full cursor-pointer"
+              className="hover:bg-muted/80 max-w-full cursor-pointer"
             >
               {datasetName}
             </Badge>
@@ -575,7 +575,7 @@ export default function ExperimentsTable({
               >
                 <Badge
                   variant="secondary"
-                  className="hover:bg-secondary/80 cursor-pointer"
+                  className="hover:bg-muted/80 cursor-pointer"
                 >
                   {name}
                 </Badge>

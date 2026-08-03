@@ -385,7 +385,7 @@ function MarkdownRenderer({
                 />
               ) : (
                 // inline code
-                <code className="bg-secondary rounded border px-0.5">
+                <code className="bg-muted rounded border px-0.5">
                   {codeContent}
                 </code>
               );

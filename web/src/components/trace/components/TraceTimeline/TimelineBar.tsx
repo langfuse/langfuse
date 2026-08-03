@@ -61,7 +61,7 @@ export function TimelineBar({
   const ringClass = isSelected
     ? "ring-primary-accent ring-2"
     : isHovered
-      ? "ring-tertiary ring-2"
+      ? "ring-muted-gray ring-2"
       : "";
 
   // Trailing label: rides just after the bar so metrics stay readable no matter

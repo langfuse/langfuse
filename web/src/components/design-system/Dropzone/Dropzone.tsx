@@ -39,7 +39,7 @@ const dropzoneVariants = cva(
         compact:
           "border-none bg-background p-0 text-left hover:bg-accent hover:text-accent-foreground",
         panel:
-          "border-border-contrast bg-secondary/50 border border-dashed p-8 hover:bg-accent hover:text-accent-foreground",
+          "border-border-contrast bg-muted/50 border border-dashed p-8 hover:bg-accent hover:text-accent-foreground",
       },
       isDragActive: {
         true: "ring-ring ring-1 outline-hidden",

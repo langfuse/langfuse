@@ -836,7 +836,7 @@ export function TableViewPresetsDrawer({
                                     view.createdByUser?.name ?? "User Avatar"
                                   }
                                 />
-                                <AvatarFallback className="bg-tertiary">
+                                <AvatarFallback className="bg-muted-gray">
                                   {view.createdByUser?.name
                                     ? view.createdByUser?.name
                                         .split(" ")

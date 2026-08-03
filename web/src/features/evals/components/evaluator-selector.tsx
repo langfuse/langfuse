@@ -176,7 +176,7 @@ export function EvaluatorSelector({
                       );
                     }}
                     className={cn(
-                      template.id === selectedTemplateId && "bg-secondary",
+                      template.id === selectedTemplateId && "bg-muted",
                     )}
                   >
                     <Tooltip>
@@ -246,7 +246,7 @@ export function EvaluatorSelector({
                       );
                     }}
                     className={cn(
-                      template.id === selectedTemplateId && "bg-secondary",
+                      template.id === selectedTemplateId && "bg-muted",
                     )}
                   >
                     <Tooltip>

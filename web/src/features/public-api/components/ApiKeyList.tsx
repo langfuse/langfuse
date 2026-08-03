@@ -355,7 +355,7 @@ function ApiKeyNote({
   return (
     <div
       onClick={() => setIsEditing(true)}
-      className="hover:bg-secondary/50 -mx-2 cursor-pointer rounded px-2 py-1"
+      className="hover:bg-muted/50 -mx-2 cursor-pointer rounded px-2 py-1"
     >
       {note || "Click to add note"}
     </div>
