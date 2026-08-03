@@ -125,6 +125,38 @@ describe("IngestionService unit tests", () => {
     });
   });
 
+  it("promotes provided usage and cost for model-less direct events", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "provided-cost",
+        type: "GENERATION",
+        environment: "default",
+        startTimeISO: "2026-08-03T00:00:00.000Z",
+        endTimeISO: "2026-08-03T00:00:01.000Z",
+        providedUsageDetails: { total: 3 },
+        providedCostDetails: { total: 0.03 },
+        metadata: {},
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(eventRecord.provided_usage_details).toEqual({ total: 3 });
+    expect(eventRecord.usage_details).toEqual({ total: 3 });
+    expect(eventRecord.provided_cost_details).toEqual({ total: 0.03 });
+    expect(eventRecord.cost_details).toEqual({ total: 0.03 });
+  });
+
   it("does not overflow legacy observation or dual-write staging records", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(

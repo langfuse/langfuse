@@ -18,6 +18,7 @@ import {
   type FilterSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
 import { indexOfOutsideQuotes } from "@/src/features/search-bar/lib/langQ";
+import { FilterToken } from "@/src/features/filters/components/FilterToken";
 
 // Word joiner around pills: gives the DOM caret boundaries between tokens
 // without changing the query text. Stripped before the text reaches the model
@@ -35,8 +36,7 @@ export const WORD_JOINER = "⁠";
 export const composerTokenVariants = cva("max-w-full", {
   variants: {
     kind: {
-      filter:
-        "mr-1 inline rounded border px-1.5 py-0.5 border-border bg-secondary text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
+      filter: "",
       freeText:
         "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
       operator: "font-bold uppercase text-qlang-keyword",
@@ -163,16 +163,8 @@ export function ComposerTokens({
         : segment.kind === "freeText"
           ? `Full-text search — matches results containing "${segment.raw}". Searches ids, names, input and output by default; use input: or output: to search one payload, or name:/id: to narrow.`
           : segment.raw;
-    out.push(
-      <span
-        key={segment.id}
-        data-testid="search-bar-token"
-        data-kind={visibleKind}
-        data-deactivated={deactivated || undefined}
-        data-segment-id={segment.id}
-        title={title}
-        className={composerTokenVariants({ kind: visibleKind, deactivated })}
-      >
+    const content = (
+      <>
         {segment.kind === "filter" ? (
           <FilterTokenBody segment={segment} />
         ) : (
@@ -185,7 +177,33 @@ export function ComposerTokens({
             paint the caret past the padding + margin (the "caret renders outside
             the block" bug). */}
         {WORD_JOINER}
-      </span>,
+      </>
+    );
+    out.push(
+      segment.kind === "filter" ? (
+        <FilterToken
+          key={segment.id}
+          data-testid="search-bar-token"
+          data-kind={visibleKind}
+          data-segment-id={segment.id}
+          title={title}
+          deactivated={deactivated}
+        >
+          {content}
+        </FilterToken>
+      ) : (
+        <span
+          key={segment.id}
+          data-testid="search-bar-token"
+          data-kind={visibleKind}
+          data-deactivated={deactivated || undefined}
+          data-segment-id={segment.id}
+          title={title}
+          className={composerTokenVariants({ kind: visibleKind, deactivated })}
+        >
+          {content}
+        </span>
+      ),
     );
     cursor = segment.to;
   }

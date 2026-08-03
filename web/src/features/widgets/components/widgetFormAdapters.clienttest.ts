@@ -404,9 +404,16 @@ describe("widget form view version", () => {
         baseMinVersion: 1,
         activeVersion: "v1",
         shape: {
-          dimensions: [{ field: "experimentName" }],
+          dimensions: [],
           metrics: [{ measure: "count" }],
-          filters: [],
+          filters: [
+            {
+              column: "isRootObservation",
+              type: "boolean",
+              operator: "=",
+              value: true,
+            },
+          ],
         },
       }),
     ).toBe("v2");
