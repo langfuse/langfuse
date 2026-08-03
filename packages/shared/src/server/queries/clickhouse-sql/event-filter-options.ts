@@ -86,6 +86,12 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     includeWhen: "e.version IS NOT NULL AND length(e.version) > 0",
     sort: "countDesc",
   },
+  release: {
+    kind: "scalar",
+    expression: "e.release",
+    includeWhen: "e.release IS NOT NULL AND length(e.release) > 0",
+    sort: "countDesc",
+  },
   sessionId: {
     kind: "scalar",
     expression: "e.session_id",

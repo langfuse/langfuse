@@ -191,6 +191,22 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
   });
 
+  it("builds release filter options from the observation release column", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "release",
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("'release' AS column");
+    expect(built.query).toContain("toString(e.release) AS value");
+    expect(built.query).toContain("e.release IS NOT NULL");
+  });
+
   it("builds API key filter options from ingestion attribution", () => {
     const built = buildEventsFilterOptionColumnQuery({
       projectId: "test-project",
