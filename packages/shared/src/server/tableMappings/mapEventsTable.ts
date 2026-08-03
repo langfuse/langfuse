@@ -188,6 +188,13 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "e",
   },
   {
+    uiTableName: "Release",
+    uiTableId: "release",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "release",
+    queryPrefix: "e",
+  },
+  {
     uiTableName: "Prompt Name",
     uiTableId: "promptName",
     clickhouseTableName: "events_proto",

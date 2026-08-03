@@ -655,6 +655,24 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     expect(simulateUrlFlow(filters)).toEqual(filters);
   });
 
+  it("should preserve v4 release filters through the complete URL flow", () => {
+    const filters: FilterState = [
+      {
+        column: "release",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["181"],
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toEqual(filters);
+  });
+
   it("should discard stale positionInTrace URL filters on the general events table", () => {
     const urlFilter = "positionInTrace;positionInTrace;last;=;";
 

@@ -229,6 +229,27 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(Object.values(applied.params)).toContainEqual(["pk-lf-test"]);
   });
 
+  it("maps release filters to the observation release column", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "release",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["181"],
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    const applied = filter.apply();
+    expect(applied.query).toContain("e.release IN");
+    expect(Object.values(applied.params)).toContainEqual(["181"]);
+  });
+
   it("builds a direct grouped query for one boolean filter option column", () => {
     const built = buildEventsFilterOptionColumnQuery({
       projectId: "test-project",
