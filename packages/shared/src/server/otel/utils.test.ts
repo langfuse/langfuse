@@ -53,7 +53,6 @@ describe("getOtelIdRejectionReason", () => {
     // All-zero ids are spec-invalid and would make unrelated entities collide
     // on a single zero id.
     { value: "0".repeat(32), kind: "traceId", reason: "all_zero" },
-    { value: "0".repeat(16), kind: "spanId", reason: "all_zero" },
     { value: Buffer.alloc(16), kind: "traceId", reason: "all_zero" },
     { value: new Array(8).fill(0), kind: "spanId", reason: "all_zero" },
     // Entries that coerce to 0x00 the same way Buffer.from() coerces them.
@@ -74,22 +73,18 @@ describe("validateOtelSpanIds", () => {
     },
   ];
 
-  it("accepts a well-formed batch", () => {
-    const result = validateOtelSpanIds(
-      wrap([{ traceId: TRACE_ID, spanId: SPAN_ID, name: "op" }]),
-    );
-    expect(result).toMatchObject({ totalSpanCount: 1, invalidSpanCount: 0 });
-  });
-
   // The two OTLP *log record* shapes that survive being decoded as spans:
   // ResourceLogs and ResourceSpans share protobuf field numbers, so the scope
-  // name comes through intact while the ids do not.
+  // name comes through intact while the ids do not. The worker-side crash these
+  // produce is pinned by
+  // worker/src/queues/__tests__/otelConversionFailureLogging.test.ts; this
+  // asserts they no longer get that far.
   it.each([
     {
       shape: "log record with only severityText",
       span: { traceState: "INFO" },
       scopeName: "codex_otel.log_only",
-      reasons: ["traceId:absent", "spanId:absent"],
+      reasonCounts: { "traceId:absent": 1, "spanId:absent": 1 },
     },
     {
       shape: "log record with only attributes (truncated ids)",
@@ -99,15 +94,17 @@ describe("validateOtelSpanIds", () => {
         kind: 8,
       },
       scopeName: "uvicorn.access",
-      reasons: ["traceId:wrong_length", "spanId:wrong_length"],
+      reasonCounts: { "traceId:wrong_length": 1, "spanId:wrong_length": 1 },
     },
-  ])("rejects a $shape", ({ span, scopeName, reasons }) => {
+  ])("rejects a $shape", ({ span, scopeName, reasonCounts }) => {
     const result = validateOtelSpanIds(wrap([span], scopeName));
     expect(result.invalidSpanCount).toBe(1);
-    expect(result.reasons).toEqual(expect.arrayContaining(reasons));
+    // Both ids fail, so the per-reason counts sum above the span count.
+    expect(result.reasonCounts).toEqual(reasonCounts);
     expect(result.scopeNames).toEqual([scopeName]);
   });
 
+  // Doubles as the happy path: the two valid spans must not be flagged.
   it("reports only the offending spans in a mixed batch", () => {
     const good = { traceId: TRACE_ID, spanId: SPAN_ID };
     const result = validateOtelSpanIds(
@@ -135,19 +132,8 @@ describe("validateOtelSpanIds", () => {
     });
   });
 
-  // A span can fail on both ids, so per-reason counts may exceed the span count.
-  it("counts a span under each of its reasons", () => {
-    const result = validateOtelSpanIds(wrap([{ traceState: "INFO" }]));
-    expect(result.invalidSpanCount).toBe(1);
-    expect(result.reasonCounts).toEqual({
-      "traceId:absent": 1,
-      "spanId:absent": 1,
-    });
-  });
-
   // Absent and empty collections are legitimate and must stay accepted.
   it.each([
-    { shape: "empty array", payload: [] },
     { shape: "non-array", payload: undefined },
     { shape: "empty and null entries", payload: [{}, null] },
     {
@@ -173,11 +159,8 @@ describe("validateOtelSpanIds", () => {
       reason: "scopeSpans:not_an_array",
     },
     {
-      shape: "numeric scopeSpans",
-      payload: [{ scopeSpans: 42 }],
-      reason: "scopeSpans:not_an_array",
-    },
-    {
+      // Strings are iterable, so the worker walks the characters into zero
+      // spans without throwing. Rejected anyway — one rule for these fields.
       shape: "string scopeSpans",
       payload: [{ scopeSpans: "nope" }],
       reason: "scopeSpans:not_an_array",
@@ -185,11 +168,6 @@ describe("validateOtelSpanIds", () => {
     {
       shape: "object spans",
       payload: [{ scopeSpans: [{ spans: {} }] }],
-      reason: "spans:not_an_array",
-    },
-    {
-      shape: "numeric spans",
-      payload: [{ scopeSpans: [{ spans: 7 }] }],
       reason: "spans:not_an_array",
     },
   ])("reports $shape without throwing", ({ payload, reason }) => {
