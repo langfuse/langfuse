@@ -183,6 +183,8 @@ The [`@observe()` decorator](https://langfuse.com/docs/sdk/python/decorators) ma
 > [!TIP]
 > Not using OpenAI? Visit [our documentation](https://langfuse.com/docs/get-started#log-your-first-llm-call-to-langfuse) to learn how to log other models and frameworks.
 
+> **Tip:** The instrumented OpenAI client also works with OpenAI-compatible multi-model gateways via `base_url` — for example [DaoXE](https://daoxe.com/?utm_source=github&utm_medium=organic&utm_campaign=langfuse&utm_content=readme) at `https://api.daoxe.com/v1`.
+
 ```bash
 pip install langfuse openai
 ```
