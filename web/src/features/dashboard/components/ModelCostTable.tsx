@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAlignedCell";

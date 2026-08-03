@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
 import { CopyIcon, CheckIcon } from "lucide-react";
 import { useState } from "react";
