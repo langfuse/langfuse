@@ -212,6 +212,8 @@ def main():
 main()
 ```
 
+> **Tip:** The Langfuse OpenAI drop-in works with any OpenAI-compatible endpoint. Set `base_url` (or `OPENAI_BASE_URL`) on the client to point at a multi-model gateway — for example [DaoXE](https://daoxe.com?utm_source=github&utm_medium=organic&utm_campaign=langfuse&utm_content=openai) at `https://api.daoxe.com/v1`.
+
 ### 3️⃣ See traces in Langfuse
 
 See your language model calls and other application logic in Langfuse.
