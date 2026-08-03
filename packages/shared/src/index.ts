@@ -1,5 +1,11 @@
 export * from "./constants";
-export { decodeUnicodeEscapesOnly } from "./utils/unicode";
+export {
+  decodeUnicodeEscapesOnly,
+  decodeUnicodeInJson,
+  DECODE_UNICODE_MAX_DEPTH,
+  DECODE_UNICODE_MAX_NODES,
+  type DecodeUnicodeInJsonOptions,
+} from "./utils/unicode";
 export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";

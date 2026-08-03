@@ -1,10 +1,10 @@
 /* eslint-disable @repo/no-style-props */
 import {
   JsonSkeleton,
-  stringifyJsonNode,
   IO_TABLE_CHAR_LIMIT,
   JSONView,
 } from "@/src/components/ui/CodeJsonViewer";
+import { stringifyJsonNode } from "@/src/components/ui/json-viewer-utils";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { cn } from "@/src/utils/tailwind";
@@ -14,7 +14,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
+import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 
 type IOTableCellPadding = "default" | "compact";
 
@@ -96,7 +96,7 @@ const IOTableCellContent = ({
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
 
   const singleLineText = stringifiedJson
-    ? decodeUnicodeEscapesOnly(stringifiedJson, true)
+    ? (decodeUnicodeInJson(stringifiedJson) as string)
     : stringifiedJson;
 
   return singleLine ? (
@@ -125,10 +125,9 @@ const IOTableCellContent = ({
   ) : shouldTruncate ? (
     <div className="grid h-full grid-cols-1">
       <JSONView
-        json={decodeUnicodeEscapesOnly(
+        json={decodeUnicodeInJson(
           stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
             `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
-          true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
         )}
         className={cn(
           "h-full w-full self-stretch overflow-hidden rounded-sm",
@@ -144,9 +143,7 @@ const IOTableCellContent = ({
     </div>
   ) : (
     <JSONView
-      json={
-        stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
-      }
+      json={stringifiedJson ? decodeUnicodeInJson(stringifiedJson) : data}
       className={cn(
         "h-full w-full self-stretch overflow-hidden rounded-sm",
         className,

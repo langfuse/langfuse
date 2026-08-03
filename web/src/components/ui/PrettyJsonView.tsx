@@ -8,6 +8,7 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { stringifyJsonNode } from "@/src/components/ui/json-viewer-utils";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
@@ -87,8 +88,7 @@ const SYSTEM_TITLES = ["system", "Input"];
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
-// decodeUnicodeInJson was extracted to a standalone module so that other JSON
-// viewers (e.g. CodeJsonViewer) can reuse it without creating an import cycle.
+// The shared decoder keeps browser viewers and server exports on one policy.
 // Re-exported here for backward compatibility with existing imports and tests.
 export {
   decodeUnicodeInJson,
@@ -1506,35 +1506,4 @@ export function PrettyJsonView(props: {
       )}
     </div>
   );
-}
-
-// TODO: deduplicate with CodeJsonViewer.tsx
-function stringifyJsonNode(node: unknown) {
-  // return single string nodes without quotes
-  if (typeof node === "string") {
-    return node;
-  }
-
-  try {
-    return JSON.stringify(
-      node,
-      (key, value) => {
-        switch (typeof value) {
-          case "bigint":
-            return String(value) + "n";
-          case "number":
-          case "boolean":
-          case "object":
-          case "string":
-            return value as string;
-          default:
-            return String(value);
-        }
-      },
-      4,
-    );
-  } catch (error) {
-    console.error("JSON stringify error", error);
-    return "Error: JSON.stringify failed";
-  }
 }

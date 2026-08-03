@@ -112,6 +112,22 @@ describe("GET /api/traces/[traceId]/download", () => {
     });
   });
 
+  it("uses the shared Unicode policy for downloaded JSON", async () => {
+    mockBuildTraceExport.mockResolvedValue({
+      trace: { output: "\\\\u65e5\\\\u672c\\\\u8a9e" },
+    });
+    const { req, res } = createGetMocks({
+      traceId: "trace-1",
+      projectId,
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(res._getData()).toContain("日本語");
+    expect(res._getData()).not.toContain("\\\\u65e5");
+  });
+
   it("encodes quoted trace ids in the attachment filename", async () => {
     mockBuildTraceExport.mockResolvedValue({
       scores: [{ id: "score-1", traceId: 'foo"bar', observationId: null }],

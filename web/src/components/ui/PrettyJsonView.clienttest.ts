@@ -18,6 +18,21 @@ describe("decodeUnicodeInJson", () => {
     expect(decodeUnicodeInJson("\\\\u4f60\\\\u597d")).toBe("你好");
   });
 
+  it("applies shared greedy and all-or-nothing budget policies", () => {
+    expect(
+      decodeUnicodeInJson("\\\\u4f60", {
+        greedy: false,
+      }),
+    ).toBe("\\u4f60");
+
+    const overBudget = { answer: "\\u56de\\u7b54" };
+    expect(
+      decodeUnicodeInJson(overBudget, {
+        estimatedNodeCount: DECODE_UNICODE_MAX_NODES + 1,
+      }),
+    ).toBe(overBudget);
+  });
+
   it("passes through primitive non-string values unchanged", () => {
     expect(decodeUnicodeInJson(null)).toBe(null);
     expect(decodeUnicodeInJson(undefined)).toBe(undefined);

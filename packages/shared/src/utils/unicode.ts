@@ -233,3 +233,127 @@ export function decodeUnicodeEscapesOnly(
   if (lastEmit < n) out.push(input.slice(lastEmit));
   return out.join("");
 }
+
+export const DECODE_UNICODE_MAX_NODES = 50_000;
+export const DECODE_UNICODE_MAX_DEPTH = 200;
+
+export type DecodeUnicodeInJsonOptions = {
+  /** Decode double-escaped sequences as well as ordinary \uXXXX escapes. */
+  greedy?: boolean;
+  /** Maximum number of values traversed before preserving the remaining tree. */
+  maxNodes?: number;
+  /** Maximum nesting depth traversed before preserving a subtree. */
+  maxDepth?: number;
+  /**
+   * A caller-provided size probe. Values known to exceed maxNodes are returned
+   * unchanged so a payload is never only partially decoded.
+   */
+  estimatedNodeCount?: number;
+};
+
+const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * Decode Unicode escapes throughout a JSON-like value using one bounded policy.
+ * Callers that already know the payload size can pass estimatedNodeCount to get
+ * all-or-nothing decoding; otherwise traversal stops safely at the configured
+ * node and depth limits.
+ */
+export function decodeUnicodeInJson(
+  value: unknown,
+  options: DecodeUnicodeInJsonOptions = {},
+): unknown {
+  const greedy = options.greedy ?? true;
+  const maxNodes = options.maxNodes ?? DECODE_UNICODE_MAX_NODES;
+  const maxDepth = options.maxDepth ?? DECODE_UNICODE_MAX_DEPTH;
+
+  if (
+    options.estimatedNodeCount !== undefined &&
+    options.estimatedNodeCount > maxNodes
+  ) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return decodeUnicodeEscapesOnly(value, greedy);
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+
+  const root: unknown[] | Record<string, unknown> = Array.isArray(value)
+    ? []
+    : {};
+
+  type Frame = {
+    source: unknown[] | Record<string, unknown>;
+    target: unknown[] | Record<string, unknown>;
+    depth: number;
+  };
+  const stack: Frame[] = [
+    {
+      source: value as unknown[] | Record<string, unknown>,
+      target: root,
+      depth: 0,
+    },
+  ];
+
+  let nodeCount = 0;
+  let budgetExceeded = false;
+
+  const assignDecodedOrDescend = (item: unknown, depth: number): unknown => {
+    if (typeof item === "string") {
+      return decodeUnicodeEscapesOnly(item, greedy);
+    }
+    if (item === null || typeof item !== "object") {
+      return item;
+    }
+    if (depth + 1 > maxDepth) {
+      return item;
+    }
+    const child: unknown[] | Record<string, unknown> = Array.isArray(item)
+      ? []
+      : {};
+    stack.push({
+      source: item as unknown[] | Record<string, unknown>,
+      target: child,
+      depth: depth + 1,
+    });
+    return child;
+  };
+
+  while (stack.length > 0) {
+    const { source, target, depth } = stack.pop()!;
+
+    if (Array.isArray(source)) {
+      const targetArray = target as unknown[];
+      for (let index = 0; index < source.length; index++) {
+        const item = source[index];
+        if (budgetExceeded || ++nodeCount > maxNodes) {
+          budgetExceeded = true;
+          targetArray[index] = item;
+          continue;
+        }
+        targetArray[index] = assignDecodedOrDescend(item, depth);
+      }
+      continue;
+    }
+
+    const targetObject = target as Record<string, unknown>;
+    for (const key of Object.keys(source)) {
+      const item = source[key];
+      const decodedKey = decodeUnicodeEscapesOnly(key, greedy);
+      if (DANGEROUS_KEYS.has(decodedKey)) {
+        continue;
+      }
+      if (budgetExceeded || ++nodeCount > maxNodes) {
+        budgetExceeded = true;
+        targetObject[decodedKey] = item;
+        continue;
+      }
+      targetObject[decodedKey] = assignDecodedOrDescend(item, depth);
+    }
+  }
+
+  return root;
+}
