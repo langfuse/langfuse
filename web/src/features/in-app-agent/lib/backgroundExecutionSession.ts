@@ -1,5 +1,4 @@
 import type { AbstractAgent, AgentSubscriber } from "@ag-ui/client";
-import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
 import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
@@ -162,23 +161,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     });
     this.agentSubscription = this.agent.subscribe({
       ...config.subscriber,
-      onEvent: (params) => {
-        if (params.event.type === EventType.TOOL_CALL_START) {
-          const event = params.event as {
-            toolCallId: string;
-            parentMessageId?: string;
-          };
-          this.setView({
-            ...this.view,
-            displayState: recordInAppAgentToolCallForDisplay(
-              this.view.displayState,
-              event.toolCallId,
-              event.parentMessageId,
-            ),
-          });
-        }
-        return config.subscriber?.onEvent?.(params);
-      },
       onMessagesChanged: (params) => {
         if (!this.isReplacingMessages) {
           this.observeMessages(params.messages);
@@ -350,13 +332,26 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       const parsed = AgUiMessageSchema.safeParse(message);
       return parsed.success ? [parsed.data] : [];
     });
+    let displayState = recordInAppAgentMessagesForDisplay(
+      this.view.displayState,
+      parsedMessages,
+    );
+    for (const message of parsedMessages) {
+      if (message.role !== "assistant") {
+        continue;
+      }
+      for (const toolCall of message.toolCalls ?? []) {
+        displayState = recordInAppAgentToolCallForDisplay(
+          displayState,
+          toolCall.id,
+          message.id,
+        );
+      }
+    }
     this.setView({
       ...this.view,
       messages: parsedMessages,
-      displayState: recordInAppAgentMessagesForDisplay(
-        this.view.displayState,
-        parsedMessages,
-      ),
+      displayState,
       liveMessageRevision: this.view.liveMessageRevision + 1,
     });
   }

@@ -813,6 +813,114 @@ describe("BackgroundExecutionSessionController", () => {
 });
 
 describe("BackgroundExecutionSessionController hydration", () => {
+  it("keeps a live tool call on its newly created assistant parent", async () => {
+    const question = {
+      id: "user-question",
+      role: "user",
+      content: "Why is latency up?",
+    } satisfies AgUiMessage;
+    const displayState = recordInAppAgentMessagesForDisplay(
+      createInAppAgentDisplayState(),
+      [question],
+    );
+    const hydrate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        messages: [question],
+        displayState,
+        eventCursor: 7,
+        currentRun: runningView.currentRun,
+        pendingToolApprovals: [],
+      })
+      // Keep the completed-run convergence open so this assertion observes
+      // the live projection rather than a subsequently hydrated snapshot.
+      .mockImplementation(() => new Promise<never>(() => undefined));
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        [
+          sseFrame({
+            type: "event",
+            sequenceNumber: 8,
+            event: {
+              type: EventType.RUN_STARTED,
+              runId: "run-1",
+              threadId: "conversation-1",
+            },
+          }),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 9,
+            event: {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: "tool-call-1",
+              toolCallName: "list_traces",
+              parentMessageId: "assistant-tools",
+            },
+          }),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 10,
+            event: {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: "tool-call-1",
+              delta: "{}",
+            },
+          }),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 11,
+            event: {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: "tool-call-1",
+            },
+          }),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 12,
+            event: {
+              type: EventType.RUN_FINISHED,
+              runId: "run-1",
+              threadId: "conversation-1",
+            },
+          }),
+          sseFrame({ type: "done" }),
+        ].join(""),
+      ),
+    );
+
+    const session = new BackgroundExecutionSessionController({
+      agent: new InAppAgentBackgroundClient({
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        cursor: -1,
+        startRun: vi.fn(),
+      }),
+      hydrate,
+      cancelRun: vi.fn(),
+      decideApproval: vi.fn(),
+    });
+
+    await session.hydrateAndAttach();
+    await vi.waitFor(() => {
+      expect(
+        session
+          .getSnapshot()
+          .messages.find((message) => message.id === "assistant-tools"),
+      ).toMatchObject({
+        toolCalls: [{ id: "tool-call-1" }],
+      });
+    });
+
+    const snapshot = session.getSnapshot();
+    expect(
+      projectInAppAgentMessagesForDisplay(
+        snapshot.messages,
+        snapshot.displayState,
+      ).map((message) => message.id),
+    ).toEqual([question.id, "assistant-tools"]);
+  });
+
   it("continues a hydrated assistant message that already interleaved a thought", async () => {
     const question = {
       id: "user-question",
