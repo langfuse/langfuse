@@ -105,7 +105,11 @@ Always fetch pricing from the provider's official docs before editing.
   URLs: `https://developers.openai.com/api/docs/models/gpt-5.6-sol` (and -terra, -luna).
   Long context prices: sol $10/$1.00/$45, terra $5/$0.50/$22.50, luna $2/$0.20/$9
   per MTok input/cached/output. Added Large Context (>272K) tiers to the pricing file in
-  July 2026. The threshold of 272K is unique to this family; most other models use 200K.
+  July 2026. As confirmed in the August 3 2026 audit, the 272K threshold is shared by
+  `gpt-5.4` and `gpt-5.5` too (see the dedicated entry below) — it is not unique to the
+  GPT-5.6 family, but it is still not universal: most other OpenAI models use 200K or have
+  no long-context tier at all, so verify each model's own page rather than assuming 272K
+  applies.
 - **Gemini 3.6 Flash (added July 2026)** — `gemini-3.6-flash` appeared on the official AI Studio
   pricing page in July 2026 at $1.50/MTok input, $7.50/MTok output, cache read $0.15/MTok
   (10% cache-read ratio). No large-context tier. Added to pricing file and selectable model lists
@@ -136,6 +140,50 @@ Always fetch pricing from the provider's official docs before editing.
   file and `openAIModels` in July 27 2026 audit. Official sources:
   `https://developers.openai.com/api/docs/pricing` and
   `https://developers.openai.com/api/docs/models/gpt-5.3-codex`.
+- **GPT-5.4 / GPT-5.5 large-context tier confirmed (August 2026)** — The 272K-token long-context
+  threshold used by the GPT-5.6 family also applies to `gpt-5.4` and `gpt-5.5` (but NOT
+  `gpt-5.4-mini`, `gpt-5.4-nano`, or `gpt-5.5-pro`, which remain flat with no tiering evidence
+  found on their model pages). Confirmed via each model's dedicated page
+  (`https://developers.openai.com/api/docs/models/gpt-5.4` and `.../gpt-5.5`), which quote
+  "Short context" vs "Long context" prices directly: gpt-5.4 long-context $5.00 input /
+  $0.50 cached input / $22.50 output per MTok (2× input, 2× cached input, 1.5× output vs
+  standard $2.50/$0.25/$15.00); gpt-5.5 long-context $10.00 input / $1.00 cached input /
+  $45.00 output per MTok (2×/2×/1.5× vs standard $5.00/$0.50/$30.00). Added Large Context
+  (>272K) tiers to `gpt-5.4`, `gpt-5.4-2026-03-05`, and `gpt-5.5-2026-04-23` (which also
+  matches bare `gpt-5.5`) in the August 3 2026 audit. This resolves unresolved finding #1
+  from the July 31 2026 audit memory (threshold was previously unconfirmed). Lesson: fetch
+  a model's own dedicated page, not just the pricing overview table, to find long-context
+  tier details — the overview table often shows only the short-context price per model.
+- **Gemini 3.5 Flash-Lite context caching IS available on the paid tier (resolved August 2026)**
+  — Prior audits (July 22–31 2026) concluded caching was "Not available" for this model based
+  on WebFetch summaries of `ai.google.dev/pricing`, and the pricing file intentionally omitted
+  cache keys. Two independent verbatim-quote fetches in the August 3 2026 audit found the
+  official row actually reads: Free tier = "Not available", Paid tier = "$0.03 / 1,000,000
+  tokens" (context caching) + "$1.00 / 1,000,000 tokens per hour" (storage price, time-based,
+  no equivalent Langfuse usage key — not represented). $0.03/MTok is exactly 10% of this
+  model's $0.30/MTok input price, consistent with Google's standard cache-read ratio. This was
+  very likely the same free-tier/paid-tier column-collapse artifact previously found and fixed
+  for `gemini-3.1-flash-lite` on July 31 2026 (see the entry below) — it had just not yet been
+  re-checked with a verbatim-quote prompt for this specific model. Added `input_cached_tokens`
+  / `cached_content_token_count` = `0.03e-6` to the `gemini-3.5-flash-lite` pricing entry.
+  Lesson: when a provider page previously produced a flat "Not available" summary for a
+  caching-eligible model family, re-check with an explicit verbatim/quote-the-row prompt before
+  trusting the summary again — do not assume a prior "unavailable" finding stays correct
+  indefinitely.
+- **AWS Bedrock "Claude 3.5 Sonnet (Public Extended Access)" SKU confirmed real, still unresolved
+  (August 2026)** — A targeted (non-summarized) row fetch of `aws.amazon.com/bedrock/pricing/`
+  confirmed two distinct rows: "Claude 3.5 Sonnet (Public Extended Access, Effective 1 Dec
+  2025)" and "Claude 3.5 Sonnet v2 (Public Extended Access, Effective 1 Dec 2025)", both at
+  $6.00/MTok input, $30.00/MTok output — exactly double the standard $3/$15 API rate the
+  pricing file uses for `claude-3-5-sonnet-20240620` / `claude-3.5-sonnet-20241022`. This
+  confirms the anomaly first reported July 31 2026 is real, not a summarization artifact. It
+  is still not actionable: the exact Bedrock model ID string this "Public Extended Access" SKU
+  reports in usage/billing data (as opposed to the standard on-demand SKU) is unknown, so it
+  cannot safely be added as a new `matchPattern` without risking silently mispricing standard
+  Bedrock usage of the existing model IDs. Future audits should look specifically for the
+  Bedrock model ID associated with "Public Extended Access" (it may require checking AWS
+  Bedrock model-access documentation, not just the pricing page) before adding or changing any
+  entry based on this SKU.
 - **GPT-5.6 Terra / Luna price cut (found July 31 2026)** — OpenAI lowered pricing for
   `gpt-5.6-terra` and `gpt-5.6-luna` sometime between the July 27 and July 31 2026 audits;
   `gpt-5.6-sol` was unchanged. Confirmed via 4 independent WebFetch calls (the overview

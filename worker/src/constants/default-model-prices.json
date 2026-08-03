@@ -3905,7 +3905,7 @@
     "modelName": "gpt-5.4",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.4)$",
     "createdAt": "2026-03-05T00:00:00.000Z",
-    "updatedAt": "2026-03-05T00:00:00.000Z",
+    "updatedAt": "2026-08-03T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3926,6 +3926,28 @@
           "output": 15e-6,
           "output_reasoning_tokens": 15e-6,
           "output_reasoning": 15e-6
+        }
+      },
+      {
+        "id": "bee3c111-fe6f-4641-8775-73ea33b29fca_tier_large_context",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "input",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "output": 22.5e-6,
+          "output_reasoning_tokens": 22.5e-6,
+          "output_reasoning": 22.5e-6
         }
       }
     ]
@@ -3963,7 +3985,7 @@
     "modelName": "gpt-5.4-2026-03-05",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.4-2026-03-05)$",
     "createdAt": "2026-03-05T00:00:00.000Z",
-    "updatedAt": "2026-03-05T00:00:00.000Z",
+    "updatedAt": "2026-08-03T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3984,6 +4006,28 @@
           "output": 15e-6,
           "output_reasoning_tokens": 15e-6,
           "output_reasoning": 15e-6
+        }
+      },
+      {
+        "id": "22dfc7e1-1fe1-4286-b1af-928635e7ecb9_tier_large_context",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "input",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "output": 22.5e-6,
+          "output_reasoning_tokens": 22.5e-6,
+          "output_reasoning": 22.5e-6
         }
       }
     ]
@@ -4133,7 +4177,7 @@
     "modelName": "gpt-5.5-2026-04-23",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.5(-2026-04-23)?)$",
     "createdAt": "2026-04-25T00:00:00.000Z",
-    "updatedAt": "2026-04-25T00:00:00.000Z",
+    "updatedAt": "2026-08-03T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4154,6 +4198,28 @@
           "output": 30e-6,
           "output_reasoning_tokens": 30e-6,
           "output_reasoning": 30e-6
+        }
+      },
+      {
+        "id": "0a8ec527-44e0-4ee3-8005-a1865d712ec6_tier_large_context",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "input",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 10e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6,
+          "output": 45e-6,
+          "output_reasoning_tokens": 45e-6,
+          "output_reasoning": 45e-6
         }
       }
     ]
@@ -4564,7 +4630,7 @@
     "modelName": "gemini-3.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash-lite)$",
     "createdAt": "2026-07-22T00:00:00.000Z",
-    "updatedAt": "2026-07-23T00:00:00.000Z",
+    "updatedAt": "2026-08-03T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e_tier_default",
@@ -4578,6 +4644,8 @@
           "input_modality_1": 0.3e-6,
           "prompt_token_count": 0.3e-6,
           "promptTokenCount": 0.3e-6,
+          "input_cached_tokens": 0.03e-6,
+          "cached_content_token_count": 0.03e-6,
           "output": 2.5e-6,
           "output_text": 2.5e-6,
           "output_modality_1": 2.5e-6,
