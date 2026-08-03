@@ -16,7 +16,7 @@ import {
 
 // The test for the orderByToPrisma function
 describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
-  test("orderByToPrisma throws error for orderBy column not included in column defs", () => {
+  test("orderByToPrisma throws InvalidRequestError for orderBy column not included in column defs", () => {
     expect(() =>
       orderByToPrismaSql(
         {
@@ -25,7 +25,7 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
         },
         tracesTableCols,
       ),
-    ).toThrow(/Invalid filter column: InvalidCol/);
+    ).toThrow(InvalidRequestError);
   });
 
   test("orderByToPrisma throws error for orderBy order that is not valid", () => {

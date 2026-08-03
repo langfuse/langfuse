@@ -1,3 +1,4 @@
+import { eventsTableIsRootObservationSql } from "../../eventsTable";
 import { filterOperators } from "../../interfaces/filters";
 import {
   FilterList,
@@ -7,6 +8,7 @@ import {
   CategoryOptionsFilter,
   StringFilter,
   NumberFilter,
+  BooleanFilter,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
 import { z } from "zod";
@@ -135,28 +137,35 @@ export function createPublicApiObservationsColumnMapping(
   tablePrefix: "e" | "o",
   parentFieldName: "parent_span_id" | "parent_observation_id",
 ): ApiColumnMapping[] {
-  // user_id is denormalized onto events_core/events_full, so the events_proto
-  // path filters directly without joining the traces CTE. The legacy
-  // observations table does not carry user_id, so that path still joins
-  // traces.
-  const userIdMapping: ApiColumnMapping =
+  // user_id and session_id are denormalized onto events_core/events_full, so
+  // the events_proto path filters directly without joining the traces CTE.
+  // The legacy observations table does not carry either field, so that path
+  // still joins traces.
+  const traceFieldMapping =
     tableName === "events_proto"
       ? {
-          id: "userId",
-          clickhouseSelect: "user_id",
-          filterType: "StringFilter",
           clickhouseTable: tableName,
           clickhousePrefix: tablePrefix,
         }
       : {
-          id: "userId",
-          clickhouseSelect: "user_id",
-          filterType: "StringFilter",
           clickhouseTable: "traces",
           clickhousePrefix: "t",
         };
+  const userIdMapping: ApiColumnMapping = {
+    id: "userId",
+    clickhouseSelect: "user_id",
+    filterType: "StringFilter",
+    ...traceFieldMapping,
+  };
+  const sessionIdMapping: ApiColumnMapping = {
+    id: "sessionId",
+    clickhouseSelect: "session_id",
+    filterType: "StringFilter",
+    ...traceFieldMapping,
+  };
   return [
     userIdMapping,
+    sessionIdMapping,
     {
       id: "traceId",
       clickhouseSelect: "trace_id",
@@ -192,6 +201,16 @@ export function createPublicApiObservationsColumnMapping(
       clickhouseTable: tableName,
       clickhousePrefix: tablePrefix,
     },
+    ...(tableName === "events_proto"
+      ? [
+          {
+            id: "isRootObservation",
+            clickhouseSelect: eventsTableIsRootObservationSql,
+            filterType: "BooleanFilter",
+            clickhouseTable: tableName,
+          },
+        ]
+      : []),
     {
       id: "fromStartTime",
       clickhouseSelect: "start_time",
@@ -342,6 +361,17 @@ export function convertApiProvidedFilterToClickhouseFilter(
           }
           break;
         }
+        case "BooleanFilter":
+          if (typeof value === "boolean") {
+            filterInstance = new BooleanFilter({
+              clickhouseTable: columnMapping.clickhouseTable,
+              field: columnMapping.clickhouseSelect,
+              operator: "=",
+              value,
+              tablePrefix: columnMapping.clickhousePrefix,
+            });
+          }
+          break;
       }
 
       filterInstance && filterList.push(filterInstance);
@@ -383,12 +413,16 @@ export function deriveFilters<T extends BaseQueryType>(
     filterParamsMapping,
   );
 
-  // Advanced filter takes precedence. Remove all simple filters that are also in advanced filter
-  const advancedFilterColumns = new Set<string>();
-  filterList.forEach((f) => advancedFilterColumns.add(f.field));
-
+  // tablePrefix is a query alias, not part of a physical column identity.
   simpleFilters
-    .filter((sf) => !advancedFilterColumns.has(sf.field))
+    .filter(
+      (simpleFilter) =>
+        !filterList.some(
+          (advancedFilter) =>
+            advancedFilter.clickhouseTable === simpleFilter.clickhouseTable &&
+            advancedFilter.field === simpleFilter.field,
+        ),
+    )
     .forEach((f) => filterList.push(f));
 
   // Return merged filters

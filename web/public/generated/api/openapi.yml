@@ -2107,7 +2107,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ObservationsView'
+                $ref: '#/components/schemas/ObservationsViewSingle'
         '400':
           description: ''
           content:
@@ -2422,52 +2422,6 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-  /api/public/scores:
-    post:
-      description: Create a score (supports both trace and session scores)
-      operationId: legacy_scoreV1_create
-      tags:
-        - LegacyScoreV1
-      parameters: []
-      responses:
-        '200':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/legacyCreateScoreResponse'
-        '400':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '401':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '403':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '404':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-        '405':
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      security: *ref_0
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/legacyCreateScoreRequest'
   /api/public/scores/{scoreId}:
     delete:
       description: Delete a score (supports both trace and session scores)
@@ -2811,6 +2765,9 @@ paths:
 
         - Direct access to tags and release fields on observations
 
+        - Semantic-root filtering and grouping through the v2-only
+        `isRootObservation` dimension
+
         - Backwards-compatible: traceName, traceRelease, traceVersion dimensions
         are still available on observations view
 
@@ -2859,6 +2816,10 @@ paths:
         - `promptName` - Name of the prompt used
 
         - `promptVersion` - Version of the prompt used
+
+        - `isRootObservation` - Boolean semantic-root status. `true` includes
+        physical roots and app roots whose SDK parent is external (so
+        `parentObservationId` may be non-null).
 
         - `startTimeMonth` - Month of start_time in YYYY-MM format
 
@@ -3074,6 +3035,22 @@ paths:
                 "bins": number,         // Optional. Number of bins for histogram aggregation (1-100), default: 10
                 "row_limit": number     // Optional. Maximum number of rows to return (1-1000), default: 100
               }
+            }
+
+            ```
+
+
+            For example, to count semantic roots (including app roots with a
+            non-null external parent), use a boolean filter:
+
+            ```json
+
+            {
+              "view": "observations",
+              "metrics": [{"measure": "count", "aggregation": "count"}],
+              "filters": [{"column": "isRootObservation", "operator": "=", "value": true, "type": "boolean"}],
+              "fromTimestamp": "2025-01-01T00:00:00.000Z",
+              "toTimestamp": "2025-02-01T00:00:00.000Z"
             }
 
             ```
@@ -3327,7 +3304,7 @@ paths:
         parentObservationId, type
 
         - `basic` - name, level, statusMessage, version, environment,
-        bookmarked, public, userId, sessionId
+        bookmarked, public, userId, sessionId, isRootObservation
 
         - `time` - completionStartTime, createdAt, updatedAt
 
@@ -3425,6 +3402,13 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: sessionId
+          in: query
+          description: Filter by session ID.
+          required: false
+          schema:
+            type: string
+            nullable: true
         - name: type
           in: query
           description: >-
@@ -3452,9 +3436,29 @@ paths:
             nullable: true
         - name: parentObservationId
           in: query
+          description: >-
+            Filter by the physical parent observation ID.
+
+            An empty value matches only observations without a physical parent.
+            Use `isRootObservation` to include observations marked as app roots
+            by the SDK, which may retain a non-null `parentObservationId`.
           required: false
           schema:
             type: string
+            nullable: true
+        - name: isRootObservation
+          in: query
+          description: >-
+            Filter by whether an observation is a logical root.
+
+            Root observations include observations without a physical parent and
+            observations marked as app roots by the SDK.
+
+            An app-root observation may have `isRootObservation=true` and a
+            non-null `parentObservationId`.
+          required: false
+          schema:
+            type: boolean
             nullable: true
         - name: environment
           in: query
@@ -3560,6 +3564,10 @@ paths:
 
             - `sessionId` (string) - Session ID
 
+            - `isRootObservation` (boolean) - Whether the observation is a
+            logical root. Observations marked as app roots by the SDK may retain
+            a non-null parentObservationId.
+
 
             ### Trace-Related Fields
 
@@ -3663,6 +3671,12 @@ paths:
                 "column": "output",
                 "operator": "matches",
                 "value": "needle"
+              },
+              {
+                "type": "boolean",
+                "column": "isRootObservation",
+                "operator": "=",
+                "value": true
               }
             ]
 
@@ -5686,6 +5700,54 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/scores:
+    post:
+      description: >-
+        Create a score (supports trace, observation, session, and dataset run
+        scores)
+      operationId: scores_create
+      tags:
+        - Scores
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateScoreResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScoreRequest'
   /api/public/v2/scores:
     get:
       description: |-
@@ -7633,8 +7695,10 @@ paths:
         List evaluation rules in the authenticated project.
 
 
-        Each item describes one live evaluation rule and its effective runtime
-        status.
+        This includes legacy `trace` and `dataset` rules so they can be
+        inspected and migrated to v4 rules. Legacy rules are read-only through
+        this API; create, update, and delete continue to support only
+        `observation` and `experiment` rules.
       operationId: unstable_evaluationRules_list
       tags:
         - UnstableEvaluationRules
@@ -7705,7 +7769,9 @@ paths:
 
 
         Use this endpoint to inspect the current evaluator, target, mapping,
-        filters, and effective runtime status.
+        filters, execution timing, and effective runtime status. Legacy `trace`
+        and `dataset` rules are returned for migration and are read-only through
+        this API.
       operationId: unstable_evaluationRules_get
       tags:
         - UnstableEvaluationRules
@@ -7724,7 +7790,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableEvaluationRule'
+                $ref: '#/components/schemas/unstableReadableEvaluationRule'
         '400':
           description: ''
           content:
@@ -8934,6 +9000,37 @@ components:
       required:
         - data
         - meta
+    Deprecation:
+      title: Deprecation
+      type: object
+      description: >-
+        Migration signal returned by deprecated endpoints. Optional fields are
+        omitted when they have no value.
+      properties:
+        message:
+          type: string
+          description: >-
+            Human- and agent-readable summary of the deprecation and its
+            replacement.
+        replacement:
+          type: string
+          nullable: true
+          description: >-
+            The replacement endpoint, e.g. "GET /api/public/v2/observations".
+            Omitted when the endpoint is being removed without a direct
+            replacement.
+        docsUrl:
+          type: string
+          nullable: true
+          description: Link to the migration documentation (markdown), when available.
+        sunsetAt:
+          type: string
+          nullable: true
+          description: >-
+            ISO date after which the endpoint may stop working, when a removal
+            date is committed.
+      required:
+        - message
     Trace:
       title: Trace
       type: object
@@ -9059,6 +9156,9 @@ components:
           items:
             $ref: '#/components/schemas/ScoreV1'
           description: List of scores
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - htmlPath
         - observations
@@ -9092,6 +9192,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Trace'
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - traces
       allOf:
@@ -9285,6 +9388,15 @@ components:
         - timeToFirstToken
       allOf:
         - $ref: '#/components/schemas/Observation'
+    ObservationsViewSingle:
+      title: ObservationsViewSingle
+      type: object
+      properties:
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/ObservationsView'
     ObservationV2:
       title: ObservationV2
       type: object
@@ -9316,10 +9428,22 @@ components:
         parentObservationId:
           type: string
           nullable: true
-          description: The parent observation ID
+          description: >-
+            The physical parent observation ID, if present.
+
+            Observations marked as app roots by the SDK may retain a non-null
+            parent ID.
         type:
           type: string
           description: The type of the observation (e.g. GENERATION, SPAN, EVENT)
+        isRootObservation:
+          type: boolean
+          nullable: true
+          description: >-
+            Whether this observation is a logical root.
+
+            This is true for observations without a physical parent and
+            observations marked as app roots by the SDK.
         name:
           type: string
           nullable: true
@@ -9992,6 +10116,10 @@ components:
             - $ref: '#/components/schemas/TextScore'
           required:
             - dataType
+      properties:
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
     CreateScoreValue:
       title: CreateScoreValue
       oneOf:
@@ -10260,6 +10388,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DatasetRunItem'
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - datasetRunItems
       allOf:
@@ -10918,6 +11049,9 @@ components:
             $ref: '#/components/schemas/DatasetRunItem'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - data
         - meta
@@ -10968,6 +11102,9 @@ components:
             $ref: '#/components/schemas/DatasetRun'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - data
         - meta
@@ -11922,6 +12059,9 @@ components:
             Format varies based on the query parameters.
 
             Histograms will return an array with [lower, upper, height] tuples.
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - data
     legacyObservations:
@@ -11947,102 +12087,12 @@ components:
             $ref: '#/components/schemas/ObservationsView'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - data
         - meta
-    legacyCreateScoreRequest:
-      title: legacyCreateScoreRequest
-      type: object
-      properties:
-        id:
-          type: string
-          nullable: true
-        traceId:
-          type: string
-          nullable: true
-        sessionId:
-          type: string
-          nullable: true
-        observationId:
-          type: string
-          nullable: true
-        datasetRunId:
-          type: string
-          nullable: true
-        name:
-          type: string
-        value:
-          $ref: '#/components/schemas/CreateScoreValue'
-          description: >-
-            The value of the score. Must be passed as string for categorical and
-            text scores, and numeric for boolean and numeric scores. Boolean
-            score values must equal either 1 or 0 (true or false). Text score
-            values must be between 1 and 500 characters.
-        comment:
-          type: string
-          nullable: true
-        metadata:
-          type: object
-          additionalProperties: true
-          nullable: true
-        environment:
-          type: string
-          nullable: true
-          description: >-
-            The environment of the score. Can be any lowercase alphanumeric
-            string with hyphens and underscores that does not start with
-            'langfuse'.
-        queueId:
-          type: string
-          nullable: true
-          description: >-
-            The annotation queue referenced by the score. Indicates if score was
-            initially created while processing annotation queue.
-        dataType:
-          $ref: '#/components/schemas/ScoreDataType'
-          nullable: true
-          description: >-
-            The data type of the score. When passing a configId this field is
-            inferred. Otherwise, this field must be passed or will default to
-            numeric.
-        configId:
-          type: string
-          nullable: true
-          description: >-
-            Reference a score config on a score. The unique langfuse identifier
-            of a score config. When passing this field, the dataType and
-            stringValue fields are automatically populated.
-        source:
-          $ref: '#/components/schemas/legacyCreateScoreSource'
-          nullable: true
-          description: >-
-            The source of the score. Defaults to API. Set to ANNOTATION to
-            prefill scores (e.g. from an LLM) for a human reviewer to verify in
-            an annotation queue. When source is ANNOTATION, a configId is
-            required unless dataType is CORRECTION. EVAL is reserved for
-            internal evaluator outputs and is not accepted on this endpoint.
-      required:
-        - name
-        - value
-    legacyCreateScoreSource:
-      title: legacyCreateScoreSource
-      type: string
-      enum:
-        - API
-        - ANNOTATION
-      description: |-
-        Source values accepted when creating a score via the public REST API.
-        EVAL is reserved for internal evaluator outputs and is intentionally not
-        exposed here — use commons.ScoreSource when reading scores.
-    legacyCreateScoreResponse:
-      title: legacyCreateScoreResponse
-      type: object
-      properties:
-        id:
-          type: string
-          description: The id of the created object in Langfuse
-      required:
-        - id
     LlmConnection:
       title: LlmConnection
       type: object
@@ -13905,6 +13955,99 @@ components:
       required:
         - data
         - meta
+    CreateScoreRequest:
+      title: CreateScoreRequest
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+        traceId:
+          type: string
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        observationId:
+          type: string
+          nullable: true
+        datasetRunId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        value:
+          $ref: '#/components/schemas/CreateScoreValue'
+          description: >-
+            The value of the score. Must be passed as string for categorical and
+            text scores, and numeric for boolean and numeric scores. Boolean
+            score values must equal either 1 or 0 (true or false). Text score
+            values must be between 1 and 500 characters.
+        comment:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        environment:
+          type: string
+          nullable: true
+          description: >-
+            The environment of the score. Can be any lowercase alphanumeric
+            string with hyphens and underscores that does not start with
+            'langfuse'.
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            The annotation queue referenced by the score. Indicates if score was
+            initially created while processing annotation queue.
+        dataType:
+          $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
+          description: >-
+            The data type of the score. When passing a configId this field is
+            inferred. Otherwise, this field must be passed or will default to
+            numeric.
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            Reference a score config on a score. The unique langfuse identifier
+            of a score config. When passing this field, the dataType and
+            stringValue fields are automatically populated.
+        source:
+          $ref: '#/components/schemas/CreateScoreSource'
+          nullable: true
+          description: >-
+            The source of the score. Defaults to API. Set to ANNOTATION to
+            prefill scores (e.g. from an LLM) for a human reviewer to verify in
+            an annotation queue. When source is ANNOTATION, a configId is
+            required unless dataType is CORRECTION. EVAL is reserved for
+            internal evaluator outputs and is not accepted on this endpoint.
+      required:
+        - name
+        - value
+    CreateScoreSource:
+      title: CreateScoreSource
+      type: string
+      enum:
+        - API
+        - ANNOTATION
+      description: |-
+        Source values accepted when creating a score via the public REST API.
+        EVAL is reserved for internal evaluator outputs and is intentionally not
+        exposed here — use commons.ScoreSource when reading scores.
+    CreateScoreResponse:
+      title: CreateScoreResponse
+      type: object
+      properties:
+        id:
+          type: string
+          description: The id of the created object in Langfuse
+      required:
+        - id
     GetScoresResponseTraceData:
       title: GetScoresResponseTraceData
       type: object
@@ -14040,6 +14183,9 @@ components:
             $ref: '#/components/schemas/GetScoresResponseData'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - data
         - meta
@@ -14053,6 +14199,9 @@ components:
             $ref: '#/components/schemas/Session'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - data
         - meta
@@ -14066,6 +14215,9 @@ components:
             $ref: '#/components/schemas/TraceWithDetails'
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
+        _deprecation:
+          $ref: '#/components/schemas/Deprecation'
+          nullable: true
       required:
         - data
         - meta
@@ -14902,6 +15054,8 @@ components:
 
         - `stringObject`: same operators as `string`
 
+        - `boolean`: `"="`, `"<>"`
+
         - `null`: `is null`, `is not null`
 
 
@@ -14918,6 +15072,7 @@ components:
           - `sessionId`: `string`
           - `tags`: `arrayOptions`, operators `any of` / `none of` / `all of`
           - `metadata`: `stringObject` with `key`
+          - `isRootObservation`: `boolean`, operators `=` / `<>`; true when the observation has no parent or is explicitly marked as an application root
           - `parentObservationId`: `null`, operators `is null` / `is not null`
           - `calledToolNames`: `arrayOptions`, operators `any of` / `none of` / `all of`
           - `toolCalls`: `number`
@@ -15741,8 +15896,8 @@ components:
       required:
         - message
         - code
-    unstableEvaluationRule:
-      title: unstableEvaluationRule
+    unstableEvaluationRuleBase:
+      title: unstableEvaluationRuleBase
       type: object
       description: >-
         Live evaluation rule for incoming data.
@@ -15791,9 +15946,6 @@ components:
 
             If you create a newer project version with the same evaluator name
             later, existing evaluation rules are moved to it automatically.
-        target:
-          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
-          description: Target object type that should trigger scoring.
         enabled:
           type: boolean
           description: Desired enabled state configured by the client.
@@ -15819,6 +15971,32 @@ components:
             Must be greater than `0` and less than or equal to `1`.
             - `1` means evaluate every matching target.
             - `0.25` means evaluate approximately 25% of matching targets.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the evaluation rule was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the evaluation rule was last updated.
+      required:
+        - id
+        - name
+        - evaluator
+        - enabled
+        - status
+        - pausedReason
+        - pausedMessage
+        - sampling
+        - createdAt
+        - updatedAt
+    unstableEvaluationRule:
+      title: unstableEvaluationRule
+      type: object
+      properties:
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+          description: Target object type that should trigger scoring.
         filter:
           type: array
           items:
@@ -15833,28 +16011,66 @@ components:
           description: >-
             Variable mappings used to populate evaluator runtime variables from
             the live target object.
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when the evaluation rule was created.
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when the evaluation rule was last updated.
       required:
-        - id
-        - name
-        - evaluator
         - target
-        - enabled
-        - status
-        - pausedReason
-        - pausedMessage
-        - sampling
         - filter
         - mapping
-        - createdAt
-        - updatedAt
+      allOf:
+        - $ref: '#/components/schemas/unstableEvaluationRuleBase'
+    unstableLegacyEvaluationRule:
+      title: unstableLegacyEvaluationRule
+      type: object
+      description: >-
+        Legacy trace- or dataset-level evaluation rule returned by list and get
+        for migration.
+
+
+        This resource is read-only through the unstable public API. Its mapping
+        preserves the trace, dataset item, or named observation that each
+        evaluator variable previously read from. Its filters use the persisted
+        legacy filter format so migration clients can read the configuration
+        without losing information.
+      properties:
+        target:
+          $ref: '#/components/schemas/unstableLegacyEvaluationRuleTarget'
+        delay:
+          type: integer
+          description: Delay in milliseconds before the legacy evaluation job runs.
+        timeScope:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleTimeScope'
+          description: >-
+            Whether the legacy rule evaluates newly ingested data, existing
+            data, or both.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          description: Stored filters used by the legacy trace or dataset rule.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableLegacyEvaluationRuleMapping'
+          description: >-
+            Stored variable mappings, including the trace, dataset item, or
+            named observation selected for each variable.
+      required:
+        - target
+        - delay
+        - timeScope
+        - filter
+        - mapping
+      allOf:
+        - $ref: '#/components/schemas/unstableEvaluationRuleBase'
+    unstableReadableEvaluationRule:
+      title: unstableReadableEvaluationRule
+      oneOf:
+        - $ref: '#/components/schemas/unstableEvaluationRule'
+        - $ref: '#/components/schemas/unstableLegacyEvaluationRule'
+      description: >-
+        Evaluation rule returned by list and get, including read-only legacy
+        trace and dataset rules.
     unstableEvaluationRules:
       title: unstableEvaluationRules
       type: object
@@ -15863,7 +16079,7 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRule'
+            $ref: '#/components/schemas/unstableReadableEvaluationRule'
           description: Evaluation rules in the current page.
         meta:
           $ref: '#/components/schemas/utilsMetaResponse'
@@ -16176,6 +16392,67 @@ components:
       type: string
       enum:
         - llm_as_judge
+    unstableEvaluationRuleTimeScope:
+      title: unstableEvaluationRuleTimeScope
+      type: string
+      enum:
+        - NEW
+        - EXISTING
+    unstableLegacyEvaluationRuleTarget:
+      title: unstableLegacyEvaluationRuleTarget
+      type: string
+      enum:
+        - trace
+        - dataset
+    unstableLegacyEvaluationRuleMapping:
+      title: unstableLegacyEvaluationRuleMapping
+      type: object
+      description: >-
+        Maps one evaluator variable to a trace, dataset item, or field on a
+        named observation in a legacy rule.
+      properties:
+        variable:
+          type: string
+          description: Evaluator prompt variable populated by this mapping.
+        langfuseObject:
+          $ref: '#/components/schemas/unstableLegacyEvaluationObject'
+          description: >-
+            Trace, dataset item, or observation type from which the value is
+            read.
+        objectName:
+          type: string
+          nullable: true
+          description: >-
+            Observation name to match, or `null` when `langfuseObject` is
+            `trace` or `dataset_item`.
+        source:
+          type: string
+          description: Stored field selected from the trace, dataset item, or observation.
+        jsonPath:
+          type: string
+          nullable: true
+          description: Optional JSONPath selector applied to the selected field.
+      required:
+        - variable
+        - langfuseObject
+        - objectName
+        - source
+    unstableLegacyEvaluationObject:
+      title: unstableLegacyEvaluationObject
+      type: string
+      enum:
+        - trace
+        - span
+        - generation
+        - event
+        - agent
+        - tool
+        - chain
+        - retriever
+        - evaluator
+        - embedding
+        - guardrail
+        - dataset_item
     unstableEvaluationRuleEvaluator:
       title: unstableEvaluationRuleEvaluator
       type: object

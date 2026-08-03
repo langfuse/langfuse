@@ -15,6 +15,7 @@ const migrationStatus = (
     status: "latest",
     sdkUsageSeries: [],
     upgradeRequiredCount: 0,
+    delayedOtelIngestionCount: 0,
   },
   evals: loaded(0),
   apis: loaded(0),
@@ -23,13 +24,13 @@ const migrationStatus = (
 });
 
 describe("v4 migration data", () => {
-  it("uses a stable seven-day range aligned to the hour", () => {
+  it("uses a stable fourteen-day range aligned to the hour", () => {
     const range = createV4MigrationDetectionRange(
       new Date("2026-07-23T10:42:31.000Z").getTime(),
     );
 
     expect(range).toEqual({
-      fromTimestamp: new Date("2026-07-16T11:00:00.000Z"),
+      fromTimestamp: new Date("2026-07-09T11:00:00.000Z"),
       toTimestamp: new Date("2026-07-23T11:00:00.000Z"),
     });
   });
@@ -52,6 +53,26 @@ describe("v4 migration data", () => {
   it("only marks a fully loaded project without affected items as ready", () => {
     expect(getProjectMigrationReadiness(migrationStatus())).toBe("ready");
     expect(
+      getProjectMigrationReadiness(
+        migrationStatus({
+          sdk: {
+            ...migrationStatus().sdk,
+            status: "otel_realtime",
+          },
+        }),
+      ),
+    ).toBe("ready");
+    expect(
+      getProjectMigrationReadiness(
+        migrationStatus({
+          sdk: {
+            ...migrationStatus().sdk,
+            status: "no_data",
+          },
+        }),
+      ),
+    ).toBe("ready");
+    expect(
       getProjectMigrationReadiness(migrationStatus({ evals: loaded(1) })),
     ).toBe("action-needed");
     expect(
@@ -66,6 +87,7 @@ describe("v4 migration data", () => {
             status: "error",
             sdkUsageSeries: [],
             upgradeRequiredCount: 0,
+            delayedOtelIngestionCount: 0,
           },
         }),
       ),
@@ -79,19 +101,28 @@ describe("v4 migration data", () => {
           time: "2026-07-23T09:00:00Z",
           entrypoint: "publicapi: GET /api/public/traces",
           count: 2,
+          lastSeen: "2026-07-23T09:42:00Z",
         },
         {
           time: "2026-07-23T10:00:00Z",
           entrypoint: "publicapi: GET /api/public/traces",
           count: 3,
+          lastSeen: "2026-07-23T10:37:00Z",
         },
         {
           time: "2026-07-23T10:00:00Z",
           entrypoint: "",
           count: 0,
+          lastSeen: null,
         },
       ]),
-    ).toEqual([{ endpoint: "GET /api/public/traces", count: 5 }]);
+    ).toEqual([
+      {
+        endpoint: "GET /api/public/traces",
+        count: 5,
+        lastSeen: "2026-07-23T10:37:00Z",
+      },
+    ]);
   });
 
   it("returns only enabled legacy integration labels", () => {

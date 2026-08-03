@@ -106,6 +106,8 @@ export const aggregateScores = <T extends ScoreToAggregate>(
         values,
         average,
         comment: values.length === 1 ? scores[0].comment : undefined,
+        executionTraceId:
+          values.length === 1 ? scores[0].executionTraceId : undefined,
         id: values.length === 1 ? scores[0].id : undefined,
         hasMetadata: values.length === 1 ? scores[0].hasMetadata : undefined,
         timestamp: values.length === 1 ? scores[0].timestamp : undefined,
@@ -128,6 +130,8 @@ export const aggregateScores = <T extends ScoreToAggregate>(
           count,
         })),
         comment: values.length === 1 ? scores[0].comment : undefined,
+        executionTraceId:
+          values.length === 1 ? scores[0].executionTraceId : undefined,
         id: values.length === 1 ? scores[0].id : undefined,
         hasMetadata: values.length === 1 ? scores[0].hasMetadata : undefined,
         timestamp: values.length === 1 ? scores[0].timestamp : undefined,

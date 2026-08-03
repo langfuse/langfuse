@@ -2,7 +2,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { normalizeLegacyApiEntrypoint } from "@/src/features/v4/utils";
 import { type V4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionStatus";
 
-export const V4_MIGRATION_LOOKBACK_DAYS = 7;
+export const V4_MIGRATION_LOOKBACK_DAYS = 14;
 
 const V4_MIGRATION_LOOKBACK_MS =
   V4_MIGRATION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
@@ -82,7 +82,9 @@ export const getProjectMigrationReadiness = (
     return "checking";
   }
   if (
-    status.sdk.status === "latest" &&
+    (status.sdk.status === "latest" ||
+      status.sdk.status === "otel_realtime" ||
+      status.sdk.status === "no_data") &&
     counts.every((count) => count.count === 0)
   ) {
     return "ready";
@@ -96,25 +98,33 @@ type LegacyApiUsagePoint =
 type LegacyApiUsageSummary = {
   endpoint: string;
   count: number;
+  lastSeen: string;
 };
 
 export const aggregateLegacyApiUsage = (
   rows: LegacyApiUsagePoint[] | undefined,
 ): LegacyApiUsageSummary[] => {
-  const countsByEndpoint = new Map<string, number>();
+  const usageByEndpoint = new Map<
+    string,
+    { count: number; lastSeen: string }
+  >();
 
   for (const row of rows ?? []) {
     const endpoint = normalizeLegacyApiEntrypoint(row.entrypoint);
-    if (!endpoint || row.count <= 0) continue;
-    countsByEndpoint.set(
-      endpoint,
-      (countsByEndpoint.get(endpoint) ?? 0) + row.count,
-    );
+    if (!endpoint || row.count <= 0 || !row.lastSeen) continue;
+    const current = usageByEndpoint.get(endpoint);
+    usageByEndpoint.set(endpoint, {
+      count: (current?.count ?? 0) + row.count,
+      lastSeen:
+        current && current.lastSeen > row.lastSeen
+          ? current.lastSeen
+          : row.lastSeen,
+    });
   }
 
-  return Array.from(countsByEndpoint, ([endpoint, count]) => ({
+  return Array.from(usageByEndpoint, ([endpoint, usage]) => ({
     endpoint,
-    count,
+    ...usage,
   })).sort(
     (left, right) =>
       right.count - left.count || left.endpoint.localeCompare(right.endpoint),

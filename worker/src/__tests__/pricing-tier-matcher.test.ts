@@ -211,6 +211,30 @@ describe("default-model-prices.json", () => {
     }
   });
 
+  it("should match AWS geographic inference profiles for Claude Haiku 4.5", () => {
+    const claudeModel = defaultModelPrices.find(
+      (model) => model.modelName === "claude-haiku-4-5-20251001",
+    );
+    expect(claudeModel).toBeDefined();
+
+    expect(claudeModel!.matchPattern).toContain(
+      "(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0",
+    );
+  });
+
+  it("should consistently support JP and AU prefixes for Anthropic Bedrock models", () => {
+    const bedrockModels = defaultModelPrices.filter((model) =>
+      model.matchPattern.includes("anthropic\\.claude"),
+    );
+    expect(bedrockModels.length).toBeGreaterThan(0);
+
+    for (const model of bedrockModels) {
+      expect(model.matchPattern, model.modelName).toContain(
+        "(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude",
+      );
+    }
+  });
+
   it("should correctly match claude-sonnet-4-5 model with tiered pricing", () => {
     const claudeModel = defaultModelPrices.find(
       (m) => m.id === "c5qmrqolku82tra3vgdixmys",
@@ -279,6 +303,69 @@ describe("default-model-prices.json", () => {
         }
       }
     }
+  });
+
+  it("should price explicit GPT-5.6 usage aliases without implicit tiers", () => {
+    const modelNames = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"];
+
+    for (const modelName of modelNames) {
+      const model = defaultModelPrices.find(
+        (candidate) => candidate.modelName === modelName,
+      );
+      expect(model, modelName).toBeDefined();
+      expect(model!.pricingTiers.map((tier) => tier.name)).toEqual([
+        "Standard",
+        "Large Context (>272K)",
+      ]);
+
+      for (const tier of model!.pricingTiers) {
+        const prices = tier.prices as Record<string, number>;
+        expect(prices.cache_read_input_tokens).toBe(prices.input_cached_tokens);
+        expect(prices.reasoning_tokens).toBe(prices.output_reasoning_tokens);
+        expect(prices.input_cache_creation).toBeCloseTo(
+          prices.input * 1.25,
+          15,
+        );
+        expect(prices.cache_write_tokens).toBeCloseTo(prices.input * 1.25, 15);
+      }
+    }
+
+    const sol = defaultModelPrices.find(
+      (model) => model.modelName === "gpt-5.6-sol",
+    );
+    expect(sol).toBeDefined();
+
+    const tiers: PricingTierWithPrices[] = sol!.pricingTiers.map((tier) => ({
+      id: tier.id,
+      name: tier.name,
+      isDefault: tier.isDefault,
+      priority: tier.priority,
+      conditions: tier.conditions,
+      prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+        usageType,
+        price: new Decimal(price),
+      })),
+    }));
+
+    const reportedUsage = {
+      input: 786,
+      cache_read_input_tokens: 718398,
+      output: 242,
+      reasoning_tokens: 25,
+    };
+    const reportedResult = matchPricingTier(tiers, reportedUsage);
+    expect(reportedResult?.pricingTierName).toBe("Large Context (>272K)");
+
+    const reportedCost = Object.entries(reportedUsage).reduce(
+      (total, [usageType, units]) =>
+        total + (reportedResult?.prices[usageType]?.toNumber() ?? 0) * units,
+      0,
+    );
+    expect(reportedCost).toBeCloseTo(0.738273, 12);
+
+    expect(
+      matchPricingTier(tiers, { cache_write_tokens: 272001 })?.pricingTierName,
+    ).toBe("Large Context (>272K)");
   });
 });
 

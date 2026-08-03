@@ -1,10 +1,10 @@
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { type WidgetChartConfig, WidgetForm } from "@/src/features/widgets";
+import { WidgetForm } from "@/src/features/widgets";
+import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
@@ -41,17 +41,7 @@ export default function NewWidget() {
     },
   });
 
-  const handleSaveWidget = (widgetData: {
-    name: string;
-    description: string;
-    view: string;
-    dimensions: { field: string }[];
-    metrics: { measure: string; agg: string }[];
-    filters: any[];
-    chartType: DashboardWidgetChartType;
-    chartConfig: WidgetChartConfig;
-    minVersion: number;
-  }) => {
+  const handleSaveWidget = (widgetData: WidgetSavePayload) => {
     if (!widgetData.name.trim()) {
       showErrorToast("Error", "Widget name is required");
       return;
@@ -71,7 +61,6 @@ export default function NewWidget() {
       filters: widgetData.filters,
       chartType: widgetData.chartType,
       chartConfig: widgetData.chartConfig,
-      minVersion: widgetData.minVersion,
     });
   };
 
@@ -89,6 +78,12 @@ export default function NewWidget() {
       }}
     >
       <WidgetForm
+        // No `key` on the beta flag: WidgetForm derives viewVersion (and its
+        // available views/measures/filter columns) reactively from isBetaEnabled
+        // + the selected view, so a live beta toggle re-derives them without a
+        // remount — preserving the in-progress form. The only tradeoff is that
+        // an untouched form's default view no longer auto-switches on toggle;
+        // the initial mount still seeds the beta-aware default view below.
         projectId={projectId}
         onSave={handleSaveWidget}
         initialValues={{

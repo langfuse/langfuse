@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -39,6 +40,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { FilterToken } from "@/src/features/filters/components/FilterToken";
 import {
   type WipFilterState,
   type WipFilterCondition,
@@ -47,14 +49,12 @@ import {
   type ColumnDefinition,
   filterOperators,
   singleFilter,
-} from "@langfuse/shared";
-import { NonEmptyString } from "@langfuse/shared";
-import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
+  NonEmptyString,
   formatSessionPositionInTraceFilterValue,
   getSessionPositionInTraceFilterMode,
-} from "@/src/components/session/session-position-in-trace";
+} from "@langfuse/shared";
+import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -76,6 +76,13 @@ export type ColumnDefinitionWithAlert = ColumnDefinition & {
     severity: "info" | "warning" | "error";
     content: React.ReactNode;
   };
+};
+
+type AiFilterConfig = {
+  organizationId: string | undefined;
+  aiFeaturesEnabled: boolean;
+  isPending: boolean;
+  generateFilters: (prompt: string) => Promise<WipFilterState | null>;
 };
 
 // Has WipFilterState, passes all valid filters to parent onChange
@@ -109,6 +116,11 @@ export function PopoverFilterBuilder({
   isV4?: boolean;
 }) {
   const capture = usePostHogClientCapture();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const projectId = useProjectIdFromURL();
+  const { organization } = useQueryProject();
+  const createFilterMutation =
+    api.naturalLanguageFilters.createCompletion.useMutation();
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
   // Count of already-applied (valid) filters, so `setWipFilterState` can emit
@@ -216,6 +228,24 @@ export function PopoverFilterBuilder({
       return newState;
     });
   };
+  const aiFilter =
+    filterWithAI && isLangfuseCloud
+      ? {
+          organizationId: organization?.id,
+          aiFeaturesEnabled: organization?.aiFeaturesEnabled === true,
+          isPending: createFilterMutation.isPending,
+          generateFilters: async (prompt: string) => {
+            if (!projectId) return null;
+            const result = await createFilterMutation.mutateAsync({
+              projectId,
+              prompt,
+            });
+            return result && Array.isArray(result.filters)
+              ? (result.filters as WipFilterState)
+              : null;
+          },
+        }
+      : undefined;
 
   return (
     <div className="flex items-center">
@@ -287,7 +317,7 @@ export function PopoverFilterBuilder({
             filterState={wipFilterState}
             onChange={setWipFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
-            filterWithAI={filterWithAI}
+            aiFilter={aiFilter}
           />
         </PopoverContent>
       </Popover>
@@ -336,36 +366,69 @@ export function InlineFilterState({
   className?: string;
 }) {
   return filterState.map((filter, i) => {
+    const column = (() => {
+      if (
+        filter.type === "stringObject" ||
+        filter.type === "numberObject" ||
+        filter.type === "booleanObject"
+      ) {
+        return `${filter.column}.${filter.key}`;
+      }
+
+      return filter.column;
+    })();
+
+    const value = (() => {
+      if (filter.type === "positionInTrace") {
+        return formatSessionPositionInTraceFilterValue(filter);
+      }
+      if (filter.type === "datetime") {
+        return new Date(filter.value).toLocaleString();
+      }
+      if (filter.type === "stringOptions" || filter.type === "arrayOptions") {
+        if (filter.value.length > 2) {
+          return `${filter.value.length} selected`;
+        }
+
+        return filter.value.join(", ");
+      }
+      if (filter.type === "number" || filter.type === "numberObject") {
+        return filter.value;
+      }
+      if (filter.type === "boolean" || filter.type === "booleanObject") {
+        return `${filter.value}`;
+      }
+      if (filter.type === "null") {
+        return "";
+      }
+
+      return `"${filter.value}"`;
+    })();
+
+    const numericValue =
+      value !== "" && /^-?\d+(\.\d+)?$/.test(String(value).trim());
+
     return (
       <span
         key={i}
-        className={cn(
-          "bg-input ml-2 rounded-md px-2 py-1 text-xs whitespace-nowrap",
-          className,
-        )}
+        className={cn("ml-2 inline-block text-xs whitespace-nowrap", className)}
       >
-        {filter.column}
-        {filter.type === "stringObject" ||
-        filter.type === "numberObject" ||
-        filter.type === "booleanObject"
-          ? `.${filter.key}`
-          : ""}{" "}
-        {filter.operator}{" "}
-        {filter.type === "positionInTrace"
-          ? formatSessionPositionInTraceFilterValue(filter)
-          : filter.type === "datetime"
-            ? new Date(filter.value).toLocaleString()
-            : filter.type === "stringOptions" || filter.type === "arrayOptions"
-              ? filter.value.length > 2
-                ? `${filter.value.length} selected`
-                : filter.value.join(", ")
-              : filter.type === "number" || filter.type === "numberObject"
-                ? filter.value
-                : filter.type === "boolean" || filter.type === "booleanObject"
-                  ? `${filter.value}`
-                  : filter.type === "null"
-                    ? ""
-                    : `"${filter.value}"`}
+        <FilterToken deactivated={false} title={undefined}>
+          <span className="text-qlang-field">{column}</span>{" "}
+          <span className="text-muted-foreground">{filter.operator}</span>
+          {value !== "" ? (
+            <>
+              {" "}
+              <span
+                className={
+                  numericValue ? "text-qlang-number" : "text-qlang-value"
+                }
+              >
+                {value}
+              </span>
+            </>
+          ) : null}
+        </FilterToken>
       </span>
     );
   });
@@ -380,7 +443,6 @@ export function InlineFilterBuilder({
   columnIdentifier = "name",
   disabled,
   columnsWithCustomSelect,
-  filterWithAI = false,
 }: {
   columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
@@ -391,7 +453,6 @@ export function InlineFilterBuilder({
   columnIdentifier?: ColumnIdentifier;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
-  filterWithAI?: boolean;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -437,7 +498,6 @@ export function InlineFilterBuilder({
         onChange={setWipFilterState}
         disabled={disabled}
         columnsWithCustomSelect={columnsWithCustomSelect}
-        filterWithAI={filterWithAI}
       />
     </div>
   );
@@ -480,7 +540,7 @@ function FilterBuilderForm({
   onChange,
   disabled,
   columnsWithCustomSelect = [],
-  filterWithAI = false,
+  aiFilter,
 }: {
   columnIdentifier: ColumnIdentifier;
   columns: ColumnDefinitionWithAlert[];
@@ -488,17 +548,11 @@ function FilterBuilderForm({
   onChange: Dispatch<SetStateAction<WipFilterState>>;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
-  filterWithAI?: boolean;
+  aiFilter?: AiFilterConfig;
 }) {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [showAiFilter, setShowAiFilter] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
-  const projectId = useProjectIdFromURL();
-  const { organization } = useQueryProject();
-
-  const createFilterMutation =
-    api.naturalLanguageFilters.createCompletion.useMutation();
   const handleFilterChange = (filter: WipFilterCondition, i: number) => {
     onChange((prev) => {
       const newState = [...prev];
@@ -529,29 +583,23 @@ function FilterBuilderForm({
   };
 
   const handleAiFilterSubmit = async () => {
-    if (aiPrompt.trim() && !createFilterMutation.isPending && projectId) {
+    if (aiPrompt.trim() && aiFilter && !aiFilter.isPending) {
       setAiError(null);
       try {
-        const result = await createFilterMutation.mutateAsync({
-          projectId,
-          prompt: aiPrompt.trim(),
-        });
+        const filters = await aiFilter.generateFilters(aiPrompt.trim());
 
-        if (result && Array.isArray(result.filters)) {
-          if (result.filters.length === 0) {
+        if (filters) {
+          if (filters.length === 0) {
             setAiError("Failed to generate filters, try again");
             return;
           }
 
           // Set the filters from the API response
-          onChange(result.filters as WipFilterState);
+          onChange(filters);
           setAiPrompt("");
           setShowAiFilter(false);
         } else {
-          console.error(
-            "filterBuilder.aiGenerate: invalid response format",
-            JSON.stringify(result),
-          );
+          console.error("filterBuilder.aiGenerate: invalid response format");
           setAiError("Invalid response format from API");
         }
       } catch (error) {
@@ -566,12 +614,12 @@ function FilterBuilderForm({
   return (
     <>
       {/* AI Filter Section at the top */}
-      {!disabled && isLangfuseCloud && filterWithAI && (
+      {!disabled && aiFilter && (
         <div className="flex flex-col gap-2">
           <Button
             onClick={() => {
-              if (!organization?.aiFeaturesEnabled && organization?.id) {
-                openAIFeaturesSettings(organization.id);
+              if (!aiFilter.aiFeaturesEnabled && aiFilter.organizationId) {
+                openAIFeaturesSettings(aiFilter.organizationId);
               } else {
                 setShowAiFilter(!showAiFilter);
               }
@@ -580,14 +628,14 @@ function FilterBuilderForm({
             variant="outline"
             size="default"
             title={
-              !organization?.aiFeaturesEnabled
+              !aiFilter.aiFeaturesEnabled
                 ? "AI features are disabled for your organization. Click to enable them in organization settings."
                 : undefined
             }
             className="text-muted-foreground w-full justify-start"
           >
             <WandSparkles className="mr-2 h-4 w-4" />
-            {!organization?.aiFeaturesEnabled ? (
+            {!aiFilter.aiFeaturesEnabled ? (
               <>
                 AI Filters: Enable in Organization Settings (Admin Only)
                 <ExternalLink className="ml-2 h-4 w-4" />
@@ -608,13 +656,9 @@ function FilterBuilderForm({
                 }}
                 placeholder="Describe the filters you want to apply..."
                 className="min-h-[80px] min-w-112 resize-none"
-                disabled={createFilterMutation.isPending}
+                disabled={aiFilter.isPending}
                 onKeyDown={(e) => {
-                  if (
-                    e.key === "Enter" &&
-                    e.ctrlKey &&
-                    !createFilterMutation.isPending
-                  ) {
+                  if (e.key === "Enter" && e.ctrlKey && !aiFilter.isPending) {
                     handleAiFilterSubmit();
                   }
                 }}
@@ -625,11 +669,9 @@ function FilterBuilderForm({
                   type="button"
                   variant="default"
                   size="sm"
-                  disabled={createFilterMutation.isPending || !aiPrompt.trim()}
+                  disabled={aiFilter.isPending || !aiPrompt.trim()}
                 >
-                  {createFilterMutation.isPending
-                    ? "Loading..."
-                    : "Generate filters"}
+                  {aiFilter.isPending ? "Loading..." : "Generate filters"}
                 </Button>
                 <Tooltip>
                   <TooltipTrigger asChild>

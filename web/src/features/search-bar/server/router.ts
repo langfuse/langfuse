@@ -24,6 +24,10 @@ import {
   ChatMessageType,
   LangfuseInternalTraceEnvironment,
   logger,
+  generateLangfuseAIText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
+  getLangfuseAITraceSinkParams,
+  isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { randomBytes } from "crypto";
@@ -40,11 +44,6 @@ import {
   deriveParseOutcomeScores,
   recordParseOutcomeScores,
 } from "./parseOutcomeScoring";
-import {
-  generateLangfuseAIText,
-  getLangfuseAITraceSinkParams,
-  isLangfuseAITracingConfigured,
-} from "@/src/features/ai-features/server/bedrockCompletion";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
@@ -203,6 +202,7 @@ export const searchBarRouter = createTRPCRouter({
           messages,
           model,
           maxTokens: 2048,
+          timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
                 traceId,

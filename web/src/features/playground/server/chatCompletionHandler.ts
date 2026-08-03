@@ -17,6 +17,7 @@ import {
   createLLMOutput,
   createLLMToolSet,
   generateLLMText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   getLLMErrorInfo,
   logger,
   contextWithLangfuseProps,
@@ -110,10 +111,14 @@ export default async function chatCompletionHandler(req: NextRequest) {
         messages: fixedMessages,
         modelParams,
       });
+      const nonStreamingCompletionParams = {
+        ...completionParams,
+        timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
+      };
 
       if (structuredOutputSchema) {
         const result = await generateLLMText({
-          ...completionParams,
+          ...nonStreamingCompletionParams,
           output: createLLMOutput(structuredOutputSchema),
         });
         return NextResponse.json(result.output);
@@ -121,7 +126,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
 
       if ((tools && tools.length > 0) || hasToolResults) {
         const result = await generateLLMText({
-          ...completionParams,
+          ...nonStreamingCompletionParams,
           tools: createLLMToolSet(tools ?? []),
         });
         return NextResponse.json({
@@ -154,7 +159,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
           },
         );
       }
-      const completion = await generateLLMText(completionParams);
+      const completion = await generateLLMText(nonStreamingCompletionParams);
       return NextResponse.json({
         content: completion.text,
         ...(completion.finalStep.reasoningText

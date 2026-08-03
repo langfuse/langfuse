@@ -248,12 +248,13 @@ export default function RemapEvaluatorPage() {
                   hideAdvancedSettings={true}
                   evalCapabilities={evalCapabilities}
                   oldConfigId={evalConfigId}
-                  renderFooter={({ isLoading }) => (
+                  renderFooter={({ isLoading, isSaveDisabled }) => (
                     <div className="flex w-full flex-col items-end gap-4">
                       <div className="flex items-center">
                         <Button
                           type="submit"
                           loading={isLoading}
+                          disabled={isSaveDisabled}
                           className="mt-3 rounded-l-md rounded-r-none"
                         >
                           {legacyAction === "keep-active"

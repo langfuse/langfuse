@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Info } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/src/components/ui/button";
