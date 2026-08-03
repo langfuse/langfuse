@@ -189,8 +189,8 @@ export const EvalTemplateDetail = () => {
                   {allTemplates.data.templates.map((template, index) => (
                     <div
                       key={template.id}
-                      className={`hover:bg-accent flex cursor-pointer flex-col rounded-md px-2 py-1.5 ${
-                        template.id === templateId ? "bg-accent" : ""
+                      className={`hover:bg-hover flex cursor-pointer flex-col rounded-md px-2 py-1.5 ${
+                        template.id === templateId ? "bg-hover" : ""
                       }`}
                       onClick={() => handleTemplateSelect(template)}
                     >

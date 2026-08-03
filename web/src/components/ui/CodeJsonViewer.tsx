@@ -165,9 +165,7 @@ export function JSONView(props: {
       </div>
       {props.media && props.media.length > 0 && (
         <>
-          <div className="text-muted-foreground my-1 px-0 py-1 text-xs">
-            Media
-          </div>
+          <div className="text-tertiary my-1 px-0 py-1 text-xs">Media</div>
           <div className="flex flex-wrap gap-2 pt-1 pb-4">
             {props.media.map((m) => (
               <LangfuseMediaView

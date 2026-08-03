@@ -22,7 +22,7 @@ const TYPE_CLASS: Record<JsonNodeType, string> = {
   string: "text-green-700 dark:text-green-400",
   number: "text-blue-700 dark:text-blue-400",
   boolean: "text-purple-700 dark:text-purple-400",
-  null: "text-muted-foreground",
+  null: "text-tertiary",
   object: "text-foreground",
   array: "text-foreground",
 };
@@ -60,7 +60,7 @@ function LazyJsonRowImpl({
         <button
           type="button"
           disabled={pending}
-          className="text-muted-foreground hover:text-foreground rounded px-1 underline decoration-dotted underline-offset-2 disabled:opacity-60"
+          className="text-tertiary hover:text-foreground rounded px-1 underline decoration-dotted underline-offset-2 disabled:opacity-60"
           onClick={() => onLoadMore(row.nodeId)}
         >
           {row.preview}
@@ -82,12 +82,12 @@ function LazyJsonRowImpl({
       <span className="flex h-4 w-4 shrink-0 items-center justify-center">
         {isContainer ? (
           pending ? (
-            <Loader2 className="text-muted-foreground h-3 w-3 animate-spin" />
+            <Loader2 className="text-tertiary h-3 w-3 animate-spin" />
           ) : (
             <button
               type="button"
               aria-label={row.expanded ? "Collapse" : "Expand"}
-              className="text-muted-foreground hover:text-foreground flex h-4 w-4 items-center justify-center"
+              className="text-tertiary hover:text-foreground flex h-4 w-4 items-center justify-center"
               onClick={() => onToggle(row.nodeId, row.expanded)}
             >
               <ChevronRight
@@ -102,14 +102,14 @@ function LazyJsonRowImpl({
       </span>
 
       {label !== null ? (
-        <span className="text-muted-foreground shrink-0">
+        <span className="text-tertiary shrink-0">
           {label}
           <span className="opacity-60">:</span>
         </span>
       ) : null}
 
       {isContainer ? (
-        <span className="text-muted-foreground truncate" title={row.preview}>
+        <span className="text-tertiary truncate" title={row.preview}>
           {row.preview}
           {typeof row.childCount === "number" ? (
             <span className="ml-1 opacity-60">
@@ -126,7 +126,7 @@ function LazyJsonRowImpl({
         >
           {row.preview}
           {row.truncatedPreview ? (
-            <span className="text-muted-foreground opacity-60">…</span>
+            <span className="text-tertiary opacity-60">…</span>
           ) : null}
         </span>
       )}
@@ -139,7 +139,7 @@ function LazyJsonRowImpl({
           type="button"
           aria-label="Copy full value"
           title="Copy full value"
-          className="text-muted-foreground hover:text-foreground ml-1 shrink-0 opacity-0 group-hover:opacity-100"
+          className="text-tertiary hover:text-foreground ml-1 shrink-0 opacity-0 group-hover:opacity-100"
           onClick={() => onCopyValue(row.nodeId)}
         >
           <Copy className="h-3 w-3" />

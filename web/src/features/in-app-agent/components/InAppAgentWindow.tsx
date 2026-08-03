@@ -604,7 +604,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       className={cn(
                         "flex items-center gap-1",
                         conversation.id === selectedConversationId &&
-                          "bg-accent text-accent-foreground",
+                          "bg-hover text-on-hover",
                       )}
                       onSelect={() => {
                         onSelectConversation(conversation.id);

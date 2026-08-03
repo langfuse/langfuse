@@ -231,7 +231,7 @@ export default function ModelDetailPage() {
                       <HoverCardTrigger asChild>
                         <Button
                           variant="ghost"
-                          className="text-muted-foreground hover:text-accent-foreground inline-flex h-auto items-center gap-1.5 p-0 text-xs hover:bg-transparent"
+                          className="text-muted-foreground hover:text-on-hover inline-flex h-auto items-center gap-1.5 p-0 text-xs hover:bg-transparent"
                           size="sm"
                         >
                           <InfoIcon className="h-3 w-3" />

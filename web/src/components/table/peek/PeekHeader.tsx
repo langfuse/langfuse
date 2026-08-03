@@ -251,7 +251,7 @@ export function PeekHeader({
                   <button
                     type="button"
                     onClick={openInNewTab}
-                    className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
+                    className="hover:bg-hover flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
                   >
                     <ExternalLink className="h-4 w-4" />
                     Open in new tab

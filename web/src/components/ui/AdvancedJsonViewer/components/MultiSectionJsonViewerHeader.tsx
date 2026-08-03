@@ -68,7 +68,7 @@ export function MultiSectionJsonViewerHeader({
       </span>
       {commentCount !== undefined && commentCount > 0 && (
         <span
-          className="text-muted-foreground"
+          className="text-tertiary"
           style={{
             marginLeft: "8px",
             display: "inline-flex",

@@ -319,7 +319,7 @@ export function IOPreview({
               <X className="h-3.5 w-3.5" />
             </Button>
             <div className="flex w-full flex-row items-center gap-2 pr-6">
-              <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
+              <div className="bg-hover flex h-8 w-8 items-center justify-center rounded-full">
                 <BookOpen className="text-muted-foreground h-4 w-4" />
               </div>
               <h3 className="text-sm font-bold">

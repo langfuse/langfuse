@@ -40,7 +40,7 @@ const DatasetItemEntryPointRow = ({
         "border-border flex h-20 items-center gap-4 rounded-lg border p-4 transition-colors",
         disabled
           ? "bg-muted text-muted-foreground opacity-60"
-          : "bg-card hover:bg-accent/50 cursor-pointer",
+          : "bg-card hover:bg-hover/50 cursor-pointer",
       )}
       onClick={!disabled ? onClick : undefined}
       onKeyDown={

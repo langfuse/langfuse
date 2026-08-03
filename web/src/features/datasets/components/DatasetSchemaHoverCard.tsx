@@ -57,7 +57,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
       <HoverCardTrigger asChild>
         <Button
           variant="ghost"
-          className="text-muted-foreground hover:bg-accent hover:text-accent-foreground inline-flex items-center gap-1.5 rounded p-1 text-xs transition-colors"
+          className="text-muted-foreground hover:bg-hover hover:text-on-hover inline-flex items-center gap-1.5 rounded p-1 text-xs transition-colors"
           aria-label={`View ${title}`}
           size="sm"
         >

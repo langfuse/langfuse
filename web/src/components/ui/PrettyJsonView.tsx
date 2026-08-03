@@ -408,7 +408,7 @@ const JsonTableRowComponent = memo(
         className={cn(
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
-            ? "bg-background sticky z-10 shadow-xs"
+            ? "bg-canvas sticky z-10 shadow-xs"
             : "",
         )}
         style={
@@ -725,7 +725,7 @@ function JsonPrettyTable({
                   key={header.id}
                   className={cn(
                     "h-8 px-2 py-1",
-                    stickyTopLevelKey ? "bg-background" : "bg-transparent",
+                    stickyTopLevelKey ? "bg-canvas" : "bg-transparent",
                   )}
                   style={{ width: `${header.column.columnDef.size}%` }}
                 >
@@ -1289,7 +1289,7 @@ export function PrettyJsonView(props: {
               <Skeleton className="h-3 w-1/2" />
               <Skeleton className="h-3 w-2/3" />
               {props.isParsing && (
-                <div className="text-muted-foreground mt-2 text-xs">
+                <div className="text-tertiary mt-2 text-xs">
                   Parsing in background...
                 </div>
               )}
@@ -1397,9 +1397,7 @@ export function PrettyJsonView(props: {
       )}
       {shouldRenderStandaloneMedia && remainingMarkdownMedia.length > 0 && (
         <>
-          <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
-            Media
-          </div>
+          <div className="text-tertiary my-1 px-2 py-1 text-xs">Media</div>
           <div className="flex flex-wrap gap-2 px-2 pt-1 pb-4">
             {remainingMarkdownMedia.map((m) => (
               <LangfuseMediaView
@@ -1416,9 +1414,7 @@ export function PrettyJsonView(props: {
         isPrettyView &&
         !isMarkdownMode && (
           <>
-            <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
-              Media
-            </div>
+            <div className="text-tertiary my-1 px-2 py-1 text-xs">Media</div>
             <div className="flex flex-wrap gap-2 px-2 pt-1 pb-4">
               {props.media.map((m) => (
                 <LangfuseMediaView

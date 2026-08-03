@@ -63,7 +63,7 @@ const CommandDialog = ({
             filter={filter}
             className={cn(
               commandDialogSurfaceClass,
-              "**:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:font-regular pb-1 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-14",
+              "**:[[cmdk-group-heading]]:text-tertiary **:[[cmdk-group-heading]]:font-regular pb-1 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-14",
             )}
           >
             {children}
@@ -91,7 +91,7 @@ const CommandInput = React.forwardRef<
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        "placeholder:text-foreground-tertiary flex h-8 w-full rounded-md bg-transparent py-3 pr-6 pl-6 text-sm outline-hidden focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+        "placeholder:text-disabled flex h-8 w-full rounded-md bg-transparent py-3 pr-6 pl-6 text-sm outline-hidden focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
@@ -134,7 +134,7 @@ const CommandGroup = React.forwardRef<
   <CommandPrimitive.Group
     ref={ref}
     className={cn(
-      "text-foreground **:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:font-regular overflow-hidden p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs",
+      "text-foreground **:[[cmdk-group-heading]]:text-tertiary **:[[cmdk-group-heading]]:font-regular overflow-hidden p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs",
       className,
     )}
     {...props}
@@ -163,7 +163,7 @@ const CommandItem = React.forwardRef<
     ref={ref}
     className={cn(
       className,
-      "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground relative flex cursor-default items-center gap-3 rounded-md px-3 py-2.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "data-[selected='true']:bg-hover data-[selected=true]:text-on-hover relative flex cursor-default items-center gap-3 rounded-md px-3 py-2.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
     )}
     {...props}
   />

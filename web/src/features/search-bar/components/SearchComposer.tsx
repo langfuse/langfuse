@@ -1395,7 +1395,7 @@ export function SearchComposer({
             className={cn(
               "absolute top-1.5 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
               "bg-background text-muted-foreground font-sans text-xs",
-              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
+              "hover:border-border hover:text-foreground hover:bg-hover transition-colors",
               // Match the app's focus ring (ring-ring) instead of the browser's
               // default blue outline, like the shared Button used elsewhere.
               "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
@@ -1511,7 +1511,7 @@ function RemoveTokenButton({
       className={cn(
         "absolute z-20 inline-flex h-4 w-4 items-center justify-center rounded-sm",
         "border-border bg-background text-muted-foreground border shadow-sm",
-        "hover:bg-accent hover:text-foreground focus:ring-ring focus:ring-1 focus:outline-none",
+        "hover:bg-hover hover:text-foreground focus:ring-ring focus:ring-1 focus:outline-none",
       )}
       onMouseDown={(event) => event.preventDefault()}
       onClick={(event) => {

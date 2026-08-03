@@ -303,7 +303,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         <CardContent className="flex flex-1 flex-row items-center gap-2 p-0 pl-1">
           <div className="bg-background sticky top-0 bottom-0 z-10 flex w-16 shrink-0 flex-col gap-1">
             {isPlaceholder ? (
-              <span className="bg-accent text-muted-foreground inline-flex h-6 w-full items-center justify-center rounded-md px-4 font-mono text-[9px]">
+              <span className="bg-hover text-muted-foreground inline-flex h-6 w-full items-center justify-center rounded-md px-4 font-mono text-[9px]">
                 placeholder
               </span>
             ) : (
@@ -311,7 +311,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 onClick={toggleRole}
                 type="button"
                 variant="ghost"
-                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground h-6 w-full px-1 py-0 text-[10px] font-bold"
+                className="text-muted-foreground hover:bg-hover hover:text-on-hover h-6 w-full px-1 py-0 text-[10px] font-bold"
               >
                 {capitalize(message.role)}
               </Button>

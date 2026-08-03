@@ -91,7 +91,7 @@ export const InlineEditText = ({
       }}
       aria-label={ariaLabel ?? "Edit text"}
       title="Click to edit"
-      className="hover:bg-accent/50 focus-visible:ring-ring inline-flex h-[1lh] max-w-full items-center rounded-sm px-1 text-left align-bottom [font:inherit] focus-visible:ring-2 focus-visible:outline-hidden"
+      className="hover:bg-hover/50 focus-visible:ring-ring inline-flex h-[1lh] max-w-full items-center rounded-sm px-1 text-left align-bottom [font:inherit] focus-visible:ring-2 focus-visible:outline-hidden"
     >
       <span
         title={value || placeholder}

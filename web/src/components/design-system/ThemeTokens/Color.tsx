@@ -697,7 +697,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
         />
         <StateRow
           state="Hover · item"
-          classes="focus:bg-accent focus:text-accent-foreground / hover:bg-accent"
+          classes="focus:bg-hover focus:text-on-hover / hover:bg-hover"
           tokens="--accent · --accent-foreground"
           seenIn="DropdownMenuItem, ghost & outline Button"
           sample={

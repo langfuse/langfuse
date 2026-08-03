@@ -182,7 +182,7 @@ export const PromptReferenceButton = ({
       }
       title={`Open prompt: ${promptRefTitle}`}
     >
-      <FileCode className="text-muted-foreground h-3 w-3 shrink-0" />
+      <FileCode className="text-tertiary h-3 w-3 shrink-0" />
       <span className="truncate font-bold" title={promptRefTitle}>
         {promptRef.name}
         {promptRef.type === "version" ? (

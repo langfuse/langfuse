@@ -119,8 +119,8 @@ export function AutocompleteListbox({
                 "mx-1 flex min-h-8 cursor-pointer items-center gap-2 rounded-sm px-2",
                 "font-mono text-xs leading-[1.4]",
                 o.id === highlightedId
-                  ? "bg-accent text-accent-foreground"
-                  : "hover:bg-accent/50",
+                  ? "bg-hover text-on-hover"
+                  : "hover:bg-hover/50",
               )}
               // mousedown must not blur the composer input mid-pick
               onMouseDown={(e) => e.preventDefault()}

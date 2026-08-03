@@ -569,7 +569,7 @@ export function TimeRangePicker({
           <Button
             variant="outline"
             className={cn(
-              "hover:bg-accent hover:text-accent-foreground w-fit justify-start text-left font-normal",
+              "hover:bg-hover hover:text-on-hover w-fit justify-start text-left font-normal",
               !timeRange && "text-muted-foreground",
               // Let the trigger shrink below content so the label truncates in
               // a tight header instead of widening the row.
@@ -636,7 +636,7 @@ export function TimeRangePicker({
                 return (
                   <div
                     key={presetKey}
-                    className="hover:bg-accent hover:text-accent-foreground flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
+                    className="hover:bg-hover hover:text-on-hover flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
                     onClick={() => {
                       onPresetSelection(presetKey);
                       setIsOpen(false);
@@ -650,7 +650,7 @@ export function TimeRangePicker({
                 );
               })}
               <div
-                className="hover:bg-accent hover:text-accent-foreground flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
+                className="hover:bg-hover hover:text-on-hover flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
                 onClick={() => {
                   setTab("calendar");
                 }}

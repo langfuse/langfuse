@@ -324,7 +324,7 @@ export function CategoryPresetChips({
                         "flex w-full items-start justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm",
                         preset.disabled
                           ? "cursor-default opacity-60"
-                          : "hover:bg-accent",
+                          : "hover:bg-hover",
                       )}
                     >
                       <span className="flex flex-col">

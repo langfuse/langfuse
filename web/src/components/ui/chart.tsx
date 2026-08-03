@@ -236,7 +236,7 @@ const ChartTooltipContent = React.forwardRef<
       <div
         ref={ref}
         className={cn(
-          "border-border/50 bg-background grid min-w-32 items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
+          "border-border/50 bg-canvas grid min-w-32 items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
           className,
         )}
       >
@@ -262,7 +262,7 @@ const ChartTooltipContent = React.forwardRef<
               <div
                 key={String(item.dataKey ?? item.name ?? index)}
                 className={cn(
-                  "[&>svg]:text-muted-foreground flex w-full items-center gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
+                  "[&>svg]:text-tertiary flex w-full items-center gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
                   // Emphasis must be layout-neutral: the row keeps its exact box
                   // and the highlight paints around it (a box-shadow halo adds
                   // the breathing room margins/padding would), so rows never
@@ -316,7 +316,7 @@ const ChartTooltipContent = React.forwardRef<
                         {nestLabel ? tooltipLabel : null}
                         <span
                           className={cn(
-                            "text-muted-foreground truncate",
+                            "text-tertiary truncate",
                             // Color-only emphasis: a weight change alters text
                             // metrics, so the highlighted name would truncate
                             // differently than its neighbors. (LFE-10576)

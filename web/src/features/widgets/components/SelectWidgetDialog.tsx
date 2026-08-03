@@ -39,7 +39,7 @@ export type WidgetItem = {
 };
 
 const rowClassName =
-  "flex w-full items-center gap-4 rounded-lg border p-3 text-left hover:bg-accent/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
+  "flex w-full items-center gap-4 rounded-lg border p-3 text-left hover:bg-hover/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring";
 
 function RowIllustration({ type }: { type: string }) {
   return (

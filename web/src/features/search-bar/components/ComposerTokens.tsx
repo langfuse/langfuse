@@ -36,9 +36,9 @@ export const composerTokenVariants = cva("max-w-full", {
   variants: {
     kind: {
       filter:
-        "mr-1 inline rounded border px-1.5 py-0.5 border-border bg-muted text-primary shadow-sm transition-colors hover:border-ring hover:bg-accent",
+        "mr-1 inline rounded border px-1.5 py-0.5 border-border bg-muted text-primary shadow-sm transition-colors hover:border-ring hover:bg-hover",
       freeText:
-        "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
+        "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-hover",
       operator: "font-bold uppercase text-qlang-keyword",
       paren: "text-muted-foreground",
       invalid:

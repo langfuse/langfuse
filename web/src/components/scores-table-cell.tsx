@@ -95,7 +95,7 @@ export const ScoresTableCell = ({
                   onClick={handleCopy}
                   variant="ghost"
                   size="icon-xs"
-                  className="hover:bg-accent rounded p-1"
+                  className="hover:bg-hover rounded p-1"
                   aria-label={copied ? "Copied" : "Copy to clipboard"}
                 >
                   {copied ? (

@@ -444,7 +444,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                   ref={buttonRef}
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:bg-accent h-6 shrink-0 gap-1 px-2 text-xs"
+                  className="text-muted-foreground hover:bg-hover h-6 shrink-0 gap-1 px-2 text-xs"
                   aria-label={`Show all ${payload.length} categories`}
                 >
                   <span>Show all {payload.length}</span>
@@ -491,7 +491,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                               return (
                                 <div
                                   key={key}
-                                  className="hover:bg-accent/50 rounded-sm px-2 py-1.5"
+                                  className="hover:bg-hover/50 rounded-sm px-2 py-1.5"
                                 >
                                   <LegendItem
                                     color={color}

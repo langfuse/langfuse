@@ -168,7 +168,7 @@ export function SessionUsers({
                       <Link
                         key={userId}
                         href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-                        className="hover:bg-accent block"
+                        className="hover:bg-hover block"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -650,7 +650,7 @@ export const SessionPage: React.FC<{
                 <Download className="h-4 w-4" />
                 <span className="text-sm">Download JSON</span>
               </Button>
-              <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+              <label className="hover:bg-hover flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
                 <span className="text-sm">Show corrections</span>
                 <Switch
                   checked={showCorrections}
@@ -1568,7 +1568,7 @@ const LoadedSessionEventsPage: React.FC<{
                 displayOptions.map(({ label, checked, onCheckedChange }) => (
                   <label
                     key={label}
-                    className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5"
+                    className="hover:bg-hover flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5"
                   >
                     <span className="text-sm capitalize">{label}</span>
                     <Switch
@@ -1579,7 +1579,7 @@ const LoadedSessionEventsPage: React.FC<{
                   </label>
                 ))
               ) : (
-                <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                <label className="hover:bg-hover flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
                   <span className="text-sm">Show corrections</span>
                   <Switch
                     checked={showCorrections}
@@ -1644,7 +1644,7 @@ const LoadedSessionEventsPage: React.FC<{
                         <button
                           type="button"
                           aria-current={isActive ? "true" : undefined}
-                          className="hover:bg-accent flex w-full items-start justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+                          className="hover:bg-hover flex w-full items-start justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
                           onClick={() => applyLlmCallPreset(preset)}
                         >
                           <span className="flex flex-col">

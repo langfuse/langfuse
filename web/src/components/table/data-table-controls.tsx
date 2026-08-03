@@ -1129,7 +1129,7 @@ export function FilterAccordionItem({
     >
       <FilterAccordionTrigger
         className={cn(
-          "text-muted-foreground hover:text-foreground bg-muted hover:bg-accent min-h-6 rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline",
+          "text-muted-foreground hover:text-foreground bg-muted hover:bg-hover min-h-6 rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline",
           isActive && "text-foreground font-bold",
           isDisabled &&
             "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent",
@@ -2350,7 +2350,7 @@ export function FilterValueCheckbox({
       )}
     >
       {/* Checkbox hover area */}
-      <div className="group/checkbox hover:bg-accent flex items-center rounded-sm p-0.5 transition-colors">
+      <div className="group/checkbox hover:bg-hover flex items-center rounded-sm p-0.5 transition-colors">
         <span className="pointer-events-auto">
           <Checkbox
             id={id}
@@ -2365,7 +2365,7 @@ export function FilterValueCheckbox({
       {/* Label hover area */}
       <div
         className={cn(
-          "group/label hover:bg-accent flex min-w-0 flex-1 cursor-pointer items-center rounded-sm px-1 py-0.5 transition-colors",
+          "group/label hover:bg-hover flex min-w-0 flex-1 cursor-pointer items-center rounded-sm px-1 py-0.5 transition-colors",
           disabled && "pointer-events-none",
         )}
         onClick={onLabelClick}

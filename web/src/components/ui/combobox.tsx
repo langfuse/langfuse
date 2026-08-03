@@ -123,7 +123,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
           aria-expanded={open}
           className={cn(
             "w-full justify-between text-xs font-normal",
-            !value && "text-muted-foreground",
+            !value && "text-tertiary",
             className,
           )}
           disabled={disabled}
@@ -176,7 +176,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                       }}
                       className={cn(
                         "text-xs",
-                        option.disabled && "text-muted-foreground line-through",
+                        option.disabled && "text-tertiary line-through",
                       )}
                     >
                       <Check
@@ -227,7 +227,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     }}
                     className={cn(
                       "text-xs",
-                      option.disabled && "text-muted-foreground line-through",
+                      option.disabled && "text-tertiary line-through",
                     )}
                   >
                     <Check

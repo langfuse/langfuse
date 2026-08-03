@@ -440,7 +440,7 @@ export const AnnotationQueueItemPage: React.FC<{
                   className={cn(
                     "gap-1.5 px-4 transition-colors duration-150",
                     shortcutPulse === "back" &&
-                      "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
+                      "border-primary/60 bg-hover/60 ring-primary/20 ring-2",
                   )}
                   aria-label="Previous item"
                 >
@@ -490,7 +490,7 @@ export const AnnotationQueueItemPage: React.FC<{
                     "gap-1.5 px-4 transition-colors duration-150",
                     !relevantItem ? "w-full" : "",
                     shortcutPulse === "next" &&
-                      "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
+                      "border-primary/60 bg-hover/60 ring-primary/20 ring-2",
                   )}
                   variant="outline"
                   aria-label="Skip to next item"

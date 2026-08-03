@@ -175,7 +175,7 @@ export const CreateNewAnnotationQueueItem = ({
           queues.data?.queues.map((queue) => (
             <DropdownMenuCheckboxItem
               key={queue.id}
-              className="hover:bg-accent"
+              className="hover:bg-hover"
               checked={!!queue.itemId}
               onSelect={(event) => {
                 event.preventDefault();
@@ -210,7 +210,7 @@ export const CreateNewAnnotationQueueItem = ({
         <DropdownMenuSeparator />
         <DropdownMenuItem
           key="manage-queues"
-          className="hover:bg-accent"
+          className="hover:bg-hover"
           asChild
         >
           <div>

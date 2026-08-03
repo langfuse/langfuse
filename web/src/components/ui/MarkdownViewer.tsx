@@ -241,7 +241,7 @@ function MarkdownRenderer({
   if (tooLargeOrDeep) {
     return (
       <div className={cn("space-y-2 overflow-x-auto text-sm", className)}>
-        <div className="text-muted-foreground flex items-center gap-1 text-xs">
+        <div className="text-tertiary flex items-center gap-1 text-xs">
           <Info className="h-3 w-3" />
           Content is too large or deeply nested to render as markdown.
           Displaying as plain text.
@@ -327,9 +327,7 @@ function MarkdownRenderer({
                 );
               }
               return (
-                <span className="text-muted-foreground underline">
-                  {children}
-                </span>
+                <span className="text-tertiary underline">{children}</span>
               );
             },
             ul({ children }) {
@@ -448,7 +446,7 @@ function MarkdownRenderer({
 
     return (
       <>
-        <div className="text-muted-foreground flex items-center gap-1 text-xs">
+        <div className="text-tertiary flex items-center gap-1 text-xs">
           <Info className="h-3 w-3" />
           Markdown parsing failed. Displaying raw JSON.
         </div>
@@ -672,7 +670,7 @@ export function MarkdownView({
       </div>
       {remainingMedia.length > 0 && (
         <>
-          <div className="text-muted-foreground mx-3 border-t px-2 py-1 text-xs">
+          <div className="text-tertiary mx-3 border-t px-2 py-1 text-xs">
             Media
           </div>
           <div className="mx-3 flex flex-wrap gap-2 px-2 pt-1 pb-4">

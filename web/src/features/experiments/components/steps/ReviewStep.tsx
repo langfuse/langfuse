@@ -47,7 +47,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
         {/* Prompt Card - Top Left */}
         <Card
-          className="hover:bg-accent cursor-pointer transition-colors"
+          className="hover:bg-hover cursor-pointer transition-colors"
           onClick={() => setActiveStep("prompt")}
         >
           <CardHeader className="pb-3">
@@ -67,7 +67,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
 
         {/* Model Card - Top Right */}
         <Card
-          className="hover:bg-accent cursor-pointer transition-colors"
+          className="hover:bg-hover cursor-pointer transition-colors"
           onClick={() => setActiveStep("prompt")}
         >
           <CardHeader className="pb-3">
@@ -107,7 +107,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
 
         {/* Dataset Card - Middle Left */}
         <Card
-          className="hover:bg-accent cursor-pointer transition-colors"
+          className="hover:bg-hover cursor-pointer transition-colors"
           onClick={() => setActiveStep("dataset")}
         >
           <CardHeader className="pb-3">
@@ -130,7 +130,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         {/* Evaluators Card - Middle Right (only if there are evaluators) */}
         {activeEvaluatorNames.length > 0 && (
           <Card
-            className="hover:bg-accent cursor-pointer transition-colors"
+            className="hover:bg-hover cursor-pointer transition-colors"
             onClick={() => setActiveStep("evaluators")}
           >
             <CardHeader className="pb-3">
@@ -152,7 +152,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
 
         {/* Run Details Card - Bottom (Full Width) */}
         <Card
-          className="hover:bg-accent cursor-pointer transition-colors md:col-span-2"
+          className="hover:bg-hover cursor-pointer transition-colors md:col-span-2"
           onClick={() => setActiveStep("details")}
         >
           <CardHeader className="pb-3">

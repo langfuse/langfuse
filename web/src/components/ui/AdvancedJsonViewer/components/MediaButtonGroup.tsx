@@ -196,7 +196,7 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
         >
           <PopoverTrigger asChild>
             <button
-              className="hover:bg-accent relative flex h-6 w-6 items-center justify-center rounded"
+              className="hover:bg-hover relative flex h-6 w-6 items-center justify-center rounded"
               title={`${group.items.length} ${group.category} file${
                 group.items.length > 1 ? "s" : ""
               }`}

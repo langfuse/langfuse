@@ -107,7 +107,7 @@ const Slider = React.forwardRef<
             <SliderPrimitive.Thumb
               key={index}
               className={cn(
-                "bg-background ring-offset-background focus-visible:ring-ring block h-4 w-4 rounded-full border-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50",
+                "bg-canvas ring-offset-background focus-visible:ring-focus block h-4 w-4 rounded-full border-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50",
                 props.disabled ? "border-muted" : "border-primary",
               )}
             />
@@ -141,7 +141,7 @@ const Slider = React.forwardRef<
               aria-label="Slider value"
             />
             {displayAsPercentage && (
-              <span className="text-muted-foreground text-sm">%</span>
+              <span className="text-tertiary text-sm">%</span>
             )}
           </div>
         )}

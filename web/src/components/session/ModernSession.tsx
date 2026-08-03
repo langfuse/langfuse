@@ -55,7 +55,7 @@ const ModernSessionMinimapItem = React.memo(
         className={cn(
           "group relative border-b border-l-2 transition-colors",
           isActive
-            ? "border-l-primary bg-accent/60"
+            ? "border-l-primary bg-hover/60"
             : "hover:bg-muted/60 border-l-transparent",
         )}
         data-modern-session-minimap-active={isActive}

@@ -232,7 +232,7 @@ export function SearchBarAiPrompt({
             title="Back (Esc)"
             onMouseDown={(event) => event.preventDefault()}
             onClick={onExit}
-            className="text-muted-foreground hover:text-foreground hover:bg-accent -ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+            className="text-muted-foreground hover:text-foreground hover:bg-hover -ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -298,7 +298,7 @@ export function SearchBarAiPrompt({
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => submit()}
                 className={cn(
-                  "text-muted-foreground hover:text-foreground hover:bg-accent inline-flex h-5 w-5 items-center justify-center rounded-sm",
+                  "text-muted-foreground hover:text-foreground hover:bg-hover inline-flex h-5 w-5 items-center justify-center rounded-sm",
                   "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
                 )}
               >

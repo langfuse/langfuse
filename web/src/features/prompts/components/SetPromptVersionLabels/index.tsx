@@ -301,7 +301,7 @@ export function SetPromptVersionLabels({
                       className={cn(
                         "text-muted-foreground flex w-full items-center px-2 py-1.5 text-left text-sm",
                         isValidNewLabel
-                          ? "hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                          ? "hover:bg-hover hover:text-on-hover cursor-pointer"
                           : "cursor-default opacity-50",
                       )}
                       disabled={!isValidNewLabel}

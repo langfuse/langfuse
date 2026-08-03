@@ -905,7 +905,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                         aria-label={score.name}
                         className={cn(
                           "group grid w-full grid-cols-[1fr_2fr] items-center gap-3 rounded-md px-3 py-1 text-left transition-colors outline-none",
-                          "focus-within:ring-primary/30 focus-within:bg-accent/40 focus-within:ring-1 focus-within:ring-inset",
+                          "focus-within:ring-primary/30 focus-within:bg-hover/40 focus-within:ring-1 focus-within:ring-inset",
                         )}
                       >
                         <div className="flex h-full min-w-0 items-center">

@@ -136,9 +136,9 @@ export function MultiSelectCombobox<T>({
       <div className="relative">
         <div
           ref={containerRef}
-          className="border-input bg-background flex max-h-14 min-h-9 w-full overflow-y-auto rounded-md border text-xs"
+          className="border-input bg-canvas flex max-h-14 min-h-9 w-full overflow-y-auto rounded-md border text-xs"
         >
-          <Search className="text-muted-foreground absolute top-2.5 left-2 z-10 h-4 w-4" />
+          <Search className="text-tertiary absolute top-2.5 left-2 z-10 h-4 w-4" />
           <div className="flex max-h-full flex-1 flex-wrap items-center gap-1 pl-8">
             {/* Selected Items Pills */}
             {showSelectedItemsInInput
@@ -164,7 +164,7 @@ export function MultiSelectCombobox<T>({
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
               disabled={disabled}
-              className="placeholder:text-foreground-tertiary min-w-24 flex-1 border-none bg-transparent text-xs outline-hidden"
+              className="placeholder:text-disabled min-w-24 flex-1 border-none bg-transparent text-xs outline-hidden"
             />
           </div>
           {searchQuery && (
@@ -188,7 +188,7 @@ export function MultiSelectCombobox<T>({
             <div
               className={
                 dropdownClassName ??
-                "bg-background absolute top-0 z-10 max-h-48 w-full overflow-y-auto rounded-md border shadow-md"
+                "bg-canvas absolute top-0 z-10 max-h-48 w-full overflow-y-auto rounded-md border shadow-md"
               }
               onMouseDown={(e) => e.preventDefault()}
               onWheel={(e) => e.stopPropagation()}
@@ -211,7 +211,7 @@ export function MultiSelectCombobox<T>({
                 </div>
               ))}
               {hasMoreResults && (
-                <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
+                <div className="text-tertiary flex items-center gap-3 px-3 py-2">
                   <MoreHorizontal className="h-4 w-4" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs italic">
@@ -222,7 +222,7 @@ export function MultiSelectCombobox<T>({
               )}
             </div>
           ) : (
-            <div className="bg-background text-muted-foreground absolute top-0 z-10 w-full rounded-md border py-6 text-center text-xs shadow-md">
+            <div className="bg-canvas text-tertiary absolute top-0 z-10 w-full rounded-md border py-6 text-center text-xs shadow-md">
               {searchQuery
                 ? `No results found for "${searchQuery}"`
                 : "No results available"}

@@ -266,7 +266,7 @@ export const StructuredOutputSchemaSection = () => {
                 : undefined
             }
           >
-            <div className="bg-background hover:bg-accent/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200">
+            <div className="bg-background hover:bg-hover/50 relative cursor-pointer rounded-md border p-2 pr-10 transition-colors duration-200">
               <Button
                 variant="ghost"
                 size="sm"
