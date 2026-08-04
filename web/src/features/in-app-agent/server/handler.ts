@@ -1,6 +1,5 @@
 import { EventType } from "@ag-ui/core";
 import { type Session } from "next-auth";
-import { getServerSession } from "next-auth";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -60,7 +59,7 @@ import {
   getDefaultInAppAgentSandboxProviderType,
 } from "@langfuse/shared/in-app-agent/server/sandbox/config";
 import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
-import { getAuthOptions } from "@/src/server/auth";
+import { getServerAuthSessionForRequest } from "@/src/server/auth";
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
 import { createHttpHeaderFromRateLimit } from "@/src/features/public-api/server/RateLimitService";
 import type { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -104,8 +103,7 @@ const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
 
 export default async function handler(request: Request) {
   try {
-    const authOptions = await getAuthOptions();
-    const session = await getServerSession(authOptions);
+    const session = await getServerAuthSessionForRequest(request);
 
     if (!session?.user) {
       throw new UnauthorizedError("Unauthenticated");
