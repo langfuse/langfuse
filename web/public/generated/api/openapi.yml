@@ -826,6 +826,15 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: content
+          in: query
+          description: >-
+            Filter comments by case-insensitive substring match on comment
+            content. Maximum 200 characters.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
