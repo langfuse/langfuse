@@ -302,6 +302,10 @@ pnpm run db:seed:examples
   - upserts the event in the `traces` or `observations` table
 - returns a `207` HTTP status code with a list of errors if any event failed to be ingested
 
+### Error reporting (Sentry)
+
+Client-side errors in `web` report to Sentry under a deliberate capture contract: an event in Sentry is a promise that a human should act. Before adding a `captureException`, a `console.error`, or a Sentry filter, read [web/OBSERVABILITY.md](web/OBSERVABILITY.md).
+
 ## Commit messages
 
 On the main branch, we adhere to the best practices of [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/). All pull requests and branches are squash-merged to maintain a clean and readable history. This approach ensures the addition of a conventional commit message when merging contributions.

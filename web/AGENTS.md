@@ -87,6 +87,8 @@ a `captureException` or `console.error` call, an error boundary, a `catch`
 block, a Worker `onerror`, or a Sentry `beforeSend`/denylist filter — read the
 Sentry instrumentation skill first and decide whether it should capture at all
 (and, for any suppression change, answer "does this rule hide a real error?").
+The human-facing version of that capture contract is
+[`OBSERVABILITY.md`](OBSERVABILITY.md).
 
 ## Web Conventions
 
