@@ -38,14 +38,16 @@ const restrictedImportPatterns = [
 
 // One seam owns error capture: raw Sentry capture APIs are restricted to the
 // reportError seam (src/utils/reportError.ts) so classification (`expected`),
-// `area` tagging, and non-Error coercion live in exactly one place. See
-// web/OBSERVABILITY.md. Exempted files re-declare the rule below without this
-// pattern — never via inline eslint-disable.
+// `area` tagging, and non-Error coercion live in exactly one place. The
+// capture contract lives in the seam's doc comment and in
+// .agents/skills/sentry-instrumentation/SKILL.md (human-facing version:
+// web/OBSERVABILITY.md, landing separately). Exempted files get a dedicated
+// config block below without this pattern — never an inline eslint-disable.
 const sentryCapturePattern = {
   regex: "^@sentry/nextjs$",
   importNames: ["captureException", "captureMessage"],
   message:
-    "Do not capture directly — route through the reportError seam (@/src/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See web/OBSERVABILITY.md.",
+    "Do not capture directly — route through the reportError seam (@/src/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See the reportError doc comment and .agents/skills/sentry-instrumentation/SKILL.md.",
 };
 
 // eslint-plugin-tailwindcss types this as Config | ConfigArray, but the
