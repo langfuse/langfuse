@@ -38,6 +38,8 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { ScoreConfigDataType } from "@langfuse/shared";
 import {
+  createEvent,
+  createEventsCh,
   createObservation,
   createObservationsCh,
   createTrace,
@@ -49,7 +51,13 @@ import {
   QueueJobs,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
+
+const maybeEvents =
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+    ? describe
+    : describe.skip;
 
 describe("scores trpc", () => {
   let projectId: string;
@@ -175,6 +183,47 @@ describe("scores trpc", () => {
       expect(resultFromEvents.scores.map((score) => score.id)).toEqual([
         trueBooleanScore.id,
       ]);
+    });
+  });
+
+  maybeEvents("scores.allFromEvents trace-name filters", () => {
+    it("keeps scores for semantic roots without a stored trace name", async () => {
+      const traceId = randomUUID();
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "semantic-root-score",
+        value: 0.9,
+      });
+
+      await createEventsCh([
+        createEvent({
+          trace_id: traceId,
+          project_id: projectId,
+          parent_span_id: "external-parent",
+          is_app_root: true,
+          name: "semantic-root-trace",
+          trace_name: "",
+        }),
+      ]);
+      await createScoresCh([score]);
+
+      const result = await caller.scores.allFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "traceName",
+            operator: "=",
+            value: "semantic-root-trace",
+            type: "string",
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" },
+        page: 0,
+        limit: 50,
+      });
+
+      expect(result.scores.map(({ id }) => id)).toContain(score.id);
     });
   });
 

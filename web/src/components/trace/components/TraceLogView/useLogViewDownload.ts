@@ -9,6 +9,7 @@
 
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
+import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationIOData } from "./useLogViewAllObservationsIO";
 
@@ -43,10 +44,13 @@ export function useLogViewDownload({
 }: UseLogViewDownloadParams) {
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  // Helper to download JSON data
+  // Helper to download JSON data. Serializes through the shared stringify
+  // helper (not the raw JSON.stringify) so \uXXXX escapes in string fields
+  // (e.g. Japanese ingested with Python ensure_ascii=True) are decoded to
+  // real characters, matching the server-side trace download route.
   const downloadJsonData = useCallback(
     (data: unknown) => {
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
+      const blob = new Blob([stringify(data, undefined, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);
@@ -67,7 +71,7 @@ export function useLogViewDownload({
       setTimeout(() => {
         try {
           const data = buildDataFromCache();
-          copyTextToClipboard(JSON.stringify(data, null, 2));
+          copyTextToClipboard(stringify(data, undefined, 2));
           toast.success("Copied to clipboard (cache only)");
         } finally {
           setIsActionLoading(false);
@@ -76,7 +80,7 @@ export function useLogViewDownload({
     } else {
       // Load all mode: fetch all data if needed
       if (allObservationsData) {
-        copyTextToClipboard(JSON.stringify(allObservationsData, null, 2));
+        copyTextToClipboard(stringify(allObservationsData, undefined, 2));
         // Show warning if some observations failed to load
         if (failedObservationIds.length > 0) {
           toast.warning(
@@ -89,7 +93,7 @@ export function useLogViewDownload({
         setIsActionLoading(true);
         try {
           const data = await loadAllData();
-          copyTextToClipboard(JSON.stringify(data, null, 2));
+          copyTextToClipboard(stringify(data, undefined, 2));
           // Check for failures after loading
           if (failedObservationIds.length > 0) {
             toast.warning(

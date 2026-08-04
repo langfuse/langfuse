@@ -30,6 +30,10 @@ import {
   type AgUiEvent,
   type AgUiMessage,
 } from "../schema";
+import {
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
+} from "../messages";
 import { assertConversationAccess } from "./access";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
@@ -387,7 +391,7 @@ export async function appendRunEvents(params: {
 }
 
 export async function getConversationEvents(params: {
-  prisma: PrismaClient;
+  prisma: PrismaClient | Prisma.TransactionClient;
   projectId: string;
   conversationId: string;
 }): Promise<PersistedConversationEvent[]> {
@@ -494,23 +498,6 @@ export async function getConversationMessages(params: {
   conversationId: string;
 }) {
   return getMessagesFromPersistedEvents(await getConversationEvents(params));
-}
-
-export async function getConversationMessagesForDisplay(params: {
-  prisma: PrismaClient;
-  projectId: string;
-  conversationId: string;
-}) {
-  return getConversationMessagesForDisplayFromEvents(
-    await getConversationEvents(params),
-  );
-}
-
-export function getConversationMessagesForDisplayFromEvents(
-  events: readonly PersistedConversationEvent[],
-) {
-  const messages = getMessagesFromPersistedEvents(events);
-  return dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages));
 }
 
 export async function getConversationMessagesForReplay(params: {
@@ -1120,6 +1107,12 @@ export function createConversationMessageAccumulator(
       if (draft) {
         draft.content += delta;
         draft.runId ??= runId;
+        return upsertMessage({
+          id: draft.id,
+          role: "assistant",
+          content: draft.content,
+          ...(draft.runId ? { runId: draft.runId } : {}),
+        });
       }
       return false;
     }
@@ -1447,41 +1440,6 @@ function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
   });
 }
 
-function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {
-  const toolResultIds = new Set(
-    messages.flatMap((message) =>
-      message.role === "tool" ? [message.toolCallId] : [],
-    ),
-  );
-  let changed = false;
-
-  const sanitizedMessages = messages.map((message): AgUiMessage => {
-    if (message.role !== "assistant" || !message.toolCalls?.length) {
-      return message;
-    }
-
-    const pairedToolCalls = message.toolCalls.filter((toolCall) =>
-      toolResultIds.has(toolCall.id),
-    );
-
-    if (pairedToolCalls.length === message.toolCalls.length) {
-      return message;
-    }
-
-    changed = true;
-
-    if (pairedToolCalls.length === 0) {
-      const sanitizedMessage = { ...message };
-      delete sanitizedMessage.toolCalls;
-      return sanitizedMessage;
-    }
-
-    return { ...message, toolCalls: pairedToolCalls };
-  });
-
-  return changed ? sanitizedMessages : messages;
-}
-
 function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
   let changed = false;
   const sanitizedMessages = messages.filter((message) => {
@@ -1490,26 +1448,6 @@ function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
 
     changed = changed || !keep;
     return keep;
-  });
-
-  return changed ? sanitizedMessages : messages;
-}
-
-function dropEmptyAssistantMessages(messages: readonly AgUiMessage[]) {
-  let changed = false;
-  const sanitizedMessages = messages.filter((message) => {
-    if (message.role !== "assistant") {
-      return true;
-    }
-
-    const hasContent =
-      typeof message.content === "string" && message.content.length > 0;
-    const hasToolCalls =
-      message.toolCalls !== undefined && message.toolCalls.length > 0;
-    const keepMessage = hasContent || hasToolCalls;
-
-    changed = changed || !keepMessage;
-    return keepMessage;
   });
 
   return changed ? sanitizedMessages : messages;

@@ -29,7 +29,7 @@ import * as opentelemetry from "@opentelemetry/api";
 export default async function chatCompletionHandler(req: NextRequest) {
   try {
     const body = validateChatCompletionBody(await req.json());
-    const { userId } = await authorizeRequestOrThrow(body.projectId);
+    const { userId } = await authorizeRequestOrThrow(body.projectId, req);
 
     const blockedUsers = env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION;
     if (blockedUsers.has(userId)) {
