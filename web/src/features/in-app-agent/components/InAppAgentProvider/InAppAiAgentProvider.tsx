@@ -37,7 +37,6 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
-  createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
   type InAppAgentMessageEntryPoint,
 } from "@/src/features/in-app-agent/context";
@@ -56,6 +55,7 @@ import { getInAppAgentError } from "./fns/getInAppAgentError";
 import { type InAppAgentError } from "@/src/features/in-app-agent/types";
 import { createInAppAgentUserContext } from "./fns/createInAppAgentUserContext";
 import { createInAppAgentMessageEntryPointContext } from "./fns/createInAppAgentMessageEntryPointContext";
+import { createInAppAgentQuickActionAttributionContext } from "./fns/createInAppAgentQuickActionAttributionContext";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";

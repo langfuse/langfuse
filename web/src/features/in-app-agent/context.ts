@@ -29,8 +29,9 @@ export type InAppAgentScreenContextDescription =
   | { type: "datasets-list"; hasAppliedFilters: boolean };
 
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
-const QUICK_ACTION_KEY_CONTEXT_DESCRIPTION = "quick_action_key";
-const QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION = "quick_action_category";
+export const QUICK_ACTION_KEY_CONTEXT_DESCRIPTION = "quick_action_key";
+export const QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION =
+  "quick_action_category";
 export const MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION = "message_entry_point";
 const MAX_SCREEN_CONTEXT_SEARCH_PARAMS = 30;
 const MAX_CONTEXT_KEY_LENGTH = 80;
@@ -102,21 +103,6 @@ export function sanitizeInAppAgentContext(
   sanitizedContext.push(...sanitizeUserContext(context));
 
   return sanitizedContext;
-}
-
-export function createInAppAgentQuickActionAttributionContext(
-  attribution: InAppAgentQuickActionAttribution,
-): InAppAgentContext {
-  return [
-    {
-      description: QUICK_ACTION_KEY_CONTEXT_DESCRIPTION,
-      value: attribution.key,
-    },
-    {
-      description: QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
-      value: attribution.category,
-    },
-  ];
 }
 
 // Attribution is telemetry only: it is validated by shape here and read for

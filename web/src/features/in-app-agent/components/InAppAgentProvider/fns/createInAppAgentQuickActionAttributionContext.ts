@@ -1,0 +1,23 @@
+import {
+  QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
+  QUICK_ACTION_KEY_CONTEXT_DESCRIPTION,
+} from "@/src/features/in-app-agent/context";
+import { type InAppAgentQuickActionAttribution } from "@/src/features/in-app-agent/quickActions";
+import { type AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
+
+type InAppAgentContext = AgUiRunAgentInput["context"];
+
+export function createInAppAgentQuickActionAttributionContext(
+  attribution: InAppAgentQuickActionAttribution,
+): InAppAgentContext {
+  return [
+    {
+      description: QUICK_ACTION_KEY_CONTEXT_DESCRIPTION,
+      value: attribution.key,
+    },
+    {
+      description: QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
+      value: attribution.category,
+    },
+  ];
+}
