@@ -7,7 +7,7 @@ import type { InAppAgentWindowConversation } from "../InAppAgentWindow/InAppAgen
 import { useInAppAiAgent } from "../InAppAgentProvider/InAppAiAgentProvider";
 import { useSmoothStreamingMessages } from "./hooks/useSmoothStreamingMessages";
 import { getDrawerMessages } from "./fns/getDrawerMessages";
-import { getInAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
+import { getInAppAgentScreenContextDescription } from "./fns/getInAppAgentScreenContextDescription";
 import {
   getInAppAgentFocusedQuickActions,
   getInAppAgentQuickActionContext,

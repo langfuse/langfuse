@@ -1,4 +1,4 @@
-import { getInAppAgentScreenContextDescription } from "./context";
+import { getInAppAgentScreenContextDescription } from "./getInAppAgentScreenContextDescription";
 
 describe("getInAppAgentScreenContextDescription", () => {
   it.each([
