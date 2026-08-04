@@ -502,7 +502,7 @@ describe("in-app agent execution", () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByRole("button", { name: /stopp?ing run/i }),
+        screen.queryByRole("button", { name: /stop(?:ping)? run/i }),
       ).not.toBeInTheDocument();
     });
     expect(screen.getByText(finalText)).toBeVisible();
@@ -682,7 +682,7 @@ describe("in-app agent execution", () => {
     });
     await waitFor(() => {
       expect(
-        screen.queryByRole("button", { name: /stopp?ing run/i }),
+        screen.queryByRole("button", { name: /stop(?:ping)? run/i }),
       ).not.toBeInTheDocument();
     });
     expect(screen.getByText(finalText)).toBeVisible();

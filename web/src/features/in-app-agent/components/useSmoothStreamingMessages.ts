@@ -221,8 +221,10 @@ function enqueueStreamingUpdate(
   action: Extract<SmoothStreamingAction, { type: "enqueue" }>,
 ) {
   const nextMessages = snapshotMessages(action.messages);
+  // Revisions increase within one live session. A reset to a lower revision
+  // installs hydrated history from a different session/conversation.
   const isLivePublication =
-    action.liveMessageVersion !== state.liveMessageVersion;
+    action.liveMessageVersion > state.liveMessageVersion;
   const isLoadingOnlyUpdate =
     !isLivePublication &&
     areMessagesEqualExceptLoading(state.targetMessages, nextMessages);

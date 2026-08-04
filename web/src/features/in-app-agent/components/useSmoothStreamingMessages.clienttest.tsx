@@ -249,6 +249,41 @@ describe("useSmoothStreamingMessages", () => {
     expect(screen.getByTestId("animating")).toHaveTextContent("false");
   });
 
+  it("shows cached history immediately when switching conversations", () => {
+    const firstConversationText = "a".repeat(80);
+    const cachedConversationText = "b".repeat(80);
+    const { rerender } = render(
+      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+    );
+
+    rerender(
+      <TestConsumer
+        liveMessageVersion={1}
+        messages={[userMessage, assistantMessage(firstConversationText)]}
+      />,
+    );
+    runAllAnimationFrames();
+
+    rerender(
+      <TestConsumer
+        liveMessageVersion={0}
+        messages={[
+          { id: "cached-user", role: "user", content: "Cached conversation" },
+          {
+            id: "cached-assistant",
+            role: "assistant",
+            content: cachedConversationText,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("content")).toHaveTextContent(
+      cachedConversationText,
+    );
+    expect(screen.getByTestId("animating")).toHaveTextContent("false");
+  });
+
   it("animates a live message that completes in one update", () => {
     const content =
       "This final response arrived atomically but should still be displayed smoothly.";
