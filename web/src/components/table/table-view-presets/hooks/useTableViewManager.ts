@@ -164,6 +164,13 @@ export function useTableViewManager({
     [setStoredViewId, setSelectedViewId],
   );
 
+  // Demote the active view to a provenance-only reference: drop the
+  // session-storage restore (so a later clean-URL mount does not re-apply the
+  // view) while leaving `?viewId` in the URL untouched (LFE-14699).
+  const clearStoredViewId = useCallback(() => {
+    setStoredViewId(null);
+  }, [setStoredViewId]);
+
   // Extract updater functions and store in refs to avoid stale closures
   const {
     setOrderBy,
@@ -567,6 +574,7 @@ export function useTableViewManager({
       isLoading: false,
       applyViewState: () => {},
       handleSetViewId: () => {},
+      clearStoredViewId: () => {},
       selectedViewId: null,
       appliedViewId: null,
       defaultViewScope: null,
@@ -577,6 +585,7 @@ export function useTableViewManager({
     isLoading,
     applyViewState,
     handleSetViewId,
+    clearStoredViewId,
     selectedViewId,
     // The view whose state is reflected in the live table — i.e. whose column
     // layout is in localStorage. We reuse `storedViewId` (session-persisted,
