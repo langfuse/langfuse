@@ -1,6 +1,6 @@
-import { getInAppAgentQuickActionContext } from "./quickActions";
+import { getInAppAgentQuickActionContext } from "./getInAppAgentQuickActionContext";
 
-describe("contextual assistant quick actions", () => {
+describe("getInAppAgentQuickActionContext", () => {
   it("classifies project sections and falls back to observability", () => {
     expect(getInAppAgentQuickActionContext("/project/p-1/datasets/d-1")).toBe(
       "evaluation",

@@ -7,11 +7,11 @@ import {
   type InAppAgentWindowMessage,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
-import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/quickActions";
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
 } from "../InAppAgentWindowHost/components/InAppAgentWindowShell";
+import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/fns/getInAppAgentQuickActionContext";
 
 function InAppAgentWindowStoryShell({
   children,

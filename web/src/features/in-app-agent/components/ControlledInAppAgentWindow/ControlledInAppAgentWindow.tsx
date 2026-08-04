@@ -8,8 +8,8 @@ import { useInAppAiAgent } from "../InAppAgentProvider/InAppAiAgentProvider";
 import { useSmoothStreamingMessages } from "./hooks/useSmoothStreamingMessages";
 import { getDrawerMessages } from "./fns/getDrawerMessages";
 import { getInAppAgentScreenContextDescription } from "./fns/getInAppAgentScreenContextDescription";
-import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/quickActions";
 import { getInAppAgentFocusedQuickActions } from "./fns/getInAppAgentFocusedQuickActions";
+import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/fns/getInAppAgentQuickActionContext";
 
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
