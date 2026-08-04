@@ -4,6 +4,7 @@ import { VersionUpdateBanner } from "./VersionUpdateBanner";
 import { VersionUpdateBannerView } from "./VersionUpdateBannerView";
 import {
   createVersionUpdateStore,
+  VERSION_UPDATE_MIN_STALENESS_MS,
   VERSION_UPDATE_SHOW_THROTTLE_MS,
   VERSION_UPDATE_DISMISS_SUPPRESSION_MS,
   VERSION_UPDATE_LAST_SHOWN_AT_KEY,
@@ -156,9 +157,11 @@ describe("VersionUpdateBanner (connected)", () => {
   });
 });
 
-// End-to-end through a REAL store (fake storage + injected clock): the
-// persisted suppression windows (LFE-14765) must keep the banner — and its
-// `banner_shown` analytics — quiet, and dismiss must persist its window.
+// End-to-end through a REAL store (fake storage + injected clock): the 48 h
+// staleness gate and the persisted suppression windows (LFE-14765) must keep
+// the banner — and its `banner_shown` analytics — quiet, and dismiss must
+// persist its window. Suppression tests disable the staleness gate
+// (`minStalenessMs: 0`) so each test pins one behavior.
 describe("VersionUpdateBanner (integration: real store + fake storage)", () => {
   const createFakeStorage = () => {
     const data = new Map<string, string>();
@@ -184,17 +187,50 @@ describe("VersionUpdateBanner (integration: real store + fake storage)", () => {
     vi.restoreAllMocks();
   });
 
+  it("renders nothing and fires no banner_shown until the frontend is 48 h stale", () => {
+    const storage = createFakeStorage();
+    let now = 0;
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      now: () => now,
+      getStorage: () => storage,
+    });
+    h.store = store;
+
+    render(<VersionUpdateBanner />);
+    act(() => {
+      store.reportObservedBuildId("deployed");
+    });
+    expect(
+      screen.queryByRole("button", { name: "Reload" }),
+    ).not.toBeInTheDocument();
+    expect(h.capture).not.toHaveBeenCalled();
+
+    // 48 h of supersession later, the next response surfaces the banner and
+    // banner_shown fires exactly once.
+    act(() => {
+      now = VERSION_UPDATE_MIN_STALENESS_MS;
+      store.reportObservedBuildId("deployed");
+    });
+    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
+    expect(
+      h.capture.mock.calls.filter(
+        (c) => c[0] === "version_update:banner_shown",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("stays hidden and fires no banner_shown while the show throttle is active; shows once it expires", () => {
     const storage = createFakeStorage();
     // A banner appearance was recorded just before this simulated reload.
     storage.setItem(VERSION_UPDATE_LAST_SHOWN_AT_KEY, "0");
     let now = 0;
-    const store = createVersionUpdateStore(
-      () => "running",
-      0,
-      () => now,
-      () => storage,
-    );
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      minStalenessMs: 0,
+      now: () => now,
+      getStorage: () => storage,
+    });
     h.store = store;
 
     render(<VersionUpdateBanner />);
@@ -227,12 +263,12 @@ describe("VersionUpdateBanner (integration: real store + fake storage)", () => {
   it("persists the 24 h suppression window on dismiss and keeps new builds quiet", () => {
     const storage = createFakeStorage();
     let now = 1_000;
-    const store = createVersionUpdateStore(
-      () => "running",
-      0,
-      () => now,
-      () => storage,
-    );
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      minStalenessMs: 0,
+      now: () => now,
+      getStorage: () => storage,
+    });
     h.store = store;
 
     render(<VersionUpdateBanner />);

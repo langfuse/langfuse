@@ -21,16 +21,22 @@
  * seen — a settling window for the deploy to finish. This gate is combined at the
  * banner with a post-load grace (see `useAppSettled`); both must pass.
  *
- * Persisted suppression (LFE-14765): dismiss and the seen-build set live in
- * memory, so back-to-back deploys re-prompted every tab on every release — a
- * customer reported the banner reappearing after every reload. Two
- * localStorage-persisted gates (shared across reloads AND tabs) sit on top of
- * the gates above: the banner may APPEAR at most once per
- * {@link VERSION_UPDATE_SHOW_THROTTLE_MS}, and an explicit dismiss suppresses it
- * for {@link VERSION_UPDATE_DISMISS_SUPPRESSION_MS} — even for genuinely new
- * build ids. Both gate only the hidden→shown transition (a banner already on
- * screen never hides itself), and both degrade to the in-memory behavior when
- * storage is unavailable.
+ * Staleness gate + persisted suppression (LFE-14765): the banner exists so a
+ * long-lived stale tab does not 404 on code-split chunks — but dismiss and the
+ * seen-build set lived in memory, so back-to-back deploys re-prompted every tab
+ * on every release (a customer reported the banner reappearing after every
+ * reload). Prompting minutes after each deploy adds work for thousands of users
+ * without addressing chunk breakage, so the banner only appears at all once the
+ * running bundle has been superseded for at least
+ * {@link VERSION_UPDATE_MIN_STALENESS_MS} — measured from the FIRST observed
+ * differing build id for the running build, persisted across reloads and tabs.
+ * On top of that, two persisted suppression windows apply: at most one
+ * appearance per {@link VERSION_UPDATE_SHOW_THROTTLE_MS}, and an explicit
+ * dismiss stays quiet for {@link VERSION_UPDATE_DISMISS_SUPPRESSION_MS}, even
+ * for genuinely new build ids. All three gate only the hidden→shown transition
+ * (a banner already on screen never hides itself) and degrade to in-memory
+ * behavior when storage is unavailable. Keeping old bundles servable — the root
+ * cause of chunk 404s — is tracked separately.
  */
 
 /**
@@ -72,11 +78,27 @@ export const VERSION_UPDATE_SHOW_THROTTLE_MS = 2 * 60 * 60 * 1000;
  */
 export const VERSION_UPDATE_DISMISS_SUPPRESSION_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Minimum staleness (LFE-14765): the banner only appears at all once the
+ * running bundle has been superseded for at least this long. Measured from the
+ * first observed differing build id for the running build — "how long has this
+ * frontend been superseded", which is what actually breaks code-split chunks —
+ * not from a build timestamp (which would need deploy-pipeline support and
+ * measures age, not supersession).
+ */
+export const VERSION_UPDATE_MIN_STALENESS_MS = 48 * 60 * 60 * 1000;
+
 /** localStorage key: epoch ms of the banner's last actual appearance. */
 export const VERSION_UPDATE_LAST_SHOWN_AT_KEY = "version-update-last-shown-at";
 /** localStorage key: epoch ms until which an explicit dismiss suppresses the banner. */
 export const VERSION_UPDATE_SUPPRESSED_UNTIL_KEY =
   "version-update-suppressed-until";
+/**
+ * localStorage key: JSON `{ buildId, ts }` — when the RUNNING build (`buildId`)
+ * was first observed superseded. A single overwritten entry, not one key per
+ * build, so storage never accumulates.
+ */
+export const VERSION_UPDATE_STALE_SINCE_KEY = "version-update-stale-since";
 
 export type VersionUpdateStore = {
   /** Subscribe to snapshot changes (for `useSyncExternalStore`). */
@@ -84,8 +106,10 @@ export type VersionUpdateStore = {
   /**
    * Current snapshot: is an update available, not yet dismissed, AND has the
    * new-version debounce ({@link VERSION_UPDATE_DEBOUNCE_MS}) elapsed? A
-   * hidden→shown transition additionally requires the persisted suppression
-   * windows (show throttle / dismiss suppression, LFE-14765) to have expired.
+   * hidden→shown transition additionally requires the running build to have
+   * been superseded for at least {@link VERSION_UPDATE_MIN_STALENESS_MS} and
+   * the persisted suppression windows (show throttle / dismiss suppression,
+   * LFE-14765) to have expired.
    */
   getSnapshot: () => boolean;
   /** SSR snapshot — always `false`; the mismatch only exists in a live tab. */
@@ -121,6 +145,35 @@ export type VersionUpdateStore = {
 };
 
 /**
+ * Injection points for {@link createVersionUpdateStore} — everything
+ * time/persistence-related, so tests are deterministic. The app singleton uses
+ * the defaults.
+ */
+export type VersionUpdateStoreOptions = {
+  /**
+   * New-version settling window (default {@link VERSION_UPDATE_DEBOUNCE_MS}).
+   * A value ≤ 0 disables the debounce (the update is eligible as soon as it is
+   * available) and stays synchronous — no timer — which keeps the
+   * detection/stickiness tests free of fake timers.
+   */
+  debounceMs?: number;
+  /**
+   * How long the running build must have been superseded before the banner may
+   * appear (default {@link VERSION_UPDATE_MIN_STALENESS_MS}); ≤ 0 disables the
+   * staleness gate.
+   */
+  minStalenessMs?: number;
+  /** Clock backing the persisted gates (default `Date.now`). */
+  now?: () => number;
+  /**
+   * Lazy storage accessor — lazy because module scope must not touch `window`
+   * (SSR). May return `undefined` or throw (private mode, hardened contexts,
+   * quota): every access is guarded, degrading to in-memory behavior.
+   */
+  getStorage?: () => Pick<Storage, "getItem" | "setItem"> | undefined;
+};
+
+/**
  * Builds a version-update store. `getRunningBuildId` returns the build id of the
  * bundle this tab is running; injecting it (rather than reading the module-level
  * env directly) keeps the store deterministic and testable.
@@ -138,24 +191,18 @@ export type VersionUpdateStore = {
  * "a build ≠ yours exists → offer reload" is the right action even though we
  * can't prove the other build is strictly newer.
  *
- * `debounceMs` is the new-version settling window (default
- * {@link VERSION_UPDATE_DEBOUNCE_MS}); injected for deterministic testing. A
- * value ≤ 0 disables the debounce (the update shows as soon as it is available)
- * and stays synchronous — no timer — which keeps the detection/stickiness tests
- * free of fake timers.
- *
- * `now` and `getStorage` back the persisted suppression gates (LFE-14765);
- * injected for deterministic testing, like the parameters above. `getStorage`
- * is lazy (module scope must not touch `window` — SSR) and may return
- * `undefined` or throw (private mode, hardened contexts, quota): every access
- * is guarded, degrading to the pre-existing in-memory behavior.
+ * All time/persistence inputs are injected via {@link VersionUpdateStoreOptions}
+ * for deterministic testing; the app singleton uses the defaults.
  */
 export function createVersionUpdateStore(
   getRunningBuildId: () => string | null | undefined,
-  debounceMs: number = VERSION_UPDATE_DEBOUNCE_MS,
-  now: () => number = () => Date.now(),
-  getStorage: () => Pick<Storage, "getItem" | "setItem"> | undefined = () =>
-    typeof window === "undefined" ? undefined : window.localStorage,
+  {
+    debounceMs = VERSION_UPDATE_DEBOUNCE_MS,
+    minStalenessMs = VERSION_UPDATE_MIN_STALENESS_MS,
+    now = () => Date.now(),
+    getStorage = () =>
+      typeof window === "undefined" ? undefined : window.localStorage,
+  }: VersionUpdateStoreOptions = {},
 ): VersionUpdateStore {
   const listeners = new Set<() => void>();
   // Every build id observed that differs from the running one. Membership is
@@ -174,6 +221,10 @@ export function createVersionUpdateStore(
   // is eligible forever, and a later genuinely-new build re-prompts immediately.
   let debounceStarted = false;
   let debounceElapsed = false;
+  // When the RUNNING build was first observed superseded (epoch ms). Resolved
+  // once, on the first mismatch (see resolveStaleSince); later new builds do
+  // not move it — they don't make this tab any less stale.
+  let staleSince: number | null = null;
 
   // Guarded storage access: `getStorage` and Storage methods may throw. On any
   // failure reads yield null and writes are dropped — in-memory behavior only.
@@ -194,6 +245,48 @@ export function createVersionUpdateStore(
       // best-effort persistence; the in-memory gates still apply
     }
   };
+
+  // The staleness clock for the running build, shared across tabs/reloads via
+  // one JSON `{ buildId, ts }` entry. An entry for a DIFFERENT running build
+  // means the tab has since reloaded onto a new bundle → restart at now (and
+  // overwrite). A future-dated `ts` (clock moved backward since the write) is
+  // likewise restarted rather than honored. Unreadable/garbage → treat as
+  // absent; unwritable → the in-memory value still gates this tab.
+  const resolveStaleSince = (): number => {
+    const t = now();
+    const runningBuildId = getRunningBuildId();
+    try {
+      const raw = getStorage()?.getItem(VERSION_UPDATE_STALE_SINCE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { buildId?: unknown; ts?: unknown };
+        if (
+          parsed &&
+          parsed.buildId === runningBuildId &&
+          typeof parsed.ts === "number" &&
+          Number.isFinite(parsed.ts) &&
+          parsed.ts <= t
+        ) {
+          return parsed.ts;
+        }
+      }
+    } catch {
+      // fall through to a fresh entry
+    }
+    try {
+      getStorage()?.setItem(
+        VERSION_UPDATE_STALE_SINCE_KEY,
+        JSON.stringify({ buildId: runningBuildId, ts: t }),
+      );
+    } catch {
+      // best-effort persistence; the in-memory value still applies
+    }
+    return t;
+  };
+
+  // Primary gate (LFE-14765): only a frontend superseded at least
+  // `minStalenessMs` ago may prompt at all.
+  const isStaleEnough = (): boolean =>
+    staleSince !== null && now() - staleSince >= minStalenessMs;
 
   // Persisted suppression (LFE-14765). Checked only on the hidden→shown
   // transition — never hides a banner already on screen. Values written by a
@@ -230,8 +323,10 @@ export function createVersionUpdateStore(
 
   const emitChange = () => {
     // A visible banner stays visible while eligible (`snapshot ||` — the
-    // suppression windows gate new appearances, not the current one).
-    const next = computeEligible() && (snapshot || !isSuppressed());
+    // staleness gate and suppression windows govern new appearances, not the
+    // current one).
+    const next =
+      computeEligible() && (snapshot || (isStaleEnough() && !isSuppressed()));
     if (next === snapshot) return;
     snapshot = next;
     for (const listener of listeners) listener();
@@ -278,6 +373,8 @@ export function createVersionUpdateStore(
       ) {
         seenDifferingBuildIds.add(observedBuildId);
         updateAvailable = true; // sticky
+        // First supersession of the running build → start the staleness clock.
+        if (staleSince === null) staleSince = resolveStaleSince();
         // A genuinely new (never-seen) differing build → worth re-prompting even
         // if the user dismissed an earlier one, and worth counting as a fresh
         // appearance for analytics.
@@ -288,8 +385,9 @@ export function createVersionUpdateStore(
         startDebounce();
       }
       // Re-evaluate on EVERY report (not only on new builds): responses are the
-      // store's clock ticks, so an expired suppression window lets a pending
-      // update surface without a dedicated timer. No-op when nothing changed.
+      // store's clock ticks, so maturing staleness and expired suppression
+      // windows surface a pending update without a dedicated timer. No-op when
+      // nothing changed.
       emitChange();
     },
     dismiss() {

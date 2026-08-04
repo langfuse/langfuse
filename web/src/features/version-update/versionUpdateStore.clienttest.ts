@@ -3,10 +3,12 @@ import {
   createVersionUpdateStore,
   isVersionMismatch,
   VERSION_UPDATE_DEBOUNCE_MS,
+  VERSION_UPDATE_MIN_STALENESS_MS,
   VERSION_UPDATE_SHOW_THROTTLE_MS,
   VERSION_UPDATE_DISMISS_SUPPRESSION_MS,
   VERSION_UPDATE_LAST_SHOWN_AT_KEY,
   VERSION_UPDATE_SUPPRESSED_UNTIL_KEY,
+  VERSION_UPDATE_STALE_SINCE_KEY,
 } from "./versionUpdateStore";
 
 // No persistence → the store's pure in-memory semantics. Used where the test
@@ -56,31 +58,50 @@ describe("versionUpdateStore", () => {
     window.localStorage.clear();
   });
 
+  // Mechanics tests disable the 48 h staleness gate (`minStalenessMs: 0`) so
+  // each pins exactly one behavior; the gate itself is covered in its own
+  // describe below.
+
   it("starts with no update available", () => {
-    const store = createVersionUpdateStore(() => "running", 0);
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      minStalenessMs: 0,
+    });
     expect(store.getSnapshot()).toBe(false);
   });
 
   it("stays silent when the observed build matches the running build", () => {
-    const store = createVersionUpdateStore(() => "running", 0);
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      minStalenessMs: 0,
+    });
     store.reportObservedBuildId("running");
     expect(store.getSnapshot()).toBe(false);
   });
 
   it("becomes available when a differing build id is observed", () => {
-    const store = createVersionUpdateStore(() => "running", 0);
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      minStalenessMs: 0,
+    });
     store.reportObservedBuildId("deployed");
     expect(store.getSnapshot()).toBe(true);
   });
 
   it("stays silent when the running build id is unknown", () => {
-    const store = createVersionUpdateStore(() => undefined, 0);
+    const store = createVersionUpdateStore(() => undefined, {
+      debounceMs: 0,
+      minStalenessMs: 0,
+    });
     store.reportObservedBuildId("deployed");
     expect(store.getSnapshot()).toBe(false);
   });
 
   it("ignores empty/absent observed build ids", () => {
-    const store = createVersionUpdateStore(() => "running", 0);
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      minStalenessMs: 0,
+    });
     store.reportObservedBuildId(null);
     store.reportObservedBuildId(undefined);
     store.reportObservedBuildId("");
@@ -91,12 +112,11 @@ describe("versionUpdateStore", () => {
   // persisted 24 h dismiss suppression additionally holds back the new build
   // (see "persisted suppression" below).
   it("hides after dismiss and re-shows only when a not-yet-seen build arrives (in-memory fallback)", () => {
-    const store = createVersionUpdateStore(
-      () => "running",
-      0,
-      undefined,
-      noStorage,
-    );
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      minStalenessMs: 0,
+      getStorage: noStorage,
+    });
 
     store.reportObservedBuildId("deployed-1");
     expect(store.getSnapshot()).toBe(true);
@@ -118,7 +138,10 @@ describe("versionUpdateStore", () => {
   // three failure modes flagged in review.
   describe("rolling deploy robustness", () => {
     it("stays available once a differing build is seen — a later old-pod response cannot suppress it", () => {
-      const store = createVersionUpdateStore(() => "running", 0);
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+      });
 
       store.reportObservedBuildId("deployed"); // new pod
       expect(store.getSnapshot()).toBe(true);
@@ -136,12 +159,11 @@ describe("versionUpdateStore", () => {
     it("does not reopen a dismissed banner when an already-seen build re-appears (old pod)", () => {
       // `noStorage` so the seen-set invariant is pinned on its own, not via
       // the persisted dismiss suppression.
-      const store = createVersionUpdateStore(
-        () => "running",
-        0,
-        undefined,
-        noStorage,
-      );
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        getStorage: noStorage,
+      });
 
       store.reportObservedBuildId("deployed");
       store.dismiss();
@@ -155,7 +177,10 @@ describe("versionUpdateStore", () => {
     });
 
     it("re-observing an already-seen build never flaps the snapshot (no extra notifications)", () => {
-      const store = createVersionUpdateStore(() => "running", 0);
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+      });
       const listener = vi.fn();
       store.subscribe(listener);
 
@@ -172,12 +197,11 @@ describe("versionUpdateStore", () => {
     // `noStorage` so the post-unsubscribe report really changes the snapshot
     // (a persisted dismiss suppression would keep it false and mask a broken
     // unsubscribe).
-    const store = createVersionUpdateStore(
-      () => "running",
-      0,
-      undefined,
-      noStorage,
-    );
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      minStalenessMs: 0,
+      getStorage: noStorage,
+    });
     const listener = vi.fn();
     const unsubscribe = store.subscribe(listener);
 
@@ -197,7 +221,10 @@ describe("versionUpdateStore", () => {
   });
 
   it("has a server snapshot that is always false", () => {
-    const store = createVersionUpdateStore(() => "running", 0);
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      minStalenessMs: 0,
+    });
     store.reportObservedBuildId("deployed");
     expect(store.getServerSnapshot()).toBe(false);
   });
@@ -206,7 +233,10 @@ describe("versionUpdateStore", () => {
   // component state) so a banner remount cannot double-count one appearance.
   describe("markShownReported (banner_shown once-per-appearance guard)", () => {
     it("returns true once per appearance, then false", () => {
-      const store = createVersionUpdateStore(() => "running", 0);
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+      });
       store.reportObservedBuildId("deployed");
 
       expect(store.markShownReported()).toBe(true);
@@ -217,7 +247,10 @@ describe("versionUpdateStore", () => {
     });
 
     it("resets for a genuinely new build id (a fresh appearance)", () => {
-      const store = createVersionUpdateStore(() => "running", 0);
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+      });
 
       store.reportObservedBuildId("deployed-1");
       expect(store.markShownReported()).toBe(true);
@@ -230,7 +263,10 @@ describe("versionUpdateStore", () => {
     });
 
     it("does not reset when an already-seen build id is re-observed", () => {
-      const store = createVersionUpdateStore(() => "running", 0);
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+      });
 
       store.reportObservedBuildId("deployed");
       expect(store.markShownReported()).toBe(true);
@@ -254,7 +290,10 @@ describe("versionUpdateStore", () => {
     });
 
     it("stays hidden until the debounce elapses after the first new build id", () => {
-      const store = createVersionUpdateStore(() => "running", 180_000);
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 180_000,
+        minStalenessMs: 0,
+      });
 
       store.reportObservedBuildId("deployed");
       // Available, but within the settling window → still not shown.
@@ -268,7 +307,10 @@ describe("versionUpdateStore", () => {
     });
 
     it("notifies subscribers exactly once, when the window elapses (not on detection)", () => {
-      const store = createVersionUpdateStore(() => "running", 180_000);
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 180_000,
+        minStalenessMs: 0,
+      });
       const listener = vi.fn();
       store.subscribe(listener);
 
@@ -281,7 +323,10 @@ describe("versionUpdateStore", () => {
     });
 
     it("keys the window to the FIRST sighting — a second new build within it does not extend the wait", () => {
-      const store = createVersionUpdateStore(() => "running", 180_000);
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 180_000,
+        minStalenessMs: 0,
+      });
 
       store.reportObservedBuildId("deployed-1");
       vi.advanceTimersByTime(100_000);
@@ -297,12 +342,11 @@ describe("versionUpdateStore", () => {
     it("re-prompts immediately for a new build once the window has already passed", () => {
       // `noStorage`: this pins the debounce being satisfied, without the
       // persisted 24 h dismiss suppression on top.
-      const store = createVersionUpdateStore(
-        () => "running",
-        180_000,
-        undefined,
-        noStorage,
-      );
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 180_000,
+        minStalenessMs: 0,
+        getStorage: noStorage,
+      });
 
       store.reportObservedBuildId("deployed-1");
       vi.advanceTimersByTime(180_000);
@@ -317,7 +361,10 @@ describe("versionUpdateStore", () => {
     });
 
     it("arms no timer when only the running build id is observed", () => {
-      const store = createVersionUpdateStore(() => "running", 180_000);
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 180_000,
+        minStalenessMs: 0,
+      });
 
       store.reportObservedBuildId("running"); // matches → no new-version signal
       vi.advanceTimersByTime(180_000);
@@ -327,7 +374,9 @@ describe("versionUpdateStore", () => {
     it("defaults the debounce window to three minutes", () => {
       expect(VERSION_UPDATE_DEBOUNCE_MS).toBe(3 * 60 * 1000);
 
-      const store = createVersionUpdateStore(() => "running");
+      const store = createVersionUpdateStore(() => "running", {
+        minStalenessMs: 0,
+      });
       store.reportObservedBuildId("deployed");
       vi.advanceTimersByTime(VERSION_UPDATE_DEBOUNCE_MS - 1);
       expect(store.getSnapshot()).toBe(false);
@@ -336,20 +385,184 @@ describe("versionUpdateStore", () => {
     });
   });
 
-  // Back-to-back releases re-armed the banner on every deploy, and dismiss was
-  // per-tab and per-build — a customer saw the banner after every reload
-  // (LFE-14765). Two localStorage-persisted windows gate NEW appearances:
-  // shown at most once per VERSION_UPDATE_SHOW_THROTTLE_MS, and an explicit
-  // dismiss suppresses for VERSION_UPDATE_DISMISS_SUPPRESSION_MS.
+  // The primary gate (LFE-14765): the banner exists so long-lived stale tabs
+  // don't 404 on code-split chunks — a prompt minutes after each deploy doesn't
+  // serve that. It may only appear once the RUNNING build has been superseded
+  // for 48 h, measured from the first observed differing build id and persisted
+  // (per running build) across reloads and tabs.
+  describe("48 h staleness gate (LFE-14765)", () => {
+    it("holds the banner until the running build has been superseded for 48 h", () => {
+      const storage = createFakeStorage();
+      let now = 0;
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
+
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(false); // superseded, but not stale yet
+
+      now = VERSION_UPDATE_MIN_STALENESS_MS - 1;
+      store.reportObservedBuildId("deployed"); // routine response = clock tick
+      expect(store.getSnapshot()).toBe(false);
+
+      now = VERSION_UPDATE_MIN_STALENESS_MS;
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(true);
+    });
+
+    it("keeps the persisted stale-since across a reload of the SAME running build", () => {
+      const storage = createFakeStorage();
+      let now = 0;
+      const first = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
+      first.reportObservedBuildId("deployed"); // stale-since recorded at t=0
+
+      // Reloading without picking up a new bundle (or a second tab of the same
+      // bundle) must NOT restart the staleness clock.
+      now = VERSION_UPDATE_MIN_STALENESS_MS;
+      const reloaded = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
+      reloaded.reportObservedBuildId("deployed");
+      expect(reloaded.getSnapshot()).toBe(true); // 48 h since the FIRST sighting
+    });
+
+    it("restarts the staleness clock when the tab reloads onto a NEW running build", () => {
+      const storage = createFakeStorage();
+      let now = 0;
+      const before = createVersionUpdateStore(() => "build-1", {
+        debounceMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
+      before.reportObservedBuildId("build-2"); // { buildId: build-1, ts: 0 }
+
+      // The user reloads onto build-2; build-3 supersedes it 48 h later.
+      now = VERSION_UPDATE_MIN_STALENESS_MS;
+      const after = createVersionUpdateStore(() => "build-2", {
+        debounceMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
+      after.reportObservedBuildId("build-3");
+      expect(after.getSnapshot()).toBe(false); // clock restarted for build-2
+      expect(storage.getItem(VERSION_UPDATE_STALE_SINCE_KEY)).toBe(
+        JSON.stringify({ buildId: "build-2", ts: now }),
+      );
+
+      now = 2 * VERSION_UPDATE_MIN_STALENESS_MS;
+      after.reportObservedBuildId("build-3");
+      expect(after.getSnapshot()).toBe(true);
+    });
+
+    it("restarts a future-dated stale-since at now (clock moved backward)", () => {
+      const storage = createFakeStorage();
+      storage.setItem(
+        VERSION_UPDATE_STALE_SINCE_KEY,
+        JSON.stringify({ buildId: "running", ts: 10_000 }),
+      );
+      let now = 1_000;
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
+
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(false);
+      expect(storage.getItem(VERSION_UPDATE_STALE_SINCE_KEY)).toBe(
+        JSON.stringify({ buildId: "running", ts: 1_000 }),
+      );
+
+      now = 1_000 + VERSION_UPDATE_MIN_STALENESS_MS;
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(true);
+    });
+
+    it("treats garbage stale-since JSON as absent and overwrites it", () => {
+      const storage = createFakeStorage();
+      storage.setItem(VERSION_UPDATE_STALE_SINCE_KEY, "{not json");
+      let now = 0;
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
+
+      store.reportObservedBuildId("deployed"); // must not throw
+      expect(store.getSnapshot()).toBe(false);
+      expect(storage.getItem(VERSION_UPDATE_STALE_SINCE_KEY)).toBe(
+        JSON.stringify({ buildId: "running", ts: 0 }),
+      );
+
+      now = VERSION_UPDATE_MIN_STALENESS_MS;
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(true);
+    });
+
+    it("gates in memory when storage is unavailable — a tab open 48 h past its first mismatch still prompts", () => {
+      let now = 0;
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        now: () => now,
+        getStorage: noStorage,
+      });
+
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(false);
+
+      now = VERSION_UPDATE_MIN_STALENESS_MS;
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(true);
+    });
+
+    it("defaults the minimum staleness to 48 hours", () => {
+      expect(VERSION_UPDATE_MIN_STALENESS_MS).toBe(48 * 60 * 60 * 1000);
+    });
+
+    it("layers with the show throttle — a stale frontend shown recently is still throttled", () => {
+      const storage = createFakeStorage();
+      let now = VERSION_UPDATE_MIN_STALENESS_MS;
+      storage.setItem(
+        VERSION_UPDATE_STALE_SINCE_KEY,
+        JSON.stringify({ buildId: "running", ts: 0 }),
+      );
+      storage.setItem(VERSION_UPDATE_LAST_SHOWN_AT_KEY, String(now - 1));
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
+
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(false); // stale, but shown < 2 h ago
+
+      now += VERSION_UPDATE_SHOW_THROTTLE_MS;
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(true);
+    });
+  });
+
+  // Secondary suppressions (LFE-14765), tested with the staleness gate disabled
+  // so each pins one behavior: two localStorage-persisted windows gate NEW
+  // appearances — shown at most once per VERSION_UPDATE_SHOW_THROTTLE_MS, and
+  // an explicit dismiss suppresses for VERSION_UPDATE_DISMISS_SUPPRESSION_MS.
   describe("persisted suppression (LFE-14765)", () => {
     it("records the last-shown timestamp when the banner actually shows", () => {
       const storage = createFakeStorage();
-      const store = createVersionUpdateStore(
-        () => "running",
-        0,
-        () => 1_000,
-        () => storage,
-      );
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => 1_000,
+        getStorage: () => storage,
+      });
 
       store.reportObservedBuildId("deployed");
       expect(storage.getItem(VERSION_UPDATE_LAST_SHOWN_AT_KEY)).toBeNull();
@@ -365,24 +578,24 @@ describe("versionUpdateStore", () => {
       let now = 0;
 
       // The banner shows for build-2 …
-      const before = createVersionUpdateStore(
-        () => "build-1",
-        0,
-        () => now,
-        () => storage,
-      );
+      const before = createVersionUpdateStore(() => "build-1", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
       before.reportObservedBuildId("build-2");
       expect(before.getSnapshot()).toBe(true);
       expect(before.markShownReported()).toBe(true);
 
       // … the user reloads onto build-2, and another release lands 30 min later.
       now = 30 * 60 * 1000;
-      const after = createVersionUpdateStore(
-        () => "build-2",
-        0,
-        () => now,
-        () => storage,
-      );
+      const after = createVersionUpdateStore(() => "build-2", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
       after.reportObservedBuildId("build-3");
       expect(after.getSnapshot()).toBe(false); // shown < 2 h ago → throttled
 
@@ -396,12 +609,12 @@ describe("versionUpdateStore", () => {
     it("never hides a banner that is already visible (windows gate new appearances only)", () => {
       const storage = createFakeStorage();
       let now = 0;
-      const store = createVersionUpdateStore(
-        () => "running",
-        0,
-        () => now,
-        () => storage,
-      );
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
 
       store.reportObservedBuildId("deployed-1");
       expect(store.getSnapshot()).toBe(true);
@@ -418,12 +631,12 @@ describe("versionUpdateStore", () => {
     it("dismiss suppresses even genuinely new builds for 24 h — across a reload", () => {
       const storage = createFakeStorage();
       let now = 0;
-      const store = createVersionUpdateStore(
-        () => "running",
-        0,
-        () => now,
-        () => storage,
-      );
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
 
       store.reportObservedBuildId("deployed-1");
       store.dismiss();
@@ -438,12 +651,12 @@ describe("versionUpdateStore", () => {
       expect(store.getSnapshot()).toBe(false);
 
       // … and so does a reloaded tab (new store, same storage).
-      const reloaded = createVersionUpdateStore(
-        () => "running",
-        0,
-        () => now,
-        () => storage,
-      );
+      const reloaded = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => now,
+        getStorage: () => storage,
+      });
       reloaded.reportObservedBuildId("deployed-2");
       expect(reloaded.getSnapshot()).toBe(false);
 
@@ -462,12 +675,12 @@ describe("versionUpdateStore", () => {
           throw new Error("denied");
         },
       };
-      const store = createVersionUpdateStore(
-        () => "running",
-        0,
-        () => 0,
-        () => throwingStorage,
-      );
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => 0,
+        getStorage: () => throwingStorage,
+      });
 
       store.reportObservedBuildId("deployed-1");
       expect(store.getSnapshot()).toBe(true); // read errors don't block showing
@@ -482,14 +695,14 @@ describe("versionUpdateStore", () => {
     });
 
     it("treats a throwing storage accessor and garbage values as absent", () => {
-      const accessorThrows = createVersionUpdateStore(
-        () => "running",
-        0,
-        () => 0,
-        () => {
+      const accessorThrows = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => 0,
+        getStorage: () => {
           throw new Error("no storage");
         },
-      );
+      });
       accessorThrows.reportObservedBuildId("deployed");
       expect(accessorThrows.getSnapshot()).toBe(true);
       expect(accessorThrows.markShownReported()).toBe(true);
@@ -497,12 +710,12 @@ describe("versionUpdateStore", () => {
       const storage = createFakeStorage();
       storage.setItem(VERSION_UPDATE_LAST_SHOWN_AT_KEY, "not-a-number");
       storage.setItem(VERSION_UPDATE_SUPPRESSED_UNTIL_KEY, "NaN");
-      const garbage = createVersionUpdateStore(
-        () => "running",
-        0,
-        () => 0,
-        () => storage,
-      );
+      const garbage = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => 0,
+        getStorage: () => storage,
+      });
       garbage.reportObservedBuildId("deployed");
       expect(garbage.getSnapshot()).toBe(true);
     });
@@ -516,12 +729,12 @@ describe("versionUpdateStore", () => {
         VERSION_UPDATE_LAST_SHOWN_AT_KEY,
         String(5 * 60 * 60 * 1000), // "shown" five hours in the future
       );
-      const store = createVersionUpdateStore(
-        () => "running",
-        0,
-        () => 1_000,
-        () => storage,
-      );
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => 1_000,
+        getStorage: () => storage,
+      });
       store.reportObservedBuildId("deployed");
       expect(store.getSnapshot()).toBe(true);
     });
@@ -532,12 +745,12 @@ describe("versionUpdateStore", () => {
         VERSION_UPDATE_SUPPRESSED_UNTIL_KEY,
         String(1_000 + VERSION_UPDATE_DISMISS_SUPPRESSION_MS + 1),
       );
-      const store = createVersionUpdateStore(
-        () => "running",
-        0,
-        () => 1_000,
-        () => bogus,
-      );
+      const store = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => 1_000,
+        getStorage: () => bogus,
+      });
       store.reportObservedBuildId("deployed");
       expect(store.getSnapshot()).toBe(true);
 
@@ -547,12 +760,12 @@ describe("versionUpdateStore", () => {
         VERSION_UPDATE_SUPPRESSED_UNTIL_KEY,
         String(1_000 + VERSION_UPDATE_DISMISS_SUPPRESSION_MS),
       );
-      const suppressed = createVersionUpdateStore(
-        () => "running",
-        0,
-        () => 1_000,
-        () => valid,
-      );
+      const suppressed = createVersionUpdateStore(() => "running", {
+        debounceMs: 0,
+        minStalenessMs: 0,
+        now: () => 1_000,
+        getStorage: () => valid,
+      });
       suppressed.reportObservedBuildId("deployed");
       expect(suppressed.getSnapshot()).toBe(false);
     });
