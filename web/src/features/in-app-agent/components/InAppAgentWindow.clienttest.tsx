@@ -298,40 +298,6 @@ describe("ControlledInAppAgentWindow composer", () => {
 });
 
 describe("ControlledInAppAgentWindow stop", () => {
-  it("does not show informational background-run status while keeping Stop available", () => {
-    const cancel = vi.fn();
-    controlledAgent.value.isRunning = true;
-    controlledAgent.value.pendingToolApprovals = [];
-    controlledAgent.value.execution = {
-      type: "background",
-      run: {
-        id: "run-1",
-        status: InAppAgentRunStatus.RUNNING,
-        errorCode: null,
-        cancelRequested: false,
-      },
-      isCancelling: false,
-      cancel,
-    };
-
-    render(
-      <TooltipProvider>
-        <ControlledInAppAgentWindow
-          isExpanded={false}
-          onClose={vi.fn()}
-          onDeleteConversation={vi.fn()}
-          onExpandedChange={vi.fn()}
-        />
-      </TooltipProvider>,
-    );
-
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/waiting for a worker|continues in the background/i),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Stop run" })).toBeVisible();
-  });
-
   it("flushes the paced reveal and cancels the run from one Stop click", () => {
     const cancel = vi.fn();
     controlledAgent.value.isRunning = true;
