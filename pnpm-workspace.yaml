@@ -84,7 +84,7 @@ overrides:
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
   path-to-regexp@8.3.0: 8.4.0
-  ip-address@10.1.0: 10.2.0
+  ip-address@10.1.0: 10.2.1
   # SSRF + throttling fixes land in 4.0.29/4.0.33. @mastra/core pins its
   # provider-utils-v6 alias to exactly 4.0.27, which the range key can't
   # catch — aliased deps need alias-name overrides (same reason -v5 exists).
