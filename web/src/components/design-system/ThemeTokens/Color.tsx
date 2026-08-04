@@ -113,9 +113,14 @@ const BORDER_HIERARCHY: HierarchyRow[] = [
 
 const TEXT_HIERARCHY: HierarchyRow[] = [
   {
+    utility: "text-contrast",
+    token: "--text-contrast",
+    purpose: "Rare, maximum-attention ink — page titles only",
+  },
+  {
     utility: "text-primary",
     token: "--text-primary",
-    purpose: "Brightest tier — titles, emphasis, active nav & tabs",
+    purpose: "Bright tier — emphasis, active nav & tabs, table links",
   },
   {
     utility: "text-secondary",
@@ -155,6 +160,31 @@ const TEXT_HIERARCHY: HierarchyRow[] = [
     purpose: "The link hover step",
   },
 ];
+
+/** ItemBadge identity colors — icon shape is primary identity. */
+const OBS_HIERARCHY: HierarchyRow[] = [
+  ["trace", "Traces"],
+  ["generation", "Generations"],
+  ["event", "Events"],
+  ["span", "Spans"],
+  ["agent", "Agents"],
+  ["tool", "Tools"],
+  ["chain", "Chains"],
+  ["retriever", "Retrievers"],
+  ["embedding", "Embeddings"],
+  ["guardrail", "Guardrails"],
+].map(([slug, label]) => ({
+  utility: `text-obs-${slug}`,
+  token: `--obs-${slug}`,
+  purpose: label,
+  kind: "text" as const,
+}));
+OBS_HIERARCHY.push({
+  utility: "text-obs-entity",
+  token: "--obs-entity",
+  purpose: "Sessions, users, datasets, prompts, … — rides the brand blue",
+  kind: "text",
+});
 
 const BRAND_HIERARCHY: HierarchyRow[] = [
   {
@@ -915,6 +945,13 @@ export function Color() {
           darkCtx={darkCtx}
         />
         <HierarchySection
+          title="Observation types"
+          blurb="Identity colors for ItemBadge icons — equal OKLCH lightness per mode so no type outshouts another; the icon shape is the primary identity."
+          rows={OBS_HIERARCHY}
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <HierarchySection
           title="Charts & viz"
           blurb="Muted chromatic accents; the categorical chart ramp lives on the Charts page."
           rows={VIZ_HIERARCHY}
@@ -951,17 +988,46 @@ export function Color() {
             blurb="Private {family}-{mode}-{decade} ramps behind the role tokens — components never reference these."
             count={primitiveEntries.length}
           >
-            {primitiveEntries.map((entry) => (
-              <TokenRow
-                key={entry.name}
-                name={entry.name}
-                entry={entry}
-                ctx={ctx}
-                lightCtx={lightCtx}
-                darkCtx={darkCtx}
-                sample={null}
-              />
-            ))}
+            {primitiveEntries.map((entry) => {
+              // The routing view: which role tokens ride this palette step,
+              // in either mode — the "tweak one value, see what follows" map.
+              const reference = new RegExp(`var\\(\\s*${entry.name}\\s*\\)`);
+              const riders = [
+                ...new Set(
+                  [...parsed.light, ...parsed.dark]
+                    .filter(
+                      (declaration) =>
+                        !PRIMITIVE_PATTERN.test(declaration.name) &&
+                        reference.test(declaration.value),
+                    )
+                    .map((declaration) => declaration.name),
+                ),
+              ];
+              return (
+                <TokenRow
+                  key={entry.name}
+                  name={entry.name}
+                  entry={entry}
+                  ctx={ctx}
+                  lightCtx={lightCtx}
+                  darkCtx={darkCtx}
+                  sample={
+                    riders.length > 0 ? (
+                      <span
+                        className="text-tertiary truncate font-mono text-[10px]"
+                        title={riders.join(", ")}
+                      >
+                        ← {riders.join(", ")}
+                      </span>
+                    ) : (
+                      <span className="text-disabled font-mono text-[10px]">
+                        (no riders)
+                      </span>
+                    )
+                  }
+                />
+              );
+            })}
           </CollapsedSection>
           <CollapsedSection
             title="Deprecated shadcn aliases"
