@@ -333,7 +333,7 @@ describe("in-app agent execution", () => {
     ).toBeInTheDocument();
   });
 
-  it("replays prompt and dashboard invalidations after a detached run completes", async () => {
+  it("replays prompt invalidations after a detached run completes", async () => {
     providerMocks.backgroundExecutionEnabled = true;
     const completedSnapshot = {
       conversation: {
@@ -361,27 +361,6 @@ describe("in-app agent execution", () => {
           role: "tool",
           toolCallId: "prompt-tool-call",
           content: '{"id":"prompt-1"}',
-        },
-        {
-          id: "placement-call",
-          role: "assistant",
-          content: "",
-          toolCalls: [
-            {
-              id: "placement-tool-call",
-              type: "function",
-              function: {
-                name: "langfuse_addDashboardPlacement",
-                arguments: "{}",
-              },
-            },
-          ],
-        },
-        {
-          id: "placement-result",
-          role: "tool",
-          toolCallId: "placement-tool-call",
-          content: '{"id":"placement-1"}',
         },
       ],
       eventCursor: 14,
@@ -411,8 +390,8 @@ describe("in-app agent execution", () => {
 
     await waitFor(() => {
       expect(providerMocks.utils.prompts.invalidate).toHaveBeenCalledOnce();
-      expect(providerMocks.utils.dashboard.invalidate).toHaveBeenCalledOnce();
     });
+    expect(providerMocks.utils.dashboard.invalidate).not.toHaveBeenCalled();
     expect(
       providerMocks.utils.dashboardWidgets.invalidate,
     ).not.toHaveBeenCalled();

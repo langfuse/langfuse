@@ -251,6 +251,10 @@ export function getCompletedToolCalls(messages: readonly AgUiMessage[]) {
   });
 }
 
+/**
+ * Keep rejection handling and live/replayed deduplication in the shared
+ * entrypoint so both execution paths apply the foreground behavior equally.
+ */
 export function performToolSideEffectsForToolCall({
   toolCallId,
   toolName,

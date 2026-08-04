@@ -371,7 +371,9 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
       "appends the tile below existing ones at the default 6x6 size. Explicit " +
       "positions are not checked for overlap. After adding, call getDashboard " +
       "to verify the full grid arrangement; use updateDashboardPlacement to " +
-      "move or resize the new tile when needed. Returns the created placement.",
+      "move or resize the new tile when needed. Returns the created placement. " +
+      "If the user has the dashboard open, remind them to refresh the page to " +
+      "see the new widget.",
     baseSchema: DashboardIdQuery.extend(placementCreateBaseSchema.shape),
     inputSchema: DashboardIdQuery.extend(
       placementCreateBaseSchema.shape,
