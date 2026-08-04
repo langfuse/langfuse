@@ -45,7 +45,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@release-it/bumper": "^7.0.6",
+    "@release-it/bumper": "^8.0.0",
     "dotenv-cli": "^7.4.4",
     "eslint-scope": "^9.1.2",
     "espree": "^11.2.0",

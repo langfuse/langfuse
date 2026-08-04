@@ -69,8 +69,8 @@ importers:
   .:
     devDependencies:
       '@release-it/bumper':
-        specifier: ^7.0.6
-        version: 7.0.6(release-it@21.0.1(@types/node@24.3.0)(magicast@0.5.2))
+        specifier: ^8.0.0
+        version: 8.0.0(release-it@21.0.1(@types/node@24.3.0)(magicast@0.5.2))
       dotenv-cli:
         specifier: ^7.4.4
         version: 7.4.4
@@ -2061,9 +2061,9 @@ packages:
   '@date-fns/tz@1.4.1':
     resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
 
-  '@decimalturn/toml-patch@1.3.0':
-    resolution: {integrity: sha512-lnnGHUF8RhnPq0XiOenQCv0O6TO840bofShFrIr+Xu87x1Rm3bozgaCDQz6eTErO9rYf7YXCuK7ZHz65BtBwsA==}
-    engines: {node: '>=12'}
+  '@decimalturn/toml-patch@2.1.0':
+    resolution: {integrity: sha512-IICXlX7hcD9lGN7k+vDXcVnOfcbOEqMpeQHRnrhnmm7tZ8HluFrSgBKLNC72fQpNXynbJTC7pjtfNCaKrKlGyA==}
+    engines: {node: '>=14'}
 
   '@dnd-kit/accessibility@3.1.1':
     resolution: {integrity: sha512-2P+YgaXF+gRsIihwwY1gCsQSYnu9Zyj2py8kY5fFvUM1qm2WA2u639R6YNVfU4GWr+ZM5mqEsfHZZLoRONbemw==}
@@ -4680,11 +4680,11 @@ packages:
       react-redux:
         optional: true
 
-  '@release-it/bumper@7.0.6':
-    resolution: {integrity: sha512-vzKrEGPac/yim5WUjMmIQ9k+n3NlWHYraUIlLkHna2Ka0+zmmB1peW8POMjA6Fb7TwcIsNMuoXj2wLc8NFzgRg==}
-    engines: {node: ^20.19.0 || ^22.13.0 || >=24.0.0}
+  '@release-it/bumper@8.0.0':
+    resolution: {integrity: sha512-qTDTcSJzwvycZx9oMFdiiV1a7rR0Qdw0j/USSDA+ly6JyiTPSaJ+wpZ+cS8x8jTDeQuObZKf7TN9eYOxDn+JwA==}
+    engines: {node: ^22.21.0 || >=24.0.0}
     peerDependencies:
-      release-it: ^18.0.0 || ^19.0.0 || ^20.0.0
+      release-it: ^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0
 
   '@remix-run/node-fetch-server@0.13.3':
     resolution: {integrity: sha512-UfjOXed/DQteaM5VyTfqTeGpHwyL2J5aoRGY6cydip4tt1ehNNeSwuXCC7AEGE0RWBs/7bgKxYkL/B/+UDe4AA==}
@@ -8794,6 +8794,10 @@ packages:
 
   js-yaml@4.3.0:
     resolution: {integrity: sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==}
+    hasBin: true
+
+  js-yaml@5.2.2:
+    resolution: {integrity: sha512-dayzUzKkJ1MkuUtZglSebU43utNXH0OWQByK9rKOOuYIO8M5TV1y+n8ALMdG0rdzBnfNkOmZEqrURepb0ejqBw==}
     hasBin: true
 
   jsbn@0.1.1:
@@ -13413,7 +13417,7 @@ snapshots:
 
   '@date-fns/tz@1.4.1': {}
 
-  '@decimalturn/toml-patch@1.3.0': {}
+  '@decimalturn/toml-patch@2.1.0': {}
 
   '@dnd-kit/accessibility@3.1.1(react@19.2.4)':
     dependencies:
@@ -16083,15 +16087,15 @@ snapshots:
       react: 19.2.4
       react-redux: 9.2.0(@types/react@19.2.14)(react@19.2.4)(redux@5.0.1)
 
-  '@release-it/bumper@7.0.6(release-it@21.0.1(@types/node@24.3.0)(magicast@0.5.2))':
+  '@release-it/bumper@8.0.0(release-it@21.0.1(@types/node@24.3.0)(magicast@0.5.2))':
     dependencies:
-      '@decimalturn/toml-patch': 1.3.0
+      '@decimalturn/toml-patch': 2.1.0
       '@iarna/toml': 3.0.0
       cheerio: 1.2.0
       detect-indent: 7.0.2
       fast-glob: 3.3.3
       ini: 6.0.0
-      js-yaml: 4.3.0
+      js-yaml: 5.2.2
       lodash-es: 4.18.1
       release-it: 21.0.1(@types/node@24.3.0)(magicast@0.5.2)
       semver: 7.8.5
@@ -20658,6 +20662,11 @@ snapshots:
       esprima: 4.0.1
 
   js-yaml@4.3.0:
+    dependencies:
+      argparse: 2.0.1
+    optional: true
+
+  js-yaml@5.2.2:
     dependencies:
       argparse: 2.0.1
 
