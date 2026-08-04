@@ -68,7 +68,6 @@
   --color-control-fill: hsl(var(--control-fill));
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
-  --color-code-header: hsl(var(--bg-code-header));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
@@ -108,7 +107,6 @@
      bg-muted-gray. text-primary keeps resolving through --primary (the
      button-fill token rides the same text tier). */
   --color-canvas: hsl(var(--bg-canvas));
-  --color-code: hsl(var(--bg-code));
   --color-hover: hsl(var(--bg-hover));
   --color-focus: hsl(var(--focus));
   --color-secondary: hsl(var(--text-secondary));
@@ -254,10 +252,10 @@
        insertion gaps. Light "greys" are blue-tinted — hence the family is
        `neutral`, not gray. PRIVATE: only the role tokens below may
        reference these — never @theme inline, never components. */
-    --neutral-dark-10: 0 0% 3.5%;
+    --neutral-dark-10: 0 0% 4%;
     --neutral-dark-20: 0 0% 6%;
     --neutral-dark-30: 0 0% 10%;
-    --neutral-dark-40: 0 0% 13%;
+    --neutral-dark-40: 0 0% 14%;
     --neutral-dark-50: 0 0% 18%;
     --neutral-dark-60: 0 0% 26%;
     --neutral-dark-70: 0 0% 40%;
@@ -272,11 +270,9 @@
     --neutral-light-40: 215 12% 60%;
     --neutral-light-50: 215 12% 62%;
     --neutral-light-60: 214.3 20% 80%;
-    --neutral-light-70: 0 0% 86%;
     /* 80 (91%) vs 90 (91.4%): merge candidate, pending approval. */
     --neutral-light-80: 214 32% 91%;
     --neutral-light-90: 214.3 31.8% 91.4%;
-    --neutral-light-100: 0 0% 92%;
     --neutral-light-110: 210 40% 96.1%;
     --neutral-light-120: 210 40% 98%;
     --neutral-light-130: 0 0% 100%;
@@ -300,8 +296,7 @@
          < popover < muted < hover — in light the ladder alternates back
          to white per Carbon's light-layer model (canvas, card, popover
          are all white); in dark every stacked layer steps lighter (see
-         the ladder narrative on the .dark block). --code is the one
-         RECESSED tier ("code is a well"). A tier may only be MERGED when
+         the ladder narrative on the .dark block). A tier may only be MERGED when
          both modes agree it's redundant — tiers exist for the union of
          the two modes' distinctions.
        Text: primary (titles, active, links) > secondary (body, the
@@ -351,13 +346,6 @@
        (hover = the fill, focus = the ring). */
     --bg-hover: var(--neutral-light-110);
 
-    /* Code blocks sit a step BELOW their surrounding surface ("code is a
-       well"), matching the docs site convention. */
-    --bg-code: var(--neutral-light-100);
-    /* Deliberately off-ladder: the header strip sits darker than the 92%
-       code well so it reads as the well's chrome. */
-    --bg-code-header: var(--neutral-light-70);
-
     /* Line roles */
     --border: var(--neutral-light-90); /* default hairline */
     /* Inputs + popover borders: coincides with the hairline in light; dark
@@ -368,7 +356,9 @@
     --border-contrast: var(--neutral-light-60);
 
     /* Focus ring (hover = the fill, focus = the ring). */
-    --focus: var(--blue-light-20);
+    --focus: var(
+      --neutral-light-10
+    ); /* neutral focus ring (Kumo model): near-black on light */
 
     /* Primary action fill: buttons paint the brightest ink — same tier as
        text-primary (the text-primary utility resolves through this token
@@ -526,9 +516,8 @@
        smaller near black, and the frame/content split carries the layout.
        Popovers outrank modals because menus/tooltips open on top of dialogs.
        Never paint a surface darker than what it floats above (Carbon rule).
-       --code (the code well) stays BELOW its surroundings — it is the one
-       recessed tier ("code is a well") — and collapses into the canvas
-       here. Elevation is carried by these lightness steps plus hairline
+       Code blocks ride bg-muted (the well tier retired 2026-08-04).
+       Elevation is carried by these lightness steps plus hairline
        borders, not shadows. */
     /* Neutral (zero-saturation) text ladder — de-tinted per Trang's call
        after a cool/neutral/warm A-B. Text hierarchy comes from the WIDE GAP
@@ -557,21 +546,15 @@
        the only focus cue in menus/selects/⌘K, and 14.3% was a
        near-invisible ~1.13:1. */
     --bg-hover: var(--neutral-dark-50);
-    /* The code well collapses into the canvas in dark (Trang call); light
-       keeps its recessed 92% grey. */
-    --bg-code: var(--bg-canvas);
-    /* The header strip joins the elevated tier instead of the light mode's
-       off-ladder darker grey. */
-    --bg-code-header: var(--bg-card);
     /* Selected-nav fill aligns with the muted/popover level in dark. */
-    --sidebar-accent: var(--bg-muted);
+    --sidebar-accent: var(--bg-hover);
 
     /* One quiet line for everything non-assertive — dividers, inputs,
        popover edges (edge tier merged down per Trang, 2026-08-03). */
     --border: var(--neutral-dark-40);
     --border-contrast: var(--neutral-dark-50);
 
-    --focus: var(--blue-dark-10);
+    --focus: var(--neutral-dark-110); /* near-white on dark */
 
     /* ── Raw per-mode overrides (no shared role) ─────────────────────── */
     --destructive: 0 78.7% 63.1%;

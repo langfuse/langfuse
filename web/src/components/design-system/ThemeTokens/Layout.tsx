@@ -249,12 +249,11 @@ export function LayeringSection({
         ))}
       </div>
       <p className="text-tertiary text-sm">
-        Two tiers sit outside this stack: the sidebar frame (
-        <InlineCode>--sidebar-background</InlineCode>) lifts one step above the
-        canvas beside the content, and the code well (
-        <InlineCode>--bg-code</InlineCode>) is the one recessed tier. The full
-        ladder, light and dark side by side, is on the Color page&apos;s
-        background ramp.
+        One tier sits outside this stack: the sidebar frame (
+        <InlineCode>--bg-sidebar</InlineCode>) lifts one step above the canvas
+        beside the content. Code blocks ride <InlineCode>bg-muted</InlineCode>.
+        The full ladder, light and dark side by side, is on the Color
+        page&apos;s surface hierarchy.
       </p>
     </PageSection>
   );

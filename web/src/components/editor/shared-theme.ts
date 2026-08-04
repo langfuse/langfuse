@@ -6,10 +6,10 @@ export const defaultSettingsBothThemes: CreateThemeOptions["settings"] = {
   // instead of CodeMirror's generic `monospace` default. createTheme applies
   // this to `.cm-scroller`, which `.cm-content` and `.cm-gutters` inherit.
   fontFamily: "var(--font-mono)",
-  background: "hsl(var(--background))",
+  background: "hsl(var(--bg-canvas))",
   foreground: "hsl(var(--foreground))",
   caret: "hsl(var(--foreground))",
-  gutterBackground: "hsl(var(--sidebar-background))",
+  gutterBackground: "hsl(var(--bg-sidebar))",
   gutterForeground: "hsl(var(--sidebar-foreground))",
   gutterBorder: "hsl(var(--sidebar-border))",
   gutterActiveForeground: "hsl(var(--sidebar-primary))",

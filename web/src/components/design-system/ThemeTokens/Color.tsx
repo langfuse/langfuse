@@ -72,37 +72,44 @@ const TEXT_RAMP: RampStep[] = [
   },
 ];
 
-const SURFACE_RAMP: RampStep[] = [
+/** Kumo-style surface hierarchy: token chip · purpose · per-mode swatches. */
+type SurfaceRow = { utility: string; token: string; purpose: ReactNode };
+
+const SURFACE_HIERARCHY: SurfaceRow[] = [
   {
-    token: "--bg-code",
-    label: "code well",
-    note: "the one recessed tier; collapses into the canvas in dark",
+    utility: "bg-canvas",
+    token: "--bg-canvas",
+    purpose: "The outermost page background — sits behind everything",
   },
-  { token: "--bg-canvas", label: "canvas", note: "the page background" },
   {
+    utility: "bg-sidebar",
     token: "--bg-sidebar",
-    label: "frame",
-    note: "sidebar chrome, lifted one step off the canvas",
+    purpose: "The global nav frame, one step off the canvas",
   },
   {
+    utility: "bg-card",
     token: "--bg-card",
-    label: "elevated",
-    note: "card + modal; white in light, the raised tier in dark",
+    purpose: "Elevated surface — cards, widgets, panels",
   },
   {
+    utility: "bg-modal",
+    token: "--bg-modal",
+    purpose: "Blocking dialogs — shares the card tier",
+  },
+  {
+    utility: "bg-popover",
     token: "--bg-popover",
-    label: "popover",
-    note: "top of the ladder — menus open on top of dialogs",
+    purpose: "Menus, command palette, tooltips — top of the ladder",
   },
   {
+    utility: "bg-muted",
     token: "--bg-muted",
-    label: "muted fill",
-    note: "quiet fill; level with the popover in dark",
+    purpose: "Quiet fill — chips, skeletons, code blocks, tab lists",
   },
   {
+    utility: "bg-hover",
     token: "--bg-hover",
-    label: "hover fill",
-    note: "hovered rows, menu items — the focus cue in menus",
+    purpose: "Hovered rows, focused menu items, selected nav",
   },
 ];
 
@@ -264,79 +271,83 @@ function TextHierarchySample({ paint }: { paint: TokenContext }) {
   );
 }
 
-/** The surface ladder nested the way the app stacks it, per mode. */
-function SurfaceLadderSample({ paint }: { paint: TokenContext }) {
-  const hairline = paint.color("--border");
-  const label = { color: paint.color("--muted-foreground") };
+/** One mode cell for the surface hierarchy: swatch + resolved value. */
+function SurfaceSwatch({
+  paint,
+  token,
+}: {
+  paint: TokenContext;
+  token: string;
+}) {
+  const triplet = paint.resolve(`var(${token})`).trim();
   return (
     <div
-      className="flex overflow-hidden rounded-md border font-mono text-[10px] leading-4"
+      className="rounded-md border p-1.5"
       style={{
-        background: paint.color("--sidebar-background"),
-        borderColor: hairline,
+        background: paint.color("--bg-canvas"),
+        borderColor: paint.color("--border"),
       }}
     >
       <div
-        className="w-14 shrink-0 p-2"
-        style={{ color: paint.color("--sidebar-foreground") }}
-      >
-        frame
-      </div>
-      <div
-        className="flex grow flex-col gap-1.5 border-l p-2"
+        className="h-8 rounded-sm border"
         style={{
-          background: paint.color("--background"),
-          borderColor: hairline,
-          ...label,
+          background: paint.color(token),
+          borderColor: paint.color("--border"),
         }}
+        title={triplet}
+      />
+      <code
+        className="mt-1 block truncate font-mono text-[10px] leading-4"
+        style={{ color: paint.color("--text-tertiary") }}
+        title={triplet}
       >
-        <span>canvas</span>
-        <div
-          className="rounded-sm border px-2 py-1"
-          style={{
-            background: paint.color("--bg-code"),
-            borderColor: hairline,
-            color: paint.color("--foreground"),
-          }}
-        >
-          code well (recessed)
-        </div>
-        <div
-          className="rounded-sm border p-2"
-          style={{
-            background: paint.color("--bg-card"),
-            borderColor: hairline,
-          }}
-        >
-          <span style={label}>card / modal</span>
-          <div
-            className="mt-1.5 rounded-sm border p-1.5"
-            style={{
-              background: paint.color("--bg-popover"),
-              borderColor: paint.color("--popover-border"),
-              color: paint.color("--popover-foreground"),
-            }}
-          >
-            popover
-            <div
-              className="mt-1 rounded-sm px-1.5 py-0.5"
-              style={{
-                background: paint.color("--accent"),
-                color: paint.color("--accent-foreground"),
-              }}
-            >
-              hover / focus fill
-            </div>
-          </div>
-        </div>
-        <div
-          className="rounded-sm px-2 py-1"
-          style={{ background: paint.color("--bg-muted"), ...label }}
-        >
-          muted fill
-        </div>
-      </div>
+        {triplet}
+      </code>
     </div>
+  );
+}
+
+const SURFACE_GRID =
+  "grid grid-cols-[140px_minmax(220px,1fr)_150px_150px] gap-x-4";
+
+/** Kumo-style hierarchy table: token chip, purpose, light + dark swatches. */
+function SurfaceHierarchySection({
+  lightCtx,
+  darkCtx,
+}: {
+  lightCtx: TokenContext;
+  darkCtx: TokenContext;
+}) {
+  return (
+    <PageSection
+      title="Surface hierarchy"
+      blurb="Surfaces establish depth and layering. Use them in order, outermost first."
+      aside={<InlineCode>{SURFACE_HIERARCHY.length} surfaces</InlineCode>}
+    >
+      <div className="flex flex-col">
+        <div className={`${SURFACE_GRID} border-b pb-1.5`}>
+          <Eyebrow>Token</Eyebrow>
+          <Eyebrow>Purpose</Eyebrow>
+          <Eyebrow>Light</Eyebrow>
+          <Eyebrow>Dark</Eyebrow>
+        </div>
+        {SURFACE_HIERARCHY.map((row) => (
+          <div
+            key={row.utility}
+            className={`${SURFACE_GRID} items-center border-b py-2.5`}
+          >
+            <div>
+              <code className="rounded-md border px-2 py-0.5 font-mono text-[11px]">
+                {row.utility}
+              </code>
+            </div>
+            <span className="text-secondary text-sm">{row.purpose}</span>
+            <SurfaceSwatch paint={lightCtx} token={row.token} />
+            <SurfaceSwatch paint={darkCtx} token={row.token} />
+          </div>
+        ))}
+      </div>
+    </PageSection>
   );
 }
 
@@ -1235,15 +1246,7 @@ export function Color() {
           lightCtx={lightCtx}
           darkCtx={darkCtx}
         />
-        <RampSection
-          title="Background / surface ramp"
-          blurb="code well < canvas < frame < card + modal < popover < muted < hover — elevation is lightness steps plus hairlines, not shadows."
-          steps={SURFACE_RAMP}
-          kind="surface"
-          renderModeSample={(paint) => <SurfaceLadderSample paint={paint} />}
-          lightCtx={lightCtx}
-          darkCtx={darkCtx}
-        />
+        <SurfaceHierarchySection lightCtx={lightCtx} darkCtx={darkCtx} />
         <RampSection
           title="Border / line ramp"
           blurb="Two tiers: quiet hairline < assertive contrast."
