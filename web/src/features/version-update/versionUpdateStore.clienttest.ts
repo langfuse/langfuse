@@ -506,5 +506,55 @@ describe("versionUpdateStore", () => {
       garbage.reportObservedBuildId("deployed");
       expect(garbage.getSnapshot()).toBe(true);
     });
+
+    // Clock skew: a timestamp persisted before the wall clock moved backward
+    // (correction, restored VM) is finite — the garbage-value guard passes it —
+    // but future-dated. Honoring it would suppress until the clock catches up.
+    it("ignores a future-dated last-shown timestamp (clock moved backward)", () => {
+      const storage = createFakeStorage();
+      storage.setItem(
+        VERSION_UPDATE_LAST_SHOWN_AT_KEY,
+        String(5 * 60 * 60 * 1000), // "shown" five hours in the future
+      );
+      const store = createVersionUpdateStore(
+        () => "running",
+        0,
+        () => 1_000,
+        () => storage,
+      );
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(true);
+    });
+
+    it("ignores a suppressed-until further than one dismiss window ahead", () => {
+      const bogus = createFakeStorage();
+      bogus.setItem(
+        VERSION_UPDATE_SUPPRESSED_UNTIL_KEY,
+        String(1_000 + VERSION_UPDATE_DISMISS_SUPPRESSION_MS + 1),
+      );
+      const store = createVersionUpdateStore(
+        () => "running",
+        0,
+        () => 1_000,
+        () => bogus,
+      );
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(true);
+
+      // Exactly one window ahead is what a fresh dismiss writes — still honored.
+      const valid = createFakeStorage();
+      valid.setItem(
+        VERSION_UPDATE_SUPPRESSED_UNTIL_KEY,
+        String(1_000 + VERSION_UPDATE_DISMISS_SUPPRESSION_MS),
+      );
+      const suppressed = createVersionUpdateStore(
+        () => "running",
+        0,
+        () => 1_000,
+        () => valid,
+      );
+      suppressed.reportObservedBuildId("deployed");
+      expect(suppressed.getSnapshot()).toBe(false);
+    });
   });
 });

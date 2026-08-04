@@ -196,18 +196,27 @@ export function createVersionUpdateStore(
   };
 
   // Persisted suppression (LFE-14765). Checked only on the hidden→shown
-  // transition — never hides a banner already on screen.
+  // transition — never hides a banner already on screen. Values written by a
+  // clock that has since moved backward (correction, restored VM) are ignored
+  // rather than honored — a future-dated timestamp could otherwise suppress
+  // until the wall clock catches up, potentially far beyond the window.
   const isSuppressed = (): boolean => {
     const t = now();
     const lastShownAt = readTimestamp(VERSION_UPDATE_LAST_SHOWN_AT_KEY);
     if (
       lastShownAt !== null &&
+      lastShownAt <= t && // ignore future-dated
       t < lastShownAt + VERSION_UPDATE_SHOW_THROTTLE_MS
     ) {
       return true;
     }
     const suppressedUntil = readTimestamp(VERSION_UPDATE_SUPPRESSED_UNTIL_KEY);
-    return suppressedUntil !== null && t < suppressedUntil;
+    return (
+      suppressedUntil !== null &&
+      t < suppressedUntil &&
+      // A valid write is at most one dismiss window ahead of now.
+      suppressedUntil <= t + VERSION_UPDATE_DISMISS_SUPPRESSION_MS
+    );
   };
 
   const computeEligible = (): boolean =>
