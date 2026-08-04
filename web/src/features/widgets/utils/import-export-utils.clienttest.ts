@@ -153,7 +153,13 @@ describe("parseAndNormalizeImportedWidget", () => {
     expect(result.snapshot.widgetMinVersion).toBe(1);
   });
 
-  it("validates a v2-required imported shape without rewriting its version hint", () => {
+  it("accepts v2-only imported fields without rewriting the version hint", () => {
+    const rootFilter = {
+      column: "isRootObservation",
+      type: "boolean" as const,
+      operator: "=" as const,
+      value: true,
+    };
     const result = parseImportedWidgetJson({
       parsedJson: {
         ...baseWidget,
@@ -161,12 +167,13 @@ describe("parseAndNormalizeImportedWidget", () => {
         dimensions: [{ field: "experimentName" }],
         chartType: "VERTICAL_BAR",
         chartConfig: { type: "VERTICAL_BAR" },
-        filters: [],
+        filters: [rootFilter],
       },
       isBetaEnabled: false,
     });
 
     expect(result.widget.minVersion).toBe(1);
+    expect(result.widget.filters).toEqual([rootFilter]);
   });
 
   it("imports boolean score widgets with boolean filters intact", async () => {

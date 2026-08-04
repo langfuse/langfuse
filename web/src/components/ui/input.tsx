@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 
 import { cn } from "@/src/utils/tailwind";

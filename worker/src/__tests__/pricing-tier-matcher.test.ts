@@ -304,6 +304,69 @@ describe("default-model-prices.json", () => {
       }
     }
   });
+
+  it("should price explicit GPT-5.6 usage aliases without implicit tiers", () => {
+    const modelNames = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"];
+
+    for (const modelName of modelNames) {
+      const model = defaultModelPrices.find(
+        (candidate) => candidate.modelName === modelName,
+      );
+      expect(model, modelName).toBeDefined();
+      expect(model!.pricingTiers.map((tier) => tier.name)).toEqual([
+        "Standard",
+        "Large Context (>272K)",
+      ]);
+
+      for (const tier of model!.pricingTiers) {
+        const prices = tier.prices as Record<string, number>;
+        expect(prices.cache_read_input_tokens).toBe(prices.input_cached_tokens);
+        expect(prices.reasoning_tokens).toBe(prices.output_reasoning_tokens);
+        expect(prices.input_cache_creation).toBeCloseTo(
+          prices.input * 1.25,
+          15,
+        );
+        expect(prices.cache_write_tokens).toBeCloseTo(prices.input * 1.25, 15);
+      }
+    }
+
+    const sol = defaultModelPrices.find(
+      (model) => model.modelName === "gpt-5.6-sol",
+    );
+    expect(sol).toBeDefined();
+
+    const tiers: PricingTierWithPrices[] = sol!.pricingTiers.map((tier) => ({
+      id: tier.id,
+      name: tier.name,
+      isDefault: tier.isDefault,
+      priority: tier.priority,
+      conditions: tier.conditions,
+      prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+        usageType,
+        price: new Decimal(price),
+      })),
+    }));
+
+    const reportedUsage = {
+      input: 786,
+      cache_read_input_tokens: 718398,
+      output: 242,
+      reasoning_tokens: 25,
+    };
+    const reportedResult = matchPricingTier(tiers, reportedUsage);
+    expect(reportedResult?.pricingTierName).toBe("Large Context (>272K)");
+
+    const reportedCost = Object.entries(reportedUsage).reduce(
+      (total, [usageType, units]) =>
+        total + (reportedResult?.prices[usageType]?.toNumber() ?? 0) * units,
+      0,
+    );
+    expect(reportedCost).toBeCloseTo(0.738273, 12);
+
+    expect(
+      matchPricingTier(tiers, { cache_write_tokens: 272001 })?.pricingTierName,
+    ).toBe("Large Context (>272K)");
+  });
 });
 
 describe("validateRegexPattern", () => {

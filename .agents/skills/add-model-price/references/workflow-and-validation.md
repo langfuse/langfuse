@@ -7,6 +7,11 @@
 Open the provider's official pricing page and collect input, output, cache
 write, and cache read prices.
 
+Read [provider-usage-key-matrix.md](provider-usage-key-matrix.md), then compare
+the official provider usage object, Langfuse ingestion normalization, and a
+mature sibling pricing entry. Record every supported semantic bucket and all
+aliases Langfuse may persist before editing.
+
 ### 2. Generate a Lowercase ID
 
 ```bash
@@ -81,6 +86,14 @@ Run the bundled validator:
 node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
 ```
 
+For every changed or new entry, also validate usage-key coverage against the
+pre-change pricing file:
+
+```bash
+node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs \
+  --base /path/to/default-model-prices-before.json
+```
+
 For quick manual inspection, use `jq`:
 
 ```bash
@@ -99,6 +112,8 @@ jq '.[] | select(.modelName == "claude-opus-4-6")' worker/src/constants/default-
 8. Each tier must contain at least one price
 9. All tiers must expose the same usage-type keys
 10. Regex patterns must be valid
+11. Changed OpenAI, Gemini, and Anthropic/Bedrock Claude entries must have
+    complete equal-price alias families for every represented capability
 
 ## Testing Model Matching
 
@@ -118,6 +133,8 @@ regex is intended to cover.
 - Forgetting the `_tier_default` suffix on the default tier ID
 - Forgetting to escape regex metacharacters such as `.`
 - Forgetting to refresh `updatedAt`
+- Copying an older model's partial price-key set without checking current
+  provider usage fields and Langfuse ingestion aliases
 
 ## Existing Model Templates
 

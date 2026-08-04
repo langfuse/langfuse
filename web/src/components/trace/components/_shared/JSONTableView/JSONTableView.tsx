@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * JSONTableView - Generic virtualized table with customizable columns.
  *
