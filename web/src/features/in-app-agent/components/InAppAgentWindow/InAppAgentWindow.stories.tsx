@@ -1,4 +1,4 @@
-import preview from "../../../../.storybook/preview";
+import preview from "../../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -10,7 +10,7 @@ import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/qui
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
-} from "./InAppAgentWindowShell";
+} from "../InAppAgentWindowShell";
 
 function InAppAgentWindowStoryShell({
   children,

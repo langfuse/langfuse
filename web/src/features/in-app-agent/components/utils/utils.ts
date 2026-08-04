@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
+import type { InAppAgentWindowMessage } from "../InAppAgentWindow/InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
 import type { InAppAgentMessageContent } from "../InAppAgentMessage";
 import { deduplicateBy } from "@/src/utils/arrays";

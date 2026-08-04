@@ -40,7 +40,7 @@ import {
   InAppAgentMessage,
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
-} from "./InAppAgentMessage";
+} from "../InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";

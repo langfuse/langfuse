@@ -4,8 +4,8 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
-} from "./InAppAgentWindow";
-import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
+} from "../InAppAgentWindow";
+import { ControlledInAppAgentWindow } from "../ControlledInAppAgentWindow";
 
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({

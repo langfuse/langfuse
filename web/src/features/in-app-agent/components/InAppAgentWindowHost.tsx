@@ -6,7 +6,7 @@ import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { DialogController } from "@/src/components/ui/dialog-controller";
 import { Layer } from "@/src/components/ui/layer";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow";
-import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/InAppAgentWindow";
+import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/InAppAgentWindow/InAppAgentWindow";
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
