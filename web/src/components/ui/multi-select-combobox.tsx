@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { Search, X, MoreHorizontal } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 
 interface MultiSelectComboboxProps<T> {
   selectedItems: T[];
@@ -22,7 +23,10 @@ interface MultiSelectComboboxProps<T> {
   disabled?: boolean;
   onOpenChange?: (open: boolean) => void;
   showSelectedItemsInInput?: boolean;
+  showSearchIcon?: boolean;
   dropdownClassName?: string;
+  /** Optional label rendered as a chip flush against the left edge of the control. */
+  labelLeft?: ReactNode;
 }
 
 export function MultiSelectCombobox<T>({
@@ -40,7 +44,9 @@ export function MultiSelectCombobox<T>({
   disabled = false,
   onOpenChange,
   showSelectedItemsInInput = true,
+  showSearchIcon = true,
   dropdownClassName,
+  labelLeft,
 }: MultiSelectComboboxProps<T>) {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -133,13 +139,29 @@ export function MultiSelectCombobox<T>({
   return (
     <div className="space-y-2">
       {/* Custom Input with Embedded Pills */}
-      <div className="relative">
+      <div className="relative flex items-center">
+        {labelLeft && (
+          <div className="border-input bg-muted/30 flex h-8 w-auto shrink-0 items-center rounded-l-md border px-3 text-xs">
+            {labelLeft}
+          </div>
+        )}
         <div
           ref={containerRef}
-          className="border-input bg-canvas flex max-h-14 min-h-9 w-full overflow-y-auto rounded-md border text-xs"
+          className={cn(
+            "border-input bg-canvas flex h-8 min-h-8 min-w-0 flex-1 overflow-hidden rounded-md border text-xs",
+            labelLeft && "rounded-l-none",
+          )}
+          style={{ overflowAnchor: "none" }}
         >
-          <Search className="text-tertiary absolute top-2.5 left-2 z-10 h-4 w-4" />
-          <div className="flex max-h-full flex-1 flex-wrap items-center gap-1 pl-8">
+          {showSearchIcon && (
+            <Search className="text-tertiary absolute top-2.5 left-2 z-10 h-4 w-4" />
+          )}
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto pr-8",
+              showSearchIcon ? "pl-8" : "pl-2",
+            )}
+          >
             {/* Selected Items Pills */}
             {showSelectedItemsInInput
               ? selectedItems.map((item) => (

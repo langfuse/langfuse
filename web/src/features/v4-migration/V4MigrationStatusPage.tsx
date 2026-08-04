@@ -26,6 +26,7 @@ import {
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
   getProjectMigrationReadiness,
+  type MigrationActionState,
   type MigrationCountState,
   type ProjectMigrationReadiness,
   type ProjectMigrationStatus,
@@ -65,6 +66,22 @@ function AffectedCell({ count }: { count: MigrationCountState }) {
   return <span>{count.count}</span>;
 }
 
+function MigrationActionCell({ state }: { state: MigrationActionState }) {
+  if (state.status === "loading") {
+    return <span className="text-disabled">Checking…</span>;
+  }
+  if (state.status === "error") {
+    return <span className="text-disabled">Unavailable</span>;
+  }
+  return state.result === "required" ? (
+    <span>Update required</span>
+  ) : state.result === "sdk_usage_inconclusive" ? (
+    <span>Needs review</span>
+  ) : (
+    <span className="text-disabled">Up to date</span>
+  );
+}
+
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
   const label =
     readiness === "ready"
@@ -96,6 +113,7 @@ type SortKey =
   | "status"
   | "sdk"
   | "evals"
+  | "experiments"
   | "apis"
   | "exports"
   | "lastTrace";
@@ -224,6 +242,12 @@ function OrgStatusSection({
                       : 0;
       case "evals":
         return row.status?.evals.count ?? 0;
+      case "experiments":
+        return row.status?.experiments.result === "required"
+          ? 2
+          : row.status?.experiments.result === "sdk_usage_inconclusive"
+            ? 1
+            : 0;
       case "apis":
         return row.status?.apis.count ?? 0;
       case "exports":
@@ -278,6 +302,12 @@ function OrgStatusSection({
                 <SortableHead
                   label="Affected Evals"
                   column="evals"
+                  orderBy={orderBy}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  label="Affected Experiments"
+                  column="experiments"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
@@ -359,6 +389,9 @@ function OrgStatusSection({
                     </TableCell>
                     <TableCell density="comfortable">
                       <AffectedCell count={row.status.evals} />
+                    </TableCell>
+                    <TableCell density="comfortable">
+                      <MigrationActionCell state={row.status.experiments} />
                     </TableCell>
                     <TableCell density="comfortable">
                       <AffectedCell count={row.status.apis} />

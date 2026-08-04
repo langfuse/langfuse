@@ -54,7 +54,7 @@ import {
   type TableViewPresetTableName,
   type TableViewPresetState,
 } from "@langfuse/shared";
-import { useCallback, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -134,7 +134,7 @@ export interface SystemFilterPreset {
   filters: FilterState;
 }
 
-interface TableViewPresetsDrawerProps {
+interface TableViewPresetsDrawerContentProps {
   viewConfig: {
     tableName: TableViewPresetTableName;
     projectId: string;
@@ -162,9 +162,37 @@ interface TableViewPresetsDrawerProps {
   };
   /** Page-specific system filter presets (e.g. "Last Generation in Trace") */
   systemFilterPresets?: SystemFilterPreset[];
+}
+
+interface TableViewPresetsDrawerProps extends TableViewPresetsDrawerContentProps {
   /** Optional DOM id on the trigger button so other UI can open the drawer. */
   triggerId?: string;
 }
+
+type TableViewPresetsDrawerRootProps = {
+  tableName: TableViewPresetTableName;
+  children: ReactNode;
+} & (
+  | { open?: never; onOpenChange?: never }
+  | { open: boolean; onOpenChange: (open: boolean) => void }
+);
+
+const useTableViewPresetsDrawerData = ({
+  tableName,
+  projectId,
+}: {
+  tableName: TableViewPresetTableName;
+  projectId: string;
+}) => {
+  const { TableViewPresetsList } = useViewData({ tableName, projectId });
+  const { data: defaultAssignments } =
+    api.TableViewPresets.getDefaultAssignments.useQuery(
+      { projectId, viewName: tableName },
+      { enabled: !!projectId },
+    );
+
+  return { TableViewPresetsList, defaultAssignments };
+};
 
 function formatOrderBy(orderBy?: OrderByState) {
   return orderBy?.column ? `${orderBy.column} ${orderBy.order}` : "none";
@@ -182,17 +210,102 @@ function buildSystemFilterPresetState(
   };
 }
 
+export function TableViewPresetsDrawerRoot({
+  tableName,
+  onOpenChange,
+  ...props
+}: TableViewPresetsDrawerRootProps) {
+  const capture = usePostHogClientCapture();
+
+  return (
+    <Drawer
+      {...props}
+      forceDirection="responsive-left"
+      onOpenChange={(open) => {
+        onOpenChange?.(open);
+        capture(open ? "saved_views:drawer_open" : "saved_views:drawer_close", {
+          tableName,
+        });
+      }}
+    />
+  );
+}
+
 export function TableViewPresetsDrawer({
   viewConfig,
   currentState,
   systemFilterPresets,
   triggerId,
 }: TableViewPresetsDrawerProps) {
+  const { tableName, projectId, controllers } = viewConfig;
+  const { TableViewPresetsList, defaultAssignments } =
+    useTableViewPresetsDrawerData({ tableName, projectId });
+  const drawerPresetCount =
+    TableViewPresetsList?.filter(
+      (view) =>
+        !view.category ||
+        !view.isSystem ||
+        view.id === defaultAssignments?.userDefaultViewId ||
+        view.id === defaultAssignments?.projectDefaultViewId,
+    ).length ?? 0;
+
+  return (
+    <TableViewPresetsDrawerRoot tableName={tableName}>
+      <DrawerTrigger asChild>
+        <Button variant="outline" id={triggerId} title="My Views">
+          <span>My Views</span>
+          {controllers.selectedViewId ? (
+            <ChevronDown className="ml-1 h-4 w-4" />
+          ) : (
+            <div className="bg-input ml-1 rounded-sm px-1 text-xs">
+              {drawerPresetCount}
+            </div>
+          )}
+        </Button>
+      </DrawerTrigger>
+      <TableViewPresetsDrawerContentBody
+        viewConfig={viewConfig}
+        currentState={currentState}
+        systemFilterPresets={systemFilterPresets}
+        TableViewPresetsList={TableViewPresetsList}
+        defaultAssignments={defaultAssignments}
+      />
+    </TableViewPresetsDrawerRoot>
+  );
+}
+
+export function TableViewPresetsDrawerContent({
+  viewConfig,
+  currentState,
+  systemFilterPresets,
+}: TableViewPresetsDrawerContentProps) {
+  const { tableName, projectId } = viewConfig;
+  const { TableViewPresetsList, defaultAssignments } =
+    useTableViewPresetsDrawerData({ tableName, projectId });
+
+  return (
+    <TableViewPresetsDrawerContentBody
+      viewConfig={viewConfig}
+      currentState={currentState}
+      systemFilterPresets={systemFilterPresets}
+      TableViewPresetsList={TableViewPresetsList}
+      defaultAssignments={defaultAssignments}
+    />
+  );
+}
+
+function TableViewPresetsDrawerContentBody({
+  viewConfig,
+  currentState,
+  systemFilterPresets,
+  TableViewPresetsList,
+  defaultAssignments,
+}: TableViewPresetsDrawerContentProps &
+  ReturnType<typeof useTableViewPresetsDrawerData>) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
   const { handleSetViewId, applyViewState, selectedViewId, appliedViewId } =
     controllers;
-  const { TableViewPresetsList } = useViewData({ tableName, projectId });
   const {
     createMutation,
     updateConfigMutation,
@@ -214,12 +327,6 @@ export function TableViewPresetsDrawer({
     projectId,
     scope: "TableViewPresets:CUD",
   });
-
-  const { data: defaultAssignments } =
-    api.TableViewPresets.getDefaultAssignments.useQuery(
-      { projectId, viewName: tableName },
-      { enabled: !!projectId },
-    );
 
   const { setViewAsDefault, clearViewDefault, isSettingDefault } =
     useDefaultViewMutations({ tableName, projectId });
@@ -445,435 +552,405 @@ export function TableViewPresetsDrawer({
 
   return (
     <>
-      <Drawer
-        forceDirection="responsive-left"
-        onOpenChange={(open) => {
-          if (open) {
-            capture("saved_views:drawer_open", { tableName });
-          } else {
-            capture("saved_views:drawer_close", { tableName });
-          }
-        }}
-      >
-        <DrawerTrigger asChild>
-          <Button variant="outline" id={triggerId} title="My Views">
-            <span>My Views</span>
-            {selectedViewId ? (
-              <ChevronDown className="ml-1 h-4 w-4" />
-            ) : (
-              <div className="bg-input ml-1 rounded-sm px-1 text-xs">
-                {drawerPresetList?.length ?? 0}
-              </div>
-            )}
-          </Button>
-        </DrawerTrigger>
-        <DrawerContent overlayClassName="bg-primary/10">
-          <div className="mx-auto w-full">
-            <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-1.5">
-              <DrawerTitle className="flex flex-row items-center gap-1">
-                Views{" "}
-                <a
-                  href="https://github.com/orgs/langfuse/discussions/4657"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center"
-                  title="Saving table view presets is currently in beta. Click here to provide feedback!"
-                ></a>
-              </DrawerTitle>
-              <DrawerClose asChild>
-                <Button variant="outline" size="icon">
-                  <X className="h-4 w-4" />
-                </Button>
-              </DrawerClose>
-            </DrawerHeader>
-            <Separator />
+      <DrawerContent overlayClassName="bg-primary/10">
+        <div className="mx-auto w-full">
+          <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-1.5">
+            <DrawerTitle className="flex flex-row items-center gap-1">
+              Views{" "}
+              <a
+                href="https://github.com/orgs/langfuse/discussions/4657"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center"
+                title="Saving table view presets is currently in beta. Click here to provide feedback!"
+              ></a>
+            </DrawerTitle>
+            <DrawerClose asChild>
+              <Button variant="outline" size="icon">
+                <X className="h-4 w-4" />
+              </Button>
+            </DrawerClose>
+          </DrawerHeader>
+          <Separator />
 
-            <Command className="h-fit rounded-none border-none pb-1 shadow-none">
-              <CommandInput
-                placeholder="Search views..."
-                value={searchQuery}
-                onValueChange={setSearchQueryLocal}
-                className="h-9 border-none focus:ring-0"
-              />
-              <CommandList className="max-h-[calc(100vh-150px)]">
-                <CommandEmpty>No views found</CommandEmpty>
-                <CommandGroup className="pb-0">
-                  {/* System Preset: Langfuse Default - hidden when page-specific presets exist */}
-                  {!systemFilterPresets?.length && (
-                    <CommandItem
-                      key={SYSTEM_PRESETS.DEFAULT.id}
-                      onSelect={() => handleSetViewId(null)}
-                      className={cn(
-                        "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
-                        selectedViewId === null && "bg-muted",
-                      )}
-                      title="Reflects your current table settings without applying any saved custom table views"
-                    >
-                      <div className="flex flex-col">
-                        <span className="text-tertiary text-sm">
-                          {SYSTEM_PRESETS.DEFAULT.name}
-                        </span>
+          <Command className="h-fit rounded-none border-none pb-1 shadow-none">
+            <CommandInput
+              placeholder="Search views..."
+              value={searchQuery}
+              onValueChange={setSearchQueryLocal}
+              className="h-9 border-none focus:ring-0"
+            />
+            <CommandList className="max-h-[calc(100vh-150px)]">
+              <CommandEmpty>No views found</CommandEmpty>
+              <CommandGroup className="pb-0">
+                {/* System Preset: Langfuse Default - hidden when page-specific presets exist */}
+                {!systemFilterPresets?.length && (
+                  <CommandItem
+                    key={SYSTEM_PRESETS.DEFAULT.id}
+                    onSelect={() => handleSetViewId(null)}
+                    className={cn(
+                      "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
+                      selectedViewId === null && "bg-muted",
+                    )}
+                    title="Reflects your current table settings without applying any saved custom table views"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-tertiary text-sm">
+                        {SYSTEM_PRESETS.DEFAULT.name}
+                      </span>
+                      <span className="text-tertiary w-fit pl-0 text-xs">
+                        Your working view
+                      </span>
+                    </div>
+                  </CommandItem>
+                )}
+
+                {/* Page-specific System Filter Presets */}
+                {systemFilterPresets?.map((preset) => (
+                  <CommandItem
+                    key={preset.id}
+                    onSelect={() => handleSelectSystemFilterPreset(preset)}
+                    className={cn(
+                      "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
+                      selectedViewId === preset.id &&
+                        isEqual(
+                          normalizeForComparison(currentState.filters),
+                          normalizeForComparison(preset.filters),
+                        ) &&
+                        "bg-muted",
+                    )}
+                  >
+                    <div className="flex flex-col">
+                      <span className="flex items-center gap-1.5 text-sm">
+                        <LangfuseIcon size={14} />
+                        {preset.name}
+                      </span>
+                      {preset.description && (
                         <span className="text-tertiary w-fit pl-0 text-xs">
-                          Your working view
+                          {preset.description}
                         </span>
-                      </div>
-                    </CommandItem>
-                  )}
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
 
-                  {/* Page-specific System Filter Presets */}
-                  {systemFilterPresets?.map((preset) => (
+                {/* Separator between system and user presets */}
+                {systemFilterPresets?.length && drawerPresetList?.length ? (
+                  <Separator className="my-2" />
+                ) : null}
+
+                {/* User Presets */}
+                {drawerPresetList?.map((view) => {
+                  const isUserDefault =
+                    defaultAssignments?.userDefaultViewId === view.id;
+                  const isProjectDefault =
+                    defaultAssignments?.projectDefaultViewId === view.id;
+                  const isSystemView = view.isSystem === true;
+                  const previewText = summarizeTableViewPreset(view);
+
+                  return (
                     <CommandItem
-                      key={preset.id}
-                      onSelect={() => handleSelectSystemFilterPreset(preset)}
+                      key={view.id}
+                      onSelect={() => handleSelectView(view)}
                       className={cn(
                         "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
-                        selectedViewId === preset.id &&
-                          isEqual(
-                            normalizeForComparison(currentState.filters),
-                            normalizeForComparison(preset.filters),
-                          ) &&
-                          "bg-muted",
+                        selectedViewId === view.id && "bg-muted",
                       )}
                     >
-                      <div className="flex flex-col">
-                        <span className="flex items-center gap-1.5 text-sm">
-                          <LangfuseIcon size={14} />
-                          {preset.name}
-                        </span>
-                        {preset.description && (
-                          <span className="text-tertiary w-fit pl-0 text-xs">
-                            {preset.description}
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "text-sm",
+                              isSystemView
+                                ? "flex items-center gap-1.5"
+                                : "truncate",
+                            )}
+                            title={view.name}
+                          >
+                            {isSystemView && <LangfuseIcon size={14} />}
+                            {view.name}
                           </span>
-                        )}
-                      </div>
-                    </CommandItem>
-                  ))}
-
-                  {/* Separator between system and user presets */}
-                  {systemFilterPresets?.length && drawerPresetList?.length ? (
-                    <Separator className="my-2" />
-                  ) : null}
-
-                  {/* User Presets */}
-                  {drawerPresetList?.map((view) => {
-                    const isUserDefault =
-                      defaultAssignments?.userDefaultViewId === view.id;
-                    const isProjectDefault =
-                      defaultAssignments?.projectDefaultViewId === view.id;
-                    const isSystemView = view.isSystem === true;
-                    const previewText = summarizeTableViewPreset(view);
-
-                    return (
-                      <CommandItem
-                        key={view.id}
-                        onSelect={() => handleSelectView(view)}
-                        className={cn(
-                          "hover:bg-muted/50 group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors",
-                          selectedViewId === view.id && "bg-muted",
-                        )}
-                      >
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={cn(
-                                "text-sm",
-                                isSystemView
-                                  ? "flex items-center gap-1.5"
-                                  : "truncate",
-                              )}
-                              title={view.name}
-                            >
-                              {isSystemView && <LangfuseIcon size={14} />}
-                              {view.name}
-                            </span>
-                            {isUserDefault && (
-                              <Badge variant="secondary" className="text-xs">
-                                Your default
-                              </Badge>
-                            )}
-                            {isProjectDefault && (
-                              <Badge variant="outline" className="text-xs">
-                                Project default
-                              </Badge>
-                            )}
-                          </div>
-                          {isSystemView ? (
-                            view.description ? (
-                              <span className="text-tertiary w-fit pl-0 text-xs">
-                                {view.description}
-                              </span>
-                            ) : null
-                          ) : previewText ? (
-                            <span
-                              className="text-tertiary truncate text-xs"
-                              title={previewText}
-                            >
-                              {previewText}
-                            </span>
-                          ) : null}
-                          {!isSystemView && view.id === selectedViewId && (
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              className={cn(
-                                "w-fit pl-0 text-xs",
-                                hasWriteAccess
-                                  ? "text-primary-accent"
-                                  : "text-tertiary",
-                              )}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateViewConfig({
-                                  name: view.name,
-                                });
-                              }}
-                              disabled={!hasWriteAccess}
-                            >
-                              Update view with current filters
-                            </Button>
+                          {isUserDefault && (
+                            <Badge variant="secondary" className="text-xs">
+                              Your default
+                            </Badge>
+                          )}
+                          {isProjectDefault && (
+                            <Badge variant="outline" className="text-xs">
+                              Project default
+                            </Badge>
                           )}
                         </div>
-                        <div className="flex flex-row gap-1">
+                        {isSystemView ? (
+                          view.description ? (
+                            <span className="text-tertiary w-fit pl-0 text-xs">
+                              {view.description}
+                            </span>
+                          ) : null
+                        ) : previewText ? (
+                          <span
+                            className="text-tertiary truncate text-xs"
+                            title={previewText}
+                          >
+                            {previewText}
+                          </span>
+                        ) : null}
+                        {!isSystemView && view.id === selectedViewId && (
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="xs"
+                            className={cn(
+                              "w-fit pl-0 text-xs",
+                              hasWriteAccess
+                                ? "text-primary-accent"
+                                : "text-tertiary",
+                            )}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleGeneratePermalink(view.id);
+                              handleUpdateViewConfig({
+                                name: view.name,
+                              });
                             }}
-                            className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
+                            disabled={!hasWriteAccess}
                           >
-                            <Link className="h-4 w-4" />
+                            Update view with current filters
                           </Button>
-                          <DropdownMenu
-                            open={dropdownId === view.id}
-                            onOpenChange={(open) => {
-                              setDropdownId(open ? view.id : null);
-                            }}
-                          >
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                }}
-                                className="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                              {!isSystemView && (
-                                <>
-                                  <DropdownMenuItem asChild>
-                                    <Popover
-                                      key={view.id + "-edit"}
-                                      open={isEditPopoverOpen}
-                                      onOpenChange={(open) => {
-                                        setIsEditPopoverOpen(open);
-                                        if (open) {
-                                          form.reset({ name: view.name });
-                                          capture(
-                                            "saved_views:update_form_open",
-                                            {
-                                              tableName,
-                                              viewId: view.id,
-                                            },
-                                          );
-                                        } else {
-                                          setDropdownId(null);
-                                        }
-                                      }}
-                                    >
-                                      <PopoverTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                          }}
-                                          disabled={!hasWriteAccess}
-                                        >
-                                          {hasWriteAccess ? (
-                                            <Pen className="mr-2 h-4 w-4" />
-                                          ) : (
-                                            <Lock className="mr-2 h-4 w-4" />
-                                          )}
-                                          Rename
-                                        </Button>
-                                      </PopoverTrigger>
-                                      <PopoverContent
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <h2 className="mb-3 font-bold">Edit</h2>
-                                        <Form {...form}>
-                                          <form
-                                            onSubmit={form.handleSubmit(
-                                              onSubmit(view.id),
-                                            )}
-                                            className="space-y-2"
-                                          >
-                                            <FormField
-                                              control={form.control}
-                                              name="name"
-                                              render={({ field }) => (
-                                                <FormItem>
-                                                  <FormLabel>
-                                                    View name
-                                                  </FormLabel>
-                                                  <FormControl>
-                                                    <Input
-                                                      defaultValue={view.name}
-                                                      {...field}
-                                                    />
-                                                  </FormControl>
-                                                  <FormMessage />
-                                                </FormItem>
-                                              )}
-                                            />
-
-                                            <div className="flex w-full justify-end">
-                                              <Button
-                                                type="submit"
-                                                loading={
-                                                  updateNameMutation.isPending
-                                                }
-                                                disabled={
-                                                  !!form.formState.errors.name
-                                                }
-                                              >
-                                                Save
-                                              </Button>
-                                            </div>
-                                          </form>
-                                        </Form>
-                                      </PopoverContent>
-                                    </Popover>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
-                              )}
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isUserDefault) {
-                                    clearViewDefault("user");
-                                  } else {
-                                    setViewAsDefault(view.id, "user");
-                                  }
-                                  setDropdownId(null);
-                                }}
-                                disabled={isSettingDefault}
-                              >
-                                {isUserDefault ? (
-                                  <>Remove as my default</>
-                                ) : (
-                                  <>Set as my default</>
-                                )}
-                              </DropdownMenuItem>
-                              {/* Set as project default - requires write access */}
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isProjectDefault) {
-                                    clearViewDefault("project");
-                                  } else {
-                                    setViewAsDefault(view.id, "project");
-                                  }
-                                  setDropdownId(null);
-                                }}
-                                disabled={!hasWriteAccess || isSettingDefault}
-                              >
-                                {isProjectDefault ? (
-                                  <>Remove as project default</>
-                                ) : (
-                                  <>Set as project default</>
-                                )}
-                                {!hasWriteAccess && (
-                                  <Lock className="ml-auto h-4 w-4" />
-                                )}
-                              </DropdownMenuItem>
-                              {!isSystemView && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem asChild>
-                                    <DeleteButton
-                                      itemId={view.id}
-                                      projectId={projectId}
-                                      scope="TableViewPresets:CUD"
-                                      entityToDeleteName="view"
-                                      executeDeleteMutation={async () => {
-                                        await handleDeleteView(view.id);
-                                      }}
-                                      isDeleteMutationLoading={
-                                        deleteMutation.isPending
-                                      }
-                                      invalidateFunc={() => {
-                                        utils.TableViewPresets.invalidate();
-                                      }}
-                                      captureDeleteOpen={() =>
+                        )}
+                      </div>
+                      <div className="flex flex-row gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleGeneratePermalink(view.id);
+                          }}
+                          className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
+                        >
+                          <Link className="h-4 w-4" />
+                        </Button>
+                        <DropdownMenu
+                          open={dropdownId === view.id}
+                          onOpenChange={(open) => {
+                            setDropdownId(open ? view.id : null);
+                          }}
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                              className="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
+                            {!isSystemView && (
+                              <>
+                                <DropdownMenuItem asChild>
+                                  <Popover
+                                    key={view.id + "-edit"}
+                                    open={isEditPopoverOpen}
+                                    onOpenChange={(open) => {
+                                      setIsEditPopoverOpen(open);
+                                      if (open) {
+                                        form.reset({ name: view.name });
                                         capture(
-                                          "saved_views:delete_form_open",
+                                          "saved_views:update_form_open",
                                           {
                                             tableName,
                                             viewId: view.id,
                                           },
-                                        )
+                                        );
+                                      } else {
+                                        setDropdownId(null);
                                       }
-                                      captureDeleteSuccess={() => {}}
-                                    />
-                                  </DropdownMenuItem>
-                                </>
+                                    }}
+                                  >
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                        }}
+                                        disabled={!hasWriteAccess}
+                                      >
+                                        {hasWriteAccess ? (
+                                          <Pen className="mr-2 h-4 w-4" />
+                                        ) : (
+                                          <Lock className="mr-2 h-4 w-4" />
+                                        )}
+                                        Rename
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <h2 className="mb-3 font-bold">Edit</h2>
+                                      <Form {...form}>
+                                        <form
+                                          onSubmit={form.handleSubmit(
+                                            onSubmit(view.id),
+                                          )}
+                                          className="space-y-2"
+                                        >
+                                          <FormField
+                                            control={form.control}
+                                            name="name"
+                                            render={({ field }) => (
+                                              <FormItem>
+                                                <FormLabel>View name</FormLabel>
+                                                <FormControl>
+                                                  <Input
+                                                    defaultValue={view.name}
+                                                    {...field}
+                                                  />
+                                                </FormControl>
+                                                <FormMessage />
+                                              </FormItem>
+                                            )}
+                                          />
+
+                                          <div className="flex w-full justify-end">
+                                            <Button
+                                              type="submit"
+                                              loading={
+                                                updateNameMutation.isPending
+                                              }
+                                              disabled={
+                                                !!form.formState.errors.name
+                                              }
+                                            >
+                                              Save
+                                            </Button>
+                                          </div>
+                                        </form>
+                                      </Form>
+                                    </PopoverContent>
+                                  </Popover>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isUserDefault) {
+                                  clearViewDefault("user");
+                                } else {
+                                  setViewAsDefault(view.id, "user");
+                                }
+                                setDropdownId(null);
+                              }}
+                              disabled={isSettingDefault}
+                            >
+                              {isUserDefault ? (
+                                <>Remove as my default</>
+                              ) : (
+                                <>Set as my default</>
                               )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          {!isSystemView && (
-                            <div className="text-tertiary flex items-center text-xs">
-                              <Avatar className="h-6 w-6">
-                                <AvatarImage
-                                  src={view.createdByUser?.image ?? undefined}
-                                  alt={
-                                    view.createdByUser?.name ?? "User Avatar"
-                                  }
-                                />
-                                <AvatarFallback className="bg-muted-gray">
-                                  {view.createdByUser?.name
-                                    ? view.createdByUser?.name
-                                        .split(" ")
-                                        .map((word) => word[0])
-                                        .slice(0, 2)
-                                        .concat("")
-                                    : null}
-                                </AvatarFallback>
-                              </Avatar>
-                            </div>
-                          )}
-                        </div>
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              </CommandList>
-            </Command>
+                            </DropdownMenuItem>
+                            {/* Set as project default - requires write access */}
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isProjectDefault) {
+                                  clearViewDefault("project");
+                                } else {
+                                  setViewAsDefault(view.id, "project");
+                                }
+                                setDropdownId(null);
+                              }}
+                              disabled={!hasWriteAccess || isSettingDefault}
+                            >
+                              {isProjectDefault ? (
+                                <>Remove as project default</>
+                              ) : (
+                                <>Set as project default</>
+                              )}
+                              {!hasWriteAccess && (
+                                <Lock className="ml-auto h-4 w-4" />
+                              )}
+                            </DropdownMenuItem>
+                            {!isSystemView && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild>
+                                  <DeleteButton
+                                    itemId={view.id}
+                                    projectId={projectId}
+                                    scope="TableViewPresets:CUD"
+                                    entityToDeleteName="view"
+                                    executeDeleteMutation={async () => {
+                                      await handleDeleteView(view.id);
+                                    }}
+                                    isDeleteMutationLoading={
+                                      deleteMutation.isPending
+                                    }
+                                    invalidateFunc={() => {
+                                      utils.TableViewPresets.invalidate();
+                                    }}
+                                    captureDeleteOpen={() =>
+                                      capture("saved_views:delete_form_open", {
+                                        tableName,
+                                        viewId: view.id,
+                                      })
+                                    }
+                                    captureDeleteSuccess={() => {}}
+                                  />
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        {!isSystemView && (
+                          <div className="text-tertiary flex items-center text-xs">
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage
+                                src={view.createdByUser?.image ?? undefined}
+                                alt={view.createdByUser?.name ?? "User Avatar"}
+                              />
+                              <AvatarFallback className="bg-muted-gray">
+                                {view.createdByUser?.name
+                                  ? view.createdByUser?.name
+                                      .split(" ")
+                                      .map((word) => word[0])
+                                      .slice(0, 2)
+                                      .concat("")
+                                  : null}
+                              </AvatarFallback>
+                            </Avatar>
+                          </div>
+                        )}
+                      </div>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
 
-            <Separator />
+          <Separator />
 
-            <div className="p-2">
-              <Button
-                onClick={() => {
-                  setIsCreateDialogOpen(true);
-                  capture("saved_views:create_form_open", { tableName });
-                }}
-                variant="ghost"
-                className="w-full justify-start px-1"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Create Custom View
-              </Button>
-            </div>
+          <div className="p-2">
+            <Button
+              onClick={() => {
+                setIsCreateDialogOpen(true);
+                capture("saved_views:create_form_open", { tableName });
+              }}
+              variant="ghost"
+              className="w-full justify-start px-1"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create Custom View
+            </Button>
           </div>
-        </DrawerContent>
-      </Drawer>
+        </div>
+      </DrawerContent>
 
       {/* Create View Dialog */}
       <Dialog

@@ -11,7 +11,10 @@ import {
   V4MigrationDetailsContent,
   V4MigrationHeaderContent,
 } from "./V4MigrationContent";
-import { type MigrationCountState } from "./migrationData";
+import {
+  type MigrationActionState,
+  type MigrationCountState,
+} from "./migrationData";
 import { type V4MigrationSdkState } from "./sdkVersionStatus";
 
 const mocks = vi.hoisted(() => ({
@@ -32,6 +35,11 @@ const mocks = vi.hoisted(() => ({
       delayedOtelIngestionCount: 0,
     } as V4MigrationSdkState,
     evals: { status: "loaded", count: 0 } as MigrationCountState,
+    experiments: {
+      status: "loaded",
+      result: "not_required",
+    } as MigrationActionState,
+    experimentInstrumentationUpgradePath: null as "sdk" | "api" | null,
     apis: { status: "loaded", count: 1 } as MigrationCountState,
     exports: { status: "loaded", count: 3 } as MigrationCountState,
     apiUsage: [
@@ -136,6 +144,11 @@ describe("V4MigrationDetailsContent", () => {
     mocks.routerPush.mockResolvedValue(true);
     mocks.submitAgentMessage.mockResolvedValue(undefined);
     mocks.migrationData.evals = { status: "loaded", count: 0 };
+    mocks.migrationData.experiments = {
+      status: "loaded",
+      result: "not_required",
+    };
+    mocks.migrationData.experimentInstrumentationUpgradePath = null;
     mocks.canToggleV4 = true;
     mocks.migrationData.sdk.status = "latest";
     mocks.migrationData.apis = { status: "loaded", count: 1 };
@@ -213,6 +226,53 @@ describe("V4MigrationDetailsContent", () => {
     expect(
       screen.getByText("No deprecated evals detected."),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("No experiment instrumentation updates required."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the experiment instrumentation upgrade requirement", () => {
+    mocks.migrationData.experiments = { status: "loaded", result: "required" };
+    mocks.migrationData.experimentInstrumentationUpgradePath = "sdk";
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Experiments/ }));
+    expect(screen.getByText(/POST \/dataset-run-items/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Upgrade the SDK" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows inconclusive experiment runner usage as needing review", () => {
+    mocks.migrationData.experiments = {
+      status: "loaded",
+      result: "sdk_usage_inconclusive",
+    };
+    mocks.migrationData.experimentInstrumentationUpgradePath = "sdk";
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Experiments/ }));
+    expect(screen.getByText("Needs review")).toBeInTheDocument();
+    expect(
+      screen.getByText(/supports the experiment runner/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(".link()")).toBeInTheDocument();
+  });
+
+  it("asks direct API users to replace dataset-run-items POST usage", () => {
+    mocks.migrationData.experiments = { status: "loaded", result: "required" };
+    mocks.migrationData.experimentInstrumentationUpgradePath = "api";
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Experiments/ }));
+    expect(
+      screen.getByRole("link", {
+        name: "OTel experiment instrumentation guide",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("shows no detected ingestion data without asking for SDK review", () => {
@@ -289,6 +349,11 @@ describe("V4MigrationDetailsContent", () => {
 describe("V4MigrationHeaderContent", () => {
   beforeEach(() => {
     mocks.migrationData.evals = { status: "loaded", count: 0 };
+    mocks.migrationData.experiments = {
+      status: "loaded",
+      result: "not_required",
+    };
+    mocks.migrationData.experimentInstrumentationUpgradePath = null;
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
     mocks.hasApiKeyCreateAccess = true;

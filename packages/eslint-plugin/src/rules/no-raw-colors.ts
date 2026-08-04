@@ -135,7 +135,7 @@ const rule = createRule<[{ allowFiles: string[] }], "unexpected">({
     ],
     messages: {
       unexpected:
-        "Avoid the raw Tailwind palette color `{{utility}}` — it bypasses theming (light/dark mode, palette changes). Use a role token instead (e.g. `bg-primary`, `text-muted-foreground`, `border-destructive`, the `--obs-*`/`--score-*` families) — see Storybook → Design → Color for the full set.",
+        "Always use semantic tokens instead of raw Tailwind colors (`{{utility}}`). This ensures your UI automatically adapts to light and dark mode, and that your components remain consistent across themes. Role tokens: `bg-*`, `text-*`, `border-*` families plus `--obs-*` — see Storybook → Design → Color for the full set.",
     },
   },
   defaultOptions: [{ allowFiles: [] }],

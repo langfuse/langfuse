@@ -25,6 +25,7 @@ export function V4MigrationNavItem() {
   const readiness = getProjectMigrationReadiness({
     sdk: migrationData.sdk,
     evals: migrationData.evals,
+    experiments: migrationData.experiments,
     apis: migrationData.apis,
     exports: migrationData.exports,
   });
