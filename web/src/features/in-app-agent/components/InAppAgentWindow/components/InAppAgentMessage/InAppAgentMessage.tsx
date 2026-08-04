@@ -42,11 +42,9 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import {
-  expandMarkdownSelection,
-  projectMarkdownToRenderedText,
-} from "./fns/markdown";
+import { projectMarkdownToRenderedText } from "./fns/markdown";
 import { getMarkdownSourceRangeFromRenderedOffsets } from "./fns/getMarkdownSourceRangeFromRenderedOffsets";
+import { expandMarkdownSelection } from "./fns/expandMarkdownSelection";
 import styles from "./InAppAgentMessage.module.css";
 import { InAppAgentToolPayload } from "../InAppAgentToolPayload";
 import { InAppAgentToolResultPayload } from "../InAppAgentToolResultPayload";
