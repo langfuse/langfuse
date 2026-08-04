@@ -212,6 +212,14 @@ The in-app agent uses two request-scoped inputs when calling Langfuse MCP:
 - A temporary project-scoped API key marked as an in-app-agent key.
 - An optional server-generated tool override sent with `x-langfuse-in-app-agent-tool-override`.
 
+Normal MCP requests consume the org-scoped `public-api` rate-limit bucket.
+Active in-app-agent MCP requests skip that request-level bucket because agent
+submissions and approval continuations separately consume the org-scoped
+`in-app-agent-run` daily bucket at user-submission boundaries. In addition, the
+Langfuse MCP endpoint enforces a durable limit of 100 Langfuse tool calls per
+conversation, shared by foreground, background, and approval-continuation
+runs.
+
 The API key authenticates the request and scopes it to the project. Without an override, in-app-agent keys are restricted to MCP tools annotated with `readOnlyHint: true`. When the user approves a single Langfuse MCP tool call, `server/handler.ts` creates a JSON override naming that one unprefixed MCP registry tool and passes it to the MCP route through the request header above.
 
 MCP registry behavior:

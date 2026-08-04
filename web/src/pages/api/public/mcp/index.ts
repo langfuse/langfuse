@@ -120,15 +120,32 @@ export default async function handler(
       );
     }
 
-    // Rate limit MCP requests
-    const rateLimitCheck =
-      await RateLimitService.getInstance().rateLimitRequest(
-        authCheck.scope,
-        "public-api",
-      );
+    // The in-app agent has its own submission-level limiter on the foreground
+    // route and on background start/approval mutations. Its worker-owned MCP
+    // calls must not consume the generic public-api bucket, otherwise a burst
+    // during background execution can surface as a user-facing "assistant
+    // request limit" error even though the user did not submit anything.
+    if (!shouldSkipMcpRateLimit(authCheck.scope.isInAppAgentKey)) {
+      const rateLimitCheck =
+        await RateLimitService.getInstance().rateLimitRequest(
+          authCheck.scope,
+          "public-api",
+        );
 
-    if (rateLimitCheck?.isRateLimited()) {
-      return rateLimitCheck.sendRestResponseIfLimited(res);
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
+      }
+    }
+
+    const inAppAgentConversationId = authCheck.scope.isInAppAgentKey
+      ? await getInAppAgentConversationId(
+          authCheck.scope.apiKeyId,
+          authCheck.scope.projectId,
+        )
+      : undefined;
+
+    if (authCheck.scope.isInAppAgentKey && !inAppAgentConversationId) {
+      throw new ForbiddenError("In-app agent session is no longer active");
     }
 
     // Build ServerContext from authenticated scope. In-app-agent keys need a
@@ -144,7 +161,11 @@ export default async function handler(
       plan: authCheck.scope.plan,
       rateLimitOverrides: authCheck.scope.rateLimitOverrides,
       userAgent: req.headers["user-agent"],
-      inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
+      inAppAgent: getInAppAgentContext(
+        req,
+        authCheck.scope.isInAppAgentKey,
+        inAppAgentConversationId,
+      ),
     };
 
     logger.debug("MCP request authenticated", {
@@ -190,9 +211,16 @@ export default async function handler(
   }
 }
 
+export function shouldSkipMcpRateLimit(
+  isInAppAgentKey: boolean | undefined,
+): boolean {
+  return isInAppAgentKey === true;
+}
+
 export function getInAppAgentContext(
   req: NextApiRequest,
   isInAppAgentKey: boolean | undefined,
+  conversationId?: string,
 ): ServerContext["inAppAgent"] {
   if (isInAppAgentKey !== true) {
     return undefined;
@@ -201,7 +229,10 @@ export function getInAppAgentContext(
   const headerValue = req.headers[IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER];
 
   if (typeof headerValue !== "string") {
-    return { permissions: "read" };
+    return {
+      permissions: "read",
+      ...(conversationId ? { conversationId } : {}),
+    };
   }
 
   const parsedOverride = InAppAgentMcpRunOverrideSchema.safeParse(
@@ -212,8 +243,28 @@ export function getInAppAgentContext(
     ? {
         permissions: "single-tool-override",
         allowedToolName: parsedOverride.data.toolName,
+        ...(conversationId ? { conversationId } : {}),
       }
-    : { permissions: "read" };
+    : {
+        permissions: "read",
+        ...(conversationId ? { conversationId } : {}),
+      };
+}
+
+async function getInAppAgentConversationId(
+  apiKeyId: string,
+  projectId: string,
+): Promise<string | undefined> {
+  const run = await prisma.inAppAgentRun.findFirst({
+    where: {
+      projectId,
+      mcpApiKeyId: apiKeyId,
+      finishedAt: null,
+    },
+    select: { conversationId: true },
+  });
+
+  return run?.conversationId;
 }
 
 /**

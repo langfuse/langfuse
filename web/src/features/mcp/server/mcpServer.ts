@@ -21,6 +21,8 @@ import type { ServerContext } from "../types";
 import { toolRegistry } from "./registry";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
+import { IN_APP_AGENT_MAX_MCP_TOOL_CALLS_PER_CONVERSATION } from "@langfuse/shared/in-app-agent";
+import { consumeInAppAgentMcpToolCall } from "./inAppAgentToolCallLimit";
 
 const MCP_SERVER_NAME = "langfuse";
 
@@ -96,6 +98,25 @@ export function createMcpServer(context: ServerContext): Server {
 
     if (!registeredTool) {
       throw new Error(`Unknown tool: ${name}`);
+    }
+
+    if (context.inAppAgent?.conversationId) {
+      const consumed = await consumeInAppAgentMcpToolCall({
+        projectId: context.projectId,
+        conversationId: context.inAppAgent.conversationId,
+      });
+
+      if (!consumed) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `This conversation reached the maximum of ${IN_APP_AGENT_MAX_MCP_TOOL_CALLS_PER_CONVERSATION} Langfuse MCP tool calls. Start a new conversation to continue.`,
+            },
+          ],
+        };
+      }
     }
 
     // Execute handler with context

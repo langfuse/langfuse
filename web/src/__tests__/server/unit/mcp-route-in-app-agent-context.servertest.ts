@@ -3,7 +3,10 @@ import {
   createInAppAgentMcpRunOverride,
   InAppAgentMcpRunOverrideSchema,
 } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
-import { getInAppAgentContext } from "@/src/pages/api/public/mcp";
+import {
+  getInAppAgentContext,
+  shouldSkipMcpRateLimit,
+} from "@/src/pages/api/public/mcp";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
@@ -22,6 +25,12 @@ describe("MCP route in-app-agent context", () => {
     return req;
   };
 
+  it("skips the generic request limiter for in-app-agent MCP calls", () => {
+    expect(shouldSkipMcpRateLimit(true)).toBe(true);
+    expect(shouldSkipMcpRateLimit(false)).toBe(false);
+    expect(shouldSkipMcpRateLimit(undefined)).toBe(false);
+  });
+
   it("returns undefined for non in-app-agent keys", () => {
     const req = createRequest('{"toolName":"upsertDataset"}');
 
@@ -33,6 +42,15 @@ describe("MCP route in-app-agent context", () => {
     const req = createRequest();
 
     expect(getInAppAgentContext(req, true)).toEqual({ permissions: "read" });
+  });
+
+  it("preserves the authenticated conversation id for in-app-agent calls", () => {
+    const req = createRequest();
+
+    expect(getInAppAgentContext(req, true, "conversation-1")).toEqual({
+      permissions: "read",
+      conversationId: "conversation-1",
+    });
   });
 
   it("falls back to read permissions for malformed override headers", () => {

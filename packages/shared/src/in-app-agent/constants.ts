@@ -5,6 +5,11 @@ export const IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE = "tool_call_rejected";
 
 export const IN_APP_AGENT_MCP_USER_AGENT = "langfuse-in-app-agent";
 
+// Hard stop for Langfuse MCP calls across all turns in one conversation. The
+// counter lives on the conversation row so foreground, background, and
+// approval-continuation runs share the same budget.
+export const IN_APP_AGENT_MAX_MCP_TOOL_CALLS_PER_CONVERSATION = 100;
+
 // Header used only by Langfuse's server-side in-app agent when it calls the
 // Langfuse MCP endpoint with a temporary in-app-agent API key and run override.
 export const IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER =

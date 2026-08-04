@@ -73,8 +73,10 @@ export interface ServerContext {
 export type InAppAgentContext =
   | {
       permissions: "read";
+      conversationId?: string;
     }
   | {
       permissions: "single-tool-override";
       allowedToolName: McpToolName;
+      conversationId?: string;
     };
