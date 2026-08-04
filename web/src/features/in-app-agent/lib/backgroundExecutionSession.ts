@@ -146,15 +146,25 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       ...config.initialView,
     };
     this.agent.setStatusListener?.((status) => {
+      const currentRun = {
+        id: status.runId,
+        status: status.status,
+        errorCode: status.errorCode ?? null,
+        cancelRequested: status.cancelRequested === true,
+      };
+      const hasSettled = !isExecutingRun(currentRun);
+
       this.setView({
         ...this.view,
-        currentRun: {
-          id: status.runId,
-          status: status.status,
-          errorCode: status.errorCode ?? null,
-          cancelRequested: status.cancelRequested === true,
-        },
+        currentRun,
+        attachment: hasSettled ? { status: "detached" } : this.view.attachment,
       });
+      if (hasSettled) {
+        // Status follows all persisted events and is authoritative even if the
+        // transport stalls before its final `done` frame.
+        this.agent.abortRun();
+        this.onSettled?.();
+      }
     });
     this.agent.setCursorListener?.((eventCursor) => {
       this.setView({ ...this.view, eventCursor });
@@ -465,6 +475,11 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
   private async refreshAttachmentAfterCommand(): Promise<void> {
     try {
       await this.hydrateAndAttach();
+      if (!isExecutingRun(this.view.currentRun)) {
+        // A terminal snapshot does not attach a watch whose convergence could
+        // otherwise publish the settled lifecycle notification.
+        this.onSettled?.();
+      }
     } catch {
       // The durable command already succeeded. Attachment failures are exposed
       // through the session snapshot and must not change the command outcome.

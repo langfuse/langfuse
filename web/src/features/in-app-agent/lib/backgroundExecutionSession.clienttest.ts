@@ -193,6 +193,7 @@ describe("BackgroundExecutionSessionController", () => {
   it("cancels the active server run", async () => {
     const agent = createAgent();
     const cancelRun = vi.fn().mockResolvedValue(undefined);
+    const onSettled = vi.fn();
     const cancelledView = {
       ...runningView,
       currentRun: {
@@ -206,6 +207,7 @@ describe("BackgroundExecutionSessionController", () => {
       hydrate: vi.fn().mockResolvedValue(cancelledView),
       cancelRun,
       decideApproval: vi.fn(),
+      onSettled,
       initialView: { currentRun: runningView.currentRun },
     });
 
@@ -216,6 +218,7 @@ describe("BackgroundExecutionSessionController", () => {
       InAppAgentRunStatus.CANCELLED,
     );
     expect(agent.connectAgent).not.toHaveBeenCalled();
+    expect(onSettled).toHaveBeenCalledOnce();
   });
 
   it("restores cancellation controls when the mutation fails", async () => {
