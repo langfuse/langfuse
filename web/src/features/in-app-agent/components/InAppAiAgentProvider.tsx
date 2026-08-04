@@ -561,6 +561,31 @@ function InAppAiAgentProviderInner({
         ? feedbackByConversationId[selectedConversationId]
         : undefined,
     );
+    const unresolvedActiveRunToolCallIds = new Set<string>();
+    if (
+      backgroundExecutionEnabled &&
+      currentBackgroundRun &&
+      isActiveInAppAgentRunStatus(currentBackgroundRun.status)
+    ) {
+      const resultToolCallIds = new Set(
+        prunedMessages.flatMap((message) =>
+          message.role === "tool" ? [message.toolCallId] : [],
+        ),
+      );
+      for (const message of prunedMessages) {
+        if (
+          message.role !== "assistant" ||
+          message.runId !== currentBackgroundRun.id
+        ) {
+          continue;
+        }
+        for (const toolCall of message.toolCalls ?? []) {
+          if (!resultToolCallIds.has(toolCall.id)) {
+            unresolvedActiveRunToolCallIds.add(toolCall.id);
+          }
+        }
+      }
+    }
     const displayMessages = projectInAppAgentMessagesForDisplay(
       messagesWithFeedback,
       currentSource.displayState,
@@ -582,14 +607,15 @@ function InAppAiAgentProviderInner({
           (message.toolCalls?.some(
             (toolCall) =>
               toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
-              loadingEventIds.has(toolCall.id),
+              (loadingEventIds.has(toolCall.id) ||
+                unresolvedActiveRunToolCallIds.has(toolCall.id)),
           ) ??
             false),
       };
     });
   }, [
     backgroundExecutionEnabled,
-    currentBackgroundRun?.id,
+    currentBackgroundRun,
     feedbackByConversationId,
     currentSource,
     loadingEventIds,
@@ -1566,7 +1592,7 @@ function InAppAiAgentProviderInner({
   const isCancellingRun = Boolean(
     backgroundExecutionView.cancelStatus === "submitting" ||
     (currentBackgroundRun &&
-      isActiveInAppAgentRunStatus(currentBackgroundRun.status) &&
+      isCancellableBackgroundRun(currentBackgroundRun.status) &&
       currentBackgroundRun.cancelRequested),
   );
 

@@ -21,7 +21,6 @@ import {
   type BackgroundExecutionRunView,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
 import { InAppAgentRunStatus } from "@langfuse/shared";
-import { isActiveInAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
@@ -33,7 +32,7 @@ function getBackgroundRunNotice(
     return null;
   }
 
-  if (isActiveInAppAgentRunStatus(run.status) && run.cancelRequested) {
+  if (isCancellableBackgroundRun(run.status) && run.cancelRequested) {
     return "Stopping the run…";
   }
 

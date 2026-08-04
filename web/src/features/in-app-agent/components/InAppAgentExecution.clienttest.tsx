@@ -302,6 +302,115 @@ describe("in-app agent execution", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps a hydrated in-flight tool call visibly running", async () => {
+    providerMocks.backgroundExecutionEnabled = true;
+    providerMocks.conversationQuery.data = {
+      conversation: {
+        id: "conversation-1",
+        isWriteLocked: false,
+      },
+      messages: [
+        {
+          id: "persisted-user",
+          role: "user",
+          content: "Inspect the traces",
+        },
+        {
+          id: "persisted-assistant",
+          role: "assistant",
+          content: "",
+          runId: "run-1",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "list_traces",
+                arguments: "{}",
+              },
+            },
+          ],
+        },
+      ],
+      eventCursor: 12,
+      latestRun: {
+        id: "run-1",
+        status: InAppAgentRunStatus.RUNNING,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [],
+    };
+    window.sessionStorage.setItem(
+      "langfuse:in-app-ai-agent-selected-conversation:project-1",
+      JSON.stringify("conversation-1"),
+    );
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise<Response>(() => undefined),
+    );
+
+    renderExecutionUi();
+
+    expect(await screen.findByText("Calling 1 tool")).toBeInTheDocument();
+  });
+
+  it("keeps approval cancellation visibly stopping until hydration settles", async () => {
+    providerMocks.backgroundExecutionEnabled = true;
+    providerMocks.conversationQuery.data = {
+      conversation: {
+        id: "conversation-1",
+        isWriteLocked: false,
+      },
+      messages: [
+        {
+          id: "persisted-user",
+          role: "user",
+          content: "Create the prompt",
+        },
+      ],
+      eventCursor: 12,
+      latestRun: {
+        id: "run-1",
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [
+        {
+          runId: "run-1",
+          approvalRequest: {
+            type: "tool_approval_request",
+            toolCallId: "tool-call-1",
+            toolName: "langfuse_createTextPrompt",
+            runId: "run-1",
+          },
+        },
+      ],
+    };
+    providerMocks.cancelRun.mockResolvedValueOnce({
+      cancelledImmediately: true,
+      status: InAppAgentRunStatus.CANCELLED,
+    });
+    providerMocks.utils.inAppAgent.getConversation.fetch.mockImplementationOnce(
+      () => new Promise(() => undefined),
+    );
+    window.sessionStorage.setItem(
+      "langfuse:in-app-ai-agent-selected-conversation:project-1",
+      JSON.stringify("conversation-1"),
+    );
+
+    renderExecutionUi();
+    fireEvent.click(await screen.findByRole("button", { name: "Stop run" }));
+
+    await waitFor(() => {
+      expect(
+        providerMocks.utils.inAppAgent.getConversation.fetch,
+      ).toHaveBeenCalledOnce();
+    });
+    expect(screen.getByRole("button", { name: "Stopping run" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Stopping the run…");
+  });
+
   it("does not observe a cached active run while the assistant is closed", async () => {
     providerMocks.backgroundExecutionEnabled = true;
     const runningSnapshot = {
