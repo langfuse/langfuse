@@ -18,7 +18,7 @@ const ListCommentsBaseSchema = z
       .string()
       .optional()
       .describe(
-        "Case-insensitive substring match on comment content (max 200 characters).",
+        "Case-insensitive full-text search on comment content (max 200 characters).",
       ),
     ...publicApiPaginationZod,
   })
@@ -27,7 +27,7 @@ const ListCommentsBaseSchema = z
 export const [listCommentsTool, handleListComments] = defineTool({
   name: "listComments",
   description:
-    "List comments in the current Langfuse project, optionally filtered by object, author, or content substring.",
+    "List comments in the current Langfuse project, optionally filtered by object, author, or content full-text search.",
   baseSchema: ListCommentsBaseSchema,
   inputSchema: GetCommentsV1Query,
   handler: async (input, context) =>

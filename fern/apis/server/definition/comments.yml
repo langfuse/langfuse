@@ -36,7 +36,7 @@ service:
             docs: Filter comments by author user id.
           content:
             type: optional<string>
-            docs: Filter comments by case-insensitive substring match on comment content. Empty strings are rejected.
+            docs: Filter comments by case-insensitive full-text search on comment content (PostgreSQL plainto_tsquery). Empty strings are rejected.
             validation:
               minLength: 1
               maxLength: 200

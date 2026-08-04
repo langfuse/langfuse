@@ -9,7 +9,7 @@ import type {
   PostCommentsV1Body,
 } from "@/src/features/public-api/types/comments";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 
 type CommentAuditScope = {
   projectId: string;
@@ -112,6 +112,52 @@ export const createCommentForApi = async ({
   return { id: comment.id };
 };
 
+type CommentListRow = {
+  id: string;
+  project_id: string;
+  created_at: Date;
+  updated_at: Date;
+  object_type: "TRACE" | "OBSERVATION" | "SESSION" | "PROMPT";
+  object_id: string;
+  content: string;
+  author_user_id: string | null;
+};
+
+const buildCommentListWhereSql = ({
+  projectId,
+  objectType,
+  objectId,
+  authorUserId,
+  content,
+}: {
+  projectId: string;
+  objectType?: ListCommentsInput["objectType"];
+  objectId?: string | null;
+  authorUserId?: string | null;
+  content: string;
+}) => {
+  const conditions: Prisma.Sql[] = [
+    Prisma.sql`project_id = ${projectId}`,
+    // Use the GIN full-text index (idx_comments_content_gin). ILIKE '%term%'
+    // cannot use that index and would scan comments twice (rows + count).
+    Prisma.sql`to_tsvector('english', content) @@ plainto_tsquery('english', ${content})`,
+  ];
+
+  if (objectType) {
+    conditions.push(
+      Prisma.sql`object_type = ${objectType}::"CommentObjectType"`,
+    );
+  }
+  if (objectId) {
+    conditions.push(Prisma.sql`object_id = ${objectId}`);
+  }
+  if (authorUserId) {
+    conditions.push(Prisma.sql`author_user_id = ${authorUserId}`);
+  }
+
+  return Prisma.join(conditions, " AND ");
+};
+
 export const listCommentsForApi = async ({
   projectId,
   objectType,
@@ -121,14 +167,68 @@ export const listCommentsForApi = async ({
   limit,
   page,
 }: ListCommentsInput) => {
+  if (content) {
+    const whereSql = buildCommentListWhereSql({
+      projectId,
+      objectType,
+      objectId,
+      authorUserId,
+      content,
+    });
+    const offset = (page - 1) * limit;
+
+    const [rows, countRows] = await Promise.all([
+      prisma.$queryRaw<CommentListRow[]>`
+        SELECT
+          id,
+          project_id,
+          created_at,
+          updated_at,
+          object_type,
+          object_id,
+          content,
+          author_user_id
+        FROM comments
+        WHERE ${whereSql}
+        LIMIT ${limit}
+        OFFSET ${offset}
+      `,
+      prisma.$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(*)::bigint AS count
+        FROM comments
+        WHERE ${whereSql}
+      `,
+    ]);
+
+    const totalItems = Number(countRows[0]?.count ?? 0);
+
+    return {
+      data: rows.map((row) =>
+        toPublicComment({
+          id: row.id,
+          projectId: row.project_id,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          objectType: row.object_type,
+          objectId: row.object_id,
+          content: row.content,
+          authorUserId: row.author_user_id,
+        }),
+      ),
+      meta: {
+        page,
+        limit,
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+      },
+    };
+  }
+
   const where = {
     projectId,
     objectType: objectType ?? undefined,
     objectId: objectId ?? undefined,
     authorUserId: authorUserId ?? undefined,
-    ...(content && {
-      content: { contains: content, mode: "insensitive" as const },
-    }),
   };
 
   const [comments, totalItems] = await Promise.all([

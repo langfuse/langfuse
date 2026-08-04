@@ -829,8 +829,8 @@ paths:
         - name: content
           in: query
           description: >-
-            Filter comments by case-insensitive substring match on comment
-            content. Empty strings are rejected.
+            Filter comments by case-insensitive full-text search on comment
+            content (PostgreSQL plainto_tsquery). Empty strings are rejected.
           required: false
           schema:
             type: string

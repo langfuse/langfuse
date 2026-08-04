@@ -341,7 +341,7 @@ describe("GET /api/public/comments API Endpoint", () => {
     }
   });
 
-  it("should filter comments by content substring (case-insensitive)", async () => {
+  it("should filter comments by content full-text search (case-insensitive)", async () => {
     const response = await makeZodVerifiedAPICall(
       GetCommentsV1Response,
       "GET",
@@ -352,7 +352,7 @@ describe("GET /api/public/comments API Endpoint", () => {
     expect(response.body.data.map((c) => c.id)).toEqual(["comment-2021-03-01"]);
   });
 
-  it("should match content case-insensitively", async () => {
+  it("should match content case-insensitively via full-text search", async () => {
     const response = await makeZodVerifiedAPICall(
       GetCommentsV1Response,
       "GET",
