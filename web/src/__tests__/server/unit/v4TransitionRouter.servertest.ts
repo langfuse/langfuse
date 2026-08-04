@@ -11,7 +11,7 @@ vi.mock("@/src/server/auth", () => ({
 const sharedServerMock = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
   logger: {
-    error: vi.fn(),
+    warn: vi.fn(),
   },
   INTERNAL_INGESTION_SDK_NAMES: [
     "langfuse-internal-ai-sdk",

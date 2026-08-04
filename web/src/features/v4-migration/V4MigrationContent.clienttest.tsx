@@ -239,8 +239,9 @@ describe("V4MigrationDetailsContent", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Experiments/ }));
     expect(screen.getByText(/POST \/dataset-run-items/)).toBeInTheDocument();
-    expect(screen.getByText(">=4.7.0")).toBeInTheDocument();
-    expect(screen.getByText(">=5.10.0")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Upgrade the SDK" }),
+    ).toBeInTheDocument();
   });
 
   it("shows inconclusive experiment runner usage as needing review", () => {
@@ -257,7 +258,7 @@ describe("V4MigrationDetailsContent", () => {
     expect(
       screen.getByText(/supports the experiment runner/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/deprecated/)).toBeInTheDocument();
+    expect(screen.getByText(".link()")).toBeInTheDocument();
   });
 
   it("asks direct API users to replace dataset-run-items POST usage", () => {
