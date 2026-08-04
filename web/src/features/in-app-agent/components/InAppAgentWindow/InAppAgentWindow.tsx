@@ -60,7 +60,7 @@ import {
 } from "@/src/features/in-app-agent/types";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
-import { isInAppAgentQuickActionContext } from "@/src/features/in-app-agent/quickActions";
+import { isInAppAgentQuickActionContext } from "@/src/features/in-app-agent/fns/isInAppAgentQuickActionContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";

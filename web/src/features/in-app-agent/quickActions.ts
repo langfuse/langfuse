@@ -1,6 +1,5 @@
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/fns/getInAppAgentProjectRoute";
 import {
-  IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
   type InAppAgentQuickAction,
   type InAppAgentQuickActionContext,
 } from "@/src/features/in-app-agent/types";
@@ -221,12 +220,4 @@ export function getInAppAgentFocusedQuickActions(
   return IN_APP_AGENT_FOCUSED_QUICK_ACTIONS[
     screenContextType as keyof typeof IN_APP_AGENT_FOCUSED_QUICK_ACTIONS
   ];
-}
-
-export function isInAppAgentQuickActionContext(
-  value: string,
-): value is InAppAgentQuickActionContext {
-  return IN_APP_AGENT_QUICK_ACTION_CONTEXTS.some(
-    (context) => context === value,
-  );
 }
