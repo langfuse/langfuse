@@ -1214,9 +1214,11 @@ export const getServerAuthSessionForRequest = async (request: Request) => {
 
   // Match getServerSession's App Router behavior. The explicit request/response
   // form above selects its Pages Router branch, which otherwise keeps expires.
-  if (session) delete (session as Partial<Session>).expires;
+  if (!session) return session;
 
-  return session;
+  const { expires: _expires, ...sessionWithoutExpires } = session;
+
+  return sessionWithoutExpires as Session;
 };
 
 const sanitizeServerSessionCallbackUrl = (
@@ -1228,7 +1230,9 @@ const sanitizeServerSessionCallbackUrl = (
 
   if (!callbackUrlCookie || isValidCallbackUrl(callbackUrlCookie)) return;
 
-  delete req.cookies?.[callbackUrlCookieName];
+  const { [callbackUrlCookieName]: _invalidCallbackUrl, ...sanitizedCookies } =
+    req.cookies ?? {};
+  req.cookies = sanitizedCookies;
 
   logger.warn(
     "[NEXT_AUTH] Ignored invalid callback URL for server-side session",
