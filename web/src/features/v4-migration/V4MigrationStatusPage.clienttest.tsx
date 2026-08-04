@@ -86,6 +86,7 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
         {
           sdk: mocks.sdk,
           evals: { status: "loaded", count: 0 },
+          experiments: { status: "loaded", result: "not_required" },
           apis: { status: "loaded", count: 0 },
           exports: { status: "loaded", count: 0 },
         },
