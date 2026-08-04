@@ -37,11 +37,6 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { JSONTableView } from "@/src/features/traces/components/_shared/JSONTableView";
-import {
-  flattenChronological,
-  flattenTreeOrder,
-  filterBySearch,
-} from "./log-view-flattening";
 import { type FlatLogItem } from "./log-view-types";
 import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";
@@ -52,6 +47,9 @@ import { useObservationIOLoadedCount } from "./useLogViewObservationIO";
 import { useLogViewPreferences } from "./useLogViewPreferences";
 import { useLogViewDownload } from "./useLogViewDownload";
 import { useLogViewColumns } from "./useLogViewColumns";
+import { flattenChronological } from "@/src/features/traces/components/TraceLogView/fns/flattenChronological";
+import { filterBySearch } from "@/src/features/traces/components/TraceLogView/fns/filterBySearch";
+import { flattenTreeOrder } from "@/src/features/traces/components/TraceLogView/fns/flattenTreeOrder";
 
 export interface TraceLogViewProps {
   traceId: string;

@@ -13,7 +13,7 @@ import { useActiveObservationIds } from "@/src/features/traces/contexts/Playhead
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useMobileLayoutContextOptional } from "../_layout/TraceLayoutMobile";
+import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
 
 export function TraceGraphView() {
   const { agentGraphData, isLoading } = useTraceGraphData();

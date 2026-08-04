@@ -55,8 +55,8 @@ import {
   computeMaxVisualDepth,
   GUTTER_VISUAL_DEPTH,
 } from "../_shared/visual-depth";
-import { useDesktopLayoutContextOptional } from "../_layout/TraceLayoutDesktop";
-import { useMobileLayoutContextOptional } from "../_layout/TraceLayoutMobile";
+import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
+import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
 import { type TreeNode } from "../../fns/types";
 import { cn } from "@/src/utils/tailwind";
 
