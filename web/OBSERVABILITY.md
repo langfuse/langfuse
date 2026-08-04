@@ -13,10 +13,15 @@ archaeology: every issue in it should be a real defect someone can pick up.
 Sentry is not a log sink — firehose logging belongs to the server-side
 observability stack.
 
-Scope: Sentry is wired **client-side only**. The only `Sentry.init` is
-[`instrumentation-client.ts`](instrumentation-client.ts); the web server and
-worker have no Sentry SDK. If you are looking for a backend error, it lives in
-the server-side observability stack, not Sentry.
+Scope: the browser SDK is the only **initialized** Sentry SDK. The only
+`Sentry.init` is [`instrumentation-client.ts`](instrumentation-client.ts);
+neither the web server nor the worker initializes one. `withSentryConfig` in
+`next.config.mjs` is build tooling (source-map upload, component annotation),
+not a runtime init, and the few `@sentry/nextjs` helpers reachable during
+server rendering (e.g. `_error.tsx`) are inert without an initialized SDK
+(`isEnabled()` returns false). So if you are investigating a backend error, it
+lives in the server-side observability stack, not Sentry — whether backend
+errors should also report to Sentry is a separate, pending decision.
 
 ## Should this error path capture?
 
@@ -64,9 +69,10 @@ tRPC errors are already classified centrally: `handleTrpcError` in
 Sentry groups by message. Keep the message **static** and put variable ids in
 `extra` — `` `Trace ${id} not found` `` mints a new issue per id. When a
 message legitimately must vary, set an explicit `fingerprint`. One standing
-bucket: stale-deploy chunk parse errors group under a single
-`stale-chunk-parse-error` fingerprint so deploy spikes stay visible — that
-issue is the deploy-spike canary and must never be archived forever.
+policy: stale-deploy chunk parse errors are collapsed into a single
+`stale-chunk-parse-error` fingerprint rather than dropped (rule in
+[`src/utils/sentryFilters.ts`](src/utils/sentryFilters.ts)) — never archive
+that issue forever; a spike in it is a deploy canary.
 
 ## Adding or removing a suppression rule
 
