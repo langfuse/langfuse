@@ -18,9 +18,9 @@ import {
 // used to clear only the filter layer — the stored viewId survived, so the
 // next clean-URL mount ("Priority 1: Session storage" bootstrap) re-fetched
 // the preset and resurrected the filter the user just deleted, with the chip
-// staying lit the whole time. A user-origin filter edit must demote the
-// active view: fully (URL + session) for system presets, session-only for
-// user-saved views (the URL viewId stays as provenance for "Update view").
+// staying lit the whole time. A user-origin filter edit must fully demote an
+// active SYSTEM preset (URL + session storage). User-saved views are
+// deliberately untouched (see demoteViewOnUserFilterEdit).
 
 const mockUseRouter = vi.fn();
 const mockCapture = vi.fn();
@@ -200,32 +200,26 @@ function Harness() {
     [],
   );
 
-  const {
-    selectedViewId,
-    appliedViewId,
-    handleSetViewId,
-    clearStoredViewId,
-    applyViewState,
-  } = useTableViewManager({
-    tableName: TableViewPresetTableName.ObservationsEvents,
-    projectId: PROJECT_ID,
-    stateUpdaters: {
-      setFilters: setSavedViewFiltersWrapper,
-      setColumnOrder: () => {},
-      setColumnVisibility: () => {},
-    },
-    validationContext: {
-      columns: [],
-      filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
-    },
-    currentFilterState: queryFilter.explicitFilterState,
-    allowBackendSystemPresets: true,
-  });
+  const { selectedViewId, appliedViewId, handleSetViewId, applyViewState } =
+    useTableViewManager({
+      tableName: TableViewPresetTableName.ObservationsEvents,
+      projectId: PROJECT_ID,
+      stateUpdaters: {
+        setFilters: setSavedViewFiltersWrapper,
+        setColumnOrder: () => {},
+        setColumnVisibility: () => {},
+      },
+      validationContext: {
+        columns: [],
+        filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
+      },
+      currentFilterState: queryFilter.explicitFilterState,
+      allowBackendSystemPresets: true,
+    });
   viewControllersRef.current = {
     selectedViewId,
     appliedViewId,
     handleSetViewId,
-    clearStoredViewId,
   };
 
   return (
@@ -400,8 +394,12 @@ describe("system preset demotion on user filter edits (LFE-14699)", () => {
     });
   });
 
-  it("demotes a user-saved view to a provenance-only URL reference (session restore dropped, ?viewId kept)", async () => {
-    const { unmount } = render(<Harness />);
+  it("does not demote a user-saved view on a user filter edit (system presets only)", async () => {
+    // Deliberate scoping: demoting a user-saved view (even session-only)
+    // breaks the appliedViewId === selectedViewId column-trust signal the
+    // drawer's "Update view" relies on (LFE-10486) — user views keep today's
+    // behavior wholesale.
+    render(<Harness />);
 
     fireEvent.click(screen.getByRole("button", { name: "apply-user-view" }));
 
@@ -415,22 +413,15 @@ describe("system preset demotion on user filter edits (LFE-14699)", () => {
     fireEvent.click(screen.getByRole("button", { name: "user-clear-filters" }));
 
     await waitFor(() => {
-      // URL viewId stays as provenance ("Update view" flow, #14521)…
-      expect(screen.getByTestId("selected-view-id").textContent).toBe(
-        USER_VIEW_ID,
-      );
-      // …but the session restore is gone.
-      expect(screen.getByTestId("applied-view-id").textContent).toBe("null");
-      expect(storedViewId()).toBe(null);
+      expect(screen.getByTestId("explicit-state").textContent).toBe("[]");
     });
-
-    // Clean-URL remount: the demoted view does not restore.
-    unmount();
-    queryParamStore.clear();
-    render(<Harness />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
-    });
+    // URL viewId AND session restore both stay: user views are untouched.
+    expect(screen.getByTestId("selected-view-id").textContent).toBe(
+      USER_VIEW_ID,
+    );
+    expect(screen.getByTestId("applied-view-id").textContent).toBe(
+      USER_VIEW_ID,
+    );
+    expect(storedViewId()).toBe(USER_VIEW_ID);
   });
 });
