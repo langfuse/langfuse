@@ -10,7 +10,7 @@ import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/qui
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
-} from "../InAppAgentWindowShell";
+} from "../InAppAgentWindowHost/components/InAppAgentWindowShell";
 
 function InAppAgentWindowStoryShell({
   children,

@@ -10,7 +10,7 @@ import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/c
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
-} from "@/src/features/in-app-agent/components/InAppAgentWindowShell";
+} from "@/src/features/in-app-agent/components/InAppAgentWindowHost/components/InAppAgentWindowShell";
 import {
   useCanUseInAppAgent,
   useInAppAiAgent,
