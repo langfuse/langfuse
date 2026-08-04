@@ -40,7 +40,6 @@ import {
   createInAppAgentMessageEntryPointContext,
   createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
-  createInAppAgentUserContext,
   type InAppAgentMessageEntryPoint,
 } from "@/src/features/in-app-agent/context";
 import type {
@@ -56,6 +55,7 @@ import { shouldPerformToolSideEffects } from "@/src/features/in-app-agent/compon
 import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";
 import { getInAppAgentError } from "./fns/getInAppAgentError";
 import { type InAppAgentError } from "@/src/features/in-app-agent/types";
+import { createInAppAgentUserContext } from "./fns/createInAppAgentUserContext";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
