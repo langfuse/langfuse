@@ -191,6 +191,22 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
   });
 
+  it("builds release filter options from the observation release column", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "release",
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("'release' AS column");
+    expect(built.query).toContain("toString(e.release) AS value");
+    expect(built.query).toContain("e.release IS NOT NULL");
+  });
+
   it("builds API key filter options from ingestion attribution", () => {
     const built = buildEventsFilterOptionColumnQuery({
       projectId: "test-project",
@@ -227,6 +243,48 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     const applied = filter.apply();
     expect(applied.query).toContain('e."ingestion_api_key" IN');
     expect(Object.values(applied.params)).toContainEqual(["pk-lf-test"]);
+  });
+
+  it("maps release filters to the observation release column", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "release",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["181"],
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    const applied = filter.apply();
+    expect(applied.query).toContain("e.release IN");
+    expect(Object.values(applied.params)).toContainEqual(["181"]);
+  });
+
+  it("treats an empty observation release as null", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "release",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    expect(filter.apply().query).toContain(
+      `(e.release = '' OR e.release IS NULL)`,
+    );
   });
 
   it("builds a direct grouped query for one boolean filter option column", () => {

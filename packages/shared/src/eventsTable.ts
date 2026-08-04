@@ -91,6 +91,13 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "Release",
+    id: "release",
+    type: "string",
+    internal: "e.release",
+    nullable: true,
+  },
+  {
     name: "User ID",
     id: "userId",
     type: "string",

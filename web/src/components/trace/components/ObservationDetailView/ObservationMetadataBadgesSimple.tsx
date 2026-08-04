@@ -44,6 +44,16 @@ export function EnvironmentBadge({
   return <Badge variant="tertiary">Env: {environment}</Badge>;
 }
 
+export function ReleaseBadge({
+  release,
+}: {
+  release: string | null | undefined;
+}) {
+  if (!release) return null;
+
+  return <Badge variant="tertiary">Release: {release}</Badge>;
+}
+
 export function VersionBadge({
   version,
 }: {

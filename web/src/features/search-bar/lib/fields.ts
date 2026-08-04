@@ -72,6 +72,7 @@ export const FIELDS: FieldDef[] = [
   { id: "outputCost", aliases: ["outputcost", "output_cost"], kind: "number", syncMode: "textSearch", description: "Output cost in USD", unit: "$", nullable: true },
   { id: "totalCost", aliases: ["totalcost", "total_cost", "cost"], kind: "number", syncMode: "textSearch", description: "Total cost in USD", unit: "$", nullable: true },
   { id: "version", aliases: [], kind: "text", syncMode: "exactOption", description: "Version tag", nullable: true },
+  { id: "release", aliases: [], kind: "text", syncMode: "exactOption", description: "Release tag", nullable: true },
   { id: "traceTags", aliases: ["tracetags", "trace_tags", "tags", "tag"], kind: "text", syncMode: "arrayOption", description: "Trace tags" },
   { id: "isRootObservation", aliases: ["isrootobservation", "is_root_observation", "root"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation is a trace root" },
   { id: "hasParentObservation", aliases: ["hasparentobservation", "has_parent_observation"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has a parent (inverse of root)" },
