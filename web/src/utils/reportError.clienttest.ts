@@ -106,5 +106,32 @@ describe("reportError", () => {
       expect(options.tags.area).toBe("io.parse");
       expect(options.extra).toBeUndefined();
     });
+
+    it("merges caller tags alongside the area tag", () => {
+      reportError(new Error("boom"), {
+        area: "trpc",
+        tags: {
+          "trpc.code": "INTERNAL_SERVER_ERROR",
+          "trpc.path": "traces.all",
+        },
+      });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.tags).toEqual({
+        "trpc.code": "INTERNAL_SERVER_ERROR",
+        "trpc.path": "traces.all",
+        area: "trpc",
+      });
+    });
+
+    it("the seam's area tag wins over a conflicting caller tag", () => {
+      reportError(new Error("boom"), {
+        area: "trpc",
+        tags: { area: "spoofed" },
+      });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.tags.area).toBe("trpc");
+    });
   });
 });

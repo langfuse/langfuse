@@ -5,6 +5,49 @@ import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
 
 import nextConfig from "@repo/eslint-config/next";
 
+// Restricted import patterns that apply everywhere. Flat config replaces (not
+// merges) a rule that is configured twice, so every block that configures
+// no-restricted-imports must spread the full pattern list it wants.
+const restrictedImportPatterns = [
+  {
+    regex: "^react-icons$",
+    message:
+      "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
+  },
+  {
+    regex: "^react-icons/(?!si(?:/|$)|tb(?:/|$)).*",
+    message:
+      "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
+  },
+  {
+    // Relative paths escaping web/ bypass @langfuse/shared's exports
+    // map (which points at dist/) and pull shared *source* into the
+    // Next.js typecheck program, where web's next-auth augmentation
+    // breaks it — this failed production deploys (PR #15031).
+    // Note: only static imports are checked. Dynamic import() is not
+    // covered by this rule, which also leaves room for the one
+    // legitimate use: tests that need a Vite-transformed source copy
+    // of a shared module to observe env mutations (vitest loads the
+    // CJS dist through Node's require cache as a second instance —
+    // see blob-storage-integration-trpc.servertest.ts).
+    regex: "^(\\.\\./)+(packages|ee|worker)/",
+    message:
+      "Do not import other workspace packages via relative paths. Use the package entrypoints instead (e.g. @langfuse/shared/src/db, @langfuse/shared/src/server).",
+  },
+];
+
+// One seam owns error capture: raw Sentry capture APIs are restricted to the
+// reportError seam (src/utils/reportError.ts) so classification (`expected`),
+// `area` tagging, and non-Error coercion live in exactly one place. See
+// web/OBSERVABILITY.md. Exempted files re-declare the rule below without this
+// pattern — never via inline eslint-disable.
+const sentryCapturePattern = {
+  regex: "^@sentry/nextjs$",
+  importNames: ["captureException", "captureMessage"],
+  message:
+    "Do not capture directly — route through the reportError seam (@/src/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See web/OBSERVABILITY.md.",
+};
+
 // eslint-plugin-tailwindcss types this as Config | ConfigArray, but the
 // recommended export is a single flat config object with rules at runtime.
 const tailwindcssRecommendedConfig =
@@ -207,42 +250,31 @@ export default [
     },
   },
 
-  // Restricted import paths. Flat config replaces (not merges) a rule that is
-  // configured twice, so all no-restricted-imports patterns live in this one
-  // block.
+  // Restricted import paths (patterns defined at the top of this file).
   {
     name: "langfuse/web/restricted-imports",
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          patterns: [
-            {
-              regex: "^react-icons$",
-              message:
-                "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
-            },
-            {
-              regex: "^react-icons/(?!si(?:/|$)|tb(?:/|$)).*",
-              message:
-                "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
-            },
-            {
-              // Relative paths escaping web/ bypass @langfuse/shared's exports
-              // map (which points at dist/) and pull shared *source* into the
-              // Next.js typecheck program, where web's next-auth augmentation
-              // breaks it — this failed production deploys (PR #15031).
-              // Note: only static imports are checked. Dynamic import() is not
-              // covered by this rule, which also leaves room for the one
-              // legitimate use: tests that need a Vite-transformed source copy
-              // of a shared module to observe env mutations (vitest loads the
-              // CJS dist through Node's require cache as a second instance —
-              // see blob-storage-integration-trpc.servertest.ts).
-              regex: "^(\\.\\./)+(packages|ee|worker)/",
-              message:
-                "Do not import other workspace packages via relative paths. Use the package entrypoints instead (e.g. @langfuse/shared/src/db, @langfuse/shared/src/server).",
-            },
-          ],
+          patterns: [...restrictedImportPatterns, sentryCapturePattern],
+        },
+      ],
+    },
+  },
+
+  // Sanctioned homes for raw Sentry capture APIs: the reportError seam itself
+  // and the SDK init (`import * as Sentry` would otherwise trip the
+  // importNames restriction). Last-match wins in flat config, so these files
+  // get the shared restrictions without the Sentry capture pattern.
+  {
+    name: "langfuse/web/restricted-imports-sentry-seam",
+    files: ["src/utils/reportError.ts", "instrumentation-client.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: restrictedImportPatterns,
         },
       ],
     },

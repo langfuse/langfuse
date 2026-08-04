@@ -1,11 +1,13 @@
 import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
-import { captureException } from "@sentry/nextjs";
 
-vi.mock("@sentry/nextjs", () => ({
-  captureException: vi.fn(),
+const { mockCaptureException } = vi.hoisted(() => ({
+  mockCaptureException: vi.fn(),
 }));
 
-const mockCaptureException = vi.mocked(captureException);
+vi.mock("@sentry/nextjs", () => ({
+  captureException: mockCaptureException,
+  addBreadcrumb: vi.fn(),
+}));
 
 /**
  * Observability contract for the JSON-parser Web Worker `onerror` path
@@ -37,7 +39,7 @@ describe("reportParserWorkerError", () => {
     reportParserWorkerError("useParsedTrace", event);
 
     expect(mockCaptureException).toHaveBeenCalledTimes(1);
-    const [err, opts] = mockCaptureException.mock.calls[0];
+    const [err, opts] = mockCaptureException.mock.calls[0]!;
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toContain(
       "[useParsedTrace] worker failed to load",
@@ -65,7 +67,7 @@ describe("reportParserWorkerError", () => {
     );
 
     expect(mockCaptureException).toHaveBeenCalledTimes(1);
-    expect(mockCaptureException.mock.calls[0][0]).toBe(real);
+    expect(mockCaptureException.mock.calls[0]![0]).toBe(real);
   });
 
   it("logs a readable string via console.warn, not console.error (no double-capture)", () => {
@@ -77,8 +79,8 @@ describe("reportParserWorkerError", () => {
     // console.error would be re-captured by captureConsoleIntegration.
     expect(error).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledTimes(1);
-    const logged = String(warn.mock.calls[0][0]);
-    expect(logged).toContain("[useParsedTrace] Worker failed to load");
+    const logged = String(warn.mock.calls[0]![0]);
+    expect(logged).toContain("[useParsedTrace] worker failed to load");
     expect(logged).not.toContain("[object ErrorEvent]");
 
     warn.mockRestore();
@@ -91,7 +93,7 @@ describe("reportParserWorkerError", () => {
       makeErrorEvent({ message: "", filename: "" }),
     );
 
-    const [err] = mockCaptureException.mock.calls[0];
+    const [err] = mockCaptureException.mock.calls[0]!;
     expect((err as Error).message).toContain("unknown");
     expect((err as Error).message).toContain("?");
   });

@@ -67,6 +67,8 @@ export function coerceToError(area: string, value: unknown): Error {
  * - otherwise — coerce to a real `Error` (see {@link coerceToError}),
  *   `captureException` with an `area` tag (so issues route/group by surface) and
  *   the caller's structured `extra`, then log a companion `console.warn`.
+ *   Optional `tags` add further Sentry tags (e.g. `trpc.code`); on a key
+ *   conflict the seam's `area` tag wins.
  *
  * `console.warn`, never `console.error`: `instrumentation-client.ts` enables
  * `captureConsoleIntegration({ levels: ["error"] })`, so a `console.error` here
@@ -79,7 +81,12 @@ export function coerceToError(area: string, value: unknown): Error {
  */
 export function reportError(
   error: unknown,
-  opts: { area: string; expected?: boolean; extra?: Record<string, unknown> },
+  opts: {
+    area: string;
+    expected?: boolean;
+    extra?: Record<string, unknown>;
+    tags?: Record<string, string | undefined>;
+  },
 ): void {
   if (opts.expected === true) {
     addBreadcrumb({
@@ -94,7 +101,7 @@ export function reportError(
 
   const err = coerceToError(opts.area, error);
   captureException(err, {
-    tags: { area: opts.area },
+    tags: { ...opts.tags, area: opts.area },
     extra: opts.extra,
   });
   // warn, not error → captureConsoleIntegration only captures console.error, so

@@ -1,4 +1,4 @@
-import { captureException } from "@sentry/nextjs";
+import { reportError } from "@/src/utils/reportError";
 
 /**
  * Turn a JSON-parser Web Worker `onerror` ErrorEvent into a legible,
@@ -11,9 +11,10 @@ import { captureException } from "@sentry/nextjs";
  * "[object ErrorEvent]", discarding message/filename/lineno and making the
  * resulting issues undiagnosable.
  *
- * This extracts the real fields, captures one proper Error with structured
- * context, and logs a readable string via `console.warn` (NOT `console.error`,
- * so captureConsoleIntegration — which captures the "error" level — does not
+ * This extracts the real fields and reports one proper Error with structured
+ * context through the {@link reportError} seam, which tags `area` and logs the
+ * companion line via `console.warn` (NOT `console.error`, so
+ * captureConsoleIntegration — which captures the "error" level — does not
  * double-capture a second, opaque event for the same failure).
  *
  * Note: in-worker parse failures are a separate, already-legible path — they
@@ -33,7 +34,8 @@ export function reportParserWorkerError(
       ? event.error
       : new Error(`[${hookName}] worker failed to load: ${details}`);
 
-  captureException(realError, {
+  reportError(realError, {
+    area: "io-parse-worker",
     extra: {
       workerHook: hookName,
       message: event.message,
@@ -41,10 +43,5 @@ export function reportParserWorkerError(
       lineno: event.lineno,
       colno: event.colno,
     },
-    tags: { area: "io-parse-worker" },
   });
-
-  // console.warn (not console.error) keeps the console legible without
-  // triggering a duplicate capture via captureConsoleIntegration.
-  console.warn(`[${hookName}] Worker failed to load: ${details}`);
 }
