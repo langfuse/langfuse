@@ -12,6 +12,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type ChatMLParserResult } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
+import { parseJsonIfString } from "@langfuse/shared";
 
 export type SessionTraceObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
@@ -124,15 +125,16 @@ export const SessionObservationIO = ({
           observationId: observation.id,
           startTime: observation.startTime,
         });
-      // I/O stays embedded as raw strings: parsing multi-megabyte JSON just
-      // to pretty-print it risks the same freeze this card exists to avoid.
+      // I/O stays raw. Metadata is stringified only to cross tRPC safely; parse
+      // that server-produced envelope once so the JSON download keeps its
+      // original object shape. The parsed value is never rendered or merged.
       downloadJsonFile({
         data: {
           observationId: observation.id,
           traceId,
           input: full.input,
           output: full.output,
-          metadata: full.metadata,
+          metadata: parseJsonIfString(full.metadata),
         },
         fileName: `observation-${observation.id}.json`,
       });
@@ -194,6 +196,18 @@ export const SessionObservationIO = ({
     );
   }
 
+  // Metadata uses the same stringified tRPC contract as trace/observation
+  // detail. Prefer the value already parsed by TraceEventsRow; the serialized
+  // value remains a safe bounded fallback when this component is used alone.
+  const metadataForDisplay = parsedMetadata ?? observation.metadata;
+  const hasMetadataForDisplay =
+    metadataForDisplay !== null &&
+    metadataForDisplay !== undefined &&
+    metadataForDisplay !== "" &&
+    metadataForDisplay !== "{}" &&
+    (typeof metadataForDisplay !== "object" ||
+      Object.keys(metadataForDisplay).length > 0);
+
   return (
     <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
       <p className="text-muted-foreground text-xs">
@@ -214,16 +228,14 @@ export const SessionObservationIO = ({
       />
       {/* Metadata stays visible when I/O is truncated — it shipped with the
           observation and was always shown alongside I/O before the cap. */}
-      {observation.metadata !== null &&
-        typeof observation.metadata === "object" &&
-        Object.keys(observation.metadata).length > 0 && (
-          <TruncatedIOSection
-            label="Metadata"
-            value={observation.metadata}
-            fullLength={observation.metadataLength}
-            truncated={observation.metadataTruncated}
-          />
-        )}
+      {hasMetadataForDisplay && (
+        <TruncatedIOSection
+          label="Metadata"
+          value={metadataForDisplay}
+          fullLength={observation.metadataLength}
+          truncated={observation.metadataTruncated}
+        />
+      )}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
           <ExternalLinkIcon className="mr-1 h-3.5 w-3.5" />

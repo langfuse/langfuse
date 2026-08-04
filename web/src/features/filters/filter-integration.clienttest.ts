@@ -37,6 +37,9 @@ import {
   buildEffectiveEnvironmentFilter,
   stripImplicitEnvironmentFilterFromExplicitState,
 } from "./lib/managedEnvironmentPolicy";
+import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { validateQuery } from "@/src/features/search-bar/lib/validate";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -653,6 +656,35 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     ];
 
     expect(simulateUrlFlow(filters)).toEqual(filters);
+  });
+
+  it("should preserve v4 release filters through the URL and search-bar flow", () => {
+    const filters: FilterState = [
+      {
+        column: "release",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["181"],
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toEqual(filters);
+
+    const { text, skipped } = filterStateToQueryText(normalized);
+    expect(skipped).toEqual([]);
+    expect(text).toBe("release:181");
+
+    const parsed = validateQuery(text);
+    expect(parsed.valid, text).toBe(true);
+    expect(astToFilterState(parsed.ast)).toMatchObject({
+      filters,
+      errors: [],
+    });
   });
 
   it("should discard stale positionInTrace URL filters on the general events table", () => {

@@ -156,6 +156,7 @@
     "react18-json-view": "^0.2.8-canary.6",
     "recharts": "^3.8.0",
     "remark-gfm": "^4.0.1",
+    "rxjs": "7.8.1",
     "sonner": "^2.0.7",
     "streamdown": "^2.5.0",
     "stripe": "^18.5.0",

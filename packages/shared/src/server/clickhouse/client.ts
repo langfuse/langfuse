@@ -29,17 +29,6 @@ const CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 5;
 
 /**
- * Remove these once we remove corresponding variables
- */
-const EVENTS_TABLE_READ_PATH_ENV_KEYS = [
-  "LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS",
-  "LANGFUSE_ENABLE_EVENTS_TABLE_UI",
-  "LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS",
-  "LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS",
-  "LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN",
-] as const;
-
-/**
  * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
  * It creates and reuses clients based on their configuration to avoid creating
  * a new connection for each query.
@@ -104,8 +93,7 @@ export class ClickHouseClientManager {
     preferredClickhouseService: PreferredClickhouseService,
   ): ServiceClickhouseSettings {
     const eventROSettings: ServiceClickhouseSettings =
-      preferredClickhouseService === "EventsReadOnly" &&
-      this.isEventsTableReadPathEnabled()
+      preferredClickhouseService === "EventsReadOnly"
         ? { enable_full_text_index: 1 }
         : {};
 
@@ -113,12 +101,6 @@ export class ClickHouseClientManager {
       ...getClickHouseCompatibilitySettings(),
       ...eventROSettings,
     };
-  }
-
-  private isEventsTableReadPathEnabled(): boolean {
-    return EVENTS_TABLE_READ_PATH_ENV_KEYS.some(
-      (key) => process.env[key] === "true",
-    );
   }
 
   private getRequestTimeoutClickHouseSettings(

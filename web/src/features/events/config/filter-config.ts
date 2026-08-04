@@ -170,6 +170,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("version"),
     },
     {
+      type: "categorical" as const,
+      column: "release",
+      label: getEventsColumnName("release"),
+    },
+    {
       type: "string" as const,
       column: "statusMessage",
       label: getEventsColumnName("statusMessage"),
