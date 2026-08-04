@@ -7,7 +7,6 @@ import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
 } from "@langfuse/shared/in-app-agent";
-import { getInAppAgentQuickActionTraceMetadata } from "@/src/features/in-app-agent/context";
 import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
 import {
   checkInAppAgentRateLimit,
@@ -85,6 +84,7 @@ import {
   deleteApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import { getInAppAgentMessageEntryPointTraceMetadata } from "@/src/features/in-app-agent/fns/getInAppAgentMessageEntryPointTraceMetadata";
+import { getInAppAgentQuickActionTraceMetadata } from "@/src/features/in-app-agent/fns/getInAppAgentQuickActionTraceMetadata";
 
 // Compile-time exhaustiveness contract between web's MCP tool registry and the
 // shared runtime's tool policies (the runtime can no longer import the

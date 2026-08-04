@@ -1,9 +1,7 @@
-import {
-  getInAppAgentQuickActionTraceMetadata,
-  sanitizeInAppAgentContext,
-} from "@/src/features/in-app-agent/context";
+import { sanitizeInAppAgentContext } from "@/src/features/in-app-agent/context";
+import { getInAppAgentQuickActionTraceMetadata } from "./getInAppAgentQuickActionTraceMetadata";
 
-describe("in-app agent quick-action attribution", () => {
+describe("getInAppAgentQuickActionTraceMetadata", () => {
   it("exposes trace metadata for well-formed attribution and keeps it out of the model-visible context", () => {
     const context = [
       {
