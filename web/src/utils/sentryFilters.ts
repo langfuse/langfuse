@@ -116,6 +116,44 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
 ];
 
 /**
+ * The Sentry SDK synthesizes this exact prefix (global `onunhandledrejection`
+ * handler) when a promise rejects with a non-`Error` value. These events carry
+ * NO stack, so Sentry groups them by the stringified value — every new value
+ * mints a new fingerprint.
+ */
+const NON_ERROR_REJECTION_PREFIX =
+  "Non-Error promise rejection captured with value: ";
+
+/**
+ * Known-benign non-Error rejection values, each traced to a non-app source
+ * from real events. ONLY these exact values (plus the prefixes below) are
+ * dropped — an unknown value could be a real rejection from our code or a
+ * bundled dependency and is KEPT, as is the object-shaped
+ * `Object captured as promise rejection with keys: …` variant, which has
+ * carried real failures (e.g. `code, message, stack` payloads).
+ */
+const BENIGN_NON_ERROR_REJECTION_VALUES: readonly string[] = [
+  // Browser-extension shim (wallet/provider extensions no-op on unsupported
+  // platforms and reject with this bare string). Observed with no stack and no
+  // app frames (LANGFUSE-5T9).
+  "Not implemented on this platform",
+  // `Promise.reject()` / `reject(undefined)`: zero diagnostic content — no
+  // stack, no message, no value. Nobody can act on it (LANGFUSE-5TA).
+  "undefined",
+];
+
+/**
+ * Prefix-matched benign rejection values whose tail varies per occurrence
+ * (which is exactly what shatters grouping).
+ */
+const BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES: readonly string[] = [
+  // Microsoft Outlook SafeLinks / email-scanner artifact: the crawler injects
+  // scripts that reject with `Object Not Found Matching Id:<n>, MethodName:…`.
+  // Industry-known scanner noise, never a browser session (LANGFUSE-11Z).
+  "Object Not Found Matching Id:",
+];
+
+/**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
  * the Sentry `value` may be the bare cause message (`Failed to fetch`) or carry
  * the wrapper prefix (`TRPCClientError: Failed to fetch`). We strip ONLY this
@@ -204,10 +242,12 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
  *    occurred` — it aggregates real exceptions with no stack; hard-dropping it
  *    could blind us if the underlying exceptions are not captured separately.
  *  - `OAuthCallback` sign-in errors — could be a genuine auth-config break.
- *  - auth/permission (`UNAUTHORIZED`, not-a-member), query-timeout,
- *    chunk-load / stale-deploy `SyntaxError`, and Sentry perf detectors /
- *    third-party scripts — handled as UX or in Sentry project settings, not by a
- *    blind client-side drop.
+ *  - auth/permission (`UNAUTHORIZED`, not-a-member), query-timeout, and Sentry
+ *    perf detectors / third-party scripts — handled as UX or in Sentry project
+ *    settings, not by a blind client-side drop.
+ *  - the chunk-load / stale-deploy `SyntaxError` family — GROUPED (not dropped)
+ *    via {@link isStaleChunkParseErrorEvent} so a genuinely broken deploy still
+ *    surfaces as a spike on one issue.
  */
 export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   const exception = event.exception?.values?.[0];
@@ -268,7 +308,150 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     ) {
       return true;
     }
+
+    // Known-benign non-Error promise rejections. The `UnhandledRejection`
+    // exception type is SDK-synthesized (a real `Error` rejection keeps its own
+    // type, e.g. `TypeError`), and the value denylist is exact/prefix-anchored:
+    // an unknown rejection value still flows to Sentry. See
+    // BENIGN_NON_ERROR_REJECTION_VALUES for per-value provenance.
+    if (
+      exceptionType === "UnhandledRejection" &&
+      exceptionValue.startsWith(NON_ERROR_REJECTION_PREFIX)
+    ) {
+      const rejectionValue = exceptionValue.slice(
+        NON_ERROR_REJECTION_PREFIX.length,
+      );
+      if (
+        BENIGN_NON_ERROR_REJECTION_VALUES.includes(rejectionValue) ||
+        BENIGN_NON_ERROR_REJECTION_VALUE_PREFIXES.some((prefix) =>
+          rejectionValue.startsWith(prefix),
+        )
+      ) {
+        return true;
+      }
+    }
+
+    // Environmental storage-access denial: browsers throw a `SecurityError`
+    // DOMException on the `window.localStorage` property GETTER itself when
+    // storage is blocked (third-party iframe, privacy mode). The message is
+    // browser-generated — app logic cannot produce it — and every storage read
+    // in the app already falls back to its initial value (see useLocalStorage /
+    // useSessionStorage). Stacks point at per-deploy hashed chunks, so each
+    // occurrence minted a new fingerprint (LANGFUSE-5TC/5TD/5TE/5TF). Other
+    // `SecurityError`s (e.g. cross-origin frame access) are KEPT.
+    if (
+      exceptionType === "SecurityError" &&
+      /^Failed to read the '(localStorage|sessionStorage)' property from 'Window':/.test(
+        exceptionValue,
+      )
+    ) {
+      return true;
+    }
   }
 
   return false;
+}
+
+/**
+ * Fingerprint used to collapse all stale-chunk parse errors into ONE Sentry
+ * issue (see {@link isStaleChunkParseErrorEvent}).
+ */
+export const STALE_CHUNK_PARSE_FINGERPRINT = "stale-chunk-parse-error";
+
+/**
+ * True for a browser-level parse failure of a Next.js chunk: the global
+ * `onerror` handler caught a `SyntaxError` whose entire stack is ONE anonymous
+ * frame at a `/_next/static/chunks/…` script — the shape a browser produces
+ * when a script's CONTENT fails to parse (truncated download, or a stale
+ * client fetching a chunk that no longer exists and receiving garbage after a
+ * deploy). Chunk filenames are content-hashed, so Sentry minted a new
+ * fingerprint per chunk per deploy (LANGFUSE-5WH/5WG/5WD/5S7 and the 1-event
+ * long tail). The reload banner (#15279) is the mitigation for the cause.
+ *
+ * These events are GROUPED under {@link STALE_CHUNK_PARSE_FINGERPRINT} in
+ * `beforeSend`, NOT dropped: if a deploy ever ships a genuinely unparseable
+ * chunk to everyone, the single grouped issue spikes and stays visible.
+ *
+ * Cannot catch a user-authored or app-code `SyntaxError`:
+ *  - the evals code editor reports user-code syntax errors via
+ *    `console.error` (mechanism `auto.core.capture_console`) with app frames
+ *    (`web/src/features/evals/…`) — different mechanism, multi-frame stack;
+ *  - a runtime `SyntaxError` thrown by app code (e.g. `JSON.parse`) carries
+ *    its throwing function and callers — more than one frame / a named
+ *    function.
+ */
+export function isStaleChunkParseErrorEvent(event: ErrorEvent): boolean {
+  const exception = event.exception?.values?.[0];
+  if (exception?.type !== "SyntaxError") return false;
+  if (exception.mechanism?.type !== "auto.browser.global_handlers.onerror") {
+    return false;
+  }
+
+  const frames = exception.stacktrace?.frames;
+  if (!frames || frames.length !== 1) return false;
+
+  const frame = frames[0];
+  // Parse errors carry no function — a named function means runtime code threw.
+  if (frame?.function) return false;
+
+  return (
+    typeof frame?.filename === "string" &&
+    frame.filename.includes("/_next/static/chunks/")
+  );
+}
+
+/**
+ * PostHog's lazily-loaded session-replay recorder script (served as
+ * `/static/posthog-recorder.js?v=<posthog-js version>`).
+ */
+const POSTHOG_RECORDER_SCRIPT_SUFFIX = "/static/posthog-recorder.js";
+
+/**
+ * Frames that carry no attribution: browser-native/eval frames, and the Sentry
+ * SDK's own wrapper frames (its `wrap()` helper sits at the outer edge of
+ * every instrumented listener stack).
+ */
+function isOpaqueOrSdkFrame(filename: string): boolean {
+  return (
+    filename === "<anonymous>" ||
+    filename === "[native code]" ||
+    (filename.includes("node_modules") && filename.includes("@sentry"))
+  );
+}
+
+/**
+ * True for errors thrown wholly INSIDE PostHog's session-replay recorder:
+ * every attributable stack frame lives in the recorder script (plus at most
+ * browser-native and Sentry-SDK wrapper frames). rrweb's DOM serialization
+ * throws on exotic page content (observed: `SyntaxError: Invalid or unexpected
+ * token` from `processMutations` / `onRRwebEmit`, LANGFUSE-5VY/5VX), and each
+ * throw site mints a new fingerprint per recorder version.
+ *
+ * Safe to drop: an error thrown by OUR code always carries at least one app
+ * chunk frame (the throwing frame), which fails this check. Errors with no
+ * app frame are the vendor recorder failing internally — not a Langfuse app
+ * bug, and not actionable in Sentry (session replay is best-effort telemetry;
+ * a broken recorder shows up as missing recordings in PostHog, not here).
+ * Same posture as the browser-extension `denyUrls` entries, expressed as a
+ * testable predicate because the crash frame is often `<anonymous>`, which
+ * `denyUrls` skips inconsistently.
+ */
+export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  let sawRecorderFrame = false;
+  for (const frame of frames) {
+    const filename = frame?.filename;
+    // A frame with no filename has no attribution — treat like <anonymous>.
+    if (typeof filename !== "string" || filename.length === 0) continue;
+    if (filename.endsWith(POSTHOG_RECORDER_SCRIPT_SUFFIX)) {
+      sawRecorderFrame = true;
+      continue;
+    }
+    if (isOpaqueOrSdkFrame(filename)) continue;
+    // Any other frame (app chunk, other vendor) → not recorder-internal.
+    return false;
+  }
+  return sawRecorderFrame;
 }
