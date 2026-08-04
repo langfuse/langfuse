@@ -1,12 +1,24 @@
 import { TRPCClientError } from "@trpc/client";
+import { vi } from "vitest";
 import {
   EXPECTED_TRPC_ERROR_CODES,
+  fetchWithParseErrorStatus,
   getTrpcErrorCode,
   getTrpcErrorPath,
   isExpectedTrpcClientError,
   isNetworkConnectivityError,
   isTrpcResponseParseError,
 } from "@/src/utils/api";
+
+/** A JSON.parse SyntaxError annotated with the HTTP status it was parsed
+ * from, as produced by `fetchWithParseErrorStatus`. */
+const parseErrorWithStatus = (message: string, status: number) => {
+  const cause: SyntaxError & { responseStatus?: number } = new SyntaxError(
+    message,
+  );
+  cause.responseStatus = status;
+  return cause;
+};
 
 /** Builds a TRPCClientError with the given server error shape (code/path). */
 const trpcServerError = (opts: {
@@ -136,6 +148,69 @@ describe("isTrpcResponseParseError", () => {
     ).toBe(false);
     expect(isTrpcResponseParseError(null)).toBe(false);
     expect(isTrpcResponseParseError(undefined)).toBe(false);
+  });
+
+  // Request-too-large (414/431) parse failures are the app-owned
+  // oversized-GET-URL bug class (see sendAsPostOption) and MUST keep
+  // flowing to Sentry.
+  it.each([414, 431])(
+    "does not match a parse failure annotated with HTTP %i",
+    (status) => {
+      const error = TRPCClientError.from(
+        parseErrorWithStatus("Unexpected end of JSON input", status),
+      );
+
+      expect(isTrpcResponseParseError(error)).toBe(false);
+    },
+  );
+
+  it("does not match a parse failure whose link meta shows HTTP 431", () => {
+    const error = TRPCClientError.from(
+      new SyntaxError("Unexpected end of JSON input"),
+      { meta: { response: new Response("", { status: 431 }) } },
+    );
+
+    expect(isTrpcResponseParseError(error)).toBe(false);
+  });
+
+  it("matches a parse failure annotated with a non-request-too-large status", () => {
+    const error = TRPCClientError.from(
+      parseErrorWithStatus(
+        "JSON.parse: unexpected character at line 1 column 1 of the JSON data",
+        200,
+      ),
+    );
+
+    expect(isTrpcResponseParseError(error)).toBe(true);
+  });
+});
+
+describe("fetchWithParseErrorStatus", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("annotates the parse SyntaxError with the response HTTP status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 431 })),
+    );
+
+    const response = await fetchWithParseErrorStatus("http://localhost/x");
+    await expect(response.json()).rejects.toMatchObject({
+      name: "SyntaxError",
+      responseStatus: 431,
+    });
+  });
+
+  it("returns parsed JSON unchanged when the body is valid", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response('{"ok":true}', { status: 200 })),
+    );
+
+    const response = await fetchWithParseErrorStatus("http://localhost/x");
+    await expect(response.json()).resolves.toEqual({ ok: true });
   });
 });
 
