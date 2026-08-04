@@ -58,7 +58,7 @@ Sentry.init({
 
     // Stale-deploy / truncated chunk parse errors: collapse into ONE issue
     // instead of one per content-hashed chunk filename. Deliberately grouped,
-    // NOT dropped — a deploy that ships a genuinely unparseable chunk still
+    // NOT dropped — a deploy that ships a genuinely unparsable chunk still
     // surfaces as a spike on the single grouped issue. See
     // isStaleChunkParseErrorEvent for the rationale.
     if (isStaleChunkParseErrorEvent(event)) {

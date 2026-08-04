@@ -802,12 +802,14 @@ describe("isReactDevtoolsInternalEvent", () => {
  * failure (LANGFUSE-5WH/5WG/5WD/5S7): global `onerror` mechanism,
  * `SyntaxError`, and a single frame at the chunk URL whose function is the
  * SDK's UNKNOWN_FUNCTION placeholder `"?"` (server-side normalization later
- * turns that into `null` — the shape stored events show).
+ * strips that — the shape stored events show). Pass `fn: null` to build the
+ * normalized shape with the `function` key genuinely absent (an explicit
+ * `undefined` would be swallowed by the default parameter).
  */
 function chunkParseErrorEvent(
   value: string,
   filename = "app:///_next/static/chunks/0_w4b6l3mpyep.js",
-  fn: string | undefined = "?",
+  fn: string | null = "?",
 ): ErrorEvent {
   return {
     exception: {
@@ -819,7 +821,9 @@ function chunkParseErrorEvent(
             type: "auto.browser.global_handlers.onerror",
             handled: false,
           },
-          stacktrace: { frames: [{ filename, function: fn }] },
+          stacktrace: {
+            frames: [fn === null ? { filename } : { filename, function: fn }],
+          },
         },
       ],
     },
@@ -851,16 +855,17 @@ describe("isStaleChunkParseErrorEvent", () => {
       ).toBe(true);
     });
 
-    it("matches the normalized stored shape too (function absent instead of '?')", () => {
+    it("matches the normalized stored shape too (function key absent instead of '?')", () => {
+      const event = chunkParseErrorEvent(
+        "Unexpected end of input",
+        "app:///_next/static/chunks/3g9a8ojcqetek.js",
+        null,
+      );
+      // Guard the fixture itself: the frame must NOT carry a function key.
       expect(
-        isStaleChunkParseErrorEvent(
-          chunkParseErrorEvent(
-            "Unexpected end of input",
-            "app:///_next/static/chunks/3g9a8ojcqetek.js",
-            undefined,
-          ),
-        ),
-      ).toBe(true);
+        event.exception?.values?.[0]?.stacktrace?.frames?.[0],
+      ).not.toHaveProperty("function");
+      expect(isStaleChunkParseErrorEvent(event)).toBe(true);
     });
 
     it("is grouped by beforeSend, NOT dropped by the denylist", () => {

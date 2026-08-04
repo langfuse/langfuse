@@ -375,7 +375,7 @@ export const STALE_CHUNK_PARSE_FINGERPRINT = "stale-chunk-parse-error";
  * long tail). The reload banner (#15279) is the mitigation for the cause.
  *
  * These events are GROUPED under {@link STALE_CHUNK_PARSE_FINGERPRINT} in
- * `beforeSend`, NOT dropped: if a deploy ever ships a genuinely unparseable
+ * `beforeSend`, NOT dropped: if a deploy ever ships a genuinely unparsable
  * chunk to everyone, the single grouped issue spikes and stays visible.
  *
  * Cannot catch a user-authored or app-code `SyntaxError`:
