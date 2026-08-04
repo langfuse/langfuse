@@ -32,7 +32,7 @@ import {
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import TagList from "@/src/features/tag/components/TagList";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { useMedia } from "@/src/features/traces/api/useMedia";
+import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 
 // Contexts and hooks

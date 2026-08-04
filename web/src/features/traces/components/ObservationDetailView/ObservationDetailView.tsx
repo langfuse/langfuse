@@ -44,7 +44,7 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { useMedia } from "@/src/features/traces/api/useMedia";
+import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 

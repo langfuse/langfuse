@@ -7,7 +7,7 @@
 
 import { useCallback } from "react";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { usePrefetchObservation } from "@/src/features/traces/api/usePrefetchObservation";
+import { usePrefetchObservation } from "@/src/features/traces/hooks/usePrefetchObservation";
 import { type TreeNode } from "../fns/types";
 
 /**
