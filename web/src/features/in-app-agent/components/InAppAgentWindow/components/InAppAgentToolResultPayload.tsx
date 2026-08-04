@@ -1,6 +1,6 @@
 "use client";
 
-import { InAppAgentToolPayload } from "../../InAppAgentToolPayload";
+import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
 import type { InAppAgentToolCallContent } from "../../utils/utils";
 
 const TOOL_CALL_RESULT_PRESENTATION = {
