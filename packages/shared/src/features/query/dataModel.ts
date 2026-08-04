@@ -348,6 +348,8 @@ export const eventsTracesView: ViewDeclarationType = {
   },
   segments: [],
   timeDimension: "start_time",
+  // Trace aggregation can use either semantic-root representation without
+  // changing result cardinality, so app roots remain useful here.
   rootEventCondition: {
     column: "trace_id",
     condition: eventsTableIsRootObservationSqlForAlias("events_traces"),
@@ -925,7 +927,13 @@ const createScoreTableRelations = (
   return {
     events_traces: {
       name: "events_core",
-      joinConditionSql: `ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND ${eventsTableIsRootObservationSqlForAlias("events_traces")}`,
+      // Legacy and dual-write ingestion materialize a parentless synthetic
+      // trace event and propagate trace metadata to it. Native V4 may not, but
+      // its app roots come from newer SDKs and are expected to carry trace_name.
+      // A semantic-root join can match both rows in dual-write data and
+      // multiply scores for little fallback value.
+      joinConditionSql:
+        "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
       timeDimension: "start_time",
       useFinal: false,
     },

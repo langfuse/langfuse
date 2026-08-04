@@ -1521,8 +1521,8 @@ describe("dashboard v1 vs v2 consistency", () => {
 
       const rootEventEmpty = createEvent(
         asEventInsert({
-          id: `t-${emptyTraceNameTraceId}`,
-          span_id: `t-${emptyTraceNameTraceId}`,
+          id: `app-${emptyTraceNameTraceId}`,
+          span_id: `app-${emptyTraceNameTraceId}`,
           trace_id: emptyTraceNameTraceId,
           project_id: fallbackProjectId,
           parent_span_id: "external-parent",
@@ -1553,13 +1553,27 @@ describe("dashboard v1 vs v2 consistency", () => {
         }),
       );
 
+      // Production ingestion also materializes one parentless trace event.
+      // Scores join this canonical row; including the app root as well would
+      // duplicate a score before aggregation.
+      const syntheticTraceEventEmpty = createEvent({
+        id: `t-${emptyTraceNameTraceId}`,
+        span_id: `t-${emptyTraceNameTraceId}`,
+        trace_id: emptyTraceNameTraceId,
+        project_id: fallbackProjectId,
+        parent_span_id: "",
+        name: "AppRootFallbackName",
+        trace_name: "AppRootFallbackName",
+        start_time: baseTimeUs,
+      });
+
       const childEventEmpty = createEvent(
         asEventInsert({
           id: childObsId,
           span_id: childObsId,
           trace_id: emptyTraceNameTraceId,
           project_id: fallbackProjectId,
-          parent_span_id: `t-${emptyTraceNameTraceId}`,
+          parent_span_id: `app-${emptyTraceNameTraceId}`,
           name: "ChildObservationName",
           type: "GENERATION",
           environment: "default",
@@ -1729,6 +1743,7 @@ describe("dashboard v1 vs v2 consistency", () => {
       await Promise.all([
         createEventsCh([
           rootEventEmpty,
+          syntheticTraceEventEmpty,
           childEventEmpty,
           physicalRootEvent,
           rootEventPopulated,
@@ -1836,13 +1851,13 @@ describe("dashboard v1 vs v2 consistency", () => {
       expect(nameMap.get("PopulatedTraceName")).toBe(1);
     });
 
-    it("scores view: traceName resolves via COALESCE on joined root events", async () => {
+    it("scores view: joins only the parentless trace event when an app root coexists", async () => {
       const result = await executeQuery(
         fallbackProjectId,
         {
           view: "scores-numeric",
           dimensions: [{ field: "traceName" }],
-          metrics: [{ measure: "count", aggregation: "count" }],
+          metrics: [{ measure: "value", aggregation: "sum" }],
           timeDimension: null,
           filters: [
             {
@@ -1861,14 +1876,13 @@ describe("dashboard v1 vs v2 consistency", () => {
       );
 
       const nameMap = new Map(
-        result.map((r) => [r.traceName as string, Number(r.count_count)]),
+        result.map((r) => [r.traceName as string, Number(r.sum_value)]),
       );
-      // Score on trace with empty trace_name should resolve via semantic-root name
-      expect(nameMap.get("AppRootFallbackName")).toBe(1);
-      expect(nameMap.get("PhysicalRootFallbackName")).toBe(1);
-      // Score on trace with populated trace_name should resolve normally
-      expect(nameMap.get("PopulatedTraceName")).toBe(1);
-      // Child observation name should never appear
+      // Summing makes duplicate JOIN matches observable: the app-root score
+      // must remain 0.8 rather than being counted once per semantic root.
+      expect(nameMap.get("AppRootFallbackName")).toBeCloseTo(0.8);
+      expect(nameMap.get("PhysicalRootFallbackName")).toBeCloseTo(0.7);
+      expect(nameMap.get("PopulatedTraceName")).toBeCloseTo(0.9);
       expect(nameMap.has("ChildObservationName")).toBe(false);
     });
 

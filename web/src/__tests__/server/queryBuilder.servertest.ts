@@ -5068,7 +5068,7 @@ describe("query builder measure-aggregation validation", () => {
   });
 
   describe("useFinal flag on events_core joins", () => {
-    it("should omit FINAL for events_core joins in v2 scores-numeric view", async () => {
+    it("should join the parentless trace event without FINAL in v2 scores-numeric view", async () => {
       const projectId = randomUUID();
       const builder = new QueryBuilder(undefined, "v2");
       const { query: compiledQuery } = await builder.build(
@@ -5092,6 +5092,7 @@ describe("query builder measure-aggregation validation", () => {
       expect(compiledQuery).not.toContain(
         "JOIN events_core AS events_traces FINAL",
       );
+      expect(compiledQuery).toContain("AND events_traces.parent_span_id = ''");
       // scores base CTE should still use FINAL
       expect(compiledQuery).toContain("scores scores_numeric FINAL");
     });
