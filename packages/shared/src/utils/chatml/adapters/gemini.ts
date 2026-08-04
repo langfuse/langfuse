@@ -141,6 +141,19 @@ function extractFromParts(parts: unknown[]): {
       continue;
     }
 
+    // OTel GenAI text parts carry the text under `content` instead of `text`,
+    // e.g. {type: "text", content: "..."}. Read it like the generic adapter
+    // does so the message body is not dropped (#15790). Only a string content
+    // is a text part; object content is a tool result handled elsewhere.
+    if (typeof p.content === "string") {
+      if (p.thought === true) {
+        thinkingParts.push({ content: p.content });
+      } else {
+        textParts.push(p.content);
+      }
+      continue;
+    }
+
     // {function_response: {name, response}} OR {functionResponse: {name, response}}
     const fr = getField(p, "function_response", "functionResponse");
     if (fr && typeof fr === "object") {
