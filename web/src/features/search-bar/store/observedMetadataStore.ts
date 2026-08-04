@@ -43,6 +43,35 @@ const noopStorage: StateStorage = {
   removeItem: () => {},
 };
 
+// localStorage can throw (quota exceeded, Safari private mode). This map is a
+// best-effort cache, so a failed write must not throw into the React effect
+// that recorded the paths. console.warn, not console.error — error-level logs
+// become Sentry events via the console integration.
+const safeLocalStorage: StateStorage = {
+  getItem: (name) => {
+    try {
+      return window.localStorage.getItem(name);
+    } catch (error) {
+      console.warn("Error reading from local storage", error);
+      return null;
+    }
+  },
+  setItem: (name, value) => {
+    try {
+      window.localStorage.setItem(name, value);
+    } catch (error) {
+      console.warn("Error writing to local storage", error);
+    }
+  },
+  removeItem: (name) => {
+    try {
+      window.localStorage.removeItem(name);
+    } catch (error) {
+      console.warn("Error clearing local storage", error);
+    }
+  },
+};
+
 type ProjectMetadataPaths = {
   /** Observed top-level key → stored type + sample values (see StoredKeyInfo). */
   paths: Record<string, StoredKeyInfo>;
@@ -159,7 +188,7 @@ export const useObservedMetadataStore = create<ObservedMetadataState>()(
       version: 2,
       // Hydrates from localStorage on the client; no-op during SSR.
       storage: createJSONStorage(() =>
-        typeof window !== "undefined" ? window.localStorage : noopStorage,
+        typeof window !== "undefined" ? safeLocalStorage : noopStorage,
       ),
       // Persist only data, never the actions object.
       partialize: (state) => ({ byProject: state.byProject }),
