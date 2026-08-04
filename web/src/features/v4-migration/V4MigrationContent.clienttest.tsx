@@ -227,7 +227,7 @@ describe("V4MigrationDetailsContent", () => {
       screen.getByText("No deprecated evals detected."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("No experiment instrumentation updates detected."),
+      screen.getByText("No experiment instrumentation updates required."),
     ).toBeInTheDocument();
   });
 
@@ -237,9 +237,9 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    expect(screen.getByText("Experiments")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Experiments/ }));
     expect(screen.getByText(/POST \/dataset-run-items/)).toBeInTheDocument();
-    expect(screen.getByText(">=4.0.0")).toBeInTheDocument();
+    expect(screen.getByText(">=4.7.0")).toBeInTheDocument();
     expect(screen.getByText(">=5.10.0")).toBeInTheDocument();
   });
 
@@ -252,10 +252,12 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
+    fireEvent.click(screen.getByRole("button", { name: /Experiments/ }));
     expect(screen.getByText("Needs review")).toBeInTheDocument();
     expect(
-      screen.getByText(/supports the experiment runner but predates/),
+      screen.getByText(/supports the experiment runner/),
     ).toBeInTheDocument();
+    expect(screen.getByText(/deprecated/)).toBeInTheDocument();
   });
 
   it("asks direct API users to replace dataset-run-items POST usage", () => {
@@ -264,11 +266,11 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
+    fireEvent.click(screen.getByRole("button", { name: /Experiments/ }));
     expect(
-      screen.getByText(/outside a compatible experiment runner/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Replace this direct API call/),
+      screen.getByRole("link", {
+        name: "OTel experiment instrumentation guide",
+      }),
     ).toBeInTheDocument();
   });
 

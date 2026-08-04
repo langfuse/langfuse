@@ -695,8 +695,16 @@ export function V4MigrationDetailsContent({
                     This project called{" "}
                     <MonoValue>POST /dataset-run-items</MonoValue> with an SDK
                     version that supports the experiment runner. Review that you
-                    are using the experiment runner SDK and not the deprecated
-                    `.link()` method. This warning will disappear once you
+                    are using the experiment runner SDK and not the deprecated{" "}
+                    <>
+                      <>
+                        <code className="bg-muted px-1 font-mono text-sm">
+                          .link()
+                        </code>{" "}
+                        method. This warning will{" "}
+                      </>
+                      disappear once you{" "}
+                    </>
                     upgrade to latest SDK version.
                   </>
                 ) : (
@@ -707,15 +715,13 @@ export function V4MigrationDetailsContent({
                     <ExternalLink href={SDK_UPGRADE_URL}>
                       Upgrade the SDK
                     </ExternalLink>{" "}
-                    to Python <MonoValue>&gt;=4.7.0</MonoValue> or JS/TS{" "}
-                    <MonoValue>&gt;=5.10.0</MonoValue> and use the experiment
-                    runner method.
+                    and use the experiment runner method.
                   </>
                 )}
               </p>
             ) : (
               <p className="text-muted-foreground text-sm">
-                No experiment instrumentation updates detected.
+                No experiment instrumentation updates required.
               </p>
             )}
           </Section>

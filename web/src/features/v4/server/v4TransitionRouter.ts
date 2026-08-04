@@ -1013,7 +1013,7 @@ SETTINGS skip_unavailable_shards = 1
           tags: {
             route: "v4-org-experiment-instrumentation-summary",
           },
-          preferredClickhouseService: "ReadOnly",
+          preferredClickhouseService: "EventsReadOnly",
           clickhouseSettings: {
             skip_unavailable_shards: 1,
           },
