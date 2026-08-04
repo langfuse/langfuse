@@ -36,14 +36,6 @@ function getBackgroundRunNotice(
     return "Stopping the run…";
   }
 
-  if (run.status === InAppAgentRunStatus.QUEUED) {
-    return "Waiting for a worker to pick this up. You can close this; the run continues in the background.";
-  }
-
-  if (run.status === InAppAgentRunStatus.RUNNING) {
-    return "You can close this; the run continues in the background.";
-  }
-
   if (run.status === InAppAgentRunStatus.FAILED) {
     return getBackgroundRunFailureMessage(run.errorCode ?? null);
   }

@@ -999,7 +999,7 @@ export const BackgroundRun = meta.story({
     isAssistantTurnInProgress: true,
     executionUi: {
       type: "background",
-      notice: "You can close this; the run continues in the background.",
+      notice: null,
       stop: { status: "available", onStop: fn() },
     },
     messages: [
@@ -1091,10 +1091,7 @@ export const BackgroundRunStops = meta.story({
             ? { type: "background", notice: null, stop: null }
             : {
                 type: "background",
-                notice:
-                  phase === "stopping"
-                    ? "Stopping the run…"
-                    : "You can close this; the run continues in the background.",
+                notice: phase === "stopping" ? "Stopping the run…" : null,
                 stop: {
                   status: phase === "stopping" ? "stopping" : "available",
                   onStop: () => {
