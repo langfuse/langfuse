@@ -44,9 +44,9 @@ import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   expandMarkdownSelection,
-  getMarkdownSourceRangeFromRenderedOffsets,
   projectMarkdownToRenderedText,
 } from "./fns/markdown";
+import { getMarkdownSourceRangeFromRenderedOffsets } from "./fns/getMarkdownSourceRangeFromRenderedOffsets";
 import styles from "./InAppAgentMessage.module.css";
 import { InAppAgentToolPayload } from "../InAppAgentToolPayload";
 import { InAppAgentToolResultPayload } from "../InAppAgentToolResultPayload";
