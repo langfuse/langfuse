@@ -5,7 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { InAppAgentToolPayload } from "../InAppAgentToolPayload";
 import { InAppAgentToolResultPayload } from "../InAppAgentToolResultPayload";
-import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/utils";
+import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/getDrawerMessages";
 
 export function InAppAgentToolCallCard({
   tool,

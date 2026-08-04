@@ -31,7 +31,6 @@ import {
   type InAppAgentRuntimeState,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
-import type { InAppAgentError } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -49,13 +48,14 @@ import type {
   InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { type InAppAiAgentMessage } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/utils";
+import { type InAppAiAgentMessage } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/getDrawerMessages";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentProvider/components/InAppAgentDisabledDialog";
 import { performToolSideEffects } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/performToolSideEffects";
 import { shouldPerformToolSideEffects } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/shouldPerformToolSideEffects";
 import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";
 import { getInAppAgentError } from "./fns/getInAppAgentError";
+import { type InAppAgentError } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/getDrawerMessages";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";

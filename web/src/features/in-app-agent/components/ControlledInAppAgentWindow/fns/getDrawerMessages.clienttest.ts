@@ -1,5 +1,8 @@
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
-import { getDrawerMessages, type InAppAiAgentMessage } from "./utils";
+import {
+  getDrawerMessages,
+  type InAppAiAgentMessage,
+} from "./getDrawerMessages";
 
 describe("getDrawerMessages", () => {
   it("maps tool results to explicit display statuses", () => {
