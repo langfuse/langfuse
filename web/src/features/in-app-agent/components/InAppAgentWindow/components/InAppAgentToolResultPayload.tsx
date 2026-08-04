@@ -1,7 +1,7 @@
 "use client";
 
+import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/types";
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
-import type { InAppAgentToolCallContent } from "../../ControlledInAppAgentWindow/fns/getDrawerMessages";
 
 const TOOL_CALL_RESULT_PRESENTATION = {
   running: { label: "Result", variant: "default" },

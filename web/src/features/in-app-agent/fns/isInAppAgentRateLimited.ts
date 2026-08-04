@@ -1,4 +1,4 @@
-import { type InAppAgentError } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/getDrawerMessages";
+import { type InAppAgentError } from "@/src/features/in-app-agent/types";
 
 export function isInAppAgentRateLimited(
   error: InAppAgentError | null,

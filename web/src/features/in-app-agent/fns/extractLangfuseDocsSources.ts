@@ -3,7 +3,7 @@ import {
   type InAppAgentMessageSource,
   InAppAgentMessageSourceSchema,
 } from "@langfuse/shared/in-app-agent";
-import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/getDrawerMessages";
+import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/types";
 import { deduplicateBy } from "@/src/utils/arrays";
 
 const LangfuseDocsDocumentSchema = z.object({

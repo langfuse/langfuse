@@ -15,10 +15,7 @@ import {
   InAppAgentRedirectActionToolResultSchema,
 } from "@langfuse/shared/in-app-agent";
 import { extractLangfuseDocsSources } from "@/src/features/in-app-agent/fns/extractLangfuseDocsSources";
-
-export type InAppAgentError =
-  | { type: "generic"; message: string }
-  | { type: "rate_limit"; retryAt: number };
+import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/types";
 
 const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
   z.object({
@@ -28,19 +25,6 @@ const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
 );
 
 export type InAppAiAgentMessage = z.infer<typeof InAppAiAgentMessageSchema>;
-
-export type InAppAgentToolCallContent = {
-  type: "tool";
-  name: string;
-  args: string;
-  status: "running" | "succeeded" | "failed" | "denied";
-  result?: string;
-  error?: string;
-  approval?: {
-    id: string;
-    status: "pending" | "submitting";
-  };
-};
 
 const InAppAgentToolRejectionErrorSchema = z.object({
   code: z.literal(IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE),

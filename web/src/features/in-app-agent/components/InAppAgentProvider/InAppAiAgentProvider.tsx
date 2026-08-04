@@ -55,7 +55,7 @@ import { performToolSideEffects } from "@/src/features/in-app-agent/components/I
 import { shouldPerformToolSideEffects } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/shouldPerformToolSideEffects";
 import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";
 import { getInAppAgentError } from "./fns/getInAppAgentError";
-import { type InAppAgentError } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/getDrawerMessages";
+import { type InAppAgentError } from "@/src/features/in-app-agent/types";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";

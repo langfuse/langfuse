@@ -48,7 +48,7 @@ import { expandMarkdownSelection } from "./fns/expandMarkdownSelection";
 import styles from "./InAppAgentMessage.module.css";
 import { InAppAgentToolPayload } from "../InAppAgentToolPayload";
 import { InAppAgentToolResultPayload } from "../InAppAgentToolResultPayload";
-import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/getDrawerMessages";
+import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/types";
 
 export type InAppAgentMessageRole = "assistant" | "user";
 
