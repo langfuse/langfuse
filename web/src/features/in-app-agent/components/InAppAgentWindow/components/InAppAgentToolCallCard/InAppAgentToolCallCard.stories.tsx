@@ -1,4 +1,4 @@
-import preview from "../../../../.storybook/preview";
+import preview from "../../../../../../../.storybook/preview";
 import { expect, fn, within } from "storybook/test";
 import { InAppAgentToolCallCard } from "./InAppAgentToolCallCard";
 

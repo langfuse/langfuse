@@ -43,7 +43,7 @@ import {
 } from "./components/InAppAgentMessage/InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
-import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
+import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentWindow/components/InAppAgentToolCallCard/InAppAgentToolCallCard";
 import {
   type InAppAgentError,
   isInAppAgentRateLimited,
