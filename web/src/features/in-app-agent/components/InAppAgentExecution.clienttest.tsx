@@ -302,6 +302,42 @@ describe("in-app agent execution", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not observe a cached active run while the assistant is closed", async () => {
+    providerMocks.backgroundExecutionEnabled = true;
+    const runningSnapshot = {
+      conversation: { id: "conversation-1", isWriteLocked: false },
+      messages: [],
+      eventCursor: 5,
+      latestRun: {
+        id: "run-1",
+        status: InAppAgentRunStatus.RUNNING,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [],
+    } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
+    providerMocks.conversationQuery.data = runningSnapshot;
+    providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValue(
+      runningSnapshot,
+    );
+    const watchFetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(sseFrame({ type: "done" })));
+    window.sessionStorage.setItem(
+      "langfuse:in-app-ai-agent-selected-conversation:project-1",
+      JSON.stringify("conversation-1"),
+    );
+
+    render(
+      <InAppAiAgentProvider defaultOpen={false}>
+        <div />
+      </InAppAiAgentProvider>,
+    );
+    await act(async () => undefined);
+
+    expect(watchFetch).not.toHaveBeenCalled();
+  });
+
   it("settles the drawer without restarting its activity state after Stop", async () => {
     providerMocks.backgroundExecutionEnabled = true;
     vi.stubGlobal(

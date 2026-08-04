@@ -277,6 +277,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       return;
     }
 
+    const attachmentGeneration = this.attachGeneration;
     this.setView({ ...this.view, cancelStatus: "submitting" });
     try {
       await this.cancelRun(run.id);
@@ -295,11 +296,11 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
           : currentRun,
       cancelStatus: "idle",
     });
-    this.detach();
-    await this.refreshAttachmentAfterCommand();
+    await this.refreshAttachmentAfterCommand(attachmentGeneration);
   }
 
   async decide(input: ApprovalDecision): Promise<void> {
+    const attachmentGeneration = this.attachGeneration;
     this.setApprovalStatus(input.toolCallId, "submitting");
     try {
       await this.decideApproval(input);
@@ -308,8 +309,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       throw error;
     }
     this.resolveApproval(input.toolCallId);
-    this.detach();
-    await this.refreshAttachmentAfterCommand();
+    await this.refreshAttachmentAfterCommand(attachmentGeneration);
   }
 
   detach(): void {
@@ -472,7 +472,14 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     return true;
   }
 
-  private async refreshAttachmentAfterCommand(): Promise<void> {
+  private async refreshAttachmentAfterCommand(
+    attachmentGeneration: number,
+  ): Promise<void> {
+    if (attachmentGeneration !== this.attachGeneration) {
+      return;
+    }
+
+    this.detach();
     try {
       await this.hydrateAndAttach();
       if (!isExecutingRun(this.view.currentRun)) {

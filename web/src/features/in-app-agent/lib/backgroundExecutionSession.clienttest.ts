@@ -190,6 +190,34 @@ describe("BackgroundExecutionSessionController", () => {
     expect(session.getSnapshot().messages).toEqual([message]);
   });
 
+  it("stays detached when cancellation finishes after observation stopped", async () => {
+    let resolveCancel: () => void = () => undefined;
+    const agent = {
+      ...createAgent(),
+      connectAgent: vi.fn(() => new Promise<unknown>(() => undefined)),
+    };
+    const session = new BackgroundExecutionSessionController({
+      agent,
+      hydrate: vi.fn().mockResolvedValue(runningView),
+      cancelRun: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveCancel = resolve;
+          }),
+      ),
+      decideApproval: vi.fn(),
+    });
+
+    await session.hydrateAndAttach();
+    const cancelling = session.cancel();
+    session.detach();
+    resolveCancel();
+    await cancelling;
+
+    expect(agent.connectAgent).toHaveBeenCalledOnce();
+    expect(session.getSnapshot().attachment).toEqual({ status: "detached" });
+  });
+
   it("cancels the active server run", async () => {
     const agent = createAgent();
     const cancelRun = vi.fn().mockResolvedValue(undefined);

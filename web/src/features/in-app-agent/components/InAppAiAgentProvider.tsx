@@ -1491,8 +1491,11 @@ function InAppAiAgentProviderInner({
       getOrCreateAgent,
     ],
   );
+  const attachToConversationRef = useRef(attachToConversation);
+  attachToConversationRef.current = attachToConversation;
 
   const hydratedActiveRunId =
+    open &&
     backgroundExecutionEnabled &&
     conversationQuery.data?.conversation.id === selectedConversationId &&
     conversationQuery.data.latestRun &&
@@ -1506,8 +1509,14 @@ function InAppAiAgentProviderInner({
       return;
     }
 
-    attachToConversation(selectedConversationId).catch(() => undefined);
-  }, [attachToConversation, hydratedActiveRunId, selectedConversationId]);
+    attachToConversationRef
+      .current(selectedConversationId)
+      .catch(() => undefined);
+
+    return () => {
+      backgroundSessionRef.current?.detach();
+    };
+  }, [hydratedActiveRunId, selectedConversationId]);
 
   const setAgentOpen = useCallback<Dispatch<SetStateAction<boolean>>>(
     (action) => {
