@@ -60,13 +60,11 @@ import {
 } from "@/src/features/in-app-agent/types";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
-import {
-  getInAppAgentQuickActions,
-  isInAppAgentQuickActionContext,
-} from "@/src/features/in-app-agent/quickActions";
+import { isInAppAgentQuickActionContext } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";
+import { getInAppAgentQuickActions } from "@/src/features/in-app-agent/components/InAppAgentWindow/fns/getInAppAgentQuickActions";
 
 const IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS: Record<
   InAppAgentQuickActionContext,
