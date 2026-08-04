@@ -23,6 +23,14 @@ export type MigrationCountState =
   | { status: "error"; count: 0 }
   | { status: "loaded"; count: number };
 
+export type MigrationActionState =
+  | { status: "loading"; result: null }
+  | { status: "error"; result: null }
+  | {
+      status: "loaded";
+      result: "required" | "not_required" | "sdk_usage_inconclusive";
+    };
+
 const loadingMigrationCount = {
   status: "loading",
   count: 0,
@@ -51,9 +59,30 @@ export const getMigrationCountState = <T>(
   return query?.isError ? errorMigrationCount : loadingMigrationCount;
 };
 
+export const getMigrationActionState = <T>(
+  query: {
+    data: T | undefined;
+    isError: boolean;
+  } | null,
+  getResult: (
+    data: T,
+  ) => "required" | "not_required" | "sdk_usage_inconclusive" | "check_failed",
+): MigrationActionState => {
+  if (query?.data !== undefined) {
+    const result = getResult(query.data);
+    return result === "check_failed"
+      ? { status: "error", result: null }
+      : { status: "loaded", result };
+  }
+  return query?.isError
+    ? { status: "error", result: null }
+    : { status: "loading", result: null };
+};
+
 export type ProjectMigrationStatus = {
   sdk: V4MigrationSdkState;
   evals: MigrationCountState;
+  experiments: MigrationActionState;
   apis: MigrationCountState;
   exports: MigrationCountState;
 };
@@ -71,12 +100,14 @@ export const getProjectMigrationReadiness = (
 
   if (
     status.sdk.status === "error" ||
+    status.experiments.status === "error" ||
     counts.some((count) => count.status === "error")
   ) {
     return "unavailable";
   }
   if (
     status.sdk.status === "checking" ||
+    status.experiments.status === "loading" ||
     counts.some((count) => count.status === "loading")
   ) {
     return "checking";
@@ -85,6 +116,7 @@ export const getProjectMigrationReadiness = (
     (status.sdk.status === "latest" ||
       status.sdk.status === "otel_realtime" ||
       status.sdk.status === "no_data") &&
+    status.experiments.result === "not_required" &&
     counts.every((count) => count.count === 0)
   ) {
     return "ready";
