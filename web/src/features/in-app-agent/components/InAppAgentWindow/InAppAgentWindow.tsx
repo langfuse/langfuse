@@ -44,10 +44,7 @@ import {
 import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentWindow/components/InAppAgentToolCallCard/InAppAgentToolCallCard";
-import {
-  type InAppAgentError,
-  isInAppAgentRateLimited,
-} from "@/src/features/in-app-agent/components/utils/utils";
+import { type InAppAgentError } from "@/src/features/in-app-agent/components/utils/utils";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -62,6 +59,7 @@ import {
 } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;

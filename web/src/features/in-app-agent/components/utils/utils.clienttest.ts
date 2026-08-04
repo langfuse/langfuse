@@ -3,9 +3,9 @@ import {
   extractLangfuseDocsSources,
   getDrawerMessages,
   getInAppAgentError,
-  isInAppAgentRateLimited,
   type InAppAiAgentMessage,
 } from "./utils";
+import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";
 
 describe("getInAppAgentError", () => {
   const now = new Date("2026-07-08T20:00:54.997Z").getTime();

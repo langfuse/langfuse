@@ -147,13 +147,6 @@ function parseRateLimitError(value: unknown) {
   return parsed.success ? parsed.data : null;
 }
 
-export function isInAppAgentRateLimited(
-  error: InAppAgentError | null,
-  now = Date.now(),
-) {
-  return error?.type === "rate_limit" && error.retryAt > now;
-}
-
 function parseEmbeddedRateLimitError(message: string) {
   const endIndex = message.lastIndexOf("}");
   let startIndex = message.indexOf("{");

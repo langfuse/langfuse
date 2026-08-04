@@ -51,17 +51,13 @@ import type {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getInAppAgentError,
-  isInAppAgentRateLimited,
   type InAppAiAgentMessage,
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentProvider/components/InAppAgentDisabledDialog";
-import {
-  performToolSideEffects,
-} from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/performToolSideEffects";
-import {
-  shouldPerformToolSideEffects,
-} from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/shouldPerformToolSideEffects";
+import { performToolSideEffects } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/performToolSideEffects";
+import { shouldPerformToolSideEffects } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/shouldPerformToolSideEffects";
+import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
