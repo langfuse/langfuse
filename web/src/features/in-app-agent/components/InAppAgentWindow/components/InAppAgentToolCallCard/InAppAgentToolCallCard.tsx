@@ -4,7 +4,7 @@ import { Check, Loader2, Wrench } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { InAppAgentToolPayload } from "../../../InAppAgentToolPayload";
-import { InAppAgentToolResultPayload } from "../../../InAppAgentToolResultPayload";
+import { InAppAgentToolResultPayload } from "../InAppAgentToolResultPayload";
 import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/components/utils/utils";
 
 export function InAppAgentToolCallCard({
