@@ -50,7 +50,7 @@ function PaletteStrip({
             className="border-border-contrast h-8 w-12 rounded-sm border"
             style={{ background: ctx.color(entry.name) }}
           />
-          <code className="text-muted-foreground font-mono text-[9px]">
+          <code className="text-tertiary font-mono text-[9px]">
             {/\d+/.exec(entry.name)?.[0]}
           </code>
         </div>

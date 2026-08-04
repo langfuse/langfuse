@@ -64,7 +64,7 @@ function RadiusSample({
       <div
         className="h-7 w-16 border"
         style={{
-          background: ctx.color("--muted"),
+          background: ctx.color("--bg-muted"),
           borderColor: ctx.color("--border-contrast"),
           borderRadius: radius,
         }}
@@ -126,15 +126,15 @@ function BannerSystemSample({ ctx }: { ctx: TokenContext }) {
         </span>
       </div>
       <div className="flex grow flex-col gap-1 p-2">
-        <span className="text-muted-foreground font-mono text-[10px]">
+        <span className="text-tertiary font-mono text-[10px]">
           app content · height = --spacing-screen-with-banner
         </span>
-        <span className="text-muted-foreground font-mono text-[10px]">
+        <span className="text-tertiary font-mono text-[10px]">
           sticky/fixed elements offset by --banner-offset
         </span>
         <div
           className="mt-1 grow rounded-sm border"
-          style={{ background: ctx.color("--card") }}
+          style={{ background: ctx.color("--bg-card") }}
         />
       </div>
     </div>
@@ -183,8 +183,11 @@ export function LayoutOffsetsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
 
 const LAYERS: Array<{ token: string; label: string }> = [
   { token: "--background", label: "app canvas" },
-  { token: "--card", label: "elevated: card + dialogs (--modal is this tier)" },
-  { token: "--popover", label: "menus & tooltips — above modals by design" },
+  {
+    token: "--bg-card",
+    label: "elevated: card + dialogs (--modal is this tier)",
+  },
+  { token: "--bg-popover", label: "menus & tooltips — above modals by design" },
 ];
 
 function LayerStack({
@@ -245,12 +248,12 @@ export function LayeringSection({
           </div>
         ))}
       </div>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-tertiary text-sm">
         Two tiers sit outside this stack: the sidebar frame (
         <InlineCode>--sidebar-background</InlineCode>) lifts one step above the
         canvas beside the content, and the code well (
-        <InlineCode>--surface-code</InlineCode>) is the one recessed tier. The
-        full ladder, light and dark side by side, is on the Color page&apos;s
+        <InlineCode>--bg-code</InlineCode>) is the one recessed tier. The full
+        ladder, light and dark side by side, is on the Color page&apos;s
         background ramp.
       </p>
     </PageSection>
@@ -293,7 +296,7 @@ export function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
             style={{
               left: `${16 + index * 28}px`,
               top: `${16 + index * 34}px`,
-              background: ctx.color("--card"),
+              background: ctx.color("--bg-card"),
               color: ctx.color("--foreground"),
             }}
           >
@@ -307,11 +310,11 @@ export function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
             </span>
           </div>
         ))}
-        <span className="text-muted-foreground absolute right-3 bottom-2 font-mono text-[10px]">
+        <span className="text-tertiary absolute right-3 bottom-2 font-mono text-[10px]">
           later in LAYER_ORDER paints on top ↘
         </span>
       </div>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-tertiary text-sm">
         Source of truth: <InlineCode>LAYER_ORDER</InlineCode> in{" "}
         <code className="font-mono">components/ui/layer.tsx</code>, enforced by
         the <code className="font-mono">@repo/no-overlay-zindex</code> lint
@@ -426,7 +429,7 @@ export function Layout() {
         <LayerSystemSection ctx={ctx} />
         <BreakpointsNote />
         <AnimationsSection {...rowContexts} />
-        <p className="text-muted-foreground text-sm">
+        <p className="text-tertiary text-sm">
           Component spacing uses Tailwind&apos;s default rem scale (
           <InlineCode>p-2</InlineCode>, <InlineCode>gap-4</InlineCode>, …).
         </p>

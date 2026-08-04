@@ -180,7 +180,7 @@ export function ScoreDistributionCategoricalChart({
         if (key === "__unmatched__") {
           stackConfig[key] = {
             label: "no match",
-            color: "hsl(var(--muted))", // Light grey for unmatched
+            color: "hsl(var(--bg-muted))", // Light grey for unmatched
           };
           return;
         }

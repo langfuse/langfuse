@@ -95,14 +95,14 @@ function TypeScaleRow({ token }: { token: TokenDeclaration }) {
       <div className="flex flex-wrap items-center gap-2">
         <InlineCode>{token.name.replace(/^--/, "")}</InlineCode>
       </div>
-      <div className="text-muted-foreground font-mono text-[11px] leading-4">
+      <div className="text-tertiary font-mono text-[11px] leading-4">
         {token.value} / {formatPx(declaredPx)}
       </div>
       <div className="min-w-0 font-mono text-[11px] leading-4">
         {usage ? (
           <span className="text-foreground">used in · {usage}</span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          <span className="text-tertiary">—</span>
         )}
       </div>
     </div>
@@ -145,7 +145,7 @@ function TypefaceSpecimen({
         </div>
       </Panel>
       <code
-        className="text-muted-foreground truncate font-mono text-[10px] leading-4"
+        className="text-tertiary truncate font-mono text-[10px] leading-4"
         title={stackCaption}
       >
         {stackCaption}
@@ -166,7 +166,7 @@ function WeightRoleRow({ token }: { token: TokenDeclaration }) {
       >
         The quick brown fox jumps over the lazy dog
       </span>
-      <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] leading-4">
+      <div className="text-tertiary flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] leading-4">
         <span>
           {token.name}: {token.value}
         </span>
@@ -208,7 +208,7 @@ const TEXT_TIERS: Array<{
   },
   {
     tier: "faint",
-    token: "--foreground-tertiary",
+    token: "--text-disabled",
     role: "text-disabled",
     usage: "placeholders, disabled, hints",
   },
@@ -232,9 +232,9 @@ function TextTierRow({
       </span>
       <div className="flex flex-wrap items-baseline gap-x-2 font-mono text-[11px] leading-4">
         <code className="text-foreground">{tier.token}</code>
-        <span className="text-muted-foreground">→ {tier.role}</span>
+        <span className="text-tertiary">→ {tier.role}</span>
       </div>
-      <div className="text-muted-foreground min-w-0 font-mono text-[11px] leading-4">
+      <div className="text-tertiary min-w-0 font-mono text-[11px] leading-4">
         {tier.tier} · {tier.usage}
       </div>
     </div>
@@ -260,11 +260,11 @@ function TextTiersSection() {
         <span style={{ color: ctx.color("--muted-foreground") }}>
           Idle item
         </span>
-        <span className="text-muted-foreground font-mono text-[10px]">
+        <span className="text-tertiary font-mono text-[10px]">
           same weight — only the tier changes
         </span>
       </div>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-tertiary text-sm">
         On bright fills, ink inverts to{" "}
         <InlineCode>--primary-foreground</InlineCode> (→ text-on-fill). In dark,
         meta merges into body — captions rely on size and position; light keeps
@@ -285,7 +285,7 @@ const MONO_EXAMPLES: Array<{
   {
     label: "Eyebrow label",
     className:
-      "font-mono text-[10px] tracking-[0.05em] uppercase text-muted-foreground",
+      "font-mono text-[10px] tracking-[0.05em] uppercase text-tertiary",
     sample: "Production · EU region",
     seenIn: "EnvLabelBadge, section eyebrows on this page",
   },
@@ -297,7 +297,7 @@ const MONO_EXAMPLES: Array<{
   },
   {
     label: "Identifier",
-    className: "font-mono text-[11px] text-muted-foreground",
+    className: "font-mono text-[11px] text-tertiary",
     sample: "trace 7f3a9c2e-41d0-4b8a-9a71",
     seenIn: "ModernSession header, TraceEventsRow",
   },
@@ -351,7 +351,7 @@ export function Typography() {
               />
             )}
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             No third face: display text is the sans stack at a larger size.
           </p>
         </PageSection>
@@ -366,7 +366,7 @@ export function Typography() {
               <WeightRoleRow key={token.name} token={token} />
             ))}
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             <InlineCode>font-medium</InlineCode>,{" "}
             <InlineCode>font-semibold</InlineCode> and raw numbers are drift.
           </p>
@@ -403,7 +403,7 @@ export function Typography() {
                     {example.sample}
                   </span>
                 </div>
-                <div className="text-muted-foreground flex min-w-0 flex-col gap-0.5 font-mono text-[10px] leading-4">
+                <div className="text-tertiary flex min-w-0 flex-col gap-0.5 font-mono text-[10px] leading-4">
                   <span className="break-all">{example.className}</span>
                   <span>as in · {example.seenIn}</span>
                 </div>

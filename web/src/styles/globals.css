@@ -68,9 +68,7 @@
   --color-control-fill: hsl(var(--control-fill));
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
-  --color-foreground-tertiary: hsl(var(--foreground-tertiary));
-  --color-surface-code: hsl(var(--surface-code));
-  --color-surface-code-header: hsl(var(--surface-code-header));
+  --color-code-header: hsl(var(--bg-code-header));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
@@ -109,9 +107,9 @@
      the old secondary/tertiary FILLS are gone — use bg-muted /
      bg-muted-gray. text-primary keeps resolving through --primary (the
      button-fill token rides the same text tier). */
-  --color-canvas: hsl(var(--canvas));
-  --color-code: hsl(var(--code));
-  --color-hover: hsl(var(--hover));
+  --color-canvas: hsl(var(--bg-canvas));
+  --color-code: hsl(var(--bg-code));
+  --color-hover: hsl(var(--bg-hover));
   --color-focus: hsl(var(--focus));
   --color-secondary: hsl(var(--text-secondary));
   --color-tertiary: hsl(var(--text-tertiary));
@@ -129,18 +127,17 @@
   --color-primary-foreground: hsl(var(--primary-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-muted: hsl(var(--muted));
+  --color-muted: hsl(var(--bg-muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-popover: hsl(var(--popover));
+  --color-popover: hsl(var(--bg-popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
   --color-popover-border: hsl(var(--popover-border));
-  --color-card: hsl(var(--card));
+  --color-card: hsl(var(--bg-card));
   --color-card-foreground: hsl(var(--card-foreground));
-  --color-modal: hsl(var(--modal));
-  --color-modal-foreground: hsl(var(--modal-foreground));
-  --color-sidebar: hsl(var(--sidebar-background));
+  --color-modal: hsl(var(--bg-modal));
+  --color-sidebar: hsl(var(--bg-sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
   --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
@@ -329,38 +326,37 @@
        white — flagged in review, kept per design preference for now. */
     --text-disabled: var(--neutral-light-50);
     /* Text on bright fills = the canvas color (inverted ink). */
-    --text-on-fill: var(--canvas);
+    --text-on-fill: var(--bg-canvas);
     /* Text on the hover fill rides the brightest tier. */
     --text-on-hover: var(--text-primary);
 
     /* Fill roles */
-    --canvas: var(--neutral-light-130);
+    --bg-canvas: var(--neutral-light-130);
 
     /* Elevated: card + modal. Light alternates back to white; dark is the
        raised tier shared with the sidebar chrome. */
-    --card: var(--neutral-light-130);
+    --bg-card: var(--neutral-light-130);
     --card-foreground: var(--text-secondary);
 
     /* Blocking overlay surfaces (Dialog/AlertDialog/Sheet/Drawer/peek)
        share the elevated tier with --card. */
-    --modal: var(--card);
-    --modal-foreground: var(--text-secondary);
+    --bg-modal: var(--bg-card);
 
-    --popover: var(--neutral-light-130);
+    --bg-popover: var(--neutral-light-130);
     --popover-foreground: var(--text-secondary);
 
-    --muted: var(--neutral-light-110);
+    --bg-muted: var(--neutral-light-110);
 
     /* The interactive fill: hovered/highlighted rows, menu items, chips
        (hover = the fill, focus = the ring). */
-    --hover: var(--neutral-light-110);
+    --bg-hover: var(--neutral-light-110);
 
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
-       well"), matching the docs site's --surface-code convention. */
-    --code: var(--neutral-light-100);
+       well"), matching the docs site convention. */
+    --bg-code: var(--neutral-light-100);
     /* Deliberately off-ladder: the header strip sits darker than the 92%
        code well so it reads as the well's chrome. */
-    --surface-code-header: var(--neutral-light-70);
+    --bg-code-header: var(--neutral-light-70);
 
     /* Line roles */
     --border: var(--neutral-light-90); /* default hairline */
@@ -387,16 +383,14 @@
        vocabulary above, so pasted shadcn/ui components and the long tail
        of un-migrated call sites keep resolving unchanged. Never give an
        alias its own raw value; new code uses the role tokens. */
-    --background: var(--canvas);
+    --background: var(--bg-canvas);
     --foreground: var(
       --text-secondary
     ); /* stays the inherited default via the body rule */
     --muted-foreground: var(--text-tertiary);
-    --foreground-tertiary: var(--text-disabled);
     --primary-foreground: var(--text-on-fill);
-    --accent: var(--hover);
+    --accent: var(--bg-hover);
     --accent-foreground: var(--text-on-hover);
-    --surface-code: var(--code);
     --input: var(--border);
     --popover-border: var(--border);
     --ring: var(--focus);
@@ -432,7 +426,7 @@
        --card so chart grids (--chart-grid) and disabled badge fills stay
        discernible on elevated surfaces, without the harshness of
        --border-contrast (26%). */
-    --muted-gray: var(--hover);
+    --muted-gray: var(--bg-hover);
 
     --accent-light-green: 138 76.5% 96.7%;
     --accent-dark-green: 112 100% 32%;
@@ -479,7 +473,7 @@
     --radius: 0.5rem;
     /* Frame tint: one step off the canvas so the nav reads as chrome
        (dark shares the raised --card tier, see .dark). */
-    --sidebar-background: var(--neutral-light-120);
+    --bg-sidebar: var(--neutral-light-120);
     --sidebar-foreground: var(--text-secondary);
     --sidebar-primary: var(--text-primary);
     --sidebar-primary-foreground: var(--text-on-fill);
@@ -553,24 +547,24 @@
     ); /* meta — TRIAL re-split from body (was merged at 60) */
     --text-disabled: var(--neutral-dark-70);
 
-    --canvas: var(--neutral-dark-10);
-    --card: var(--neutral-dark-20);
+    --bg-canvas: var(--neutral-dark-10);
+    --bg-card: var(--neutral-dark-20);
     /* Frame and elevated share the raised tier in dark. */
-    --sidebar-background: var(--card);
-    --popover: var(--neutral-dark-30);
-    --muted: var(--neutral-dark-30);
+    --bg-sidebar: var(--bg-card);
+    --bg-popover: var(--neutral-dark-30);
+    --bg-muted: var(--neutral-dark-30);
     /* Hover fill: one clear step above --popover (10%) — focus:bg-hover is
        the only focus cue in menus/selects/⌘K, and 14.3% was a
        near-invisible ~1.13:1. */
-    --hover: var(--neutral-dark-50);
+    --bg-hover: var(--neutral-dark-50);
     /* The code well collapses into the canvas in dark (Trang call); light
        keeps its recessed 92% grey. */
-    --code: var(--canvas);
+    --bg-code: var(--bg-canvas);
     /* The header strip joins the elevated tier instead of the light mode's
        off-ladder darker grey. */
-    --surface-code-header: var(--card);
+    --bg-code-header: var(--bg-card);
     /* Selected-nav fill aligns with the muted/popover level in dark. */
-    --sidebar-accent: var(--muted);
+    --sidebar-accent: var(--bg-muted);
 
     /* One quiet line for everything non-assertive — dividers, inputs,
        popover edges (edge tier merged down per Trang, 2026-08-03). */

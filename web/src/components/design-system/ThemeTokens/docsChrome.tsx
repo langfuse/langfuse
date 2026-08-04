@@ -16,7 +16,7 @@ import { cn } from "@/src/utils/tailwind";
 /** The app's eyebrow-label convention: tiny, mono, uppercase, tracked. */
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <span className="text-muted-foreground font-mono text-[10px] tracking-[0.05em] uppercase">
+    <span className="text-tertiary font-mono text-[10px] tracking-[0.05em] uppercase">
       {children}
     </span>
   );
@@ -50,12 +50,10 @@ export function DocsPageHeader({
         {title}
       </h1>
       {lede !== undefined && (
-        <p className="text-muted-foreground max-w-2xl text-sm">{lede}</p>
+        <p className="text-tertiary max-w-2xl text-sm">{lede}</p>
       )}
       {meta !== undefined && (
-        <p className="text-muted-foreground font-mono text-[11px] leading-4">
-          {meta}
-        </p>
+        <p className="text-tertiary font-mono text-[11px] leading-4">{meta}</p>
       )}
     </header>
   );
@@ -82,7 +80,7 @@ export function DocsSection({
         <div className="flex flex-col gap-1">
           <h2 className="text-foreground text-lg font-bold">{title}</h2>
           {blurb !== undefined && (
-            <p className="text-muted-foreground max-w-2xl text-sm">{blurb}</p>
+            <p className="text-tertiary max-w-2xl text-sm">{blurb}</p>
           )}
         </div>
         {aside}

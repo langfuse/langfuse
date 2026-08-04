@@ -292,7 +292,7 @@ const magicPasteTheme = EditorView.baseTheme({
   // default tooltip background) so the foreground tokens keep their audited
   // contrast in both themes.
   ".cm-tooltip:has(.cm-json-magic-paste)": {
-    backgroundColor: "hsl(var(--popover))",
+    backgroundColor: "hsl(var(--bg-popover))",
     color: "hsl(var(--popover-foreground))",
     border: "1px solid hsl(var(--border))",
     borderRadius: "6px",

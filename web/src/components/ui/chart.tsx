@@ -268,7 +268,7 @@ const ChartTooltipContent = React.forwardRef<
                   // the breathing room margins/padding would), so rows never
                   // shift or re-truncate when the hovered series changes. (LFE-10576)
                   highlighted &&
-                    "bg-muted rounded-xs shadow-[0_0_0_3px_hsl(var(--muted))]",
+                    "bg-muted rounded-xs shadow-[0_0_0_3px_hsl(var(--bg-muted))]",
                 )}
               >
                 {formatter && item?.value !== undefined && item.name != null ? (

@@ -96,7 +96,7 @@ function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
       create() {
         const dom = document.createElement("div");
         dom.className =
-          "max-w-xl whitespace-pre-wrap rounded-md border bg-popover px-3 py-2 font-mono text-xs text-popover-foreground shadow-md";
+          "max-w-xl whitespace-pre-wrap rounded-md border bg-popover px-3 py-2 font-mono text-xs text-secondary shadow-md";
         dom.textContent = hoverDoc;
         return { dom };
       },

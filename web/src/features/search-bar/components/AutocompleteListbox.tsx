@@ -74,7 +74,7 @@ export function AutocompleteListbox({
       className={cn(
         "w-max max-w-[calc(100vw-16px)] min-w-[min(420px,calc(100vw-16px))]",
         "max-h-[min(420px,40vh)] overflow-x-hidden overflow-y-auto",
-        "bg-popover text-popover-foreground rounded-md border py-1 shadow-md",
+        "bg-popover text-secondary rounded-md border py-1 shadow-md",
       )}
     >
       {plan.loading && (

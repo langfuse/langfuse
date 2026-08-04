@@ -14,8 +14,8 @@ export const defaultSettingsBothThemes: CreateThemeOptions["settings"] = {
   gutterBorder: "hsl(var(--sidebar-border))",
   gutterActiveForeground: "hsl(var(--sidebar-primary))",
   selection: "hsl(var(--accent))",
-  selectionMatch: "hsl(var(--muted))",
-  lineHighlight: "hsl(var(--muted))",
+  selectionMatch: "hsl(var(--bg-muted))",
+  lineHighlight: "hsl(var(--bg-muted))",
 };
 
 export const bothThemeStyles: CreateThemeOptions["styles"] = [

@@ -74,33 +74,33 @@ const TEXT_RAMP: RampStep[] = [
 
 const SURFACE_RAMP: RampStep[] = [
   {
-    token: "--code",
+    token: "--bg-code",
     label: "code well",
     note: "the one recessed tier; collapses into the canvas in dark",
   },
-  { token: "--canvas", label: "canvas", note: "the page background" },
+  { token: "--bg-canvas", label: "canvas", note: "the page background" },
   {
-    token: "--sidebar-background",
+    token: "--bg-sidebar",
     label: "frame",
     note: "sidebar chrome, lifted one step off the canvas",
   },
   {
-    token: "--card",
+    token: "--bg-card",
     label: "elevated",
     note: "card + modal; white in light, the raised tier in dark",
   },
   {
-    token: "--popover",
+    token: "--bg-popover",
     label: "popover",
     note: "top of the ladder — menus open on top of dialogs",
   },
   {
-    token: "--muted",
+    token: "--bg-muted",
     label: "muted fill",
     note: "quiet fill; level with the popover in dark",
   },
   {
-    token: "--hover",
+    token: "--bg-hover",
     label: "hover fill",
     note: "hovered rows, menu items — the focus cue in menus",
   },
@@ -162,7 +162,7 @@ function RampModeCell({
         <div
           className="h-7 rounded-sm border"
           style={{
-            background: paint.color("--card"),
+            background: paint.color("--bg-card"),
             borderColor: paint.color(token),
           }}
         />
@@ -215,7 +215,7 @@ function RampRow({
           {step.token}
         </code>
         {step.note && (
-          <span className="text-muted-foreground text-[11px] leading-4">
+          <span className="text-tertiary text-[11px] leading-4">
             {step.note}
           </span>
         )}
@@ -294,7 +294,7 @@ function SurfaceLadderSample({ paint }: { paint: TokenContext }) {
         <div
           className="rounded-sm border px-2 py-1"
           style={{
-            background: paint.color("--surface-code"),
+            background: paint.color("--bg-code"),
             borderColor: hairline,
             color: paint.color("--foreground"),
           }}
@@ -303,13 +303,16 @@ function SurfaceLadderSample({ paint }: { paint: TokenContext }) {
         </div>
         <div
           className="rounded-sm border p-2"
-          style={{ background: paint.color("--card"), borderColor: hairline }}
+          style={{
+            background: paint.color("--bg-card"),
+            borderColor: hairline,
+          }}
         >
           <span style={label}>card / modal</span>
           <div
             className="mt-1.5 rounded-sm border p-1.5"
             style={{
-              background: paint.color("--popover"),
+              background: paint.color("--bg-popover"),
               borderColor: paint.color("--popover-border"),
               color: paint.color("--popover-foreground"),
             }}
@@ -328,7 +331,7 @@ function SurfaceLadderSample({ paint }: { paint: TokenContext }) {
         </div>
         <div
           className="rounded-sm px-2 py-1"
-          style={{ background: paint.color("--muted"), ...label }}
+          style={{ background: paint.color("--bg-muted"), ...label }}
         >
           muted fill
         </div>
@@ -452,7 +455,7 @@ const SECTION_MATCHERS: Array<{
   {
     id: "surfaces",
     test: (n) =>
-      /^--(?:canvas|code|hover|background|foreground|foreground-tertiary|muted|surface-code(?:-header)?|popover|card|modal)(?:-foreground)?$/.test(
+      /^--(?:bg-(?:canvas|code(?:-header)?|hover|muted|popover|card|modal|sidebar)|background|foreground|text-disabled|muted|canvas|code|hover|popover|card|modal)(?:-foreground)?$/.test(
         n,
       ),
   },
@@ -558,7 +561,7 @@ function StateRow({
     <div className="grid items-center gap-x-8 gap-y-1 border-t py-3 md:grid-cols-[110px_minmax(0,1fr)_minmax(0,1.2fr)]">
       <Eyebrow>{state}</Eyebrow>
       <div className="min-w-0">{sample}</div>
-      <div className="text-muted-foreground flex min-w-0 flex-col gap-0.5 font-mono text-[10px] leading-4">
+      <div className="text-tertiary flex min-w-0 flex-col gap-0.5 font-mono text-[10px] leading-4">
         <span className="break-all">{classes}</span>
         <span>tokens · {tokens}</span>
         <span>as in · {seenIn}</span>
@@ -592,7 +595,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
               <span className="border-b px-2.5 py-1.5">Default row</span>
               <span
                 className="px-2.5 py-1.5"
-                style={{ background: alphaColor(ctx, "--muted", 0.5) }}
+                style={{ background: alphaColor(ctx, "--bg-muted", 0.5) }}
               >
                 Hovered row
               </span>
@@ -602,7 +605,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
         <StateRow
           state="Selected · row"
           classes="data-[state=selected]:bg-muted"
-          tokens="--muted"
+          tokens="--bg-muted"
           seenIn="TableRow (ui/table.tsx)"
           sample={
             <div
@@ -612,7 +615,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
               <span className="border-b px-2.5 py-1.5">Default row</span>
               <span
                 className="px-2.5 py-1.5"
-                style={{ background: color("--muted") }}
+                style={{ background: color("--bg-muted") }}
               >
                 Selected row
               </span>
@@ -627,7 +630,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
           sample={
             <div
               className="flex flex-col gap-0.5 rounded-md border p-1 text-xs"
-              style={{ background: color("--popover") }}
+              style={{ background: color("--bg-popover") }}
             >
               <span
                 className="rounded-sm px-2 py-1"
@@ -685,7 +688,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
               <span
                 className="inline-block rounded-md border px-2.5 py-0.5 text-xs"
                 style={{
-                  background: color("--card"),
+                  background: color("--bg-card"),
                   color: color("--foreground"),
                   boxShadow: `0 0 0 2px ${color("--background")}, 0 0 0 4px ${color("--ring")}`,
                 }}
@@ -812,9 +815,9 @@ function renderSample(
       const isText = name.includes("foreground");
       if (isText) {
         let base = name.replace(/-foreground$/, "");
-        if (name === "--foreground" || name === "--foreground-tertiary")
+        if (name === "--foreground" || name === "--text-disabled")
           base = "--background";
-        if (name === "--muted-foreground") base = "--muted";
+        if (name === "--muted-foreground") base = "--bg-muted";
         return (
           <SurfaceSample background={color(base)} color={color(name)}>
             Aa · The quick brown fox
@@ -859,7 +862,7 @@ function renderSample(
             <span
               className="inline-block rounded-md border px-2.5 py-0.5 text-xs"
               style={{
-                background: color("--card"),
+                background: color("--bg-card"),
                 color: color("--foreground"),
                 boxShadow: `0 0 0 2px ${color(name)}`,
               }}
@@ -871,7 +874,7 @@ function renderSample(
       }
       return (
         <SurfaceSample
-          background={color("--card")}
+          background={color("--bg-card")}
           color={color("--foreground")}
           border={color(name)}
         >
@@ -962,7 +965,7 @@ function renderSample(
           >
             <span
               className="size-3 rounded-full border"
-              style={{ background: color("--card") }}
+              style={{ background: color("--bg-card") }}
             />
           </span>
         </div>
@@ -972,7 +975,7 @@ function renderSample(
       return (
         <div
           className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs"
-          style={{ background: color("--card") }}
+          style={{ background: color("--bg-card") }}
         >
           <span
             className="size-3.5 rounded-sm"
@@ -1132,14 +1135,14 @@ function ColorMappingsSection({ ctx }: { ctx: TokenContext }) {
       <summary className="flex cursor-pointer list-none items-start gap-2 [&::-webkit-details-marker]:hidden">
         <ChevronRight
           aria-hidden
-          className="text-muted-foreground mt-1.5 size-4 shrink-0 transition-transform group-open:rotate-90"
+          className="text-tertiary mt-1.5 size-4 shrink-0 transition-transform group-open:rotate-90"
         />
         <div className="flex flex-1 items-baseline justify-between gap-4">
           <div>
             <h2 className="text-foreground text-lg font-bold">
               Tailwind color mappings
             </h2>
-            <p className="text-muted-foreground max-w-2xl text-sm">
+            <p className="text-tertiary max-w-2xl text-sm">
               @theme inline: utility → token wiring plus the disabled built-in
               palettes.
             </p>
@@ -1156,17 +1159,14 @@ function ColorMappingsSection({ ctx }: { ctx: TokenContext }) {
             >
               <Swatch color={toCssColor(ctx.resolve(token.value))} />
               <code className="text-foreground shrink-0">{token.name}</code>
-              <span
-                className="text-muted-foreground truncate"
-                title={token.value}
-              >
+              <span className="text-tertiary truncate" title={token.value}>
                 {token.value}
               </span>
             </div>
           ))}
         </div>
         {disabled.length > 0 && (
-          <p className="text-muted-foreground font-mono text-[11px]">
+          <p className="text-tertiary font-mono text-[11px]">
             Disabled built-in palettes:{" "}
             {disabled
               .map((token) =>
