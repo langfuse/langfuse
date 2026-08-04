@@ -66,10 +66,13 @@ export const getMigrationActionState = <T>(
   } | null,
   getResult: (
     data: T,
-  ) => "required" | "not_required" | "sdk_usage_inconclusive",
+  ) => "required" | "not_required" | "sdk_usage_inconclusive" | "check_failed",
 ): MigrationActionState => {
   if (query?.data !== undefined) {
-    return { status: "loaded", result: getResult(query.data) };
+    const result = getResult(query.data);
+    return result === "check_failed"
+      ? { status: "error", result: null }
+      : { status: "loaded", result };
   }
   return query?.isError
     ? { status: "error", result: null }

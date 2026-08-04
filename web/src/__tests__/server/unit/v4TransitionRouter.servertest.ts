@@ -10,6 +10,9 @@ vi.mock("@/src/server/auth", () => ({
 
 const sharedServerMock = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
+  logger: {
+    error: vi.fn(),
+  },
   INTERNAL_INGESTION_SDK_NAMES: [
     "langfuse-internal-ai-sdk",
     "langfuse-internal-otel-writer",
@@ -1810,6 +1813,50 @@ describe("v4TransitionRouter", () => {
         status: "required",
         upgradePath: "api",
       },
+    });
+  });
+
+  it("preserves SDK usage when the experiment instrumentation check fails", async () => {
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          sdkName: "python",
+          sdkVersion: "3.9.0",
+          publicKey: "pk-lf-python",
+          count: "3",
+          firstSeen: "2026-06-24T01:00:00Z",
+          lastSeen: "2026-06-24T04:00:00Z",
+          hasDelayedOtelEvents: "1",
+        },
+      ])
+      .mockRejectedValueOnce(new Error("query_log unavailable"));
+    const caller = createCaller({
+      project: {
+        findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
+      },
+    });
+
+    const [summary] = await caller.sdkUsageSummaryByProject({
+      orgId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(summary).toMatchObject({
+      projectId,
+      outdatedSdkUsageSeriesCount: 1,
+      experimentInstrumentationMigration: {
+        status: "check_failed",
+        upgradePath: null,
+      },
+      sdkUsageSeries: [
+        {
+          sdkName: "python",
+          sdkVersion: "3.9.0",
+          v4MigrationStatus: "upgrade_required",
+        },
+      ],
     });
   });
 

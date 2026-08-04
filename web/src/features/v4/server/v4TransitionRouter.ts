@@ -15,6 +15,7 @@ import {
   classifyIngestionSdkVersion,
   convertDateToClickhouseDateTime,
   INTERNAL_INGESTION_SDK_NAMES,
+  logger,
   queryClickhouse,
   systemTableRef,
   type IngestionSdkAttributionStatus,
@@ -192,7 +193,11 @@ type SdkUsageSummaryByProjectResultRow = {
   outdatedSdkUsageSeriesCount: number;
   delayedOtelIngestionSeriesCount: number;
   experimentInstrumentationMigration: {
-    status: "required" | "not_required" | "sdk_usage_inconclusive";
+    status:
+      | "required"
+      | "not_required"
+      | "sdk_usage_inconclusive"
+      | "check_failed";
     upgradePath: "sdk" | "api" | null;
   };
   sdkUsageSeries: SdkUsageSummaryByProjectSeries[];
@@ -940,7 +945,7 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
-      const [rows, datasetRunItemsPostUsageRows] = await Promise.all([
+      const [rows, datasetRunItemsPostUsageResult] = await Promise.all([
         queryClickhouse<SdkUsageSummaryByProjectRow>({
           query: `
 WITH selected AS (
@@ -1017,7 +1022,18 @@ SETTINGS skip_unavailable_shards = 1
           clickhouseSettings: {
             skip_unavailable_shards: 1,
           },
-        }),
+        })
+          .then((rows) => ({ status: "success" as const, rows }))
+          .catch((error: unknown) => {
+            logger.warn(
+              "Failed to query dataset-run-items POST usage for v4 migration",
+              error,
+            );
+            return {
+              status: "error" as const,
+              rows: [] as DatasetRunItemsPostUsageByProjectRow[],
+            };
+          }),
       ]);
 
       const rowsByProjectId = new Map<string, SdkUsageSummaryByProjectRow[]>();
@@ -1027,7 +1043,7 @@ SETTINGS skip_unavailable_shards = 1
         rowsByProjectId.set(row.projectId, projectRows);
       }
       const projectsUsingDatasetRunItemsPost = new Set(
-        datasetRunItemsPostUsageRows
+        datasetRunItemsPostUsageResult.rows
           .filter((row) => Number(row.count) > 0)
           .map((row) => row.projectId),
       );
@@ -1139,13 +1155,15 @@ SETTINGS skip_unavailable_shards = 1
           },
         );
         const experimentInstrumentationMigration: SdkUsageSummaryByProjectResultRow["experimentInstrumentationMigration"] =
-          !usesDatasetRunItemsPost
-            ? { status: "not_required", upgradePath: null }
-            : hasCurrentExperimentInstrumentation
+          datasetRunItemsPostUsageResult.status === "error"
+            ? { status: "check_failed", upgradePath: null }
+            : !usesDatasetRunItemsPost
               ? { status: "not_required", upgradePath: null }
-              : hasInconclusiveExperimentSdkUsage
-                ? { status: "sdk_usage_inconclusive", upgradePath: "sdk" }
-                : { status: "required", upgradePath: "api" };
+              : hasCurrentExperimentInstrumentation
+                ? { status: "not_required", upgradePath: null }
+                : hasInconclusiveExperimentSdkUsage
+                  ? { status: "sdk_usage_inconclusive", upgradePath: "sdk" }
+                  : { status: "required", upgradePath: "api" };
 
         return {
           projectId,

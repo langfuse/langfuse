@@ -63,6 +63,12 @@ describe("v4 migration data", () => {
         (data) => data.result,
       ),
     ).toEqual(loadedAction("required"));
+    expect(
+      getMigrationActionState(
+        { data: { result: "check_failed" as const }, isError: false },
+        (data) => data.result,
+      ),
+    ).toEqual({ status: "error", result: null });
   });
 
   it("only marks a fully loaded project without affected items as ready", () => {
