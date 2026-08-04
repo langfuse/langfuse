@@ -86,7 +86,6 @@ import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components
 import {
   performToolSideEffectsForMessages,
   performToolSideEffectsForToolCall,
-  shouldPerformToolSideEffects,
 } from "@/src/features/in-app-agent/components/utils/side-effects";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
@@ -870,7 +869,7 @@ function InAppAiAgentProviderInner({
           const toolCallId = String(event.toolCallId);
           const toolName = toolCallNamesRef.current.get(toolCallId);
           toolCallNamesRef.current.delete(toolCallId);
-          if (toolName && shouldPerformToolSideEffects(event.error)) {
+          if (toolName) {
             performToolSideEffectsForToolCall({
               toolCallId,
               toolName,

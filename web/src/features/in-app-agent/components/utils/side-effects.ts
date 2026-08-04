@@ -214,7 +214,6 @@ export function performToolSideEffects({
 type CompletedToolCall = {
   toolCallId: string;
   toolName: string;
-  toolError?: string;
 };
 
 /**
@@ -248,7 +247,7 @@ export function getCompletedToolCalls(messages: readonly AgUiMessage[]) {
       return [];
     }
 
-    return [{ ...toolCall, toolError: result.error }];
+    return [toolCall];
   });
 }
 

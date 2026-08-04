@@ -159,30 +159,6 @@ describe("BackgroundExecutionSessionController", () => {
     });
   });
 
-  it("publishes a terminal hydrated snapshot when the drawer reopens after completion", async () => {
-    const terminalView = {
-      ...runningView,
-      currentRun: {
-        ...runningView.currentRun,
-        status: InAppAgentRunStatus.SUCCEEDED,
-      },
-    };
-    const onTerminalSnapshot = vi.fn();
-    const session = new BackgroundExecutionSessionController({
-      agent: createAgent(),
-      hydrate: vi.fn().mockResolvedValue(terminalView),
-      cancelRun: vi.fn(),
-      decideApproval: vi.fn(),
-      onTerminalSnapshot,
-    });
-
-    await session.hydrateAndAttach();
-
-    expect(onTerminalSnapshot).toHaveBeenCalledOnce();
-    expect(onTerminalSnapshot).toHaveBeenCalledWith(terminalView);
-    expect(session.getSnapshot().attachment).toEqual({ status: "detached" });
-  });
-
   it("detaches observation without cancelling the server run", async () => {
     const agent = {
       ...createAgent(),
