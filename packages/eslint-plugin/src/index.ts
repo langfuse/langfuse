@@ -3,6 +3,7 @@ import { default as noArbitraryColors } from "./rules/no-arbitrary-colors.js";
 import { default as noInSourceVitest } from "./rules/no-in-source-vitest.js";
 import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-elements.js";
 import { default as noOverlayZindex } from "./rules/no-overlay-zindex.js";
+import { default as noRawColors } from "./rules/no-raw-colors.js";
 import { default as noRawFontWeight } from "./rules/no-raw-font-weight.js";
 import { default as requireTitleWithTruncate } from "./rules/require-title-with-truncate.js";
 import { default as noStyleProps } from "./rules/no-style-props.js";
@@ -15,6 +16,7 @@ const plugin = {
     "no-in-source-vitest": noInSourceVitest,
     "no-margin-on-root-elements": noMarginOnRootElements,
     "no-overlay-zindex": noOverlayZindex,
+    "no-raw-colors": noRawColors,
     "no-raw-font-weight": noRawFontWeight,
     "no-style-props": noStyleProps,
     "no-switch-statements": noSwitchStatements,

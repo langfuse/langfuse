@@ -5,6 +5,82 @@ import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
 
 import nextConfig from "@repo/eslint-config/next";
 
+// Grandfathered baseline for @repo/no-raw-colors — baseline 2026-08-04.
+// Raw Tailwind palette colors (bg-blue-500, text-red-600, text-white, …) are
+// banned moving forward; these files predate the ban and burn down over time.
+// Remove entries as files are cleaned. NEVER add entries.
+// The ThemeTokens docs pages legitimately reference palette names and stay
+// excluded (trailing `/` silences the directory).
+const noRawColorsBaseline = [
+  // The ThemeTokens docs pages legitimately reference palette names.
+  "web/src/components/design-system/ThemeTokens/",
+  // Baseline (sorted):
+  "web/src/components/ChatMessages/ToolCallCard.tsx",
+  "web/src/components/DiffViewer.tsx",
+  "web/src/components/ModelParameters/index.tsx",
+  "web/src/components/grouped-score-badge.tsx",
+  "web/src/components/layouts/app-layout/variants/AuthenticatedLayout.tsx",
+  "web/src/components/session/TraceEventsRow.tsx",
+  "web/src/components/table/ValueCell.tsx",
+  "web/src/components/table/data-table-ai-filters.tsx",
+  "web/src/components/trace/components/IOPreview/components/CorrectedOutputField.tsx",
+  "web/src/components/trace/components/TraceLogView/LogViewToolbar.tsx",
+  "web/src/components/trace/components/TraceTimeline/TimelineBar.tsx",
+  "web/src/components/trace/components/_layout/TraceLayoutDesktop.tsx",
+  "web/src/components/trace/components/_layout/TracePanelNavigationButton.tsx",
+  "web/src/components/ui/AdvancedJsonViewer/lazy/react/LazyJsonRow.tsx",
+  "web/src/components/ui/PrettyJsonView.tsx",
+  "web/src/components/ui/alert-dialog.tsx",
+  "web/src/components/ui/dialog.tsx",
+  "web/src/components/ui/dropdown-menu.tsx",
+  "web/src/components/ui/media/MediaTag.tsx",
+  "web/src/components/ui/sheet.tsx",
+  "web/src/ee/features/billing/components/BillingActionButtons.tsx",
+  "web/src/ee/features/billing/components/BillingScheduleNotification.tsx",
+  "web/src/ee/features/billing/components/BillingSwitchPlanDialog.tsx",
+  "web/src/features/automations/components/AutomationExecutionsTable.tsx",
+  "web/src/features/automations/components/actions/WebhookActionForm.tsx",
+  "web/src/features/batch-actions/components/AddObservationsToDatasetDialog/StatusStep.tsx",
+  "web/src/features/batch-actions/components/AddObservationsToDatasetDialog/components/IssueBanner.tsx",
+  "web/src/features/batch-actions/components/AddObservationsToDatasetDialog/components/JsonPathInput.tsx",
+  "web/src/features/batch-actions/components/AddObservationsToDatasetDialog/components/MappingPreviewPanel.tsx",
+  "web/src/features/chart-view-prototype/components/MockEventsTable.tsx",
+  "web/src/features/cloud-status-notification/components/CloudStatusMenu.tsx",
+  "web/src/features/comments/components/MentionBadge.tsx",
+  "web/src/features/datasets/components/DatasetForm.tsx",
+  "web/src/features/evals/components/delete-eval-template-dialog.tsx",
+  "web/src/features/evals/components/evaluator-selector.tsx",
+  "web/src/features/evals/components/template-selector.tsx",
+  "web/src/features/events/components/V4IntroDialog.tsx",
+  "web/src/features/experiments/components/MultiStepExperimentForm.tsx",
+  "web/src/features/experiments/components/RemoteExperimentUpsertForm.tsx",
+  "web/src/features/experiments/components/table/types.ts",
+  "web/src/features/feature-previews/components/FeaturePreviewModal.tsx",
+  "web/src/features/filters/components/filter-builder.tsx",
+  "web/src/features/in-app-agent/components/InAppAgentWindow.tsx",
+  "web/src/features/models/components/test-match/TestModelMatchDialog.tsx",
+  "web/src/features/monitors/components/MonitorSeverityBadge.tsx",
+  "web/src/features/payment-banner/PaymentBanner.tsx",
+  "web/src/features/playground/page/components/MessagePlaceholderComponent.tsx",
+  "web/src/features/playground/page/components/NoModelConfiguredAlert.tsx",
+  "web/src/features/playground/page/components/PromptVariableComponent.tsx",
+  "web/src/features/playground/page/components/SaveToPromptButton.tsx",
+  "web/src/features/prompts/components/delete-folder.tsx",
+  "web/src/features/prompts/components/delete-prompt-version.tsx",
+  "web/src/features/prompts/components/delete-prompt.tsx",
+  "web/src/features/prompts/components/duplicate-folder.tsx",
+  "web/src/features/public-api/components/CreateLLMApiKeyForm.tsx",
+  "web/src/features/score-analytics/components/charts/MetricCard.tsx",
+  "web/src/features/slack/components/SlackConnectionCard.tsx",
+  "web/src/features/support-chat/SuccessSection.tsx",
+  "web/src/features/support-chat/SupportFormSection.tsx",
+  "web/src/features/trace-graph-view/components/GraphNode.tsx",
+  "web/src/features/v4-migration/V4MigrationBadgeContent.tsx",
+  "web/src/features/v4-migration/V4MigrationNavItem.tsx",
+  "web/src/features/v4-migration/V4MigrationProjectChip.tsx",
+  "web/src/features/widgets/components/WidgetForm.tsx",
+];
+
 // eslint-plugin-tailwindcss types this as Config | ConfigArray, but the
 // recommended export is a single flat config object with rules at runtime.
 const tailwindcssRecommendedConfig =
@@ -145,15 +221,18 @@ export default [
   // (`font-bold` for the bold role; text-* size tokens carry the regular
   // weight), and colors must come from design tokens — palette utilities or
   // token-backed arbitrary values like `bg-[hsl(var(--muted))]`. Raw weight
-  // utilities (font-medium, font-semibold, …) and raw colors in arbitrary
-  // values (bg-[#fff], shadow-[…rgb(0_0_0/0.3)]) escape the system and break
-  // theming.
+  // utilities (font-medium, font-semibold, …), raw colors in arbitrary
+  // values (bg-[#fff], shadow-[…rgb(0_0_0/0.3)]), and raw Tailwind palette
+  // colors (bg-blue-500, hover:text-red-600, text-white) escape the system
+  // and break theming. Existing raw-palette usages are grandfathered via
+  // `noRawColorsBaseline` above — burn the list down, never grow it.
   {
     name: "langfuse/web/design-tokens",
     files: ["src/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-raw-font-weight": "error",
       "@repo/no-arbitrary-colors": "error",
+      "@repo/no-raw-colors": ["error", { allowFiles: noRawColorsBaseline }],
     },
   },
 
