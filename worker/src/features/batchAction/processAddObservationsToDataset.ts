@@ -88,12 +88,15 @@ async function processChunk(params: {
     const result = await createManyDatasetItems({
       projectId,
       items,
-      // Full-mode mappings pass the raw ClickHouse input/output through
-      // verbatim (Nullable(String) columns), so those JSON strings still need
-      // decoding here. Custom JSONPath mappings already decode in
-      // applyFieldMapping, so an extracted bare scalar string gets re-parsed a
-      // second time — a pre-existing #15342-class coercion tracked separately,
-      // not addressed here to avoid changing documented batch-action behaviour.
+      // parseJsonStrings is only strictly correct for the events-table stream
+      // (getEventsStreamForDataset), which yields raw ClickHouse input/output.
+      // The default observations-table stream (getObservationStream) already
+      // decodes them upstream via convertObservation/applyInputOutputRendering
+      // (shouldJsonParse), so re-parsing here double-decodes a bare scalar
+      // string on that path — a pre-existing #15342-class coercion, not a
+      // regression (the validator parsed unconditionally before this change).
+      // Left as a follow-up: a real fix (decode in the events stream and drop
+      // this flag) would change documented batch-action output.
       normalizeOpts: { sanitizeControlChars: true, parseJsonStrings: true },
       validateOpts: { normalizeUndefinedToNull: true },
       allowPartialSuccess: true, // Allow partial success for bulk operations
