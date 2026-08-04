@@ -26,7 +26,7 @@ import {
 } from "@langfuse/shared";
 import { HOME_PRESET_METADATA } from "@/src/features/dashboard/components/home-preset-registry";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
+import { InAppAgentWidgetComposer } from "./components/InAppAgentWidgetComposer";
 
 export type WidgetItem = {
   id: string;
