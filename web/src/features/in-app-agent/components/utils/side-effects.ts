@@ -5,7 +5,7 @@ import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
 
-export type InAppAgentTrpcInvalidationTarget =
+type InAppAgentTrpcInvalidationTarget =
   | "annotationQueues"
   | "annotationQueueItems"
   | "annotationQueueAssignments"
@@ -123,7 +123,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   readonly InAppAgentTrpcInvalidationTarget[]
 >;
 
-export function getInAppAgentTrpcInvalidationTargets(toolName: string) {
+function getInAppAgentTrpcInvalidationTargets(toolName: string) {
   return (
     IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS[
       toolName as keyof typeof IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS
@@ -146,7 +146,7 @@ export function shouldPerformToolSideEffects(toolError: unknown) {
   return parsedError.code !== IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE;
 }
 
-export function performTargetInvalidation(
+function performTargetInvalidation(
   target: InAppAgentTrpcInvalidationTarget,
   utils: ReturnType<typeof api.useUtils>,
 ) {
