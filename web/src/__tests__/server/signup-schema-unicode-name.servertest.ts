@@ -95,6 +95,25 @@ describe("signupSchema name validation", () => {
     expect(result.success).toBe(false);
   });
 
+  it("trims surrounding whitespace from the email before validating (#15780)", () => {
+    for (const email of [
+      "test@example.com ",
+      " test@example.com",
+      "\ttest@example.com\t",
+    ]) {
+      const result = signupSchema.safeParse({
+        ...validBaseInput,
+        name: "André",
+        email,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.email).toBe("test@example.com");
+      }
+    }
+  });
+
   it("rejects names with disallowed punctuation", () => {
     const result = signupSchema.safeParse({
       ...validBaseInput,

@@ -13,6 +13,7 @@ import {
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { normalizeEmail } from "@/src/features/auth/lib/emailSchema";
 import {
   type AdapterUser,
   type Adapter,
@@ -87,8 +88,14 @@ const staticProviders: Provider[] = [
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );
 
+      // Normalize once so the SSO-enforcement checks and the user lookup all
+      // read the same value. Trimming only the lookup would let a trailing
+      // space skip domain-based SSO enforcement while still matching a user
+      // (#15780).
+      const email = normalizeEmail(credentials.email);
+
       const blockedDomains = getSSOBlockedDomains();
-      const domain = credentials.email.split("@")[1]?.toLowerCase();
+      const domain = email.split("@")[1];
       if (domain && blockedDomains.includes(domain)) {
         throw new Error(
           "Sign in with email and password is disabled for this domain. Please use SSO.",
@@ -104,7 +111,7 @@ const staticProviders: Provider[] = [
 
       const dbUser = await prisma.user.findUnique({
         where: {
-          email: credentials.email.toLowerCase(),
+          email,
         },
       });
 

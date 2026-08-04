@@ -17,11 +17,12 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { emailSchema } from "@/src/features/auth/lib/emailSchema";
 import { env } from "@/src/env.mjs";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 const enterpriseSsoFormSchema = z.object({
-  email: z.email(),
+  email: emailSchema,
 });
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -166,6 +167,7 @@ export default function EnterpriseSsoRequiredPage() {
                     <FormLabel>Email</FormLabel>
                     <FormControl>
                       <Input
+                        type="email"
                         placeholder="jsdoe@example.com"
                         allowPasswordManager
                         autoComplete="email"

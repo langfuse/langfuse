@@ -3,8 +3,8 @@ import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { useState } from "react";
-import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { emailSchema } from "@/src/features/auth/lib/emailSchema";
 import { env } from "@/src/env.mjs";
 
 export function RequestResetPasswordEmailButton({
@@ -24,10 +24,13 @@ export function RequestResetPasswordEmailButton({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const session = useSession();
   const capture = usePostHogClientCapture();
-  const isValidEmail = z.email().safeParse(email).success;
+  // Trim before validating so a pasted email with a stray space still passes
+  // the guard, and send the trimmed value to the reset request (#15780).
+  const parsedEmail = emailSchema.safeParse(email);
+  const isValidEmail = parsedEmail.success;
 
   const handleResetPassword = async () => {
-    if (!isValidEmail) return;
+    if (!parsedEmail.success) return;
     capture("auth:reset_password_email_requested");
     setIsLoading(true);
     setErrorMessage(null);
@@ -36,7 +39,7 @@ export function RequestResetPasswordEmailButton({
         ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`
         : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
       const res = await signIn("email", {
-        email: email,
+        email: parsedEmail.data,
         callbackUrl: targetCallbackUrl,
         redirect: false,
       });

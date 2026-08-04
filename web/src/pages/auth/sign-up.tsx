@@ -9,6 +9,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
+import { emailSchema } from "@/src/features/auth/lib/emailSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -46,7 +47,7 @@ const signupVerifyFormSchema = z.object({
   }).refine((value) => /^[a-zA-Z0-9\s]+$/.test(value), {
     message: "Name can only contain letters, numbers, and spaces",
   }),
-  email: z.email(),
+  email: emailSchema,
 });
 
 type SignupPhase = "form" | "otp";
@@ -119,19 +120,11 @@ function StandardSignupFlow({
     setFormError(null);
     form.clearErrors();
 
-    // Ensure email is valid before hitting the API
-    // We use z.email() manually because we don't use the full schema resolver in the first step
-    // or we could just trigger validation for the email field only
+    // Ensure email is valid before hitting the API. We validate the email field
+    // on its own here because this first step does not run the full signup
+    // schema resolver (name/password are not filled yet). emailSchema trims, so
+    // the domain we derive below matches what the server will normalize to.
     const emailValue = form.getValues("email");
-    // Basic check using zod directly or trigger
-    // Using trigger("email") might validate against the full schema if we don't be careful,
-    // but since we conditionally set the resolver, it might be tricky.
-    // Simplest is manual check here matching what sign-in does.
-    // Note: signupSchema has name and password as required, so trigger() would fail on those if using full schema.
-
-    // Manual email validation to match sign-in behavior
-    // Although signupSchema.shape.email is ZodString, let's just use a new Zod check for simplicity and robustness
-    const emailSchema = z.email();
     const emailResult = emailSchema.safeParse(emailValue);
 
     if (!emailResult.success) {
@@ -259,6 +252,7 @@ function StandardSignupFlow({
                 <FormLabel>Email</FormLabel>
                 <FormControl>
                   <Input
+                    type="email"
                     placeholder="jsdoe@example.com"
                     allowPasswordManager
                     autoComplete="email"
@@ -504,6 +498,7 @@ function VerifiedSignupFlow({
                 <FormLabel>Email</FormLabel>
                 <FormControl>
                   <Input
+                    type="email"
                     placeholder="jsdoe@example.com"
                     allowPasswordManager
                     autoComplete="email"

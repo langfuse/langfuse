@@ -31,6 +31,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { emailSchema } from "@/src/features/auth/lib/emailSchema";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
@@ -56,7 +57,7 @@ const PREVIEW_DEMO_USER_EMAIL = "demo@langfuse.com";
 const PREVIEW_DEMO_USER_PASSWORD = "password";
 
 const credentialAuthForm = z.object({
-  email: z.email(),
+  email: emailSchema,
   password: z.string().min(8, {
     message: "Password must be at least 8 characters long",
   }),
@@ -721,8 +722,8 @@ export default function SignIn({
     setCredentialsFormError(null);
     credentialsForm.clearErrors();
 
-    // Ensure email is valid before hitting the API
-    const emailSchema = z.email();
+    // Ensure email is valid before hitting the API. emailSchema trims, so the
+    // domain we derive below matches what the server will normalize to.
     const email = emailSchema.safeParse(credentialsForm.getValues("email"));
     if (!email.success) {
       credentialsForm.setError("email", {
@@ -848,6 +849,7 @@ export default function SignIn({
                           <FormLabel>Email</FormLabel>
                           <FormControl>
                             <Input
+                              type="email"
                               placeholder="jsdoe@example.com"
                               allowPasswordManager
                               autoComplete="email"
