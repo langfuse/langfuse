@@ -167,17 +167,6 @@ export const IN_APP_AGENT_MESSAGE_ENTRY_POINTS = [
 export type InAppAgentMessageEntryPoint =
   (typeof IN_APP_AGENT_MESSAGE_ENTRY_POINTS)[number];
 
-export function createInAppAgentMessageEntryPointContext(
-  entryPoint: InAppAgentMessageEntryPoint,
-): InAppAgentContext {
-  return [
-    {
-      description: MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION,
-      value: entryPoint,
-    },
-  ];
-}
-
 function sanitizeUserContext(context: InAppAgentContext): InAppAgentContext {
   return context.flatMap((item) => {
     if (!USER_CONTEXT_DESCRIPTIONS.has(item.description)) {
