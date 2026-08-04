@@ -4,7 +4,7 @@ import {
   projectInAppAgentMessagesForDisplay,
   recordInAppAgentMessagesForDisplay,
   recordInAppAgentToolCallForDisplay,
-} from "./InAppAiAgentProvider";
+} from "@/src/features/in-app-agent/lib/display";
 
 const assistantToolMessage = {
   id: "assistant-tools",
@@ -20,7 +20,7 @@ const assistantToolMessage = {
   })),
 } satisfies AgUiMessage;
 
-describe("in-app agent display order", () => {
+describe("in-app agent display projection", () => {
   it("keeps consecutive tool calls with the same parent together", () => {
     const assistantMessage = {
       id: "assistant-tools",

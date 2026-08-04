@@ -1,5 +1,3 @@
-import { getServerSession } from "next-auth";
-
 import { BaseError, ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
@@ -9,7 +7,7 @@ import { watchConversationFrames } from "@langfuse/shared/in-app-agent/server/wa
 import { z } from "zod";
 
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
-import { getAuthOptions } from "@/src/server/auth";
+import { getServerAuthSessionForRequest } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 
 const WatchQuerySchema = z.object({
@@ -20,8 +18,7 @@ const WatchQuerySchema = z.object({
 
 export default async function watchHandler(request: Request) {
   try {
-    const authOptions = await getAuthOptions();
-    const session = await getServerSession(authOptions);
+    const session = await getServerAuthSessionForRequest(request);
 
     if (!session?.user) {
       throw new UnauthorizedError("Unauthenticated");

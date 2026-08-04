@@ -6,12 +6,13 @@ import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 
-// Mock recordHistogram, recordCount, recordGauge
+// Mock recordHistogram, recordDistribution, recordCount, recordGauge
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original = (await importOriginal()) as {};
   return {
     ...original,
     recordHistogram: vi.fn(),
+    recordDistribution: vi.fn(),
     recordIncrement: vi.fn(),
     recordCount: vi.fn(),
     recordGauge: vi.fn(),
@@ -319,7 +320,8 @@ describe("ClickhouseWriter", () => {
   });
 
   it("should report wait time and processing time metrics correctly", async () => {
-    const metricsDistributionSpy = vi.spyOn(serverExports, "recordHistogram");
+    const histogramSpy = vi.spyOn(serverExports, "recordHistogram");
+    const distributionSpy = vi.spyOn(serverExports, "recordDistribution");
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
@@ -328,16 +330,36 @@ describe("ClickhouseWriter", () => {
 
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
-    expect(metricsDistributionSpy).toHaveBeenCalledWith(
+    expect(histogramSpy).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.wait_time",
       expect.any(Number),
       { unit: "milliseconds" },
     );
 
-    expect(metricsDistributionSpy).toHaveBeenCalledWith(
+    expect(histogramSpy).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.processing_time",
       expect.any(Number),
       { unit: "milliseconds" },
+    );
+
+    expect(distributionSpy).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.time_distribution",
+      expect.any(Number),
+      {
+        entity_type: TableName.Traces,
+        type: "wait",
+        unit: "milliseconds",
+      },
+    );
+
+    expect(distributionSpy).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.time_distribution",
+      expect.any(Number),
+      {
+        entity_type: TableName.Traces,
+        type: "processing",
+        unit: "milliseconds",
+      },
     );
   });
 

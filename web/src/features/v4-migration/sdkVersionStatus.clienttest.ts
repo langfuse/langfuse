@@ -28,6 +28,10 @@ const getLoadedSdkState = (...sdkUsageSeries: ReturnType<typeof sdkSeries>[]) =>
       projectId: "project-1",
       outdatedSdkUsageSeriesCount: 0,
       delayedOtelIngestionSeriesCount: 0,
+      experimentInstrumentationMigration: {
+        status: "not_required",
+        upgradePath: null,
+      },
       sdkUsageSeries,
     },
     isError: false,

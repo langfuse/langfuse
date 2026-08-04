@@ -33,6 +33,7 @@ import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/use
 import {
   getProjectMigrationReadiness,
   V4_MIGRATION_LOOKBACK_DAYS,
+  type MigrationActionState,
   type MigrationCountState,
 } from "@/src/features/v4-migration/migrationData";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -67,6 +68,8 @@ const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
   "Blob Storage":
     "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path",
 };
+const EXPERIMENT_OTEL_INGESTION_URL =
+  "https://langfuse.com/integrations/native/opentelemetry/experiments";
 
 // Copies the agent migration prompt to the clipboard with toast + analytics;
 // shared by the panel/modal header CTA and the status page.
@@ -196,6 +199,22 @@ function MigrationCountChip({
     <Chip variant="warning">
       {state.count} {affectedLabel}
     </Chip>
+  );
+}
+
+function MigrationActionChip({ state }: { state: MigrationActionState }) {
+  if (state.status === "loading") {
+    return <Chip variant="warning">Checking</Chip>;
+  }
+  if (state.status === "error") {
+    return <Chip variant="warning">Check failed</Chip>;
+  }
+  return state.result === "required" ? (
+    <Chip variant="warning">Update required</Chip>
+  ) : state.result === "sdk_usage_inconclusive" ? (
+    <Chip variant="warning">Needs review</Chip>
+  ) : (
+    <Chip variant="success">Up to date</Chip>
   );
 }
 
@@ -640,6 +659,69 @@ export function V4MigrationDetailsContent({
             ) : (
               <p className="text-muted-foreground text-sm">
                 No deprecated evals detected.
+              </p>
+            )}
+          </Section>
+
+          <Section
+            title="Experiments"
+            chip={<MigrationActionChip state={migrationData.experiments} />}
+          >
+            {migrationData.experiments.status === "loading" ? (
+              <p className="text-muted-foreground text-sm">
+                Checking experiment instrumentation…
+              </p>
+            ) : migrationData.experiments.status === "error" ? (
+              <p className="text-muted-foreground text-sm">
+                We could not check experiment instrumentation. Try again later.
+              </p>
+            ) : migrationData.experiments.result !== "not_required" ? (
+              <p className="text-muted-foreground text-sm">
+                {migrationData.experimentInstrumentationUpgradePath ===
+                "api" ? (
+                  <>
+                    This project called the deprecated{" "}
+                    <MonoValue>POST /dataset-run-items</MonoValue>. Replace this
+                    direct API call with OTel experiment instrumentation. See
+                    the{" "}
+                    <ExternalLink href={EXPERIMENT_OTEL_INGESTION_URL}>
+                      OTel experiment instrumentation guide
+                    </ExternalLink>{" "}
+                    for more details.
+                  </>
+                ) : migrationData.experiments.result ===
+                  "sdk_usage_inconclusive" ? (
+                  <>
+                    This project called{" "}
+                    <MonoValue>POST /dataset-run-items</MonoValue> with an SDK
+                    version that supports the experiment runner. Review that you
+                    are using the experiment runner SDK and not the deprecated{" "}
+                    <>
+                      <>
+                        <code className="bg-muted px-1 font-mono text-sm">
+                          .link()
+                        </code>{" "}
+                        method. This warning will{" "}
+                      </>
+                      disappear once you{" "}
+                    </>
+                    upgrade to latest SDK version.
+                  </>
+                ) : (
+                  <>
+                    This project called{" "}
+                    <MonoValue>POST /dataset-run-items</MonoValue> with an
+                    outdated SDK.{" "}
+                    <ExternalLink href={SDK_UPGRADE_URL}>
+                      Upgrade the SDK
+                    </ExternalLink>{" "}
+                    and use the experiment runner method.
+                  </>
+                )}
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No experiment instrumentation updates required.
               </p>
             )}
           </Section>

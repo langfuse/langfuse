@@ -972,12 +972,13 @@ export class QueryBuilder {
 
     // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
     // When the view has a rootEventCondition, prefer the root event's timestamp for
-    // time bucketing. Falls back to min(start_time) when no root event exists for a
-    // trace (e.g. parent_span_id is not populated).
+    // time bucketing. Falls back to min(start_time) when no semantic-root event
+    // exists for a trace.
     let wrappedSql: string;
     if (wrapInAgg && view.rootEventCondition) {
-      const alias = this.tableAlias(view);
-      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${alias}.${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
+      // The condition owns its qualification because prefixing a compound SQL
+      // expression here would produce invalid SQL such as `alias.(a OR b)`.
+      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
     } else if (wrapInAgg) {
       wrappedSql = `${wrapInAgg}(${timeDimensionSql})`;
     } else {
@@ -1655,13 +1656,14 @@ export class QueryBuilder {
         const toP = `subTo${uid}`;
         const projP = `subProj${uid}`;
         const baseTable = this.actualTableName(view);
+        const tableAlias = this.tableAlias(view);
         const { column, condition } = view.rootEventCondition;
         const subquery =
-          `SELECT ${column} FROM ${baseTable} ` +
-          `WHERE project_id = {${projP}: String} ` +
+          `SELECT ${tableAlias}.${column} FROM ${baseTable} ${tableAlias} ` +
+          `WHERE ${tableAlias}.project_id = {${projP}: String} ` +
           `AND ${condition} ` +
-          `AND ${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
-          `AND ${view.timeDimension} <= {${toP}: DateTime64(3)}`;
+          `AND ${tableAlias}.${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
+          `AND ${tableAlias}.${view.timeDimension} <= {${toP}: DateTime64(3)}`;
         fromClause +=
           ` AND (${baseTable}.${column} IN (${subquery})` +
           ` OR NOT EXISTS (${subquery} LIMIT 1))`;
