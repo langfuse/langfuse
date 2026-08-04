@@ -46,10 +46,10 @@ import {
   expandMarkdownSelection,
   getMarkdownSourceRangeFromRenderedOffsets,
   projectMarkdownToRenderedText,
-} from "./utils/markdown";
+} from "../../../utils/markdown";
 import styles from "./InAppAgentMessage.module.css";
-import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
-import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
+import { InAppAgentToolPayload } from "../../../InAppAgentToolPayload";
+import { InAppAgentToolResultPayload } from "../../../InAppAgentToolResultPayload";
 import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/components/utils/utils";
 
 export type InAppAgentMessageRole = "assistant" | "user";
