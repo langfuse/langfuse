@@ -2,12 +2,16 @@ import {
   aggregateLegacyApiUsage,
   createV4MigrationDetectionRange,
   getLegacyIntegrationLabels,
+  getMigrationActionState,
   getMigrationCountState,
   getProjectMigrationReadiness,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
 
 const loaded = (count: number) => ({ status: "loaded" as const, count });
+const loadedAction = (
+  result: "required" | "not_required" | "sdk_usage_inconclusive",
+) => ({ status: "loaded" as const, result });
 const migrationStatus = (
   overrides: Partial<ProjectMigrationStatus> = {},
 ): ProjectMigrationStatus => ({
@@ -18,6 +22,7 @@ const migrationStatus = (
     delayedOtelIngestionCount: 0,
   },
   evals: loaded(0),
+  experiments: loadedAction("not_required"),
   apis: loaded(0),
   exports: loaded(0),
   ...overrides,
@@ -48,6 +53,16 @@ describe("v4 migration data", () => {
         return data.count;
       }),
     ).toEqual(loaded(0));
+    expect(getMigrationActionState(null, () => "required")).toEqual({
+      status: "loading",
+      result: null,
+    });
+    expect(
+      getMigrationActionState(
+        { data: { result: "required" as const }, isError: false },
+        (data) => data.result,
+      ),
+    ).toEqual(loadedAction("required"));
   });
 
   it("only marks a fully loaded project without affected items as ready", () => {
@@ -74,6 +89,18 @@ describe("v4 migration data", () => {
     ).toBe("ready");
     expect(
       getProjectMigrationReadiness(migrationStatus({ evals: loaded(1) })),
+    ).toBe("action-needed");
+    expect(
+      getProjectMigrationReadiness(
+        migrationStatus({ experiments: loadedAction("required") }),
+      ),
+    ).toBe("action-needed");
+    expect(
+      getProjectMigrationReadiness(
+        migrationStatus({
+          experiments: loadedAction("sdk_usage_inconclusive"),
+        }),
+      ),
     ).toBe("action-needed");
     expect(
       getProjectMigrationReadiness(

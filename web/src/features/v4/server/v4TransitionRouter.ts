@@ -191,7 +191,16 @@ type SdkUsageSummaryByProjectResultRow = {
   projectId: string;
   outdatedSdkUsageSeriesCount: number;
   delayedOtelIngestionSeriesCount: number;
+  experimentInstrumentationMigration: {
+    status: "required" | "not_required" | "sdk_usage_inconclusive";
+    upgradePath: "sdk" | "api" | null;
+  };
   sdkUsageSeries: SdkUsageSummaryByProjectSeries[];
+};
+
+type DatasetRunItemsPostUsageByProjectRow = {
+  projectId: string;
+  count: string | number;
 };
 
 const getEmptyTimelineBuckets = (
@@ -931,8 +940,9 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
-      const rows = await queryClickhouse<SdkUsageSummaryByProjectRow>({
-        query: `
+      const [rows, datasetRunItemsPostUsageRows] = await Promise.all([
+        queryClickhouse<SdkUsageSummaryByProjectRow>({
+          query: `
 WITH selected AS (
   SELECT
     project_id,
@@ -964,18 +974,51 @@ SELECT
 FROM selected
 GROUP BY project_id, sdk_name, sdk_version, public_key
 ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
-        `,
-        params: {
-          projectIds,
-          fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
-          toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
-          internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
-        },
-        tags: {
-          route: "v4-org-sdk-usage-summary",
-        },
-        preferredClickhouseService: "EventsReadOnly",
-      });
+          `,
+          params: {
+            projectIds,
+            fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
+            toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
+            internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
+          },
+          tags: {
+            route: "v4-org-sdk-usage-summary",
+          },
+          preferredClickhouseService: "EventsReadOnly",
+        }),
+        queryClickhouse<DatasetRunItemsPostUsageByProjectRow>({
+          query: `
+SELECT
+  JSONExtractString(log_comment, 'projectId') AS projectId,
+  count() AS count
+FROM ${systemTableRef("system.query_log")}
+WHERE
+  event_time >= {fromTimestamp: DateTime64(3)}
+  AND event_time <= {toTimestamp: DateTime64(3)}
+  AND event_date >= toDate({fromTimestamp: DateTime64(3)})
+  AND event_date <= toDate({toTimestamp: DateTime64(3)})
+  AND type = 'QueryFinish'
+  AND JSONExtractString(log_comment, 'tag_schema_version') = '1'
+  AND JSONExtractString(log_comment, 'surface') = 'publicapi'
+  AND JSONExtractString(log_comment, 'projectId') IN {projectIds: Array(String)}
+  AND splitByChar('?', JSONExtractString(log_comment, 'route'))[1] = 'POST /api/public/dataset-run-items'
+GROUP BY projectId
+SETTINGS skip_unavailable_shards = 1
+          `,
+          params: {
+            projectIds,
+            fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
+            toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
+          },
+          tags: {
+            route: "v4-org-experiment-instrumentation-summary",
+          },
+          preferredClickhouseService: "ReadOnly",
+          clickhouseSettings: {
+            skip_unavailable_shards: 1,
+          },
+        }),
+      ]);
 
       const rowsByProjectId = new Map<string, SdkUsageSummaryByProjectRow[]>();
       for (const row of rows) {
@@ -983,6 +1026,11 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
         projectRows.push(row);
         rowsByProjectId.set(row.projectId, projectRows);
       }
+      const projectsUsingDatasetRunItemsPost = new Set(
+        datasetRunItemsPostUsageRows
+          .filter((row) => Number(row.count) > 0)
+          .map((row) => row.projectId),
+      );
 
       return projectIds.map((projectId): SdkUsageSummaryByProjectResultRow => {
         const projectRows = (rowsByProjectId.get(projectId) ?? []).map(
@@ -1049,6 +1097,55 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
             };
           },
         );
+        const usesDatasetRunItemsPost =
+          projectsUsingDatasetRunItemsPost.has(projectId);
+        const langfuseSdkUsage = projectRows.filter(
+          (series) => series.canonicalSdkName !== null,
+        );
+        const hasCurrentExperimentInstrumentation =
+          langfuseSdkUsage.length > 0 &&
+          langfuseSdkUsage.every(
+            (series) =>
+              getSdkVersionCapabilityStatus(
+                {
+                  language: series.sdkName,
+                  version: series.sdkVersion,
+                },
+                "experimentLinkDeprecation",
+              ) === "supported",
+          );
+        const hasInconclusiveExperimentSdkUsage = langfuseSdkUsage.some(
+          (series) => {
+            const runnerStatus = getSdkVersionCapabilityStatus(
+              {
+                language: series.sdkName,
+                version: series.sdkVersion,
+              },
+              "experimentRunner",
+            );
+            const currentInstrumentationStatus = getSdkVersionCapabilityStatus(
+              {
+                language: series.sdkName,
+                version: series.sdkVersion,
+              },
+              "experimentLinkDeprecation",
+            );
+
+            return (
+              currentInstrumentationStatus === "unknown" ||
+              (runnerStatus !== "unsupported" &&
+                currentInstrumentationStatus !== "supported")
+            );
+          },
+        );
+        const experimentInstrumentationMigration: SdkUsageSummaryByProjectResultRow["experimentInstrumentationMigration"] =
+          !usesDatasetRunItemsPost
+            ? { status: "not_required", upgradePath: null }
+            : hasCurrentExperimentInstrumentation
+              ? { status: "not_required", upgradePath: null }
+              : hasInconclusiveExperimentSdkUsage
+                ? { status: "sdk_usage_inconclusive", upgradePath: "sdk" }
+                : { status: "required", upgradePath: "api" };
 
         return {
           projectId,
@@ -1064,6 +1161,7 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
               series.hasDelayedOtelEvents === true &&
               series.canonicalSdkName === null,
           ).length,
+          experimentInstrumentationMigration,
           sdkUsageSeries,
         };
       });

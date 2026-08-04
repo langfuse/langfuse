@@ -1506,78 +1506,80 @@ describe("v4TransitionRouter", () => {
   });
 
   it("summarizes outdated SDK usage series by organization project", async () => {
-    mockedQueryClickhouse.mockResolvedValueOnce([
-      {
-        projectId,
-        sdkName: "python",
-        sdkVersion: "3.9.0",
-        publicKey: "pk-lf-python",
-        count: "8",
-        firstSeen: "2026-06-24T01:00:00Z",
-        lastSeen: "2026-06-24T02:00:00Z",
-        hasDelayedOtelEvents: "1",
-      },
-      {
-        projectId,
-        sdkName: "python",
-        sdkVersion: "4.14.1",
-        publicKey: "pk-lf-python",
-        count: "13",
-        firstSeen: "2026-06-24T03:00:00Z",
-        lastSeen: "2026-06-24T04:00:00Z",
-        hasDelayedOtelEvents: "1",
-      },
-      {
-        projectId,
-        sdkName: "python",
-        sdkVersion: "4.6.9",
-        publicKey: "pk-lf-pre-v4-python",
-        count: "5",
-        firstSeen: "2026-06-24T12:00:00Z",
-        lastSeen: "2026-06-24T13:00:00Z",
-        hasDelayedOtelEvents: "1",
-      },
-      {
-        projectId,
-        sdkName: "python",
-        sdkVersion: "4.7.0",
-        publicKey: "pk-lf-current-python",
-        count: "6",
-        firstSeen: "2026-06-24T13:30:00Z",
-        lastSeen: "2026-06-24T14:00:00Z",
-        hasDelayedOtelEvents: "1",
-      },
-      {
-        projectId: secondProjectId,
-        sdkName: "@langfuse/tracing",
-        sdkVersion: "5.3.9",
-        publicKey: "pk-lf-old-js",
-        count: "5",
-        firstSeen: "2026-06-24T01:00:00Z",
-        lastSeen: "2026-06-24T04:00:00Z",
-        hasDelayedOtelEvents: "1",
-      },
-      {
-        projectId: secondProjectId,
-        sdkName: "unknown",
-        sdkVersion: "unknown",
-        publicKey: "pk-lf-otel",
-        count: "3",
-        firstSeen: "2026-06-24T01:00:00Z",
-        lastSeen: "2026-06-24T04:00:00Z",
-        hasDelayedOtelEvents: "0",
-      },
-      {
-        projectId: secondProjectId,
-        sdkName: "custom-otel-writer",
-        sdkVersion: "1.2.3",
-        publicKey: "pk-lf-custom-otel",
-        count: "2",
-        firstSeen: "2026-06-24T02:00:00Z",
-        lastSeen: "2026-06-24T03:00:00Z",
-        hasDelayedOtelEvents: "1",
-      },
-    ]);
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          sdkName: "python",
+          sdkVersion: "3.9.0",
+          publicKey: "pk-lf-python",
+          count: "8",
+          firstSeen: "2026-06-24T01:00:00Z",
+          lastSeen: "2026-06-24T02:00:00Z",
+          hasDelayedOtelEvents: "1",
+        },
+        {
+          projectId,
+          sdkName: "python",
+          sdkVersion: "4.14.1",
+          publicKey: "pk-lf-python",
+          count: "13",
+          firstSeen: "2026-06-24T03:00:00Z",
+          lastSeen: "2026-06-24T04:00:00Z",
+          hasDelayedOtelEvents: "1",
+        },
+        {
+          projectId,
+          sdkName: "python",
+          sdkVersion: "4.6.9",
+          publicKey: "pk-lf-pre-v4-python",
+          count: "5",
+          firstSeen: "2026-06-24T12:00:00Z",
+          lastSeen: "2026-06-24T13:00:00Z",
+          hasDelayedOtelEvents: "1",
+        },
+        {
+          projectId,
+          sdkName: "python",
+          sdkVersion: "4.7.0",
+          publicKey: "pk-lf-current-python",
+          count: "6",
+          firstSeen: "2026-06-24T13:30:00Z",
+          lastSeen: "2026-06-24T14:00:00Z",
+          hasDelayedOtelEvents: "1",
+        },
+        {
+          projectId: secondProjectId,
+          sdkName: "@langfuse/tracing",
+          sdkVersion: "5.3.9",
+          publicKey: "pk-lf-old-js",
+          count: "5",
+          firstSeen: "2026-06-24T01:00:00Z",
+          lastSeen: "2026-06-24T04:00:00Z",
+          hasDelayedOtelEvents: "1",
+        },
+        {
+          projectId: secondProjectId,
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          publicKey: "pk-lf-otel",
+          count: "3",
+          firstSeen: "2026-06-24T01:00:00Z",
+          lastSeen: "2026-06-24T04:00:00Z",
+          hasDelayedOtelEvents: "0",
+        },
+        {
+          projectId: secondProjectId,
+          sdkName: "custom-otel-writer",
+          sdkVersion: "1.2.3",
+          publicKey: "pk-lf-custom-otel",
+          count: "2",
+          firstSeen: "2026-06-24T02:00:00Z",
+          lastSeen: "2026-06-24T03:00:00Z",
+          hasDelayedOtelEvents: "1",
+        },
+      ])
+      .mockResolvedValueOnce([{ projectId, count: "1" }]);
     const mockPrisma = {
       project: {
         findMany: vi
@@ -1598,6 +1600,10 @@ describe("v4TransitionRouter", () => {
         projectId,
         outdatedSdkUsageSeriesCount: 1,
         delayedOtelIngestionSeriesCount: 0,
+        experimentInstrumentationMigration: {
+          status: "sdk_usage_inconclusive",
+          upgradePath: "sdk",
+        },
         sdkUsageSeries: [
           {
             sdkName: "python",
@@ -1657,6 +1663,10 @@ describe("v4TransitionRouter", () => {
         projectId: secondProjectId,
         outdatedSdkUsageSeriesCount: 1,
         delayedOtelIngestionSeriesCount: 1,
+        experimentInstrumentationMigration: {
+          status: "not_required",
+          upgradePath: null,
+        },
         sdkUsageSeries: [
           {
             sdkName: "@langfuse/tracing",
@@ -1711,7 +1721,7 @@ describe("v4TransitionRouter", () => {
         id: true,
       },
     });
-    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
+    expect(mockedQueryClickhouse).toHaveBeenCalledTimes(2);
     const usageQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
     expect(usageQuery?.query).toContain("FROM events_core");
     expect(usageQuery?.query).toContain("UNION ALL");
@@ -1745,6 +1755,127 @@ describe("v4TransitionRouter", () => {
     });
     expect(usageQuery?.tags).toEqual({
       route: "v4-org-sdk-usage-summary",
+    });
+
+    const experimentUsageQuery = mockedQueryClickhouse.mock.calls[1]?.[0];
+    expect(experimentUsageQuery?.query).toContain(
+      "splitByChar('?', JSONExtractString(log_comment, 'route'))[1] = 'POST /api/public/dataset-run-items'",
+    );
+    expect(experimentUsageQuery?.query).toContain(
+      "JSONExtractString(log_comment, 'projectId') IN {projectIds: Array(String)}",
+    );
+    expect(experimentUsageQuery?.query).toContain(
+      "event_date >= toDate({fromTimestamp: DateTime64(3)})",
+    );
+    expect(experimentUsageQuery?.params).toMatchObject({
+      projectIds: [projectId, secondProjectId],
+      fromTimestamp: "2026-06-24 00:00:00.000",
+      toTimestamp: "2026-06-25 00:00:00.000",
+    });
+    expect(experimentUsageQuery?.tags).toEqual({
+      route: "v4-org-experiment-instrumentation-summary",
+    });
+  });
+
+  it("requires removing dataset-run-items POST usage for native OTel instrumentation", async () => {
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          publicKey: "pk-lf-otel",
+          count: "3",
+          firstSeen: "2026-06-24T01:00:00Z",
+          lastSeen: "2026-06-24T04:00:00Z",
+          hasDelayedOtelEvents: "0",
+        },
+      ])
+      .mockResolvedValueOnce([{ projectId, count: "1" }]);
+    const caller = createCaller({
+      project: {
+        findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
+      },
+    });
+
+    const [summary] = await caller.sdkUsageSummaryByProject({
+      orgId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(summary).toMatchObject({
+      projectId,
+      experimentInstrumentationMigration: {
+        status: "required",
+        upgradePath: "api",
+      },
+    });
+  });
+
+  it("requires an API upgrade when POST usage predates the experiment runner", async () => {
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          sdkName: "python",
+          sdkVersion: "3.3.5",
+          publicKey: "pk-lf-python",
+          count: "3",
+          firstSeen: "2026-06-24T01:00:00Z",
+          lastSeen: "2026-06-24T04:00:00Z",
+          hasDelayedOtelEvents: "1",
+        },
+      ])
+      .mockResolvedValueOnce([{ projectId, count: "1" }]);
+    const caller = createCaller({
+      project: {
+        findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
+      },
+    });
+
+    const [summary] = await caller.sdkUsageSummaryByProject({
+      orgId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(summary?.experimentInstrumentationMigration).toEqual({
+      status: "required",
+      upgradePath: "api",
+    });
+  });
+
+  it("does not require an upgrade for current experiment instrumentation", async () => {
+    mockedQueryClickhouse
+      .mockResolvedValueOnce([
+        {
+          projectId,
+          sdkName: "python",
+          sdkVersion: "4.0.0",
+          publicKey: "pk-lf-python",
+          count: "3",
+          firstSeen: "2026-06-24T01:00:00Z",
+          lastSeen: "2026-06-24T04:00:00Z",
+          hasDelayedOtelEvents: "1",
+        },
+      ])
+      .mockResolvedValueOnce([{ projectId, count: "1" }]);
+    const caller = createCaller({
+      project: {
+        findMany: vi.fn().mockResolvedValue([{ id: projectId }]),
+      },
+    });
+
+    const [summary] = await caller.sdkUsageSummaryByProject({
+      orgId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+    });
+
+    expect(summary?.experimentInstrumentationMigration).toEqual({
+      status: "not_required",
+      upgradePath: null,
     });
   });
 
