@@ -1155,28 +1155,52 @@ describe("InAppAgentBackgroundClient reconnect", () => {
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("cursor=0");
   });
 
-  it("backs off and stops after repeated responses make no progress", async () => {
+  it("keeps watching across repeated quiet connection rotations", async () => {
     vi.useFakeTimers();
+    const responses = [
+      ...Array.from({ length: 6 }, () => new Response("")),
+      new Response(
+        [
+          sseFrame({
+            type: "event",
+            sequenceNumber: 0,
+            event: {
+              type: EventType.RUN_FINISHED,
+              runId: "run-1",
+              threadId: "conversation-1",
+            },
+          }),
+          sseFrame({ type: "done" }),
+        ].join(""),
+      ),
+    ];
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
-      .mockImplementation(async () => new Response(""));
+      .mockImplementation(async () => responses.shift() ?? new Response(""));
     const client = new InAppAgentBackgroundClient({
       projectId: "project-1",
       conversationId: "conversation-1",
       cursor: -1,
       startRun: vi.fn(),
     });
-    const error = new Promise<unknown>((resolve) => {
-      client.connect().subscribe({ error: resolve });
+    const events: string[] = [];
+    const result = new Promise<string>((resolve, reject) => {
+      client.connect().subscribe({
+        next: (event) => {
+          events.push(event.type);
+        },
+        error: reject,
+        complete: () => {
+          resolve("completed");
+        },
+      });
     });
 
     await vi.runAllTimersAsync();
 
-    await expect(error).resolves.toMatchObject({
-      message: "Assistant watch closed repeatedly without progress",
-      retryable: true,
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    await expect(result).resolves.toBe("completed");
+    expect(events).toEqual([EventType.RUN_FINISHED]);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
   it("fails visibly when the watch returns an invalid frame", async () => {

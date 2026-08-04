@@ -178,6 +178,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     signal: AbortSignal,
   ): Promise<void> {
     let consecutiveFailures = 0;
+    let consecutiveQuietConnections = 0;
 
     while (!signal.aborted) {
       const cursorBeforeRequest = this.cursor;
@@ -220,20 +221,19 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
         return;
       }
 
+      consecutiveFailures = 0;
+
       if (this.cursor !== cursorBeforeRequest) {
-        consecutiveFailures = 0;
+        consecutiveQuietConnections = 0;
         continue;
       }
 
-      consecutiveFailures += 1;
-      if (consecutiveFailures > WATCH_RECONNECT_ATTEMPTS) {
-        throw new BackgroundExecutionConnectionError(
-          "Assistant watch closed repeatedly without progress",
-          { retryable: true },
-        );
-      }
-
-      await sleep(WATCH_RECONNECT_BASE_DELAY_MS * consecutiveFailures, signal);
+      consecutiveQuietConnections += 1;
+      await sleep(
+        WATCH_RECONNECT_BASE_DELAY_MS *
+          Math.min(consecutiveQuietConnections, WATCH_RECONNECT_ATTEMPTS),
+        signal,
+      );
     }
 
     subscriber.complete();
