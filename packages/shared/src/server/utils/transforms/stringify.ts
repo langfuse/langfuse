@@ -1,11 +1,11 @@
-import { decodeUnicodeEscapesOnly } from "../../../utils/unicode";
+import { decodeUnicodeInJson } from "../../../utils/unicode";
 
 // Replacer that keeps bigints JSON-serializable and decodes \uXXXX escapes so
 // that non-ASCII content (e.g. Japanese ingested with Python ensure_ascii=True)
 // renders as real characters instead of escape sequences.
 const stringifyReplacer = (_key: string, value: unknown) => {
   if (typeof value === "bigint") return Number.parseInt(value.toString());
-  if (typeof value === "string") return decodeUnicodeEscapesOnly(value, true);
+  if (typeof value === "string") return decodeUnicodeInJson(value);
   return value;
 };
 
@@ -24,6 +24,6 @@ export const stringify = (data: any, key?: string, indent?: number): string => {
  * are passed through JSON.stringify and then CSV-escaped.
  */
 export const stringifyForCsv = (data: any, key?: string): string => {
-  if (typeof data === "string") return decodeUnicodeEscapesOnly(data, true);
+  if (typeof data === "string") return decodeUnicodeInJson(data) as string;
   return stringify(data, key);
 };

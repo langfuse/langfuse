@@ -29,6 +29,7 @@ import {
 } from "@/src/components/ui/PromptReferences";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import { stringifyJsonNode } from "@/src/components/ui/json-viewer-utils";
 
 export const IO_TABLE_CHAR_LIMIT = 10000;
 
@@ -392,34 +393,3 @@ export const JsonSkeleton = ({
     </div>
   );
 };
-
-// TODO: deduplicate with PrettyJsonView.tsx
-export function stringifyJsonNode(node: unknown) {
-  // return single string nodes without quotes
-  if (typeof node === "string") {
-    return node;
-  }
-
-  try {
-    return JSON.stringify(
-      node,
-      (_key, value) => {
-        switch (typeof value) {
-          case "bigint":
-            return String(value) + "n";
-          case "number":
-          case "boolean":
-          case "object":
-          case "string":
-            return value as string;
-          default:
-            return String(value);
-        }
-      },
-      4,
-    );
-  } catch (error) {
-    console.error("JSON stringify error", error);
-    return "Error: JSON.stringify failed";
-  }
-}

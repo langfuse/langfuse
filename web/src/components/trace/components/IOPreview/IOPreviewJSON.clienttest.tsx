@@ -97,16 +97,16 @@ vi.mock("@langfuse/shared", () => ({
   deepParseJson: (value: unknown) => value,
 }));
 
-// Unicode decoding is orthogonal to the size gate; a spy that returns identity
-// keeps existing tests focused while letting one test assert the all-or-nothing
-// decode rule. A small MAX_NODES makes "over budget" cheap to trigger.
+// Unicode decoding is orthogonal to the render-size gate; a spy that returns
+// identity keeps these tests focused while allowing the shared decode policy
+// options to be asserted.
 const decodeMock = vi.hoisted(() => ({
-  spy: vi.fn((value: unknown) => value),
-  MAX_NODES: 10,
+  spy: vi.fn(
+    (value: unknown, _options?: { estimatedNodeCount?: number }) => value,
+  ),
 }));
 vi.mock("@/src/utils/decodeUnicodeInJson", () => ({
   decodeUnicodeInJson: decodeMock.spy,
-  DECODE_UNICODE_MAX_NODES: decodeMock.MAX_NODES,
 }));
 
 import { IOPreviewJSON } from "./IOPreviewJSON";
@@ -316,14 +316,16 @@ describe("IOPreviewJSON node-count gating", () => {
         traceId="t"
       />,
     );
-    expect(decodeMock.spy).toHaveBeenCalledWith({ answer: "ok" });
+    expect(decodeMock.spy).toHaveBeenCalledWith(
+      { answer: "ok" },
+      { estimatedNodeCount: 2 },
+    );
   });
 
   it("skips decode for a field over the budget — shown raw, never partial/mixed", () => {
-    // decodeUnicodeInJson caps at DECODE_UNICODE_MAX_NODES and copies the rest
-    // un-decoded; since the same value backs the viewer AND the raw download, a
-    // larger field would export mixed decoded/escaped unicode. Over the budget
-    // (here 10) the field must NOT be decoded at all (LFE-10847 review 🟡).
+    // The shared decoder owns the all-or-nothing decision. IOPreview supplies
+    // its existing row-count probe so oversized values are returned unchanged
+    // instead of being partially decoded (LFE-10847 review 🟡).
     decodeMock.spy.mockClear();
     render(
       <IOPreviewJSON
@@ -335,13 +337,14 @@ describe("IOPreviewJSON node-count gating", () => {
         traceId="t"
       />,
     );
-    const decodedArgs = decodeMock.spy.mock.calls.map((c) => c[0]);
-    // The oversized array was never handed to the decoder (all-or-nothing).
     expect(
-      decodedArgs.some(
-        (v) => Array.isArray(v) && v.length > decodeMock.MAX_NODES,
+      decodeMock.spy.mock.calls.some(
+        ([value, options]) =>
+          Array.isArray(value) &&
+          typeof options?.estimatedNodeCount === "number" &&
+          options.estimatedNodeCount > value.length,
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("renders normal small I/O with its data and no fallback", () => {

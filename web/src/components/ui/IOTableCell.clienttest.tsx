@@ -193,3 +193,18 @@ describe("IOTableCell media chip rendering", () => {
     expect(container.textContent).toContain("truncated");
   });
 });
+
+describe("IOTableCell Unicode rendering", () => {
+  it.each([true, false])(
+    "decodes double-escaped Unicode when singleLine=%s",
+    (singleLine) => {
+      const { container } = renderCell({
+        data: "\\\\u65e5\\\\u672c\\\\u8a9e",
+        singleLine,
+      });
+
+      expect(container.textContent).toContain("日本語");
+      expect(container.textContent).not.toContain("\\u65e5");
+    },
+  );
+});
