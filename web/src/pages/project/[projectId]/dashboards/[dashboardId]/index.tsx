@@ -14,7 +14,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   SelectWidgetDialog,
   type WidgetItem,
-} from "@/src/features/widgets/components/SelectWidgetDialog";
+} from "@/src/features/widgets/components/SelectWidgetDialog/SelectWidgetDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
