@@ -1,5 +1,5 @@
+import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/fns/getInAppAgentProjectRoute";
 import { type InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/types";
-import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
 
 // Entity-granular classifier of a project URL, used for the screen-context
 // banner and focused quick actions. getInAppAgentQuickActionContext() in

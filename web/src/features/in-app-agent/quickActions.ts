@@ -1,4 +1,4 @@
-import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
+import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/fns/getInAppAgentProjectRoute";
 import { type InAppAgentMessageEntryPoint } from "@/src/features/in-app-agent/types";
 import {
   Activity,
