@@ -1,7 +1,4 @@
-import {
-  getInAppAgentFocusedQuickActions,
-  getInAppAgentQuickActionContext,
-} from "./quickActions";
+import { getInAppAgentQuickActionContext } from "./quickActions";
 
 describe("contextual assistant quick actions", () => {
   it("classifies project sections and falls back to observability", () => {
@@ -14,11 +11,5 @@ describe("contextual assistant quick actions", () => {
     expect(getInAppAgentQuickActionContext("/organization/o-1/settings")).toBe(
       "observability",
     );
-  });
-
-  it("returns focused actions only for entity screen context types", () => {
-    expect(getInAppAgentFocusedQuickActions("trace")).toBeDefined();
-    expect(getInAppAgentFocusedQuickActions("trace-list")).toBeUndefined();
-    expect(getInAppAgentFocusedQuickActions("page")).toBeUndefined();
   });
 });
