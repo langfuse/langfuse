@@ -20,6 +20,17 @@
  * {@link VERSION_UPDATE_DEBOUNCE_MS} has elapsed since the FIRST new build id was
  * seen — a settling window for the deploy to finish. This gate is combined at the
  * banner with a post-load grace (see `useAppSettled`); both must pass.
+ *
+ * Persisted suppression (LFE-14765): dismiss and the seen-build set live in
+ * memory, so back-to-back deploys re-prompted every tab on every release — a
+ * customer reported the banner reappearing after every reload. Two
+ * localStorage-persisted gates (shared across reloads AND tabs) sit on top of
+ * the gates above: the banner may APPEAR at most once per
+ * {@link VERSION_UPDATE_SHOW_THROTTLE_MS}, and an explicit dismiss suppresses it
+ * for {@link VERSION_UPDATE_DISMISS_SUPPRESSION_MS} — even for genuinely new
+ * build ids. Both gate only the hidden→shown transition (a banner already on
+ * screen never hides itself), and both degrade to the in-memory behavior when
+ * storage is unavailable.
  */
 
 /**
@@ -46,12 +57,35 @@ export function isVersionMismatch(
  */
 export const VERSION_UPDATE_DEBOUNCE_MS = 3 * 60 * 1000;
 
+/**
+ * Show throttle (LFE-14765): once the banner has actually appeared, a NEW
+ * appearance is blocked until this much time has passed since that appearance —
+ * persisted, so it spans reloads and tabs. Sized so a burst of releases (three
+ * deploys in an hour) prompts each user once, not once per release.
+ */
+export const VERSION_UPDATE_SHOW_THROTTLE_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Dismiss suppression (LFE-14765): an explicit dismiss (X) means "not now" —
+ * suppress the banner for this long, including for build ids never seen before.
+ * Persisted, so a dismiss survives reloads and covers all tabs.
+ */
+export const VERSION_UPDATE_DISMISS_SUPPRESSION_MS = 24 * 60 * 60 * 1000;
+
+/** localStorage key: epoch ms of the banner's last actual appearance. */
+export const VERSION_UPDATE_LAST_SHOWN_AT_KEY = "version-update-last-shown-at";
+/** localStorage key: epoch ms until which an explicit dismiss suppresses the banner. */
+export const VERSION_UPDATE_SUPPRESSED_UNTIL_KEY =
+  "version-update-suppressed-until";
+
 export type VersionUpdateStore = {
   /** Subscribe to snapshot changes (for `useSyncExternalStore`). */
   subscribe: (listener: () => void) => () => void;
   /**
    * Current snapshot: is an update available, not yet dismissed, AND has the
-   * new-version debounce ({@link VERSION_UPDATE_DEBOUNCE_MS}) elapsed?
+   * new-version debounce ({@link VERSION_UPDATE_DEBOUNCE_MS}) elapsed? A
+   * hidden→shown transition additionally requires the persisted suppression
+   * windows (show throttle / dismiss suppression, LFE-14765) to have expired.
    */
   getSnapshot: () => boolean;
   /** SSR snapshot — always `false`; the mismatch only exists in a live tab. */
@@ -67,7 +101,9 @@ export type VersionUpdateStore = {
   /**
    * Dismiss the banner for the current session. It re-shows only when a build id
    * that has NOT been seen before arrives — never on a re-observation of an
-   * already-seen build (an old pod during a rolling deploy).
+   * already-seen build (an old pod during a rolling deploy). Also persists a
+   * {@link VERSION_UPDATE_DISMISS_SUPPRESSION_MS} suppression window
+   * (LFE-14765), so even genuinely new builds stay quiet for that long.
    */
   dismiss: () => void;
   /**
@@ -77,7 +113,9 @@ export type VersionUpdateStore = {
    * fires once per logical appearance even if the banner component unmounts and
    * remounts in between (e.g. AppLayout switching between AuthenticatedLayout
    * and MinimalLayout), and once (not twice) under a StrictMode double-invoked
-   * effect.
+   * effect. A `true` return is the store's "the banner actually showed" signal,
+   * so it also records the persisted last-shown timestamp for the show throttle
+   * (LFE-14765).
    */
   markShownReported: () => boolean;
 };
@@ -105,10 +143,19 @@ export type VersionUpdateStore = {
  * value ≤ 0 disables the debounce (the update shows as soon as it is available)
  * and stays synchronous — no timer — which keeps the detection/stickiness tests
  * free of fake timers.
+ *
+ * `now` and `getStorage` back the persisted suppression gates (LFE-14765);
+ * injected for deterministic testing, like the parameters above. `getStorage`
+ * is lazy (module scope must not touch `window` — SSR) and may return
+ * `undefined` or throw (private mode, hardened contexts, quota): every access
+ * is guarded, degrading to the pre-existing in-memory behavior.
  */
 export function createVersionUpdateStore(
   getRunningBuildId: () => string | null | undefined,
   debounceMs: number = VERSION_UPDATE_DEBOUNCE_MS,
+  now: () => number = () => Date.now(),
+  getStorage: () => Pick<Storage, "getItem" | "setItem"> | undefined = () =>
+    typeof window === "undefined" ? undefined : window.localStorage,
 ): VersionUpdateStore {
   const listeners = new Set<() => void>();
   // Every build id observed that differs from the running one. Membership is
@@ -128,16 +175,54 @@ export function createVersionUpdateStore(
   let debounceStarted = false;
   let debounceElapsed = false;
 
-  const compute = (): boolean =>
+  // Guarded storage access: `getStorage` and Storage methods may throw. On any
+  // failure reads yield null and writes are dropped — in-memory behavior only.
+  const readTimestamp = (key: string): number | null => {
+    try {
+      const raw = getStorage()?.getItem(key);
+      if (!raw) return null;
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+  const writeTimestamp = (key: string, value: number) => {
+    try {
+      getStorage()?.setItem(key, String(value));
+    } catch {
+      // best-effort persistence; the in-memory gates still apply
+    }
+  };
+
+  // Persisted suppression (LFE-14765). Checked only on the hidden→shown
+  // transition — never hides a banner already on screen.
+  const isSuppressed = (): boolean => {
+    const t = now();
+    const lastShownAt = readTimestamp(VERSION_UPDATE_LAST_SHOWN_AT_KEY);
+    if (
+      lastShownAt !== null &&
+      t < lastShownAt + VERSION_UPDATE_SHOW_THROTTLE_MS
+    ) {
+      return true;
+    }
+    const suppressedUntil = readTimestamp(VERSION_UPDATE_SUPPRESSED_UNTIL_KEY);
+    return suppressedUntil !== null && t < suppressedUntil;
+  };
+
+  const computeEligible = (): boolean =>
     updateAvailable && !dismissed && debounceElapsed;
 
   // Cache the snapshot so `getSnapshot` returns a referentially stable value
   // between changes — `useSyncExternalStore` requires this to avoid re-render
-  // loops (it compares snapshots with `Object.is`).
-  let snapshot = compute();
+  // loops (it compares snapshots with `Object.is`). Starts hidden; every state
+  // change funnels through `emitChange`.
+  let snapshot = false;
 
   const emitChange = () => {
-    const next = compute();
+    // A visible banner stays visible while eligible (`snapshot ||` — the
+    // suppression windows gate new appearances, not the current one).
+    const next = computeEligible() && (snapshot || !isSuppressed());
     if (next === snapshot) return;
     snapshot = next;
     for (const listener of listeners) listener();
@@ -175,30 +260,42 @@ export function createVersionUpdateStore(
       return false;
     },
     reportObservedBuildId(observedBuildId) {
-      if (!observedBuildId) return;
-      if (!isVersionMismatch(getRunningBuildId(), observedBuildId)) return;
-      // A differing build id. If we've already seen this exact one, do nothing —
-      // re-observation (old pod re-serving it) must not flap or reopen a dismiss.
-      if (seenDifferingBuildIds.has(observedBuildId)) return;
-      seenDifferingBuildIds.add(observedBuildId);
-      updateAvailable = true; // sticky
-      // A genuinely new (never-seen) differing build → worth re-prompting even
-      // if the user dismissed an earlier one, and worth counting as a fresh
-      // appearance for analytics.
-      dismissed = false;
-      shownReported = false;
-      // Arm the settling window on the first new build; a no-op on later ones
-      // (the debounce is keyed to the first sighting, not re-armed per build).
-      startDebounce();
+      if (
+        observedBuildId &&
+        isVersionMismatch(getRunningBuildId(), observedBuildId) &&
+        // Already-seen differing build (old pod re-serving it) mutates nothing —
+        // re-observation must not flap or reopen a dismiss.
+        !seenDifferingBuildIds.has(observedBuildId)
+      ) {
+        seenDifferingBuildIds.add(observedBuildId);
+        updateAvailable = true; // sticky
+        // A genuinely new (never-seen) differing build → worth re-prompting even
+        // if the user dismissed an earlier one, and worth counting as a fresh
+        // appearance for analytics.
+        dismissed = false;
+        shownReported = false;
+        // Arm the settling window on the first new build; a no-op on later ones
+        // (the debounce is keyed to the first sighting, not re-armed per build).
+        startDebounce();
+      }
+      // Re-evaluate on EVERY report (not only on new builds): responses are the
+      // store's clock ticks, so an expired suppression window lets a pending
+      // update surface without a dedicated timer. No-op when nothing changed.
       emitChange();
     },
     dismiss() {
       dismissed = true;
+      writeTimestamp(
+        VERSION_UPDATE_SUPPRESSED_UNTIL_KEY,
+        now() + VERSION_UPDATE_DISMISS_SUPPRESSION_MS,
+      );
       emitChange();
     },
     markShownReported() {
       if (shownReported) return false;
       shownReported = true;
+      // The banner actually showed → start the persisted show throttle.
+      writeTimestamp(VERSION_UPDATE_LAST_SHOWN_AT_KEY, now());
       return true;
     },
   };
