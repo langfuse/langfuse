@@ -13,6 +13,7 @@ import {
 import { InvalidRequestError, InternalServerError } from "../../errors";
 import {
   eventsTableIsRootObservationSql,
+  eventsTableTraceNameSql,
   eventsTableTraceNameAggregationSql,
 } from "../../eventsTable";
 import type { APIScoreV3 } from "../../features/scores/interfaces/api/v3/schemas";
@@ -1410,16 +1411,15 @@ const getScoresUiGeneric = async <T>(props: {
 
 /**
  * Trace column mapping for building WHERE filters inside the flat events CTE.
- * References actual events_core columns (trace_name, user_id, tags) with the
- * "e" prefix used by EventsQueryBuilder.
+ * References actual events_core columns with the "e" prefix used by
+ * EventsQueryBuilder.
  */
 const scoresTraceFilterEventsMapping = [
   {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
     clickhouseTableName: "traces",
-    clickhouseSelect: "trace_name",
-    queryPrefix: "e",
+    clickhouseSelect: eventsTableTraceNameSql,
   },
   {
     uiTableName: "User ID",
