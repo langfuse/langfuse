@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   getValidAggregationsForMeasureType,
   metricAggregations,
+  resolveWidgetEditorVersion,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -24,7 +25,6 @@ import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
-
 const dashboardWidgetChartTypeSchema = z.enum(DashboardWidgetChartType);
 const widgetMetricSchema = MetricSchema.extend({
   agg: metricAggregations,
@@ -448,6 +448,9 @@ function normalizeImportedWidgetVersion(widget: WidgetImport): WidgetImport {
     return widget;
   }
 
+  // v2 is a deployment/read-path choice for traces, not a v2-only widget
+  // shape. Keep the persisted hint at the actual minimum while allowing v4
+  // imports to validate against the events-backed trace declaration.
   return {
     ...widget,
     minVersion: 1,
@@ -458,7 +461,9 @@ function normalizeImportedWidgetVersion(widget: WidgetImport): WidgetImport {
  * Full import pipeline for one parsed widget JSON payload: schema parse,
  * filter normalization (value-level pruning only when option sets are
  * provided — clipboard/drop flows skip the option queries and pass none),
- * traces-view version normalization, and view-declaration validation.
+ * traces-view version normalization, and view-declaration validation. The
+ * imported minVersion is a preview hint only; the write API derives the
+ * persisted version from the submitted shape.
  * Throws on any payload that cannot become a valid widget.
  */
 export function parseImportedWidgetJson(params: {
@@ -480,12 +485,18 @@ export function parseImportedWidgetJson(params: {
   });
 
   const normalizedWidget = normalizeImportedWidgetVersion(importedWidget);
-  const importedMinVersion = normalizedWidget.minVersion ?? 1;
-  const importedViewVersion: ViewVersion =
-    (params.isBetaEnabled && normalizedWidget.view !== "traces") ||
-    importedMinVersion >= 2
-      ? "v2"
-      : "v1";
+  const importedViewVersion: ViewVersion = resolveWidgetEditorVersion({
+    shape: {
+      view: normalizedWidget.view,
+      dimensions: normalizedWidget.dimensions,
+      measures: normalizedWidget.metrics.map((metric) => ({
+        measure: metric.measure,
+      })),
+      filters: normalizedWidget.filters,
+    },
+    baseMinVersion: normalizedWidget.minVersion ?? 1,
+    activeVersion: params.isBetaEnabled ? "v2" : "v1",
+  });
 
   validateImportedWidget({
     widget: normalizedWidget,
@@ -582,6 +593,5 @@ export function toWidgetCreateFields(widget: WidgetExportSource) {
     filters: widget.filters,
     chartType: widget.chartType,
     chartConfig: widget.chartConfig,
-    minVersion: widget.minVersion,
   };
 }

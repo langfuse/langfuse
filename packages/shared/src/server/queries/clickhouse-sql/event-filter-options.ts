@@ -3,6 +3,7 @@ import {
   eventsTableCols,
   eventsTableHasParentObservationSql,
   eventsTableIsRootObservationSql,
+  eventsTableTraceNameSql,
 } from "../../../eventsTable";
 import type { FilterState } from "../../../types";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
@@ -64,8 +65,8 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
   },
   traceName: {
     kind: "scalar",
-    expression: "e.trace_name",
-    includeWhen: "e.trace_name IS NOT NULL AND length(e.trace_name) > 0",
+    expression: eventsTableTraceNameSql,
+    includeWhen: `${eventsTableTraceNameSql} IS NOT NULL`,
     sort: "countDesc",
   },
   type: {
@@ -84,6 +85,12 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     kind: "scalar",
     expression: "e.version",
     includeWhen: "e.version IS NOT NULL AND length(e.version) > 0",
+    sort: "countDesc",
+  },
+  release: {
+    kind: "scalar",
+    expression: "e.release",
+    includeWhen: "e.release IS NOT NULL AND length(e.release) > 0",
     sort: "countDesc",
   },
   sessionId: {

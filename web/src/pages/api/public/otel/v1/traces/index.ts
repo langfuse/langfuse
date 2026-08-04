@@ -8,6 +8,8 @@ import {
   markProjectAsOtelUser,
   createIngestionAttribution,
   getLangfuseHeaderValue,
+  recordIncrement,
+  validateOtelSpanIds,
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
@@ -108,6 +110,94 @@ export default withMiddlewares({
 
       if (!resourceSpans || resourceSpans.length === 0) {
         return {};
+      }
+
+      // Reject payloads the worker cannot convert: spans whose traceId/spanId is
+      // missing or malformed, and scopeSpans/spans fields that are present but
+      // not arrays. Both fail in the worker — parseId throws
+      // ERR_INVALID_ARG_TYPE or yields a truncated id, and a non-array
+      // collection throws on for...of — so the job burns all six attempts before
+      // being dropped anyway. Failing here returns a non-retryable status
+      // instead.
+      //
+      // The common source is an OTLP *logs* export pointed at this endpoint.
+      // ResourceLogs and ResourceSpans share protobuf field numbers, so log
+      // records decode into spans with a valid instrumentation scope but no ids.
+      //
+      // One invalid span means the whole export is almost certainly malformed,
+      // so the batch is rejected as a unit and the response says so explicitly
+      // rather than dropping spans silently.
+      const idValidation = validateOtelSpanIds(resourceSpans);
+      if (
+        idValidation.invalidSpanCount > 0 ||
+        idValidation.malformedCollectionCount > 0
+      ) {
+        // One increment per reason, so a batch that mixes reasons splits across
+        // them instead of attributing every rejected span to whichever reason
+        // happened to come first. The tag set is bounded by construction.
+        for (const [reason, count] of Object.entries(
+          idValidation.reasonCounts,
+        )) {
+          recordIncrement(
+            "langfuse.ingestion.otel.rejected_invalid_span_ids",
+            count,
+            { reason },
+          );
+        }
+        const rejectionContext = {
+          projectId: auth.scope.projectId,
+          invalidSpanCount: idValidation.invalidSpanCount,
+          malformedCollectionCount: idValidation.malformedCollectionCount,
+          totalSpanCount: idValidation.totalSpanCount,
+          reasonCounts: idValidation.reasonCounts,
+          instrumentationScopes: idValidation.scopeNames,
+          sdkName: req.headers["x-langfuse-sdk-name"],
+        };
+        logger.warn(
+          "Rejecting unprocessable OTEL trace export",
+          rejectionContext,
+        );
+
+        // Rejecting the batch as a unit rests on the assumption that a bad
+        // export is bad throughout: an OTLP logs payload decoded as spans
+        // yields uniformly id-less spans, so invalidSpanCount should equal
+        // totalSpanCount. Any gap means this rejection just discarded spans
+        // that would have ingested fine, which is data loss and invalidates
+        // the assumption — escalate so it cannot pass unnoticed among warns.
+        const discardedValidSpans =
+          idValidation.totalSpanCount - idValidation.invalidSpanCount;
+        if (discardedValidSpans > 0) {
+          logger.error(
+            "Rejected OTEL trace export contained valid spans — batch rejection discarded them",
+            { ...rejectionContext, discardedValidSpans },
+          );
+        }
+
+        const problems: string[] = [];
+        if (idValidation.invalidSpanCount > 0) {
+          problems.push(
+            `${idValidation.invalidSpanCount} of ${idValidation.totalSpanCount} ` +
+              `span(s) are missing a traceId or spanId, or carry one that cannot ` +
+              `be decoded — each must be a string or a byte array`,
+          );
+        }
+        if (idValidation.malformedCollectionCount > 0) {
+          problems.push(
+            `${idValidation.malformedCollectionCount} scopeSpans/spans field(s) ` +
+              `are present but not arrays`,
+          );
+        }
+
+        res.status(400);
+        return {
+          error:
+            `Invalid OTLP trace export: ${problems.join("; ")} ` +
+            `(${idValidation.reasons.join(", ")}). The entire export was rejected ` +
+            `and no spans were ingested. ` +
+            `Instrumentation scopes: ${idValidation.scopeNames.join(", ") || "unknown"}. ` +
+            `This endpoint accepts OpenTelemetry traces only — if you are exporting ` +
+            `OpenTelemetry logs, point your log exporter elsewhere.`,
+        };
       }
 
       // Warn on oversized OTEL request bodies (16MB threshold)

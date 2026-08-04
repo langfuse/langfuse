@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -325,7 +326,7 @@ const DropdownMenuItemWithSecondaryAction = (
         <PrimaryActionIcon className="mr-1.5 size-4" aria-hidden="true" />
       )}
       <span
-        className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
+        className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
         title={props.disabled?.reason ?? props.title}
       >
         {props.title}

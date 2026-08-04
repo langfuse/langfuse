@@ -31,6 +31,7 @@ import { translateBedrockProviderOptions } from "./ai-sdk/providers/bedrock";
 import { translateGoogleProviderOptions } from "./ai-sdk/providers/google";
 import {
   isOpenAICompatibleEndpoint,
+  isOpenRouterEndpoint,
   translateOpenAIProviderOptions,
 } from "./ai-sdk/providers/openai";
 import type {
@@ -59,6 +60,15 @@ import { decryptAndParseExtraHeaders } from "./utils";
 
 type RuntimeContext = Record<string, unknown>;
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
+
+const CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_CAP_MS = 95_000;
+
+// Finish client-initiated non-streaming calls before the 102-second load balancer timeout.
+export const getClientInitiatedNonStreamingLlmTimeoutMs = () =>
+  Math.min(
+    env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS,
+    CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_CAP_MS,
+  );
 
 export type LLMModelRef = {
   adapter: LLMAdapter;
@@ -280,6 +290,14 @@ async function prepareLLMTextCall<
   });
   recordAiSdkExecution({ model: options.model, modelConfig });
 
+  const providerOptions = addOpenRouterInternalTraceProvenance({
+    model: options.model,
+    baseURL: options.connection.baseURL,
+    apiMode: modelConfig.openAIApiMode,
+    providerOptions: options.providerOptions,
+    trace: options.trace,
+  });
+
   const apiKey = decrypt(options.connection.secretKey);
   const extraHeaders = decryptAndParseExtraHeaders(
     options.connection.extraHeaders,
@@ -330,7 +348,7 @@ async function prepareLLMTextCall<
       temperature: options.temperature,
       topP: options.topP,
       reasoning: options.reasoning,
-      providerOptions: options.providerOptions,
+      providerOptions,
       maxRetries: options.maxRetries,
       timeout,
       abortSignal: options.abortSignal,
@@ -340,6 +358,47 @@ async function prepareLLMTextCall<
       ...(capture ? { telemetry: capture.telemetry } : {}),
     },
   };
+}
+
+function addOpenRouterInternalTraceProvenance(params: {
+  model: LLMModelRef;
+  baseURL?: string | null;
+  apiMode?: "responses" | "chat-completions";
+  providerOptions?: ProviderOptions;
+  trace?: TraceSinkParams;
+}): ProviderOptions | undefined {
+  if (
+    params.model.adapter !== LLMAdapter.OpenAI ||
+    params.apiMode !== "chat-completions" ||
+    !params.trace ||
+    !isOpenRouterEndpoint(params.baseURL)
+  ) {
+    return params.providerOptions;
+  }
+
+  const openAIOptions = params.providerOptions?.openai ?? {};
+  const existingTrace = isJsonObject(openAIOptions.trace)
+    ? openAIOptions.trace
+    : {};
+
+  return {
+    ...params.providerOptions,
+    openai: {
+      ...openAIOptions,
+      trace: {
+        ...existingTrace,
+        // This marker controls evaluator recursion prevention and must remain
+        // system-owned even when the caller supplies other Broadcast metadata.
+        environment: params.trace.environment,
+      },
+    },
+  };
+}
+
+function isJsonObject(
+  value: JSONValue | undefined,
+): value is Record<string, JSONValue> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (

@@ -6,6 +6,11 @@ import {
   type views,
 } from "./types";
 import { InvalidRequestError } from "../../errors";
+import {
+  eventsTableIsRootObservationSqlForAlias,
+  eventsTableTraceNameAggregationSqlForAlias,
+  eventsTableTraceNameSqlForAlias,
+} from "../../eventsTable";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -159,23 +164,27 @@ export const eventsTracesView: ViewDeclarationType = {
   description:
     "Traces built from events table aggregation - mirrors v1 traces view with 100% API compatibility.",
   dimensions: {
+    // This is an internal compatibility declaration for persisted v1 trace
+    // widgets. Keep id/userId/sessionId cardinality metadata aligned with v1:
+    // enabling V4 must not invalidate existing time-series breakdowns. New
+    // traces widgets remain unavailable through the public V4 widget path. Do
+    // not add highCardinality here: v1 does not set it for these dimensions.
     id: {
       sql: "events_traces.trace_id",
       alias: "id",
       type: "string",
       description: "Unique identifier of the trace.",
-      highCardinality: true,
       // This is the GROUP BY identity column
     },
     name: {
-      sql: "COALESCE(nullIf(events_traces.trace_name, ''), if(events_traces.parent_span_id = '', nullIf(events_traces.name, ''), NULL))",
+      sql: eventsTableTraceNameSqlForAlias("events_traces"),
       alias: "name",
       type: "string",
       description:
         "Name assigned to the trace (often the endpoint or operation).",
       // First try most-recent non-empty trace_name, then fall back to root event's name
       aggregationFunction:
-        "COALESCE(nullIf(argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> ''), ''), argMaxIf(events_traces.name, events_traces.event_ts, events_traces.parent_span_id = '' AND events_traces.name <> ''))",
+        eventsTableTraceNameAggregationSqlForAlias("events_traces"),
       // Pruning columns for WHERE: OR'd together to help ClickHouse skip blocks,
       // then dimension.sql is AND'd for exact row-level match.
       filterSql: {
@@ -197,7 +206,6 @@ export const eventsTracesView: ViewDeclarationType = {
       description: "Identifier of the user triggering the trace.",
       aggregationFunction:
         "argMaxIf(events_traces.user_id, events_traces.event_ts, events_traces.user_id <> '')",
-      highCardinality: true,
     },
     sessionId: {
       sql: "nullIf(events_traces.session_id, '')",
@@ -206,7 +214,6 @@ export const eventsTracesView: ViewDeclarationType = {
       description: "Identifier of the session triggering the trace.",
       aggregationFunction:
         "argMaxIf(events_traces.session_id, events_traces.event_ts, events_traces.session_id <> '')",
-      highCardinality: true,
     },
     release: {
       sql: "nullIf(events_traces.release, '')",
@@ -265,22 +272,48 @@ export const eventsTracesView: ViewDeclarationType = {
       unit: "scores",
     },
     uniqueUserIds: {
-      sql: "@@AGG@@(nullIf(events_traces.user_id, ''))",
-      aggs: { agg: "any" },
+      // Keep this numeric base aligned with v1: persisted widgets may use any
+      // numeric aggregation. The count/uniq overrides below preserve distinct
+      // identifier semantics over the denormalized events table.
+      sql: "uniq(nullIf(events_traces.user_id, ''))",
       alias: "uniqueUserIds",
-      type: "string",
-      description:
-        "User identifier; apply uniq aggregation to count distinct users.",
+      type: "integer",
+      description: "Count of unique userIds.",
       unit: "users",
+      aggregationOverrides: {
+        // Legacy widgets called this aggregation `count`, but its intended
+        // result is distinct users. Remap only the generated query to `uniq`
+        // while preserving the persisted aggregation and `count_*` alias.
+        count: {
+          sql: "argMaxIf(nullIf(events_traces.user_id, ''), events_traces.event_ts, events_traces.user_id <> '')",
+          type: "string",
+          queryAggregation: "uniq",
+        },
+        uniq: {
+          sql: "argMaxIf(nullIf(events_traces.user_id, ''), events_traces.event_ts, events_traces.user_id <> '')",
+          type: "string",
+        },
+      },
     },
     uniqueSessionIds: {
-      sql: "@@AGG@@(nullIf(events_traces.session_id, ''))",
-      aggs: { agg: "any" },
+      sql: "uniq(nullIf(events_traces.session_id, ''))",
       alias: "uniqueSessionIds",
-      type: "string",
-      description:
-        "Session identifier; apply uniq aggregation to count distinct sessions.",
+      type: "integer",
+      description: "Count of unique sessionIds.",
       unit: "sessions",
+      aggregationOverrides: {
+        // See uniqueUserIds: keep the legacy `count` contract while executing
+        // the aggregation with distinct-value semantics.
+        count: {
+          sql: "argMaxIf(nullIf(events_traces.session_id, ''), events_traces.event_ts, events_traces.session_id <> '')",
+          type: "string",
+          queryAggregation: "uniq",
+        },
+        uniq: {
+          sql: "argMaxIf(nullIf(events_traces.session_id, ''), events_traces.event_ts, events_traces.session_id <> '')",
+          type: "string",
+        },
+      },
     },
     latency: {
       sql: "date_diff('millisecond', minIf(events_traces.start_time, events_traces.parent_span_id != ''), maxIf(events_traces.end_time, events_traces.parent_span_id != ''))",
@@ -315,9 +348,11 @@ export const eventsTracesView: ViewDeclarationType = {
   },
   segments: [],
   timeDimension: "start_time",
+  // Trace aggregation can use either semantic-root representation without
+  // changing result cardinality, so app roots remain useful here.
   rootEventCondition: {
     column: "trace_id",
-    condition: "parent_span_id = ''",
+    condition: eventsTableIsRootObservationSqlForAlias("events_traces"),
   },
   baseCte: `events_core events_traces`,
 };
@@ -702,7 +737,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
   },
   // Trace metadata on events table (accessed via events_traces JOIN)
   traceName: {
-    sql: "COALESCE(nullIf(events_traces.trace_name, ''), nullIf(events_traces.name, ''))",
+    sql: eventsTableTraceNameSqlForAlias("events_traces"),
     alias: "traceName",
     type: "string",
     relationTable: "events_traces",
@@ -892,6 +927,11 @@ const createScoreTableRelations = (
   return {
     events_traces: {
       name: "events_core",
+      // Legacy and dual-write ingestion materialize a parentless synthetic
+      // trace event and propagate trace metadata to it. Native V4 may not, but
+      // its app roots come from newer SDKs and are expected to carry trace_name.
+      // A semantic-root join can match both rows in dual-write data and
+      // multiply scores for little fallback value.
       joinConditionSql:
         "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
       timeDimension: "start_time",
@@ -1098,6 +1138,14 @@ export const eventsObservationsView: ViewDeclarationType = {
       highCardinality: true,
       uiHidden: true,
     },
+    isRootObservation: {
+      sql: `toBool(${eventsTableIsRootObservationSqlForAlias("events_observations")})`,
+      alias: "isRootObservation",
+      type: "boolean",
+      description:
+        "Whether the observation is a semantic root, including app roots with an external parent.",
+      uiHidden: true,
+    },
     type: {
       sql: "events_observations.type",
       alias: "type",
@@ -1152,7 +1200,7 @@ export const eventsObservationsView: ViewDeclarationType = {
     },
     // Backwards-compatible field definitions (for API parity with v1)
     traceName: {
-      sql: "COALESCE(nullIf(events_observations.trace_name, ''), if(events_observations.parent_span_id = '', nullIf(events_observations.name, ''), NULL))",
+      sql: eventsTableTraceNameSqlForAlias("events_observations"),
       alias: "traceName",
       type: "string",
       description: "Name of the parent trace (backwards-compatible with v1).",

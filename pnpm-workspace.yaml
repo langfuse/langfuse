@@ -14,13 +14,19 @@ catalog:
   "@aws-sdk/lib-storage": 3.1074.0
   "@aws-sdk/s3-request-presigner": 3.1074.0
   eslint: ^10.8.0
-  typescript: ^6.0.3
+  # The official TS 6 side-by-side wrapper (resolves to typescript 6.0.3):
+  # provides the JS compiler API for typescript-eslint/next/tsx consumers but
+  # ships no `tsc` bin, so package scripts fall through to the workspace-root
+  # ts7 alias and build/typecheck with the native TypeScript 7 compiler.
+  typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 minimumReleaseAgeExclude:
-  - "brace-expansion@5.0.8"
+  - "brace-expansion@1.1.18"
+  - "brace-expansion@2.1.4"
+  - "brace-expansion@5.0.9"
   - "@eslint/js@10.0.1"
   - "eslint@10.8.0"
   - "postcss@8.5.22"
@@ -39,7 +45,7 @@ minimumReleaseAgeExclude:
   - "eslint-config-next@16.2.11"
   - "next@16.2.11"
   - "ws@8.21.1"
-  - "fast-uri@3.1.4"
+  - "fast-uri@3.1.5"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
@@ -61,9 +67,9 @@ allowBuilds:
   cpu-features: true
   ssh2: true
 overrides:
-  postcss: 8.5.22
+  postcss: 8.5.25
   esbuild: "0.28.1"
-  "undici@7": 7.28.0
+  "undici@7": 7.29.0
   zod: 4.3.6
   nanoid: ^3.3.8
   katex: ^0.16.21

@@ -197,7 +197,21 @@ describe("unstable public eval contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("accepts code evaluation rule create bodies without mappings", () => {
+  it("accepts both root filters on code rule bodies without mappings", () => {
+    const rootFilters = [
+      {
+        type: "boolean",
+        column: "isRootObservation",
+        operator: "=",
+        value: true,
+      },
+      {
+        type: "null",
+        column: "parentObservationId",
+        operator: "is null",
+        value: "",
+      },
+    ] as const;
     const parsed = PostUnstableEvaluationRuleBody.parse({
       name: "toxicity-code-live",
       evaluator: {
@@ -208,9 +222,10 @@ describe("unstable public eval contracts", () => {
       target: "observation",
       enabled: true,
       sampling: 1,
-      filter: [],
+      filter: rootFilters,
     });
 
+    expect(parsed.filter).toEqual(rootFilters);
     expect("mapping" in parsed).toBe(false);
     expect("variableMapping" in parsed).toBe(false);
   });

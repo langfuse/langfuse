@@ -1,4 +1,4 @@
-import { decodeUnicodeEscapesOnly } from "../../../utils/unicode";
+import { decodeUnicodeEscapesOnly } from "./unicode";
 
 // Replacer that keeps bigints JSON-serializable and decodes \uXXXX escapes so
 // that non-ASCII content (e.g. Japanese ingested with Python ensure_ascii=True)

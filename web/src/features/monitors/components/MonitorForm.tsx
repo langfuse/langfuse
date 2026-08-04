@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import React, { useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";

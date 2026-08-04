@@ -1,7 +1,4 @@
-# Codex Guidelines for `@langfuse/shared`
-
-This file covers package-local guidance for this package.
-Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
+# Agent Guidelines for `@langfuse/shared`
 
 ## Purpose
 
@@ -12,13 +9,9 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 
 ## Maintenance Contract
 
-- `AGENTS.md` is a living document.
-- Update this file in the same PR for material shared-package changes:
-  - new/renamed schema or migration workflows
-  - new/renamed queue contracts
-  - changed exported surfaces or validation commands
-- Because this package is consumed by both `web` and `worker`, cross-package
-  changes usually require updates in root `AGENTS.md` too.
+- Update this file in the same PR when entry points, commands, or contracts
+  change. Because both `web` and `worker` consume this package, exported-surface
+  changes usually need their `AGENTS.md` too.
 
 ## High-Signal Entry Points
 
@@ -44,6 +37,10 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
   helpers, eval/model-pricing helpers, and other frontend-safe utilities.
+  Includes the unicode-decoding JSON serialization helpers (`stringify`,
+  `stringifyForCsv` in `src/utils/stringify.ts`) used by both the server
+  trace-download route and client-side download/copy paths; the server barrel
+  re-exports them for compatibility.
 - `@langfuse/shared/src/server` via `src/server/index.ts`: server-only barrel
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,

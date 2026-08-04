@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * LazyJsonViewer — the in-memory entry point to the lazy JSON renderer
  * (LFE-11080).

@@ -207,6 +207,14 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
             } satisfies WidgetFilterColumnSpec,
+            {
+              column: {
+                name: "Is Root Observation",
+                id: "isRootObservation",
+                type: "boolean",
+                internal: "internalValue",
+              },
+            } satisfies WidgetFilterColumnSpec,
           ]
         : []),
       {

@@ -588,8 +588,9 @@ const meta = preview.meta({
   ],
   args: {
     error: null,
+    executionUi: { type: "foreground" as const },
     isExpanded: false,
-    isInputDisabled: false,
+    isConversationInteractionDisabled: false,
     conversations,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
@@ -617,7 +618,7 @@ const meta = preview.meta({
 export const ToolApprovalRequired = meta.story({
   args: {
     isAssistantTurnInProgress: true,
-    isInputDisabled: true,
+    isConversationInteractionDisabled: true,
     selectedConversationId: "conversation-1",
     messages: [
       {
@@ -867,7 +868,7 @@ export const LoadingResponse = meta.story({
 export const LoadingAfterToolCall = meta.story({
   args: {
     isAssistantTurnInProgress: true,
-    isInputDisabled: true,
+    isConversationInteractionDisabled: true,
     messages: [
       {
         id: "user-1",
@@ -952,7 +953,7 @@ export const LoadingAfterToolCall = meta.story({
 export const Connecting = meta.story({
   args: {
     isAssistantTurnInProgress: true,
-    isInputDisabled: true,
+    isConversationInteractionDisabled: true,
     messages: [
       {
         id: "user-1",
@@ -993,12 +994,123 @@ export const Error = meta.story({
   },
 });
 
+export const BackgroundRun = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    executionUi: {
+      type: "background",
+      notice: null,
+      stop: { status: "available", onStop: fn() },
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: { type: "loading" },
+      },
+    ],
+  },
+});
+
+export const BackgroundRunStops = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: { type: "loading" },
+      },
+    ],
+  },
+  render: function Render(args) {
+    const [phase, setPhase] = useState<"running" | "stopping" | "settled">(
+      "running",
+    );
+    const isSettled = phase === "settled";
+
+    useEffect(() => {
+      if (phase !== "stopping") {
+        return;
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        setPhase("settled");
+      }, 1_500);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    }, [phase]);
+
+    return (
+      <StatefulInAppAgentWindow
+        {...args}
+        isAssistantTurnInProgress={!isSettled}
+        messages={
+          isSettled
+            ? [
+                {
+                  id: "user-1",
+                  role: "user",
+                  content: {
+                    type: "text",
+                    text: "Summarize recent ingestion errors.",
+                  },
+                },
+                {
+                  id: "assistant-1",
+                  runId: "run-1",
+                  role: "assistant",
+                  content: {
+                    type: "text",
+                    text: "The run stopped before the investigation completed.",
+                  },
+                },
+              ]
+            : args.messages
+        }
+        executionUi={
+          isSettled
+            ? { type: "background", notice: null, stop: null }
+            : {
+                type: "background",
+                notice: phase === "stopping" ? "Stopping the run…" : null,
+                stop: {
+                  status: phase === "stopping" ? "stopping" : "available",
+                  onStop: () => {
+                    setPhase("stopping");
+                  },
+                },
+              }
+        }
+      />
+    );
+  },
+});
+
 export const RateLimited = meta.story({
   name: "(Test) Rate Limited",
   args: {
     error: null,
     isAssistantTurnInProgress: true,
-    isInputDisabled: true,
+    isConversationInteractionDisabled: false,
     messages: [
       {
         id: "approval-1",
@@ -1041,7 +1153,7 @@ export const RateLimited = meta.story({
     await expect(alert).toHaveTextContent("Try again in about");
     await expect(
       canvas.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await expect(
       canvas.getByRole("button", { name: "Confirm" }),
     ).toBeDisabled();
@@ -1062,7 +1174,10 @@ export const RefocusAfterSubmit = meta.story({
   },
   render: function Render(args) {
     const [isExpanded, setIsExpanded] = useState(args.isExpanded);
-    const [isInputDisabled, setIsInputDisabled] = useState(false);
+    const [
+      isConversationInteractionDisabled,
+      setIsConversationInteractionDisabled,
+    ] = useState(false);
     const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([
       {
         id: "user-1",
@@ -1089,14 +1204,16 @@ export const RefocusAfterSubmit = meta.story({
             {...args}
             isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
             isExpanded={isExpanded}
-            isInputDisabled={isInputDisabled}
+            isConversationInteractionDisabled={
+              isConversationInteractionDisabled
+            }
             messages={messages}
             onExpandedChange={(isExpanded) => {
               setIsExpanded(isExpanded);
               args.onExpandedChange(isExpanded);
             }}
             onSubmit={(input) => {
-              setIsInputDisabled(true);
+              setIsConversationInteractionDisabled(true);
               window.setTimeout(() => {
                 setMessages((currentMessages) => [
                   ...currentMessages,
@@ -1109,7 +1226,7 @@ export const RefocusAfterSubmit = meta.story({
                     },
                   },
                 ]);
-                setIsInputDisabled(false);
+                setIsConversationInteractionDisabled(false);
               }, 50);
 
               args.onSubmit(input);
@@ -1147,7 +1264,7 @@ export const FeedbackControlsWaitForTurnEnd = meta.story({
   name: "(Test) Feedback Controls Wait For Turn End",
   args: {
     selectedConversationId: "conversation-1",
-    isInputDisabled: true,
+    isConversationInteractionDisabled: true,
     isAssistantTurnInProgress: true,
     onSubmitFeedback: fn(),
     messages: [

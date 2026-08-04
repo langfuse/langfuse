@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { type ReactNode, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -12,6 +13,7 @@ import {
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
+import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Separator } from "@/src/components/ui/separator";
 import {
@@ -31,6 +33,7 @@ import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/use
 import {
   getProjectMigrationReadiness,
   V4_MIGRATION_LOOKBACK_DAYS,
+  type MigrationActionState,
   type MigrationCountState,
 } from "@/src/features/v4-migration/migrationData";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -42,6 +45,8 @@ import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { api } from "@/src/utils/api";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -63,6 +68,8 @@ const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
   "Blob Storage":
     "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path",
 };
+const EXPERIMENT_OTEL_INGESTION_URL =
+  "https://langfuse.com/integrations/native/opentelemetry/experiments";
 
 // Copies the agent migration prompt to the clipboard with toast + analytics;
 // shared by the panel/modal header CTA and the status page.
@@ -148,6 +155,30 @@ function ExternalLink({
   );
 }
 
+function ApiKeyCopyField({
+  label,
+  value,
+}: {
+  label: "Public key" | "Secret key";
+  value: string;
+}) {
+  const truncatedValue = `${value.slice(0, 8)}…${value.slice(-4)}`;
+
+  return (
+    <div className="flex min-w-0 items-stretch overflow-hidden rounded-md border">
+      <div className="bg-muted text-muted-foreground flex w-24 shrink-0 items-center justify-center border-r text-xs font-bold">
+        {label}
+      </div>
+      <CodeView
+        content={truncatedValue}
+        originalContent={value}
+        className="min-w-0 flex-1 [&>div]:rounded-none [&>div]:border-0"
+        lineWrap={false}
+      />
+    </div>
+  );
+}
+
 function MigrationCountChip({
   state,
   affectedLabel,
@@ -168,6 +199,22 @@ function MigrationCountChip({
     <Chip variant="warning">
       {state.count} {affectedLabel}
     </Chip>
+  );
+}
+
+function MigrationActionChip({ state }: { state: MigrationActionState }) {
+  if (state.status === "loading") {
+    return <Chip variant="warning">Checking</Chip>;
+  }
+  if (state.status === "error") {
+    return <Chip variant="warning">Check failed</Chip>;
+  }
+  return state.result === "required" ? (
+    <Chip variant="warning">Update required</Chip>
+  ) : state.result === "sdk_usage_inconclusive" ? (
+    <Chip variant="warning">Needs review</Chip>
+  ) : (
+    <Chip variant="success">Up to date</Chip>
   );
 }
 
@@ -312,9 +359,49 @@ export function V4MigrationHeaderContent({
     Boolean(projectId) &&
     getProjectMigrationReadiness(migrationData) === "action-needed";
 
+  const [generatedKeys, setGeneratedKeys] = useState<{
+    projectId: string;
+    secretKey: string;
+    publicKey: string;
+  } | null>(null);
+  const generatedKeysForProject =
+    generatedKeys?.projectId === projectId ? generatedKeys : null;
+
+  const utils = api.useUtils();
+  const mutCreateProjectApiKey = api.projectApiKeys.create.useMutation({
+    onSuccess: () => utils.projectApiKeys.invalidate(),
+  });
+  const hasApiKeyCreateAccess = useHasProjectAccess({
+    projectId,
+    scope: "apiKeys:CUD",
+  });
+
   const handleShowPrompt = () => {
     capture("v4_migration:coding_agent_prompt_viewed");
     setPromptVisible(true);
+    if (
+      !projectId ||
+      !hasApiKeyCreateAccess ||
+      mutCreateProjectApiKey.isPending
+    )
+      return;
+
+    mutCreateProjectApiKey
+      .mutateAsync({
+        projectId,
+        note: "v4-migration-key",
+      })
+      .then(({ secretKey, publicKey }) => {
+        setGeneratedKeys({
+          projectId,
+          secretKey,
+          publicKey,
+        });
+        capture(`project_settings:api_key_create`);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
   };
 
   return (
@@ -373,6 +460,27 @@ export function V4MigrationHeaderContent({
             </span>
           )}
         </RainbowButton>
+        {promptVisible &&
+          projectId &&
+          hasApiKeyCreateAccess &&
+          generatedKeysForProject && (
+            <div className="mt-1 flex flex-col gap-2">
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                If you are setting up the Langfuse CLI or skills for the first
+                time, use these project API keys.
+              </p>
+              <div className="flex flex-col gap-2">
+                <ApiKeyCopyField
+                  label="Public key"
+                  value={generatedKeysForProject.publicKey}
+                />
+                <ApiKeyCopyField
+                  label="Secret key"
+                  value={generatedKeysForProject.secretKey}
+                />
+              </div>
+            </div>
+          )}
       </div>
     </>
   );
@@ -556,6 +664,69 @@ export function V4MigrationDetailsContent({
           </Section>
 
           <Section
+            title="Experiments"
+            chip={<MigrationActionChip state={migrationData.experiments} />}
+          >
+            {migrationData.experiments.status === "loading" ? (
+              <p className="text-muted-foreground text-sm">
+                Checking experiment instrumentation…
+              </p>
+            ) : migrationData.experiments.status === "error" ? (
+              <p className="text-muted-foreground text-sm">
+                We could not check experiment instrumentation. Try again later.
+              </p>
+            ) : migrationData.experiments.result !== "not_required" ? (
+              <p className="text-muted-foreground text-sm">
+                {migrationData.experimentInstrumentationUpgradePath ===
+                "api" ? (
+                  <>
+                    This project called the deprecated{" "}
+                    <MonoValue>POST /dataset-run-items</MonoValue>. Replace this
+                    direct API call with OTel experiment instrumentation. See
+                    the{" "}
+                    <ExternalLink href={EXPERIMENT_OTEL_INGESTION_URL}>
+                      OTel experiment instrumentation guide
+                    </ExternalLink>{" "}
+                    for more details.
+                  </>
+                ) : migrationData.experiments.result ===
+                  "sdk_usage_inconclusive" ? (
+                  <>
+                    This project called{" "}
+                    <MonoValue>POST /dataset-run-items</MonoValue> with an SDK
+                    version that supports the experiment runner. Review that you
+                    are using the experiment runner SDK and not the deprecated{" "}
+                    <>
+                      <>
+                        <code className="bg-muted px-1 font-mono text-sm">
+                          .link()
+                        </code>{" "}
+                        method. This warning will{" "}
+                      </>
+                      disappear once you{" "}
+                    </>
+                    upgrade to latest SDK version.
+                  </>
+                ) : (
+                  <>
+                    This project called{" "}
+                    <MonoValue>POST /dataset-run-items</MonoValue> with an
+                    outdated SDK.{" "}
+                    <ExternalLink href={SDK_UPGRADE_URL}>
+                      Upgrade the SDK
+                    </ExternalLink>{" "}
+                    and use the experiment runner method.
+                  </>
+                )}
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No experiment instrumentation updates required.
+              </p>
+            )}
+          </Section>
+
+          <Section
             title="Deprecated APIs"
             chip={
               <MigrationCountChip
@@ -586,7 +757,7 @@ export function V4MigrationDetailsContent({
                   {migrationData.apiUsage.map((usage) => (
                     <div
                       key={usage.endpoint}
-                      className="flex items-center justify-between gap-2 py-0.5"
+                      className="flex flex-wrap items-baseline justify-between gap-x-2 py-0.5"
                     >
                       <ExternalLink
                         href={DEPRECATED_API_MIGRATION_URL}
@@ -594,8 +765,12 @@ export function V4MigrationDetailsContent({
                       >
                         {usage.endpoint}
                       </ExternalLink>
-                      <span className="text-muted-foreground text-xs whitespace-nowrap">
-                        {numberFormatter(usage.count, 0, 2)} calls
+                      <span
+                        className="text-muted-foreground text-xs whitespace-nowrap"
+                        title={`Last seen at ${usage.lastSeen}`}
+                      >
+                        {numberFormatter(usage.count, 0, 2)} calls · last seen{" "}
+                        {formatCompactRelativeTime(new Date(usage.lastSeen))}
                       </span>
                     </div>
                   ))}

@@ -48,6 +48,7 @@ export const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
   "experimentName",
   "experimentDatasetId",
   "experimentId",
+  "isRootObservation",
 ]);
 
 /**
