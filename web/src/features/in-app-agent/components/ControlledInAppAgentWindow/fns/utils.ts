@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { InAppAgentWindowMessage } from "../InAppAgentWindow/InAppAgentWindow";
-import type { InAppAgentPendingToolApproval } from "../InAppAgentProvider/InAppAiAgentProvider";
-import type { InAppAgentMessageContent } from "../InAppAgentWindow/components/InAppAgentMessage/InAppAgentMessage";
+import type { InAppAgentWindowMessage } from "../../InAppAgentWindow/InAppAgentWindow";
+import type { InAppAgentPendingToolApproval } from "../../InAppAgentProvider/InAppAiAgentProvider";
+import type { InAppAgentMessageContent } from "../../InAppAgentWindow/components/InAppAgentMessage/InAppAgentMessage";
 import { deduplicateBy } from "@/src/utils/arrays";
 import { safeJsonParse, stableJsonStringify } from "@langfuse/shared";
 import {

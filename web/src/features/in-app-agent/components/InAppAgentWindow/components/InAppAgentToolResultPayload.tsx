@@ -1,7 +1,7 @@
 "use client";
 
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
-import type { InAppAgentToolCallContent } from "../../utils/utils";
+import type { InAppAgentToolCallContent } from "../../ControlledInAppAgentWindow/fns/utils";
 
 const TOOL_CALL_RESULT_PRESENTATION = {
   running: { label: "Result", variant: "default" },

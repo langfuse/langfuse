@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { InAppAgentRateLimitErrorResponseSchema } from "@langfuse/shared/in-app-agent";
-import { type InAppAgentError } from "@/src/features/in-app-agent/components/utils/utils";
+import { type InAppAgentError } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/utils";
 
 const InAppAgentTransportErrorSchema = z.object({
   message: z.string().optional(),
