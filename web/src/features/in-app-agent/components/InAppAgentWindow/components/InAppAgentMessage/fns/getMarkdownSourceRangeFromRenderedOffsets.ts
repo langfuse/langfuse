@@ -1,4 +1,4 @@
-import { type projectMarkdownToRenderedText } from "@/src/features/in-app-agent/components/InAppAgentWindow/components/InAppAgentMessage/fns/markdown";
+import { type projectMarkdownToRenderedText } from "./projectMarkdownToRenderedText";
 
 export type ProjectedMarkdownText = ReturnType<
   typeof projectMarkdownToRenderedText
