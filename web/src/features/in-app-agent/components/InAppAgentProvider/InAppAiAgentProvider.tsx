@@ -59,7 +59,7 @@ import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components
 import {
   performToolSideEffects,
   shouldPerformToolSideEffects,
-} from "@/src/features/in-app-agent/components/utils/side-effects";
+} from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/performToolSideEffects";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
