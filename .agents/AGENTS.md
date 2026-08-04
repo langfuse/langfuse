@@ -151,3 +151,48 @@ regenerated outputs. Never hand-edit `generated/**`.
 - Generated provider config and shim outputs under `.claude/`, `.cursor/`,
   `.codex/`, `.vscode/`, or `.mcp.json` are local artifacts, not source of
   truth files.
+
+## Cursor Cloud specific instructions
+
+This section is for Cursor Cloud agents. The VM has no Docker, so the standard
+`pnpm run infra:dev:up` / `pnpm run dx*` scripts (which use `docker compose`)
+do NOT work here. Local infra runs as native processes instead. The startup
+update script only refreshes JS deps (`pnpm install` + `pnpm run db:generate`);
+it does not start services. Datastore data, native binaries, and built
+`dist/` folders persist in the VM snapshot, so migrations/seed usually do not
+need re-running — but the datastores and dev servers are NOT auto-started and
+must be started each session as below.
+
+- Toolchain: Node 24 (via `nvm`, set as the default alias) and pnpm (via
+  corepack) resolve automatically in login/interactive shells. `/exec-daemon`
+  ships an older Node on `PATH`; if a bare non-login shell picks Node 22 or
+  cannot find `pnpm`, run commands through a login shell (`bash -lc '…'`).
+- Start datastores (run once per session, from the repo root):
+  - Postgres, Redis, MinIO (run as the current user, data under
+    `.codex/services/`):
+    `source scripts/codex/cloud_services.sh && ensure_postgres_running && ensure_redis_running && ensure_minio_running`
+  - ClickHouse: the helper's `ensure_clickhouse_running` only works as root, so
+    start it as the `clickhouse` system user with default paths instead:
+    `sudo -u clickhouse clickhouse-server --daemon --config-file=/etc/clickhouse-server/config.xml --pid-file=/run/clickhouse-server/clickhouse-server.pid`
+    (data lives in `/var/lib/clickhouse`; the app user `clickhouse`/`clickhouse`
+    already exists in the persisted CH data). Verify with
+    `curl -s localhost:8123/ping`.
+- Start the app: `pnpm run dev` (web on `:3000`, worker on `:3030`). The worker
+  imports `@langfuse/shared` from its built `dist/`, so on a truly fresh tree
+  (no `dist/`) it crashes with `MODULE_NOT_FOUND` until you build the libs once:
+  `pnpm --filter=@langfuse/shared run build && pnpm --filter=@langfuse/ee run build`,
+  then `pnpm run dev`. `dist/` persists in the snapshot, so this is usually a
+  one-time step.
+- First-time DB init (only if the databases are empty): use
+  `pnpm --filter=shared run db:deploy` for Postgres — do NOT use
+  `prisma migrate reset` / `pnpm --filter=shared run db:reset`, because Prisma
+  blocks destructive resets when invoked by an AI agent. Then
+  `pnpm --filter=shared run db:seed`, and for ClickHouse
+  `pnpm --filter=shared run ch:up && pnpm --filter=shared run ch:seed && pnpm --filter=shared run ch:dev-tables`.
+- Local login (from the default seed): `demo@langfuse.com` / `password`.
+- Seeded ingestion API keys (project `llm-app`): public `pk-lf-1234567890`,
+  secret `sk-lf-1234567890` — usable to POST traces to
+  `http://localhost:3000/api/public/ingestion` (Basic auth) for full-pipeline
+  (web → Redis → worker → ClickHouse) testing.
+- Service ports: web `3000`, worker `3030`, Postgres `5432`, ClickHouse
+  `8123`/`9000`, Redis `6379`, MinIO API `9090` / console `9091`.
