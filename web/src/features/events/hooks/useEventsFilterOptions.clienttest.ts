@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FilterState, TimeFilter } from "@langfuse/shared";
@@ -6,6 +6,7 @@ import type { FilterState, TimeFilter } from "@langfuse/shared";
 const mocks = vi.hoisted(() => ({
   bulkInputs: [] as any[],
   perColumnInputs: [] as any[],
+  perColumnData: {} as Record<string, Record<string, unknown>>,
 }));
 
 // Capture the tRPC inputs the hook builds, to assert the plan is wired through
@@ -37,8 +38,8 @@ vi.mock("@/src/utils/api", () => ({
           },
         },
       });
-      const results = descriptors.map(() => ({
-        data: {},
+      const results = descriptors.map((descriptor: any) => ({
+        data: mocks.perColumnData[descriptor.input.columns[0]] ?? {},
         isFetching: false,
         isError: false,
       }));
@@ -87,6 +88,7 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
   beforeEach(() => {
     mocks.bulkInputs = [];
     mocks.perColumnInputs = [];
+    mocks.perColumnData = {};
   });
 
   it("sends only the start-time scope and no refining filter when idle", () => {
@@ -128,5 +130,28 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
     expect(envQuery.filter).toEqual([LEVEL_ERROR]);
     expect(levelQuery.filter).toEqual([ENV_PROD]);
     expect(envQuery.startTimeFilter).toEqual([START_TIME]);
+  });
+
+  it("loads release options when the Release facet is opened", () => {
+    const releaseOptions = [{ value: "181", count: 2 }];
+    mocks.perColumnData.release = { release: releaseOptions };
+
+    const { result } = renderHook(() =>
+      useEventsFilterOptions({
+        projectId: "p",
+        startTimeFilter: [START_TIME],
+        refiningFilter: [],
+        lazy: true,
+      }),
+    );
+
+    act(() => result.current.requestColumns(["release"]));
+
+    expect(mocks.perColumnInputs).toContainEqual(
+      expect.objectContaining({ columns: ["release"] }),
+    );
+    expect(result.current.filterOptions).toMatchObject({
+      release: releaseOptions,
+    });
   });
 });

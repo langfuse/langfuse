@@ -29,6 +29,7 @@ import {
   LatencyBadge,
   TimeToFirstTokenBadge,
   EnvironmentBadge,
+  ReleaseBadge,
   VersionBadge,
   LevelBadge,
   StatusMessageBadge,
@@ -401,6 +402,7 @@ export const ObservationDetailViewHeader = memo(
                 projectId={projectId}
               />
               <EnvironmentBadge environment={observation.environment} />
+              <ReleaseBadge release={observation.release} />
               <CostBadge
                 totalCost={
                   subtreeMetrics

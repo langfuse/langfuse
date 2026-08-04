@@ -7,6 +7,7 @@ import {
 } from "@/src/components/ui/MarkdownJsonView";
 import { ToolCallInvocationsView } from "@/src/features/traces/components/ToolCallInvocationsView";
 import { ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
+import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   type ChatMlMessage,
@@ -144,7 +145,10 @@ export function ChatMessage({
           title={title}
           handleOnValueChange={() => {}}
           handleOnCopy={() => {
-            const rawText = JSON.stringify(message, null, 2);
+            // Shared stringify (not raw JSON.stringify) so \uXXXX escapes in
+            // string fields are copied as real characters, like the rendered
+            // view shows them.
+            const rawText = stringify(message, undefined, 2);
             copyTextToClipboard(rawText);
           }}
           controlButtons={passthroughToggleButton}

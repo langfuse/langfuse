@@ -34,6 +34,9 @@ describe("EventsAggregationQueryBuilder", () => {
     expect(query).toContain(
       "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
     );
+    expect(query).toContain(
+      "(e.parent_span_id = '' OR e.is_app_root = true) AND e.name <> ''",
+    );
   });
 });
 

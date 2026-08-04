@@ -16,20 +16,21 @@ import {
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
 } from "../../repositories/constants";
 import type { ClickhouseFilter } from "./clickhouse-filter";
+import { eventsTableTraceNameSql } from "../../../eventsTable";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
- * Picks a row with non-empty trace_name via LIMIT 1 BY trace_id.
+ * Picks one row with a resolved trace name via LIMIT 1 BY trace_id.
  */
 export const eventsTraceMetadata = (projectId: string): EventsQueryBuilder =>
   new EventsQueryBuilder({ projectId })
     .selectRaw(
       "e.trace_id AS id",
-      "e.trace_name AS name",
+      `${eventsTableTraceNameSql} AS name`,
       "e.user_id AS user_id",
       "e.tags AS tags",
     )
-    .whereRaw("e.trace_name <> ''")
+    .whereRaw(`${eventsTableTraceNameSql} IS NOT NULL`)
     .whereRaw("e.is_deleted = 0")
     .limitBy("e.trace_id");
 

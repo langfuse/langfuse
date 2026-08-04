@@ -588,6 +588,7 @@ const meta = preview.meta({
   ],
   args: {
     error: null,
+    executionUi: { type: "foreground" as const },
     isExpanded: false,
     isConversationInteractionDisabled: false,
     conversations,
@@ -990,6 +991,120 @@ export const Error = meta.story({
         },
       },
     ],
+  },
+});
+
+export const BackgroundRun = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    executionUi: {
+      type: "background",
+      notice: "You can close this; the run continues in the background.",
+      stop: { status: "available", onStop: fn() },
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: { type: "loading" },
+      },
+    ],
+  },
+});
+
+export const BackgroundRunStops = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: { type: "loading" },
+      },
+    ],
+  },
+  render: function Render(args) {
+    const [phase, setPhase] = useState<"running" | "stopping" | "settled">(
+      "running",
+    );
+    const isSettled = phase === "settled";
+
+    useEffect(() => {
+      if (phase !== "stopping") {
+        return;
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        setPhase("settled");
+      }, 1_500);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    }, [phase]);
+
+    return (
+      <StatefulInAppAgentWindow
+        {...args}
+        isAssistantTurnInProgress={!isSettled}
+        messages={
+          isSettled
+            ? [
+                {
+                  id: "user-1",
+                  role: "user",
+                  content: {
+                    type: "text",
+                    text: "Summarize recent ingestion errors.",
+                  },
+                },
+                {
+                  id: "assistant-1",
+                  runId: "run-1",
+                  role: "assistant",
+                  content: {
+                    type: "text",
+                    text: "The run stopped before the investigation completed.",
+                  },
+                },
+              ]
+            : args.messages
+        }
+        executionUi={
+          isSettled
+            ? { type: "background", notice: null, stop: null }
+            : {
+                type: "background",
+                notice:
+                  phase === "stopping"
+                    ? "Stopping the run…"
+                    : "You can close this; the run continues in the background.",
+                stop: {
+                  status: phase === "stopping" ? "stopping" : "available",
+                  onStop: () => {
+                    setPhase("stopping");
+                  },
+                },
+              }
+        }
+      />
+    );
   },
 });
 
