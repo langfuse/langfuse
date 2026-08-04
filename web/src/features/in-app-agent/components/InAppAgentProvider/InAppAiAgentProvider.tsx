@@ -36,10 +36,6 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
-import type {
-  InAppAgentQuickActionAttribution,
-  InAppAgentSubmitOptions,
-} from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type InAppAiAgentMessage } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/getDrawerMessages";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
@@ -51,6 +47,8 @@ import { getInAppAgentError } from "./fns/getInAppAgentError";
 import {
   type InAppAgentMessageEntryPoint,
   type InAppAgentError,
+  type InAppAgentQuickActionAttribution,
+  type InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/types";
 import { createInAppAgentUserContext } from "./fns/createInAppAgentUserContext";
 import { createInAppAgentMessageEntryPointContext } from "./fns/createInAppAgentMessageEntryPointContext";

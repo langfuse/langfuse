@@ -1,5 +1,9 @@
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/fns/getInAppAgentProjectRoute";
-import { type InAppAgentMessageEntryPoint } from "@/src/features/in-app-agent/types";
+import {
+  IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
+  type InAppAgentQuickAction,
+  type InAppAgentQuickActionContext,
+} from "@/src/features/in-app-agent/types";
 import {
   Activity,
   BarChart3,
@@ -20,40 +24,7 @@ import {
   SquarePercent,
   TrendingDown,
   WandSparkles,
-  type LucideIcon,
 } from "lucide-react";
-
-export const IN_APP_AGENT_QUICK_ACTION_CONTEXTS = [
-  "observability",
-  "prompts",
-  "evaluation",
-  "dashboards",
-] as const;
-
-export type InAppAgentQuickActionContext =
-  (typeof IN_APP_AGENT_QUICK_ACTION_CONTEXTS)[number];
-
-export type InAppAgentQuickAction = {
-  id: string;
-  label: string;
-  description: string;
-  prompt: string;
-  icon: LucideIcon;
-};
-
-export type InAppAgentQuickActionAttribution = {
-  key: string;
-  category: InAppAgentQuickActionContext;
-};
-
-export type InAppAgentSubmitOptions = {
-  quickAction?: InAppAgentQuickActionAttribution;
-  /** Force a fresh conversation instead of appending to the selected one. */
-  newConversation?: boolean;
-  /** Which surface sent the message; telemetry only (PostHog + trace
-   * metadata), never shown to the agent. Defaults to "chat". */
-  entryPoint?: InAppAgentMessageEntryPoint;
-};
 
 // Version 1 starter sets. Idea is that periodic curation replaces sets when usage
 // supports a stronger ranking. Prompts are somewhat product-generic and act on the

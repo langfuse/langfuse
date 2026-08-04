@@ -47,18 +47,22 @@ import {
   type InAppAgentMessageRole,
 } from "./components/InAppAgentMessage/InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-agent";
-import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/types";
+import type {
+  InAppAgentQuickAction,
+  InAppAgentQuickActionContext,
+  InAppAgentScreenContextDescription,
+  InAppAgentSubmitOptions,
+} from "@/src/features/in-app-agent/types";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentWindow/components/InAppAgentToolCallCard/InAppAgentToolCallCard";
-import { type InAppAgentError } from "@/src/features/in-app-agent/types";
+import {
+  IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
+  type InAppAgentError,
+} from "@/src/features/in-app-agent/types";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
-  IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
   getInAppAgentQuickActions,
   isInAppAgentQuickActionContext,
-  type InAppAgentQuickAction,
-  type InAppAgentQuickActionContext,
-  type InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";

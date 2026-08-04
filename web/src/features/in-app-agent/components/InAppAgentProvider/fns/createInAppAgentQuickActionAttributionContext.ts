@@ -1,8 +1,8 @@
 import {
   QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
   QUICK_ACTION_KEY_CONTEXT_DESCRIPTION,
+  type InAppAgentQuickActionAttribution,
 } from "@/src/features/in-app-agent/types";
-import { type InAppAgentQuickActionAttribution } from "@/src/features/in-app-agent/quickActions";
 import { type AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
 
 type InAppAgentContext = AgUiRunAgentInput["context"];
