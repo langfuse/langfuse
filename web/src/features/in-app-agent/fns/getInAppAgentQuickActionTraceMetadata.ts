@@ -1,7 +1,7 @@
 import {
   QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
   QUICK_ACTION_KEY_CONTEXT_DESCRIPTION,
-} from "@/src/features/in-app-agent/context";
+} from "@/src/features/in-app-agent/types";
 import {
   isInAppAgentQuickActionContext,
   type InAppAgentQuickActionAttribution,

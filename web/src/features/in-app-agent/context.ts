@@ -1,34 +1,9 @@
 import type { AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
 import type { FilterState } from "@langfuse/shared";
+import { CURRENT_URL_CONTEXT_DESCRIPTION } from "@/src/features/in-app-agent/types";
 
 type InAppAgentContext = AgUiRunAgentInput["context"];
 
-export type InAppAgentScreenContextDescription =
-  | { type: "page" }
-  | { type: "observation" }
-  | { type: "trace" }
-  | {
-      type: "prompt";
-      name: string;
-      selector?:
-        | { type: "version"; value: string }
-        | { type: "label"; value: string };
-    }
-  | { type: "session"; id: string }
-  | { type: "dataset" }
-  | { type: "datasetItem" }
-  | { type: "experimentRun" }
-  | { type: "trace-list"; hasAppliedFilters: boolean }
-  | { type: "observations-list"; hasAppliedFilters: boolean }
-  | { type: "sessions-list"; hasAppliedFilters: boolean }
-  | { type: "prompts-list"; hasAppliedFilters: boolean }
-  | { type: "datasets-list"; hasAppliedFilters: boolean };
-
-export const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
-export const QUICK_ACTION_KEY_CONTEXT_DESCRIPTION = "quick_action_key";
-export const QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION =
-  "quick_action_category";
-export const MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION = "message_entry_point";
 const MAX_SCREEN_CONTEXT_SEARCH_PARAMS = 30;
 const MAX_CONTEXT_KEY_LENGTH = 80;
 const MAX_CONTEXT_VALUE_LENGTH = 500;
@@ -87,14 +62,6 @@ export function sanitizeInAppAgentContext(
 
   return sanitizedContext;
 }
-
-export const IN_APP_AGENT_MESSAGE_ENTRY_POINTS = [
-  "chat",
-  "add-widget-modal",
-] as const;
-
-export type InAppAgentMessageEntryPoint =
-  (typeof IN_APP_AGENT_MESSAGE_ENTRY_POINTS)[number];
 
 function sanitizeUserContext(context: InAppAgentContext): InAppAgentContext {
   return context.flatMap((item) => {

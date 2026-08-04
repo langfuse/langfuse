@@ -42,7 +42,7 @@ import {
   type InAppAgentMessageRole,
 } from "./components/InAppAgentMessage/InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-agent";
-import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
+import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/types";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentWindow/components/InAppAgentToolCallCard/InAppAgentToolCallCard";
 import { type InAppAgentError } from "@/src/features/in-app-agent/types";
 import styles from "./InAppAgentWindow.module.css";

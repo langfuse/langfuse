@@ -36,7 +36,6 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
-import { type InAppAgentMessageEntryPoint } from "@/src/features/in-app-agent/context";
 import type {
   InAppAgentQuickActionAttribution,
   InAppAgentSubmitOptions,
@@ -49,7 +48,10 @@ import { performToolSideEffects } from "@/src/features/in-app-agent/components/I
 import { shouldPerformToolSideEffects } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/shouldPerformToolSideEffects";
 import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";
 import { getInAppAgentError } from "./fns/getInAppAgentError";
-import { type InAppAgentError } from "@/src/features/in-app-agent/types";
+import {
+  type InAppAgentMessageEntryPoint,
+  type InAppAgentError,
+} from "@/src/features/in-app-agent/types";
 import { createInAppAgentUserContext } from "./fns/createInAppAgentUserContext";
 import { createInAppAgentMessageEntryPointContext } from "./fns/createInAppAgentMessageEntryPointContext";
 import { createInAppAgentQuickActionAttributionContext } from "./fns/createInAppAgentQuickActionAttributionContext";

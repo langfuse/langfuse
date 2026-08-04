@@ -1,5 +1,5 @@
-import type { InAppAgentMessageEntryPoint } from "@/src/features/in-app-agent/context";
 import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
+import { type InAppAgentMessageEntryPoint } from "@/src/features/in-app-agent/types";
 import {
   Activity,
   BarChart3,
