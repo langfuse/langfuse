@@ -97,7 +97,6 @@ type ChartRowShellProps = RowShellSharedProps & {
   showCostTokens: boolean;
   showScores: boolean;
   showComments: boolean;
-  colorCodeMetrics: boolean;
   parentTotalCost?: Decimal;
   parentTotalDuration?: number;
   commentCount: number;
@@ -115,7 +114,6 @@ function TimelineChartRowShellComponent({
   showCostTokens,
   showScores,
   showComments,
-  colorCodeMetrics,
   parentTotalCost,
   parentTotalDuration,
   commentCount,
@@ -161,7 +159,6 @@ function TimelineChartRowShellComponent({
         showCostTokens={showCostTokens}
         showScores={showScores}
         showComments={showComments}
-        colorCodeMetrics={colorCodeMetrics}
         parentTotalCost={parentTotalCost}
         parentTotalDuration={parentTotalDuration}
         commentCount={commentCount}

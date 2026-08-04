@@ -174,13 +174,13 @@ const OBS_HIERARCHY: HierarchyRow[] = [
   ["embedding", "Embeddings"],
   ["guardrail", "Guardrails"],
 ].map(([slug, label]) => ({
-  utility: `text-obs-${slug}`,
+  utility: `icon-obs-${slug}`,
   token: `--obs-${slug}`,
   purpose: label,
   kind: "text" as const,
 }));
 OBS_HIERARCHY.push({
-  utility: "text-obs-entity",
+  utility: "icon-obs-entity",
   token: "--obs-entity",
   purpose: "Sessions, users, datasets, prompts, … — rides the brand blue",
   kind: "text",

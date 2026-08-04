@@ -6,7 +6,6 @@
  * - Show Scores
  * - Show Duration
  * - Show Cost/Tokens
- * - Color Code Metrics (dependent on duration or cost being enabled)
  * - Collapse System Prompts
  * - Minimum Observation Level filter
  * - Show Graph (hidden when graph view not available)
@@ -28,7 +27,6 @@ import {
   DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useViewPreferences } from "../contexts/ViewPreferencesContext";
 import { useTraceAnalyticsDimensions } from "../hooks/useTraceAnalyticsDimensions";
@@ -75,7 +73,6 @@ export function TraceViewOptionsMenuItems({
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
 
-  // Get all preferences directly from context
   const {
     showGraph,
     setShowGraph,
@@ -87,16 +84,11 @@ export function TraceViewOptionsMenuItems({
     setShowDuration,
     showCostTokens,
     setShowCostTokens,
-    colorCodeMetrics,
-    setColorCodeMetrics,
     minObservationLevel,
     setMinObservationLevel,
     collapseSystemPrompt,
     setCollapseSystemPrompt,
   } = useViewPreferences();
-
-  // Color coding is only available when duration or cost metrics are shown
-  const isColorCodeEnabled = showDuration || showCostTokens;
 
   return (
     <>
@@ -191,39 +183,6 @@ export function TraceViewOptionsMenuItems({
               size="sm"
               checked={showCostTokens}
               onCheckedChange={setShowCostTokens}
-            />
-          </div>
-        </DropdownMenuItem>
-
-        {/* Color Code Metrics Toggle (disabled when no metrics shown) */}
-        <DropdownMenuItem
-          asChild
-          onSelect={(e) => e.preventDefault()}
-          disabled={!isColorCodeEnabled}
-          className={cn([
-            "px-2 py-1",
-            isColorCodeEnabled ? "" : "cursor-not-allowed",
-          ])}
-        >
-          <div
-            className={cn(
-              "flex w-full items-center justify-between",
-              !isColorCodeEnabled && "cursor-not-allowed",
-            )}
-          >
-            <span
-              className={cn(
-                "mr-2",
-                !isColorCodeEnabled && "cursor-not-allowed",
-              )}
-            >
-              Show Color Code Metrics
-            </span>
-            <Switch
-              size="sm"
-              checked={colorCodeMetrics}
-              onCheckedChange={setColorCodeMetrics}
-              disabled={!isColorCodeEnabled}
             />
           </div>
         </DropdownMenuItem>

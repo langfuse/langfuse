@@ -13,10 +13,7 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
-import {
-  heatMapTextColor,
-  getSubtreeDurationOverflowMs,
-} from "@/src/components/trace/lib/helpers";
+import { getSubtreeDurationOverflowMs } from "@/src/components/trace/lib/helpers";
 import { isPresent } from "@langfuse/shared";
 
 const SUBTREE_DURATION_TITLE =
@@ -34,9 +31,6 @@ export function TimelineBar({
   showCostTokens,
   showScores,
   showComments,
-  colorCodeMetrics,
-  parentTotalCost,
-  parentTotalDuration,
   commentCount,
   scores,
 }: TimelineBarProps) {
@@ -72,18 +66,7 @@ export function TimelineBar({
         <CommentCountIcon count={commentCount} />
       ) : null}
       {showDuration && isPresent(ownDurationMs) && (
-        <span
-          className={cn(
-            parentTotalDuration &&
-              colorCodeMetrics &&
-              heatMapTextColor({
-                max: parentTotalDuration,
-                value: ownDurationMs,
-              }),
-          )}
-        >
-          {formatIntervalSeconds(ownDurationMs / 1000)}
-        </span>
+        <span>{formatIntervalSeconds(ownDurationMs / 1000)}</span>
       )}
       {isPresent(ownDurationMs) && subtreeWallClockOverflowMs != null && (
         <span title={SUBTREE_DURATION_TITLE}>
@@ -92,18 +75,7 @@ export function TimelineBar({
         </span>
       )}
       {showCostTokens && node.totalCost && (
-        <span
-          className={cn(
-            parentTotalCost &&
-              colorCodeMetrics &&
-              heatMapTextColor({
-                max: parentTotalCost,
-                value: node.totalCost,
-              }),
-          )}
-        >
-          {usdFormatter(node.totalCost.toNumber())}
-        </span>
+        <span>{usdFormatter(node.totalCost.toNumber())}</span>
       )}
       {showScores && scores && scores.length > 0 && (
         <div className="flex max-h-5 gap-1">

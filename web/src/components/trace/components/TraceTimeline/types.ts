@@ -39,7 +39,6 @@ export interface TimelineBarProps {
   showCostTokens: boolean;
   showScores: boolean;
   showComments: boolean;
-  colorCodeMetrics: boolean;
   // Heatmap context for color coding
   parentTotalCost?: Decimal;
   parentTotalDuration?: number;

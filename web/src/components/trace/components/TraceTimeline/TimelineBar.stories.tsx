@@ -12,7 +12,6 @@ const meta = preview.meta({
     showCostTokens: false,
     showScores: false,
     showComments: false,
-    colorCodeMetrics: false,
   },
   // The bar positions itself absolutely on the time axis; host it in a
   // row-height relative track so its left offset renders in context.

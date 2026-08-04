@@ -68,17 +68,6 @@
   --color-control-fill: hsl(var(--control-fill));
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
-  --color-obs-trace: hsl(var(--obs-trace));
-  --color-obs-generation: hsl(var(--obs-generation));
-  --color-obs-event: hsl(var(--obs-event));
-  --color-obs-span: hsl(var(--obs-span));
-  --color-obs-agent: hsl(var(--obs-agent));
-  --color-obs-tool: hsl(var(--obs-tool));
-  --color-obs-chain: hsl(var(--obs-chain));
-  --color-obs-retriever: hsl(var(--obs-retriever));
-  --color-obs-embedding: hsl(var(--obs-embedding));
-  --color-obs-guardrail: hsl(var(--obs-guardrail));
-  --color-obs-entity: hsl(var(--obs-entity));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
@@ -805,4 +794,40 @@
   -webkit-user-select: text !important;
   -moz-user-select: text !important;
   -ms-user-select: text !important;
+}
+
+/* Observation-type icon utilities (ItemBadge): a deliberate `icon-*` API —
+   these colors are for icon glyphs only, never text or fills. */
+@utility icon-obs-trace {
+  color: hsl(var(--obs-trace));
+}
+@utility icon-obs-generation {
+  color: hsl(var(--obs-generation));
+}
+@utility icon-obs-event {
+  color: hsl(var(--obs-event));
+}
+@utility icon-obs-span {
+  color: hsl(var(--obs-span));
+}
+@utility icon-obs-agent {
+  color: hsl(var(--obs-agent));
+}
+@utility icon-obs-tool {
+  color: hsl(var(--obs-tool));
+}
+@utility icon-obs-chain {
+  color: hsl(var(--obs-chain));
+}
+@utility icon-obs-retriever {
+  color: hsl(var(--obs-retriever));
+}
+@utility icon-obs-embedding {
+  color: hsl(var(--obs-embedding));
+}
+@utility icon-obs-guardrail {
+  color: hsl(var(--obs-guardrail));
+}
+@utility icon-obs-entity {
+  color: hsl(var(--obs-entity));
 }
