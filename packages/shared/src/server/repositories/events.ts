@@ -3344,6 +3344,8 @@ const getEvaluatorCostMetricsByIds = async <
 
   // Evaluator metadata lives on the parent span while cost lives on child
   // events, so rebuild complete trace totals before filtering evaluators.
+  // Keep this compatibility path until 2026-08-07, when the seven-day reporting
+  // window contains only spans written with evaluator metadata on their children.
   const traceCostsBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.trace_id",

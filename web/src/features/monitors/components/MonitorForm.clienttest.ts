@@ -107,13 +107,20 @@ describe("buildFilterColumnsParams", () => {
   // (no free-text fallback), so they must list every domain value regardless of
   // what the discovery window returned, otherwise they dead-end on
   // "No results found" (LFE-10616).
-  const getColumn = (view: "observations", id: string) => {
+  const getColumn = (
+    view: "observations",
+    id: string,
+    viewVersion?: "v1" | "v2",
+  ) => {
     const params = buildFilterColumnsParams({
       view,
       filterOptions: undefined, // empty discovery window
       datasets: undefined,
     });
-    return getWidgetFilterColumns(params).find((c) => c.id === id);
+    return getWidgetFilterColumns({
+      ...params,
+      viewVersion: viewVersion ?? params.viewVersion,
+    }).find((c) => c.id === id);
   };
 
   it("offers every Observation Type value even when discovery data is empty", () => {
@@ -197,6 +204,16 @@ describe("buildFilterColumnsParams", () => {
         (column) => column.id === "booleanValue",
       ),
     ).toBe(false);
+  });
+
+  it("offers semantic-root filtering only for v2 observations widgets", () => {
+    expect(getColumn("observations", "isRootObservation")).toMatchObject({
+      name: "Is Root Observation",
+      type: "boolean",
+    });
+    expect(
+      getColumn("observations", "isRootObservation", "v1"),
+    ).toBeUndefined();
   });
 });
 

@@ -1351,6 +1351,44 @@ describe("MCP Read Tools", () => {
       ).resolves.toMatchObject({ data: [] });
     });
 
+    it("should treat an exact observation id filter as selective scope", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const observation = createObservationEvent({
+        projectId,
+        input: "selective input",
+      });
+
+      await createEventsCh([observation]);
+
+      const result = (await handleListObservations(
+        {
+          fields: ["id", "input"],
+          filter: [
+            {
+              type: "string",
+              column: "id",
+              operator: "=",
+              value: observation.id,
+            },
+          ],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string; input: string }> };
+
+      expect(result.data).toEqual([
+        {
+          id: observation.id,
+          input: "selective input",
+          url: buildObservationUrl({
+            projectId,
+            traceId: observation.trace_id,
+            observationId: observation.id,
+          }),
+        },
+      ]);
+    });
+
     it("should infer advanced filter type from the column", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const traceId = randomUUID();

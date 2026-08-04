@@ -92,6 +92,10 @@ describe("account v4 migration data", () => {
             projectId: "project-1",
             outdatedSdkUsageSeriesCount: 0,
             delayedOtelIngestionSeriesCount: 0,
+            experimentInstrumentationMigration: {
+              status: "sdk_usage_inconclusive" as const,
+              upgradePath: "sdk" as const,
+            },
             sdkUsageSeries: [currentSdkSeries],
           },
         ]),
@@ -135,6 +139,10 @@ describe("account v4 migration data", () => {
         delayedOtelIngestionCount: 0,
       },
       evals: { status: "loaded", count: 2 },
+      experiments: {
+        status: "loaded",
+        result: "sdk_usage_inconclusive",
+      },
       apis: { status: "loaded", count: 2 },
       exports: { status: "loaded", count: 1 },
     });
