@@ -830,11 +830,13 @@ paths:
           in: query
           description: >-
             Filter comments by case-insensitive substring match on comment
-            content. Maximum 200 characters.
+            content. Empty strings are rejected.
           required: false
           schema:
             type: string
             nullable: true
+            minLength: 1
+            maxLength: 200
       responses:
         '200':
           description: ''
