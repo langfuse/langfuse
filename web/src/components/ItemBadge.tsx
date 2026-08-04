@@ -41,7 +41,7 @@ export type LangfuseItemType =
   | "RUNNING_EVALUATOR"
   | "EXPERIMENT";
 
-const iconMap = {
+export const iconMap = {
   TRACE: ListTree,
   GENERATION: Fan,
   EVENT: CircleDot,

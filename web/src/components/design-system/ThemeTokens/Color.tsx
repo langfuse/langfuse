@@ -27,6 +27,7 @@ import {
   useTokenContexts,
 } from "./shared";
 import { toCssColor } from "./parseThemeTokens";
+import { iconMap } from "@/src/components/ItemBadge";
 
 /** The private palette steps components must never reference. */
 const PRIMITIVE_PATTERN = /^--(?:neutral|blue)-(?:light|dark)-\d+$/;
@@ -40,6 +41,8 @@ const PRIMITIVE_PATTERN = /^--(?:neutral|blue)-(?:light|dark)-\d+$/;
 type HierarchyKind = "fill" | "line" | "text";
 
 type HierarchyRow = {
+  /** For icon rows: the actual product icon, rendered in the token color. */
+  icon?: React.ComponentType<{ className?: string }>;
   /** Utility name shown in the chip, e.g. `bg-canvas`, `text-link`. */
   utility: string;
   /** Backing custom property, e.g. `--bg-canvas`. */
@@ -161,30 +164,28 @@ const TEXT_HIERARCHY: HierarchyRow[] = [
   },
 ];
 
-/** ItemBadge identity colors — icon shape is primary identity. */
-const OBS_HIERARCHY: HierarchyRow[] = [
-  ["trace", "Traces"],
-  ["generation", "Generations"],
-  ["event", "Events"],
-  ["span", "Spans"],
-  ["agent", "Agents"],
-  ["tool", "Tools"],
-  ["chain", "Chains"],
-  ["retriever", "Retrievers"],
-  ["embedding", "Embeddings"],
-  ["guardrail", "Guardrails"],
-].map(([slug, label]) => ({
+/** ItemBadge identity colors — the real product icons, in the token color. */
+const OBS_HIERARCHY: HierarchyRow[] = (
+  [
+    ["trace", "TRACE", "Traces"],
+    ["generation", "GENERATION", "Generations"],
+    ["event", "EVENT", "Events"],
+    ["span", "SPAN", "Spans"],
+    ["agent", "AGENT", "Agents"],
+    ["tool", "TOOL", "Tools"],
+    ["chain", "CHAIN", "Chains"],
+    ["retriever", "RETRIEVER", "Retrievers"],
+    ["embedding", "EMBEDDING", "Embeddings"],
+    ["guardrail", "GUARDRAIL", "Guardrails"],
+    ["entity", "SESSION", "Sessions, users, datasets, prompts, …"],
+  ] as const
+).map(([slug, iconKey, label]) => ({
   utility: `icon-obs-${slug}`,
   token: `--obs-${slug}`,
   purpose: label,
   kind: "text" as const,
+  icon: iconMap[iconKey],
 }));
-OBS_HIERARCHY.push({
-  utility: "icon-obs-entity",
-  token: "--obs-entity",
-  purpose: "Sessions, users, datasets, prompts, … — rides the brand blue",
-  kind: "text",
-});
 
 const BRAND_HIERARCHY: HierarchyRow[] = [
   {
@@ -471,11 +472,13 @@ function ModeSwatch({
   token,
   kind,
   on,
+  icon: Icon,
 }: {
   paint: TokenContext;
   token: string;
   kind: HierarchyKind;
   on?: string;
+  icon?: React.ComponentType<{ className?: string }>;
 }) {
   const triplet = paint.resolve(`var(${token})`).trim();
   const canvas = paint.color("--bg-canvas");
@@ -503,7 +506,7 @@ function ModeSwatch({
         }}
         title={triplet}
       >
-        Aa
+        {Icon ? <Icon className="h-4 w-4" /> : "Aa"}
       </div>
     );
   } else {
@@ -603,12 +606,14 @@ function HierarchySection({
               token={row.token}
               kind={row.kind ?? kind}
               on={row.on}
+              icon={row.icon}
             />
             <ModeSwatch
               paint={darkCtx}
               token={row.token}
               kind={row.kind ?? kind}
               on={row.on}
+              icon={row.icon}
             />
           </div>
         ))}
