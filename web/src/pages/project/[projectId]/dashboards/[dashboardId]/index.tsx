@@ -95,6 +95,10 @@ function placementNextTo(anchor: DashboardPlacement) {
   };
 }
 
+type DashboardDefinition = {
+  widgets: DashboardPlacement[];
+};
+
 export default function DashboardDetail() {
   const router = useRouter();
   const utils = api.useUtils();
@@ -176,17 +180,24 @@ export default function DashboardDetail() {
     return JSON.stringify(currentFilters) !== JSON.stringify(savedFilters);
   }, [currentFilters, savedFilters]);
 
-  // State for handling widget deletion and addition
-  const [localDashboardDefinition, setLocalDashboardDefinition] = useState<{
-    widgets: DashboardPlacement[];
-  } | null>(null);
+  // Local state is only a draft. When no draft is dirty, the dashboard query
+  // remains the source of truth so external invalidations (including agent
+  // tool calls) can update the rendered placement list.
+  const [localDashboardDraft, setLocalDashboardDraft] =
+    useState<DashboardDefinition | null>(null);
+  const dashboardDefinitionDirtyRef = useRef(false);
+  const dashboardDefinition = dashboardDefinitionDirtyRef.current
+    ? localDashboardDraft
+    : (dashboard.data?.definition ?? localDashboardDraft);
   // The async flows below (paste/duplicate/import) commit a definition change
   // only after a network round-trip. They must compute it from this ref — the
   // definition as of NOW — not from the state captured when the handler
   // started, or a drag/delete/paste that landed during the await gets
   // silently discarded.
-  const localDashboardDefinitionRef = useRef(localDashboardDefinition);
-  localDashboardDefinitionRef.current = localDashboardDefinition;
+  const localDashboardDefinitionRef = useRef<DashboardDefinition | null>(
+    dashboardDefinition,
+  );
+  localDashboardDefinitionRef.current = dashboardDefinition;
 
   // State for the widget selection dialog
   const [isWidgetDialogOpen, setIsWidgetDialogOpen] = useState(false);
@@ -195,9 +206,19 @@ export default function DashboardDetail() {
   const updateDashboardDefinition =
     api.dashboard.updateDashboardDefinition.useMutation({
       // Saves are silent; the header shows a spinner while in flight.
-      onSuccess: () => {
-        // Invalidate the dashboard query to refetch the data
-        dashboard.refetch();
+      onSuccess: async (_data, variables) => {
+        // Wait for the saved definition to be reflected by the server before
+        // dropping the local draft. If another local edit landed while the
+        // request was in flight, keep that newer draft intact.
+        await dashboard.refetch();
+        if (
+          dashboardDefinitionDirtyRef.current &&
+          JSON.stringify(localDashboardDefinitionRef.current) ===
+            JSON.stringify(variables.definition)
+        ) {
+          dashboardDefinitionDirtyRef.current = false;
+          setLocalDashboardDraft(null);
+        }
       },
       onError: (error) => {
         showErrorToast("Error updating dashboard", error.message);
@@ -265,9 +286,10 @@ export default function DashboardDetail() {
   // readers that commit before the next render, updates state, and schedules
   // the debounced save.
   const applyDashboardDefinition = useCallback(
-    (updated: { widgets: DashboardPlacement[] }) => {
+    (updated: DashboardDefinition) => {
+      dashboardDefinitionDirtyRef.current = true;
       localDashboardDefinitionRef.current = updated;
-      setLocalDashboardDefinition(updated);
+      setLocalDashboardDraft(updated);
       saveDashboardChanges(updated);
     },
     [saveDashboardChanges],
@@ -979,12 +1001,6 @@ export default function DashboardDetail() {
     },
   );
 
-  useEffect(() => {
-    if (dashboard.data && !localDashboardDefinition) {
-      setLocalDashboardDefinition(dashboard.data.definition);
-    }
-  }, [dashboard.data, localDashboardDefinition]);
-
   // Initialize filters from dashboard data
   useEffect(() => {
     if (dashboard.data?.filters) {
@@ -994,9 +1010,9 @@ export default function DashboardDetail() {
   }, [dashboard.data?.filters]);
 
   useEffect(() => {
-    if (localDashboardDefinition && widgetToAdd.data && addWidgetId) {
+    if (dashboardDefinition && widgetToAdd.data && addWidgetId) {
       if (
-        !localDashboardDefinition.widgets.some(
+        !dashboardDefinition.widgets.some(
           (w) => w.type === "widget" && w.widgetId === addWidgetId,
         )
       ) {
@@ -1012,7 +1028,7 @@ export default function DashboardDetail() {
     widgetToAdd.data,
     addWidgetId,
     addWidgetToDashboard,
-    localDashboardDefinition,
+    dashboardDefinition,
     projectId,
     dashboardId,
     router,
@@ -1020,13 +1036,13 @@ export default function DashboardDetail() {
 
   // Handle deleting a widget
   const handleDeleteWidget = (tileId: string) => {
-    if (localDashboardDefinition) {
-      const updatedWidgets = localDashboardDefinition.widgets.filter(
+    if (dashboardDefinition) {
+      const updatedWidgets = dashboardDefinition.widgets.filter(
         (widget) => widget.id !== tileId,
       );
 
       const updatedDefinition = {
-        ...localDashboardDefinition,
+        ...dashboardDefinition,
         widgets: updatedWidgets,
       };
 
@@ -1342,7 +1358,7 @@ export default function DashboardDetail() {
             setGridResetKey((key) => key + 1);
           }}
         />
-        {dashboard.isPending || !localDashboardDefinition ? (
+        {dashboard.isPending || !dashboardDefinition ? (
           <NoDataOrLoading isLoading={true} />
         ) : dashboard.isError ? (
           <div className="flex h-64 items-center justify-center">
@@ -1354,18 +1370,18 @@ export default function DashboardDetail() {
           <div>
             <DashboardGrid
               key={gridResetKey}
-              widgets={localDashboardDefinition.widgets}
+              widgets={dashboardDefinition.widgets}
               onChange={(updatedWidgets) => {
                 if (isLockedEditable) {
                   // Carry the attempted layout change into the clone.
                   openCloneFirst("layout_change", {
-                    ...localDashboardDefinition,
+                    ...dashboardDefinition,
                     widgets: updatedWidgets,
                   });
                   return;
                 }
                 applyDashboardDefinition({
-                  ...localDashboardDefinition,
+                  ...dashboardDefinition,
                   widgets: updatedWidgets,
                 });
               }}

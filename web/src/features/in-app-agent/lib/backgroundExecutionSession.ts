@@ -111,6 +111,9 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     input: ApprovalDecision,
   ) => Promise<unknown>;
   private readonly onSettled?: () => void;
+  private readonly onTerminalSnapshot?: (
+    snapshot: BackgroundExecutionHydration,
+  ) => void;
   private readonly onError?: (error: unknown) => void;
   private readonly agentSubscription: { unsubscribe(): void };
   private readonly listeners = new Set<() => void>();
@@ -125,6 +128,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     decideApproval: (input: ApprovalDecision) => Promise<unknown>;
     subscriber?: BackgroundExecutionAgentSubscriber;
     onSettled?: () => void;
+    onTerminalSnapshot?: (snapshot: BackgroundExecutionHydration) => void;
     onError?: (error: unknown) => void;
     initialView?: Partial<BackgroundExecutionView>;
   }) {
@@ -133,6 +137,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.cancelRun = config.cancelRun;
     this.decideApproval = config.decideApproval;
     this.onSettled = config.onSettled;
+    this.onTerminalSnapshot = config.onTerminalSnapshot;
     this.onError = config.onError;
     this.view = {
       messages: [],
@@ -469,6 +474,10 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       attachment: { status: "detached" },
     });
 
+    if (isTerminalRun(hydrated.currentRun)) {
+      this.onTerminalSnapshot?.(hydrated);
+    }
+
     return true;
   }
 
@@ -601,4 +610,8 @@ function isExecutingRun(
     run?.status === InAppAgentRunStatus.QUEUED ||
     run?.status === InAppAgentRunStatus.RUNNING
   );
+}
+
+function isTerminalRun(run: BackgroundExecutionRunView | null): boolean {
+  return run !== null && !isCancellableBackgroundRun(run.status);
 }

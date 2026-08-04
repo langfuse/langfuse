@@ -1,6 +1,7 @@
 import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/tools";
 import { safeJsonParse } from "@langfuse/shared";
 import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
+import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
@@ -207,5 +208,90 @@ export function performToolSideEffects({
 
   return Promise.all(
     targets.map((target) => performTargetInvalidation(target, utils)),
+  );
+}
+
+type CompletedToolCall = {
+  toolCallId: string;
+  toolName: string;
+  toolError?: string;
+};
+
+/**
+ * Reconstruct completed tool calls from the durable conversation messages.
+ * Background runs can finish while the drawer is detached, so the browser
+ * cannot rely on having observed the live TOOL_CALL_RESULT event.
+ */
+export function getCompletedToolCalls(messages: readonly AgUiMessage[]) {
+  const toolCalls = new Map<string, CompletedToolCall>();
+  const toolResults = new Map<string, Extract<AgUiMessage, { role: "tool" }>>();
+
+  for (const message of messages) {
+    if (message.role === "assistant") {
+      for (const toolCall of message.toolCalls ?? []) {
+        toolCalls.set(toolCall.id, {
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+        });
+      }
+      continue;
+    }
+
+    if (message.role === "tool") {
+      toolResults.set(message.toolCallId, message);
+    }
+  }
+
+  return Array.from(toolCalls.values()).flatMap((toolCall) => {
+    const result = toolResults.get(toolCall.toolCallId);
+    if (!result || !shouldPerformToolSideEffects(result.error)) {
+      return [];
+    }
+
+    return [{ ...toolCall, toolError: result.error }];
+  });
+}
+
+export function performToolSideEffectsForToolCall({
+  toolCallId,
+  toolName,
+  toolError,
+  handledToolCallIds,
+  utils,
+}: {
+  toolCallId: string;
+  toolName: string;
+  toolError?: unknown;
+  handledToolCallIds: Set<string>;
+  utils: ReturnType<typeof api.useUtils>;
+}) {
+  if (
+    handledToolCallIds.has(toolCallId) ||
+    !shouldPerformToolSideEffects(toolError)
+  ) {
+    return Promise.resolve([]);
+  }
+
+  handledToolCallIds.add(toolCallId);
+  return performToolSideEffects({ toolName, utils });
+}
+
+export function performToolSideEffectsForMessages({
+  messages,
+  handledToolCallIds,
+  utils,
+}: {
+  messages: readonly AgUiMessage[];
+  handledToolCallIds: Set<string>;
+  utils: ReturnType<typeof api.useUtils>;
+}) {
+  return Promise.all(
+    getCompletedToolCalls(messages).map((toolCall) =>
+      performToolSideEffectsForToolCall({
+        ...toolCall,
+        handledToolCallIds,
+        utils,
+      }),
+    ),
   );
 }
