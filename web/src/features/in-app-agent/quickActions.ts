@@ -8,14 +8,10 @@ import {
   Clock,
   Coins,
   Database,
-  FileJson,
   FilePlus,
   FlaskConical,
   GitCompareArrows,
-  LayoutDashboard,
-  Lightbulb,
   ListChecks,
-  ListTree,
   MessageSquareText,
   Radar,
   ScanSearch,
@@ -37,32 +33,12 @@ export const IN_APP_AGENT_QUICK_ACTION_CONTEXTS = [
 export type InAppAgentQuickActionContext =
   (typeof IN_APP_AGENT_QUICK_ACTION_CONTEXTS)[number];
 
-export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS: Record<
-  InAppAgentQuickActionContext,
-  string
-> = {
-  observability: "Observability",
-  prompts: "Prompts",
-  evaluation: "Evaluation",
-  dashboards: "Dashboard",
-};
-
 export type InAppAgentQuickAction = {
   id: string;
   label: string;
   description: string;
   prompt: string;
   icon: LucideIcon;
-};
-
-export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS: Record<
-  InAppAgentQuickActionContext,
-  LucideIcon
-> = {
-  observability: ListTree,
-  dashboards: LayoutDashboard,
-  prompts: FileJson,
-  evaluation: Lightbulb,
 };
 
 export type InAppAgentQuickActionAttribution = {

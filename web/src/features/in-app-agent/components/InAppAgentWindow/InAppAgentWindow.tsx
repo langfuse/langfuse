@@ -10,8 +10,13 @@ import {
 import {
   ArrowRight,
   BotMessageSquare,
+  FileJson,
   History,
   Info,
+  LayoutDashboard,
+  Lightbulb,
+  ListTree,
+  type LucideIcon,
   Maximize2,
   Minimize2,
   Minus,
@@ -49,8 +54,6 @@ import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
-  IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS,
-  IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS,
   getInAppAgentQuickActions,
   isInAppAgentQuickActionContext,
   type InAppAgentQuickAction,
@@ -60,6 +63,26 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";
+
+const IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS: Record<
+  InAppAgentQuickActionContext,
+  LucideIcon
+> = {
+  observability: ListTree,
+  dashboards: LayoutDashboard,
+  prompts: FileJson,
+  evaluation: Lightbulb,
+};
+
+const IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS: Record<
+  InAppAgentQuickActionContext,
+  string
+> = {
+  observability: "Observability",
+  prompts: "Prompts",
+  evaluation: "Evaluation",
+  dashboards: "Dashboard",
+};
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
