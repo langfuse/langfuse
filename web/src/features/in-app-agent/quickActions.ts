@@ -58,7 +58,7 @@ export type InAppAgentSubmitOptions = {
 // Version 1 starter sets. Idea is that periodic curation replaces sets when usage
 // supports a stronger ranking. Prompts are somewhat product-generic and act on the
 // current page context without copying customer data.
-export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
+const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
   observability: [
     {
       id: "analyze-failure-patterns",
