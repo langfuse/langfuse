@@ -398,16 +398,29 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
-  describe("E. drops environmental storage-access SecurityError", () => {
+  describe("E. drops environmental storage-access SecurityError (console-captured only)", () => {
+    // Real shape (LANGFUSE-5TC/5TD/5TE/5TF): our useLocalStorage catch logs the
+    // DOMException via console.error → captureConsoleIntegration re-captures it
+    // as an exception event (mechanism `auto.core.capture_console`) carrying
+    // the browser-generated message.
+    const consoleCapturedStorageDenial = (value: string): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "SecurityError",
+              value,
+              mechanism: { type: "auto.core.capture_console", handled: true },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
     it("drops the localStorage access denial (LANGFUSE-5TC/5TD/5TE/5TF)", () => {
-      // Real shape: our useLocalStorage catch logs the DOMException via
-      // console.error → captureConsoleIntegration re-captures it as an
-      // exception event with the browser-generated message.
       expect(
         isDenylistedNoiseEvent(
-          exceptionEvent(
+          consoleCapturedStorageDenial(
             "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
-            "SecurityError",
           ),
         ),
       ).toBe(true);
@@ -416,12 +429,33 @@ describe("isDenylistedNoiseEvent", () => {
     it("drops the sessionStorage variant of the same browser artifact", () => {
       expect(
         isDenylistedNoiseEvent(
-          exceptionEvent(
+          consoleCapturedStorageDenial(
             "Failed to read the 'sessionStorage' property from 'Window': Access is denied for this document.",
-            "SecurityError",
           ),
         ),
       ).toBe(true);
+    });
+
+    it("KEEPS an UNCAUGHT storage SecurityError (page crash via global onerror)", () => {
+      // A bare storage read during render that crashes the page arrives via the
+      // global handler, not capture_console — that is a real diagnostic and
+      // must survive.
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SecurityError",
+              value:
+                "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
     });
   });
 
@@ -764,13 +798,16 @@ describe("isReactDevtoolsInternalEvent", () => {
 });
 
 /**
- * Build the exact shape browsers produce for a chunk PARSE failure
- * (LANGFUSE-5WH/5WG/5WD/5S7): global `onerror` mechanism, `SyntaxError`, and a
- * single anonymous frame at the chunk URL.
+ * Build the exact WIRE shape the SDK hands `beforeSend` for a chunk PARSE
+ * failure (LANGFUSE-5WH/5WG/5WD/5S7): global `onerror` mechanism,
+ * `SyntaxError`, and a single frame at the chunk URL whose function is the
+ * SDK's UNKNOWN_FUNCTION placeholder `"?"` (server-side normalization later
+ * turns that into `null` — the shape stored events show).
  */
 function chunkParseErrorEvent(
   value: string,
   filename = "app:///_next/static/chunks/0_w4b6l3mpyep.js",
+  fn: string | undefined = "?",
 ): ErrorEvent {
   return {
     exception: {
@@ -782,7 +819,7 @@ function chunkParseErrorEvent(
             type: "auto.browser.global_handlers.onerror",
             handled: false,
           },
-          stacktrace: { frames: [{ filename, function: undefined }] },
+          stacktrace: { frames: [{ filename, function: fn }] },
         },
       ],
     },
@@ -809,6 +846,18 @@ describe("isStaleChunkParseErrorEvent", () => {
           chunkParseErrorEvent(
             "Unexpected end of input",
             "app:///_next/static/chunks/3g9a8ojcqetek.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("matches the normalized stored shape too (function absent instead of '?')", () => {
+      expect(
+        isStaleChunkParseErrorEvent(
+          chunkParseErrorEvent(
+            "Unexpected end of input",
+            "app:///_next/static/chunks/3g9a8ojcqetek.js",
+            undefined,
           ),
         ),
       ).toBe(true);
@@ -965,7 +1014,9 @@ function frame(filename: string, fn?: string) {
 }
 
 describe("isPosthogRecorderInternalEvent", () => {
-  const RECORDER = "app:///static/posthog-recorder.js";
+  // Wire shape: the recorder loads with a version query that survives into
+  // frame filenames handed to beforeSend (stored events show it on abs_path).
+  const RECORDER = "app:///static/posthog-recorder.js?v=1.390.2";
 
   describe("drops errors thrown wholly inside the PostHog session recorder", () => {
     it("drops the rrweb mutation-processing SyntaxError (LANGFUSE-5VX shape)", () => {
@@ -994,7 +1045,29 @@ describe("isPosthogRecorderInternalEvent", () => {
       expect(isPosthogRecorderInternalEvent(event)).toBe(true);
     });
 
-    it("drops the addEventListener-wrapped variant with a Sentry SDK frame (LANGFUSE-5VY shape)", () => {
+    it("drops the same shape without the version query (normalized stored filename)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "Invalid or unexpected token",
+              stacktrace: {
+                frames: [
+                  frame(
+                    "app:///static/posthog-recorder.js",
+                    "Ut.processMutations",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the addEventListener-wrapped variant with a source-mapped Sentry SDK frame (LANGFUSE-5VY stored shape)", () => {
       const event = {
         exception: {
           values: [
@@ -1039,6 +1112,30 @@ describe("isPosthogRecorderInternalEvent", () => {
                     "app:///_next/static/chunks/0r47ep231kqhy.js",
                     "onMutation",
                   ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps the wrapped-listener variant when the SDK wrapper is bundled into an app chunk (prod wire shape — deliberate coverage gap)", () => {
+      // In a prod bundle the Sentry wrap() frame is an app-chunk filename;
+      // allowing chunk frames could mask real app listener errors, so this
+      // shape stays kept even though it is recorder noise (LANGFUSE-5VY).
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "Invalid or unexpected token",
+              stacktrace: {
+                frames: [
+                  frame("app:///_next/static/chunks/2-jdgbtsa7jx3.js", "r"),
+                  frame(RECORDER, "l"),
+                  frame(RECORDER, "Ws.Hd"),
                 ],
               },
             },

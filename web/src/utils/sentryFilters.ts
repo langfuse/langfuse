@@ -334,13 +334,19 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // Environmental storage-access denial: browsers throw a `SecurityError`
     // DOMException on the `window.localStorage` property GETTER itself when
     // storage is blocked (third-party iframe, privacy mode). The message is
-    // browser-generated — app logic cannot produce it — and every storage read
-    // in the app already falls back to its initial value (see useLocalStorage /
-    // useSessionStorage). Stacks point at per-deploy hashed chunks, so each
-    // occurrence minted a new fingerprint (LANGFUSE-5TC/5TD/5TE/5TF). Other
-    // `SecurityError`s (e.g. cross-origin frame access) are KEPT.
+    // browser-generated — app logic cannot produce it. Stacks point at
+    // per-deploy hashed chunks, so each occurrence minted a new fingerprint
+    // (LANGFUSE-5TC/5TD/5TE/5TF).
+    //
+    // Guarded to the `capture_console` mechanism: only instances our own code
+    // already CAUGHT and logged (e.g. the useLocalStorage / useSessionStorage
+    // fallback paths) are dropped. An UNCAUGHT storage SecurityError — e.g. a
+    // bare storage read during render crashing the page — arrives via the
+    // global `onerror` handler and is KEPT, as are other `SecurityError`s
+    // (e.g. cross-origin frame access).
     if (
       exceptionType === "SecurityError" &&
+      exception?.mechanism?.type === "auto.core.capture_console" &&
       /^Failed to read the '(localStorage|sessionStorage)' property from 'Window':/.test(
         exceptionValue,
       )
@@ -391,8 +397,11 @@ export function isStaleChunkParseErrorEvent(event: ErrorEvent): boolean {
   if (!frames || frames.length !== 1) return false;
 
   const frame = frames[0];
-  // Parse errors carry no function — a named function means runtime code threw.
-  if (frame?.function) return false;
+  // Parse errors carry no function name — the SDK synthesizes the frame with
+  // its UNKNOWN_FUNCTION placeholder `"?"` on the wire (`beforeSend` runs
+  // BEFORE server-side normalization turns that into `null`). A real function
+  // name means runtime code threw.
+  if (frame?.function && frame.function !== "?") return false;
 
   return (
     typeof frame?.filename === "string" &&
@@ -409,7 +418,10 @@ const POSTHOG_RECORDER_SCRIPT_SUFFIX = "/static/posthog-recorder.js";
 /**
  * Frames that carry no attribution: browser-native/eval frames, and the Sentry
  * SDK's own wrapper frames (its `wrap()` helper sits at the outer edge of
- * every instrumented listener stack).
+ * every instrumented listener stack). The `@sentry` path shape only occurs in
+ * dev / source-mapped stacks — in a prod bundle the wrapper lives in an app
+ * chunk, which this predicate deliberately does NOT allow (see the coverage
+ * gap note on {@link isPosthogRecorderInternalEvent}).
  */
 function isOpaqueOrSdkFrame(filename: string): boolean {
   return (
@@ -435,6 +447,12 @@ function isOpaqueOrSdkFrame(filename: string): boolean {
  * Same posture as the browser-extension `denyUrls` entries, expressed as a
  * testable predicate because the crash frame is often `<anonymous>`, which
  * `denyUrls` skips inconsistently.
+ *
+ * Known coverage gap (deliberate): the `addEventListener`-wrapped variant
+ * (LANGFUSE-5VY) carries the Sentry SDK's `wrap()` frame, which in a prod
+ * bundle is an app-chunk filename indistinguishable from app code — those
+ * events are KEPT. Allowing chunk frames here would risk masking real app
+ * listener errors, so only the all-recorder shape (LANGFUSE-5VX) is dropped.
  */
 export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
   const frames = event.exception?.values?.[0]?.stacktrace?.frames;
@@ -445,7 +463,11 @@ export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
     const filename = frame?.filename;
     // A frame with no filename has no attribution — treat like <anonymous>.
     if (typeof filename !== "string" || filename.length === 0) continue;
-    if (filename.endsWith(POSTHOG_RECORDER_SCRIPT_SUFFIX)) {
+    // The recorder loads with a version query (`?v=<posthog-js version>`) that
+    // survives into wire-format frame filenames — strip query/fragment before
+    // matching the path suffix.
+    const path = filename.split(/[?#]/)[0];
+    if (path.endsWith(POSTHOG_RECORDER_SCRIPT_SUFFIX)) {
       sawRecorderFrame = true;
       continue;
     }
