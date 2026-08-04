@@ -67,6 +67,7 @@ import {
   handleCreateComment,
   handleGetComment,
   handleListComments,
+  listCommentsTool,
 } from "@/src/features/mcp/features/comments/tools";
 import {
   handleCreateDatasetRunItem,
@@ -468,6 +469,18 @@ describe("MCP public API tools", () => {
         expect.objectContaining({ id: created.id, content: "MCP comment" }),
       ]),
     );
+
+    const filteredByContent = (await handleListComments(
+      {
+        content: "mcp comment",
+        page: 1,
+        limit: 10,
+      },
+      context,
+    )) as { data: Array<{ id: string }> };
+    expect(filteredByContent.data.map((comment) => comment.id)).toEqual([
+      created.id,
+    ]);
 
     await expect(
       handleGetComment({ commentId: created.id }, context),
@@ -961,5 +974,13 @@ describe("MCP tool schema interoperability", () => {
     );
 
     expect(offending).toEqual([]);
+  });
+
+  it("advertises content filter on listComments", () => {
+    const inputSchema = listCommentsTool.inputSchema as {
+      properties?: Record<string, unknown>;
+    };
+
+    expect(inputSchema.properties?.content).toBeDefined();
   });
 });
