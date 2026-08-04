@@ -1152,6 +1152,20 @@ export async function getAuthOptions(signupAttribution?: {
 }
 
 /**
+ * Mirrors NextAuth's `isValidHttpUrl` (core/lib/assert.js): relative URLs
+ * resolve against the base URL, absolute ones must parse as http(s).
+ */
+const isValidHttpUrl = (url: string, baseUrl: string) => {
+  try {
+    return /^https?:/.test(
+      new URL(url, url.startsWith("/") ? baseUrl : undefined).protocol,
+    );
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Wrapper for `getServerSession` so that you don't need to import the `authOptions` in every file.
  *
  * @see https://next-auth.js.org/configuration/nextjs
@@ -1161,6 +1175,21 @@ export const getServerAuthSession = async (ctx: {
   res: GetServerSidePropsContext["res"];
 }) => {
   const authOptions = await getAuthOptions();
+
+  // NextAuth's assertConfig treats a malformed callback-url cookie as a server
+  // misconfiguration and rejects the whole request with a 500 — session reads
+  // included, so security scanners fuzzing cookie values turn every tRPC route
+  // into a 5xx (pages the tRPC error-rate monitors, see LFE-10960). The cookie
+  // only preserves a post-login redirect target; drop an invalid value and
+  // resolve the session as if it were absent.
+  const callbackUrlCookieName = getCookieName("next-auth.callback-url");
+  const callbackUrlCookie = ctx.req.cookies[callbackUrlCookieName];
+  if (
+    callbackUrlCookie !== undefined &&
+    !isValidHttpUrl(callbackUrlCookie, env.NEXTAUTH_URL)
+  ) {
+    delete ctx.req.cookies[callbackUrlCookieName];
+  }
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself
 
