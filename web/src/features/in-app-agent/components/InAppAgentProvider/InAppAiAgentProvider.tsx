@@ -55,7 +55,7 @@ import {
   type InAppAiAgentMessage,
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
-import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
+import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentProvider/components/InAppAgentDisabledDialog";
 import {
   performToolSideEffects,
   shouldPerformToolSideEffects,
