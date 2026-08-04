@@ -1,3 +1,5 @@
+import { stringify } from "@langfuse/shared";
+
 export interface ServerTraceDownloadParams {
   traceId: string;
   projectId: string;
@@ -77,7 +79,11 @@ export function downloadLegacyTraceAsJson(params: LegacyTraceDownloadParams) {
   };
 
   downloadBlob({
-    blob: new Blob([JSON.stringify(exportData, null, 2)], {
+    // Use the shared stringify helper (not the raw JSON.stringify) so that
+    // \uXXXX escapes in string fields (e.g. Japanese ingested with Python
+    // ensure_ascii=True) are decoded to real characters, matching the
+    // server-side download route in /api/traces/[traceId]/download.
+    blob: new Blob([stringify(exportData, undefined, 2)], {
       type: "application/json; charset=utf-8",
     }),
     filename: filename || `trace-${trace.id}.json`,

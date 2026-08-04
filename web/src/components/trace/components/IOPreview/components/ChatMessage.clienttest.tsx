@@ -1,6 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
+const { copyTextToClipboard } = vi.hoisted(() => ({
+  copyTextToClipboard: vi.fn(),
+}));
+
+vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard }));
+
 import { ChatMessage } from "./ChatMessage";
 import { type ChatMlMessage } from "./chat-message-utils";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
@@ -268,5 +274,34 @@ describe("ChatMessage system prompt collapse", () => {
 
     expect(expandButton()).not.toBeInTheDocument();
     expect(collapseButton()).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatMessage copy", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", createMemoryStorage());
+    vi.stubGlobal("sessionStorage", createMemoryStorage());
+    copyTextToClipboard.mockClear();
+  });
+
+  it("decodes \\uXXXX escapes when copying a tool-call-only message", () => {
+    // Escaped Japanese as ingested via the Python SDK's ensure_ascii=True.
+    renderChatMessage({
+      role: "assistant",
+      tool_calls: [
+        {
+          id: "call-1",
+          name: "search_traces",
+          arguments: '{"question":"\\u3053\\u3093\\u306b\\u3061\\u306f"}',
+        },
+      ],
+    } as unknown as ChatMlMessage);
+
+    fireEvent.click(screen.getAllByTitle("Copy to clipboard")[0]);
+
+    expect(copyTextToClipboard).toHaveBeenCalledTimes(1);
+    const copied = copyTextToClipboard.mock.calls[0][0] as string;
+    expect(copied).toContain("こんにちは");
+    expect(copied).not.toContain("\\u3053");
   });
 });
