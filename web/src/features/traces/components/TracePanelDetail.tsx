@@ -17,8 +17,8 @@
 
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { TraceDetailView } from "../TraceDetailView/TraceDetailView";
-import { ObservationDetailView } from "../ObservationDetailView/ObservationDetailView";
+import { TraceDetailView } from "./TraceDetailView/TraceDetailView";
+import { ObservationDetailView } from "./ObservationDetailView/ObservationDetailView";
 import { useMemo } from "react";
 
 export function TracePanelDetail() {

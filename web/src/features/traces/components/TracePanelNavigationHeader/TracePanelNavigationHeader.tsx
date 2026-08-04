@@ -44,9 +44,9 @@ import {
   downloadLegacyTraceAsJson,
   downloadServerTraceAsJson,
 } from "../../fns/download-trace";
-import { TracePanelNavigationButton } from "./TracePanelNavigationButton";
+import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
 import { PlaybackControls } from "../PlaybackControls";
-import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
+import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { toast } from "sonner";

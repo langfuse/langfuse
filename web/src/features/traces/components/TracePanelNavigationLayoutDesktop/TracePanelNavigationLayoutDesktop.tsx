@@ -28,12 +28,12 @@ import {
   useDefaultLayout,
 } from "@/src/components/ui/resizable";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useDesktopLayoutContext } from "./TraceLayoutDesktop";
+import { useDesktopLayoutContext } from "../TraceLayoutDesktop";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { TracePanelNavigationHeader } from "./TracePanelNavigationHeader";
-import { TracePanelNavigationHiddenNotice } from "./TracePanelNavigationHiddenNotice";
+import { TracePanelNavigationHeader } from "../TracePanelNavigationHeader/TracePanelNavigationHeader";
+import { TracePanelNavigationHiddenNotice } from "./components/TracePanelNavigationHiddenNotice";
 
 // Height of the "Graph" bar — the panel's collapsed form. Must match the bar's
 // h-7 so a collapsed panel shows exactly the bar and nothing else.
