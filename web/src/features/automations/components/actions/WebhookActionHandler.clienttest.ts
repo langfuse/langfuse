@@ -1,62 +1,43 @@
 import { describe, expect, it } from "vitest";
 
-import { type AutomationDomain, TriggerEventSource } from "@langfuse/shared";
+import { TriggerEventSource } from "@langfuse/shared";
 import { WebhookActionHandler } from "./WebhookActionHandler";
 
 const handler = new WebhookActionHandler();
 
-const webhookAutomation = (
-  apiVersion: Record<string, "v1">,
-): AutomationDomain =>
-  ({
-    id: "automation-1",
-    name: "test",
-    trigger: {
-      id: "trigger-1",
-      eventSource: TriggerEventSource.Monitor,
-      eventActions: ["created"],
-      filter: [],
-      status: "ACTIVE",
-    },
-    action: {
-      id: "action-1",
-      type: "WEBHOOK",
-      config: {
-        type: "WEBHOOK",
-        url: "https://example.com",
-        apiVersion,
-        displaySecretKey: "sk_...abcd",
-      },
-    },
-  }) as unknown as AutomationDomain;
+const formData = {
+  webhook: {
+    url: "https://example.com/hook",
+    headers: [],
+  },
+};
 
-describe("WebhookActionHandler.getDefaultValues", () => {
-  it("monitor-source new automation: seeds apiVersion { monitor: v1 }", () => {
-    expect(
-      handler.getDefaultValues(undefined, TriggerEventSource.Monitor).webhook
-        .apiVersion,
-    ).toEqual({ monitor: "v1" });
-  });
+const apiVersionFor = (eventSource?: TriggerEventSource) => {
+  const config = handler.buildActionConfig(formData, eventSource);
+  if (config.type !== "WEBHOOK") throw new Error("expected webhook config");
+  return config.apiVersion;
+};
 
-  it("prompt-source new automation: seeds apiVersion { prompt: v1 }", () => {
-    expect(
-      handler.getDefaultValues(undefined, TriggerEventSource.Prompt).webhook
-        .apiVersion,
-    ).toEqual({ prompt: "v1" });
-  });
-
-  it("no eventSource: seeds apiVersion { prompt: v1 }", () => {
-    expect(handler.getDefaultValues(undefined).webhook.apiVersion).toEqual({
-      prompt: "v1",
+// apiVersion is not user-editable; it is derived from the trigger's event
+// source at submit time so it cannot drift when the source changes.
+describe("WebhookActionHandler.buildActionConfig apiVersion", () => {
+  it("monitor source: derives { monitor: v1 }", () => {
+    expect(apiVersionFor(TriggerEventSource.Monitor)).toEqual({
+      monitor: "v1",
     });
   });
 
-  it("editing existing config: stored apiVersion wins over eventSource", () => {
-    expect(
-      handler.getDefaultValues(
-        webhookAutomation({ monitor: "v1" }),
-        TriggerEventSource.Prompt,
-      ).webhook.apiVersion,
-    ).toEqual({ monitor: "v1" });
+  it("prompt source: derives { prompt: v1 }", () => {
+    expect(apiVersionFor(TriggerEventSource.Prompt)).toEqual({ prompt: "v1" });
+  });
+
+  it("project-notification source: derives { project-notification: v1 }", () => {
+    expect(apiVersionFor(TriggerEventSource.ProjectNotification)).toEqual({
+      "project-notification": "v1",
+    });
+  });
+
+  it("no eventSource: falls back to { prompt: v1 }", () => {
+    expect(apiVersionFor(undefined)).toEqual({ prompt: "v1" });
   });
 });
