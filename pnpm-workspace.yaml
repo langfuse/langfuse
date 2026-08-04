@@ -67,7 +67,7 @@ allowBuilds:
   cpu-features: true
   ssh2: true
 overrides:
-  postcss: 8.5.22
+  postcss: 8.5.25
   esbuild: "0.28.1"
   "undici@7": 7.29.0
   zod: 4.3.6
