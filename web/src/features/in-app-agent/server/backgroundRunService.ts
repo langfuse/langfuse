@@ -7,7 +7,7 @@ import {
   InAppAgentRunStatus,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import type { PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   InAppAgentRunQueue,
   logger,
@@ -77,26 +77,32 @@ export async function getBackgroundConversationSnapshot(params: {
     },
   });
 
-  const [events, runs] = await Promise.all([
-    getConversationEvents({
-      prisma: params.prisma,
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-    }),
-    params.prisma.inAppAgentRun.findMany({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-      },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        status: true,
-        errorCode: true,
-        cancelRequestedAt: true,
-      },
-    }),
-  ]);
+  // The worker commits terminal status and its final events atomically. Keep
+  // both reads on one version so the cursor cannot describe an older prefix.
+  const [events, runs] = await params.prisma.$transaction(
+    (tx) =>
+      Promise.all([
+        getConversationEvents({
+          prisma: tx,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+        }),
+        tx.inAppAgentRun.findMany({
+          where: {
+            projectId: params.projectId,
+            conversationId: params.conversationId,
+          },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            status: true,
+            errorCode: true,
+            cancelRequestedAt: true,
+          },
+        }),
+      ]),
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
   const { messages, displayState } = getConversationSnapshotFromEvents(events);
 
   const latestRun = runs.at(-1) ?? null;

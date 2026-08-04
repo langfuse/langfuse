@@ -391,7 +391,7 @@ export async function appendRunEvents(params: {
 }
 
 export async function getConversationEvents(params: {
-  prisma: PrismaClient;
+  prisma: PrismaClient | Prisma.TransactionClient;
   projectId: string;
   conversationId: string;
 }): Promise<PersistedConversationEvent[]> {
