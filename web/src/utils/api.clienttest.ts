@@ -5,6 +5,7 @@ import {
   getTrpcErrorPath,
   isExpectedTrpcClientError,
   isNetworkConnectivityError,
+  isTrpcResponseParseError,
 } from "@/src/utils/api";
 
 /** Builds a TRPCClientError with the given server error shape (code/path). */
@@ -77,6 +78,64 @@ describe("isNetworkConnectivityError", () => {
     expect(isNetworkConnectivityError(new TypeError("Failed to fetch"))).toBe(
       false,
     );
+  });
+});
+
+describe("isTrpcResponseParseError", () => {
+  it("detects a JSON.parse failure on the response body (Firefox message)", () => {
+    const error = TRPCClientError.from(
+      new SyntaxError(
+        "JSON.parse: unexpected character at line 1 column 1 of the JSON data",
+      ),
+      {
+        meta: { response: new Response("<html></html>", { status: 200 }) },
+      },
+    );
+
+    expect(isTrpcResponseParseError(error)).toBe(true);
+  });
+
+  it("detects a truncated response body (Chromium message)", () => {
+    const error = TRPCClientError.from(
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    expect(isTrpcResponseParseError(error)).toBe(true);
+  });
+
+  // Negative fixtures: real errors MUST still flow to Sentry. If any of these
+  // start returning true, the suppression rule has grown a hole that hides a
+  // genuine bug.
+  it("does not match tRPC server errors (a parsed error envelope)", () => {
+    const error = trpcServerError({
+      code: "INTERNAL_SERVER_ERROR",
+      httpStatus: 500,
+      path: "events.all",
+    });
+
+    expect(isTrpcResponseParseError(error)).toBe(false);
+  });
+
+  it("does not match network connectivity failures", () => {
+    const error = TRPCClientError.from(new TypeError("Failed to fetch"));
+
+    expect(isTrpcResponseParseError(error)).toBe(false);
+  });
+
+  it("does not match a TRPCClientError with a non-SyntaxError cause", () => {
+    const error = TRPCClientError.from(new Error("boom"));
+
+    expect(isTrpcResponseParseError(error)).toBe(false);
+  });
+
+  it("does not match a raw JSON.parse SyntaxError thrown by app code", () => {
+    // Not wrapped by the tRPC client — in handleTrpcError it takes the
+    // non-TRPC branch and is captured unchanged.
+    expect(
+      isTrpcResponseParseError(new SyntaxError("Unexpected end of JSON input")),
+    ).toBe(false);
+    expect(isTrpcResponseParseError(null)).toBe(false);
+    expect(isTrpcResponseParseError(undefined)).toBe(false);
   });
 });
 

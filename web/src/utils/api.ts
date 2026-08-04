@@ -162,6 +162,25 @@ export const isExpectedTrpcClientError = (error: unknown): boolean => {
 };
 
 /**
+ * True when `error` is a TRPCClientError caused by the tRPC client failing to
+ * JSON-parse the HTTP response body (a `SyntaxError` cause, e.g. "JSON.parse:
+ * unexpected character at line 1 column 1 of the JSON data" / "Unexpected end
+ * of JSON input").
+ *
+ * Our tRPC handler always returns JSON, so a non-JSON body means something
+ * between server and client replaced or truncated it (a proxy/LB error page,
+ * an interrupted connection, an intercepting proxy). That is transport state,
+ * not an app bug — the server owns the real signal. A parsed tRPC error
+ * envelope (`error.data`) means the server DID answer with a real error
+ * shape; those keep flowing to Sentry unchanged.
+ */
+export const isTrpcResponseParseError = (error: unknown): boolean => {
+  if (!(error instanceof TRPCClientError)) return false;
+  if (error.data) return false;
+  return getCause(error) instanceof SyntaxError;
+};
+
+/**
  * tRPC serializes query input into the GET URL. For reads whose input scales with
  * the number of rows (the `*.batchIO` I/O fetches), that URL grows large (~6KB at
  * 50 rows, ~12KB at 100) and — together with per-user cookies (NextAuth session
@@ -255,6 +274,23 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
           code: getTrpcErrorCode(error),
           path: getTrpcErrorPath(error),
           httpStatus,
+        },
+      });
+    } else if (isTrpcResponseParseError(error)) {
+      // The response body was not JSON (proxy error page, truncated body) —
+      // transport state, not an app bug. Breadcrumb instead of capture; the
+      // toast below still renders. See `isTrpcResponseParseError`.
+      addBreadcrumb({
+        category: "trpc",
+        type: "http",
+        level: "warning",
+        message: "Suppressed tRPC response parse error (not sent to Sentry)",
+        data: {
+          message: error.message,
+          status:
+            error.meta?.response instanceof Response
+              ? error.meta.response.status
+              : undefined,
         },
       });
     } else {
