@@ -179,8 +179,8 @@ function WeightRoleRow({ token }: { token: TokenDeclaration }) {
 }
 
 /**
- * The four text-color tiers (full light/dark ramp on the Color page).
- * Real token names first; the planned role name rides alongside.
+ * The four text-color tiers (full light/dark table on the Color page).
+ * Role token first; the utility that consumes it rides alongside.
  */
 const TEXT_TIERS: Array<{
   tier: string;
@@ -190,19 +190,19 @@ const TEXT_TIERS: Array<{
 }> = [
   {
     tier: "primary",
-    token: "--primary",
+    token: "--text-primary",
     role: "text-primary",
     usage: "titles, emphasis, active nav & tabs",
   },
   {
     tier: "body",
-    token: "--foreground",
+    token: "--text-secondary",
     role: "text-secondary",
     usage: "default copy",
   },
   {
     tier: "meta",
-    token: "--muted-foreground",
+    token: "--text-tertiary",
     role: "text-tertiary",
     usage: "captions, labels, secondary cells",
   },
@@ -247,7 +247,7 @@ function TextTiersSection() {
   return (
     <PageSection
       title="Text color tiers"
-      blurb="Four tiers, one rule: color carries state, weight never changes. An element brightens a tier when it activates — it never gains weight."
+      blurb="Four tiers, one rule: color carries state — an element brightens a tier when it activates, it never gains weight."
       aside={<InlineCode>{TEXT_TIERS.length} tiers</InlineCode>}
     >
       <div className="flex flex-col">
@@ -265,11 +265,9 @@ function TextTiersSection() {
         </span>
       </div>
       <p className="text-tertiary text-sm">
-        On bright fills, ink inverts to{" "}
-        <InlineCode>--primary-foreground</InlineCode> (→ text-on-fill). In dark,
-        meta merges into body — captions rely on size and position; light keeps
-        four distinct steps. Light/dark values side by side on the Color
-        page&apos;s text ramp.
+        On bright fills, ink inverts to <InlineCode>text-on-fill</InlineCode> —
+        light and dark values side by side in the Color page&apos;s Text colors
+        table.
       </p>
     </PageSection>
   );
@@ -358,7 +356,7 @@ export function Typography() {
 
         <PageSection
           title="Weight roles"
-          blurb="Two roles: regular and bold. Components never hardcode weight numbers."
+          blurb="Two roles, regular and bold — components never hardcode weight numbers."
           aside={<InlineCode>{weightTokens.length} roles</InlineCode>}
         >
           <div className="flex flex-col">
@@ -376,7 +374,7 @@ export function Typography() {
 
         <PageSection
           title="Type scale"
-          blurb="Each size carries its canonical weight. No line-height; opt in with leading-*."
+          blurb="Each size carries its canonical weight; no line-height — opt in with leading-*."
           aside={<InlineCode>{sizeTokens.length} sizes</InlineCode>}
         >
           <div className="flex flex-col">
@@ -388,7 +386,7 @@ export function Typography() {
 
         <PageSection
           title="Mono conventions"
-          blurb="Numerals, IDs, code and eyebrow labels are always mono. Samples use the exact app classes."
+          blurb="Numerals, IDs, code and eyebrow labels are always mono — samples use the exact app classes."
           aside={<InlineCode>--font-mono</InlineCode>}
         >
           <div className="flex flex-col">

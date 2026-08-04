@@ -68,6 +68,17 @@
   --color-control-fill: hsl(var(--control-fill));
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
+  --color-obs-trace: hsl(var(--obs-trace));
+  --color-obs-generation: hsl(var(--obs-generation));
+  --color-obs-event: hsl(var(--obs-event));
+  --color-obs-span: hsl(var(--obs-span));
+  --color-obs-agent: hsl(var(--obs-agent));
+  --color-obs-tool: hsl(var(--obs-tool));
+  --color-obs-chain: hsl(var(--obs-chain));
+  --color-obs-retriever: hsl(var(--obs-retriever));
+  --color-obs-embedding: hsl(var(--obs-embedding));
+  --color-obs-guardrail: hsl(var(--obs-guardrail));
+  --color-obs-entity: hsl(var(--obs-entity));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
@@ -109,6 +120,7 @@
   --color-canvas: hsl(var(--bg-canvas));
   --color-hover: hsl(var(--bg-hover));
   --color-focus: hsl(var(--focus));
+  --color-contrast: hsl(var(--text-contrast));
   --color-secondary: hsl(var(--text-secondary));
   --color-tertiary: hsl(var(--text-tertiary));
   --color-disabled: hsl(var(--text-disabled));
@@ -252,18 +264,19 @@
        insertion gaps. Light "greys" are blue-tinted — hence the family is
        `neutral`, not gray. PRIVATE: only the role tokens below may
        reference these — never @theme inline, never components. */
-    --neutral-dark-10: 0 0% 4%;
-    --neutral-dark-20: 0 0% 6%;
-    --neutral-dark-30: 0 0% 10%;
-    --neutral-dark-40: 0 0% 14%;
-    --neutral-dark-50: 0 0% 18%;
-    --neutral-dark-60: 0 0% 26%;
-    --neutral-dark-70: 0 0% 40%;
-    --neutral-dark-80: 0 0% 50%;
-    --neutral-dark-90: 0 0% 60%;
-    --neutral-dark-100: 0 0% 70%;
-    --neutral-dark-110: 0 0% 88%;
+    --neutral-dark-10: 28 14% 5%;
+    --neutral-dark-20: 28 12% 7%;
+    --neutral-dark-30: 28 10% 11%;
+    --neutral-dark-40: 28 9% 15%;
+    --neutral-dark-50: 28 8% 19%;
+    --neutral-dark-60: 28 7% 26%;
+    --neutral-dark-70: 28 6% 38%;
+    --neutral-dark-80: 28 6% 50%;
+    --neutral-dark-90: 28 8% 65%;
+    --neutral-dark-110: 28 12% 86%;
+    --neutral-dark-120: 28 20% 96%; /* text-contrast only — rare */
 
+    --neutral-light-5: 224 50% 4.5%; /* text-contrast only — rare */
     --neutral-light-10: 222.2 47.4% 9%;
     --neutral-light-20: 222 16% 22%;
     --neutral-light-30: 215.4 16.3% 46.9%;
@@ -309,6 +322,8 @@
 
     /* Text roles. Light ramp: primary 9% < secondary 22% < tertiary 46.9%
        < disabled 62% — darker is louder on a light canvas. */
+    /* Rare, maximum-attention ink — page titles only. */
+    --text-contrast: var(--neutral-light-5);
     --text-primary: var(
       --neutral-light-10
     ); /* brightest tier: titles, active nav/tabs, links, button fills */
@@ -412,6 +427,23 @@
     --muted-green: 84 81% 44%;
     --muted-magenta: 330 90% 70%;
     --muted-blue: 239 84% 67%;
+
+    /* Observation-type identity colors (ItemBadge): equal OKLCH lightness
+       per mode (L .55 light, .70 dark) so no hue outshouts another; chroma
+       clamped per hue, trimmed on magenta/fuchsia (H-K effect). Icons are
+       the primary identity — color is reinforcement. */
+    --obs-trace: 166 99% 29.8%;
+    --obs-generation: 320 100% 34.5%;
+    --obs-event: 86 100% 29%;
+    --obs-span: 200 100% 39.8%;
+    --obs-agent: 263 58% 51%;
+    --obs-tool: 34 100% 36.5%;
+    --obs-chain: 296 67% 38.2%;
+    --obs-retriever: 184 100% 29.4%;
+    --obs-embedding: 51 100% 29.2%;
+    --obs-guardrail: 351 98% 39%;
+    /* Entity types (session, user, dataset, prompt, …) ride the brand blue. */
+    --obs-entity: var(--primary-accent);
     /* Rides the hover-fill tier. In dark that tier stays clearly above
        --card so chart grids (--chart-grid) and disabled badge fills stay
        discernible on elevated surfaces, without the harshness of
@@ -519,16 +551,12 @@
        Code blocks ride bg-muted (the well tier retired 2026-08-04).
        Elevation is carried by these lightness steps plus hairline
        borders, not shadows. */
-    /* Neutral (zero-saturation) text ladder — de-tinted per Trang's call
-       after a cool/neutral/warm A-B. Text hierarchy comes from the WIDE GAP
-       between tiers: primary 88% > secondary 60% > disabled 40% (tertiary
-       merged into secondary — the 6pp step failed the visibility test;
-       captions rely on size and position), with sidebar nav dimmer than
-       content until active. ONE bright tier (88%, merged from 90/82, then
-       re-brightened 84→88 by eye — the 8pp split never appeared side by
-       side): emphasis, active nav, titles, tabs, table links, button text.
-       Bright caps at 88% — never near-white. Don't compress the ramp — the
-       gap is the hierarchy. */
+    /* Warm text ladder (Conductor-style trial, 2026-08-04 — replaces the
+       earlier zero-saturation ramp): body sits CLOSE UNDER primary and the
+       big gap opens BELOW it — primary 92 > body 80 > meta 50 > disabled
+       38. Reading copy is bright; dimming is reserved for true meta.
+       Primary caps at 92% — never pure white. */
+    --text-contrast: var(--neutral-dark-120);
     --text-primary: var(--neutral-dark-110);
     --text-secondary: var(--neutral-dark-90);
     --text-tertiary: var(
@@ -568,7 +596,7 @@
        strip needs opaque colors. Body text stays on the neutral foreground
        tier; links ride --link (see :root). */
     --preview-banner: 217 47% 19%;
-    --preview-banner-foreground: var(--neutral-dark-100);
+    --preview-banner-foreground: var(--neutral-dark-90);
     --preview-banner-border: 215 37% 31%;
     --control-track: var(--neutral-dark-60);
     /* Matches --border-contrast: unchecked checkboxes/radios read by their
@@ -578,6 +606,18 @@
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
+
+    /* Observation-type identity colors — brighter variants on dark. */
+    --obs-trace: 164 76% 42.7%;
+    --obs-generation: 329 65% 69.4%;
+    --obs-event: 93 40% 52.7%;
+    --obs-span: 203 88% 60.6%;
+    --obs-agent: 256 79% 75.9%;
+    --obs-tool: 29 75% 56.3%;
+    --obs-chain: 297 45% 67.5%;
+    --obs-retriever: 185 79% 43.7%;
+    --obs-embedding: 50 70% 43.7%;
+    --obs-guardrail: 4 80% 70.4%;
 
     /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
        dark-* the readable text/icon color on them. */

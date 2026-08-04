@@ -1,16 +1,14 @@
 /**
- * Storybook-only color reference (Design → Color): the three role ramps
- * (text, surface, line) with light and dark side by side, then the full
- * token tables. Role tokens ride the private palette ramps
- * ({family}-{mode}-{decade}) in globals.css; the palette lives in the
- * collapsed primitives section.
+ * Storybook-only color reference (Design → Color): every token family as a
+ * Kumo-style hierarchy table — token chip · purpose one-liner · light and
+ * dark swatch — plus the collapsed palette primitives and legacy aliases.
  *
  * Every value is parsed at build time from `src/styles/globals.css` (see
  * parseThemeTokens.ts), so the page cannot drift from the stylesheet.
- * Samples repaint under the active Storybook theme (toolbar switcher).
+ * Specimens repaint under the active Storybook theme (toolbar switcher).
  */
 import { ChevronRight } from "lucide-react";
-import { type CSSProperties, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import {
   CollapsedSection,
@@ -25,57 +23,36 @@ import {
   Swatch,
   type TokenContext,
   TokenRow,
-  TokenSection,
   unassignedTokens,
   useTokenContexts,
 } from "./shared";
 import { toCssColor } from "./parseThemeTokens";
 
-/* ------------------------------------------------------------------------- *
- * Role ramps. Each step shows the role token, a usage one-liner, and both
- * modes' resolved values side by side — all derived from the parsed
- * stylesheet, never hardcoded.
- * ------------------------------------------------------------------------- */
-
 /** The private palette steps components must never reference. */
 const PRIMITIVE_PATTERN = /^--(?:neutral|blue)-(?:light|dark)-\d+$/;
 
-type RampKind = "text" | "surface" | "border";
+/* ------------------------------------------------------------------------- *
+ * Hierarchy tables (the Kumo format). One row per token: utility chip,
+ * purpose one-liner, light + dark swatch with the resolved value — all
+ * derived from the parsed stylesheet, never hardcoded.
+ * ------------------------------------------------------------------------- */
 
-type RampStep = {
+type HierarchyKind = "fill" | "line" | "text";
+
+type HierarchyRow = {
+  /** Utility name shown in the chip, e.g. `bg-canvas`, `text-link`. */
+  utility: string;
+  /** Backing custom property, e.g. `--bg-canvas`. */
   token: string;
-  label: string;
-  note?: string;
+  /** One line. No essays. */
+  purpose: ReactNode;
+  /** Per-row kind override (sections mixing fills, lines and text). */
+  kind?: HierarchyKind;
+  /** For text kind: token painted under the sample (defaults to canvas). */
+  on?: string;
 };
 
-const TEXT_RAMP: RampStep[] = [
-  {
-    token: "--text-disabled",
-    label: "faint",
-    note: "placeholders, disabled, hints",
-  },
-  {
-    token: "--text-tertiary",
-    label: "meta",
-    note: "captions, labels, secondary cells",
-  },
-  { token: "--text-secondary", label: "body", note: "default copy" },
-  {
-    token: "--text-primary",
-    label: "bright",
-    note: "emphasis, titles, active nav — and the primary button fill",
-  },
-  {
-    token: "--text-on-fill",
-    label: "on-fill",
-    note: "inverted ink on bright fills — rides the canvas color",
-  },
-];
-
-/** Kumo-style surface hierarchy: token chip · purpose · per-mode swatches. */
-type SurfaceRow = { utility: string; token: string; purpose: ReactNode };
-
-const SURFACE_HIERARCHY: SurfaceRow[] = [
+const SURFACE_HIERARCHY: HierarchyRow[] = [
   {
     utility: "bg-canvas",
     token: "--bg-canvas",
@@ -113,81 +90,410 @@ const SURFACE_HIERARCHY: SurfaceRow[] = [
   },
 ];
 
-const BORDER_RAMP: RampStep[] = [
+const BORDER_HIERARCHY: HierarchyRow[] = [
   {
+    utility: "border",
     token: "--border",
-    label: "hairline",
-    note: "the default edge on every surface tier",
+    purpose:
+      "The default hairline — dividers, table rows, card edges, inputs, popover borders",
   },
   {
+    utility: "border-border-contrast",
     token: "--border-contrast",
-    label: "contrast",
-    note: "structural/viz lines: tree connectors, timeline grid",
+    purpose:
+      "Assertive line — outline buttons, structural/viz lines, checkbox borders",
+  },
+  {
+    utility: "ring-focus",
+    token: "--focus",
+    purpose:
+      "The keyboard-focus ring — neutral, so blue always means link or selection",
   },
 ];
 
-/** One mode's cell: a self-contained mini-mode tile + the resolved HSL. */
-function RampModeCell({
+const TEXT_HIERARCHY: HierarchyRow[] = [
+  {
+    utility: "text-primary",
+    token: "--text-primary",
+    purpose: "Brightest tier — titles, emphasis, active nav & tabs",
+  },
+  {
+    utility: "text-secondary",
+    token: "--text-secondary",
+    purpose: "Body — the inherited default copy",
+  },
+  {
+    utility: "text-tertiary",
+    token: "--text-tertiary",
+    purpose: "Meta — captions, labels, secondary cells",
+  },
+  {
+    utility: "text-disabled",
+    token: "--text-disabled",
+    purpose: "Faintest — placeholders, disabled, hints",
+  },
+  {
+    utility: "text-on-fill",
+    token: "--text-on-fill",
+    purpose: "Inverted ink on bright fills — rides the canvas color",
+    on: "--primary",
+  },
+  {
+    utility: "text-on-hover",
+    token: "--text-on-hover",
+    purpose: "Ink on the hover fill — rides the brightest tier",
+    on: "--bg-hover",
+  },
+  {
+    utility: "text-link",
+    token: "--link",
+    purpose: "Hyperlinks — their own blue pair, distinct from primary-accent",
+  },
+  {
+    utility: "text-link-hover",
+    token: "--link-hover",
+    purpose: "The link hover step",
+  },
+];
+
+const BRAND_HIERARCHY: HierarchyRow[] = [
+  {
+    utility: "text-primary-accent",
+    token: "--primary-accent",
+    purpose: "Active tabs & selection underline — the brand blue",
+    kind: "text",
+  },
+  {
+    utility: "bg-primary",
+    token: "--primary",
+    purpose: "Primary button fill — rides the brightest ink tier",
+    kind: "fill",
+  },
+  {
+    utility: "bg-destructive",
+    token: "--destructive",
+    purpose:
+      "Danger fill — destructive buttons (error text via text-destructive)",
+    kind: "fill",
+  },
+  {
+    utility: "text-destructive-foreground",
+    token: "--destructive-foreground",
+    purpose: "Ink on the danger fill",
+    kind: "text",
+    on: "--destructive",
+  },
+];
+
+/** light-* tint fill + dark-* readable text, per hue. */
+const STATUS_HIERARCHY: HierarchyRow[] = [
+  {
+    utility: "bg-light-red",
+    token: "--light-red",
+    purpose: "Error / negative status tint (alpha baked in)",
+    kind: "fill",
+  },
+  {
+    utility: "text-dark-red",
+    token: "--dark-red",
+    purpose: "Text/icon on the red tint",
+    kind: "text",
+    on: "--light-red",
+  },
+  {
+    utility: "bg-light-yellow",
+    token: "--light-yellow",
+    purpose: "Warning tint — also experiment-level scores",
+    kind: "fill",
+  },
+  {
+    utility: "text-dark-yellow",
+    token: "--dark-yellow",
+    purpose: "Text/icon on the yellow tint",
+    kind: "text",
+    on: "--light-yellow",
+  },
+  {
+    utility: "bg-light-green",
+    token: "--light-green",
+    purpose: "Success / positive tint",
+    kind: "fill",
+  },
+  {
+    utility: "text-dark-green",
+    token: "--dark-green",
+    purpose: "Text/icon on the green tint",
+    kind: "text",
+    on: "--light-green",
+  },
+  {
+    utility: "bg-light-blue",
+    token: "--light-blue",
+    purpose: "Info tint — also observation-level scores",
+    kind: "fill",
+  },
+  {
+    utility: "text-dark-blue",
+    token: "--dark-blue",
+    purpose: "Text/icon on the blue tint",
+    kind: "text",
+    on: "--light-blue",
+  },
+  {
+    utility: "bg-light-violet",
+    token: "--light-violet",
+    purpose: "Trace-level score tint",
+    kind: "fill",
+  },
+  {
+    utility: "text-dark-violet",
+    token: "--dark-violet",
+    purpose: "Text/icon on the violet tint",
+    kind: "text",
+    on: "--light-violet",
+  },
+  {
+    utility: "bg-light-teal",
+    token: "--light-teal",
+    purpose: "Session-level score tint",
+    kind: "fill",
+  },
+  {
+    utility: "text-dark-teal",
+    token: "--dark-teal",
+    purpose: "Text/icon on the teal tint",
+    kind: "text",
+    on: "--light-teal",
+  },
+  {
+    utility: "bg-accent-light-blue",
+    token: "--accent-light-blue",
+    purpose: "Deeper blue tint — dataset banners & import chips",
+    kind: "fill",
+  },
+  {
+    utility: "text-accent-dark-blue",
+    token: "--accent-dark-blue",
+    purpose: "Text/icon on the deep-blue tint",
+    kind: "text",
+    on: "--accent-light-blue",
+  },
+  {
+    utility: "bg-accent-light-green",
+    token: "--accent-light-green",
+    purpose: "Diff/output surface tint — a whisper above card in dark",
+    kind: "fill",
+  },
+  {
+    utility: "text-accent-dark-green",
+    token: "--accent-dark-green",
+    purpose: "Text/icon on the deep-green tint",
+    kind: "text",
+    on: "--accent-light-green",
+  },
+];
+
+const CONTROL_HIERARCHY: HierarchyRow[] = [
+  {
+    utility: "bg-control-fill",
+    token: "--control-fill",
+    purpose: "Checked checkbox / switch fill — monochrome in both modes",
+    kind: "fill",
+  },
+  {
+    utility: "bg-control-track",
+    token: "--control-track",
+    purpose: "The switch's off-state track",
+    kind: "fill",
+  },
+  {
+    utility: "border-control-border",
+    token: "--control-border",
+    purpose: "Unchecked control boundary",
+    kind: "line",
+  },
+];
+
+const SIDEBAR_HIERARCHY: HierarchyRow[] = [
+  {
+    utility: "text-sidebar-foreground",
+    token: "--sidebar-foreground",
+    purpose: "Resting nav ink — dimmer than content until active",
+    kind: "text",
+    on: "--bg-sidebar",
+  },
+  {
+    utility: "bg-sidebar-accent",
+    token: "--sidebar-accent",
+    purpose: "Selected nav fill — bg-hover tier in dark, its own step in light",
+    kind: "fill",
+  },
+  {
+    utility: "text-sidebar-accent-foreground",
+    token: "--sidebar-accent-foreground",
+    purpose: "Ink on the selected item — the bright tier",
+    kind: "text",
+    on: "--sidebar-accent",
+  },
+  {
+    utility: "bg-sidebar-primary",
+    token: "--sidebar-primary",
+    purpose: "Primary item fill — rides the bright ink tier",
+    kind: "fill",
+  },
+  {
+    utility: "text-sidebar-primary-foreground",
+    token: "--sidebar-primary-foreground",
+    purpose: "Ink on the primary fill",
+    kind: "text",
+    on: "--sidebar-primary",
+  },
+  {
+    utility: "border-sidebar-border",
+    token: "--sidebar-border",
+    purpose: "Sidebar hairline — alias of --border",
+    kind: "line",
+  },
+  {
+    utility: "ring-sidebar-ring",
+    token: "--sidebar-ring",
+    purpose: "Focus ring in the sidebar — alias of --focus",
+    kind: "line",
+  },
+];
+
+const VIZ_HIERARCHY: HierarchyRow[] = [
+  {
+    utility: "bg-muted-blue",
+    token: "--muted-blue",
+    purpose: "Observation-type accent — trace tree, timelines (ItemBadge)",
+    kind: "fill",
+  },
+  {
+    utility: "bg-muted-green",
+    token: "--muted-green",
+    purpose: "Observation-type accent — trace tree, timelines",
+    kind: "fill",
+  },
+  {
+    utility: "bg-muted-magenta",
+    token: "--muted-magenta",
+    purpose: "Observation-type accent — trace tree, timelines",
+    kind: "fill",
+  },
+  {
+    utility: "bg-muted-gray",
+    token: "--muted-gray",
+    purpose:
+      "Chart grid & disabled badge fill — rides the hover tier (chart-grid resolves here)",
+    kind: "fill",
+  },
+];
+
+const QLANG_HIERARCHY: HierarchyRow[] = [
+  {
+    utility: "text-qlang-field",
+    token: "--qlang-field",
+    purpose: "Field names — violet",
+  },
+  {
+    utility: "text-qlang-value",
+    token: "--qlang-value",
+    purpose: "Values — green",
+  },
+  {
+    utility: "text-qlang-number",
+    token: "--qlang-number",
+    purpose: "Numbers — orange",
+  },
+  {
+    utility: "text-qlang-keyword",
+    token: "--qlang-keyword",
+    purpose: "AND / OR keywords — the app blue",
+  },
+];
+
+const FIND_MATCH_HIERARCHY: HierarchyRow[] = [
+  {
+    utility: "bg-find-match-background",
+    token: "--find-match-background",
+    purpose: "Every in-page match",
+    kind: "fill",
+  },
+  {
+    utility: "bg-find-match-selected-background",
+    token: "--find-match-selected-background",
+    purpose: "The active match",
+    kind: "fill",
+  },
+  {
+    utility: "text-find-match-selected-foreground",
+    token: "--find-match-selected-foreground",
+    purpose: "Ink on the active match",
+    kind: "text",
+    on: "--find-match-selected-background",
+  },
+];
+
+/** One mode cell: canvas-backed tile (fill / line / text) + resolved value. */
+function ModeSwatch({
   paint,
   token,
   kind,
+  on,
 }: {
   paint: TokenContext;
   token: string;
-  kind: RampKind;
+  kind: HierarchyKind;
+  on?: string;
 }) {
   const triplet = paint.resolve(`var(${token})`).trim();
-  const canvas = paint.color("--background");
+  const canvas = paint.color("--bg-canvas");
   const hairline = paint.color("--border");
-  let demo: ReactNode;
-  if (kind === "text") {
-    const onBright = token === "--text-on-fill";
-    demo = (
+  let tile: ReactNode;
+  if (kind === "line") {
+    tile = (
       <div
-        className="truncate rounded-sm px-2.5 py-1.5 text-xs"
-        title="Aa · The quick brown fox"
+        className="h-8 rounded-sm border-2"
         style={{
-          background: onBright ? paint.color("--primary") : canvas,
+          background: paint.color("--bg-card"),
+          borderColor: paint.color(token),
+        }}
+        title={triplet}
+      />
+    );
+  } else if (kind === "text") {
+    tile = (
+      <div
+        className="flex h-8 items-center justify-center rounded-sm border text-xs font-bold"
+        style={{
+          background: on ? paint.color(on) : canvas,
+          borderColor: hairline,
           color: paint.color(token),
         }}
+        title={triplet}
       >
-        Aa · The quick brown fox
-      </div>
-    );
-  } else if (kind === "surface") {
-    demo = (
-      <div className="p-2" style={{ background: canvas }}>
-        <div
-          className="h-7 rounded-sm border"
-          style={{ background: paint.color(token), borderColor: hairline }}
-        />
+        Aa
       </div>
     );
   } else {
-    demo = (
-      <div className="p-2" style={{ background: canvas }}>
-        <div
-          className="h-7 rounded-sm border"
-          style={{
-            background: paint.color("--bg-card"),
-            borderColor: paint.color(token),
-          }}
-        />
-      </div>
+    tile = (
+      <div
+        className="h-8 rounded-sm border"
+        style={{ background: paint.color(token), borderColor: hairline }}
+        title={triplet}
+      />
     );
   }
   return (
     <div
-      className="flex min-w-0 flex-col overflow-hidden rounded-md border"
+      className="rounded-md border p-1.5"
       style={{ background: canvas, borderColor: hairline }}
     >
-      {demo}
+      {tile}
       <code
-        className="truncate border-t px-2 py-1 font-mono text-[10px] leading-4"
-        style={{
-          color: paint.color("--muted-foreground"),
-          borderColor: hairline,
-        }}
+        className="mt-1 block truncate font-mono text-[10px] leading-4"
+        style={{ color: paint.color("--text-tertiary") }}
         title={triplet}
       >
         {triplet}
@@ -196,42 +502,95 @@ function RampModeCell({
   );
 }
 
-const RAMP_GRID =
-  "grid grid-cols-[minmax(240px,1.3fr)_minmax(170px,1fr)_minmax(170px,1fr)] gap-x-4";
+const HIERARCHY_GRID =
+  "grid grid-cols-[minmax(140px,auto)_minmax(220px,1fr)_150px_150px] gap-x-4";
 
-function RampRow({
-  step,
-  index,
-  kind,
+/** Kumo-style hierarchy table: token chip, purpose, light + dark swatches. */
+function HierarchySection({
+  title,
+  blurb,
+  rows,
+  kind = "fill",
+  specimen,
+  footnote,
   lightCtx,
   darkCtx,
 }: {
-  step: RampStep;
-  index: number;
-  kind: RampKind;
+  title: string;
+  blurb: ReactNode;
+  rows: HierarchyRow[];
+  /** Section default; rows can override. */
+  kind?: HierarchyKind;
+  /** Optional demo rendered once per mode above the table. */
+  specimen?: (paint: TokenContext) => ReactNode;
+  footnote?: ReactNode;
   lightCtx: TokenContext;
   darkCtx: TokenContext;
 }) {
   return (
-    <div className={`${RAMP_GRID} items-center border-b py-2.5`}>
-      <div className="flex min-w-0 flex-col gap-1">
-        <Eyebrow>
-          {index + 1} · {step.label}
-        </Eyebrow>
-        <code className="text-foreground font-mono text-[11px] leading-4 break-all">
-          {step.token}
-        </code>
-        {step.note && (
-          <span className="text-tertiary text-[11px] leading-4">
-            {step.note}
-          </span>
-        )}
+    <PageSection
+      title={title}
+      blurb={blurb}
+      aside={
+        <InlineCode>
+          {rows.length} token{rows.length === 1 ? "" : "s"}
+        </InlineCode>
+      }
+    >
+      {specimen && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[
+            { label: "light", paint: lightCtx },
+            { label: "dark", paint: darkCtx },
+          ].map(({ label, paint }) => (
+            <div key={label} className="flex flex-col gap-1.5">
+              <Eyebrow>{label}</Eyebrow>
+              {specimen(paint)}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-col">
+        <div className={`${HIERARCHY_GRID} border-b pb-1.5`}>
+          <Eyebrow>Token</Eyebrow>
+          <Eyebrow>Purpose</Eyebrow>
+          <Eyebrow>Light</Eyebrow>
+          <Eyebrow>Dark</Eyebrow>
+        </div>
+        {rows.map((row) => (
+          <div
+            key={row.utility}
+            className={`${HIERARCHY_GRID} items-center border-b py-2.5`}
+          >
+            <div className="min-w-0">
+              <code className="rounded-md border px-2 py-0.5 font-mono text-[11px]">
+                {row.utility}
+              </code>
+            </div>
+            <span className="text-secondary text-sm">{row.purpose}</span>
+            <ModeSwatch
+              paint={lightCtx}
+              token={row.token}
+              kind={row.kind ?? kind}
+              on={row.on}
+            />
+            <ModeSwatch
+              paint={darkCtx}
+              token={row.token}
+              kind={row.kind ?? kind}
+              on={row.on}
+            />
+          </div>
+        ))}
       </div>
-      <RampModeCell paint={lightCtx} token={step.token} kind={kind} />
-      <RampModeCell paint={darkCtx} token={step.token} kind={kind} />
-    </div>
+      {footnote && <p className="text-tertiary text-sm">{footnote}</p>}
+    </PageSection>
   );
 }
+
+/* ------------------------------------------------------------------------- *
+ * Specimens rendered once per mode above their tables.
+ * ------------------------------------------------------------------------- */
 
 /** Text tiers stacked as one specimen, so the gap between tiers is legible. */
 function TextHierarchySample({ paint }: { paint: TokenContext }) {
@@ -271,506 +630,14 @@ function TextHierarchySample({ paint }: { paint: TokenContext }) {
   );
 }
 
-/** One mode cell for the surface hierarchy: swatch + resolved value. */
-function SurfaceSwatch({
-  paint,
-  token,
-}: {
-  paint: TokenContext;
-  token: string;
-}) {
-  const triplet = paint.resolve(`var(${token})`).trim();
-  return (
-    <div
-      className="rounded-md border p-1.5"
-      style={{
-        background: paint.color("--bg-canvas"),
-        borderColor: paint.color("--border"),
-      }}
-    >
-      <div
-        className="h-8 rounded-sm border"
-        style={{
-          background: paint.color(token),
-          borderColor: paint.color("--border"),
-        }}
-        title={triplet}
-      />
-      <code
-        className="mt-1 block truncate font-mono text-[10px] leading-4"
-        style={{ color: paint.color("--text-tertiary") }}
-        title={triplet}
-      >
-        {triplet}
-      </code>
-    </div>
-  );
-}
-
-const SURFACE_GRID =
-  "grid grid-cols-[140px_minmax(220px,1fr)_150px_150px] gap-x-4";
-
-/** Kumo-style hierarchy table: token chip, purpose, light + dark swatches. */
-function SurfaceHierarchySection({
-  lightCtx,
-  darkCtx,
-}: {
-  lightCtx: TokenContext;
-  darkCtx: TokenContext;
-}) {
-  return (
-    <PageSection
-      title="Surface hierarchy"
-      blurb="Surfaces establish depth and layering. Use them in order, outermost first."
-      aside={<InlineCode>{SURFACE_HIERARCHY.length} surfaces</InlineCode>}
-    >
-      <div className="flex flex-col">
-        <div className={`${SURFACE_GRID} border-b pb-1.5`}>
-          <Eyebrow>Token</Eyebrow>
-          <Eyebrow>Purpose</Eyebrow>
-          <Eyebrow>Light</Eyebrow>
-          <Eyebrow>Dark</Eyebrow>
-        </div>
-        {SURFACE_HIERARCHY.map((row) => (
-          <div
-            key={row.utility}
-            className={`${SURFACE_GRID} items-center border-b py-2.5`}
-          >
-            <div>
-              <code className="rounded-md border px-2 py-0.5 font-mono text-[11px]">
-                {row.utility}
-              </code>
-            </div>
-            <span className="text-secondary text-sm">{row.purpose}</span>
-            <SurfaceSwatch paint={lightCtx} token={row.token} />
-            <SurfaceSwatch paint={darkCtx} token={row.token} />
-          </div>
-        ))}
-      </div>
-    </PageSection>
-  );
-}
-
-function RampSection({
-  title,
-  blurb,
-  steps,
-  kind,
-  renderModeSample,
-  lightCtx,
-  darkCtx,
-}: {
-  title: string;
-  blurb: string;
-  steps: RampStep[];
-  kind: RampKind;
-  renderModeSample?: (paint: TokenContext) => ReactNode;
-  lightCtx: TokenContext;
-  darkCtx: TokenContext;
-}) {
-  return (
-    <PageSection
-      title={title}
-      blurb={blurb}
-      aside={<InlineCode>{steps.length} steps</InlineCode>}
-    >
-      {renderModeSample && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {[
-            { label: "light", paint: lightCtx },
-            { label: "dark", paint: darkCtx },
-          ].map(({ label, paint }) => (
-            <div key={label} className="flex flex-col gap-1.5">
-              <Eyebrow>{label}</Eyebrow>
-              {renderModeSample(paint)}
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="flex flex-col">
-        <div className={`${RAMP_GRID} border-b pb-1.5`}>
-          <Eyebrow>Step · token</Eyebrow>
-          <Eyebrow>Light</Eyebrow>
-          <Eyebrow>Dark</Eyebrow>
-        </div>
-        {steps.map((step, index) => (
-          <RampRow
-            key={step.token}
-            step={step}
-            index={index}
-            kind={kind}
-            lightCtx={lightCtx}
-            darkCtx={darkCtx}
-          />
-        ))}
-      </div>
-    </PageSection>
-  );
-}
-
-type SectionId =
-  | "primitives"
-  | "surfaces"
-  | "fills"
-  | "borders"
-  | "brand"
-  | "controls"
-  | "mutedAccents"
-  | "status"
-  | "qlang"
-  | "sidebar"
-  | "findMatch"
-  | "other";
-
-/**
- * First match wins; unmatched tokens land in "other" so new tokens always
- * show up somewhere. Tokens other pages own are excluded up front via
- * pageForToken (shared.tsx), the single source of page assignment.
- */
-const SECTION_MATCHERS: Array<{
-  id: SectionId;
-  test: (name: string) => boolean;
-}> = [
-  { id: "primitives", test: (n) => PRIMITIVE_PATTERN.test(n) },
-  {
-    id: "status",
-    test: (n) =>
-      /^--(?:accent-)?(?:light|dark)-(?:red|yellow|green|blue|violet|teal)$/.test(
-        n,
-      ),
-  },
-  {
-    id: "mutedAccents",
-    test: (n) => /^--muted-(?:magenta|blue|green|gray)$/.test(n),
-  },
-  { id: "qlang", test: (n) => n.startsWith("--qlang-") },
-  { id: "sidebar", test: (n) => n.startsWith("--sidebar-") },
-  { id: "findMatch", test: (n) => n.startsWith("--find-match-") },
-  { id: "controls", test: (n) => n.startsWith("--control-") },
-  {
-    id: "brand",
-    test: (n) => /^--(?:primary-accent|link|link-hover)$/.test(n),
-  },
-  {
-    id: "borders",
-    test: (n) =>
-      /^--(?:border|border-contrast|popover-border|input|ring|focus)$/.test(n),
-  },
-  {
-    id: "fills",
-    test: (n) =>
-      /^--(?:primary|secondary|tertiary|accent|destructive)(?:-foreground)?$/.test(
-        n,
-      ),
-  },
-  {
-    id: "surfaces",
-    test: (n) =>
-      /^--(?:bg-(?:canvas|code(?:-header)?|hover|muted|popover|card|modal|sidebar)|background|foreground|text-disabled|muted|canvas|code|hover|popover|card|modal)(?:-foreground)?$/.test(
-        n,
-      ),
-  },
-];
-
-type SectionDef = { id: SectionId; title: string; blurb: string };
-
-/** High-traffic sections, always expanded. */
-const VISIBLE_SECTIONS: SectionDef[] = [
-  {
-    id: "surfaces",
-    title: "Surfaces & text tiers",
-    blurb:
-      "Canvas, elevation ladder and the paired text tiers that sit on them.",
-  },
-  {
-    id: "fills",
-    title: "Interactive fills",
-    blurb: "Button / hover / selection fills with their paired foregrounds.",
-  },
-  {
-    id: "borders",
-    title: "Borders & focus",
-    blurb: "Hairline, structure lines, input boundary and the focus ring.",
-  },
-  {
-    id: "brand",
-    title: "Brand & links",
-    blurb: "Accent for tabs/selection plus the hyperlink pair.",
-  },
-  {
-    id: "controls",
-    title: "Selection controls",
-    blurb: "Checkbox / switch fill, off-state track and unchecked boundary.",
-  },
-  {
-    id: "status",
-    title: "Status & accent pairs",
-    blurb:
-      "light-* tinted fills with dark-* readable text (chips, score levels).",
-  },
-  {
-    id: "mutedAccents",
-    title: "Muted accents",
-    blurb: "Observation-type accents and the chart-grid grey.",
-  },
-  {
-    id: "sidebar",
-    title: "Sidebar",
-    blurb: "Side navigation chrome, nav-item states and its hairline.",
-  },
-];
-
-/** Low-traffic sections, collapsed at the bottom. */
-const COLLAPSED_SECTIONS: SectionDef[] = [
-  {
-    id: "primitives",
-    title: "Palette primitives",
-    blurb:
-      "Private {family}-{mode}-{decade} ramps behind the role tokens — components never reference these.",
-  },
-  {
-    id: "qlang",
-    title: "Query syntax highlighting",
-    blurb: "Search-bar grammar colors (field / value / number / keyword).",
-  },
-  {
-    id: "findMatch",
-    title: "Find match",
-    blurb: "In-page search highlight and the selected match.",
-  },
-  {
-    id: "other",
-    title: "Other",
-    blurb: "Tokens this page has no dedicated section for yet.",
-  },
-];
-
-/** `hsl(triplet / alpha)` for a token, for utility classes like bg-muted/50. */
-function alphaColor(ctx: TokenContext, name: string, alpha: number) {
-  const triplet = ctx.resolve(`var(${name})`);
-  return toCssColor(triplet)?.replace(/\)$/, ` / ${alpha})`);
-}
-
-/* ------------------------------------------------------------------------- *
- * Interaction states (Carbon-style), grounded in the app's real classes.
- * ------------------------------------------------------------------------- */
-
-function StateRow({
-  state,
-  sample,
-  classes,
-  tokens,
-  seenIn,
-}: {
-  state: string;
-  sample: ReactNode;
-  classes: string;
-  tokens: string;
-  seenIn: string;
-}) {
-  return (
-    <div className="grid items-center gap-x-8 gap-y-1 border-t py-3 md:grid-cols-[110px_minmax(0,1fr)_minmax(0,1.2fr)]">
-      <Eyebrow>{state}</Eyebrow>
-      <div className="min-w-0">{sample}</div>
-      <div className="text-tertiary flex min-w-0 flex-col gap-0.5 font-mono text-[10px] leading-4">
-        <span className="break-all">{classes}</span>
-        <span>tokens · {tokens}</span>
-        <span>as in · {seenIn}</span>
-      </div>
-    </div>
-  );
-}
-
-function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
-  const color = ctx.color;
-  const rowBase: CSSProperties = {
-    background: color("--background"),
-    color: color("--foreground"),
-  };
-  return (
-    <PageSection
-      title="Interaction states"
-      blurb="Hover, selected, active and focus, painted with the exact classes the app uses."
-    >
-      <div className="flex flex-col">
-        <StateRow
-          state="Hover · row"
-          classes="hover:bg-muted/50"
-          tokens="--muted at 50%"
-          seenIn="TableRow (ui/table.tsx)"
-          sample={
-            <div
-              className="flex flex-col rounded-md border text-xs"
-              style={rowBase}
-            >
-              <span className="border-b px-2.5 py-1.5">Default row</span>
-              <span
-                className="px-2.5 py-1.5"
-                style={{ background: alphaColor(ctx, "--bg-muted", 0.5) }}
-              >
-                Hovered row
-              </span>
-            </div>
-          }
-        />
-        <StateRow
-          state="Selected · row"
-          classes="data-[state=selected]:bg-muted"
-          tokens="--bg-muted"
-          seenIn="TableRow (ui/table.tsx)"
-          sample={
-            <div
-              className="flex flex-col rounded-md border text-xs"
-              style={rowBase}
-            >
-              <span className="border-b px-2.5 py-1.5">Default row</span>
-              <span
-                className="px-2.5 py-1.5"
-                style={{ background: color("--bg-muted") }}
-              >
-                Selected row
-              </span>
-            </div>
-          }
-        />
-        <StateRow
-          state="Hover · item"
-          classes="focus:bg-hover focus:text-on-hover / hover:bg-hover"
-          tokens="--hover · --text-on-hover"
-          seenIn="DropdownMenuItem, ghost & outline Button"
-          sample={
-            <div
-              className="flex flex-col gap-0.5 rounded-md border p-1 text-xs"
-              style={{ background: color("--bg-popover") }}
-            >
-              <span
-                className="rounded-sm px-2 py-1"
-                style={{ color: color("--popover-foreground") }}
-              >
-                Menu item
-              </span>
-              <span
-                className="rounded-sm px-2 py-1"
-                style={{
-                  background: color("--accent"),
-                  color: color("--accent-foreground"),
-                }}
-              >
-                Focused item
-              </span>
-            </div>
-          }
-        />
-        <StateRow
-          state="Active · tab"
-          classes="text-primary-accent + 2px underline"
-          tokens="--primary-accent"
-          seenIn="page-level tab bars"
-          sample={
-            <div
-              className="flex items-center gap-3 rounded-md border px-2.5 py-1.5 text-xs"
-              style={rowBase}
-            >
-              <span
-                className="pb-0.5 font-bold"
-                style={{
-                  color: color("--primary-accent"),
-                  boxShadow: `inset 0 -2px 0 ${color("--primary-accent")}`,
-                }}
-              >
-                Active tab
-              </span>
-              <span style={{ color: color("--muted-foreground") }}>
-                Other tab
-              </span>
-            </div>
-          }
-        />
-        <StateRow
-          state="Focus"
-          classes="focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-          tokens="--focus · ring-offset uses --canvas"
-          seenIn="Button, Input, every focusable control"
-          sample={
-            <div
-              className="rounded-md border px-2.5 py-1.5"
-              style={{ background: color("--background") }}
-            >
-              <span
-                className="inline-block rounded-md border px-2.5 py-0.5 text-xs"
-                style={{
-                  background: color("--bg-card"),
-                  color: color("--foreground"),
-                  boxShadow: `0 0 0 2px ${color("--background")}, 0 0 0 4px ${color("--ring")}`,
-                }}
-              >
-                Focused
-              </span>
-            </div>
-          }
-        />
-        <StateRow
-          state="Disabled"
-          classes="disabled:opacity-50 disabled:cursor-not-allowed"
-          tokens="no dedicated token, opacity on the enabled colors"
-          seenIn="Button, Input"
-          sample={
-            <div
-              className="rounded-md border px-2.5 py-1.5"
-              style={{ background: color("--background") }}
-            >
-              <span
-                className="inline-block rounded-md px-2.5 py-0.5 text-xs opacity-50"
-                style={{
-                  background: color("--primary"),
-                  color: color("--primary-foreground"),
-                }}
-              >
-                Disabled button
-              </span>
-            </div>
-          }
-        />
-      </div>
-    </PageSection>
-  );
-}
-
-/* ------------------------------------------------------------------------- *
- * Per-token usage samples (compact, one per row).
- * ------------------------------------------------------------------------- */
-
-function SurfaceSample({
-  background,
-  color,
-  border,
-  children,
-}: {
-  background?: string;
-  color?: string;
-  border?: string;
-  children: string;
-}) {
-  return (
-    <div
-      className="truncate rounded-md border px-2.5 py-1.5 text-xs"
-      title={children}
-      style={{
-        background,
-        color,
-        ...(border ? { borderColor: border } : {}),
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
 function QuerySample({ ctx }: { ctx: TokenContext }) {
   return (
     <div
       className="rounded-md border px-2.5 py-1.5 font-mono text-xs"
-      style={{ background: ctx.color("--background") }}
+      style={{
+        background: ctx.color("--background"),
+        borderColor: ctx.color("--border"),
+      }}
     >
       <span style={{ color: ctx.color("--qlang-field") }}>level</span>
       <span style={{ color: ctx.color("--muted-foreground") }}>:</span>
@@ -789,6 +656,7 @@ function FindMatchSample({ ctx }: { ctx: TokenContext }) {
       className="rounded-md border px-2.5 py-1.5 text-xs"
       style={{
         background: ctx.color("--background"),
+        borderColor: ctx.color("--border"),
         color: ctx.color("--foreground"),
       }}
     >
@@ -815,324 +683,56 @@ function FindMatchSample({ ctx }: { ctx: TokenContext }) {
   );
 }
 
-function renderSample(
-  sectionId: SectionId,
-  name: string,
-  ctx: TokenContext,
-): ReactNode {
-  const color = ctx.color;
-  switch (sectionId) {
-    case "surfaces": {
-      const isText = name.includes("foreground");
-      if (isText) {
-        let base = name.replace(/-foreground$/, "");
-        if (name === "--foreground" || name === "--text-disabled")
-          base = "--background";
-        if (name === "--muted-foreground") base = "--bg-muted";
-        return (
-          <SurfaceSample background={color(base)} color={color(name)}>
-            Aa · The quick brown fox
-          </SurfaceSample>
-        );
-      }
-      const pairedText = ctx.decl(`${name}-foreground`)
-        ? `${name}-foreground`
-        : "--foreground";
-      return (
-        <SurfaceSample background={color(name)} color={color(pairedText)}>
-          {`Aa · text on ${name.slice(2)}`}
-        </SurfaceSample>
-      );
-    }
-    case "fills": {
-      const base = name.replace(/-foreground$/, "");
-      const fg = ctx.decl(`${base}-foreground`)
-        ? `${base}-foreground`
-        : "--foreground";
-      return (
-        <div
-          className="rounded-md border px-2.5 py-1.5"
-          style={{ background: color("--background") }}
-        >
-          <span
-            className="inline-block rounded-md px-2.5 py-0.5 text-xs"
-            style={{ background: color(base), color: color(fg) }}
-          >
-            Button
-          </span>
-        </div>
-      );
-    }
-    case "borders": {
-      if (name === "--ring" || name === "--focus") {
-        return (
-          <div
-            className="rounded-md border px-2.5 py-1.5"
-            style={{ background: color("--background") }}
-          >
-            <span
-              className="inline-block rounded-md border px-2.5 py-0.5 text-xs"
-              style={{
-                background: color("--bg-card"),
-                color: color("--foreground"),
-                boxShadow: `0 0 0 2px ${color(name)}`,
-              }}
-            >
-              Focused
-            </span>
-          </div>
-        );
-      }
-      return (
-        <SurfaceSample
-          background={color("--bg-card")}
-          color={color("--foreground")}
-          border={color(name)}
-        >
-          {`Aa · ${name.slice(2)} edge`}
-        </SurfaceSample>
-      );
-    }
-    case "brand": {
-      if (name === "--primary-accent") {
-        return (
-          <div
-            className="flex items-center gap-3 rounded-md border px-2.5 py-1.5 text-xs"
-            style={{
-              background: color("--background"),
-              color: color("--foreground"),
-            }}
-          >
-            <span
-              style={{
-                color: color(name),
-                boxShadow: `inset 0 -2px 0 ${color(name)}`,
-              }}
-              className="pb-0.5 font-bold"
-            >
-              Active tab
-            </span>
-            <span style={{ color: color("--muted-foreground") }}>
-              Other tab
-            </span>
-          </div>
-        );
-      }
-      return (
-        <div
-          className="rounded-md border px-2.5 py-1.5 text-xs"
-          style={{ background: color("--background") }}
-        >
-          <span className="underline" style={{ color: color(name) }}>
-            {name === "--link-hover" ? "A hovered hyperlink" : "A hyperlink"}
-          </span>
-        </div>
-      );
-    }
-    case "controls": {
-      return (
-        <div
-          className="flex items-center gap-4 rounded-md border px-2.5 py-1.5"
-          style={{ background: color("--background") }}
-        >
-          {/* checked checkbox */}
-          <span
-            className="flex size-4 items-center justify-center rounded-sm text-[10px] font-bold"
-            style={{
-              background: color("--control-fill"),
-              color: color("--background"),
-              outline:
-                name === "--control-fill"
-                  ? `2px solid ${color("--ring")}`
-                  : undefined,
-              outlineOffset: 2,
-            }}
-          >
-            ✓
-          </span>
-          {/* unchecked checkbox */}
-          <span
-            className="size-4 rounded-sm border"
-            style={{
-              borderColor: color("--control-border"),
-              outline:
-                name === "--control-border"
-                  ? `2px solid ${color("--ring")}`
-                  : undefined,
-              outlineOffset: 2,
-            }}
-          />
-          {/* switch, off state */}
-          <span
-            className="flex h-4 w-8 items-center rounded-full px-0.5"
-            style={{
-              background: color("--control-track"),
-              outline:
-                name === "--control-track"
-                  ? `2px solid ${color("--ring")}`
-                  : undefined,
-              outlineOffset: 2,
-            }}
-          >
-            <span
-              className="size-3 rounded-full border"
-              style={{ background: color("--bg-card") }}
-            />
-          </span>
-        </div>
-      );
-    }
-    case "mutedAccents": {
-      return (
-        <div
-          className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs"
-          style={{ background: color("--bg-card") }}
-        >
-          <span
-            className="size-3.5 rounded-sm"
-            style={{ background: color(name) }}
-          />
-          <span style={{ color: color(name) }} className="font-bold">
-            Aa
-          </span>
-          <span
-            style={{ color: color("--muted-foreground") }}
-            className="text-[10px]"
-          >
-            span label
-          </span>
-        </div>
-      );
-    }
-    case "status": {
-      const match = /^--(accent-)?(?:light|dark)-(\w+)$/.exec(name);
-      const prefix = match?.[1] ?? "";
-      const hue = match?.[2] ?? "";
-      const fill = `--${prefix}light-${hue}`;
-      const text = `--${prefix}dark-${hue}`;
-      return (
-        <div
-          className="rounded-md border px-2.5 py-1.5"
-          style={{ background: color("--background") }}
-        >
-          <span
-            className="inline-block rounded-sm px-2 py-0.5 text-xs font-bold"
-            style={{ background: color(fill), color: color(text) }}
-          >
-            {prefix ? `accent ${hue}` : hue} · 0.87
-          </span>
-        </div>
-      );
-    }
-    // Whole-section samples (all tokens paint the same demo) render once in
-    // the section header instead of repeating per row.
-    case "qlang":
-    case "findMatch":
-      return null;
-    case "sidebar": {
-      if (name === "--sidebar-ring") {
-        return (
-          <div
-            className="rounded-md border px-2.5 py-1.5"
-            style={{ background: color("--sidebar-background") }}
-          >
-            <span
-              className="inline-block rounded-md px-2 py-0.5 text-xs"
-              style={{
-                color: color("--sidebar-foreground"),
-                boxShadow: `0 0 0 2px ${color(name)}`,
-              }}
-            >
-              Focused item
-            </span>
-          </div>
-        );
-      }
-      if (name === "--sidebar-border") {
-        return (
-          <SurfaceSample
-            background={color("--sidebar-background")}
-            color={color("--sidebar-foreground")}
-            border={color(name)}
-          >
-            Aa · sidebar hairline
-          </SurfaceSample>
-        );
-      }
-      const usesPrimary = name.startsWith("--sidebar-primary");
-      const usesAccent = name.startsWith("--sidebar-accent");
-      let itemStyle: CSSProperties = { color: color("--sidebar-foreground") };
-      let itemLabel = "Nav item";
-      if (usesPrimary) {
-        itemStyle = {
-          background: color("--sidebar-primary"),
-          color: color("--sidebar-primary-foreground"),
-        };
-        itemLabel = "Primary item";
-      } else if (usesAccent) {
-        itemStyle = {
-          background: color("--sidebar-accent"),
-          color: color("--sidebar-accent-foreground"),
-        };
-        itemLabel = "Hovered item";
-      }
-      return (
-        <div
-          className="flex items-center gap-1 rounded-md border p-1 text-xs"
-          style={{
-            background: color("--sidebar-background"),
-            borderColor: color("--sidebar-border"),
-          }}
-        >
-          <span
-            className="truncate rounded-md px-2 py-0.5"
-            title={itemLabel}
-            style={itemStyle}
-          >
-            {itemLabel}
-          </span>
-          <span
-            className="truncate px-2 py-0.5"
-            title="Another item"
-            style={{ color: color("--sidebar-foreground") }}
-          >
-            Another item
-          </span>
-        </div>
-      );
-    }
-    case "other":
-    default: {
-      const swatchColor = color(name);
-      return (
-        <div
-          className="rounded-md border px-2.5 py-1.5 font-mono text-[11px]"
-          style={{
-            background: color("--background"),
-            color: color("--foreground"),
-          }}
-        >
-          {swatchColor ? (
-            <span
-              className="inline-block h-4 w-14 rounded-sm"
-              style={{ background: swatchColor }}
-            />
-          ) : (
-            ctx.resolve(ctx.decl(name) ?? "") || "—"
-          )}
-        </div>
-      );
-    }
-  }
+/** chart-1..8 as one compact strip (full reference on the Charts page). */
+function ChartRampStrip({ paint }: { paint: TokenContext }) {
+  return (
+    <div
+      className="flex items-center gap-1.5 rounded-md border p-2"
+      style={{
+        background: paint.color("--bg-canvas"),
+        borderColor: paint.color("--border"),
+      }}
+    >
+      {Array.from({ length: 8 }, (_, i) => `--chart-${i + 1}`).map((token) => (
+        <span
+          key={token}
+          className="h-6 flex-1 rounded-sm"
+          style={{ background: paint.color(token) }}
+          title={token}
+        />
+      ))}
+    </div>
+  );
 }
 
-/** Section demos rendered once (their tokens all paint the same sample). */
-const SECTION_SAMPLES: Partial<
-  Record<SectionId, (ctx: TokenContext) => ReactNode>
-> = {
-  qlang: (ctx) => <QuerySample ctx={ctx} />,
-  findMatch: (ctx) => <FindMatchSample ctx={ctx} />,
-};
+/* ------------------------------------------------------------------------- *
+ * Collapsed low-traffic groups.
+ * ------------------------------------------------------------------------- */
+
+/** PR-preview deployment strip chrome (its links ride --link). */
+const PREVIEW_BANNER_TOKENS = [
+  "--preview-banner",
+  "--preview-banner-foreground",
+  "--preview-banner-border",
+  "--preview-banner-link",
+  "--preview-banner-link-hover",
+];
+
+/** Old shadcn names kept as pure var() references onto the role vocabulary. */
+const LEGACY_ALIAS_TOKENS = [
+  "--background",
+  "--foreground",
+  "--muted-foreground",
+  "--card-foreground",
+  "--popover-foreground",
+  "--primary-foreground",
+  "--accent",
+  "--accent-foreground",
+  "--input",
+  "--popover-border",
+  "--ring",
+  "--sidebar-ring",
+];
 
 /** Tailwind color mappings from @theme inline (collapsed, low traffic). */
 function ColorMappingsSection({ ctx }: { ctx: TokenContext }) {
@@ -1191,35 +791,52 @@ function ColorMappingsSection({ ctx }: { ctx: TokenContext }) {
   );
 }
 
+const ALL_HIERARCHIES: HierarchyRow[][] = [
+  SURFACE_HIERARCHY,
+  BORDER_HIERARCHY,
+  TEXT_HIERARCHY,
+  BRAND_HIERARCHY,
+  STATUS_HIERARCHY,
+  CONTROL_HIERARCHY,
+  SIDEBAR_HIERARCHY,
+  VIZ_HIERARCHY,
+  QLANG_HIERARCHY,
+  FIND_MATCH_HIERARCHY,
+];
+
+/** Every token some section on this page documents. */
+const documentedTokens = new Set([
+  ...ALL_HIERARCHIES.flat().map((row) => row.token),
+  ...LEGACY_ALIAS_TOKENS,
+  ...PREVIEW_BANNER_TOKENS,
+]);
+
 export function Color() {
   const { ctx, lightCtx, darkCtx } = useTokenContexts();
 
-  const sectionEntries = new Map<SectionId, typeof rootEntries>();
-  for (const entry of rootEntries) {
-    if (pageForToken(entry.name) !== "color") continue; // other pages own these
-    const matcher = SECTION_MATCHERS.find((m) => m.test(entry.name));
-    const section = matcher?.id ?? "other";
-    const bucket = sectionEntries.get(section) ?? [];
-    bucket.push(entry);
-    sectionEntries.set(section, bucket);
-  }
+  const primitiveEntries = rootEntries.filter((entry) =>
+    PRIMITIVE_PATTERN.test(entry.name),
+  );
+  const entriesFor = (names: string[]) =>
+    names.flatMap((name) => {
+      const entry = rootEntries.find((candidate) => candidate.name === name);
+      return entry ? [entry] : [];
+    });
+  const aliasEntries = entriesFor(LEGACY_ALIAS_TOKENS);
+  const previewBannerEntries = entriesFor(PREVIEW_BANNER_TOKENS);
+  // Completeness guard: color-page tokens with no hierarchy row yet still
+  // show up here instead of silently vanishing.
+  const undocumentedEntries = rootEntries.filter(
+    (entry) =>
+      pageForToken(entry.name) === "color" &&
+      !PRIMITIVE_PATTERN.test(entry.name) &&
+      !documentedTokens.has(entry.name),
+  );
 
-  const colorEntryCount = [...sectionEntries.values()].reduce(
-    (total, bucket) => total + bucket.length,
+  const hierarchyCount = ALL_HIERARCHIES.reduce(
+    (total, rows) => total + rows.length,
     0,
   );
-  const renderRows = (id: SectionId) =>
-    (sectionEntries.get(id) ?? []).map((entry) => (
-      <TokenRow
-        key={entry.name}
-        name={entry.name}
-        entry={entry}
-        ctx={ctx}
-        lightCtx={lightCtx}
-        darkCtx={darkCtx}
-        sample={renderSample(id, entry.name, ctx)}
-      />
-    ));
 
   return (
     <div className="p-6 md:p-10">
@@ -1230,63 +847,175 @@ export function Color() {
           lede={
             <>
               Parsed at build time from{" "}
-              <code className="font-mono">src/styles/globals.css</code>. Role
-              ramps up top show light and dark side by side; the tables below
-              are the full token reference, sampled per toolbar theme.
+              <code className="font-mono">src/styles/globals.css</code>. Each
+              family is one hierarchy table: token, purpose, light and dark side
+              by side.
             </>
           }
-          meta={<>{colorEntryCount} color tokens · light and dark</>}
+          meta={<>{hierarchyCount} role tokens · light and dark</>}
         />
-        <RampSection
-          title="Text ramp"
-          blurb="faint < meta < body < bright, plus the inverted ink — color carries state, weight never changes."
-          steps={TEXT_RAMP}
+        <HierarchySection
+          title="Surface hierarchy"
+          blurb="Surfaces establish depth and layering. Use them in order, outermost first."
+          rows={SURFACE_HIERARCHY}
+          kind="fill"
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <HierarchySection
+          title="Borders & rings"
+          blurb="Two line tiers plus the focus ring. Hover = the fill, focus = the ring."
+          rows={BORDER_HIERARCHY}
+          kind="line"
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <HierarchySection
+          title="Text colors"
+          blurb="faint < meta < body < bright — color carries state, weight never changes."
+          rows={TEXT_HIERARCHY}
           kind="text"
-          renderModeSample={(paint) => <TextHierarchySample paint={paint} />}
+          specimen={(paint) => <TextHierarchySample paint={paint} />}
           lightCtx={lightCtx}
           darkCtx={darkCtx}
         />
-        <SurfaceHierarchySection lightCtx={lightCtx} darkCtx={darkCtx} />
-        <RampSection
-          title="Border / line ramp"
-          blurb="Two tiers: quiet hairline < assertive contrast."
-          steps={BORDER_RAMP}
-          kind="border"
+        <HierarchySection
+          title="Brand & interactive"
+          blurb="The brand accent and the strong action fills."
+          rows={BRAND_HIERARCHY}
+          footnote={
+            <>
+              Links live in Text colors; the focus ring in Borders &amp; rings.
+              Disabled is <InlineCode>opacity-50</InlineCode> on the enabled
+              colors — no dedicated token.
+            </>
+          }
           lightCtx={lightCtx}
           darkCtx={darkCtx}
         />
-        <InteractionStatesSection ctx={ctx} />
-        {VISIBLE_SECTIONS.map(({ id, title, blurb }) => {
-          const rows = renderRows(id);
-          if (rows.length === 0) return null;
-          return (
-            <TokenSection
-              key={id}
-              title={title}
-              blurb={blurb}
-              count={rows.length}
-              sectionSample={SECTION_SAMPLES[id]?.(ctx)}
-            >
-              {rows}
-            </TokenSection>
-          );
-        })}
+        <HierarchySection
+          title="Status"
+          blurb="light-* tint fills (alpha baked in) with dark-* text on them — slated for role-naming (danger/success/…-tint)."
+          rows={STATUS_HIERARCHY}
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <HierarchySection
+          title="Controls"
+          blurb="Checkbox / switch fill, off-state track and unchecked boundary."
+          rows={CONTROL_HIERARCHY}
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <HierarchySection
+          title="Sidebar"
+          blurb="Nav chrome states — the frame fill itself sits in the surface hierarchy."
+          rows={SIDEBAR_HIERARCHY}
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <HierarchySection
+          title="Charts & viz"
+          blurb="Muted chromatic accents; the categorical chart ramp lives on the Charts page."
+          rows={VIZ_HIERARCHY}
+          specimen={(paint) => <ChartRampStrip paint={paint} />}
+          footnote={
+            <>
+              Specimen: <InlineCode>chart-1 … chart-8</InlineCode> — the
+              categorical series ramp (full reference on the Charts page).
+            </>
+          }
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <HierarchySection
+          title="Search syntax"
+          blurb="An editor-style syntax theme for the search grammar — deliberately not the app palette; operators ride muted-foreground."
+          rows={QLANG_HIERARCHY}
+          kind="text"
+          specimen={(paint) => <QuerySample ctx={paint} />}
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <HierarchySection
+          title="Find match"
+          blurb="In-page search highlight and the selected match."
+          rows={FIND_MATCH_HIERARCHY}
+          specimen={(paint) => <FindMatchSample ctx={paint} />}
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
         <div className="flex flex-col gap-6">
-          {COLLAPSED_SECTIONS.map(({ id, title, blurb }) => {
-            const rows = renderRows(id);
-            if (rows.length === 0) return null;
-            return (
-              <CollapsedSection
-                key={id}
-                title={title}
-                blurb={blurb}
-                count={rows.length}
-                sectionSample={SECTION_SAMPLES[id]?.(ctx)}
-              >
-                {rows}
-              </CollapsedSection>
-            );
-          })}
+          <CollapsedSection
+            title="Palette primitives"
+            blurb="Private {family}-{mode}-{decade} ramps behind the role tokens — components never reference these."
+            count={primitiveEntries.length}
+          >
+            {primitiveEntries.map((entry) => (
+              <TokenRow
+                key={entry.name}
+                name={entry.name}
+                entry={entry}
+                ctx={ctx}
+                lightCtx={lightCtx}
+                darkCtx={darkCtx}
+                sample={null}
+              />
+            ))}
+          </CollapsedSection>
+          <CollapsedSection
+            title="Deprecated shadcn aliases"
+            blurb="Pure var() references onto the role vocabulary — never their own raw values; new code uses the role tokens."
+            count={aliasEntries.length}
+          >
+            {aliasEntries.map((entry) => (
+              <TokenRow
+                key={entry.name}
+                name={entry.name}
+                entry={entry}
+                ctx={ctx}
+                lightCtx={lightCtx}
+                darkCtx={darkCtx}
+                sample={null}
+              />
+            ))}
+          </CollapsedSection>
+          <CollapsedSection
+            title="Preview banner"
+            blurb="The PR-preview deployment strip — its links ride --link."
+            count={previewBannerEntries.length}
+          >
+            {previewBannerEntries.map((entry) => (
+              <TokenRow
+                key={entry.name}
+                name={entry.name}
+                entry={entry}
+                ctx={ctx}
+                lightCtx={lightCtx}
+                darkCtx={darkCtx}
+                sample={null}
+              />
+            ))}
+          </CollapsedSection>
+          {undocumentedEntries.length > 0 && (
+            <CollapsedSection
+              title="Other"
+              blurb="Color tokens with no hierarchy row yet. Give each one a home."
+              count={undocumentedEntries.length}
+            >
+              {undocumentedEntries.map((entry) => (
+                <TokenRow
+                  key={entry.name}
+                  name={entry.name}
+                  entry={entry}
+                  ctx={ctx}
+                  lightCtx={lightCtx}
+                  darkCtx={darkCtx}
+                  sample={null}
+                />
+              ))}
+            </CollapsedSection>
+          )}
           <ColorMappingsSection ctx={ctx} />
           {unassignedTokens.length > 0 && (
             <CollapsedSection

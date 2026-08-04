@@ -234,7 +234,7 @@ export function LayeringSection({
   return (
     <PageSection
       title="Layering model"
-      blurb="Surfaces stack from the canvas outward: each dark layer steps lighter; light alternates back to white. Elevation is these lightness steps plus hairline borders, not shadows. Never paint a surface darker than what it floats above."
+      blurb="Each dark layer steps lighter (light alternates back to white); elevation is lightness plus hairline borders, not shadows — never paint a surface darker than what it floats above."
       aside={<InlineCode>{layers.length} tiers</InlineCode>}
     >
       <div className="grid gap-4 lg:grid-cols-2">
@@ -249,11 +249,10 @@ export function LayeringSection({
         ))}
       </div>
       <p className="text-tertiary text-sm">
-        One tier sits outside this stack: the sidebar frame (
-        <InlineCode>--bg-sidebar</InlineCode>) lifts one step above the canvas
-        beside the content. Code blocks ride <InlineCode>bg-muted</InlineCode>.
-        The full ladder, light and dark side by side, is on the Color
-        page&apos;s surface hierarchy.
+        The sidebar frame (<InlineCode>--bg-sidebar</InlineCode>) lifts one step
+        off the canvas beside this stack; code blocks ride{" "}
+        <InlineCode>bg-muted</InlineCode> — full ladder on the Color page&apos;s
+        surface hierarchy.
       </p>
     </PageSection>
   );
