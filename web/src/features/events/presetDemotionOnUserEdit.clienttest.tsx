@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   TableViewPresetTableName,
+  encodeFiltersGeneric,
   type FilterState,
   type TableViewPresetState,
 } from "@langfuse/shared";
@@ -218,7 +219,6 @@ function Harness() {
     });
   viewControllersRef.current = {
     selectedViewId,
-    appliedViewId,
     handleSetViewId,
   };
 
@@ -423,5 +423,46 @@ describe("system preset demotion on user filter edits (LFE-14699)", () => {
       USER_VIEW_ID,
     );
     expect(storedViewId()).toBe(USER_VIEW_ID);
+  });
+
+  it("ignores a stale sessionStorage preset id when the URL names a user view", async () => {
+    // sessionStorage's storedViewId is deliberately NOT synced when a link
+    // with explicit table state is opened (hasExplicitTableStateInUrl), so it
+    // can go stale: chip applied earlier in the tab → user opens a saved
+    // view's permalink. Keying the demotion off the stale stored id would
+    // strip the user view's ?viewId on the next edit — the decision must read
+    // the URL's selectedViewId only.
+    sessionStorage.setItem(VIEW_ID_STORAGE_KEY, JSON.stringify(PRESET_ID));
+    queryParamStore.set("viewId", USER_VIEW_ID);
+    queryParamStore.set("filter", encodeFiltersGeneric(PRESET_FILTERS));
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe(
+        USER_VIEW_ID,
+      );
+      expect(screen.getByTestId("explicit-state").textContent).toContain(
+        "checkout",
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "user-add-filter" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("explicit-state").textContent).toContain(
+        "search",
+      );
+    });
+    // The user view's URL provenance survives; the demotion never fired.
+    expect(screen.getByTestId("selected-view-id").textContent).toBe(
+      USER_VIEW_ID,
+    );
+    expect(queryParamStore.get("viewId")).toBe(USER_VIEW_ID);
+    expect(
+      urlParamWrites.filter(
+        (write) => write.key === "viewId" && write.value === null,
+      ),
+    ).toEqual([]);
   });
 });

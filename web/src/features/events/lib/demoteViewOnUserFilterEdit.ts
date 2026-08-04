@@ -5,7 +5,6 @@ import { isSystemPresetId } from "@/src/components/table/table-view-presets/comp
 
 export type ViewDemotionControllers = {
   selectedViewId: string | null;
-  appliedViewId: string | null;
   handleSetViewId: (
     viewId: string | null,
     options?: { updateType?: UrlUpdateType },
@@ -26,6 +25,16 @@ export type ExplicitFilterStateChange = {
  * a full deselect is safe (chip unlights, URL + session storage cleared,
  * `replaceIn` so Back does not bounce, LFE-10715).
  *
+ * The decision keys off `selectedViewId` (the URL `?viewId`) ONLY — never the
+ * sessionStorage-backed `appliedViewId`. The stored id is deliberately not
+ * synced when a link with explicit table state is opened
+ * (hasExplicitTableStateInUrl), so it can go stale: chip applied earlier in
+ * the tab → user opens a saved view's permalink → stored id still names the
+ * preset while the URL names the user view. Keying off the stale stored id
+ * would strip the user view's `?viewId` on the next edit. Every intended
+ * demotion path (chip apply, session restore) sets the URL param, so the URL
+ * is both sufficient and authoritative.
+ *
  * Deliberately scoped to system presets: USER-SAVED views keep today's
  * behavior wholesale. Demoting one by dropping only its session restore
  * degrades "Update view" — `appliedViewId === selectedViewId` is the
@@ -45,8 +54,6 @@ export function demoteViewOnUserFilterEdit(
   // systemPresetSearchBarRoundTrip.clienttest.ts.
   if (isEqual(change.previousFilters, change.nextFilters)) return;
   if (!controllers) return;
-  const activeViewId = controllers.appliedViewId ?? controllers.selectedViewId;
-  if (!activeViewId) return;
-  if (!isSystemPresetId(activeViewId)) return;
+  if (!isSystemPresetId(controllers.selectedViewId)) return;
   controllers.handleSetViewId(null, { updateType: "replaceIn" });
 }

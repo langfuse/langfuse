@@ -1,6 +1,9 @@
 import isEqual from "lodash/isEqual";
-import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
-import { getSystemTableViewPresets } from "@langfuse/shared/src/server";
+import {
+  TableViewPresetTableName,
+  getSystemTableViewPresets,
+  type FilterState,
+} from "@langfuse/shared";
 import { filterStateToQueryText } from "../search-bar/lib/filter-state-to-query";
 import { planCommit } from "../search-bar/lib/commit";
 
