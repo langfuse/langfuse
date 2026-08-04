@@ -18,7 +18,7 @@ import { formatDisplayName } from "./log-view-formatters";
 // Max concurrent requests when loading all observation data
 const FETCH_CONCURRENCY = TRACE_VIEW_CONFIG.logView.batchFetch.concurrency;
 
-export interface UseLogViewAllObservationsIOParams {
+interface UseLogViewAllObservationsIOParams {
   items: FlatLogItem[];
   traceId: string;
   projectId: string;
