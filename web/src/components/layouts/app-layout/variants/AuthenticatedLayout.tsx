@@ -35,7 +35,7 @@ import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
-import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
+import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost/InAppAgentWindowHost";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { api } from "@/src/utils/api";
