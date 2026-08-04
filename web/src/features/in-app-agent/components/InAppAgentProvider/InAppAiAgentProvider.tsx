@@ -58,8 +58,10 @@ import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentProvider/components/InAppAgentDisabledDialog";
 import {
   performToolSideEffects,
-  shouldPerformToolSideEffects,
 } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/performToolSideEffects";
+import {
+  shouldPerformToolSideEffects,
+} from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/shouldPerformToolSideEffects";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";

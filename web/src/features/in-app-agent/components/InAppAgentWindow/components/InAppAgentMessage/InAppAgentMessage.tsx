@@ -46,7 +46,7 @@ import {
   expandMarkdownSelection,
   getMarkdownSourceRangeFromRenderedOffsets,
   projectMarkdownToRenderedText,
-} from "../../../utils/markdown";
+} from "./fns/markdown";
 import styles from "./InAppAgentMessage.module.css";
 import { InAppAgentToolPayload } from "../InAppAgentToolPayload";
 import { InAppAgentToolResultPayload } from "../InAppAgentToolResultPayload";
