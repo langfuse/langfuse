@@ -1,4 +1,4 @@
-import { sanitizeInAppAgentContext } from "@/src/features/in-app-agent/context";
+import { sanitizeInAppAgentContext } from "@/src/features/in-app-agent/fns/sanitizeInAppAgentContext";
 import { getInAppAgentQuickActionTraceMetadata } from "./getInAppAgentQuickActionTraceMetadata";
 
 describe("getInAppAgentQuickActionTraceMetadata", () => {

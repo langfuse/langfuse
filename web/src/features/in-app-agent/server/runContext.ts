@@ -12,7 +12,7 @@ import {
   TableViewService,
 } from "@langfuse/shared/src/server";
 
-import { sanitizeInAppAgentContext } from "@/src/features/in-app-agent/context";
+import { sanitizeInAppAgentContext } from "@/src/features/in-app-agent/fns/sanitizeInAppAgentContext";
 
 /**
  * Resolve and sanitize the AG-UI context items for a turn.

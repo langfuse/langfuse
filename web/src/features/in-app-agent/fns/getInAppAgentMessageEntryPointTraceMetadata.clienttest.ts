@@ -1,4 +1,4 @@
-import { sanitizeInAppAgentContext } from "@/src/features/in-app-agent/context";
+import { sanitizeInAppAgentContext } from "@/src/features/in-app-agent/fns/sanitizeInAppAgentContext";
 import { getInAppAgentMessageEntryPointTraceMetadata } from "./getInAppAgentMessageEntryPointTraceMetadata";
 
 describe("getInAppAgentMessageEntryPointTraceMetadata", () => {
