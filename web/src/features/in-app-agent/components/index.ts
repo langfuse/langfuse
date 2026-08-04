@@ -1,4 +1,4 @@
-export { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
+export { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow/ControlledInAppAgentWindow";
 export {
   InAppAiAgentProvider,
   useInAppAiAgent,

@@ -5,7 +5,7 @@ import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
-import { ControlledInAppAgentWindow } from "../ControlledInAppAgentWindow";
+import { ControlledInAppAgentWindow } from "../ControlledInAppAgentWindow/ControlledInAppAgentWindow";
 
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({

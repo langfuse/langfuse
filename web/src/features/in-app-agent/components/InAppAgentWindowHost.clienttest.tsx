@@ -19,7 +19,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 }));
 
 vi.mock(
-  "@/src/features/in-app-agent/components/ControlledInAppAgentWindow",
+  "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/ControlledInAppAgentWindow",
   () => ({
     ControlledInAppAgentWindow: () => (
       <div data-in-app-agent-window-drag-handle="true" data-testid="window" />

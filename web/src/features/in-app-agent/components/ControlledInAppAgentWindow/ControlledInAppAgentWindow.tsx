@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/router";
-import { InAppAgentWindow } from "./InAppAgentWindow/InAppAgentWindow";
-import type { InAppAgentWindowConversation } from "./InAppAgentWindow/InAppAgentWindow";
-import { useInAppAiAgent } from "./InAppAgentProvider/InAppAiAgentProvider";
-import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
-import { getDrawerMessages } from "./utils/utils";
+import { InAppAgentWindow } from "../InAppAgentWindow/InAppAgentWindow";
+import type { InAppAgentWindowConversation } from "../InAppAgentWindow/InAppAgentWindow";
+import { useInAppAiAgent } from "../InAppAgentProvider/InAppAiAgentProvider";
+import { useSmoothStreamingMessages } from "../useSmoothStreamingMessages";
+import { getDrawerMessages } from "../utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import {
   getInAppAgentFocusedQuickActions,
