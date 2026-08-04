@@ -1,6 +1,4 @@
 import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/tools";
-import { safeJsonParse } from "@langfuse/shared";
-import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
 
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
@@ -129,21 +127,6 @@ function getInAppAgentTrpcInvalidationTargets(toolName: string) {
       toolName as keyof typeof IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS
     ] ?? []
   );
-}
-
-export function shouldPerformToolSideEffects(toolError: unknown) {
-  const parsedError =
-    typeof toolError === "string" ? safeJsonParse(toolError) : toolError;
-
-  if (
-    typeof parsedError !== "object" ||
-    parsedError === null ||
-    !("code" in parsedError)
-  ) {
-    return true;
-  }
-
-  return parsedError.code !== IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE;
 }
 
 function performTargetInvalidation(
