@@ -1,4 +1,5 @@
 import preview from "../../../../../.storybook/preview";
+import { ScanSearch } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -999,6 +1000,7 @@ export const RateLimited = meta.story({
     error: null,
     isAssistantTurnInProgress: true,
     isConversationInteractionDisabled: false,
+    onSubmit: fn(),
     messages: [
       {
         id: "approval-1",
@@ -1031,17 +1033,23 @@ export const RateLimited = meta.story({
       />
     );
   },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const alert = canvas.getByRole("alert");
+    const textarea = canvas.getByRole("textbox", {
+      name: "Message the assistant",
+    });
 
     await expect(alert).toHaveTextContent(
       "You've reached the assistant request limit",
     );
     await expect(alert).toHaveTextContent("Try again in about");
+    await userEvent.type(textarea, "Follow up");
+    await expect(textarea).toHaveValue("Follow up");
+    await expect(textarea).toBeEnabled();
     await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeEnabled();
+      canvas.getByRole("button", { name: "Send message" }),
+    ).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Confirm" }),
     ).toBeDisabled();
@@ -1052,6 +1060,13 @@ export const RateLimited = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Conversation history" }),
     ).toBeDisabled();
+
+    const form = textarea.closest("form");
+    await expect(form).not.toBeNull();
+    form?.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    await expect(args.onSubmit).not.toHaveBeenCalled();
   },
 });
 
@@ -1263,5 +1278,160 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
       value: "thumbs_up",
       comment: null,
     });
+  },
+});
+
+export const QuickActionsResetAndSubmit = meta.story({
+  name: "(Test) Quick Actions Reset And Submit",
+  args: {
+    messages: [],
+    onSubmit: fn().mockResolvedValue(true),
+    quickActionContext: "observability",
+    quickActionResetKey: "/project/project-1/traces",
+    screenContextDescription: {
+      type: "trace-list",
+      hasAppliedFilters: true,
+    },
+  },
+  render: function Render(args) {
+    const [quickActionResetKey, setQuickActionResetKey] = useState(
+      args.quickActionResetKey,
+    );
+
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => {
+            setQuickActionResetKey("/project/project-1/observations");
+          }}
+        >
+          Change route
+        </button>
+        <StatefulInAppAgentWindow
+          {...args}
+          quickActionResetKey={quickActionResetKey}
+        />
+      </>
+    );
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.getAllByRole("tab").map((tab) => tab.textContent),
+    ).toEqual(["Observability", "Prompts", "Evaluation", "Dashboard"]);
+    await expect(
+      canvas.getByRole("tab", { name: "Observability" }),
+    ).toHaveAttribute("aria-selected", "true");
+
+    await userEvent.click(canvas.getByRole("tab", { name: "Prompts" }));
+    await expect(canvas.getByRole("tab", { name: "Prompts" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await userEvent.click(canvas.getByRole("button", { name: "Change route" }));
+    await expect(
+      canvas.getByRole("tab", { name: "Observability" }),
+    ).toHaveAttribute("aria-selected", "true");
+
+    await userEvent.click(canvas.getByRole("tab", { name: "Prompts" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: /^Create a prompt/ }),
+    );
+
+    await expect(args.onSubmit).toHaveBeenCalledWith(
+      "Help me create a new prompt in Langfuse prompt management, including choosing between a text and chat prompt, defining its variables, and setting a label.",
+      {
+        quickAction: {
+          key: "create-prompt",
+          category: "prompts",
+        },
+      },
+    );
+  },
+});
+
+export const FocusedQuickActions = meta.story({
+  name: "(Test) Focused Quick Actions",
+  args: {
+    focusedQuickActions: [
+      {
+        id: "analyze-this-trace",
+        label: "Analyze this trace",
+        description: "Run structured error analysis on this trace",
+        icon: ScanSearch,
+        prompt: "Analyze this trace.",
+      },
+    ],
+    messages: [],
+    quickActionContext: "observability",
+    quickActionResetKey: "/project/project-1/traces/trace-1",
+    screenContextDescription: { type: "trace" },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.getByRole("button", { name: /^Analyze this trace/ }),
+    ).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("tab", { name: "Prompts" }));
+    await expect(
+      canvas.getByRole("button", { name: /^Create a prompt/ }),
+    ).toBeInTheDocument();
+  },
+});
+
+export const AssistantTurnInProgress = meta.story({
+  name: "(Test) Assistant Turn In Progress",
+  args: {
+    isAssistantTurnInProgress: true,
+    messages: [],
+    onSubmit: fn().mockResolvedValue(true),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const textarea = canvas.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+
+    await userEvent.type(textarea, "Follow up");
+    await expect(textarea).toHaveValue("Follow up");
+    await expect(textarea).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Send message" }),
+    ).toBeDisabled();
+
+    const form = textarea.closest("form");
+    await expect(form).not.toBeNull();
+    form?.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+  },
+});
+
+export const PendingApprovalDisablesNavigation = meta.story({
+  name: "(Test) Pending Approval Disables Navigation",
+  args: {
+    isAssistantTurnInProgress: true,
+    messages: [],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Send message" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Start new conversation" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Conversation history" }),
+    ).toBeDisabled();
   },
 });
