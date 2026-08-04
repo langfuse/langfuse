@@ -3,7 +3,7 @@ import { SendHorizontal, Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
 
 const MAX_TEXTAREA_HEIGHT_PX = 160;
 

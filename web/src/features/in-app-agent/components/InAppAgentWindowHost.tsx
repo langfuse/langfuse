@@ -14,7 +14,7 @@ import {
 import {
   useCanUseInAppAgent,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+} from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 function DeleteConversationDialog({

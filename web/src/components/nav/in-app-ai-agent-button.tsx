@@ -7,7 +7,7 @@ import {
   useCanUseInAppAgent,
   useInAppAiAgent,
   type InAppAgentEntryPoint,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+} from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
 import { cn } from "@/src/utils/tailwind";
 
 /** Launcher only — the assistant window itself is rendered by

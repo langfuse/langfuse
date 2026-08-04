@@ -1,4 +1,4 @@
-import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
 import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { api } from "@/src/utils/api";
 

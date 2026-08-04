@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
 
-import type { InAppAgentPendingToolApproval } from "./InAppAiAgentProvider";
+import type { InAppAgentPendingToolApproval } from "./InAppAgentProvider/InAppAiAgentProvider";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 

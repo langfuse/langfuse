@@ -9,7 +9,7 @@ import {
 import {
   useCanUseInAppAgent,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+} from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 
