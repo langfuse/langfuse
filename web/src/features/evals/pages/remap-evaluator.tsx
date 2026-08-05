@@ -160,7 +160,7 @@ export default function RemapEvaluatorPage() {
               href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-dark-blue font-bold hover:opacity-80"
+              className="text-info font-bold hover:opacity-80"
             >
               Follow our step-by-step guide
             </a>{" "}
@@ -169,7 +169,7 @@ export default function RemapEvaluatorPage() {
           {mappedConfig ? (
             <Alert
               variant="default"
-              className="border-light-yellow bg-light-yellow mt-2"
+              className="border-warning-tint bg-warning-tint mt-2"
             >
               <AlertDescription>
                 <div className="flex flex-col gap-2">

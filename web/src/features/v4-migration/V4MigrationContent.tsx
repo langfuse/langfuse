@@ -98,8 +98,8 @@ function Chip({
       className={cn(
         "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
         variant === "warning"
-          ? "bg-light-yellow text-dark-yellow"
-          : "bg-light-green text-dark-green",
+          ? "bg-warning-tint text-warning"
+          : "bg-success-tint text-success",
       )}
     >
       {children}
@@ -148,7 +148,7 @@ function ExternalLink({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={cn("text-dark-blue hover:underline", className)}
+      className={cn("text-info hover:underline", className)}
     >
       {children}
     </a>
@@ -304,15 +304,13 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
                 </span>
                 {series.v4MigrationStatus === "upgrade_required" &&
                   !series.upgradeCompleted && (
-                    <span className="text-dark-yellow">
+                    <span className="text-warning">
                       · {formatSdkUpgradeRequirement(series.canonicalSdkName)}
                     </span>
                   )}
                 {series.upgradeCompleted && <span>· upgrade completed</span>}
                 {series.v4MigrationStatus === "unknown" && (
-                  <span className="text-dark-yellow">
-                    · version not recognized
-                  </span>
+                  <span className="text-warning">· version not recognized</span>
                 )}
               </li>
             );
@@ -621,7 +619,7 @@ export function V4MigrationDetailsContent({
                     ? "eval targets"
                     : "evals target"}{" "}
                   trace input/output, which{" "}
-                  <span className="text-dark-yellow">
+                  <span className="text-warning">
                     {migrationData.evals.count === 1 ? "stops" : "stop"} running
                     soon
                   </span>
@@ -649,7 +647,7 @@ export function V4MigrationDetailsContent({
                     <Link
                       href={evalsUrl}
                       onClick={onNavigate}
-                      className="text-dark-blue text-sm hover:underline"
+                      className="text-info text-sm hover:underline"
                     >
                       Review deprecated evals
                     </Link>
@@ -816,7 +814,7 @@ export function V4MigrationDetailsContent({
                         <Link
                           href={integrationsUrl}
                           onClick={onNavigate}
-                          className="text-dark-blue text-sm hover:underline"
+                          className="text-info text-sm hover:underline"
                         >
                           {name}
                         </Link>

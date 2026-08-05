@@ -80,8 +80,8 @@ export function Callout({
 
   const variantClass =
     variant === "warning"
-      ? "border-light-yellow bg-light-yellow dark:border-light-yellow dark:bg-light-yellow"
-      : "border-light-blue bg-light-blue dark:border-light-blue dark:bg-light-blue";
+      ? "border-warning-tint bg-warning-tint dark:border-warning-tint dark:bg-warning-tint"
+      : "border-info-tint bg-info-tint dark:border-info-tint dark:bg-info-tint";
   const alignmentClass = align === "middle" ? "items-center" : "items-start";
 
   const alignmentOverrides =

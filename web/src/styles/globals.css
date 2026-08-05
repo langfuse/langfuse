@@ -57,7 +57,8 @@
   --spacing-banner-offset: var(--banner-offset);
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
 
-  --color-primary-accent: hsl(var(--primary-accent));
+  --color-brand: hsl(var(--brand));
+  --color-primary-accent: hsl(var(--primary-accent)); /* deprecated → brand */
   --color-link: hsl(var(--link));
   --color-link-hover: hsl(var(--link-hover));
   --color-preview-banner: hsl(var(--preview-banner));
@@ -74,22 +75,25 @@
   --color-muted-gray: hsl(var(--muted-gray));
   --color-accent-light-green: hsl(var(--accent-light-green));
   --color-accent-dark-green: hsl(var(--accent-dark-green));
-  /* These six status tokens hold complete oklch colors (tints carry baked
-     alpha), unlike the hsl-triplet tokens around them — do not wrap in hsl(). */
-  --color-light-red: var(--light-red);
-  --color-dark-red: var(--dark-red);
-  --color-light-yellow: var(--light-yellow);
-  --color-dark-yellow: var(--dark-yellow);
-  --color-light-green: var(--light-green);
-  --color-dark-green: var(--dark-green);
-  --color-light-blue: hsl(var(--light-blue));
-  --color-dark-blue: hsl(var(--dark-blue));
+  /* Status roles: danger/warning/success hold complete oklch colors (tints
+     carry baked alpha), unlike the hsl-triplet tokens around them — do not
+     wrap those in hsl(). info and the score pairs stay hsl triplets. */
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-info: hsl(var(--info));
+  --color-info-tint: hsl(var(--info-tint));
   --color-accent-light-blue: hsl(var(--accent-light-blue));
   --color-accent-dark-blue: hsl(var(--accent-dark-blue));
-  --color-light-violet: hsl(var(--light-violet));
-  --color-dark-violet: hsl(var(--dark-violet));
-  --color-light-teal: hsl(var(--light-teal));
-  --color-dark-teal: hsl(var(--dark-teal));
+  /* Score-level identity (ScoreTag): trace + session pairs; observation and
+     experiment ride info / warning in component code. */
+  --color-score-trace: hsl(var(--score-trace));
+  --color-score-trace-tint: hsl(var(--score-trace-tint));
+  --color-score-session: hsl(var(--score-session));
+  --color-score-session-tint: hsl(var(--score-session-tint));
 
   /* Search-bar query syntax highlighting (key:value token parts). Operators
      (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
@@ -124,7 +128,8 @@
   --color-foreground: hsl(var(--foreground));
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-destructive: hsl(var(--destructive));
+  /* --destructive aliases --danger (a complete oklch color) — no hsl(). */
+  --color-destructive: var(--destructive);
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-muted: hsl(var(--bg-muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
@@ -369,7 +374,7 @@
        via --color-primary). */
     --primary: var(--text-primary);
 
-    --destructive: 0 84.2% 60.2%;
+    /* On-fill ink for the danger/destructive button fill (not deprecated). */
     --destructive-foreground: 210 40% 98%;
 
     /* ── DEPRECATED shadcn aliases ──────────────────────────────────────
@@ -389,9 +394,16 @@
     --popover-border: var(--border);
     --ring: var(--focus);
     --sidebar-ring: var(--focus);
+    --primary-accent: var(--brand);
+    /* Destructive folds into danger: the two reds are unified — the alias
+       keeps the ~200 destructive call sites resolving (as oklch, see @theme
+       inline). --destructive-foreground stays its own token above. */
+    --destructive: var(--danger);
 
-    --primary-accent: var(--blue-light-20);
-    /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
+    /* Brand accent: active tabs & the selection underline — rides the Carbon
+       blue ramp (links keep their own pair below). */
+    --brand: var(--blue-light-20);
+    /* Hyperlinks get their own pair (tabs/selection stay on --brand):
        same Kumo blue family as dark, but deeper — links shouldn't be the
        loudest thing on a light page — with a clearly darker hover step. */
     --link: var(--blue-light-20);
@@ -432,7 +444,7 @@
     --obs-embedding: 51 100% 29.2%;
     --obs-guardrail: 351 98% 39%;
     /* Entity types (session, user, dataset, prompt, …) ride the brand blue. */
-    --obs-entity: var(--primary-accent);
+    --obs-entity: var(--brand);
     /* Rides the hover-fill tier. In dark that tier stays clearly above
        --card so chart grids (--chart-grid) and disabled badge fills stay
        discernible on elevated surfaces, without the harshness of
@@ -442,32 +454,37 @@
     --accent-light-green: 138 76.5% 96.7%;
     --accent-dark-green: 112 100% 32%;
 
-    /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
-       readable text/icon color on them. */
-    --light-red: oklch(93.6% 0.032 17.717 / 0.7);
-    --dark-red: oklch(63.7% 0.237 25.331);
+    /* Status roles (Kumo model): the solid is the text/icon/status-bar
+       color; -tint is the chip/banner fill (alpha baked in).
+       danger/warning/success hold complete oklch colors, info an hsl
+       triplet (see @theme inline). Danger doubles as the destructive
+       button fill, so it must hold ≥3:1 vs the canvas and carry
+       --destructive-foreground at ≥4.5:1 in both modes — red-600 here
+       (red-500 only reached 3.65:1 under the on-fill ink). */
+    --danger: oklch(57.7% 0.245 27.325);
+    --danger-tint: oklch(93.6% 0.032 17.717 / 0.7);
 
-    --light-yellow: oklch(97.3% 0.071 103.193 / 0.7);
-    --dark-yellow: oklch(47.6% 0.114 61.907);
+    --warning: oklch(47.6% 0.114 61.907);
+    --warning-tint: oklch(97.3% 0.071 103.193 / 0.7);
 
-    --light-green: oklch(95% 0.052 163.051 / 0.7);
-    --dark-green: oklch(59.6% 0.145 163.225);
+    --success: oklch(59.6% 0.145 163.225);
+    --success-tint: oklch(95% 0.052 163.051 / 0.7);
 
-    --light-blue: 214 94.6% 92.7%;
-    --dark-blue: 219 85% 52%;
+    --info: 219 85% 52%;
+    --info-tint: 214 94.6% 92.7%;
 
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
 
-    /* Violet + teal hue pairs, same bg/fg recipe as the light-X/dark-X pairs
-       above. Added for the score-level color coding (ScoreTag, LFE-10596):
-       observation=blue, trace=violet, session=teal, experiment=yellow — the
-       blue and yellow pairs are reused from above. */
-    --light-violet: 251 91% 95.5%;
-    --dark-violet: 262 72% 54%;
+    /* Score-level identity (NOT status) — the global score-level color
+       coding (ScoreTag, LFE-10596): trace=violet, session=teal;
+       observation rides --info and experiment rides --warning in component
+       code. Same solid + -tint recipe as the status roles above. */
+    --score-trace: 262 72% 54%;
+    --score-trace-tint: 251 91% 95.5%;
 
-    --light-teal: 167 85% 89%;
-    --dark-teal: 175 84% 28%;
+    --score-session: 175 84% 28%;
+    --score-session-tint: 167 85% 89%;
 
     /* Search-bar query syntax highlighting — a DELIBERATE editor-style syntax
        theme (like a code editor's theme), intentionally its own thing rather
@@ -574,10 +591,9 @@
     --focus: var(--neutral-dark-110); /* near-white on dark */
 
     /* ── Raw per-mode overrides (no shared role) ─────────────────────── */
-    --destructive: 0 78.7% 63.1%;
     --destructive-foreground: 0 0% 88%;
 
-    --primary-accent: var(--blue-dark-10);
+    --brand: var(--blue-dark-10);
     --link: var(--blue-dark-10);
     --link-hover: var(--blue-dark-20);
     /* Preview-deployment strip: fill is blue-500/25 precomposed over the
@@ -608,19 +624,24 @@
     --obs-embedding: 50 70% 43.7%;
     --obs-guardrail: 4 80% 70.4%;
 
-    /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
-       dark-* the readable text/icon color on them. */
-    --light-red: oklch(39.6% 0.141 25.723 / 0.7);
-    --dark-red: oklch(57.7% 0.245 27.325);
+    /* Status roles: -tint is a dark tinted fill (alpha baked in), the solid
+       the readable text/icon color on it. Retuned 2026-08-05 so a chip
+       separates from bg-card (every tint ≥1.5:1 vs the card) and the solids
+       stop screaming (each still ≥4.5:1 on its own tint — except danger,
+       which is pinned dark by the destructive-button gates: it must stay
+       ≥3:1 vs the canvas AND carry --destructive-foreground at ≥4.5:1, which
+       caps its lightness; its on-tint contrast is the accepted trade). */
+    --danger: oklch(52.5% 0.21 27);
+    --danger-tint: oklch(41.5% 0.13 26 / 0.7);
 
-    --light-yellow: oklch(55.4% 0.135 66.442 / 0.4);
-    --dark-yellow: oklch(79.5% 0.184 86.047);
+    --warning: oklch(76% 0.17 82);
+    --warning-tint: oklch(43% 0.11 66 / 0.7);
 
-    --light-green: oklch(37.8% 0.077 168.94 / 0.7);
-    --dark-green: oklch(76.5% 0.177 163.223);
+    --success: oklch(72% 0.15 163);
+    --success-tint: oklch(42% 0.07 169 / 0.7);
 
-    --light-blue: 209 45% 15%;
-    --dark-blue: 209 88% 60%;
+    --info: 209 88% 64%;
+    --info-tint: 209 45% 22%;
 
     /* accent-light-green doubles as a full-height output/diff surface
        (PrettyJsonView), so it stays a whisper above --card, not chip-strength. */
@@ -630,12 +651,13 @@
     --accent-light-blue: 240 32.4% 13.9%;
     --accent-dark-blue: 246 70% 76%;
 
-    /* Score-level violet + teal (see :root): dark tinted bg + bright fg. */
-    --light-violet: 258 40% 16%;
-    --dark-violet: 255 92% 76%;
+    /* Score-level violet + teal (see :root): dark tinted bg + readable fg,
+       retuned to the same ≥1.5:1-vs-card / ≥4.5:1-on-tint bar as status. */
+    --score-trace: 255 92% 77%;
+    --score-trace-tint: 258 42% 28%;
 
-    --light-teal: 175 40% 12%;
-    --dark-teal: 172 66% 50%;
+    --score-session: 172 66% 44%;
+    --score-session-tint: 175 40% 18%;
 
     /* Search-bar query syntax highlighting (dark). Brighter than light so the
        key/value read against the dark surface. See :root for the contract. */

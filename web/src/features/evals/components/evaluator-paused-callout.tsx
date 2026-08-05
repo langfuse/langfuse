@@ -95,10 +95,10 @@ export function EvaluatorPausedCallout({
       id={calloutId}
       role="alert"
       aria-live="polite"
-      className="border-light-yellow bg-light-yellow rounded-lg border"
+      className="border-warning-tint bg-warning-tint rounded-lg border"
     >
       <div className="flex gap-3 p-4">
-        <AlertTriangle className="text-dark-yellow mt-0.5 h-4 w-4 shrink-0" />
+        <AlertTriangle className="text-warning mt-0.5 h-4 w-4 shrink-0" />
 
         <div className="min-w-0 flex-1">
           <h3 className="text-secondary text-base leading-5 font-bold">

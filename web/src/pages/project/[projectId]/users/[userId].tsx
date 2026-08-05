@@ -150,7 +150,7 @@ export default function UserPage() {
                     key={tab}
                     className={cn(
                       tab === currentTab
-                        ? "border-primary-accent text-secondary"
+                        ? "border-brand text-secondary"
                         : "text-tertiary hover:border-border hover:text-secondary border-transparent",
                       "border-b-2 px-4 py-3 text-sm font-bold whitespace-nowrap",
                     )}

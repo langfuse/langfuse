@@ -275,7 +275,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         </div>
 
         {modelParams.model.value?.startsWith("o1-") ? (
-          <p className="text-dark-yellow mt-1 text-xs">
+          <p className="text-warning mt-1 text-xs">
             For {modelParams.model.value}, the system message and the
             temperature, max_tokens and top_p setting are not supported while it
             is in beta.{" "}

@@ -702,9 +702,7 @@ function TableViewPresetsDrawerContentBody({
                             size="xs"
                             className={cn(
                               "w-fit pl-0 text-xs",
-                              hasWriteAccess
-                                ? "text-primary-accent"
-                                : "text-tertiary",
+                              hasWriteAccess ? "text-brand" : "text-tertiary",
                             )}
                             onClick={(e) => {
                               e.stopPropagation();

@@ -160,7 +160,7 @@ function ToolGroupHoverContent({
                 className={cn(
                   "shrink-0 text-xs font-bold",
                   callCount > 0 &&
-                    "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
+                    "bg-success-tint text-success hover:bg-success-tint border-transparent select-none",
                 )}
               >
                 {getStatusText(callCount)}
@@ -199,7 +199,7 @@ function ToolGroupSummary({
       className={cn(
         "hover:bg-muted/20 flex w-full items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left",
         isCalledGroup &&
-          "border-light-green bg-accent-light-green hover:bg-accent-light-green/80",
+          "border-success-tint bg-accent-light-green hover:bg-accent-light-green/80",
       )}
       aria-expanded={expanded}
       onClick={onToggle}
@@ -208,13 +208,13 @@ function ToolGroupSummary({
         <Wrench
           className={cn(
             "text-tertiary h-3.5 w-3.5 shrink-0",
-            isCalledGroup && "text-dark-green",
+            isCalledGroup && "text-success",
           )}
         />
         <span
           className={cn(
             "truncate text-sm font-bold",
-            isCalledGroup ? "text-dark-green" : "text-secondary",
+            isCalledGroup ? "text-success" : "text-secondary",
           )}
           title={summaryText}
         >
@@ -227,7 +227,7 @@ function ToolGroupSummary({
           className={cn(
             "text-xs font-bold",
             isCalledGroup &&
-              "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
+              "bg-success-tint text-success hover:bg-success-tint border-transparent select-none",
           )}
         >
           {expanded ? "hide" : "show"}
@@ -272,7 +272,7 @@ function ToolCallStatusBadge({
       className={cn(
         "text-xs font-bold whitespace-nowrap",
         isCalled &&
-          "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
+          "bg-success-tint text-success hover:bg-success-tint border-transparent select-none",
       )}
     >
       {statusText}

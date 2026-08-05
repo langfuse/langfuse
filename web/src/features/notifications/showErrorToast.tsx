@@ -2,13 +2,13 @@ import { toast } from "sonner";
 import { ErrorNotification } from "@/src/features/notifications/ErrorNotification";
 
 const toastErrorStyleProps = {
-  border: "1px solid hsl(var(--destructive))",
-  backgroundColor: "hsl(var(--destructive))",
+  border: "1px solid var(--destructive)",
+  backgroundColor: "var(--destructive)",
 };
 
 const toastWarningStyleProps = {
-  border: "1px solid var(--light-yellow)",
-  backgroundColor: "var(--light-yellow)",
+  border: "1px solid var(--warning-tint)",
+  backgroundColor: "var(--warning-tint)",
 };
 
 export const showErrorToast = (

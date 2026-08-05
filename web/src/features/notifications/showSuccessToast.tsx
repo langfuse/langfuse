@@ -16,9 +16,9 @@ export const showSuccessToast = ({
       duration,
       style: {
         padding: "1rem",
-        border: "1px solid var(--dark-green)",
+        border: "1px solid var(--success)",
         borderRadius: "0.5rem",
-        backgroundColor: "var(--dark-green)",
+        backgroundColor: "var(--success)",
       },
     },
   );

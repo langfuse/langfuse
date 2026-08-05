@@ -187,7 +187,7 @@ export const NullHandling = meta.story({
             <Line
               type="linear"
               dataKey="y"
-              stroke="hsl(var(--destructive))"
+              stroke="var(--destructive)"
               strokeWidth={2.5}
               dot={false}
               isAnimationActive={false}

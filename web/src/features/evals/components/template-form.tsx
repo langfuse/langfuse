@@ -1028,9 +1028,9 @@ function CodeEvalSdkVersionCallout({
   return (
     <Alert
       variant="default"
-      className="border-dark-yellow bg-light-yellow max-w-4xl"
+      className="border-warning bg-warning-tint max-w-4xl"
     >
-      <AlertTriangle className="text-dark-yellow h-4 w-4" />
+      <AlertTriangle className="text-warning h-4 w-4" />
       <AlertDescription>
         <div className="flex flex-col gap-1">
           <span className="text-secondary font-bold">
@@ -1044,7 +1044,7 @@ function CodeEvalSdkVersionCallout({
               href="https://langfuse.com/docs/observability/sdk/upgrade-path"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-dark-blue font-bold hover:opacity-80"
+              className="text-info font-bold hover:opacity-80"
             >
               Learn more
             </a>

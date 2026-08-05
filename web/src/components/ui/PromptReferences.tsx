@@ -206,7 +206,7 @@ const PromptVar = ({ text, isValid }: { text: string; isValid: boolean }) => (
     dir="ltr"
     style={{ unicodeBidi: "isolate" }}
     className={cn(
-      isValid ? "text-primary-accent" : "text-destructive",
+      isValid ? "text-brand" : "text-destructive",
       "whitespace-nowrap",
     )}
   >

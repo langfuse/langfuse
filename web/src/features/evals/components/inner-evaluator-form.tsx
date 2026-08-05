@@ -214,7 +214,7 @@ const ObservationsPreview = memo(
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             {showSdkUpgradeMessage ? (
               <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
-                <AlertTriangle className="text-dark-yellow h-8 w-8" />
+                <AlertTriangle className="text-warning h-8 w-8" />
                 <div className="flex flex-col gap-1">
                   <span className="text-secondary font-bold">
                     Please verify your SDK version
@@ -229,7 +229,7 @@ const ObservationsPreview = memo(
                       href="https://langfuse.com/docs/observability/sdk/upgrade-path"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-dark-blue font-bold hover:opacity-80"
+                      className="text-info font-bold hover:opacity-80"
                     >
                       Learn more
                     </a>
@@ -1119,7 +1119,7 @@ export const InnerEvaluatorForm = (props: {
                               href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-dark-blue hover:opacity-80"
+                              className="text-info hover:opacity-80"
                             >
                               Read the docs
                             </a>
@@ -1218,8 +1218,8 @@ export const InnerEvaluatorForm = (props: {
                         </FormControl>
                         {!props.disabled && !hasFilters && (
                           <div className="flex max-w-[500px] gap-1">
-                            <AlertTriangle className="text-dark-yellow h-4 w-4" />
-                            <AlertDescription className="text-dark-yellow">
+                            <AlertTriangle className="text-warning h-4 w-4" />
+                            <AlertDescription className="text-warning">
                               No filters set. This evaluator will run on all{" "}
                               {getTargetDisplayName(target)}.
                             </AlertDescription>

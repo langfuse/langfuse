@@ -11,11 +11,11 @@ import { isTraceTarget } from "@/src/features/evals/utils/typeHelpers";
 import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
 
 const VARIABLE_COLORS = [
-  "text-primary-accent",
-  "text-dark-yellow",
-  "text-dark-blue",
-  "text-dark-green",
-  "text-dark-red",
+  "text-brand",
+  "text-warning",
+  "text-info",
+  "text-success",
+  "text-danger",
 ];
 
 export const getVariableColor = (index: number) => {

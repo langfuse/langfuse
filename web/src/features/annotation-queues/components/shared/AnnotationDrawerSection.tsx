@@ -51,9 +51,9 @@ export const AnnotationDrawerSection: React.FC<
         }}
         actionButtons={
           isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
-            <div className="border-dark-red bg-light-red flex items-center justify-center rounded-sm border p-1">
-              <TriangleAlertIcon className="text-dark-red mr-1 h-4 w-4" />
-              <span className="text-dark-red text-xs">
+            <div className="border-danger bg-danger-tint flex items-center justify-center rounded-sm border p-1">
+              <TriangleAlertIcon className="text-danger mr-1 h-4 w-4" />
+              <span className="text-danger text-xs">
                 Currently edited by {item.lockedByUser.name}
               </span>
             </div>

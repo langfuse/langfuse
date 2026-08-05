@@ -43,7 +43,7 @@ function SchemaKeyDropZone({
           mappedColumns.length === 0 &&
           "border-primary bg-canvas border-solid",
         mappedColumns.length > 0 &&
-          "border-accent-dark-blue bg-light-blue/40 border-solid",
+          "border-accent-dark-blue bg-info-tint/40 border-solid",
       )}
     >
       {mappedColumns.length === 0 ? (
@@ -88,7 +88,7 @@ function FreeformDropZone({
           columns.length === 0 &&
           "border-primary bg-canvas border border-solid",
         columns.length > 0 &&
-          "border-accent-dark-blue bg-light-blue/40 border-solid",
+          "border-accent-dark-blue bg-info-tint/40 border-solid",
       )}
     >
       {columns.length > 0 && (

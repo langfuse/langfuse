@@ -155,7 +155,7 @@ const TEXT_HIERARCHY: HierarchyRow[] = [
   {
     utility: "text-link",
     token: "--link",
-    purpose: "Hyperlinks — their own blue pair, distinct from primary-accent",
+    purpose: "Hyperlinks — their own blue pair, distinct from brand",
   },
   {
     utility: "text-link-hover",
@@ -189,8 +189,8 @@ const OBS_HIERARCHY: HierarchyRow[] = (
 
 const BRAND_HIERARCHY: HierarchyRow[] = [
   {
-    utility: "text-primary-accent",
-    token: "--primary-accent",
+    utility: "text-brand",
+    token: "--brand",
     purpose: "Active tabs & selection underline — the brand blue",
     kind: "text",
   },
@@ -201,10 +201,10 @@ const BRAND_HIERARCHY: HierarchyRow[] = [
     kind: "fill",
   },
   {
-    utility: "bg-destructive",
-    token: "--destructive",
+    utility: "bg-danger",
+    token: "--danger",
     purpose:
-      "Danger fill — destructive buttons (error text via text-destructive)",
+      "Danger button fill — the status solid (destructive is now an alias)",
     kind: "fill",
   },
   {
@@ -212,89 +212,63 @@ const BRAND_HIERARCHY: HierarchyRow[] = [
     token: "--destructive-foreground",
     purpose: "Ink on the danger fill",
     kind: "text",
-    on: "--destructive",
+    on: "--danger",
   },
 ];
 
-/** light-* tint fill + dark-* readable text, per hue. */
+/** Status roles: -tint chip/banner fill + solid text/icon, per role. */
 const STATUS_HIERARCHY: HierarchyRow[] = [
   {
-    utility: "bg-light-red",
-    token: "--light-red",
-    purpose: "Error / negative status tint (alpha baked in)",
+    utility: "bg-danger-tint",
+    token: "--danger-tint",
+    purpose: "Error / negative chip & banner fill (alpha baked in)",
     kind: "fill",
   },
   {
-    utility: "text-dark-red",
-    token: "--dark-red",
-    purpose: "Text/icon on the red tint",
+    utility: "text-danger",
+    token: "--danger",
+    purpose: "Error text, icons, status bars — also the danger button fill",
     kind: "text",
-    on: "--light-red",
+    on: "--danger-tint",
   },
   {
-    utility: "bg-light-yellow",
-    token: "--light-yellow",
-    purpose: "Warning tint — also experiment-level scores",
+    utility: "bg-warning-tint",
+    token: "--warning-tint",
+    purpose: "Warning chip & banner fill",
     kind: "fill",
   },
   {
-    utility: "text-dark-yellow",
-    token: "--dark-yellow",
-    purpose: "Text/icon on the yellow tint",
+    utility: "text-warning",
+    token: "--warning",
+    purpose: "Warning text, icons, status bars",
     kind: "text",
-    on: "--light-yellow",
+    on: "--warning-tint",
   },
   {
-    utility: "bg-light-green",
-    token: "--light-green",
-    purpose: "Success / positive tint",
+    utility: "bg-success-tint",
+    token: "--success-tint",
+    purpose: "Success / positive chip & banner fill",
     kind: "fill",
   },
   {
-    utility: "text-dark-green",
-    token: "--dark-green",
-    purpose: "Text/icon on the green tint",
+    utility: "text-success",
+    token: "--success",
+    purpose: "Success text, icons, status bars",
     kind: "text",
-    on: "--light-green",
+    on: "--success-tint",
   },
   {
-    utility: "bg-light-blue",
-    token: "--light-blue",
-    purpose: "Info tint — also observation-level scores",
+    utility: "bg-info-tint",
+    token: "--info-tint",
+    purpose: "Info / neutral-notice chip & banner fill",
     kind: "fill",
   },
   {
-    utility: "text-dark-blue",
-    token: "--dark-blue",
-    purpose: "Text/icon on the blue tint",
+    utility: "text-info",
+    token: "--info",
+    purpose: "Info text, icons, status bars",
     kind: "text",
-    on: "--light-blue",
-  },
-  {
-    utility: "bg-light-violet",
-    token: "--light-violet",
-    purpose: "Trace-level score tint",
-    kind: "fill",
-  },
-  {
-    utility: "text-dark-violet",
-    token: "--dark-violet",
-    purpose: "Text/icon on the violet tint",
-    kind: "text",
-    on: "--light-violet",
-  },
-  {
-    utility: "bg-light-teal",
-    token: "--light-teal",
-    purpose: "Session-level score tint",
-    kind: "fill",
-  },
-  {
-    utility: "text-dark-teal",
-    token: "--dark-teal",
-    purpose: "Text/icon on the teal tint",
-    kind: "text",
-    on: "--light-teal",
+    on: "--info-tint",
   },
   {
     utility: "bg-accent-light-blue",
@@ -321,6 +295,36 @@ const STATUS_HIERARCHY: HierarchyRow[] = [
     purpose: "Text/icon on the deep-green tint",
     kind: "text",
     on: "--accent-light-green",
+  },
+];
+
+/** Score-level identity (ScoreTag) — NOT status; same tint + solid recipe. */
+const SCORE_HIERARCHY: HierarchyRow[] = [
+  {
+    utility: "bg-score-trace-tint",
+    token: "--score-trace-tint",
+    purpose: "Trace-level score chip fill",
+    kind: "fill",
+  },
+  {
+    utility: "text-score-trace",
+    token: "--score-trace",
+    purpose: "Trace-level score text & dot",
+    kind: "text",
+    on: "--score-trace-tint",
+  },
+  {
+    utility: "bg-score-session-tint",
+    token: "--score-session-tint",
+    purpose: "Session-level score chip fill",
+    kind: "fill",
+  },
+  {
+    utility: "text-score-session",
+    token: "--score-session",
+    purpose: "Session-level score text & dot",
+    kind: "text",
+    on: "--score-session-tint",
   },
 ];
 
@@ -781,6 +785,8 @@ const LEGACY_ALIAS_TOKENS = [
   "--popover-border",
   "--ring",
   "--sidebar-ring",
+  "--primary-accent",
+  "--destructive",
 ];
 
 /** Tailwind color mappings from @theme inline (collapsed, low traffic). */
@@ -846,6 +852,7 @@ const ALL_HIERARCHIES: HierarchyRow[][] = [
   TEXT_HIERARCHY,
   BRAND_HIERARCHY,
   STATUS_HIERARCHY,
+  SCORE_HIERARCHY,
   CONTROL_HIERARCHY,
   SIDEBAR_HIERARCHY,
   VIZ_HIERARCHY,
@@ -944,8 +951,22 @@ export function Color() {
         />
         <HierarchySection
           title="Status"
-          blurb="light-* tint fills (alpha baked in) with dark-* text on them — slated for role-naming (danger/success/…-tint)."
+          blurb="Semantic roles: the -tint is the chip/banner fill (alpha baked in), the solid the text/icon/status-bar color on it."
           rows={STATUS_HIERARCHY}
+          lightCtx={lightCtx}
+          darkCtx={darkCtx}
+        />
+        <HierarchySection
+          title="Score levels"
+          blurb="Score-level identity (ScoreTag) — trace and session carry their own hue pairs; NOT status colors."
+          rows={SCORE_HIERARCHY}
+          footnote={
+            <>
+              Observation-level scores ride <InlineCode>info</InlineCode>,
+              experiment-level scores ride <InlineCode>warning</InlineCode> —
+              wired in ScoreTag, not as extra tokens.
+            </>
+          }
           lightCtx={lightCtx}
           darkCtx={darkCtx}
         />

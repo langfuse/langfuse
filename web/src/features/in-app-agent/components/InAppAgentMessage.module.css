@@ -17,7 +17,7 @@
 }
 
 .Streamdown a {
-  @apply text-primary-accent;
+  @apply text-brand;
 }
 
 .Streamdown > div > *:first-child {

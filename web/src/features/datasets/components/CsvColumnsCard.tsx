@@ -64,7 +64,7 @@ export function CsvColumnsCard({
             <DraggableColumn key={column.name} column={column} />
           ))}
         </div>
-        <div className="bg-light-blue/40 text-accent-dark-blue shrink-0 rounded-lg p-3 text-xs leading-relaxed">
+        <div className="bg-info-tint/40 text-accent-dark-blue shrink-0 rounded-lg p-3 text-xs leading-relaxed">
           <strong className="font-bold">Tip:</strong> Drag columns from this
           list to the mapping fields on the right.
         </div>

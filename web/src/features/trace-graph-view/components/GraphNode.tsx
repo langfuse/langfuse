@@ -22,7 +22,7 @@ const TYPE_BORDER_CLASS: Record<string, string> = {
   SPAN: "border-muted-blue",
   CHAIN: "border-pink-600",
   RETRIEVER: "border-teal-600",
-  EVALUATOR: "border-primary-accent",
+  EVALUATOR: "border-brand",
   EVENT: "border-muted-green",
   EMBEDDING: "border-amber-600",
   GUARDRAIL: "border-red-600",
@@ -81,11 +81,11 @@ function GraphNodeComponent({
     // colors live in exactly one branch each so tailwind-merge never has to
     // arbitrate: selected+active shares the accent ring (the two signals
     // reinforce), selected-only keeps the neutral selection ring.
-    active && "z-10 shadow-[0_0_16px_2px_hsl(var(--primary-accent)/0.65)]",
-    active && !selected && "ring-primary-accent ring-2",
+    active && "z-10 shadow-[0_0_16px_2px_hsl(var(--brand)/0.65)]",
+    active && !selected && "ring-brand ring-2",
     selected &&
       (active
-        ? "ring-primary-accent ring-2 ring-offset-1"
+        ? "ring-brand ring-2 ring-offset-1"
         : "ring-focus ring-2 ring-offset-1"),
   );
 

@@ -71,7 +71,7 @@ function TimelineGutterRowShellComponent({
       }}
       className={cn(
         "transition-colors duration-150",
-        isActive && "bg-primary-accent/15",
+        isActive && "bg-brand/15",
       )}
     >
       <TimelineGutterRow
@@ -140,9 +140,9 @@ function TimelineChartRowShellComponent({
         // against the row; a playhead-active row glows with the same accent;
         // hover stays neutral.
         isSelected
-          ? "bg-primary-accent/10"
+          ? "bg-brand/10"
           : isActive
-            ? "bg-primary-accent/15"
+            ? "bg-brand/15"
             : isHovered
               ? "bg-muted"
               : "",

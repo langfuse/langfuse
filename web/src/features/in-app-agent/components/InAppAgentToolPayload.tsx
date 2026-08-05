@@ -33,7 +33,7 @@ export function InAppAgentToolPayload({
           "text-xs font-bold",
           variant === "default" && "text-tertiary",
           variant === "failed" && "text-destructive",
-          variant === "denied" && "text-dark-yellow",
+          variant === "denied" && "text-warning",
         )}
       >
         {label}
@@ -43,7 +43,7 @@ export function InAppAgentToolPayload({
           "max-h-64 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap",
           variant === "default" && "bg-muted text-tertiary",
           variant === "failed" && "bg-destructive/10 text-destructive",
-          variant === "denied" && "bg-light-yellow text-dark-yellow",
+          variant === "denied" && "bg-warning-tint text-warning",
         )}
       >
         {toolPayload}

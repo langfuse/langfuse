@@ -541,7 +541,7 @@ export function DataTable<TData extends object, TValue>({
                               className={cn(
                                 "bg-muted absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
                                 header.column.getIsResizing() &&
-                                  "bg-primary-accent opacity-100",
+                                  "bg-brand opacity-100",
                               )}
                             />
                           </div>

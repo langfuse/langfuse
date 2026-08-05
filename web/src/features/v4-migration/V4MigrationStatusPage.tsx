@@ -46,7 +46,7 @@ function FaqLink({ href, children }: { href: string; children: ReactNode }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-dark-blue hover:underline"
+      className="text-info hover:underline"
     >
       {children}
     </a>
@@ -97,10 +97,10 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
       className={cn(
         "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
         readiness === "ready"
-          ? "bg-light-green text-dark-green"
+          ? "bg-success-tint text-success"
           : readiness === "checking" || readiness === "unavailable"
             ? "bg-muted text-tertiary"
-            : "bg-light-yellow text-dark-yellow",
+            : "bg-warning-tint text-warning",
       )}
     >
       {label}
@@ -407,7 +407,7 @@ function OrgStatusSection({
                       {row.lastTraceLabel}
                     </TableCell>
                     <TableCell density="comfortable">
-                      <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
+                      <span className="text-info flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
                         Review <ArrowRight className="h-3 w-3 shrink-0" />
                       </span>
                     </TableCell>
@@ -494,7 +494,7 @@ function V4MigrationStatusPageContent() {
           <button
             type="button"
             onClick={handleCopyPrompt}
-            className="text-dark-blue hover:underline"
+            className="text-info hover:underline"
           >
             one prompt
           </button>

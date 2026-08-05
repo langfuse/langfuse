@@ -19,7 +19,7 @@ export const defaultSettingsBothThemes: CreateThemeOptions["settings"] = {
 };
 
 export const bothThemeStyles: CreateThemeOptions["styles"] = [
-  { tag: t.invalid, color: "var(--dark-red)" },
+  { tag: t.invalid, color: "var(--danger)" },
   {
     tag: [
       t.name,
@@ -31,7 +31,7 @@ export const bothThemeStyles: CreateThemeOptions["styles"] = [
       t.labelName,
       t.definition(t.name),
     ],
-    color: "hsl(var(--primary-accent))",
+    color: "hsl(var(--brand))",
   },
   { tag: t.strong, fontWeight: "bold" },
   { tag: t.emphasis, fontStyle: "italic" },

@@ -733,7 +733,7 @@ function ToolCallDisclosure({
           className={cn(
             "min-w-0 flex-1 truncate py-0.5",
             status === "failed" && "text-destructive",
-            status === "denied" && "text-dark-yellow",
+            status === "denied" && "text-warning",
           )}
           title={tool.name}
         >
@@ -764,14 +764,14 @@ function ToolCallStatusIcon({
   }
 
   if (status === "succeeded") {
-    return <Check className="text-dark-green size-3.5 shrink-0" />;
+    return <Check className="text-success size-3.5 shrink-0" />;
   }
 
   if (status === "failed") {
     return <CircleX className="text-destructive size-3.5 shrink-0" />;
   }
 
-  return <Ban className="text-dark-yellow size-3.5 shrink-0" />;
+  return <Ban className="text-warning size-3.5 shrink-0" />;
 }
 
 function MessageText({

@@ -117,8 +117,8 @@ function BannerSystemSample({ ctx }: { ctx: TokenContext }) {
       <div
         className="flex items-center justify-center border-b px-2 py-1"
         style={{
-          background: ctx.color("--light-yellow"),
-          color: ctx.color("--dark-yellow"),
+          background: ctx.color("--warning-tint"),
+          color: ctx.color("--warning"),
         }}
       >
         <span className="font-mono text-[10px]">

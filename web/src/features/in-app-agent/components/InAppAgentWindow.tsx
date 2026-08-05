@@ -126,7 +126,7 @@ function InAppAgentQuickActionPicker({
               key={context}
               value={context}
               disabled={isDisabled}
-              className="text-tertiary data-[state=active]:border-primary-accent data-[state=active]:text-secondary h-7 min-w-0 flex-1 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="text-tertiary data-[state=active]:border-brand data-[state=active]:text-secondary h-7 min-w-0 flex-1 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
             </TabsTrigger>
@@ -148,7 +148,7 @@ function InAppAgentQuickActionPicker({
                 onSelectAction(action, selectedContext, position);
               }}
             >
-              <span className="bg-muted text-primary-accent flex size-7 shrink-0 items-center justify-center rounded-md">
+              <span className="bg-muted text-brand flex size-7 shrink-0 items-center justify-center rounded-md">
                 <ActionIcon aria-hidden="true" className="size-3.5" />
               </span>
               <span className="min-w-0 flex-1">

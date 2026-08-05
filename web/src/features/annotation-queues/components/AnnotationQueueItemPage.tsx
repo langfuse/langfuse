@@ -543,7 +543,7 @@ export const AnnotationQueueItemPage: React.FC<{
                 </TooltipContent>
               </Tooltip>
             ) : (
-              <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-bold">
+              <div className="border-success bg-success-tint inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-bold">
                 Completed
               </div>
             ))}

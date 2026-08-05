@@ -57,7 +57,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
     <div
       className={cn(
         "transition-colors duration-150",
-        isActive && "bg-primary-accent/15",
+        isActive && "bg-brand/15",
       )}
     >
       <VirtualizedTreeNodeWrapper

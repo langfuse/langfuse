@@ -20,8 +20,8 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 
 const COLOR_MAP = new Map([
-  ["True", "bg-light-green p-0.5 text-dark-green"],
-  ["False", "bg-light-red p-0.5 text-dark-red"],
+  ["True", "bg-success-tint p-0.5 text-success"],
+  ["False", "bg-danger-tint p-0.5 text-danger"],
 ]);
 const COLLAPSE_CATEGORICAL_SCORES_AFTER = 2;
 

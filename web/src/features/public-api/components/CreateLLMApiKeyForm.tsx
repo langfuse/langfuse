@@ -416,7 +416,7 @@ export function CreateLLMApiKeyForm({
             Custom model names accepted by given endpoint.
           </FormDescription>
           {currentAdapter === LLMAdapter.Azure && (
-            <FormDescription className="text-dark-yellow">
+            <FormDescription className="text-warning">
               For Azure, the model name should be the same as the deployment
               name in Azure. For evals, choose a model with function calling
               capabilities.
@@ -424,7 +424,7 @@ export function CreateLLMApiKeyForm({
           )}
 
           {currentAdapter === LLMAdapter.Bedrock && (
-            <FormDescription className="text-dark-yellow">
+            <FormDescription className="text-warning">
               {
                 "For Bedrock, the model name is the Bedrock Inference Profile ID, e.g. 'eu.anthropic.claude-sonnet-4-6'"
               }
@@ -1082,7 +1082,7 @@ export function CreateLLMApiKeyForm({
                               ? "Your API keys are stored encrypted on our servers."
                               : "Your API keys are stored encrypted in your database."}
                           </FormDescription>
-                          <FormDescription className="text-dark-yellow">
+                          <FormDescription className="text-warning">
                             Paste your GCP service account JSON key here. The
                             service account must have `Vertex AI User` role
                             permissions. Example JSON:

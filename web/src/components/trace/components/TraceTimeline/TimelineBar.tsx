@@ -53,7 +53,7 @@ export function TimelineBar({
   // Ring driven by shared row state (not group-hover) so it lights up whether
   // the chart bar or the caption is hovered.
   const ringClass = isSelected
-    ? "ring-primary-accent ring-2"
+    ? "ring-brand ring-2"
     : isHovered
       ? "ring-muted-gray ring-2"
       : "";

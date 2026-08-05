@@ -226,7 +226,7 @@ const TurnCard = React.memo(
         }}
         className={cn(
           "group hover:bg-muted/60 rounded-sm border border-transparent p-2 transition-colors duration-150",
-          isActive && "border-primary-accent/50 bg-background dark:bg-muted",
+          isActive && "border-brand/50 bg-background dark:bg-muted",
           isTraceLevelIOOnly && "cursor-pointer",
         )}
         data-observation-list-active={isActive}

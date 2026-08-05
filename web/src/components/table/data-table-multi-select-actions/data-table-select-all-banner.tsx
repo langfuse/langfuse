@@ -15,7 +15,7 @@ export function DataTableSelectAllBanner({
   const exactCount = approximateCount ? null : totalCount;
 
   return (
-    <div className="bg-light-blue/40 dark:bg-light-blue/50 @container mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm p-2">
+    <div className="bg-info-tint/40 dark:bg-info-tint/50 @container mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm p-2">
       {selectAll ? (
         <span className="text-sm">
           All{" "}

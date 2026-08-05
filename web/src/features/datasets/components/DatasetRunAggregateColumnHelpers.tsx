@@ -99,8 +99,8 @@ function BaselineToggle({ runId }: { runId: string }) {
   return (
     <Toggle
       className={cn(
-        "text-tertiary/50 hover:bg-canvas hover:text-primary-accent p-1 data-[state=on]:bg-transparent data-[state=on]:text-current",
-        isBaseline && "text-primary-accent",
+        "text-tertiary/50 hover:bg-canvas hover:text-brand p-1 data-[state=on]:bg-transparent data-[state=on]:text-current",
+        isBaseline && "text-brand",
       )}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}

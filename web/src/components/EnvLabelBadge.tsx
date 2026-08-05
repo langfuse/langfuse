@@ -11,9 +11,9 @@ const envLabelBadgeVariants = cva(
   {
     variants: {
       variant: {
-        development: "bg-light-green text-dark-green",
-        staging: "bg-light-blue text-dark-blue",
-        production: "bg-light-red text-dark-red",
+        development: "bg-success-tint text-success",
+        staging: "bg-info-tint text-info",
+        production: "bg-danger-tint text-danger",
       },
     },
   },

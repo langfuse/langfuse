@@ -571,7 +571,7 @@ export function CommentList({
                 className={cn(
                   "group relative grid grid-cols-[auto_1fr] gap-2.5 rounded-lg border p-3 transition-colors",
                   highlightedCommentId === comment.id
-                    ? "border-primary-accent"
+                    ? "border-brand"
                     : "border-border/40 hover:bg-muted/20",
                 )}
               >

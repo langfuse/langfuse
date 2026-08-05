@@ -307,7 +307,7 @@ export const RemoteExperimentUpsertForm = ({
                     />
                   </FormControl>
                   {field.value.startsWith("http://") && (
-                    <p className="text-dark-yellow text-sm">
+                    <p className="text-warning text-sm">
                       This endpoint uses plain HTTP: the payload and all headers
                       — including secret headers — will be sent unencrypted. Use
                       HTTPS for production endpoints.

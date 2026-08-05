@@ -16,9 +16,9 @@ const badgeVariants = cva(
         outline: "text-secondary",
         "outline-solid": "border-input bg-canvas text-secondary",
         tertiary: "bg-muted-gray text-primary",
-        success: "bg-light-green text-dark-green",
-        error: "bg-light-red text-dark-red",
-        warning: "bg-light-yellow text-dark-yellow",
+        success: "bg-success-tint text-success",
+        error: "bg-danger-tint text-danger",
+        warning: "bg-warning-tint text-warning",
       },
       size: {
         default: "px-2.5 py-0.5 text-xs",

@@ -25,7 +25,7 @@ const buttonVariants = cva(
           // read two clashing border brightnesses (Trang, 2026-08-03).
           "border-border-contrast bg-canvas hover:bg-hover hover:text-on-hover border",
         "outline-success":
-          "border border-accent-dark-green bg-canvas text-accent-dark-green hover:bg-accent-light-green hover:text-accent-dark-green dark:border-dark-green dark:text-dark-green dark:hover:bg-light-green dark:hover:text-dark-green",
+          "border border-accent-dark-green bg-canvas text-accent-dark-green hover:bg-accent-light-green hover:text-accent-dark-green dark:border-success dark:text-success dark:hover:bg-success-tint dark:hover:text-success",
         secondary: "bg-muted text-primary hover:bg-muted/80",
         tertiary: "bg-muted-gray text-primary hover:bg-muted-gray/80 text-xs",
         ghost: "hover:bg-hover hover:text-on-hover",

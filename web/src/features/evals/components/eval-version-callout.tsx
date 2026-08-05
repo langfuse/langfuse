@@ -43,7 +43,7 @@ const getCalloutContent = (
             href="https://langfuse.com/docs/observability/sdk/upgrade-path"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-dark-blue font-bold hover:opacity-80"
+            className="text-info font-bold hover:opacity-80"
           >
             Learn more
           </a>
@@ -68,7 +68,7 @@ const getCalloutContent = (
               href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-dark-blue font-bold hover:opacity-80"
+              className="text-info font-bold hover:opacity-80"
             >
               Learn more about the Experiment Runner SDK.
             </a>
@@ -96,7 +96,7 @@ const getCalloutContent = (
             href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-dark-blue font-bold hover:opacity-80"
+            className="text-info font-bold hover:opacity-80"
           >
             Learn more
           </a>
@@ -119,7 +119,7 @@ const getCalloutContent = (
             href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-dark-blue font-bold hover:opacity-80"
+            className="text-info font-bold hover:opacity-80"
           >
             Learn more
           </a>
@@ -145,9 +145,9 @@ export function EvalVersionCallout({
   return (
     <Alert
       variant="default"
-      className="border-dark-yellow bg-light-yellow mt-2 max-w-4xl"
+      className="border-warning bg-warning-tint mt-2 max-w-4xl"
     >
-      <AlertTriangle className="text-dark-yellow h-4 w-4" />
+      <AlertTriangle className="text-warning h-4 w-4" />
       <AlertDescription>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
