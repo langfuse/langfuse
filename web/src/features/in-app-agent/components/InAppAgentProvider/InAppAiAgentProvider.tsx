@@ -54,6 +54,7 @@ import { createInAppAgentUserContext } from "./fns/createInAppAgentUserContext";
 import { createInAppAgentMessageEntryPointContext } from "./fns/createInAppAgentMessageEntryPointContext";
 import { createInAppAgentQuickActionAttributionContext } from "./fns/createInAppAgentQuickActionAttributionContext";
 import { createInAppAgentScreenContext } from "./fns/createInAppAgentScreenContext";
+import { recordInAppAgentToolCallForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/recordInAppAgentToolCallForDisplay";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -124,7 +125,7 @@ type InAppAgentDisplayPlacement = {
   order: number;
 };
 
-type InAppAgentDisplayState = {
+export type InAppAgentDisplayState = {
   latestPlacement: InAppAgentDisplayPlacement | null;
   nativeToolCallParentMessageId: string | null;
   latestNewMessageId: string | null;
@@ -1465,36 +1466,6 @@ export function recordInAppAgentMessagesForDisplay(
     nextOrder,
     seenMessageIds,
     textByMessageId,
-  };
-}
-
-export function recordInAppAgentToolCallForDisplay(
-  state: InAppAgentDisplayState,
-  toolCallId: string,
-  parentMessageId: string | undefined,
-): InAppAgentDisplayState {
-  if (toolCallId in state.toolCallPlacements) {
-    return state;
-  }
-
-  const anchorMessageId =
-    state.latestPlacement?.anchorMessageId ?? state.latestNewMessageId;
-  const placement = anchorMessageId
-    ? { anchorMessageId, order: state.nextOrder }
-    : null;
-  const isNativePlacement =
-    (state.latestPlacement === null && anchorMessageId === parentMessageId) ||
-    state.nativeToolCallParentMessageId === parentMessageId;
-
-  return {
-    ...state,
-    latestPlacement: placement,
-    nativeToolCallParentMessageId: isNativePlacement ? anchorMessageId : null,
-    nextOrder: state.nextOrder + 1,
-    toolCallPlacements: {
-      ...state.toolCallPlacements,
-      [toolCallId]: isNativePlacement ? null : placement,
-    },
   };
 }
 

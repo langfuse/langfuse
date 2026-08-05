@@ -3,8 +3,8 @@ import {
   createInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
   recordInAppAgentMessagesForDisplay,
-  recordInAppAgentToolCallForDisplay,
 } from "./InAppAiAgentProvider";
+import { recordInAppAgentToolCallForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/recordInAppAgentToolCallForDisplay";
 
 const assistantToolMessage = {
   id: "assistant-tools",
