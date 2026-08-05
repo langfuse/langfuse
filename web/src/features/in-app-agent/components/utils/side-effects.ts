@@ -1,6 +1,7 @@
 import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/tools";
 import { safeJsonParse } from "@langfuse/shared";
 import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
+import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
@@ -131,7 +132,7 @@ export function getInAppAgentTrpcInvalidationTargets(toolName: string) {
   );
 }
 
-export function shouldPerformToolSideEffects(toolError: unknown) {
+function shouldPerformToolSideEffects(toolError: unknown) {
   const parsedError =
     typeof toolError === "string" ? safeJsonParse(toolError) : toolError;
 
@@ -146,7 +147,7 @@ export function shouldPerformToolSideEffects(toolError: unknown) {
   return parsedError.code !== IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE;
 }
 
-export function performTargetInvalidation(
+function performTargetInvalidation(
   target: InAppAgentTrpcInvalidationTarget,
   utils: ReturnType<typeof api.useUtils>,
 ) {
@@ -196,16 +197,81 @@ export function performTargetInvalidation(
   return assertUnreachable(target);
 }
 
-export function performToolSideEffects({
-  toolName,
+export type CompletedToolCall = {
+  toolCallId: string;
+  toolName: string;
+  toolError?: unknown;
+};
+
+/**
+ * Reconstruct completed tool calls from the durable conversation messages.
+ * Background runs can finish while the drawer is detached, so the browser
+ * cannot rely on having observed the live TOOL_CALL_RESULT event.
+ */
+export function getCompletedToolCalls(
+  messages: readonly AgUiMessage[],
+): CompletedToolCall[] {
+  const toolCalls = new Map<string, Omit<CompletedToolCall, "toolError">>();
+  const toolResults = new Map<string, Extract<AgUiMessage, { role: "tool" }>>();
+
+  for (const message of messages) {
+    if (message.role === "assistant") {
+      for (const toolCall of message.toolCalls ?? []) {
+        toolCalls.set(toolCall.id, {
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+        });
+      }
+      continue;
+    }
+
+    if (message.role === "tool") {
+      toolResults.set(message.toolCallId, message);
+    }
+  }
+
+  return Array.from(toolCalls.values()).flatMap((toolCall) => {
+    const result = toolResults.get(toolCall.toolCallId);
+    // No result message means the call never completed, so nothing was written.
+    return result ? [{ ...toolCall, toolError: result.error }] : [];
+  });
+}
+
+/**
+ * Single entrypoint for both execution paths: live TOOL_CALL_RESULT events pass
+ * one call, snapshot replay passes every completed call in the transcript.
+ * `handledToolCallIds` makes the two idempotent against each other, and the
+ * targets are unioned so a long transcript still invalidates each route once.
+ */
+export function performToolSideEffectsForCompletedToolCalls({
+  toolCalls,
+  handledToolCallIds,
   utils,
 }: {
-  toolName: string;
+  toolCalls: readonly CompletedToolCall[];
+  handledToolCallIds: Set<string>;
   utils: ReturnType<typeof api.useUtils>;
 }) {
-  const targets = getInAppAgentTrpcInvalidationTargets(toolName);
+  const targets = new Set<InAppAgentTrpcInvalidationTarget>();
+
+  for (const toolCall of toolCalls) {
+    if (handledToolCallIds.has(toolCall.toolCallId)) {
+      continue;
+    }
+
+    handledToolCallIds.add(toolCall.toolCallId);
+    if (!shouldPerformToolSideEffects(toolCall.toolError)) {
+      continue;
+    }
+
+    for (const target of getInAppAgentTrpcInvalidationTargets(
+      toolCall.toolName,
+    )) {
+      targets.add(target);
+    }
+  }
 
   return Promise.all(
-    targets.map((target) => performTargetInvalidation(target, utils)),
+    Array.from(targets, (target) => performTargetInvalidation(target, utils)),
   );
 }

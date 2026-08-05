@@ -12,7 +12,7 @@ import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
-import { InAppAiAgentProvider } from "./InAppAiAgentProvider";
+import { InAppAiAgentProvider, useInAppAiAgent } from "./InAppAiAgentProvider";
 import styles from "./InAppAgentWindow.module.css";
 
 const providerMocks = vi.hoisted(() => {
@@ -67,6 +67,12 @@ const providerMocks = vi.hoisted(() => {
       isLoading: false,
     },
     utils: {
+      dashboard: {
+        invalidate: vi.fn(),
+      },
+      dashboardWidgets: {
+        invalidate: vi.fn(),
+      },
       inAppAgent: {
         getConversation: {
           fetch: vi.fn(),
@@ -75,6 +81,9 @@ const providerMocks = vi.hoisted(() => {
         listConversations: {
           invalidate: vi.fn(),
         },
+      },
+      prompts: {
+        invalidate: vi.fn(),
       },
     },
   };
@@ -145,18 +154,40 @@ function sseFrame(frame: unknown): string {
   return `data: ${JSON.stringify(frame)}\n\n`;
 }
 
-function renderExecutionUi() {
+function ReopenAssistantButton() {
+  const { setOpen } = useInAppAiAgent();
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setOpen(true);
+      }}
+    >
+      Reopen assistant
+    </button>
+  );
+}
+
+function renderExecutionUi({
+  defaultOpen = true,
+  includeReopenButton = false,
+}: {
+  defaultOpen?: boolean;
+  includeReopenButton?: boolean;
+} = {}) {
   return render(
-    <TooltipProvider>
-      <InAppAiAgentProvider defaultOpen>
+    <InAppAiAgentProvider defaultOpen={defaultOpen}>
+      <TooltipProvider>
+        {includeReopenButton ? <ReopenAssistantButton /> : null}
         <ControlledInAppAgentWindow
           isExpanded={false}
           onDeleteConversation={vi.fn()}
           onExpandedChange={vi.fn()}
           showCloseButton={false}
         />
-      </InAppAiAgentProvider>
-    </TooltipProvider>,
+      </TooltipProvider>
+    </InAppAiAgentProvider>,
   );
 }
 
@@ -300,6 +331,92 @@ describe("in-app agent execution", () => {
         name: "Reject",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("replays prompt invalidations after a detached run completes", async () => {
+    providerMocks.backgroundExecutionEnabled = true;
+    const completedSnapshot = {
+      conversation: {
+        id: "conversation-1",
+        isWriteLocked: false,
+      },
+      messages: [
+        {
+          id: "prompt-call",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "prompt-tool-call",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: "{}",
+              },
+            },
+          ],
+        },
+        {
+          id: "prompt-result",
+          role: "tool",
+          toolCallId: "prompt-tool-call",
+          content: '{"id":"prompt-1"}',
+        },
+        {
+          id: "prompt-call-2",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "prompt-tool-call-2",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: "{}",
+              },
+            },
+          ],
+        },
+        {
+          id: "prompt-result-2",
+          role: "tool",
+          toolCallId: "prompt-tool-call-2",
+          content: '{"id":"prompt-2"}',
+        },
+      ],
+      eventCursor: 14,
+      latestRun: {
+        id: "run-1",
+        status: InAppAgentRunStatus.SUCCEEDED,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [],
+    } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
+    providerMocks.conversationQuery.data = completedSnapshot;
+    providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValueOnce(
+      completedSnapshot,
+    );
+    window.sessionStorage.setItem(
+      "langfuse:in-app-ai-agent-selected-conversation:project-1",
+      JSON.stringify("conversation-1"),
+    );
+
+    renderExecutionUi({
+      defaultOpen: false,
+      includeReopenButton: true,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reopen assistant" }));
+
+    // Two completed prompt tool calls must union into a single invalidation.
+    await waitFor(() => {
+      expect(providerMocks.utils.prompts.invalidate).toHaveBeenCalledOnce();
+    });
+    expect(providerMocks.utils.dashboard.invalidate).not.toHaveBeenCalled();
+    expect(
+      providerMocks.utils.dashboardWidgets.invalidate,
+    ).not.toHaveBeenCalled();
   });
 
   it("keeps a hydrated in-flight tool call visibly running", async () => {

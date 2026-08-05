@@ -111,6 +111,9 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     input: ApprovalDecision,
   ) => Promise<unknown>;
   private readonly onSettled?: () => void;
+  private readonly onHydratedSnapshot?: (
+    snapshot: BackgroundExecutionHydration,
+  ) => void;
   private readonly onError?: (error: unknown) => void;
   private readonly agentSubscription: { unsubscribe(): void };
   private readonly listeners = new Set<() => void>();
@@ -125,6 +128,12 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     decideApproval: (input: ApprovalDecision) => Promise<unknown>;
     subscriber?: BackgroundExecutionAgentSubscriber;
     onSettled?: () => void;
+    /**
+     * A durable snapshot has replaced the local message list, so every
+     * completed tool call it contains is authoritative regardless of run
+     * status. Fires on every hydration, so the consumer must be idempotent.
+     */
+    onHydratedSnapshot?: (snapshot: BackgroundExecutionHydration) => void;
     onError?: (error: unknown) => void;
     initialView?: Partial<BackgroundExecutionView>;
   }) {
@@ -133,6 +142,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.cancelRun = config.cancelRun;
     this.decideApproval = config.decideApproval;
     this.onSettled = config.onSettled;
+    this.onHydratedSnapshot = config.onHydratedSnapshot;
     this.onError = config.onError;
     this.view = {
       messages: [],
@@ -468,6 +478,8 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       cancelStatus: "idle",
       attachment: { status: "detached" },
     });
+
+    this.onHydratedSnapshot?.(hydrated);
 
     return true;
   }
