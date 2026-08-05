@@ -5,6 +5,7 @@ import {
 } from "@langfuse/shared/in-app-agent";
 import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/types";
 import { deduplicateBy } from "@/src/utils/arrays";
+import { parseJsonString } from "@/src/features/in-app-agent/fns/parseJsonString";
 
 const LangfuseDocsDocumentSchema = z.object({
   type: z.literal("document"),
@@ -101,17 +102,4 @@ function mergeSources(
   next: readonly InAppAgentMessageSource[],
 ): InAppAgentMessageSource[] {
   return deduplicateBy([...existing, ...next], (source) => source.url);
-}
-
-// TODO: Move this to a shared utils file
-function parseJsonString(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
 }

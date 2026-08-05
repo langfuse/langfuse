@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared/in-app-agent";
 import { extractLangfuseDocsSources } from "@/src/features/in-app-agent/fns/extractLangfuseDocsSources";
 import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/types";
+import { parseJsonString } from "@/src/features/in-app-agent/fns/parseJsonString";
 
 const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
   z.object({
@@ -488,18 +489,7 @@ function getRedirectActionFromToolResult(
   }
 }
 
-function parseJsonString(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
-}
-
+// TODO: Inline this
 function mergeSources(
   existing: readonly InAppAgentMessageSource[],
   next: readonly InAppAgentMessageSource[],
