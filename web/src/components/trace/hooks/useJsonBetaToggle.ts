@@ -14,12 +14,9 @@ export function useJsonBetaToggle(
   currentView: ViewMode,
   setCurrentView: (view: ViewMode) => void,
 ) {
-  // Migration: default to true if user had json-beta selected previously
-  // TODO: Remove migration logic after 2025-01-26 (2 weeks) when user settings are migrated
   const [jsonBetaEnabled, setJsonBetaEnabled] = useLocalStorage<boolean>(
     "jsonBetaEnabled",
-    typeof window !== "undefined" &&
-      localStorage.getItem("jsonViewPreference") === '"json-beta"',
+    false,
   );
 
   // Derive UI tab selection (2 tabs: pretty or json)

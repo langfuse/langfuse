@@ -136,12 +136,9 @@ export function ViewPreferencesProvider({
     useLocalStorage<LogViewTreeStyle>("logViewTreeStyle", "flat");
   const [jsonViewPreference, setJsonViewPreference] =
     useLocalStorage<JsonViewPreference>("jsonViewPreference", "pretty");
-  // Migration: default to true if user had json-beta selected previously
-  // TODO: Remove migration logic after 2025-01-26 (2 weeks) when user settings are migrated
   const [jsonBetaEnabled, setJsonBetaEnabled] = useLocalStorage<boolean>(
     "jsonBetaEnabled",
-    typeof window !== "undefined" &&
-      localStorage.getItem("jsonViewPreference") === '"json-beta"',
+    false,
   );
   // Shared with the inline expand/collapse toggle on system prompt messages;
   // instances sync via useLocalStorage's localStorageChange events.
