@@ -84,8 +84,8 @@ import {
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
 import {
-  performToolSideEffects,
-  shouldPerformToolSideEffects,
+  getCompletedToolCalls,
+  performToolSideEffectsForCompletedToolCalls,
 } from "@/src/features/in-app-agent/components/utils/side-effects";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
@@ -345,6 +345,7 @@ function InAppAiAgentProviderInner({
     useState<BackgroundExecutionSession | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
   const toolCallNamesRef = useRef(new Map<string, string>());
+  const handledToolCallIdsRef = useRef(new Set<string>());
   const backgroundExecutionEnabled = useInAppAgentBackgroundExecutionEnabled();
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
@@ -739,6 +740,7 @@ function InAppAiAgentProviderInner({
     agentRef.current = null;
     activeRunIdRef.current = null;
     toolCallNamesRef.current.clear();
+    handledToolCallIdsRef.current.clear();
     setDisplayState(createInAppAgentDisplayState());
     foregroundPendingToolApprovalsRef.current = [];
     setForegroundPendingToolApprovals([]);
@@ -864,17 +866,20 @@ function InAppAiAgentProviderInner({
           }
         },
         onToolCallResultEvent: ({ event }) => {
-          const toolName = toolCallNamesRef.current.get(event.toolCallId);
-          toolCallNamesRef.current.delete(event.toolCallId);
-          if (toolName && shouldPerformToolSideEffects(event.error)) {
-            performToolSideEffects({ toolName, utils }).catch(
-              (error: unknown) => {
-                console.error(
-                  "Failed to invalidate tRPC routes after in-app agent tool call",
-                  { error, toolName },
-                );
-              },
-            );
+          const toolCallId = String(event.toolCallId);
+          const toolName = toolCallNamesRef.current.get(toolCallId);
+          toolCallNamesRef.current.delete(toolCallId);
+          if (toolName) {
+            performToolSideEffectsForCompletedToolCalls({
+              toolCalls: [{ toolCallId, toolName, toolError: event.error }],
+              handledToolCallIds: handledToolCallIdsRef.current,
+              utils,
+            }).catch((error: unknown) => {
+              console.error(
+                "Failed to invalidate tRPC routes after in-app agent tool call",
+                { error, toolName },
+              );
+            });
           }
         },
         onRunErrorEvent: ({ event }) => {
@@ -1077,6 +1082,18 @@ function InAppAiAgentProviderInner({
               toolCallId: input.toolCallId,
               approved: input.approved,
             }),
+          onHydratedSnapshot: ({ messages }) => {
+            performToolSideEffectsForCompletedToolCalls({
+              toolCalls: getCompletedToolCalls(messages),
+              handledToolCallIds: handledToolCallIdsRef.current,
+              utils,
+            }).catch((error: unknown) => {
+              console.error(
+                "Failed to replay tRPC invalidations after hydrated in-app agent tool calls",
+                error,
+              );
+            });
+          },
           onSettled: () => {
             clearLoadingEvents();
             utils.inAppAgent.listConversations.invalidate({ projectId });
@@ -1106,8 +1123,7 @@ function InAppAiAgentProviderInner({
       releaseSubmitLock,
       resetAgent,
       startRunMutation,
-      utils.inAppAgent.getConversation,
-      utils.inAppAgent.listConversations,
+      utils,
     ],
   );
 
