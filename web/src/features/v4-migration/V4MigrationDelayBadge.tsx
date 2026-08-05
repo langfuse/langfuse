@@ -7,9 +7,9 @@ import {
   useProjectV4SdkData,
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
-  useCanUseInAppAgent,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
+  useCanUseInAppAgent,
+} from "@/src/features/in-app-agent";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 

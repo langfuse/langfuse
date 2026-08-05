@@ -1,7 +1,6 @@
 import {
   createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -58,6 +57,7 @@ import { recordInAppAgentToolCallForDisplay } from "./fns/recordInAppAgentToolCa
 import { createInAppAgentDisplayState } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/createInAppAgentDisplayState";
 import { recordInAppAgentMessagesForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/recordInAppAgentMessagesForDisplay";
 import { projectInAppAgentMessagesForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/projectInAppAgentMessagesForDisplay";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/hooks/useInAppAiAgent";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -88,35 +88,6 @@ const getConversationAgentState = (
   isNewConversation
     ? { type: "newConversation", projectId }
     : { type: "existingConversation", projectId, conversationId };
-
-const NOOP_CONTEXT: InAppAiAgentContextType = {
-  isAvailable: false,
-  open: false,
-  setOpen: () => undefined,
-  openAssistant: () => false,
-  isExpanded: false,
-  setIsExpanded: () => undefined,
-  isRunning: false,
-  isSubmitting: false,
-  pendingToolApprovals: [],
-  isSelectedConversationHydrating: false,
-  error: null,
-  messages: [],
-  liveMessageVersion: 0,
-  conversations: [],
-  hasMoreConversations: false,
-  isLoadingMoreConversations: false,
-  selectedConversationId: undefined,
-  selectedConversationIsWriteLocked: false,
-  loadMoreConversations: () => undefined,
-  invalidateConversations: () => undefined,
-  selectConversation: () => undefined,
-  deleteConversation: async () => undefined,
-  submit: async () => false,
-  approveToolCall: async () => undefined,
-  rejectToolCall: async () => undefined,
-  submitFeedback: async () => undefined,
-};
 
 type InAppAiAgentFeedbackByConversationId = Record<
   string,
@@ -163,7 +134,7 @@ export type InAppAiAgentConversation = {
   isWriteLocked: boolean;
 };
 
-type InAppAiAgentContextType = {
+export type InAppAiAgentContextType = {
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
@@ -203,7 +174,8 @@ type InAppAiAgentContextType = {
   }) => Promise<void>;
 };
 
-const InAppAiAgentContext = createContext<InAppAiAgentContextType | null>(null);
+export const InAppAiAgentContext =
+  createContext<InAppAiAgentContextType | null>(null);
 
 export type InAppAiAgentProviderProps = PropsWithChildren<{
   defaultOpen?: boolean;
@@ -1403,14 +1375,6 @@ function getAgentErrorMessage(error: unknown): string {
   }
 
   return "Assistant request failed. Please try again.";
-}
-
-export function useInAppAiAgent() {
-  const ctx = useContext(InAppAiAgentContext);
-  if (!ctx) {
-    return NOOP_CONTEXT;
-  }
-  return ctx;
 }
 
 /** Whether the current user/context may use the in-app assistant at all.

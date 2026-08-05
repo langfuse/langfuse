@@ -2,7 +2,7 @@ export { ControlledInAppAgentWindow } from "./components/ControlledInAppAgentWin
 export { InAppAgentWindowHost } from "./components/InAppAgentWindowHost/InAppAgentWindowHost";
 export {
   InAppAiAgentProvider,
-  useInAppAiAgent,
   useCanUseInAppAgent,
 } from "./components/InAppAgentProvider/InAppAiAgentProvider";
+export { useInAppAiAgent } from "./hooks/useInAppAiAgent";
 export type { InAppAgentEntryPoint } from "./components/InAppAgentProvider/InAppAiAgentProvider";

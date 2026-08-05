@@ -9,11 +9,9 @@ import { Layer } from "@/src/components/ui/layer";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/ControlledInAppAgentWindow";
 import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/components/InAppAgentWindow/InAppAgentWindow";
 import { InAppAgentWindowShell } from "@/src/features/in-app-agent/components/InAppAgentWindowHost/components/InAppAgentWindowShell";
-import {
-  useCanUseInAppAgent,
-  useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import { useInAppAiAgent } from "@/src/features/in-app-agent";
 
 function DeleteConversationDialog({
   close,
