@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CloudConfigRateLimit } from "./rate-limits";
-import { cloudConfigPlans } from "../features/entitlements/plans";
+import { chbPlanCodes, cloudConfigPlans } from "../features/entitlements/plans";
 
 export const CloudConfigSchema = z.object({
   plan: z.enum(cloudConfigPlans).optional(),
@@ -37,7 +37,15 @@ export const CloudConfigSchema = z.object({
       // writers second, if the id format ever loosens.
       organizationId: z.uuid(),
       bundleId: z.string().nullish(),
-      planCode: z.string().nullish(), // "core" | "pro" | "team" | "enterprise"; kept loose like stripe.subscriptionStatus
+      // Validated against the shared plan-code enum so downstream resolution is
+      // an exhaustive lookup. `.catch(null)` contains the damage if a code ever
+      // drifts (CHB renames a tier, or ships one before we deploy support for
+      // it): parseDbOrg nulls the *entire* cloudConfig on a parse failure, which
+      // would also discard the org's plan override, rate-limit overrides and
+      // stripe.customerId — and an org without a Stripe customer id drops out of
+      // the usage-metering job's selection and silently stops being billed.
+      // Unknown codes are rejected at the webhook so they are never stored.
+      planCode: z.enum(chbPlanCodes).nullish().catch(null),
       paymentStatus: z.string().nullish(), // "active" | "failed" | ...
       nextPaymentDate: z.string().nullish(),
       // Stripe customer behind the CHB bundle (payment.provider.customerId on
