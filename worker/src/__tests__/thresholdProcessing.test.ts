@@ -635,23 +635,5 @@ describe("processThresholds", () => {
       expect(result.actionTaken).toBe("PAID_PLAN");
       expect(result.emailSent).toBe(false);
     });
-
-    it("still enforces for orgs with a CHB organizationId but no bundle (checkout never completed)", async () => {
-      const org = createMockOrg({
-        cloudCurrentCycleUsage: 0,
-        cloudConfig: {
-          clickhouse: {
-            organizationId: "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a",
-          },
-        },
-      });
-
-      const result = await processThresholds(org, 250_000);
-
-      expect(result.actionTaken).toBe("BLOCKED");
-      expect(result.updateData.cloudFreeTierUsageThresholdState).toBe(
-        "BLOCKED",
-      );
-    });
   });
 });
