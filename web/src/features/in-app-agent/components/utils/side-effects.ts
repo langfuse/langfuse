@@ -132,7 +132,7 @@ export function getInAppAgentTrpcInvalidationTargets(toolName: string) {
   );
 }
 
-export function shouldPerformToolSideEffects(toolError: unknown) {
+function shouldPerformToolSideEffects(toolError: unknown) {
   const parsedError =
     typeof toolError === "string" ? safeJsonParse(toolError) : toolError;
 
@@ -147,7 +147,7 @@ export function shouldPerformToolSideEffects(toolError: unknown) {
   return parsedError.code !== IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE;
 }
 
-export function performTargetInvalidation(
+function performTargetInvalidation(
   target: InAppAgentTrpcInvalidationTarget,
   utils: ReturnType<typeof api.useUtils>,
 ) {
@@ -197,23 +197,10 @@ export function performTargetInvalidation(
   return assertUnreachable(target);
 }
 
-export function performToolSideEffects({
-  toolName,
-  utils,
-}: {
-  toolName: string;
-  utils: ReturnType<typeof api.useUtils>;
-}) {
-  const targets = getInAppAgentTrpcInvalidationTargets(toolName);
-
-  return Promise.all(
-    targets.map((target) => performTargetInvalidation(target, utils)),
-  );
-}
-
-type CompletedToolCall = {
+export type CompletedToolCall = {
   toolCallId: string;
   toolName: string;
+  toolError?: unknown;
 };
 
 /**
@@ -221,8 +208,10 @@ type CompletedToolCall = {
  * Background runs can finish while the drawer is detached, so the browser
  * cannot rely on having observed the live TOOL_CALL_RESULT event.
  */
-export function getCompletedToolCalls(messages: readonly AgUiMessage[]) {
-  const toolCalls = new Map<string, CompletedToolCall>();
+export function getCompletedToolCalls(
+  messages: readonly AgUiMessage[],
+): CompletedToolCall[] {
+  const toolCalls = new Map<string, Omit<CompletedToolCall, "toolError">>();
   const toolResults = new Map<string, Extract<AgUiMessage, { role: "tool" }>>();
 
   for (const message of messages) {
@@ -243,58 +232,46 @@ export function getCompletedToolCalls(messages: readonly AgUiMessage[]) {
 
   return Array.from(toolCalls.values()).flatMap((toolCall) => {
     const result = toolResults.get(toolCall.toolCallId);
-    if (!result || !shouldPerformToolSideEffects(result.error)) {
-      return [];
-    }
-
-    return [toolCall];
+    // No result message means the call never completed, so nothing was written.
+    return result ? [{ ...toolCall, toolError: result.error }] : [];
   });
 }
 
 /**
- * Keep rejection handling and live/replayed deduplication in the shared
- * entrypoint so both execution paths apply the foreground behavior equally.
+ * Single entrypoint for both execution paths: live TOOL_CALL_RESULT events pass
+ * one call, snapshot replay passes every completed call in the transcript.
+ * `handledToolCallIds` makes the two idempotent against each other, and the
+ * targets are unioned so a long transcript still invalidates each route once.
  */
-export function performToolSideEffectsForToolCall({
-  toolCallId,
-  toolName,
-  toolError,
+export function performToolSideEffectsForCompletedToolCalls({
+  toolCalls,
   handledToolCallIds,
   utils,
 }: {
-  toolCallId: string;
-  toolName: string;
-  toolError?: unknown;
+  toolCalls: readonly CompletedToolCall[];
   handledToolCallIds: Set<string>;
   utils: ReturnType<typeof api.useUtils>;
 }) {
-  if (
-    handledToolCallIds.has(toolCallId) ||
-    !shouldPerformToolSideEffects(toolError)
-  ) {
-    return Promise.resolve([]);
+  const targets = new Set<InAppAgentTrpcInvalidationTarget>();
+
+  for (const toolCall of toolCalls) {
+    if (handledToolCallIds.has(toolCall.toolCallId)) {
+      continue;
+    }
+
+    handledToolCallIds.add(toolCall.toolCallId);
+    if (!shouldPerformToolSideEffects(toolCall.toolError)) {
+      continue;
+    }
+
+    for (const target of getInAppAgentTrpcInvalidationTargets(
+      toolCall.toolName,
+    )) {
+      targets.add(target);
+    }
   }
 
-  handledToolCallIds.add(toolCallId);
-  return performToolSideEffects({ toolName, utils });
-}
-
-export function performToolSideEffectsForMessages({
-  messages,
-  handledToolCallIds,
-  utils,
-}: {
-  messages: readonly AgUiMessage[];
-  handledToolCallIds: Set<string>;
-  utils: ReturnType<typeof api.useUtils>;
-}) {
   return Promise.all(
-    getCompletedToolCalls(messages).map((toolCall) =>
-      performToolSideEffectsForToolCall({
-        ...toolCall,
-        handledToolCallIds,
-        utils,
-      }),
-    ),
+    Array.from(targets, (target) => performTargetInvalidation(target, utils)),
   );
 }

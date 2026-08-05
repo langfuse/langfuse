@@ -84,8 +84,8 @@ import {
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
 import {
-  performToolSideEffectsForMessages,
-  performToolSideEffectsForToolCall,
+  getCompletedToolCalls,
+  performToolSideEffectsForCompletedToolCalls,
 } from "@/src/features/in-app-agent/components/utils/side-effects";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
@@ -870,10 +870,8 @@ function InAppAiAgentProviderInner({
           const toolName = toolCallNamesRef.current.get(toolCallId);
           toolCallNamesRef.current.delete(toolCallId);
           if (toolName) {
-            performToolSideEffectsForToolCall({
-              toolCallId,
-              toolName,
-              toolError: event.error,
+            performToolSideEffectsForCompletedToolCalls({
+              toolCalls: [{ toolCallId, toolName, toolError: event.error }],
               handledToolCallIds: handledToolCallIdsRef.current,
               utils,
             }).catch((error: unknown) => {
@@ -1084,9 +1082,9 @@ function InAppAiAgentProviderInner({
               toolCallId: input.toolCallId,
               approved: input.approved,
             }),
-          onTerminalSnapshot: ({ messages }) => {
-            performToolSideEffectsForMessages({
-              messages,
+          onHydratedSnapshot: ({ messages }) => {
+            performToolSideEffectsForCompletedToolCalls({
+              toolCalls: getCompletedToolCalls(messages),
               handledToolCallIds: handledToolCallIdsRef.current,
               utils,
             }).catch((error: unknown) => {

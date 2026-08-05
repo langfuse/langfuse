@@ -362,6 +362,27 @@ describe("in-app agent execution", () => {
           toolCallId: "prompt-tool-call",
           content: '{"id":"prompt-1"}',
         },
+        {
+          id: "prompt-call-2",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "prompt-tool-call-2",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: "{}",
+              },
+            },
+          ],
+        },
+        {
+          id: "prompt-result-2",
+          role: "tool",
+          toolCallId: "prompt-tool-call-2",
+          content: '{"id":"prompt-2"}',
+        },
       ],
       eventCursor: 14,
       latestRun: {
@@ -388,6 +409,7 @@ describe("in-app agent execution", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Reopen assistant" }));
 
+    // Two completed prompt tool calls must union into a single invalidation.
     await waitFor(() => {
       expect(providerMocks.utils.prompts.invalidate).toHaveBeenCalledOnce();
     });

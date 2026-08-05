@@ -111,7 +111,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     input: ApprovalDecision,
   ) => Promise<unknown>;
   private readonly onSettled?: () => void;
-  private readonly onTerminalSnapshot?: (
+  private readonly onHydratedSnapshot?: (
     snapshot: BackgroundExecutionHydration,
   ) => void;
   private readonly onError?: (error: unknown) => void;
@@ -128,7 +128,12 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     decideApproval: (input: ApprovalDecision) => Promise<unknown>;
     subscriber?: BackgroundExecutionAgentSubscriber;
     onSettled?: () => void;
-    onTerminalSnapshot?: (snapshot: BackgroundExecutionHydration) => void;
+    /**
+     * A durable snapshot has replaced the local message list, so every
+     * completed tool call it contains is authoritative regardless of run
+     * status. Fires on every hydration, so the consumer must be idempotent.
+     */
+    onHydratedSnapshot?: (snapshot: BackgroundExecutionHydration) => void;
     onError?: (error: unknown) => void;
     initialView?: Partial<BackgroundExecutionView>;
   }) {
@@ -137,7 +142,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.cancelRun = config.cancelRun;
     this.decideApproval = config.decideApproval;
     this.onSettled = config.onSettled;
-    this.onTerminalSnapshot = config.onTerminalSnapshot;
+    this.onHydratedSnapshot = config.onHydratedSnapshot;
     this.onError = config.onError;
     this.view = {
       messages: [],
@@ -474,9 +479,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       attachment: { status: "detached" },
     });
 
-    if (isTerminalRun(hydrated.currentRun)) {
-      this.onTerminalSnapshot?.(hydrated);
-    }
+    this.onHydratedSnapshot?.(hydrated);
 
     return true;
   }
@@ -610,8 +613,4 @@ function isExecutingRun(
     run?.status === InAppAgentRunStatus.QUEUED ||
     run?.status === InAppAgentRunStatus.RUNNING
   );
-}
-
-function isTerminalRun(run: BackgroundExecutionRunView | null): boolean {
-  return run !== null && !isCancellableBackgroundRun(run.status);
 }
