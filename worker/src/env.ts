@@ -225,7 +225,11 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   // Independent of the execution consumer so the sweeps can be killed during
-  // an incident without also stopping every background run.
+  // an incident without also stopping every background run. Worth enabling
+  // wherever the agent is served rather than only alongside background
+  // execution: foreground mints the same per-run MCP credentials and revokes
+  // them without a `finally`, so a web pod dying mid-stream leaks one that
+  // nothing else reaps.
   QUEUE_CONSUMER_IN_APP_AGENT_LIFECYCLE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
