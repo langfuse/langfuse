@@ -3,15 +3,21 @@ import waitForExpect from "wait-for-expect";
 import {
   clickhouseClient,
   createBasicAuthHeader,
+  createEvent,
+  createEventsCh,
   getObservationById,
   getObservationByIdFromEventsTable,
   getS3EventStorageClient,
   getTraceById,
+  getTraceByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomBytes } from "crypto";
 import { env } from "@/src/env.mjs";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { prisma } from "@langfuse/shared/src/db";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const eventsTableAvailable =
@@ -125,6 +131,174 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       expect(observation!.name).toBe("my-generation");
     }, 25_000);
   }, 30_000);
+
+  maybeEventsTable(
+    "should allow unauthenticated access to an OTel trace made public by a child span",
+    async () => {
+      const traceId = randomBytes(16);
+      const rootSpanId = randomBytes(8);
+      const childSpanId = randomBytes(8);
+      const traceIdHex = traceId.toString("hex");
+      const rootSpanIdHex = rootSpanId.toString("hex");
+      const childSpanIdHex = childSpanId.toString("hex");
+      const traceTimestamp = new Date("2025-04-30T15:28:50.686Z");
+
+      // Event propagation intentionally lags ingestion, so seed its output with
+      // only the child public to reproduce the state before a UI re-share.
+      await createEventsCh([
+        createEvent({
+          id: rootSpanIdHex,
+          span_id: rootSpanIdHex,
+          trace_id: traceIdHex,
+          project_id: projectId,
+          parent_span_id: null,
+          start_time: traceTimestamp.getTime() * 1000,
+          name: "public-trace-root",
+          public: false,
+        }),
+        createEvent({
+          id: childSpanIdHex,
+          span_id: childSpanIdHex,
+          trace_id: traceIdHex,
+          project_id: projectId,
+          parent_span_id: rootSpanIdHex,
+          start_time: traceTimestamp.getTime() * 1000 + 100,
+          name: "public-trace-child",
+          public: true,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const childEvent = await getObservationByIdFromEventsTable({
+          projectId,
+          id: childSpanIdHex,
+        });
+        expect(childEvent).toBeDefined();
+      });
+
+      const response = await makeAPICall("POST", "/api/public/otel/v1/traces", {
+        resourceSpans: [
+          {
+            resource: { attributes: [] },
+            scopeSpans: [
+              {
+                scope: {
+                  name: "langfuse-sdk",
+                  version: "2.60.3",
+                  attributes: [
+                    {
+                      key: "public_key",
+                      value: { stringValue: "pk-lf-1234567890" },
+                    },
+                  ],
+                },
+                spans: [
+                  {
+                    traceId,
+                    spanId: rootSpanId,
+                    name: "public-trace-root",
+                    kind: 1,
+                    startTimeUnixNano: {
+                      low: 466848096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    endTimeUnixNano: {
+                      low: 467248096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    attributes: [],
+                    status: {},
+                  },
+                  {
+                    traceId,
+                    spanId: childSpanId,
+                    parentSpanId: rootSpanId,
+                    name: "public-trace-child",
+                    kind: 1,
+                    startTimeUnixNano: {
+                      low: 466948096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    endTimeUnixNano: {
+                      low: 467148096,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    attributes: [
+                      {
+                        key: "langfuse.trace.public",
+                        value: { boolValue: true },
+                      },
+                    ],
+                    status: {},
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const [trace, rootEvent, childEvent] = await Promise.all([
+          getTraceById({ projectId, traceId: traceIdHex }),
+          getObservationByIdFromEventsTable({
+            projectId,
+            id: rootSpanIdHex,
+          }),
+          getObservationByIdFromEventsTable({
+            projectId,
+            id: childSpanIdHex,
+          }),
+        ]);
+        expect(trace?.public).toBe(false);
+        expect(rootEvent?.name).toBe("public-trace-root");
+        expect(childEvent?.name).toBe("public-trace-child");
+
+        const eventTrace = await getTraceByIdFromEventsTable({
+          projectId,
+          traceId: traceIdHex,
+        });
+        expect(eventTrace?.public).toBe(true);
+      }, 25_000);
+
+      const unAuthedContext = createInnerTRPCContext({
+        session: null,
+        headers: {},
+      });
+      const unAuthedCaller = appRouter.createCaller({
+        ...unAuthedContext,
+        prisma,
+      });
+
+      const result = await unAuthedCaller.events.byTraceId({
+        projectId,
+        traceId: traceIdHex,
+      });
+
+      expect(result.observations.map(({ id }) => id)).toEqual(
+        expect.arrayContaining([rootSpanIdHex, childSpanIdHex]),
+      );
+      expect(result.observations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: rootSpanIdHex,
+            name: "public-trace-root",
+          }),
+          expect.objectContaining({
+            id: childSpanIdHex,
+            name: "public-trace-child",
+          }),
+        ]),
+      );
+    },
+    60_000,
+  );
 
   it("should process a json payload with usage details correctly", async () => {
     const traceId = randomBytes(16);
