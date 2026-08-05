@@ -11,6 +11,7 @@ import {
   getObservationLevels,
 } from "./tree-building";
 import { getSubtreeDurationOverflowMs } from "./helpers";
+import { computeRootAggregates } from "./trace-aggregation";
 import { type TreeNode } from "./types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
@@ -81,6 +82,45 @@ const createMockTrace = (overrides: Record<string, unknown> = {}) => ({
   environment: "default",
   latency: 1.5,
   ...overrides,
+});
+
+describe("computeRootAggregates", () => {
+  it("sums root costs and uses the longest explicit or wall-clock duration", () => {
+    const roots: TreeNode[] = [
+      {
+        id: "zero-latency-root",
+        type: "SPAN",
+        name: "Zero latency",
+        startTime: new Date("2024-01-01T00:00:00.000Z"),
+        endTime: new Date("2024-01-01T00:00:05.000Z"),
+        children: [],
+        latency: 0,
+        totalCost: new Decimal(0.2),
+        startTimeSinceTrace: 0,
+        startTimeSinceParentStart: null,
+        depth: 0,
+        childrenDepth: 0,
+      },
+      {
+        id: "wall-clock-root",
+        type: "SPAN",
+        name: "Wall clock fallback",
+        startTime: new Date("2024-01-01T00:00:01.000Z"),
+        endTime: new Date("2024-01-01T00:00:04.000Z"),
+        children: [],
+        totalCost: new Decimal(0.3),
+        startTimeSinceTrace: 1000,
+        startTimeSinceParentStart: null,
+        depth: 0,
+        childrenDepth: 0,
+      },
+    ];
+
+    const result = computeRootAggregates(roots);
+
+    expect(result.totalCost?.equals(new Decimal(0.5))).toBe(true);
+    expect(result.totalDurationMs).toBe(3000);
+  });
 });
 
 describe("buildTraceUiData", () => {
