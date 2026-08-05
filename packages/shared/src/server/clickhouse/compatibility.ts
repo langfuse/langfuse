@@ -18,7 +18,9 @@ export type ClickHouseVersionBand = {
   maxExclusive?: string;
 };
 
-type ClickHouseCompatibilityEnvKey = "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION";
+type ClickHouseCompatibilityEnvKey =
+  | "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION"
+  | "CLICKHOUSE_DISABLE_FILTER_PUSH_DOWN";
 
 type ClickHouseCompatibilityEnvValue = "auto" | "true" | "false";
 
@@ -65,6 +67,17 @@ const CLICKHOUSE_COMPATIBILITY_RULES: ClickHouseCompatibilityRule[] = [
       "Work around ClickHouse analyzer failures that can surface as `Not found column and(...)` on compound predicates.",
     versionBands: [{ minInclusive: "25.4.0" }],
     overrideEnvKey: "CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION",
+  },
+  {
+    id: "disable-filter-push-down",
+    setting: "query_plan_filter_push_down",
+    value: 0,
+    reason:
+      "Work around a ClickHouse 26.5+ analyzer regression where FINAL on the left table of a JOIN " +
+      "fails with `Not found column and(...)` (NOT_FOUND_COLUMN_IN_BLOCK) once the WHERE clause " +
+      "prunes every part, e.g. the scores UI query filtered to a project with no matching rows.",
+    versionBands: [{ minInclusive: "26.5.0" }],
+    overrideEnvKey: "CLICKHOUSE_DISABLE_FILTER_PUSH_DOWN",
   },
 ];
 
