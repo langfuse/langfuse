@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../components/InAppAgentWindow/InAppAgentWindow";
-import type { InAppAgentPendingToolApproval } from "../../InAppAgentProvider/InAppAiAgentProvider";
 import type { InAppAgentMessageContent } from "../components/InAppAgentWindow/components/InAppAgentMessage/InAppAgentMessage";
 import { deduplicateBy } from "@/src/utils/arrays";
 import { safeJsonParse, stableJsonStringify } from "@langfuse/shared";
@@ -17,6 +16,7 @@ import {
 import { extractLangfuseDocsSources } from "@/src/features/in-app-agent/fns/extractLangfuseDocsSources";
 import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/types";
 import { parseJsonString } from "@/src/features/in-app-agent/fns/parseJsonString";
+import { type InAppAgentPendingToolApproval } from "@/src/features/in-app-agent/context/InAppAiAgentContext";
 
 const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
   z.object({

@@ -1,7 +1,7 @@
 import {
   InAppAiAgentContext,
   type InAppAiAgentContextType,
-} from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
+} from "@/src/features/in-app-agent/context/InAppAiAgentContext";
 import { useContext } from "react";
 
 const NOOP_CONTEXT: InAppAiAgentContextType = {

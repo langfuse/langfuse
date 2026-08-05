@@ -3,4 +3,4 @@ export { InAppAgentWindowHost } from "./components/InAppAgentWindowHost/InAppAge
 export { InAppAiAgentProvider } from "./components/InAppAgentProvider/InAppAiAgentProvider";
 export { useInAppAiAgent } from "./hooks/useInAppAiAgent";
 export { useCanUseInAppAgent } from "./hooks/useCanUseInAppAgent";
-export type { InAppAgentEntryPoint } from "./components/InAppAgentProvider/InAppAiAgentProvider";
+export type { InAppAgentEntryPoint } from "./context/InAppAiAgentContext";

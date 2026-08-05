@@ -1,9 +1,9 @@
 import { act, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
 
-import type { InAppAgentPendingToolApproval } from "../../InAppAgentProvider/InAppAiAgentProvider";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
+import { type InAppAgentPendingToolApproval } from "@/src/features/in-app-agent/context/InAppAiAgentContext";
 
 const userMessage = {
   id: "user",

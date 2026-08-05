@@ -1,5 +1,4 @@
 import {
-  createContext,
   useCallback,
   useEffect,
   useMemo,
@@ -35,7 +34,6 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { type InAppAiAgentMessage } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/fns/getDrawerMessages";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentProvider/components/InAppAgentDisabledDialog";
 import { performToolSideEffects } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/performToolSideEffects";
@@ -56,6 +54,12 @@ import { recordInAppAgentToolCallForDisplay } from "./fns/recordInAppAgentToolCa
 import { createInAppAgentDisplayState } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/createInAppAgentDisplayState";
 import { recordInAppAgentMessagesForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/recordInAppAgentMessagesForDisplay";
 import { projectInAppAgentMessagesForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/projectInAppAgentMessagesForDisplay";
+import {
+  type InAppAgentEntryPoint,
+  InAppAiAgentContext,
+  type InAppAgentPendingToolApproval,
+  type InAppAiAgentContextType,
+} from "@/src/features/in-app-agent/context/InAppAiAgentContext";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -64,11 +68,6 @@ const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
-
-export type InAppAgentEntryPoint =
-  | "top_nav"
-  | "keyboard_shortcut"
-  | "dashboard_widget";
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -118,62 +117,6 @@ export type InAppAgentDisplayState = {
   >;
   toolCallPlacements: Record<string, InAppAgentDisplayPlacement | null>;
 };
-
-export type InAppAgentPendingToolApproval = {
-  id: string;
-  approvalRequest: InAppAgentToolApprovalRequest;
-  status: "pending" | "submitting";
-};
-
-export type InAppAiAgentConversation = {
-  id: string;
-  title: string | null;
-  updatedAt: Date;
-  isWriteLocked: boolean;
-};
-
-export type InAppAiAgentContextType = {
-  isAvailable: boolean;
-  open: boolean;
-  setOpen: Dispatch<SetStateAction<boolean>>;
-  /** Open the assistant from an entrypoint. Owns the AI-features gate: shows
-   * the disabled dialog and returns false when the organization has AI
-   * features turned off. */
-  openAssistant: (source: InAppAgentEntryPoint) => boolean;
-  isExpanded: boolean;
-  setIsExpanded: Dispatch<SetStateAction<boolean>>;
-  isRunning: boolean;
-  isSubmitting: boolean;
-  pendingToolApprovals: InAppAgentPendingToolApproval[];
-  isSelectedConversationHydrating: boolean;
-  error: InAppAgentError | null;
-  messages: InAppAiAgentMessage[];
-  liveMessageVersion: number;
-  conversations: InAppAiAgentConversation[];
-  hasMoreConversations: boolean;
-  isLoadingMoreConversations: boolean;
-  selectedConversationId: string | undefined;
-  selectedConversationIsWriteLocked: boolean;
-  loadMoreConversations: () => void;
-  invalidateConversations: () => void;
-  selectConversation: (conversationId: string | null) => void;
-  deleteConversation: (conversationId: string) => Promise<void>;
-  submit: (
-    content: string,
-    options?: InAppAgentSubmitOptions,
-  ) => Promise<boolean>;
-  approveToolCall: (approvalId: string) => Promise<void>;
-  rejectToolCall: (approvalId: string) => Promise<void>;
-  submitFeedback: (params: {
-    messageId: string;
-    runId: string;
-    value: InAppAgentMessageFeedbackValue | null;
-    comment?: string | null;
-  }) => Promise<void>;
-};
-
-export const InAppAiAgentContext =
-  createContext<InAppAiAgentContextType | null>(null);
 
 export type InAppAiAgentProviderProps = PropsWithChildren<{
   defaultOpen?: boolean;
