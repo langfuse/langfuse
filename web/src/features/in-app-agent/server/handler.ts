@@ -41,6 +41,7 @@ import {
 } from "@langfuse/shared/in-app-agent/server/tools";
 import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import {
+  createSandboxToolCallFileAccumulator,
   createRun,
   ensureOwnedConversation,
   finishRun,
@@ -48,11 +49,9 @@ import {
   getConversationMessagesForReplay,
   isInAppAgentConversationWriteLocked,
   maybeInferAndPersistConversationTitle,
-  getSandboxToolCallFiles,
   flushPendingRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-  type PersistedConversationEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import { createInAppAgentSandbox } from "@langfuse/shared/in-app-agent/server/sandbox";
 import {
@@ -292,9 +291,8 @@ export default async function handler(request: Request) {
     const resumeApprovalRequest = isResumeAgentInput(sanitizedInput)
       ? sanitizedInput.forwardedProps.command.resume.approvalRequest
       : undefined;
-    const currentRunSandboxToolCallEvents: Array<
-      Omit<PersistedConversationEvent, "sequenceNumber">
-    > = [];
+    const sandboxToolCallFiles =
+      createSandboxToolCallFileAccumulator(conversationEvents);
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
     const sandboxProvider =
       await getInAppAgentSandboxProvider(sandboxProviderType);
@@ -304,11 +302,7 @@ export default async function handler(request: Request) {
           projectId,
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
-          getToolCallFiles: async () =>
-            getSandboxToolCallFiles([
-              ...conversationEvents,
-              ...currentRunSandboxToolCallEvents,
-            ]),
+          getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),
           saveState: async (state) => {
             await prisma.inAppAgentConversation.update({
               where: {
@@ -451,7 +445,7 @@ export default async function handler(request: Request) {
                 }
 
                 pendingPersistedEvents.push(persistedEvent);
-                currentRunSandboxToolCallEvents.push({
+                sandboxToolCallFiles.processEvent({
                   event: persistedEvent,
                   runId: sanitizedInput.runId,
                   createdAt: new Date(),

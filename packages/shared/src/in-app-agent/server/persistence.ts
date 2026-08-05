@@ -425,7 +425,7 @@ export async function getConversationEvents(params: {
  * Returns `tool_calls` file payloads reconstructed from prior non-sandbox tool
  * calls so each sandbox session can mount the same context.
  */
-export function getSandboxToolCallFiles(
+export function createSandboxToolCallFileAccumulator(
   events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
 ) {
   const drafts = new Map<
@@ -438,7 +438,10 @@ export function getSandboxToolCallFiles(
   >();
   const files: Array<{ path: string; content: string }> = [];
 
-  for (const { event, createdAt } of events) {
+  const processEvent = ({
+    event,
+    createdAt,
+  }: Omit<PersistedConversationEvent, "sequenceNumber">) => {
     if (event.type === EventType.TOOL_CALL_START) {
       const toolCallId = getString(event, "toolCallId");
       const toolName = getString(event, "toolCallName");
@@ -454,7 +457,7 @@ export function getSandboxToolCallFiles(
           request: "",
         });
       }
-      continue;
+      return;
     }
 
     if (event.type === EventType.TOOL_CALL_ARGS) {
@@ -464,18 +467,18 @@ export function getSandboxToolCallFiles(
       if (draft) {
         draft.request += getString(event, "delta") ?? "";
       }
-      continue;
+      return;
     }
 
     if (event.type !== EventType.TOOL_CALL_RESULT) {
-      continue;
+      return;
     }
 
     const toolCallId = getString(event, "toolCallId");
     const draft = toolCallId ? drafts.get(toolCallId) : undefined;
 
     if (!toolCallId || !draft) {
-      continue;
+      return;
     }
 
     drafts.delete(toolCallId);
@@ -494,9 +497,22 @@ export function getSandboxToolCallFiles(
         2,
       ),
     });
+  };
+
+  for (const event of events) {
+    processEvent(event);
   }
 
-  return files;
+  return {
+    processEvent,
+    getFiles: () => files,
+  };
+}
+
+export function getSandboxToolCallFiles(
+  events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
+) {
+  return createSandboxToolCallFileAccumulator(events).getFiles();
 }
 
 export async function getConversationMessages(params: {
