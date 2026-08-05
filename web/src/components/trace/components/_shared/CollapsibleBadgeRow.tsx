@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * CollapsibleBadgeRow - metadata-badge row wrapper shared by the trace and
  * observation detail headers.

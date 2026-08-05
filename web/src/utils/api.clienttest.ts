@@ -108,17 +108,47 @@ describe("getTrpcErrorCode / getTrpcErrorPath", () => {
 });
 
 describe("isExpectedTrpcClientError", () => {
+  const httpStatusByCode: Record<string, number> = {
+    NOT_FOUND: 404,
+    FORBIDDEN: 403,
+    UNAUTHORIZED: 401,
+    UNPROCESSABLE_CONTENT: 422,
+  };
+
   // Expected, user-facing states — must be suppressed (not captured to Sentry).
   it.each(EXPECTED_TRPC_ERROR_CODES)(
     "treats %s as an expected client error",
     (code) => {
-      const httpStatus =
-        code === "NOT_FOUND" ? 404 : code === "FORBIDDEN" ? 403 : 401;
-      const error = trpcServerError({ code, httpStatus, path: "traces.byId" });
+      const error = trpcServerError({
+        code,
+        httpStatus: httpStatusByCode[code],
+        path: "traces.byId",
+      });
 
       expect(isExpectedTrpcClientError(error)).toBe(true);
     },
   );
+
+  it("treats the ClickHouse query-guardrail advice as expected", () => {
+    // Mirrors the production shape: `withErrorHandling` (web/src/server/api/
+    // trpc.ts) maps ClickHouseResourceError to UNPROCESSABLE_CONTENT with the
+    // RESOURCE_LIMIT_ERROR_MESSAGE advice; the UI renders it as toast/inline.
+    const error = TRPCClientError.from({
+      error: {
+        code: -32600,
+        message:
+          "Your query could not be completed. Please narrow your request by adding more specific filters (e.g., a shorter date range).",
+        data: {
+          code: "UNPROCESSABLE_CONTENT",
+          httpStatus: 422,
+          path: "traces.metrics",
+          errorName: "ClickHouseResourceError",
+        },
+      },
+    });
+
+    expect(isExpectedTrpcClientError(error)).toBe(true);
+  });
 
   // Negative fixtures: real errors MUST still flow to Sentry. If any of these
   // start returning true, the suppression rule has grown a hole that hides a

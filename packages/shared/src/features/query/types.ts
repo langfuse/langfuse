@@ -102,7 +102,7 @@ export const viewDeclaration = z.object({
     .object({
       // The column used to match root entities between outer query and subquery (e.g., "trace_id").
       column: z.string(),
-      // SQL condition identifying root events (e.g., "parent_span_id = ''").
+      // Fully qualified, self-contained SQL condition identifying root events.
       condition: z.string(),
     })
     .optional(),
@@ -120,7 +120,8 @@ export const views = z.enum([
   // "users",
 ]);
 
-// V2 views - excludes "traces" which is not supported in v2 API
+// Public v2 API views - excludes "traces". Internal dashboard queries still
+// support the events-backed v2 traces declaration for legacy widget parity.
 export const viewsV2 = z.enum([
   "observations",
   "scores-numeric",

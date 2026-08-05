@@ -1,12 +1,14 @@
-import { useMemo } from "react";
 import {
   useQueryParams,
   withDefault,
   ArrayParam,
   StringParam,
 } from "use-query-params";
+import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 
-const MAX_COMPARISONS = 4;
+// Drop null/empty entries and de-duplicate, preserving first-seen order.
+const dedupe = (ids: (string | null | undefined)[]): string[] =>
+  Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
 
 export function useExperimentResultsState() {
   const [state, setState] = useQueryParams({
@@ -16,66 +18,65 @@ export function useExperimentResultsState() {
     itemVisibility: withDefault(StringParam, "baseline-only"),
   });
 
-  // Parse baseline ID
-  const baselineId = state.baseline as string | undefined;
-  const hasBaseline = Boolean(baselineId);
+  // The URL keeps the explicit baseline separate from comparison IDs, but
+  // internally they form one ordered selection with the baseline first.
+  const explicitBaselineId = state.baseline as string | undefined;
+  const selectedExperimentIds = dedupe([
+    explicitBaselineId,
+    ...((state.c as (string | null)[] | undefined) ?? []),
+  ]).slice(0, MAX_SELECTED_EXPERIMENTS);
 
-  // Parse comparison IDs - filter out null values and cast to string[]
-  const rawIds = state.c as (string | null)[] | undefined;
-  const comparisonIds: string[] = (rawIds ?? []).filter(
-    (id): id is string => typeof id === "string" && id.length > 0,
+  const comparisonIds = selectedExperimentIds.filter(
+    (id) => id !== explicitBaselineId,
   );
+  const hasBaseline = Boolean(explicitBaselineId);
 
-  // Set baseline with reconciliation: remove from comparison if present
+  // Write one ordered selection back to the URL. The baseline is prepended so it
+  // is always kept and lands first; anything past the limit is evicted from the
+  // end; the baseline is stripped out of `c`.
+  const commitSelection = (
+    orderedIds: string[],
+    baseline: string | undefined,
+  ) => {
+    const ids = dedupe([baseline, ...orderedIds]).slice(
+      0,
+      MAX_SELECTED_EXPERIMENTS,
+    );
+    setState({
+      baseline,
+      c: baseline ? ids.filter((id) => id !== baseline) : ids,
+    });
+  };
+
+  // Selecting a baseline moves it to the front of the selection and marks it,
+  // evicting the last selection when the total limit is reached.
   const setBaseline = (id: string | undefined) => {
     if (!id) {
       clearBaseline();
       return;
     }
-
-    // Remove new baseline from comparison list if present
-    const newComparisonIds = comparisonIds.filter((cid) => cid !== id);
-
-    setState({
-      baseline: id,
-      ...(newComparisonIds.length !== comparisonIds.length
-        ? { c: newComparisonIds }
-        : {}),
-    });
+    commitSelection(selectedExperimentIds, id);
   };
 
-  // Clear baseline - moves current baseline to compare list.
+  // Clear the explicit baseline while preserving the selected experiments; the
+  // former baseline moves to the end of the comparison list.
   const clearBaseline = () => {
-    if (!baselineId) return;
-
-    // Move current baseline to compare list (always add, regardless of MAX_COMPARISONS)
-    const newComparisonIds = comparisonIds.includes(baselineId)
-      ? comparisonIds
-      : [...comparisonIds, baselineId];
-
-    setState({
-      baseline: undefined,
-      c: newComparisonIds,
-    });
+    if (!explicitBaselineId) return;
+    commitSelection([...comparisonIds, explicitBaselineId], undefined);
   };
 
-  // Comparison management
-  const setComparisonIds = (ids: string[]) => {
-    // Filter out baseline if present
-    const filtered = baselineId ? ids.filter((id) => id !== baselineId) : ids;
-    setState({ c: filtered.slice(0, MAX_COMPARISONS) });
-  };
+  const setComparisonIds = (ids: string[]) =>
+    commitSelection(ids, explicitBaselineId);
 
   const addComparisonId = (id: string) => {
-    if (id === baselineId) return; // Can't compare baseline with itself
-    if (comparisonIds.length >= MAX_COMPARISONS) return;
+    if (id === explicitBaselineId) return; // Can't compare baseline with itself
+    if (selectedExperimentIds.length >= MAX_SELECTED_EXPERIMENTS) return;
     if (comparisonIds.includes(id)) return;
     setComparisonIds([...comparisonIds, id]);
   };
 
-  const removeComparisonId = (id: string) => {
+  const removeComparisonId = (id: string) =>
     setComparisonIds(comparisonIds.filter((existingId) => existingId !== id));
-  };
 
   // Layout management
   const layout = (state.layout as "grid" | "list") ?? "list";
@@ -90,37 +91,24 @@ export function useExperimentResultsState() {
     setState({ itemVisibility: newVisibility });
   };
 
-  const resolveBaselineOrFirstComparison = () => baselineId ?? comparisonIds[0];
-
-  // All experiment IDs in order: effective baseline first, then comparisons
-  // Uses fallback to first comparison if no explicit baseline is set
-  const allExperimentIds = useMemo(() => {
-    const effectiveBaseline = baselineId ?? comparisonIds[0];
-    if (!effectiveBaseline) return [];
-    return [
-      effectiveBaseline,
-      ...comparisonIds.filter((id) => id !== effectiveBaseline),
-    ];
-  }, [baselineId, comparisonIds]);
-
   return {
     // Baseline
-    baselineId,
+    baselineId: explicitBaselineId,
     hasBaseline,
     setBaseline,
     clearBaseline,
-    resolveBaselineOrFirstComparison,
 
     // Comparison
     comparisonIds,
     setComparisonIds,
     addComparisonId,
     removeComparisonId,
-    maxComparisons: MAX_COMPARISONS,
-    canAddMore: comparisonIds.length < MAX_COMPARISONS,
+    maxSelectedExperiments: MAX_SELECTED_EXPERIMENTS,
+    canAddMore: selectedExperimentIds.length < MAX_SELECTED_EXPERIMENTS,
 
-    // All experiments (ordered: effective baseline first, then comparisons)
-    allExperimentIds,
+    // All selected experiments, preserving URL order with an explicit baseline first.
+    selectedExperimentIds,
+    allExperimentIds: selectedExperimentIds,
 
     // Layout
     layout,

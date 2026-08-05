@@ -99,6 +99,7 @@ export type ObservationReturnTypeWithMetadata = Omit<
   // optional, because in v4 an observation can have those properties
   userId?: string | null;
   sessionId?: string | null;
+  release?: string | null;
 };
 
 export type ObservationReturnType = Omit<

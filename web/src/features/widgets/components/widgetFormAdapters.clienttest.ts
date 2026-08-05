@@ -19,7 +19,7 @@ import {
   deriveEffectiveSort,
   deriveWidgetBaseMinVersion,
   deriveWidgetSuggestions,
-  resolveWidgetViewVersion,
+  resolveWidgetFormVersion,
   toDefaultValues,
   toSavePayload,
   type WidgetFormValues,
@@ -29,10 +29,10 @@ import {
 
 /** The view version the app would seed with for a given widget (non-beta). */
 const fixtureViewVersion = (iv: WidgetInitialValues) =>
-  resolveWidgetViewVersion({
+  resolveWidgetFormVersion({
     view: iv.view,
     baseMinVersion: deriveWidgetBaseMinVersion(iv),
-    isBetaEnabled: false,
+    activeVersion: "v1",
   });
 
 /**
@@ -391,14 +391,42 @@ describe("widget form adapters round-trip parity", () => {
 });
 
 describe("widget form view version", () => {
+  it("keeps a v1 base version for a v1-compatible create shape", () => {
+    expect(deriveWidgetBaseMinVersion(fixtures["regular line (create)"])).toBe(
+      1,
+    );
+  });
+
   it("promotes a legacy widget when its current shape requires v2", () => {
     expect(
-      resolveWidgetViewVersion({
+      resolveWidgetFormVersion({
         view: "observations",
         baseMinVersion: 1,
-        isBetaEnabled: false,
+        activeVersion: "v1",
         shape: {
-          dimensions: [{ field: "experimentName" }],
+          dimensions: [],
+          metrics: [{ measure: "count" }],
+          filters: [
+            {
+              column: "isRootObservation",
+              type: "boolean",
+              operator: "=",
+              value: true,
+            },
+          ],
+        },
+      }),
+    ).toBe("v2");
+  });
+
+  it("uses the events-backed v2 declaration for legacy trace widgets in v4", () => {
+    expect(
+      resolveWidgetFormVersion({
+        view: "traces",
+        baseMinVersion: 1,
+        activeVersion: "v2",
+        shape: {
+          dimensions: [],
           metrics: [{ measure: "count" }],
           filters: [],
         },

@@ -172,6 +172,7 @@ export type EventsTableRow = {
   name?: string;
   environment?: string;
   version?: string;
+  release?: string;
   level?: ObservationLevelType;
   statusMessage?: string;
 
@@ -1808,6 +1809,19 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
     },
     {
+      accessorKey: "release",
+      id: "release",
+      header: getEventsColumnName("release"),
+      size: 100,
+      headerTooltip: {
+        description: "Track changes to your application via the release tag.",
+        href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
+      },
+      enableHiding: true,
+      enableSorting,
+      defaultHidden: true,
+    },
+    {
       accessorKey: "userId",
       id: "userId",
       header: getEventsColumnName("userId"),
@@ -1955,6 +1969,7 @@ export default function ObservationsEventsTable({
               },
               name: observation.name ?? undefined,
               version: observation.version ?? "",
+              release: observation.release ?? "",
               providedModelName: observation.model ?? "",
               modelId: observation.internalModelId ?? undefined,
               level: observation.level,

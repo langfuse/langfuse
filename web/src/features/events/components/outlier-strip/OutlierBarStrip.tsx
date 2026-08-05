@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { X } from "lucide-react";

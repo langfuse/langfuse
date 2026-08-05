@@ -7,6 +7,7 @@ import {
   eventsTableIsRootObservationSql,
   eventsTableHasInputSql,
   eventsTableHasOutputSql,
+  eventsTableTraceNameSql,
 } from "../../eventsTable";
 
 export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
@@ -188,6 +189,14 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "e",
   },
   {
+    uiTableName: "Release",
+    uiTableId: "release",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "release",
+    queryPrefix: "e",
+    emptyEqualsNull: true,
+  },
+  {
     uiTableName: "Prompt Name",
     uiTableId: "promptName",
     clickhouseTableName: "events_proto",
@@ -222,7 +231,7 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Trace Name",
     uiTableId: "traceName",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: 'e."trace_name"',
+    clickhouseSelect: eventsTableTraceNameSql,
   },
   {
     uiTableName: "User ID",
