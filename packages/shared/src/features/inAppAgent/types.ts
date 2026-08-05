@@ -83,6 +83,8 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     parentRunId: z.string(),
     toolCallId: z.string(),
     approved: z.boolean(),
+    /** Inherited sanitized context; defaults for legacy continuation rows. */
+    context: z.array(AgUiContextSchema).default([]),
   }),
 ]);
 
