@@ -1,4 +1,4 @@
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
+import { useInAppAiAgent } from "@/src/features/in-app-agent";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import {
   useV4MigrationPanel,

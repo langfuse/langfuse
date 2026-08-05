@@ -10,7 +10,7 @@ import {
   LifeBuoy,
   TriangleAlert,
 } from "lucide-react";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAgentProvider/InAppAiAgentProvider";
+import { useInAppAiAgent } from "@/src/features/in-app-agent";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
