@@ -16,9 +16,9 @@ type OrgWithCloudConfig = {
  * 2. Any existing Stripe billing state pins the org to Stripe (legacy). An
  *    existing billed customer can never flip providers via config.
  * 3. Otherwise the org has never been billed: the cutoff decides at upgrade
- *    time — first checkouts on/after the cutoff instant go to CHB, regardless
- *    of when the org was created. Until a checkout writes CHB state,
- *    resolving to "clickhouse" has no side effects.
+ *    time — first checkouts on/after the cutoff go to CHB, regardless of when
+ *    the org was created. Until a checkout writes CHB state, resolving to
+ *    "clickhouse" has no side effects.
  *
  * The cutoff is injected rather than read from the environment: this module is
  * exported from the client-safe barrel, so it must not reach for the server env

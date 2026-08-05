@@ -399,9 +399,10 @@ export const env = createEnv({
 
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
-    // ClickHouse Billing (CHB) integration. The cutoff routes first-time
-    // upgrades on/after this instant to CHB; unset = feature off.
-    LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso.datetime().optional(),
+    // ClickHouse Billing (CHB) integration. First-time upgrades on/after this
+    // UTC date route to CHB; unset = feature off. Date-only (YYYY-MM-DD) so the
+    // cutline is a single unambiguous instant of UTC midnight.
+    LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso.date().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),

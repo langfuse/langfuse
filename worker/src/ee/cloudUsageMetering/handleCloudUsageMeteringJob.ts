@@ -151,6 +151,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   // setup stripe client
   const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
+  // Date-only env value, so this is UTC midnight of the cutoff date.
   const chbCutoffDate = env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE
     ? new Date(env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE)
     : null;

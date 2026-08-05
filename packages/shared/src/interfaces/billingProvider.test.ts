@@ -10,7 +10,8 @@ const orgWith = (cloudConfig: unknown) => ({
     cloudConfig === null ? null : CloudConfigSchema.parse(cloudConfig),
 });
 
-const PAST = new Date("2020-01-01T00:00:00.000Z");
+// Cutoffs arrive as date-only env values, i.e. UTC midnight.
+const PAST = new Date("2020-01-01");
 
 describe("getBillingProvider", () => {
   describe("orgs with existing Stripe state are pinned to stripe", () => {
@@ -67,7 +68,7 @@ describe("getBillingProvider", () => {
     });
 
     it("cutoff boundary: now exactly at the cutoff resolves to clickhouse", () => {
-      const cutoff = new Date("2026-01-01T00:00:00.000Z");
+      const cutoff = new Date("2026-01-01");
       expect(getBillingProvider(orgWith({}), { cutoff, now: cutoff })).toBe(
         "clickhouse",
       );
