@@ -5,11 +5,18 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
+/** @type {typeof import("typescript")} */
 const ts = require("typescript");
 
+/** @typedef {import("./detectors.mjs").ExportEntry} ExportEntry */
+
+/** @param {string} webRoot */
 export function buildCensus(webRoot) {
+  /** @type {string[]} */
   const files = [];
+  /** @type {string[]} */
   const dirs = [];
+  /** @param {string} d */
   (function walk(d) {
     for (const e of readdirSync(`${webRoot}/${d}`, { withFileTypes: true })) {
       const p = `${d}/${e.name}`;
@@ -20,16 +27,23 @@ export function buildCensus(webRoot) {
     }
   })("src");
 
+  /** @type {Map<string, string>} */
   const contents = new Map();
+  /** @type {(p: string) => string} */
   const contentOf = (p) => {
-    if (!contents.has(p))
-      contents.set(p, readFileSync(`${webRoot}/${p}`, "utf8"));
-    return contents.get(p);
+    const cached = contents.get(p);
+    if (cached !== undefined) return cached;
+    const content = readFileSync(`${webRoot}/${p}`, "utf8");
+    contents.set(p, content);
+    return content;
   };
 
+  /** @type {Map<string, ExportEntry[]>} */
   const exportCache = new Map();
+  /** @type {(p: string) => ExportEntry[]} */
   const exportsOf = (p) => {
-    if (exportCache.has(p)) return exportCache.get(p);
+    const cached = exportCache.get(p);
+    if (cached !== undefined) return cached;
     const sf = ts.createSourceFile(
       p,
       contentOf(p),
@@ -37,7 +51,8 @@ export function buildCensus(webRoot) {
       false,
       p.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
     );
-    const out = []; // { name, kind: 'type' | 'value' | 'reexport' | 'star' }
+    /** @type {ExportEntry[]} */
+    const out = [];
     for (const st of sf.statements) {
       if (ts.isExportDeclaration(st)) {
         if (!st.exportClause) out.push({ name: "*", kind: "star" });

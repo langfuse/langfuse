@@ -20,13 +20,17 @@ import extractTsConfig from "dependency-cruiser/config-utl/extract-ts-config";
 import { buildCensus } from "./census.mjs";
 import * as d from "./detectors.mjs";
 
+/** @typedef {import("./detectors.mjs").Violation} Violation */
+
 const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const require = createRequire(import.meta.url);
 const BASELINE_PATH = `${webRoot}/.structure-baseline.json`;
 
 // --- args -------------------------------------------------------------------
 const args = process.argv.slice(2);
+/** @type {(name: string) => boolean} */
 const flag = (name) => args.includes(`--${name}`);
+/** @type {(name: string) => string | undefined} */
 const opt = (name) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? args[i + 1] : undefined;
@@ -36,6 +40,7 @@ const scope = opt("scope");
 
 const useColor =
   process.stdout.isTTY && !process.env.NO_COLOR && !flag("no-color");
+/** @type {(code: string) => (s: string) => string} */
 const paint = (code) => (s) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : `${s}`);
 const green = paint("32");
 const red = paint("31");
@@ -55,7 +60,7 @@ const cruiseResult = await cruise(
     tsConfig: dcConfig.options.tsConfig,
     validate: false,
   },
-  null,
+  undefined,
   { tsConfig: extractTsConfig(`${webRoot}/tsconfig.json`) },
 );
 const graph =
@@ -196,16 +201,17 @@ const RULES = [
   },
 ];
 
+/** @type {(viol: Violation) => boolean} */
 const inScope = (viol) => !scope || viol.paths.some((p) => p.startsWith(scope));
-const results = new Map(); // id -> sorted violations (scoped)
+/** @type {Map<number, Violation[]>} id -> sorted, deduped violations (scoped) */
+const results = new Map();
 for (const r of RULES) {
   if (!r.get) continue;
+  const byKey = new Map(); // a pair of import statements can yield two graph edges
+  for (const viol of r.get()) if (inScope(viol)) byKey.set(viol.key, viol);
   results.set(
     r.id,
-    r
-      .get()
-      .filter(inScope)
-      .sort((a, b) => a.key.localeCompare(b.key)),
+    [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key)),
   );
 }
 const tAll = Date.now();
@@ -245,7 +251,9 @@ if (flag("baseline")) {
 }
 
 // scoped baseline counts work by key substring: keys embed the paths involved
+/** @type {(id: number) => string[] | null} */
 const baselineKeys = (id) => {
+  /** @type {string[] | undefined} */
   const keys = baseline?.rules?.[id];
   if (!keys) return null;
   return scope ? keys.filter((k) => k.includes(scope)) : keys;
@@ -271,6 +279,7 @@ if (flag("json")) {
   process.exit(0);
 }
 
+/** @type {(delta: number) => string} */
 const fmtDelta = (delta) =>
   delta === 0 ? dim("±0") : delta < 0 ? green(String(delta)) : red(`+${delta}`);
 
@@ -287,7 +296,7 @@ if (ruleFilter) {
     );
     process.exit(0);
   }
-  const viols = results.get(id);
+  const viols = results.get(id) ?? [];
   console.log(bold(`rule ${id} — ${rule.title}`));
   console.log(
     `${viols.length} violation${viols.length === 1 ? "" : "s"}${scope ? ` in ${scope}` : ""}\n`,
@@ -306,7 +315,7 @@ if (flag("diff")) {
   let anything = false;
   for (const r of RULES) {
     if (!r.get) continue;
-    const now = new Set(results.get(r.id).map((x) => x.key));
+    const now = new Set((results.get(r.id) ?? []).map((x) => x.key));
     const base = new Set(baselineKeys(r.id) ?? []);
     const fixed = [...base].filter((k) => !now.has(k));
     const added = [...now].filter((k) => !base.has(k));
@@ -339,7 +348,7 @@ let total = 0;
 let baseTotal = 0;
 let hasBaseline = false;
 for (const r of RULES) {
-  const viols = r.get ? results.get(r.id) : null;
+  const viols = r.get ? (results.get(r.id) ?? []) : null;
   const count = viols ? String(viols.length) : "—";
   let delta = "";
   if (viols) {

@@ -47,7 +47,8 @@ module.exports = {
       from: {
         pathNot: [
           "(^|/)server/",
-          "^src/pages/api/",
+          "^src/(pages|app)/api/",
+          "(^|/)scripts/",
           "^src/instrumentation",
           TEST_FILES,
         ],
@@ -113,7 +114,10 @@ module.exports = {
       severity: "warn",
       from: { path: "^(src/(?:ee/)?features/[^/]+)/" },
       to: {
-        path: "^src/(?:ee/)?features/[^/]+/(.+/)?__tests__/",
+        path: [
+          "^src/(?:ee/)?features/[^/]+/__tests__/",
+          "^src/(?:ee/)?features/[^/]+/.+/__tests__/",
+        ],
         pathNot: ["^$1/"],
       },
     },
@@ -123,7 +127,12 @@ module.exports = {
         "Rule 19: a feature's __tests__ can use the global one, never the reverse.",
       severity: "warn",
       from: { path: "^src/__tests__/" },
-      to: { path: "^src/(?:ee/)?features/.*__tests__/" },
+      to: {
+        path: [
+          "^src/(?:ee/)?features/[^/]+/__tests__/",
+          "^src/(?:ee/)?features/[^/]+/.+/__tests__/",
+        ],
+      },
     },
   ],
   options: {
