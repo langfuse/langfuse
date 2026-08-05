@@ -250,13 +250,18 @@ if (flag("baseline")) {
   process.exit(0);
 }
 
-// scoped baseline counts work by key substring: keys embed the paths involved
+// Scoped baseline counts: every violation key embeds its paths as
+// whitespace-delimited tokens, so token-prefix matching gives the same
+// semantics as inScope()'s path-prefix matching on current violations.
+/** @type {(key: string) => boolean} */
+const keyInScope = (key) =>
+  !scope || key.split(/\s+/).some((t) => t.startsWith(scope));
 /** @type {(id: number) => string[] | null} */
 const baselineKeys = (id) => {
   /** @type {string[] | undefined} */
   const keys = baseline?.rules?.[id];
   if (!keys) return null;
-  return scope ? keys.filter((k) => k.includes(scope)) : keys;
+  return keys.filter(keyInScope);
 };
 
 // --- output ------------------------------------------------------------------

@@ -56,10 +56,12 @@ export function rule7(modules) {
   /** @type {(p: string) => { dir: string, name: string }[]} */
   const boundaries = (p) => {
     const out = [];
-    const re = /\/([A-Z][A-Za-z0-9]*)\//g;
+    // lookahead keeps the trailing slash unconsumed so directly-nested
+    // PascalCase dirs (Foo/Bar/...) each register a boundary
+    const re = /\/([A-Z][A-Za-z0-9]*)(?=\/)/g;
     let m;
     while ((m = re.exec(p)))
-      out.push({ dir: p.slice(0, m.index + m[0].length), name: m[1] });
+      out.push({ dir: p.slice(0, m.index + m[0].length + 1), name: m[1] });
     return out.reverse(); // deepest first
   };
   const out = [];
@@ -246,12 +248,10 @@ export function rule6(modules) {
     if (SHARED.test(p)) return null; // resolve transitively
     return "other";
   };
-  /** @type {Map<string, Set<string>>} */
-  const memo = new Map();
+  // no memoization: a cycle back-edge truncates the traversal, and caching
+  // such a partial result would misclassify shared files order-dependently
   /** @type {(p: string, stack?: Set<string>) => Set<string>} */
   const eff = (p, stack = new Set()) => {
-    const hit = memo.get(p);
-    if (hit) return hit;
     if (stack.has(p)) return new Set();
     stack.add(p);
     const homes = new Set();
@@ -262,7 +262,6 @@ export function rule6(modules) {
       else homes.add(h);
     }
     stack.delete(p);
-    memo.set(p, homes);
     return homes;
   };
   const out = [];
@@ -330,7 +329,7 @@ export function outsideDeepImports(modules) {
 const FEATURE_SCOPE = /^src\/(?:ee\/)?features\//;
 
 /** @type {(p: string) => boolean} */
-const isContextModule = (p) => /[A-Z][A-Za-z0-9]*Context\.tsx?$/.test(base(p));
+const isContextModule = (p) => /^[A-Z][A-Za-z0-9]*Context\.tsx?$/.test(base(p));
 /** @type {(p: string) => boolean} */
 const isHookFile = (p) => /^use[A-Z]/.test(stem(p));
 
@@ -389,8 +388,9 @@ export function rule3(files, exportsOf) {
   const out = [];
   for (const f of files) {
     if (isTestish(f)) continue;
+    if (/(^|\/)server\//.test(f)) continue; // server/ internals: unspecified by the RFC
     const inKind = /(^|\/)(hooks|fns|stores|contexts)\//.test(f);
-    if (!inKind && !isHookFile(f)) continue;
+    if (!inKind && !isHookFile(f) && !isContextModule(f)) continue;
     if (/(^|\/)fns\/index\.[jt]s$/.test(f)) continue; // rule 4's dump-file finding
     const s = stem(f);
     if (isContextModule(f)) {
