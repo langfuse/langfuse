@@ -5,6 +5,11 @@ import { VitestCiReporter } from "../scripts/vitest/ci-reporter";
 // Load ../.env so direct Vitest runs and package scripts use the same worker env.
 config({ path: "../.env" });
 
+// Tests must not inherit a locally configured sandbox provider from ../.env
+// (e.g. dangerous-docker). Sandbox enablement is owned solely by
+// LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER — unset it for the test process.
+delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
+
 export default defineConfig({
   test: {
     reporters: process.env.CI
