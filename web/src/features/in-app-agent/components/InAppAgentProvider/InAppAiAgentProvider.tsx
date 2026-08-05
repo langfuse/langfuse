@@ -32,7 +32,6 @@ import {
 } from "@langfuse/shared/in-app-agent";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -57,7 +56,6 @@ import { recordInAppAgentToolCallForDisplay } from "./fns/recordInAppAgentToolCa
 import { createInAppAgentDisplayState } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/createInAppAgentDisplayState";
 import { recordInAppAgentMessagesForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/recordInAppAgentMessagesForDisplay";
 import { projectInAppAgentMessagesForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/projectInAppAgentMessagesForDisplay";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/hooks/useInAppAiAgent";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -1375,20 +1373,4 @@ function getAgentErrorMessage(error: unknown): string {
   }
 
   return "Assistant request failed. Please try again.";
-}
-
-/** Whether the current user/context may use the in-app assistant at all.
- * Shared gate for the launcher button and the window host. */
-export function useCanUseInAppAgent() {
-  const { isAvailable } = useInAppAiAgent();
-  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { organization } = useQueryProjectOrOrganization();
-
-  return (
-    isAvailable &&
-    hasInAppAgentEntitlement &&
-    isLangfuseCloud &&
-    Boolean(organization)
-  );
 }
