@@ -9,6 +9,10 @@ import {
 } from "@langfuse/shared/in-app-agent";
 
 vi.hoisted(() => {
+  // This suite uses mocked agent execution and does not exercise a sandbox
+  // provider. Keep its provider selection explicit rather than inheriting the
+  // developer's root .env.
+  delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
   process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ??= "DEV";
   process.env.NEXTAUTH_URL ??= "http://localhost:3000";
   process.env.LANGFUSE_AWS_BEDROCK_REGION ??= "eu-central-1";

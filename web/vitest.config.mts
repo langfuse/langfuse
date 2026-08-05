@@ -12,11 +12,6 @@ import { VitestCiReporter } from "../scripts/vitest/ci-reporter";
 expand(config({ path: "../.env.test" }));
 expand(config({ path: "../.env" }));
 
-// Tests must not inherit a locally configured sandbox provider from ../.env
-// (e.g. dangerous-docker). Sandbox enablement is owned solely by
-// LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER — unset it for the test process.
-delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
-
 const sharedExclude = [
   "**/node_modules/**",
   "**/.next/**",
