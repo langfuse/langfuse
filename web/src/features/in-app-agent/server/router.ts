@@ -184,16 +184,14 @@ export const inAppAgentRouter = createTRPCRouter({
       );
 
       await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
-      await assertInAppAgentRunCapacity({
-        prisma: ctx.prisma,
-        orgId: rateLimitScope.orgId,
-        plan: rateLimitScope.plan,
-        userId: ctx.session.user.id,
-      });
 
+      // The concurrency ceiling is enforced inside `startBackgroundRun`, which
+      // owns the conversation lookup it has to reconcile against first.
       return startBackgroundRun({
         prisma: ctx.prisma,
         projectId: input.projectId,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
         message: input.message,

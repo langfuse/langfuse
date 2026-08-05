@@ -397,6 +397,53 @@ describe("in-app agent background runs", () => {
     ).toMatchObject({ status: InAppAgentRunStatus.QUEUED });
   });
 
+  it("admits a replacement turn when the conversation's own run lost its worker", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    // Claimed recently enough to sit inside the capacity cutoff, but its
+    // heartbeat is dead: reconciliation will fail it, so the ceiling must not
+    // reject the replacement before that happens (a worker task rotating on
+    // deploy leaves exactly this row).
+    const abandonedRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        request: { kind: "userMessage", context: [] },
+        createdAt: new Date(Date.now() - 5 * 60_000),
+        claimedAt: new Date(Date.now() - 5 * 60_000),
+        heartbeatAt: new Date(
+          Date.now() - sharedEnv.LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS * 3,
+        ),
+      },
+    });
+
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+
+    const { runId } = await caller.startRun({
+      projectId,
+      conversationId: conversation.id,
+      message: "my run died, let me retry",
+    });
+
+    expect(
+      await prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: abandonedRun.id, projectId },
+      }),
+    ).toMatchObject({
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.WORKER_LOST,
+    });
+    expect(
+      await prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: runId, projectId },
+      }),
+    ).toMatchObject({ status: InAppAgentRunStatus.QUEUED });
+  });
+
   it("supersedes a pending approval when a new message is submitted", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });

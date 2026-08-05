@@ -6,6 +6,7 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   LangfuseNotFoundError,
+  type Plan,
 } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
@@ -40,6 +41,7 @@ import {
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 
 import { serializeInAppAgentDisplayState } from "@/src/features/in-app-agent/lib/display";
+import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
 import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
 
@@ -148,6 +150,8 @@ export async function getBackgroundConversationSnapshot(params: {
 export async function startBackgroundRun(params: {
   prisma: PrismaClient;
   projectId: string;
+  orgId: string;
+  plan: Plan;
   conversationId: string;
   userId: string;
   message: string;
@@ -162,6 +166,24 @@ export async function startBackgroundRun(params: {
     conversationId: params.conversationId,
     userId: params.userId,
   });
+
+  // Reconcile before counting capacity: this turn is allowed to replace a run
+  // of its own conversation that already lost its worker or timed out, which
+  // `createQueuedRun` does under the lock further down. Counting that row would
+  // reject the replacement with a ceiling error instead. Ownership is verified
+  // above first, because reconciliation writes.
+  await reconcileConversationRuns({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: conversation.id,
+  });
+  await assertInAppAgentRunCapacity({
+    prisma: params.prisma,
+    orgId: params.orgId,
+    plan: params.plan,
+    userId: params.userId,
+  });
+
   const events = await getConversationEvents({
     prisma: params.prisma,
     projectId: params.projectId,
