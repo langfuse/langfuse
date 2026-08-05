@@ -338,8 +338,12 @@ function MarkdownRenderer({
 
               return <ul className="list-inside list-disc">{children}</ul>;
             },
-            ol({ children }) {
-              return <ol className="list-inside list-decimal">{children}</ol>;
+            ol({ children, start }) {
+              return (
+                <ol start={start} className="list-inside list-decimal">
+                  {children}
+                </ol>
+              );
             },
             li({ children }) {
               return (
