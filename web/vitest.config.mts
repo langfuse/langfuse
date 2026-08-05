@@ -143,6 +143,17 @@ export default defineConfig({
           "../packages/shared/src/index.ts",
         ),
       },
+      // next-query-params ships a CJS `pages` entry whose default-export
+      // interop breaks when the package is inlined (server.deps.inline
+      // below, needed so vi.mock("next/router") intercepts the adapter's
+      // own router import). Point at the ESM bundle instead.
+      {
+        find: /^next-query-params\/pages$/,
+        replacement: join(
+          import.meta.dirname,
+          "node_modules/next-query-params/dist/pages.esm.js",
+        ),
+      },
     ],
     // The runtime source resolves Mastra/AG-UI/Bedrock through shared's
     // node_modules symlinks — a different module id than the test files'
@@ -172,7 +183,9 @@ export default defineConfig({
     testTimeout: 30_000,
     server: {
       deps: {
-        inline: [/@langfuse\//],
+        // next-query-params is inlined so vi.mock("next/router") also
+        // intercepts the adapter's own router import in clienttests.
+        inline: [/@langfuse\//, "next-query-params"],
       },
     },
     projects: [
