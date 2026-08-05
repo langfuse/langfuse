@@ -462,12 +462,24 @@ export const traceRouter = createTRPCRouter({
     }),
   deleteMany: protectedProjectProcedure
     .input(
-      z.object({
-        traceIds: z.array(z.string()).min(1, "Minimum 1 traceId is required."),
-        projectId: z.string(),
-        query: BatchActionQuerySchema.optional(),
-        isBatchAction: z.boolean().default(false),
-      }),
+      z
+        .object({
+          traceIds: z.array(z.string()),
+          projectId: z.string(),
+          query: BatchActionQuerySchema.optional(),
+          isBatchAction: z.boolean().default(false),
+        })
+        // Batch actions delete by query and ignore traceIds, so an empty list
+        // is valid there (paging/refetch can drain the visible selection while
+        // select-all is armed); only id-based deletes need at least one id.
+        .refine((input) => input.isBatchAction || input.traceIds.length > 0, {
+          message: "Minimum 1 traceId is required.",
+          path: ["traceIds"],
+        })
+        .refine((input) => !input.isBatchAction || input.query !== undefined, {
+          message: "Batch actions require a query.",
+          path: ["query"],
+        }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
