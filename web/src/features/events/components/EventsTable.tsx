@@ -951,11 +951,10 @@ export default function ObservationsEventsTable({
   }, [observations.rows, selectedRows]);
 
   const handleDeleteTraces = async ({ projectId }: { projectId: string }) => {
-    // Select-all deletes are dispatched even if a background refetch drained
-    // the visible-page selection to [] while the dialog was open: the server
-    // requires at least one traceId regardless, so such a dispatch fails
-    // loudly (as in the v3 traces table) — an empty selection while
-    // select-all is armed signals a consistency issue, not a no-op.
+    // Select-all deletes are dispatched even if paging or a background
+    // refetch drained the visible-page selection to []: the batch path
+    // deletes by query server-side and ignores traceIds. Only an id-based
+    // delete with nothing resolvable is a no-op.
     if (!selectAll && selectedTraceIds.length === 0) return;
 
     await traceDeleteMutation.mutateAsync({
@@ -1018,10 +1017,9 @@ export default function ObservationsEventsTable({
             type: BatchActionType.Delete,
             label: "Delete Traces",
             description: `${itemCountDisplay} ${selectedItemCount === 1 ? "item is" : "items are"} selected, spanning ${traceCountDisplay} unique ${selectedUniqueTraceCount === 1 ? "trace" : "traces"}. A trace is always deleted as a whole — if at least one of its observations is selected, all of its observations are deleted with it. This action cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.`,
-            // Select-all is not gated on the visible-page selection; if that
-            // selection drained to empty, dispatch fails loudly with the
-            // server's min-1 traceIds rejection (as in the v3 traces table).
-            // Page selection needs concrete trace IDs.
+            // Select-all is not gated on the visible-page selection: the
+            // batch path deletes by query and ignores traceIds. Page
+            // selection needs concrete trace IDs.
             disabled: selectAll
               ? hasCommentFilter
               : selectedTraceIds.length === 0,
