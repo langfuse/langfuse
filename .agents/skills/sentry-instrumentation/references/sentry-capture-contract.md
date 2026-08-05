@@ -7,6 +7,7 @@ the detail behind its rules.
 ## Contents
 
 - [Where Sentry is wired](#where-sentry-is-wired)
+- [PII and the HIPAA compliance boundary](#pii-and-the-hipaa-compliance-boundary)
 - [The shared capture helpers](#the-shared-capture-helpers)
 - [beforeSend / denylist authoring protocol](#beforesend--denylist-authoring-protocol)
 - [Fingerprinting, tagging, messages](#fingerprinting-tagging-messages)
@@ -34,6 +35,44 @@ the detail behind its rules.
   PR #15243 drops expected `data.code`s (`NOT_FOUND` / `FORBIDDEN` /
   `UNAUTHORIZED`) there with a breadcrumb and tags the rest
   (`trpc.code` / `trpc.path`).
+
+## PII and the HIPAA compliance boundary
+
+ALL cloud regions — **including HIPAA** — report to the **same US Sentry org**.
+Two mechanisms keep user content (prompts, traces, PII/PHI) out of it, and they
+cover **different channels**. Do not conflate them.
+
+1. **Session Replay → the region-gated mask.**
+   [`instrumentation-client.ts`](../../../../web/instrumentation-client.ts)
+   configures `replayIntegration({ maskAllText, blockAllMedia })` gated on the
+   cloud region: replays are **fully masked everywhere except the EU/US
+   non-HIPAA cloud regions** (HIPAA, JP, STAGING, DEV, and self-hosted/unset
+   all mask — default-deny). The gate must never be removed or weakened. A CI
+   guard,
+   [`instrumentation-client-replay-mask.clienttest.ts`](../../../../web/src/__tests__/instrumentation-client-replay-mask.clienttest.ts),
+   executes the real module per region and fails on any change to the gate, so
+   a diff that trips it is a compliance change, not a broken test.
+2. **Error events → the capture discipline (SKILL rule 7).** The mask covers
+   Session Replay ONLY. Error-event payloads — message, breadcrumbs, `extra`,
+   tags — are **not masked in any region**. The rule "no user content in
+   messages/extra/tags" IS the compliance boundary for error events; there is
+   no downstream scrub to catch a leak. `sendDefaultPii` stays unset (false),
+   so the SDK attaches no cookies, headers, request/response bodies, or user
+   IP.
+
+**Reviewer checklist — any diff touching `instrumentation-client.ts`, the
+replay integration, or region gating:**
+
+- `maskAllText`/`blockAllMedia` still derive from the region gate (masked
+  unless the region is exactly `EU` or `US`), and the mask-guard clienttest
+  still asserts against the real module — not a copy of the config or an
+  uncalled predicate.
+- No new replay option weakens masking for masked regions (e.g.
+  `maskAllInputs: false`, unmask/unblock selectors).
+- `sendDefaultPii` remains unset/false; no integration starts attaching
+  bodies, headers, or cookies.
+- Changes to the mask-guard test itself (skipped cases, loosened assertions,
+  region list edits) are reviewed as compliance changes.
 
 ## The shared capture helpers
 
