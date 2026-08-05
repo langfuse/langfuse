@@ -1,3 +1,7 @@
+import {
+  type IN_APP_AGENT_MESSAGE_ENTRY_POINTS,
+  type IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
+} from "@/src/features/in-app-agent/constants";
 import { type LucideIcon } from "lucide-react";
 
 export type InAppAgentToolCallContent = {
@@ -16,12 +20,6 @@ export type InAppAgentToolCallContent = {
 export type InAppAgentError =
   | { type: "generic"; message: string }
   | { type: "rate_limit"; retryAt: number };
-
-// TODO: Where should this be defined? It's not a type
-export const IN_APP_AGENT_MESSAGE_ENTRY_POINTS = [
-  "chat",
-  "add-widget-modal",
-] as const;
 
 export type InAppAgentMessageEntryPoint =
   (typeof IN_APP_AGENT_MESSAGE_ENTRY_POINTS)[number];
@@ -46,21 +44,6 @@ export type InAppAgentScreenContextDescription =
   | { type: "sessions-list"; hasAppliedFilters: boolean }
   | { type: "prompts-list"; hasAppliedFilters: boolean }
   | { type: "datasets-list"; hasAppliedFilters: boolean };
-
-// TODO: Where should this be defined? It's not a type
-export const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
-export const QUICK_ACTION_KEY_CONTEXT_DESCRIPTION = "quick_action_key";
-export const QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION =
-  "quick_action_category";
-export const MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION = "message_entry_point";
-
-// TODO: Where should this be defined? It's not a type
-export const IN_APP_AGENT_QUICK_ACTION_CONTEXTS = [
-  "observability",
-  "prompts",
-  "evaluation",
-  "dashboards",
-] as const;
 
 export type InAppAgentQuickActionContext =
   (typeof IN_APP_AGENT_QUICK_ACTION_CONTEXTS)[number];

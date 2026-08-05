@@ -1,5 +1,7 @@
-import { MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION } from "@/src/features/in-app-agent/types";
-import { IN_APP_AGENT_MESSAGE_ENTRY_POINTS } from "@/src/features/in-app-agent/types";
+import {
+  MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION,
+  IN_APP_AGENT_MESSAGE_ENTRY_POINTS,
+} from "@/src/features/in-app-agent/constants";
 import { type AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
 
 type InAppAgentContext = AgUiRunAgentInput["context"];

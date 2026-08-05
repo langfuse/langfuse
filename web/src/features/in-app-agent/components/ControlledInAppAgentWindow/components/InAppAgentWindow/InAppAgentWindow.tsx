@@ -54,10 +54,8 @@ import type {
   InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/types";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/components/InAppAgentWindow/components/InAppAgentToolCallCard/InAppAgentToolCallCard";
-import {
-  IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
-  type InAppAgentError,
-} from "@/src/features/in-app-agent/types";
+import { type InAppAgentError } from "@/src/features/in-app-agent/types";
+import { IN_APP_AGENT_QUICK_ACTION_CONTEXTS } from "@/src/features/in-app-agent/constants";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import { isInAppAgentQuickActionContext } from "@/src/features/in-app-agent/fns/isInAppAgentQuickActionContext";

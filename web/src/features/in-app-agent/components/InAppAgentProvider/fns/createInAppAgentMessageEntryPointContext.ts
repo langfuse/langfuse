@@ -1,4 +1,4 @@
-import { MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION } from "@/src/features/in-app-agent/types";
+import { MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION } from "@/src/features/in-app-agent/constants";
 import { type InAppAgentMessageEntryPoint } from "@/src/features/in-app-agent/types";
 import { type AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
 

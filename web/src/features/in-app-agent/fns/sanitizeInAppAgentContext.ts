@@ -1,6 +1,6 @@
 import type { AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
 import type { FilterState } from "@langfuse/shared";
-import { CURRENT_URL_CONTEXT_DESCRIPTION } from "@/src/features/in-app-agent/types";
+import { CURRENT_URL_CONTEXT_DESCRIPTION } from "@/src/features/in-app-agent/constants";
 
 type InAppAgentContext = AgUiRunAgentInput["context"];
 
