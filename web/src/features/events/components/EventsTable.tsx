@@ -79,6 +79,11 @@ import {
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import {
+  demoteViewOnUserFilterEdit,
+  type ExplicitFilterStateChange,
+  type ViewDemotionControllers,
+} from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -497,13 +502,32 @@ export default function ObservationsEventsTable({
     projectId,
   });
 
+  // Late-bound view controllers for the demotion callback below: the filter
+  // hook (and its onExplicitFilterStateChange) is created before
+  // useTableViewManager runs, so reach the controllers through a ref (same
+  // pattern as queryFilterRef).
+  const viewControllersRef = useRef<ViewDemotionControllers | null>(null);
+
+  const onAppRootExplicitFilterStateChange =
+    appRootDefault.onExplicitFilterStateChange;
+
+  // Composes the app-root default policy with the view demotion on user-origin
+  // filter edits (LFE-14699).
+  const onExplicitFilterStateChange = useCallback(
+    (change: ExplicitFilterStateChange) => {
+      onAppRootExplicitFilterStateChange(change);
+      demoteViewOnUserFilterEdit(change, viewControllersRef.current);
+    },
+    [onAppRootExplicitFilterStateChange],
+  );
+
   // Route-state half of the sidebar filters, ahead of the facet-options query
   // so the same state that scopes the rows can refine the counts (LFE-14489).
   const filterStateOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
       defaultExplicitFilterState: appRootDefault.defaultExplicitFilterState,
-      onExplicitFilterStateChange: appRootDefault.onExplicitFilterStateChange,
+      onExplicitFilterStateChange,
     };
 
     if (peekContext) {
@@ -531,7 +555,7 @@ export default function ObservationsEventsTable({
     peekContext,
     projectId,
     appRootDefault.defaultExplicitFilterState,
-    appRootDefault.onExplicitFilterStateChange,
+    onExplicitFilterStateChange,
   ]);
 
   const filterCore = useSidebarFilterStateCore(
@@ -1753,6 +1777,7 @@ export default function ObservationsEventsTable({
     disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
   });
+  viewControllersRef.current = viewControllers;
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (hideControls) return undefined;
@@ -1956,10 +1981,10 @@ export default function ObservationsEventsTable({
                 tableStatePolicy.disableSavedViews ? undefined : (
                   <CategoryPresetChips
                     projectId={projectId}
-                    activeViewId={
-                      viewControllers.appliedViewId ??
-                      viewControllers.selectedViewId
-                    }
+                    // URL viewId only — the sessionStorage appliedViewId can
+                    // go stale under explicit URL state and light the wrong
+                    // chip (see demoteViewOnUserFilterEdit).
+                    activeViewId={viewControllers.selectedViewId}
                     onApplyView={viewControllers.handleSetViewId}
                     applyViewState={viewControllers.applyViewState}
                     onPreviewView={previewViewInSearchBar}
@@ -2164,10 +2189,10 @@ export default function ObservationsEventsTable({
                   <div className="flex flex-wrap items-center gap-2">
                     <CategoryPresetChips
                       projectId={projectId}
-                      activeViewId={
-                        viewControllers.appliedViewId ??
-                        viewControllers.selectedViewId
-                      }
+                      // URL viewId only — the sessionStorage appliedViewId
+                      // can go stale under explicit URL state and light the
+                      // wrong chip (see demoteViewOnUserFilterEdit).
+                      activeViewId={viewControllers.selectedViewId}
                       onApplyView={viewControllers.handleSetViewId}
                       applyViewState={viewControllers.applyViewState}
                       onPreviewView={previewViewInSearchBar}

@@ -1,5 +1,11 @@
 import { useMemo, useRef } from "react";
-import { DollarSign, ThumbsDown, Timer, type LucideIcon } from "lucide-react";
+import {
+  Check,
+  DollarSign,
+  ThumbsDown,
+  Timer,
+  type LucideIcon,
+} from "lucide-react";
 import {
   SYSTEM_TABLE_VIEW_PRESET_CATEGORIES_ORDERED,
   SYSTEM_TABLE_VIEW_PRESET_CATEGORY_META,
@@ -225,7 +231,13 @@ export function CategoryPresetChips({
                   if (event.key === "Enter" || event.key === " ")
                     pointerDownRef.current = false;
                 }}
-                className={cn("gap-1.5", isCategoryActive && "bg-primary/5")}
+                className={cn(
+                  "gap-1.5",
+                  // Filled like the sibling ViewModeToggle's on-state
+                  // (toggleVariants) — bg-primary/5 was invisible in dark mode.
+                  isCategoryActive &&
+                    "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground",
+                )}
               >
                 <Icon className="h-4 w-4" aria-hidden />
                 {label}
@@ -325,6 +337,9 @@ export function CategoryPresetChips({
                         preset.disabled
                           ? "cursor-default opacity-60"
                           : "hover:bg-accent",
+                        // bg-muted is indistinguishable from the dark popover
+                        // surface; accent + check marks the active row.
+                        isPresetActive && "bg-accent",
                       )}
                     >
                       <span className="flex flex-col">
@@ -342,6 +357,12 @@ export function CategoryPresetChips({
                           </span>
                         )}
                       </span>
+                      {isPresetActive && (
+                        <Check
+                          className="mt-0.5 h-4 w-4 shrink-0"
+                          aria-hidden
+                        />
+                      )}
                     </button>
                   );
                   // The disabled placeholder never applies, so it isn't wrapped
