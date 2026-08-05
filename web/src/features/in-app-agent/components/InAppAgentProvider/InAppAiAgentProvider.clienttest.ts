@@ -1,8 +1,8 @@
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
-import { projectInAppAgentMessagesForDisplay } from "./InAppAiAgentProvider";
 import { recordInAppAgentToolCallForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/recordInAppAgentToolCallForDisplay";
 import { createInAppAgentDisplayState } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/createInAppAgentDisplayState";
 import { recordInAppAgentMessagesForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/recordInAppAgentMessagesForDisplay";
+import { projectInAppAgentMessagesForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/projectInAppAgentMessagesForDisplay";
 
 const assistantToolMessage = {
   id: "assistant-tools",
