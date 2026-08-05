@@ -133,5 +133,29 @@ describe("reportError", () => {
       const [, options] = captureExceptionMock.mock.calls[0]!;
       expect(options.tags.area).toBe("trpc");
     });
+
+    it("warnMessage overrides the console line body, prefixed with the area", () => {
+      reportError(new Error("boom"), {
+        area: "io-parse-worker",
+        warnMessage: "useParsedTrace worker failed to load: details",
+      });
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0]![0]).toBe(
+        "[io-parse-worker] useParsedTrace worker failed to load: details",
+      );
+    });
+
+    it("warnMessage never affects what is captured", () => {
+      const original = new Error("boom");
+      reportError(original, {
+        area: "io-parse-worker",
+        warnMessage: "console-only text",
+      });
+
+      const [err] = captureExceptionMock.mock.calls[0]!;
+      expect(err).toBe(original);
+      expect(err.message).toBe("boom");
+    });
   });
 });

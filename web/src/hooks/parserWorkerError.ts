@@ -43,5 +43,10 @@ export function reportParserWorkerError(
       lineno: event.lineno,
       colno: event.colno,
     },
+    // Companion console line: carry hookName + location details exactly once
+    // in both branches — the pass-through Error's message lacks them, the
+    // synthesized one already embeds them. Console-only; the captured event
+    // is the Error above.
+    warnMessage: `${hookName} worker failed to load: ${details}`,
   });
 }
