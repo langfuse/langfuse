@@ -5,7 +5,7 @@
  * We also create a few inference helpers for input and output types.
  */
 
-import { addBreadcrumb, captureException } from "@sentry/nextjs";
+import { addBreadcrumb } from "@sentry/nextjs";
 import {
   createTRPCProxyClient,
   httpBatchLink,
@@ -26,6 +26,7 @@ import { env } from "@/src/env.mjs";
 import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
 import { versionUpdateStore } from "@/src/features/version-update/versionUpdateStore";
 import { type AppRouter } from "@/src/server/api/root";
+import { reportError } from "@/src/utils/reportError";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
@@ -355,9 +356,10 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
         },
       });
     } else {
-      // Real tRPC errors keep flowing to Sentry, now tagged by procedure/code
+      // Real tRPC errors keep flowing to Sentry, tagged by procedure/code
       // so they group and route instead of collapsing into one opaque bucket.
-      captureException(error, {
+      reportError(error, {
+        area: "trpc",
         tags: {
           "trpc.code": getTrpcErrorCode(error),
           "trpc.path": getTrpcErrorPath(error),
@@ -365,8 +367,8 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
       });
     }
   } else {
-    // For non-TRPC errors, still send to Sentry
-    captureException(error);
+    // For non-TRPC errors, still send to Sentry (coerced to a real Error).
+    reportError(error, { area: "trpc" });
   }
 
   if (!shouldSilenceError && shouldShowToast(error)) {
@@ -505,7 +507,7 @@ export const api = createTRPCNext<AppRouter>({
         requestTooLargeDiagnosticsLink(),
         loggerLink({
           // Only enable in development - production logs would be captured by Sentry
-          // in an unreadable format. We handle 5xx errors via captureException() in
+          // in an unreadable format. We handle 5xx errors via reportError in
           // handleTrpcError and use DataDog for additional server-side logging.
           enabled: () => process.env.NODE_ENV === "development",
         }),
@@ -593,7 +595,7 @@ export const directApi = createTRPCProxyClient<AppRouter>({
   links: [
     loggerLink({
       // Only enable in development - production logs would be captured by Sentry
-      // in an unreadable format. We handle 5xx errors via captureException() in
+      // in an unreadable format. We handle 5xx errors via reportError in
       // handleTrpcError and use DataDog for additional server-side logging.
       enabled: () => process.env.NODE_ENV === "development",
     }),
