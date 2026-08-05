@@ -400,7 +400,7 @@ export function rule3(files, exportsOf) {
           e.kind === "value" &&
           e.name !== s &&
           e.name !== `${root}Provider` &&
-          !new RegExp(`^use${root}`).test(e.name),
+          !e.name.startsWith(`use${root}`),
       );
       if (stray.length)
         out.push(
