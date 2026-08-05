@@ -519,9 +519,55 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error).toContain("2 of 2 span(s)");
-    expect(response.body.error).toContain("1 scopeSpans/spans field(s)");
+    expect(response.body.error).toContain(
+      "1 resource- or scope-level field(s)",
+    );
     expect(response.body.error).toContain("scopeSpans:not_an_array");
     expect(response.body.error).toContain("uvicorn.access");
+  });
+
+  // The prod-us shape: ids are valid hex and every collection is an array
+  // except the span attributes, which a hand-rolled OTLP/JSON exporter emitted
+  // as a {key: value} object. It cleared the id validation and then failed in
+  // the worker on attributes.reduce, losing the file after all six attempts.
+  it("should reject span attributes sent as a JSON object", async () => {
+    const response = await makeAPICall<{ error: string }>(
+      "POST",
+      "/api/public/otel/v1/traces",
+      {
+        resourceSpans: [
+          {
+            resource: {
+              attributes: [
+                {
+                  key: "service.name",
+                  value: { stringValue: "ai-control-plane" },
+                },
+              ],
+            },
+            scopeSpans: [
+              {
+                scope: { name: "ai-control-plane.agent", version: "1.0.0" },
+                spans: [
+                  {
+                    traceId: randomBytes(16).toString("hex"),
+                    spanId: randomBytes(8).toString("hex"),
+                    name: "Capability: document_retrieval",
+                    attributes: { "capability.id": "document_retrieval" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("1 of 1 span(s)");
+    expect(response.body.error).toContain("attributes:not_an_array");
+    expect(response.body.error).toContain("not a JSON object");
+    expect(response.body.error).toContain("ai-control-plane.agent");
   });
 
   // An OTLP *logs* export pointed at this endpoint. ResourceLogs and
