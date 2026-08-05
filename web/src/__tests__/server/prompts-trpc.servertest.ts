@@ -6,6 +6,7 @@ import {
   createOrgProjectAndApiKey,
   EntityChangeQueue,
 } from "@langfuse/shared/src/server";
+import { PromptType } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import waitForExpect from "wait-for-expect";
@@ -335,7 +336,7 @@ describe("prompts trpc", () => {
         prompts: [
           {
             name: promptName,
-            type: "chat",
+            type: PromptType.Chat,
             prompt: [{ role: "user", content: "Chat prompt" }],
           },
         ],
