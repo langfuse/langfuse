@@ -7,24 +7,30 @@ import {
   QueueJobs,
   recordGauge,
   recordIncrement,
+  redis,
 } from "@langfuse/shared/src/server";
+import { deleteApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   findInAppAgentLifecycleWork,
-  getOldestQueuedRunCreatedAt,
   terminalizeStaleRun,
   type InAppAgentTerminalWorkItem,
 } from "@langfuse/shared/in-app-agent/server";
 
-import { revokeRunCredential } from "./credentialMaintenance";
-
 const METRIC_PREFIX = "langfuse.in_app_agent_lifecycle";
 
 /**
- * Bounded per tick so a backlog cannot turn one sweep into a long transaction
- * storm. Anything left over is picked up by the next tick five seconds later.
+ * Bounded per tick so a backlog cannot turn one sweep into a write storm.
+ * Anything left over is picked up by the next tick five seconds later.
  */
 const REDISPATCH_LIMIT = 50;
 const TERMINALIZE_LIMIT = 50;
+const ORPHAN_CREDENTIAL_BATCH = 100;
+
+/**
+ * Comfortably beyond RUN_MAX_DURATION (15 min) plus heartbeat fencing, so this
+ * can never revoke a credential a live run is still using.
+ */
+const ORPHAN_CREDENTIAL_AGE_MS = 30 * 60_000;
 
 /**
  * Recover background agent runs without a browser attached.
@@ -35,14 +41,6 @@ const TERMINALIZE_LIMIT = 50;
  * which is this sweep.
  */
 export async function runInAppAgentLifecycleRecovery(): Promise<void> {
-  const oldestQueuedAt = await getOldestQueuedRunCreatedAt(prisma);
-  recordGauge(
-    `${METRIC_PREFIX}.oldest_queued_run_age_seconds`,
-    oldestQueuedAt
-      ? Math.max(Math.floor((Date.now() - oldestQueuedAt.getTime()) / 1000), 0)
-      : 0,
-  );
-
   const work = await findInAppAgentLifecycleWork({
     prisma,
     redispatchLimit: REDISPATCH_LIMIT,
@@ -50,10 +48,15 @@ export async function runInAppAgentLifecycleRecovery(): Promise<void> {
   });
 
   recordIncrement(`${METRIC_PREFIX}.candidates`, work.candidateCount);
-
-  if (work.candidateCount === 0) {
-    return;
-  }
+  recordGauge(
+    `${METRIC_PREFIX}.oldest_queued_run_age_seconds`,
+    work.oldestQueuedRunAt
+      ? Math.max(
+          Math.floor((Date.now() - work.oldestQueuedRunAt.getTime()) / 1000),
+          0,
+        )
+      : 0,
+  );
 
   for (const candidate of work.redispatch) {
     await redispatchRun(candidate);
@@ -61,6 +64,69 @@ export async function runInAppAgentLifecycleRecovery(): Promise<void> {
 
   for (const item of work.terminalize) {
     await applyTerminalTransition(item);
+  }
+}
+
+/**
+ * Backstop for ephemeral MCP credentials, deliberately hourly.
+ *
+ * A run's credential is normally revoked by the worker's own `onFinish`, or —
+ * when that worker died — by `applyTerminalTransition` at the moment the sweep
+ * terminalizes the run. This only catches what both missed, including keys
+ * whose run row was cascade-deleted with its project. Its query cannot use an
+ * index (`api_keys` has none on `is_in_app_agent_key`), so a frequent pass
+ * would sequentially scan to find nothing, and the secret never leaves the
+ * process that minted it, so what is left here is hygiene, not exposure.
+ */
+export async function runInAppAgentCredentialMaintenance(): Promise<void> {
+  const keys = await prisma.apiKey.findMany({
+    where: {
+      isInAppAgentKey: true,
+      scope: "PROJECT",
+      projectId: { not: null },
+      createdAt: { lt: new Date(Date.now() - ORPHAN_CREDENTIAL_AGE_MS) },
+    },
+    orderBy: { createdAt: "asc" },
+    take: ORPHAN_CREDENTIAL_BATCH,
+    select: { id: true, projectId: true },
+  });
+
+  if (keys.length === 0) {
+    return;
+  }
+
+  // One lookup for the whole batch: a key still pointed at by an unfinished run
+  // belongs to a run that outlived the age threshold, not to an orphan.
+  const referenced = await prisma.inAppAgentRun.findMany({
+    where: { finishedAt: null, mcpApiKeyId: { in: keys.map((key) => key.id) } },
+    select: { mcpApiKeyId: true },
+  });
+  const referencedKeyIds = new Set(
+    referenced.flatMap((run) => (run.mcpApiKeyId ? [run.mcpApiKeyId] : [])),
+  );
+
+  for (const key of keys) {
+    if (!key.projectId || referencedKeyIds.has(key.id)) {
+      continue;
+    }
+
+    try {
+      await revokeCredential({ apiKeyId: key.id, projectId: key.projectId });
+      recordIncrement(`${METRIC_PREFIX}.action`, 1, {
+        action: "orphan_credential",
+        outcome: "applied",
+      });
+    } catch (error) {
+      recordIncrement(`${METRIC_PREFIX}.action`, 1, {
+        action: "orphan_credential",
+        outcome: "failed",
+      });
+      logger.error("Failed to revoke orphaned in-app agent credential", {
+        error,
+        projectId: key.projectId,
+        apiKeyId: key.id,
+      });
+    }
   }
 }
 
@@ -148,12 +214,11 @@ async function applyTerminalTransition(
 
     // The run is dead and its worker never revoked the credential it minted.
     // Doing it here, off a row we already hold, bounds the credential's life to
-    // one sweep tick without the hourly backstop's sequential scan.
+    // one sweep tick instead of the hourly backstop's sequential scan.
     if (item.run.mcpApiKeyId) {
-      await revokeRunCredential({
-        runId: item.run.id,
+      await revokeCredential({
+        apiKeyId: item.run.mcpApiKeyId,
         projectId: item.run.projectId,
-        mcpApiKeyId: item.run.mcpApiKeyId,
       });
 
       recordIncrement(`${METRIC_PREFIX}.action`, 1, {
@@ -173,4 +238,35 @@ async function applyTerminalTransition(
       runId: item.run.id,
     });
   }
+}
+
+/**
+ * Delete the credential, then drop every pointer to it. An already-absent key
+ * is a success: a previous attempt evidently landed, and the pointer still
+ * needs clearing. The pointer is cleared only after the delete, because while
+ * the key exists that pointer is the only way back to it.
+ */
+async function revokeCredential(params: {
+  apiKeyId: string;
+  projectId: string;
+}): Promise<void> {
+  const existing = await prisma.apiKey.findUnique({
+    where: { id: params.apiKeyId },
+    select: { id: true },
+  });
+
+  if (existing) {
+    await deleteApiKeyFromDb({
+      prisma,
+      id: params.apiKeyId,
+      entityId: params.projectId,
+      scope: "PROJECT",
+      redis,
+    });
+  }
+
+  await prisma.inAppAgentRun.updateMany({
+    where: { mcpApiKeyId: params.apiKeyId },
+    data: { mcpApiKeyId: null },
+  });
 }

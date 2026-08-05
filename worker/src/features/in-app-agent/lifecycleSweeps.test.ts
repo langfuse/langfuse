@@ -55,7 +55,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-import { runInAppAgentLifecycleRecovery } from "./lifecycleRecovery";
+import {
+  runInAppAgentCredentialMaintenance,
+  runInAppAgentLifecycleRecovery,
+} from "./lifecycleSweeps";
 
 const ago = (ms: number) => new Date(Date.now() - ms);
 
@@ -110,12 +113,28 @@ async function seedRun(
   });
 }
 
+async function seedAgentKey(projectId: string, createdAt: Date) {
+  const suffix = randomUUID();
+
+  return prisma.apiKey.create({
+    data: {
+      projectId,
+      scope: "PROJECT",
+      isInAppAgentKey: true,
+      createdAt,
+      publicKey: `pk-agent-${suffix}`,
+      hashedSecretKey: `hsk-agent-${suffix}`,
+      displaySecretKey: `sk-...${suffix.slice(0, 4)}`,
+    },
+  });
+}
+
 const reload = (run: { id: string; projectId: string }) =>
   prisma.inAppAgentRun.findUniqueOrThrow({
     where: { id_projectId: { id: run.id, projectId: run.projectId } },
   });
 
-describe("in-app agent lifecycle recovery sweep", () => {
+describe("in-app agent lifecycle sweeps", () => {
   beforeEach(() => {
     queueRef.added = [];
     queueRef.removed = [];
@@ -151,16 +170,7 @@ describe("in-app agent lifecycle recovery sweep", () => {
 
   it("revokes the credential of the run it terminalizes", async () => {
     const ctx = await seedConversation();
-    const key = await prisma.apiKey.create({
-      data: {
-        projectId: ctx.projectId,
-        scope: "PROJECT",
-        isInAppAgentKey: true,
-        publicKey: `pk-sweep-${randomUUID()}`,
-        hashedSecretKey: `hsk-sweep-${randomUUID()}`,
-        displaySecretKey: "sk-...abcd",
-      },
-    });
+    const key = await seedAgentKey(ctx.projectId, new Date());
     const abandoned = await seedRun(ctx, {
       status: InAppAgentRunStatus.RUNNING,
       createdAt: ago(5 * 60_000),
@@ -243,5 +253,47 @@ describe("in-app agent lifecycle recovery sweep", () => {
 
     expect(queueRef.removed).toContain(stranded.id);
     expect(queueRef.added.map((entry) => entry.jobId)).toContain(stranded.id);
+  });
+
+  it("clears a pointer to a credential that is already gone", async () => {
+    const ctx = await seedConversation();
+    // The delete landed but clearing the pointer did not. Terminalizing must
+    // finish the job rather than stall on a key that no longer exists.
+    const abandoned = await seedRun(ctx, {
+      status: InAppAgentRunStatus.RUNNING,
+      createdAt: ago(5 * 60_000),
+      claimedAt: ago(5 * 60_000),
+      heartbeatAt: ago(90_000),
+      mcpApiKeyId: `missing-${randomUUID()}`,
+    });
+
+    await runInAppAgentLifecycleRecovery();
+
+    expect((await reload(abandoned)).mcpApiKeyId).toBeNull();
+  });
+
+  it("reaps only unreferenced credentials older than the orphan window", async () => {
+    const ctx = await seedConversation();
+    const orphaned = await seedAgentKey(ctx.projectId, ago(45 * 60_000));
+    const young = await seedAgentKey(ctx.projectId, ago(60_000));
+    const inUse = await seedAgentKey(ctx.projectId, ago(45 * 60_000));
+    await seedRun(ctx, {
+      status: InAppAgentRunStatus.RUNNING,
+      createdAt: ago(45 * 60_000),
+      claimedAt: ago(45 * 60_000),
+      heartbeatAt: new Date(),
+      mcpApiKeyId: inUse.id,
+    });
+
+    await runInAppAgentCredentialMaintenance();
+
+    const exists = async (id: string) =>
+      (await prisma.apiKey.count({ where: { id } })) > 0;
+
+    expect(await exists(orphaned.id)).toBe(false);
+    expect(await exists(young.id)).toBe(true);
+    // A run can legitimately outlive the age threshold; revoking under it
+    // would break a live agent mid-turn.
+    expect(await exists(inUse.id)).toBe(true);
   });
 });

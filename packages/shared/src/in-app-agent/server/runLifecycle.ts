@@ -553,9 +553,15 @@ export type InAppAgentTerminalWorkItem = {
 
 export type InAppAgentLifecycleWork = {
   /** QUEUED, past its dispatch delay, still inside the queue timeout. */
-  redispatch: Array<{ runId: string; projectId: string; createdAt: Date }>;
+  redispatch: Array<{ runId: string; projectId: string }>;
   terminalize: InAppAgentTerminalWorkItem[];
   candidateCount: number;
+  /**
+   * Backlog gauge, taken from the rows already read rather than a second
+   * query. Runs younger than the redispatch delay are not candidates and so
+   * are invisible here, which is fine: the canary monitor fires at 30s.
+   */
+  oldestQueuedRunAt: Date | null;
 };
 
 /**
@@ -631,6 +637,10 @@ export async function findInAppAgentLifecycleWork(params: {
     redispatch: [],
     terminalize: [],
     candidateCount: candidates.length,
+    // Candidates are ordered oldest first, so the first QUEUED row is it.
+    oldestQueuedRunAt:
+      candidates.find((run) => run.status === InAppAgentRunStatus.QUEUED)
+        ?.createdAt ?? null,
   };
 
   for (const run of candidates) {
@@ -649,11 +659,7 @@ export async function findInAppAgentLifecycleWork(params: {
       run.status === InAppAgentRunStatus.QUEUED &&
       work.redispatch.length < params.redispatchLimit
     ) {
-      work.redispatch.push({
-        runId: run.id,
-        projectId: run.projectId,
-        createdAt: run.createdAt,
-      });
+      work.redispatch.push({ runId: run.id, projectId: run.projectId });
     }
   }
 
@@ -674,19 +680,6 @@ export async function terminalizeStaleRun(params: {
       errorMessage: params.item.errorMessage,
     },
   });
-}
-
-/** Backlog gauge source: the canary monitor watches oldest queued run age. */
-export async function getOldestQueuedRunCreatedAt(
-  prisma: PrismaClient,
-): Promise<Date | null> {
-  const oldest = await prisma.inAppAgentRun.findFirst({
-    where: { finishedAt: null, status: InAppAgentRunStatus.QUEUED },
-    orderBy: { createdAt: "asc" },
-    select: { createdAt: true },
-  });
-
-  return oldest?.createdAt ?? null;
 }
 
 function classifyStaleRun(
