@@ -419,7 +419,7 @@ export function ModernSession({
           }
         />
       )}
-      <div className="bg-card dark:bg-canvas relative min-h-0 min-w-[320px]">
+      <div className="bg-elevated dark:bg-canvas relative min-h-0 min-w-[320px]">
         <div
           ref={feedRef}
           className="h-full min-h-0 overflow-y-auto scroll-smooth"

@@ -956,7 +956,7 @@ const Header = ({
   step?: number;
   icon?: LucideIcon;
 }) => (
-  <div className="bg-card sticky top-0 z-10">
+  <div className="bg-elevated sticky top-0 z-10">
     <h3 className="flex items-center gap-2 py-2 text-lg font-bold">
       {step != null ? (
         <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold">

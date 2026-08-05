@@ -134,7 +134,7 @@ function BannerSystemSample({ ctx }: { ctx: TokenContext }) {
         </span>
         <div
           className="mt-1 grow rounded-sm border"
-          style={{ background: ctx.color("--bg-card") }}
+          style={{ background: ctx.color("--bg-elevated") }}
         />
       </div>
     </div>
@@ -184,7 +184,7 @@ export function LayoutOffsetsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
 const LAYERS: Array<{ token: string; label: string }> = [
   { token: "--background", label: "app canvas" },
   {
-    token: "--bg-card",
+    token: "--bg-elevated",
     label: "elevated: card + dialogs (--modal is this tier)",
   },
   { token: "--bg-popover", label: "menus & tooltips — above modals by design" },
@@ -249,8 +249,8 @@ export function LayeringSection({
         ))}
       </div>
       <p className="text-tertiary text-sm">
-        The sidebar frame (<InlineCode>--bg-sidebar</InlineCode>) lifts one step
-        off the canvas beside this stack; code blocks ride{" "}
+        The sidebar frame (<InlineCode>--bg-elevated</InlineCode>) lifts one
+        step off the canvas beside this stack; code blocks ride{" "}
         <InlineCode>bg-muted</InlineCode> — full ladder on the Color page&apos;s
         surface hierarchy.
       </p>
@@ -294,7 +294,7 @@ export function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
             style={{
               left: `${16 + index * 28}px`,
               top: `${16 + index * 34}px`,
-              background: ctx.color("--bg-card"),
+              background: ctx.color("--bg-elevated"),
               color: ctx.color("--foreground"),
             }}
           >

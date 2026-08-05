@@ -9,7 +9,7 @@ export const defaultSettingsBothThemes: CreateThemeOptions["settings"] = {
   background: "hsl(var(--bg-canvas))",
   foreground: "hsl(var(--foreground))",
   caret: "hsl(var(--foreground))",
-  gutterBackground: "hsl(var(--bg-sidebar))",
+  gutterBackground: "hsl(var(--bg-elevated))",
   gutterForeground: "hsl(var(--sidebar-foreground))",
   gutterBorder: "hsl(var(--sidebar-border))",
   gutterActiveForeground: "hsl(var(--sidebar-primary))",

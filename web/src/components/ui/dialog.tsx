@@ -61,7 +61,7 @@ const DialogOverlay = React.forwardRef<
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const dialogContentVariants = cva(
-  "fixed left-[50%] top-[50%] overflow-hidden flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-modal shadow-lg sm:rounded-lg",
+  "fixed left-[50%] top-[50%] overflow-hidden flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-elevated shadow-lg sm:rounded-lg",
   {
     variants: {
       size: {
@@ -172,7 +172,7 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const dialogHeaderVariants = cva(
-  "bg-modal sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
+  "bg-elevated sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
   {
     variants: {
       variant: {
@@ -229,7 +229,7 @@ const DialogBody = React.forwardRef<
 DialogBody.displayName = "DialogBody";
 
 const dialogFooterVariants = cva(
-  "bg-modal sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
+  "bg-elevated sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
   {
     variants: {
       variant: {

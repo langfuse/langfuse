@@ -27,7 +27,7 @@ export function CloudRegionPicker({
   isSignUpPage?: boolean;
 }) {
   return (
-    <div className="bg-card mt-8 -mb-10 rounded-lg px-6 py-6 text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+    <div className="bg-elevated mt-8 -mb-10 rounded-lg px-6 py-6 text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
       <div className="flex w-full flex-col gap-2">
         <div>
           <span className="text-sm leading-none font-bold">

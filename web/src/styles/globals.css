@@ -104,7 +104,7 @@
 
   /* Role utilities — the design-system vocabulary (tokens in :root below):
      text-primary/secondary/tertiary/disabled/on-fill/on-hover,
-     bg-canvas/sidebar/card/modal/popover/muted/code/hover,
+     bg-canvas/elevated/popover/muted/hover/selected,
      border/border-contrast, ring-focus.
      NOTE: --color-secondary and --color-tertiary now carry the TEXT roles;
      the old secondary/tertiary FILLS are gone — use bg-muted /
@@ -138,10 +138,9 @@
   --color-popover: hsl(var(--bg-popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
   --color-popover-border: hsl(var(--popover-border));
-  --color-card: hsl(var(--bg-card));
+  --color-elevated: hsl(var(--bg-elevated));
+  --color-card: hsl(var(--bg-elevated));
   --color-card-foreground: hsl(var(--card-foreground));
-  --color-modal: hsl(var(--bg-modal));
-  --color-sidebar: hsl(var(--bg-sidebar));
   --color-selected: hsl(var(--bg-selected));
 
   --color-find-match-background: hsl(var(--find-match-background));
@@ -275,7 +274,6 @@
     --neutral-light-80: 214 32% 91%;
     --neutral-light-90: 214.3 31.8% 91.4%;
     --neutral-light-110: 210 40% 96.1%;
-    --neutral-light-120: 210 40% 98%;
     --neutral-light-130: 0 0% 100%;
 
     /* Carbon blue family (light = blue-70/60, dark = blue-40/30). */
@@ -293,7 +291,7 @@
        task.) Shared definitions live here on :root; `.dark`
        rebinds ONLY the tokens whose value or reference differs, and
        un-rebound references resolve per mode at use time.
-       Fills: canvas < sidebar (frame chrome) < card/modal (elevated)
+       Fills: canvas < elevated (sidebar, cards, dialogs — one raised tier)
          < popover < muted < hover — in light the ladder alternates back
          to white per Carbon's light-layer model (canvas, card, popover
          are all white); in dark every stacked layer steps lighter (see
@@ -331,14 +329,14 @@
     /* Fill roles */
     --bg-canvas: var(--neutral-light-130);
 
-    /* Elevated: card + modal. Light alternates back to white; dark is the
+    /* Elevated: sidebar + cards + dialogs — one raised tier. Light is
+       white; dark is the
        raised tier shared with the sidebar chrome. */
-    --bg-card: var(--neutral-light-130);
+    --bg-elevated: var(--neutral-light-130);
     --card-foreground: var(--text-secondary);
 
     /* Blocking overlay surfaces (Dialog/AlertDialog/Sheet/Drawer/peek)
        share the elevated tier with --card. */
-    --bg-modal: var(--bg-card);
 
     --bg-popover: var(--neutral-light-130);
     --popover-foreground: var(--text-secondary);
@@ -494,7 +492,6 @@
     --radius: 0.5rem;
     /* Frame tint: one step off the canvas so the nav reads as chrome
        (dark shares the raised --card tier, see .dark). */
-    --bg-sidebar: var(--neutral-light-120);
     /* Selected-nav fill: light needs a stronger fill than any ladder step
        (the 96% muted tier is too faint against the 98% chrome — per
        conversation with Trang), so it keeps its own palette step; dark
@@ -538,8 +535,7 @@
        the GLOBAL FRAME (the sidebar chrome) lifts one step above it
        (Linear-style lifted panels), and every layer stacked on the canvas
        steps up from there:
-         canvas 3% < raised 6% (chrome, card, modal — one dark tier; light
-         splits tint vs white) < popover/muted 10% < hover 18%.
+         canvas < elevated < popover/muted < hover.
        The bottom step is the widest (canvas→chrome) — equal pp steps read
        smaller near black, and the frame/content split carries the layout.
        Popovers outrank modals because menus/tooltips open on top of dialogs.
@@ -561,9 +557,8 @@
     --text-disabled: var(--neutral-dark-70);
 
     --bg-canvas: var(--neutral-dark-10);
-    --bg-card: var(--neutral-dark-20);
+    --bg-elevated: var(--neutral-dark-20);
     /* Frame and elevated share the raised tier in dark. */
-    --bg-sidebar: var(--bg-card);
     --bg-popover: var(--neutral-dark-30);
     --bg-muted: var(--neutral-dark-30);
     /* Hover fill: one clear step above --popover (10%) — focus:bg-hover is

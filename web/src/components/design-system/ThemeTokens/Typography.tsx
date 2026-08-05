@@ -255,7 +255,7 @@ function TextTiersSection() {
           <TextTierRow key={tier.token} tier={tier} ctx={ctx} />
         ))}
       </div>
-      <div className="bg-card flex max-w-md flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-sm">
+      <div className="bg-elevated flex max-w-md flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-sm">
         <span style={{ color: ctx.color("--primary") }}>Active item</span>
         <span style={{ color: ctx.color("--muted-foreground") }}>
           Idle item
@@ -396,7 +396,7 @@ export function Typography() {
                 className="grid items-center gap-x-8 gap-y-1 border-t py-3 md:grid-cols-[140px_minmax(0,1fr)_minmax(0,1.2fr)]"
               >
                 <Eyebrow>{example.label}</Eyebrow>
-                <div className="bg-card min-w-0 rounded-md border px-3 py-2">
+                <div className="bg-elevated min-w-0 rounded-md border px-3 py-2">
                   <span className={`${example.className} block truncate`}>
                     {example.sample}
                   </span>

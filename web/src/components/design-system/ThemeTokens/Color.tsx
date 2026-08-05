@@ -62,18 +62,18 @@ const SURFACE_HIERARCHY: HierarchyRow[] = [
     purpose: "The outermost page background — sits behind everything",
   },
   {
-    utility: "bg-sidebar",
-    token: "--bg-sidebar",
+    utility: "bg-elevated",
+    token: "--bg-elevated",
     purpose: "The global nav frame, one step off the canvas",
   },
   {
-    utility: "bg-card",
-    token: "--bg-card",
+    utility: "bg-elevated",
+    token: "--bg-elevated",
     purpose: "Elevated surface — cards, widgets, panels",
   },
   {
-    utility: "bg-modal",
-    token: "--bg-modal",
+    utility: "bg-elevated",
+    token: "--bg-elevated",
     purpose: "Blocking dialogs — shares the card tier",
   },
   {
@@ -451,7 +451,7 @@ function ModeSwatch({
       <div
         className="h-8 rounded-sm border-2"
         style={{
-          background: paint.color("--bg-card"),
+          background: paint.color("--bg-elevated"),
           borderColor: paint.color(token),
         }}
         title={triplet}

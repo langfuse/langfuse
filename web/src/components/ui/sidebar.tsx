@@ -170,7 +170,7 @@ const SidebarProvider = React.forwardRef<
               // MAIN CONTENT too, and the dimmed sidebar text tint (60% grey
               // in dark) must not leak into it. The Sidebar containers below
               // set it on themselves.
-              "group/sidebar-wrapper min-h-screen-with-banner has-data-[variant=inset]:bg-sidebar flex w-full",
+              "group/sidebar-wrapper min-h-screen-with-banner has-data-[variant=inset]:bg-elevated flex w-full",
               className,
             )}
             ref={ref}
@@ -210,7 +210,7 @@ const Sidebar = React.forwardRef<
       return (
         <div
           className={cn(
-            "bg-sidebar text-secondary flex h-full w-(--sidebar-width) flex-col",
+            "bg-elevated text-secondary flex h-full w-(--sidebar-width) flex-col",
             className,
           )}
           ref={ref}
@@ -227,7 +227,7 @@ const Sidebar = React.forwardRef<
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="bg-sidebar text-secondary w-(--sidebar-width) p-0 [&>button]:hidden"
+            className="bg-elevated text-secondary w-(--sidebar-width) p-0 [&>button]:hidden"
             style={
               {
                 "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -278,7 +278,7 @@ const Sidebar = React.forwardRef<
           <div
             data-sidebar="sidebar"
             className={cn([
-              "bg-sidebar group-data-[variant=floating]:border-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm",
+              "bg-elevated group-data-[variant=floating]:border-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm",
               "h-screen-with-banner", // offset if the notification banner is visible
             ])}
           >

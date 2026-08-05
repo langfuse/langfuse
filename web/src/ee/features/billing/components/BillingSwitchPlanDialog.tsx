@@ -99,7 +99,7 @@ export const BillingSwitchPlanDialog = ({
                 return (
                   <div
                     key={product.stripeProductId}
-                    className="bg-card relative flex flex-col rounded-xl border p-4 shadow-xs transition-all hover:shadow-md"
+                    className="bg-elevated relative flex flex-col rounded-xl border p-4 shadow-xs transition-all hover:shadow-md"
                   >
                     <div className="mb-4">
                       {/* Labels above plan title */}

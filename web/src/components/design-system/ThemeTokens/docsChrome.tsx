@@ -104,7 +104,7 @@ const TICK_POSITIONS = {
  */
 export function CropFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-card relative flex flex-col border">
+    <div className="bg-elevated relative flex flex-col border">
       {(Object.keys(TICK_POSITIONS) as Array<keyof typeof TICK_POSITIONS>).map(
         (position) => (
           <span

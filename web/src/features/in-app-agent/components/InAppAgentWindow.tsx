@@ -142,7 +142,7 @@ function InAppAgentQuickActionPicker({
               key={action.id}
               type="button"
               variant="outline"
-              className="bg-card hover:bg-muted/60 group h-auto min-h-13 w-full justify-start gap-2 rounded-md px-2.5 py-2 text-left whitespace-normal shadow-xs"
+              className="bg-elevated hover:bg-muted/60 group h-auto min-h-13 w-full justify-start gap-2 rounded-md px-2.5 py-2 text-left whitespace-normal shadow-xs"
               disabled={isDisabled}
               onClick={() => {
                 onSelectAction(action, selectedContext, position);
@@ -532,7 +532,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   return (
     <section
       aria-label="Assistant"
-      className="bg-modal flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5"
+      className="bg-elevated flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5"
     >
       <header
         data-in-app-agent-window-drag-handle={

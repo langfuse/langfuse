@@ -197,7 +197,7 @@ export function PresetDashboardWidget({
 
   if (!renderPreset) {
     return (
-      <div className="bg-card flex h-full items-center justify-center rounded-lg border p-4">
+      <div className="bg-elevated flex h-full items-center justify-center rounded-lg border p-4">
         <div className="text-tertiary">
           Unknown preset: {placement.presetId}
         </div>
@@ -210,7 +210,7 @@ export function PresetDashboardWidget({
       <div className="h-full w-full overflow-y-auto">{renderPreset(ctx)}</div>
       {/* The menu (copy) stays available on read-only surfaces like Home —
           only the edit affordances (drag, delete) are gated. */}
-      <div className="bg-card/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
+      <div className="bg-elevated/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
         {!readOnly && (hasCUDAccess || isLockedEditable) && (
           <>
             <GripVerticalIcon

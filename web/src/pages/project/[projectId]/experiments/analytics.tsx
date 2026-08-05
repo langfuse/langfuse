@@ -57,7 +57,7 @@ export default function ExperimentAnalytics() {
       }}
     >
       <div className="flex h-full flex-col items-center justify-center p-8">
-        <div className="border-border bg-card/50 flex max-w-md flex-col items-center gap-4 rounded-xl border p-8 text-center shadow-sm backdrop-blur-sm">
+        <div className="border-border bg-elevated/50 flex max-w-md flex-col items-center gap-4 rounded-xl border p-8 text-center shadow-sm backdrop-blur-sm">
           <div className="bg-muted flex h-16 w-16 items-center justify-center rounded-full">
             <FlaskConical className="text-tertiary h-8 w-8" />
           </div>

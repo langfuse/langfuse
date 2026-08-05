@@ -110,7 +110,7 @@ export function WidgetWrapper({ children, className }: WidgetWrapperProps) {
   return (
     <div
       className={cn(
-        "bg-card group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4",
+        "bg-elevated group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4",
         className,
       )}
     >
@@ -423,7 +423,7 @@ export function WidgetContent({
 
   if (isExternalLoading) {
     return (
-      <div className="bg-card flex items-center justify-center rounded-lg border p-4">
+      <div className="bg-elevated flex items-center justify-center rounded-lg border p-4">
         <div className="text-tertiary">Loading...</div>
       </div>
     );
@@ -456,7 +456,7 @@ export function WidgetContent({
         onRetry={queryResult.isError ? handleRetry : undefined}
         progress={loadingProgress}
         layout={layoutHint}
-        className="bg-card/80 absolute inset-0 z-20 backdrop-blur-xs"
+        className="bg-elevated/80 absolute inset-0 z-20 backdrop-blur-xs"
       />
     </div>
   );

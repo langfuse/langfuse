@@ -352,7 +352,7 @@ function SidebarNotifications({
             <Card
               key={`stack-${stackIndex}`}
               aria-hidden
-              className="bg-card pointer-events-none absolute inset-0 rounded-md shadow-none"
+              className="bg-elevated pointer-events-none absolute inset-0 rounded-md shadow-none"
               style={{
                 transform: `translateY(${stackIndex * peekOffset}px) scaleX(${
                   1 - stackIndex * peekScaleStep
@@ -365,7 +365,7 @@ function SidebarNotifications({
         })}
         <Card
           key={frontNotification.id}
-          className="bg-card relative max-h-60 overflow-hidden rounded-md shadow-none"
+          className="bg-elevated relative max-h-60 overflow-hidden rounded-md shadow-none"
           style={{ zIndex: visibleNotifications.length }}
         >
           <Button

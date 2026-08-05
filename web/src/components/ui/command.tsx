@@ -18,7 +18,7 @@ import {
   DialogHeader,
 } from "@/src/components/ui/dialog";
 
-const commandDialogSurfaceClass = "bg-modal";
+const commandDialogSurfaceClass = "bg-elevated";
 
 const Command = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive>,

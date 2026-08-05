@@ -16,7 +16,7 @@ export const CrashModal = ({
   statusCode,
 }: CrashModalProps) => {
   return (
-    <div className="border-border bg-card w-full max-w-xl rounded-xl border p-6 shadow-sm sm:p-8">
+    <div className="border-border bg-elevated w-full max-w-xl rounded-xl border p-6 shadow-sm sm:p-8">
       <div className="bg-destructive/10 text-destructive flex size-10 items-center justify-center rounded-full">
         <CircleAlert className="size-5" aria-hidden="true" />
       </div>
