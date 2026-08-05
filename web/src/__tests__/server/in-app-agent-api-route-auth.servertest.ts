@@ -50,6 +50,13 @@ const langfuseClientMocks = vi.hoisted(() => ({
   getLangfuseClient: vi.fn(() => ({})),
 }));
 
+vi.hoisted(() => {
+  // This suite mocks the agent stream and does not exercise a sandbox
+  // provider. Keep its provider selection explicit rather than inheriting the
+  // developer's root .env.
+  delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
+});
+
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSessionForRequest: authMocks.getServerAuthSessionForRequest,
 }));
