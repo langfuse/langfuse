@@ -29,34 +29,33 @@ type RunRow = {
 
 function fakePrisma(polls: Array<{ events: EventRow[]; run: RunRow | null }>) {
   let pollIndex = 0;
+  // Reconciliation is the only thing still reaching for a transaction; the poll
+  // itself is one conversation-rooted read.
   const inAppAgentRun = {
     findMany: async () => [],
     updateMany: async () => ({ count: 0 }),
-    findFirst: async () =>
-      polls[Math.min(pollIndex, polls.length - 1)]?.run ?? null,
-  };
-  const inAppAgentEvent = {
-    findMany: async ({
-      where,
-    }: {
-      where: { sequenceNumber: { gt: number } };
-    }) => {
-      const poll = polls[Math.min(pollIndex, polls.length - 1)];
-      pollIndex += 1;
-
-      return (poll?.events ?? []).filter(
-        (row) => row.sequenceNumber > where.sequenceNumber.gt,
-      );
-    },
   };
   return {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
-      fn({
-        inAppAgentRun,
-        inAppAgentEvent,
-      }),
+      fn({ inAppAgentRun }),
     inAppAgentRun,
-    inAppAgentEvent,
+    inAppAgentConversation: {
+      findUnique: async ({
+        select,
+      }: {
+        select: { events: { where: { sequenceNumber: { gt: number } } } };
+      }) => {
+        const poll = polls[Math.min(pollIndex, polls.length - 1)];
+        pollIndex += 1;
+
+        return {
+          runs: poll?.run ? [poll.run] : [],
+          events: (poll?.events ?? []).filter(
+            (row) => row.sequenceNumber > select.events.where.sequenceNumber.gt,
+          ),
+        };
+      },
+    },
   } as unknown as PrismaClient;
 }
 

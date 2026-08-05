@@ -32,6 +32,7 @@ import {
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
   type AgUiEvent,
+  type InAppAgentWatchFrame,
 } from "@langfuse/shared/in-app-agent";
 import {
   deserializeInAppAgentDisplayState,
@@ -49,6 +50,7 @@ import {
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
+import { watchConversationFrames } from "@langfuse/shared/in-app-agent/server/watch";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 
@@ -2131,6 +2133,139 @@ describe("in-app agent persistence", () => {
       { runId: run1.id, type: EventType.RUN_STARTED },
       { runId: run2.id, type: EventType.RUN_STARTED },
     ]);
+  });
+
+  it("tails only post-cursor events, across runs, from one conversation-rooted read", async () => {
+    // The watch poll is a single joined read of the conversation's latest run
+    // and its post-cursor events (LFE-14629). Its unit suite fakes that read
+    // and reimplements the cursor filter in JS, so this is the only coverage
+    // that the nested where/orderBy/take actually compose against Postgres.
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    const firstRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: firstRun.id,
+      events: [
+        {
+          type: EventType.RUN_STARTED,
+          threadId: conversation.id,
+          runId: firstRun.id,
+          input: {
+            threadId: conversation.id,
+            runId: firstRun.id,
+            state: null,
+            messages: [{ id: "tail-user", role: "user", content: "Look" }],
+            tools: [],
+            context: [],
+            forwardedProps: {},
+          },
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: "tail-first",
+          role: "assistant",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "tail-first",
+          delta: "Parked answer.",
+        },
+        { type: EventType.TEXT_MESSAGE_END, messageId: "tail-first" },
+      ],
+      finish: { status: InAppAgentRunStatus.SUCCEEDED },
+    });
+
+    const secondRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    // A continuation's first persisted row is a plain event, not RUN_STARTED,
+    // which is what forces the synthetic open in the tail below.
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: secondRun.id,
+      events: [
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: "tail-second",
+          role: "assistant",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "tail-second",
+          delta: "Continued answer.",
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          threadId: conversation.id,
+          runId: secondRun.id,
+        },
+      ],
+      finish: { status: InAppAgentRunStatus.SUCCEEDED },
+    });
+
+    // Sequence 0 is the first run's RUN_STARTED and 1 its assistant
+    // TEXT_MESSAGE_START, so a cursor of 1 starts the tail mid-run.
+    const frames: InAppAgentWatchFrame[] = [];
+    for await (const frame of watchConversationFrames({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      cursor: 1,
+      now: () => 0,
+      sleep: async () => undefined,
+    })) {
+      if (frame !== null) {
+        frames.push(frame);
+      }
+    }
+
+    const relayed = frames.flatMap((frame) =>
+      frame.type === "event" ? [frame.event] : [],
+    );
+
+    // A dropped cursor predicate would relay sequences 0 and 1 too, adding the
+    // first run's persisted RUN_STARTED and a second TEXT_MESSAGE_START.
+    expect(relayed.map((event) => event.type)).toEqual([
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_END,
+      EventType.RUN_FINISHED,
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_START,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.RUN_FINISHED,
+    ]);
+
+    // The tail spans runs: the events relation is conversation-scoped, so a
+    // window can hold a parked parent's rows below its continuation's.
+    expect(
+      relayed.flatMap((event) => ("runId" in event ? [event.runId] : [])),
+    ).toEqual([firstRun.id, firstRun.id, secondRun.id, secondRun.id]);
+
+    expect(frames.filter((frame) => frame.type === "status")).toEqual([
+      {
+        type: "status",
+        runId: secondRun.id,
+        status: InAppAgentRunStatus.SUCCEEDED,
+        errorCode: null,
+        cancelRequested: false,
+      },
+    ]);
+    expect(frames.at(-1)).toEqual({ type: "done" });
   });
 
   it("blocks a second active run in the same conversation", async () => {
