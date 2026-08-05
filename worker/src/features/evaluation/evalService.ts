@@ -93,6 +93,10 @@ import {
   buildEvalExecutionSpanAttributes,
   buildEvaluatorLlmErrorSpanAttributes,
 } from "./evalSpanAttributes";
+import {
+  getDeterministicSamplingValue,
+  shouldSampleEvaluation,
+} from "./deterministicSampling";
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
@@ -397,6 +401,12 @@ export const createEvalJobs = async ({
     );
   };
 
+  const samplingTargetId =
+    "observationId" in event && event.observationId
+      ? event.observationId
+      : event.traceId;
+  const samplingValue = getDeterministicSamplingValue(samplingTargetId);
+
   for (const config of configs) {
     if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
@@ -640,16 +650,17 @@ export const createEvalJobs = async ({
         continue;
       }
 
-      // apply sampling. Only if the job is sampled, we create a job
-      // user supplies a number between 0 and 1, which is the probability of sampling
-      if (Number(config.sampling) !== 1) {
-        const random = Math.random();
-        if (random > Number(config.sampling)) {
-          logger.debug(
-            `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
-          );
-          continue;
-        }
+      const samplingRate = Number(config.sampling);
+      if (
+        !shouldSampleEvaluation({
+          samplingValue,
+          samplingRate,
+        })
+      ) {
+        logger.debug(
+          `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
+        );
+        continue;
       }
 
       logger.debug(
