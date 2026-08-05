@@ -20,7 +20,7 @@ import { cruise } from "dependency-cruiser";
 import extractTsConfig from "dependency-cruiser/config-utl/extract-ts-config";
 import { buildCensus } from "./census.mjs";
 import * as d from "./detectors.mjs";
-import { computeNextItems } from "./next.mjs";
+import { computeNextItems, RULE_LABELS } from "./next.mjs";
 
 /** @typedef {import("./detectors.mjs").Violation} Violation */
 
@@ -278,8 +278,13 @@ if (flag("next")) {
           path: it.path,
           score: it.score,
           violations: it.count,
-          byRule: Object.fromEntries(it.byRule),
-          hint: it.hint,
+          byRule: Object.fromEntries(
+            [...it.byRule].map(([id, n]) => [
+              id,
+              { count: n, rule: RULE_LABELS[id] },
+            ]),
+          ),
+          headline: it.headline,
           samples: it.samples,
         })),
         null,
@@ -288,30 +293,40 @@ if (flag("next")) {
     );
     process.exit(0);
   }
+  const where = scope ?? "web/src";
+  console.log();
   console.log(
-    bold(`what to fix next${scope ? ` — ${scope}` : " — web/src"}`) +
-      dim(
-        `  (top ${items.length}, leverage = violations cleared × rule weight)`,
-      ),
+    bold(`What to fix next in ${where}`) +
+      ` — ${items.length} step${items.length === 1 ? "" : "s"} toward the best project structure ever`,
+  );
+  console.log(
+    dim(
+      "each item ≈ one small PR · leverage = violations cleared × rule weight",
+    ),
   );
   console.log();
   items.forEach((it, i) => {
-    const rules = [...it.byRule.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([id, n]) => `${n}× rule ${id}`)
-      .join(", ");
+    console.log(`${String(i + 1).padStart(2)}. ${bold(it.headline)}`);
     console.log(
-      `${String(i + 1).padStart(2)}. ${bold(String(it.score).padStart(4) + " pts")}  ${it.path}`,
+      dim(
+        `    ${it.score} pts · clears ${it.count} violation${it.count === 1 ? "" : "s"}`,
+      ),
     );
-    console.log(`     ${rules}${it.hint ? ` — ${it.hint}` : ""}`);
-    for (const s of it.samples) console.log(dim(`     e.g. ${s}`));
+    for (const [id, n] of [...it.byRule.entries()].sort((a, b) => b[1] - a[1]))
+      console.log(
+        `    ${String(n).padStart(3)}× rule ${String(id).padEnd(2)} ${dim(`— ${RULE_LABELS[id] ?? ""}`)}`,
+      );
+    for (const s of it.samples) console.log(dim(`         e.g. ${s}`));
     console.log();
   });
-  if (!items.length) console.log("nothing left in scope 🎉");
+  if (!items.length)
+    console.log(
+      `Nothing left to fix here — ${where} might already be the best project structure ever 🏆`,
+    );
   else
     console.log(
       dim(
-        "full list for an item:  pnpm structure:stats --rule <n> --scope <path>",
+        "pick #1, make it a small PR, re-run — the list rescores · everything for one item: --rule <n> --scope <path>",
       ),
     );
   process.exit(0);

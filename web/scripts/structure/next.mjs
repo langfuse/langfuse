@@ -9,12 +9,33 @@
 
 /** @typedef {import("./detectors.mjs").Violation} Violation */
 /** @typedef {{ ruleId: number, viol: Violation, weight: number, consumed: boolean }} Attributed */
-/** @typedef {{ path: string, score: number, count: number, byRule: Map<number, number>, hint: string, samples: string[] }} WorkItem */
+/** @typedef {{ path: string, score: number, count: number, byRule: Map<number, number>, headline: string, samples: string[] }} WorkItem */
 
 // Relative importance per rule; unlisted rules weigh 1. Runtime hazards and
 // test-boundary breaches outrank naming and placement nits.
 /** @type {Record<number, number>} */
 export const RULE_WEIGHTS = { 7: 2, 10: 3, 11: 3, 19: 3 };
+
+// What each rule means, for humans reading the breakdown.
+/** @type {Record<number, string>} */
+export const RULE_LABELS = {
+  1: "one component per file, filename = component",
+  2: "a component file exports only the component and its types",
+  3: "hooks/fns/stores/contexts are camelCase, named after their export",
+  4: "one function per file in fns/, no dump files",
+  5: "kind folders are a closed list: components|hooks|contexts|stores|fns|server",
+  6: "a file used by one feature lives in that feature",
+  7: "no importing another component's internals",
+  8: "features import other features only through their index.ts",
+  9: "index.ts only at feature roots, named re-exports only",
+  10: "client code does not import from server/ (types excepted)",
+  11: "no runtime import cycles",
+  12: "a src/pages file just mounts a feature's Page component",
+  16: "ESLint ignores at file level only",
+  18: "fn/hook tests sit flat next to their file",
+  19: "only tests import from __tests__",
+  20: "if nothing imports it, it isn't exported",
+};
 
 // Rule 13 is excluded: its census duplicates rule 6's move work, and a frozen
 // folder's existing files aren't individually actionable.
@@ -58,47 +79,49 @@ function subjectOf(ruleId, viol) {
   return viol.paths[0];
 }
 
+// The item's action headline: what the one small PR does.
 /** @type {(ruleId: number, items: Attributed[], path: string) => string} */
-function hintFor(ruleId, items, path) {
+function headlineFor(ruleId, items, path) {
+  const name = path.slice(path.lastIndexOf("/") + 1);
   switch (ruleId) {
     case 1:
-      return "one component per file; make the filename match it";
+      return `Split up ${path} — one component per file, filename to match`;
     case 2:
-      return "move the non-component exports out";
+      return `Evict the extra exports from ${path} (component + types only)`;
     case 3:
-      return "rename to camelCase / after the export";
+      return `Fix the naming in ${path} — camelCase, file named after its export`;
     case 4:
-      return "split into one-function files";
+      return `Break ${path} into one-function files`;
     case 5:
-      return "fold into kind folders (components|hooks|contexts|stores|fns|server)";
+      return `Fold ${path} into the kind folders`;
     case 6: {
       const dests = new Set(items.map((a) => a.viol.paths[1]));
       return dests.size === 1
-        ? `move into ${[...dests][0]} (its only consumer)`
-        : "move each file into its only consumer";
+        ? `Move ${path} home → ${[...dests][0]} (its only consumer)`
+        : `Send the files in ${path} home — each has exactly one consumer`;
     }
     case 7:
-      return "cross the component boundary via its root file; promote shared internals to siblings";
+      return `Stop reaching into ${name}'s internals — import its root, or promote the shared bits to siblings`;
     case 8:
-      return `create ${path}/index.ts and route external importers through it`;
+      return `Give ${name} a front door — create index.ts and route the deep imports through it`;
     case 9:
-      return "index.ts only at feature roots — rename to the component / named re-exports only";
+      return `Relocate ${path} — index.ts only lives at feature roots`;
     case 10:
-      return "make it `import type`, or move the server code under server/";
+      return `Cut the client→server imports of ${path} (\`import type\`, or move it under server/)`;
     case 11:
-      return "break the runtime import cycle";
+      return `Break the runtime import cycle through ${name}`;
     case 12:
-      return "extract the page body into its feature's Page component; leave a thin shim";
+      return `Put ${path.replace(/^src\/pages/, "")} on a diet — thin shim here, the body moves to its feature`;
     case 16:
-      return "lift the eslint-disable to file level (or fix the code)";
+      return `Lift ${name}'s line-level eslint-disables to file level (or fix the code)`;
     case 18:
-      return "colocate the test next to its subject (or move it into __tests__)";
+      return `Reunite the tests in ${path} with their subjects`;
     case 19:
-      return "move test support into __tests__";
+      return `Move the test support in ${path} into __tests__`;
     case 20:
-      return "nothing imports this — unexport or delete";
+      return `Delete (or unexport) ${path} — nothing imports it`;
     default:
-      return "";
+      return `Fix ${path}`;
   }
 }
 
@@ -241,7 +264,7 @@ export function computeNextItems(results, topN) {
       score: best.s.score,
       count: best.s.count,
       byRule: best.s.byRule,
-      hint: hintFor(dominantRule, dominantLive, best.node),
+      headline: headlineFor(dominantRule, dominantLive, best.node),
       samples: dominantLive.slice(0, 2).map((a) => a.viol.key),
     });
     for (const a of best.s.live) a.consumed = true;
