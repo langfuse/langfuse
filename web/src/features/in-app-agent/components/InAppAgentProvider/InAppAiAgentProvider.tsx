@@ -54,7 +54,8 @@ import { createInAppAgentUserContext } from "./fns/createInAppAgentUserContext";
 import { createInAppAgentMessageEntryPointContext } from "./fns/createInAppAgentMessageEntryPointContext";
 import { createInAppAgentQuickActionAttributionContext } from "./fns/createInAppAgentQuickActionAttributionContext";
 import { createInAppAgentScreenContext } from "./fns/createInAppAgentScreenContext";
-import { recordInAppAgentToolCallForDisplay } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/recordInAppAgentToolCallForDisplay";
+import { recordInAppAgentToolCallForDisplay } from "./fns/recordInAppAgentToolCallForDisplay";
+import { createInAppAgentDisplayState } from "@/src/features/in-app-agent/components/InAppAgentProvider/fns/createInAppAgentDisplayState";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -1341,20 +1342,6 @@ function attachActiveRunIdToAssistantMessages(
 
     return { ...message, runId };
   });
-}
-
-export function createInAppAgentDisplayState() {
-  const state: InAppAgentDisplayState = {
-    latestPlacement: null,
-    nativeToolCallParentMessageId: null,
-    latestNewMessageId: null,
-    nextOrder: 0,
-    seenMessageIds: new Set(),
-    textByMessageId: {},
-    toolCallPlacements: {},
-  };
-
-  return state;
 }
 
 export function recordInAppAgentMessagesForDisplay(
