@@ -1,6 +1,6 @@
 import { Card } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -59,9 +59,7 @@ export default function ConfigureRetention() {
       .then(() => {
         form.reset();
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch(reportTrpcErrorWithoutToast);
   }
 
   return (

@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
 import * as z from "zod";
@@ -129,9 +129,7 @@ export function CreateProjectMemberButton(props: {
         form.reset();
         setOpen(false);
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch(reportTrpcErrorWithoutToast);
   }
 
   return (

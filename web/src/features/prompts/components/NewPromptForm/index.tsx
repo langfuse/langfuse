@@ -21,7 +21,7 @@ import {
 } from "@/src/components/ui/tabs";
 import { Textarea } from "@/src/components/ui/textarea";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type CreatePromptTRPCType,
@@ -174,9 +174,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           router.push(getPromptDetailHref(projectId, newPrompt.name));
         }
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch(reportTrpcErrorWithoutToast);
   }
 
   const hasInitializedMessages = useRef(false);

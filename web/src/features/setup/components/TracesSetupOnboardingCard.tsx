@@ -6,7 +6,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Check, Copy, LockIcon, Sparkles } from "lucide-react";
@@ -85,7 +85,7 @@ export function TracesSetupOnboardingCard({
     try {
       await mutCreateApiKey.mutateAsync({ projectId });
     } catch (error) {
-      console.error("Error creating API key:", error);
+      reportNonTrpcError(error, "setup");
       toast.error("Failed to create API key");
     }
   };

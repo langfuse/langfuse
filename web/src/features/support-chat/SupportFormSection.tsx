@@ -15,7 +15,7 @@ import {
   isSeverityAllowedForPlan,
 } from "./formConstants";
 
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -360,7 +360,7 @@ export function SupportFormSection({
         pylonAttachmentUrls,
       });
     } catch (err: any) {
-      console.error(err);
+      reportNonTrpcError(err, "support");
       setIsSubmittingLocal(false);
       form.setError("message", {
         type: "manual",

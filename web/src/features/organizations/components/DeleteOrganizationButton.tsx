@@ -17,7 +17,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -69,7 +69,9 @@ export function DeleteOrganizationButton() {
       await new Promise((resolve) => setTimeout(resolve, 5000)); // Delay for 5 seconds
       window.location.href = env.NEXT_PUBLIC_BASE_PATH ?? "/"; // Browser reload to refresh jwt
     } catch (error) {
-      console.error(error);
+      // tRPC failures were already classified + toasted by the react-query
+      // default onError; only report failures of the post-success work here.
+      reportNonTrpcError(error, "organizations");
     }
   };
 

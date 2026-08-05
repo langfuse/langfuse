@@ -12,7 +12,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import {
   useState,
   useMemo,
@@ -334,9 +334,7 @@ export const NewDatasetItemForm = (props: {
           `Item does not match dataset schema. Errors: ${JSON.stringify(result.validationErrors, null, 2)}`,
         );
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch(reportTrpcErrorWithoutToast);
   }
 
   return (

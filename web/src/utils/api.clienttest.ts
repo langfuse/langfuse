@@ -4,11 +4,30 @@ import {
   EXPECTED_TRPC_ERROR_CODES,
   fetchWithParseErrorStatus,
   getTrpcErrorCode,
+  getTrpcErrorFingerprint,
   getTrpcErrorPath,
   isExpectedTrpcClientError,
   isNetworkConnectivityError,
   isTrpcResponseParseError,
+  reportNonTrpcError,
+  reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
+
+const { captureExceptionMock, addBreadcrumbMock, trpcErrorToastMock } =
+  vi.hoisted(() => ({
+    captureExceptionMock: vi.fn(),
+    addBreadcrumbMock: vi.fn(),
+    trpcErrorToastMock: vi.fn(),
+  }));
+
+vi.mock("@sentry/nextjs", () => ({
+  captureException: captureExceptionMock,
+  addBreadcrumb: addBreadcrumbMock,
+}));
+
+vi.mock("@/src/utils/trpcErrorToast", () => ({
+  trpcErrorToast: trpcErrorToastMock,
+}));
 
 /** A JSON.parse SyntaxError annotated with the HTTP status it was parsed
  * from, as produced by `fetchWithParseErrorStatus`. */
@@ -329,5 +348,213 @@ describe("isExpectedTrpcClientError", () => {
     );
     expect(isExpectedTrpcClientError(null)).toBe(false);
     expect(isExpectedTrpcClientError(undefined)).toBe(false);
+  });
+});
+
+describe("getTrpcErrorFingerprint", () => {
+  // The whole point of the fingerprint: unrelated tRPC failures must STOP
+  // grouping into one issue, while retries of the same failure class must
+  // keep grouping together.
+  it("groups the same code + path together even when messages differ", () => {
+    const first = trpcServerError({
+      code: "FORBIDDEN",
+      httpStatus: 403,
+      path: "organizations.delete",
+      message: "Deletion of your projects is still being processed",
+    });
+    const second = trpcServerError({
+      code: "FORBIDDEN",
+      httpStatus: 403,
+      path: "organizations.delete",
+      message: "some other server-minted advice",
+    });
+
+    expect(getTrpcErrorFingerprint(first)).toEqual(
+      getTrpcErrorFingerprint(second),
+    );
+  });
+
+  it("splits different codes on the same path", () => {
+    const forbidden = trpcServerError({
+      code: "FORBIDDEN",
+      httpStatus: 403,
+      path: "traces.deleteMany",
+    });
+    const internal = trpcServerError({
+      code: "INTERNAL_SERVER_ERROR",
+      httpStatus: 500,
+      path: "traces.deleteMany",
+    });
+
+    expect(getTrpcErrorFingerprint(forbidden)).not.toEqual(
+      getTrpcErrorFingerprint(internal),
+    );
+  });
+
+  it("splits the same code on different paths", () => {
+    const evals = trpcServerError({
+      code: "BAD_REQUEST",
+      httpStatus: 400,
+      path: "evals.createJob",
+    });
+    const traces = trpcServerError({
+      code: "BAD_REQUEST",
+      httpStatus: 400,
+      path: "traces.deleteMany",
+    });
+
+    expect(getTrpcErrorFingerprint(evals)).not.toEqual(
+      getTrpcErrorFingerprint(traces),
+    );
+  });
+
+  it("uses a stable placeholder when the server shape omits the path", () => {
+    const error = trpcServerError({ code: "FORBIDDEN", httpStatus: 403 });
+
+    expect(getTrpcErrorFingerprint(error)).toEqual([
+      "trpc-client-error",
+      "FORBIDDEN",
+      "unknown",
+    ]);
+  });
+
+  it("never leaks the error message into the fingerprint (bounded cardinality)", () => {
+    const message = "user-specific advice with dynamic content 12345";
+    const error = trpcServerError({
+      code: "UNPROCESSABLE_CONTENT",
+      httpStatus: 422,
+      path: "traces.metrics",
+      message,
+    });
+
+    const fingerprint = getTrpcErrorFingerprint(error);
+    expect(fingerprint).toEqual([
+      "trpc-client-error",
+      "UNPROCESSABLE_CONTENT",
+      "traces.metrics",
+    ]);
+    expect(fingerprint.join()).not.toContain("12345");
+  });
+});
+
+describe("reportTrpcErrorWithoutToast", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    captureExceptionMock.mockClear();
+    addBreadcrumbMock.mockClear();
+    trpcErrorToastMock.mockClear();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it("suppresses expected codes (breadcrumb, no capture) — same policy as the seam", () => {
+    // The organizations.delete FORBIDDEN advice: previously console.error'd by
+    // the component (one Sentry event per retry), now classified as expected.
+    const error = trpcServerError({
+      code: "FORBIDDEN",
+      httpStatus: 403,
+      path: "organizations.delete",
+      message:
+        "Deletion of your projects is still being processed, please try deleting the organization later",
+    });
+
+    reportTrpcErrorWithoutToast(error);
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+      code: "FORBIDDEN",
+      path: "organizations.delete",
+    });
+  });
+
+  // Negative fixture: real errors MUST still be captured, with the
+  // procedure/code fingerprint and tags.
+  it("captures a real (5xx) tRPC error with fingerprint and tags", () => {
+    const error = trpcServerError({
+      code: "INTERNAL_SERVER_ERROR",
+      httpStatus: 500,
+      path: "projects.create",
+    });
+
+    reportTrpcErrorWithoutToast(error);
+
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    const [, options] = captureExceptionMock.mock.calls[0]!;
+    expect(options.fingerprint).toEqual([
+      "trpc-client-error",
+      "INTERNAL_SERVER_ERROR",
+      "projects.create",
+    ]);
+    expect(options.tags).toMatchObject({
+      area: "trpc",
+      "trpc.code": "INTERNAL_SERVER_ERROR",
+      "trpc.path": "projects.create",
+    });
+  });
+
+  it("captures non-tRPC errors unchanged", () => {
+    reportTrpcErrorWithoutToast(new Error("post-success work failed"));
+
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never shows the standard error toast (the local onError owns the UX)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+        path: "projects.create",
+      }),
+    );
+    reportTrpcErrorWithoutToast(new Error("boom"));
+
+    expect(trpcErrorToastMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("reportNonTrpcError", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    captureExceptionMock.mockClear();
+    addBreadcrumbMock.mockClear();
+    trpcErrorToastMock.mockClear();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it("swallows TRPCClientErrors (already classified by the react-query default onError)", () => {
+    reportNonTrpcError(
+      trpcServerError({
+        code: "INTERNAL_SERVER_ERROR",
+        httpStatus: 500,
+        path: "projects.create",
+      }),
+      "projects",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(trpcErrorToastMock).not.toHaveBeenCalled();
+  });
+
+  // Negative fixture: a genuine non-tRPC failure (post-success callback,
+  // router.push, ...) MUST still be captured.
+  it("reports non-tRPC errors with the caller's area", () => {
+    reportNonTrpcError(new Error("router.push failed"), "organizations", {
+      context: "delete-organization",
+    });
+
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    const [, options] = captureExceptionMock.mock.calls[0]!;
+    expect(options.tags.area).toBe("organizations");
+    expect(options.extra).toEqual({ context: "delete-organization" });
   });
 });

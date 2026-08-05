@@ -13,7 +13,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   createBooleanEvalOutputDefinition,
@@ -440,12 +440,14 @@ export const InnerEvalTemplateForm = (props: {
         );
       })
       .catch((error) => {
+        // The mutation's local onError owns the form UX; this owns
+        // classification + Sentry capture.
+        reportTrpcErrorWithoutToast(error);
         if ("message" in error && typeof error.message === "string") {
           setFormError(error.message as string);
           return;
         }
         setFormError(JSON.stringify(error));
-        console.error(error);
       });
   }
 
