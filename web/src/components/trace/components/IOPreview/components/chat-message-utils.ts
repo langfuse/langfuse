@@ -53,7 +53,9 @@ export function isOnlyJsonMessage(message: ChatMlMessage): boolean {
   const hasValidChatMlContent =
     message.content != null ||
     message.tool_calls != null ||
-    message.audio != null;
+    message.audio != null ||
+    hasThinkingContent(message) ||
+    hasRedactedThinkingContent(message);
   return !hasValidChatMlContent && message.json != null;
 }
 

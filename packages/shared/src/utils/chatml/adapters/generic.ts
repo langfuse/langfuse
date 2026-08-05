@@ -137,6 +137,33 @@ function preprocessData(data: unknown): unknown {
     };
   }
 
+  // Single completion object with optional reasoning / reasoning_content
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    !Array.isArray(data) &&
+    "completion" in data &&
+    typeof (data as Record<string, unknown>).completion === "string"
+  ) {
+    const obj = data as Record<string, unknown>;
+    const reasoningText =
+      typeof obj.reasoning === "string"
+        ? obj.reasoning
+        : typeof obj.reasoning_content === "string"
+          ? obj.reasoning_content
+          : undefined;
+
+    return {
+      role: "assistant",
+      content: obj.completion,
+      ...(reasoningText
+        ? {
+            thinking: [{ type: "thinking" as const, content: reasoningText }],
+          }
+        : {}),
+    };
+  }
+
   // Single message
   if (typeof data === "object" && ("role" in data || "parts" in data)) {
     return normalizeGoogleMessage(data);
