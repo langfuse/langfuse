@@ -477,7 +477,9 @@ export const env = createEnv({
     // Organizations created on or after this date are past the point where the
     // v4 preview is force-enabled and cannot be switched off, so their OTLP
     // traffic must reach the events table in real time even when the exporter
-    // does not send `x-langfuse-ingestion-version: 4`. A plain ISO date
+    // does not send `x-langfuse-ingestion-version: 4`. Applies to non-Langfuse-
+    // SDK exports only; an older SDK keeps its established dual-write shape.
+    // A plain ISO date
     // (YYYY-MM-DD) is enough precision and is easier to reason about than a
     // timestamp; it is interpreted as midnight UTC. Unset disables the rule,
     // which is the correct default for self-hosted deployments: those flip the

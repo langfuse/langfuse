@@ -121,24 +121,57 @@ export type OtelWritePath =
   | "direct_org_cutoff";
 
 /**
+ * Whether a batch was exported by a Langfuse SDK rather than a plain OTel
+ * pipeline.
+ *
+ * Either signal is sufficient: the SDKs send `x-langfuse-sdk-name` (normalized
+ * to UNKNOWN_INGESTION_SDK_VALUE when absent), and their spans carry a
+ * "langfuse"-prefixed instrumentation scope. A third party that sets the
+ * header anyway is treated as SDK traffic, which is the conservative direction
+ * — it keeps the established write path.
+ */
+export function isLangfuseSdkTraffic(params: {
+  sdkName?: string;
+  scopeName?: string | null;
+}): boolean {
+  const { sdkName, scopeName } = params;
+
+  if (sdkName && sdkName !== UNKNOWN_INGESTION_SDK_VALUE) {
+    return true;
+  }
+
+  return Boolean(
+    scopeName && String(scopeName).toLowerCase().includes("langfuse"),
+  );
+}
+
+/**
  * Resolve which persistence path a batch takes, and which signal decided it.
  *
  * Precedence is header > env > scope > org cutoff. The org cutoff sits last so
  * the `direct_org_cutoff` label counts only the traffic that rule genuinely
  * moves off the dual path, rather than absorbing batches that a header or a
  * recognized SDK scope would have routed directly anyway.
+ *
+ * The org cutoff additionally excludes Langfuse SDK traffic. An older SDK has
+ * an established dual-write shape — its trace-level attributes surface on the
+ * synthetic root observation that only the dual path materializes — so flipping
+ * it would change data those users already read. A plain OTel exporter has no
+ * such prior expectation, and is the case the cutoff exists for.
  */
 export function resolveOtelWritePath(params: {
   headerBasedDirectWrite: boolean;
   envForcesDirect: boolean;
   scopeBasedDirectWrite: boolean;
   orgCutoffForcesDirect: boolean;
+  langfuseSdkTraffic: boolean;
 }): { useDirectEventWrite: boolean; writePath: OtelWritePath } {
   const {
     headerBasedDirectWrite,
     envForcesDirect,
     scopeBasedDirectWrite,
     orgCutoffForcesDirect,
+    langfuseSdkTraffic,
   } = params;
 
   if (headerBasedDirectWrite) {
@@ -150,7 +183,7 @@ export function resolveOtelWritePath(params: {
   if (scopeBasedDirectWrite) {
     return { useDirectEventWrite: true, writePath: "direct_scope" };
   }
-  if (orgCutoffForcesDirect) {
+  if (orgCutoffForcesDirect && !langfuseSdkTraffic) {
     return { useDirectEventWrite: true, writePath: "direct_org_cutoff" };
   }
 
@@ -224,7 +257,7 @@ export function checkSdkVersionRequirements(
   const { scopeName, scopeVersion, telemetrySdkLanguage } = sdkInfo;
 
   // Must be a Langfuse SDK
-  if (!scopeName || !String(scopeName).toLowerCase().includes("langfuse")) {
+  if (!isLangfuseSdkTraffic({ scopeName })) {
     return false;
   }
 
@@ -443,7 +476,8 @@ export const otelIngestionQueueProcessorBuilder = (
       //   - scope.name contains "langfuse", sdk-experiment environment, Python >= 3.9.0 or JS >= 4.4.0
       //
       // Priority 3 (last resort): organization signup date past the Cloud OTel
-      //   direct-write cutoff, resolved by the producer (see below).
+      //   direct-write cutoff, resolved by the producer. Non-Langfuse-SDK
+      //   exports only (see below).
       const headerBasedDirectWrite = checkHeaderBasedDirectWrite({
         sdkName: job.data.payload.sdkName,
         sdkVersion: job.data.payload.sdkVersion,
@@ -458,10 +492,8 @@ export const otelIngestionQueueProcessorBuilder = (
       // Priority 0b: organization-level rollout (LFE-14536). The producer sets
       // this when the owning organization signed up past the Cloud OTel
       // direct-write cutoff, which also means it is force-enabled on v4 and
-      // reads the events table only. It applies to every batch on the endpoint,
-      // including old Langfuse SDKs: such an organization has no prior
-      // expectation of the dual-write shape, so the direct path is simply the
-      // correct experience for it.
+      // reads the events table only. Applied to non-Langfuse-SDK exports only;
+      // resolveOtelWritePath owns that exclusion.
       const orgCutoffForcesDirect = job.data.payload.forceDirectWrite === true;
 
       // Evaluated whenever the higher-precedence header/env signals did not
@@ -470,6 +502,9 @@ export const otelIngestionQueueProcessorBuilder = (
       // exactly and `direct_org_cutoff` counts only the traffic this rule
       // genuinely moves off the dual path.
       let scopeBasedDirectWrite = false;
+      let langfuseSdkTraffic = isLangfuseSdkTraffic({
+        sdkName: job.data.payload.sdkName,
+      });
       if (!envForcesDirect && !headerBasedDirectWrite) {
         const hasExperimentEnvironment = observations.some((o) => {
           const body = o.body as { environment?: string };
@@ -487,6 +522,12 @@ export const otelIngestionQueueProcessorBuilder = (
           sdkInfo,
           hasExperimentEnvironment,
         );
+        // An older SDK that predates the header still identifies itself through
+        // its instrumentation scope, so both signals have to be consulted
+        // before the org cutoff may flip a batch.
+        langfuseSdkTraffic =
+          langfuseSdkTraffic ||
+          isLangfuseSdkTraffic({ scopeName: sdkInfo.scopeName });
       }
 
       const { useDirectEventWrite, writePath } = resolveOtelWritePath({
@@ -494,6 +535,7 @@ export const otelIngestionQueueProcessorBuilder = (
         envForcesDirect,
         scopeBasedDirectWrite,
         orgCutoffForcesDirect,
+        langfuseSdkTraffic,
       });
 
       span?.setAttribute("langfuse.ingestion.otel.write_path", writePath);

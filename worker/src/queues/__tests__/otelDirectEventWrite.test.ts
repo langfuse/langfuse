@@ -3,10 +3,52 @@ import {
   checkHeaderBasedDirectWrite,
   checkSdkVersionRequirements,
   getSdkInfoFromResourceSpans,
+  isLangfuseSdkTraffic,
   resolveOtelWritePath,
   shouldProcessLegacyOtelMedia,
   type SdkInfo,
 } from "../otelIngestionQueue";
+
+describe("isLangfuseSdkTraffic", () => {
+  it.each([
+    { params: { sdkName: "python" }, expected: true, label: "sdk-name header" },
+    {
+      params: { sdkName: "javascript" },
+      expected: true,
+      label: "javascript sdk-name header",
+    },
+    {
+      params: { scopeName: "langfuse-sdk" },
+      expected: true,
+      label: "langfuse instrumentation scope",
+    },
+    {
+      params: { scopeName: "LangFuse-SDK" },
+      expected: true,
+      label: "scope match is case-insensitive",
+    },
+    // The header is normalized to this sentinel when absent, so it must not
+    // read as a Langfuse SDK — that would exclude all plain OTel traffic.
+    {
+      params: { sdkName: "unknown" },
+      expected: false,
+      label: "unknown sdk-name sentinel",
+    },
+    {
+      params: { sdkName: "unknown", scopeName: "openlit" },
+      expected: false,
+      label: "third-party scope with no sdk-name",
+    },
+    { params: {}, expected: false, label: "no signal at all" },
+    {
+      params: { scopeName: null },
+      expected: false,
+      label: "null scope name",
+    },
+  ])("$label → $expected", ({ params, expected }) => {
+    expect(isLangfuseSdkTraffic(params)).toBe(expected);
+  });
+});
 
 describe("resolveOtelWritePath", () => {
   const none = {
@@ -14,6 +56,7 @@ describe("resolveOtelWritePath", () => {
     envForcesDirect: false,
     scopeBasedDirectWrite: false,
     orgCutoffForcesDirect: false,
+    langfuseSdkTraffic: false,
   };
 
   it("falls back to the dual write when no signal qualifies", () => {
@@ -49,6 +92,49 @@ describe("resolveOtelWritePath", () => {
           ...none,
           [signal]: true,
           orgCutoffForcesDirect: true,
+        }),
+      ).toEqual({ useDirectEventWrite: true, writePath });
+    },
+  );
+
+  // An older Langfuse SDK keeps the dual write: its trace-level attributes
+  // surface on the synthetic root observation that only the dual path
+  // materializes, so flipping it would change data those users already read.
+  it("leaves Langfuse SDK traffic on the dual write despite the org cutoff", () => {
+    expect(
+      resolveOtelWritePath({
+        ...none,
+        orgCutoffForcesDirect: true,
+        langfuseSdkTraffic: true,
+      }),
+    ).toEqual({ useDirectEventWrite: false, writePath: "dual" });
+  });
+
+  it("applies the org cutoff to plain OTel traffic", () => {
+    expect(
+      resolveOtelWritePath({
+        ...none,
+        orgCutoffForcesDirect: true,
+        langfuseSdkTraffic: false,
+      }),
+    ).toEqual({ useDirectEventWrite: true, writePath: "direct_org_cutoff" });
+  });
+
+  // The exclusion is scoped to the cutoff rule — it must not hold back a batch
+  // that a header, the env override, or a recognized scope already qualified.
+  it.each([
+    { signal: "headerBasedDirectWrite", writePath: "direct_header" },
+    { signal: "envForcesDirect", writePath: "direct_env" },
+    { signal: "scopeBasedDirectWrite", writePath: "direct_scope" },
+  ] as const)(
+    "still routes $writePath for Langfuse SDK traffic",
+    ({ signal, writePath }) => {
+      expect(
+        resolveOtelWritePath({
+          ...none,
+          [signal]: true,
+          orgCutoffForcesDirect: true,
+          langfuseSdkTraffic: true,
         }),
       ).toEqual({ useDirectEventWrite: true, writePath });
     },

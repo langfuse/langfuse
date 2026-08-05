@@ -6,10 +6,13 @@
  * the only surface they read. Without `x-langfuse-ingestion-version: 4` their
  * OTLP traffic would take the dual-write path and appear with up to ~10 minutes
  * of delay — a broken first experience for an exporter that is otherwise set up
- * correctly. For those organizations every batch arriving on the OTel endpoint
- * is routed straight to the events table, regardless of which SDK (or none)
- * produced it: they have no prior expectation of the dual-write shape, so the
- * direct path simply is the correct experience.
+ * correctly. Batches from those organizations are therefore routed straight to
+ * the events table.
+ *
+ * This resolves *eligibility* only. The consumer additionally restricts the
+ * rule to non-Langfuse-SDK exports: an older SDK has an established dual-write
+ * shape and keeps it, while a plain OTel exporter — the case this rule exists
+ * for — has no such prior expectation. See `resolveOtelWritePath`.
  *
  * Deliberately date-based: there is no per-organization or per-project v4
  * column, only `User.v4BetaEnabled`, so signup date is the only cohort signal
