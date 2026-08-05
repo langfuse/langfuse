@@ -1968,10 +1968,10 @@ export default function ObservationsEventsTable({
                 tableStatePolicy.disableSavedViews ? undefined : (
                   <CategoryPresetChips
                     projectId={projectId}
-                    activeViewId={
-                      viewControllers.appliedViewId ??
-                      viewControllers.selectedViewId
-                    }
+                    // URL viewId only — the sessionStorage appliedViewId can
+                    // go stale under explicit URL state and light the wrong
+                    // chip (see demoteViewOnUserFilterEdit).
+                    activeViewId={viewControllers.selectedViewId}
                     onApplyView={viewControllers.handleSetViewId}
                     applyViewState={viewControllers.applyViewState}
                     onPreviewView={previewViewInSearchBar}
@@ -2176,10 +2176,10 @@ export default function ObservationsEventsTable({
                   <div className="flex flex-wrap items-center gap-2">
                     <CategoryPresetChips
                       projectId={projectId}
-                      activeViewId={
-                        viewControllers.appliedViewId ??
-                        viewControllers.selectedViewId
-                      }
+                      // URL viewId only — the sessionStorage appliedViewId
+                      // can go stale under explicit URL state and light the
+                      // wrong chip (see demoteViewOnUserFilterEdit).
+                      activeViewId={viewControllers.selectedViewId}
                       onApplyView={viewControllers.handleSetViewId}
                       applyViewState={viewControllers.applyViewState}
                       onPreviewView={previewViewInSearchBar}

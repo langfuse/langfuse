@@ -464,5 +464,13 @@ describe("system preset demotion on user filter edits (LFE-14699)", () => {
         (write) => write.key === "viewId" && write.value === null,
       ),
     ).toEqual([]);
+    // The two signals diverge for the whole visit: sessionStorage still names
+    // the stale preset while the URL names the user view. selectedViewId is
+    // what the events table feeds CategoryPresetChips as activeViewId — the
+    // stale stored id must not light a chip either.
+    expect(storedViewId()).toBe(PRESET_ID);
+    expect(screen.getByTestId("selected-view-id").textContent).not.toBe(
+      PRESET_ID,
+    );
   });
 });
