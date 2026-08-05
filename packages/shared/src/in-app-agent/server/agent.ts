@@ -14,11 +14,12 @@ import {
   type ResumeForwardedProps,
 } from "../schema";
 import { createManualToolApprovalRunInput } from "./human-in-the-loop";
-import type {
-  InAppAgentPromptMetadata,
-  InAppAgentTracingConfig,
+import {
+  createInAppAgentInstrumentation,
+  type InAppAgentPromptMetadata,
+  type InAppAgentTracingConfig,
 } from "./instrumentation";
-import { createInAppAgentInstrumentation } from "./instrumentation";
+import { getToolFailureMessage } from "./toolErrors";
 import {
   createSandboxTools,
   createRedirectActionTool,
@@ -1104,6 +1105,14 @@ function normalizeAdapterEvent(
         ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
       },
     ];
+  }
+
+  if (event.type === EventType.TOOL_CALL_RESULT) {
+    const failureMessage = getToolFailureMessage(event.error, event.content);
+
+    if (failureMessage && event.error !== failureMessage) {
+      return [{ ...event, error: failureMessage }];
+    }
   }
 
   return [event];

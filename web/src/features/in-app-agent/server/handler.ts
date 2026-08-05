@@ -26,6 +26,7 @@ import {
   type ResumeForwardedProps,
 } from "@langfuse/shared/in-app-agent";
 import { createAgUiStream } from "@langfuse/shared/in-app-agent/server/agent";
+import { getInAppAgentRunLineageMetadata } from "@langfuse/shared/in-app-agent/server/instrumentation";
 import {
   consumeAndValidatePendingToolApproval,
   createInAppAgentMcpRunOverride,
@@ -541,6 +542,10 @@ export default async function handler(request: Request) {
                     thread_id: sanitizedInput.threadId,
                     run_id: sanitizedInput.runId,
                     cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                    ...getInAppAgentRunLineageMetadata(
+                      sanitizedInput,
+                      "foreground",
+                    ),
                     agent_session_type:
                       parsedState.data.type === "existingConversation"
                         ? "existing"
@@ -833,10 +838,14 @@ async function prepareAgentInput(
       throw new InvalidRequestError("Invalid forwarded props");
     }
 
+    const parentRunId =
+      input.parentRunId ??
+      resumeForwardedProps.data.command.resume.approvalRequest.runId;
+
     return {
       threadId: input.threadId,
       runId: createInAppAgentRunId(),
-      ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
+      ...(parentRunId ? { parentRunId } : {}),
       state: null,
       messages: [],
       tools: [],

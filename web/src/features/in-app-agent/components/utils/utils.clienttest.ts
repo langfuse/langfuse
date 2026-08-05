@@ -4,8 +4,78 @@ import {
   getDrawerMessages,
   getInAppAgentError,
   isInAppAgentRateLimited,
+  preserveToolCallResultError,
   type InAppAiAgentMessage,
 } from "./utils";
+
+describe("preserveToolCallResultError", () => {
+  it("keeps an errored tool result in the live message state", () => {
+    const result = preserveToolCallResultError(
+      [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-1",
+              type: "function",
+              function: { name: "createScoreConfig", arguments: "{}" },
+            },
+          ],
+        },
+      ],
+      {
+        type: "TOOL_CALL_RESULT",
+        messageId: "tool-result-1",
+        toolCallId: "tool-1",
+        role: "tool",
+        content: "MCP error: invalid score config",
+        error: "MCP error: invalid score config",
+      },
+    );
+
+    expect(result).toEqual({
+      stopPropagation: true,
+      messages: [
+        expect.objectContaining({ id: "assistant-1", role: "assistant" }),
+        {
+          id: "tool-result-1",
+          role: "tool",
+          toolCallId: "tool-1",
+          content: "MCP error: invalid score config",
+          error: "MCP error: invalid score config",
+        },
+      ],
+    });
+  });
+
+  it("replaces an existing result instead of adding a duplicate", () => {
+    const existingResult = {
+      id: "tool-result-1",
+      role: "tool" as const,
+      toolCallId: "tool-1",
+      content: "MCP error: invalid score config",
+    };
+
+    const result = preserveToolCallResultError([existingResult], {
+      type: "TOOL_CALL_RESULT",
+      messageId: "tool-result-1",
+      toolCallId: "tool-1",
+      role: "tool",
+      content: "MCP error: invalid score config",
+      error: "MCP error: invalid score config",
+    });
+
+    expect(result?.messages).toEqual([
+      {
+        ...existingResult,
+        error: "MCP error: invalid score config",
+      },
+    ]);
+  });
+});
+
 describe("getInAppAgentError", () => {
   const now = new Date("2026-07-08T20:00:54.997Z").getTime();
   const rateLimitError = {

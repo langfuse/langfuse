@@ -22,6 +22,7 @@ import {
   type AgUiRunAgentInput,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
+import { getInAppAgentRunLineageMetadata } from "@langfuse/shared/in-app-agent/server/instrumentation";
 import {
   claimQueuedRun,
   clearRunMcpApiKeyPointer,
@@ -261,6 +262,9 @@ export async function executeInAppAgentRun(params: {
       messages: [...replayMessages],
       tools: [],
       context: request.context,
+      ...(request.kind === "approvalDecision"
+        ? { parentRunId: request.parentRunId }
+        : {}),
       forwardedProps:
         request.kind === "approvalDecision" && approvalRequest
           ? {
@@ -518,6 +522,10 @@ export async function executeInAppAgentRun(params: {
           projectId,
           conversationId: conversation.id,
           runId,
+          lineageMetadata: getInAppAgentRunLineageMetadata(
+            agentInput,
+            "worker",
+          ),
           user: {
             id: run.triggeredByUserId,
             email: access.email,
@@ -667,6 +675,7 @@ function buildTracingConfig(params: {
   projectId: string;
   conversationId: string;
   runId: string;
+  lineageMetadata: Record<string, unknown>;
   user: {
     id: string;
     email: string | null;
@@ -692,7 +701,7 @@ function buildTracingConfig(params: {
       conversation_id: params.conversationId,
       run_id: params.runId,
       cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      execution_runtime: "worker",
+      ...params.lineageMetadata,
     },
   });
 

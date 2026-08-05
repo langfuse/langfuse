@@ -79,6 +79,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import {
   getInAppAgentError,
   isInAppAgentRateLimited,
+  preserveToolCallResultError,
   type InAppAiAgentMessage,
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
@@ -865,7 +866,7 @@ function InAppAiAgentProviderInner({
             clearLoadingEvents();
           }
         },
-        onToolCallResultEvent: ({ event }) => {
+        onToolCallResultEvent: ({ event, messages }) => {
           const toolCallId = String(event.toolCallId);
           const toolName = toolCallNamesRef.current.get(toolCallId);
           toolCallNamesRef.current.delete(toolCallId);
@@ -881,6 +882,8 @@ function InAppAiAgentProviderInner({
               );
             });
           }
+
+          return preserveToolCallResultError(messages, event);
         },
         onRunErrorEvent: ({ event }) => {
           if (intentionalAbortRef.current) {
@@ -935,13 +938,14 @@ function InAppAiAgentProviderInner({
           });
         },
         onToolCallResultEvent: (params) => {
-          sharedSubscriber.onToolCallResultEvent(params);
+          const mutation = sharedSubscriber.onToolCallResultEvent(params);
           updatePendingToolApprovals((currentApprovals) =>
             currentApprovals.filter(
               (approval) =>
                 approval.approvalRequest.toolCallId !== params.event.toolCallId,
             ),
           );
+          return mutation;
         },
         onMessagesChanged: ({ messages }) => {
           publishAgentMessages(messages);

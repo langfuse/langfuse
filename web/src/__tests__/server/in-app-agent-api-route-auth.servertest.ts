@@ -302,6 +302,7 @@ describe("in-app agent public API route auth", () => {
           input: expect.objectContaining({
             messages: [],
             forwardedProps,
+            parentRunId: "suspended-run-1",
           }),
           options: expect.objectContaining({
             langfuseMcp: expect.objectContaining({

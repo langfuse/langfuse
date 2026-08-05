@@ -43,6 +43,63 @@ export type InAppAgentToolCallContent = {
   };
 };
 
+const ToolCallResultWithErrorSchema = z.object({
+  messageId: z.string().optional(),
+  toolCallId: z.string(),
+  content: z.string(),
+  error: z.string().optional(),
+});
+
+export function preserveToolCallResultError(
+  messages: readonly unknown[],
+  event: unknown,
+) {
+  const parsedEvent = ToolCallResultWithErrorSchema.safeParse(event);
+  if (!parsedEvent.success) {
+    return undefined;
+  }
+
+  const {
+    content,
+    error: eventError,
+    messageId,
+    toolCallId,
+  } = parsedEvent.data;
+  const error = eventError?.trim();
+  if (!error) {
+    return undefined;
+  }
+
+  const toolMessage: Extract<AgUiMessage, { role: "tool" }> = {
+    id: messageId ?? toolCallId,
+    role: "tool",
+    toolCallId,
+    content,
+    error,
+  };
+  const existingMessageIndex = messages.findIndex((message) => {
+    const parsedMessage = AgUiMessageSchema.safeParse(message);
+    return (
+      parsedMessage.success &&
+      (parsedMessage.data.id === toolMessage.id ||
+        (parsedMessage.data.role === "tool" &&
+          parsedMessage.data.toolCallId === toolCallId))
+    );
+  });
+  const nextMessages = messages.concat();
+
+  if (existingMessageIndex === -1) {
+    nextMessages.push(toolMessage);
+  } else {
+    nextMessages[existingMessageIndex] = toolMessage;
+  }
+
+  return {
+    messages: nextMessages,
+    stopPropagation: true as const,
+  };
+}
+
 const InAppAgentToolRejectionErrorSchema = z.object({
   code: z.literal(IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE),
   message: z.string(),

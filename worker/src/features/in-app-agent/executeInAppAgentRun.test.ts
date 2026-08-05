@@ -29,6 +29,7 @@ type AgentScenario = (ctx: {
   input: {
     threadId: string;
     runId: string;
+    parentRunId?: string;
     context: Array<{ description: string; value: string }>;
     forwardedProps: unknown;
   };
@@ -229,7 +230,7 @@ async function seedApprovedContinuation(opts?: {
     },
   });
 
-  return seeded;
+  return { ...seeded, parentRun };
 }
 
 describe("executeInAppAgentRun", () => {
@@ -241,9 +242,12 @@ describe("executeInAppAgentRun", () => {
       },
       { description: "browser_languages", value: '["de-DE"]' },
     ];
-    const { projectId, run } = await seedApprovedContinuation({ context });
+    const { projectId, run, parentRun } = await seedApprovedContinuation({
+      context,
+    });
 
     scenarioRef.current = async ({ input, options }) => {
+      expect(input.parentRunId).toBe(parentRun.id);
       expect(input.context).toEqual(context);
       await options.onComplete();
       await options.onFinish();
