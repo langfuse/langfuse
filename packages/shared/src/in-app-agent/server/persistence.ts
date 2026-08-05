@@ -765,7 +765,7 @@ function sanitizeConversationMessagesForReplay(
   );
 }
 
-function redactSilentToolMessages(messages: readonly AgUiMessage[]) {
+export function redactSilentToolMessages(messages: readonly AgUiMessage[]) {
   let changed = false;
   const sanitizedMessages = messages.map((message): AgUiMessage => {
     if (message.role !== "tool") {
