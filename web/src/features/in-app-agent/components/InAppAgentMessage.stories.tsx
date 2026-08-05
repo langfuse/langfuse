@@ -341,32 +341,6 @@ export const MixedToolCallStatuses = meta.story({
   },
 });
 
-export const ApprovalOutcomes = meta.story({
-  args: {
-    role: "assistant",
-    content: {
-      type: "toolGroup",
-      tools: [
-        {
-          type: "tool",
-          name: "langfuse_upsertDataset",
-          status: "succeeded",
-          args: JSON.stringify({ name: "regression-examples" }),
-          result: JSON.stringify({ created: true }),
-        },
-        {
-          type: "tool",
-          name: "langfuse_createTextPrompt",
-          status: "denied",
-          args: JSON.stringify({ name: "approval-required" }),
-          result: "Tool call was not approved by the user.",
-          error: "Tool call was not approved by the user.",
-        },
-      ],
-    },
-  },
-});
-
 export const CompactMixedToolCallStatuses = meta.story({
   args: {
     role: "assistant",
