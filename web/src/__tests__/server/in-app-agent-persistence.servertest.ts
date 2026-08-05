@@ -37,7 +37,7 @@ import {
   deserializeInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
 } from "@/src/features/in-app-agent/lib/display";
-import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+import { InAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
   createRun,
   ensureOwnedConversation,
@@ -129,7 +129,7 @@ describe("in-app agent persistence", () => {
     return {
       ...setup,
       userId,
-      caller: inAppAgentRouter.createCaller({ ...ctx, prisma }),
+      caller: InAppAgentRouter.createCaller({ ...ctx, prisma }),
       session,
     };
   };
@@ -1981,7 +1981,7 @@ describe("in-app agent persistence", () => {
       session: otherSession,
       headers: {},
     });
-    const otherCaller = inAppAgentRouter.createCaller({ ...otherCtx, prisma });
+    const otherCaller = InAppAgentRouter.createCaller({ ...otherCtx, prisma });
 
     const conversation = await createConversation({
       projectId: owner.projectId,

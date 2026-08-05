@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import { InAppAgentWindowHost } from "./InAppAgentWindowHost";
 
-const mocks = vi.hoisted(() => ({
+const MOCKS = vi.hoisted(() => ({
   open: false,
   setOpen: vi.fn(),
 }));
@@ -12,9 +12,9 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useInAppAiAgent: () => ({
     deleteConversation: vi.fn(),
     isExpanded: false,
-    open: mocks.open,
+    open: MOCKS.open,
     setIsExpanded: vi.fn(),
-    setOpen: mocks.setOpen,
+    setOpen: MOCKS.setOpen,
   }),
 }));
 
@@ -45,8 +45,8 @@ function firePointerEvent(
 
 describe("InAppAgentWindowHost", () => {
   beforeEach(() => {
-    mocks.open = false;
-    mocks.setOpen.mockReset();
+    MOCKS.open = false;
+    MOCKS.setOpen.mockReset();
 
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
@@ -79,7 +79,7 @@ describe("InAppAgentWindowHost", () => {
 
     expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
 
-    mocks.open = true;
+    MOCKS.open = true;
     rerender(<InAppAgentWindowHost />);
 
     // Default placement: bottom-right of the 1024x768 viewport.
@@ -114,11 +114,11 @@ describe("InAppAgentWindowHost", () => {
       "468px",
     );
 
-    mocks.open = false;
+    MOCKS.open = false;
     rerender(<InAppAgentWindowHost />);
     expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
 
-    mocks.open = true;
+    MOCKS.open = true;
     rerender(<InAppAgentWindowHost />);
     expect(screen.getByTestId("movable-resizable-panel").style.left).toBe(
       "568px",

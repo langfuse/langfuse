@@ -15,7 +15,7 @@ import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 import { InAppAiAgentProvider, useInAppAiAgent } from "./InAppAiAgentProvider";
 import styles from "./InAppAgentWindow.module.css";
 
-const providerMocks = vi.hoisted(() => {
+const PROVIDER_MOCKS = vi.hoisted(() => {
   const startRun = vi.fn();
   const cancelRun = vi.fn();
   const decideToolApproval = vi.fn();
@@ -112,22 +112,22 @@ vi.mock("@/src/features/projects/hooks", () => ({
 
 vi.mock("@/src/features/in-app-agent/lib/backgroundExecutionFlag", () => ({
   useInAppAgentBackgroundExecutionEnabled: () =>
-    providerMocks.backgroundExecutionEnabled,
+    PROVIDER_MOCKS.backgroundExecutionEnabled,
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => providerMocks.capture,
+  usePostHogClientCapture: () => PROVIDER_MOCKS.capture,
 }));
 
 vi.mock("@/src/utils/api", () => ({
   api: {
-    useUtils: () => providerMocks.utils,
+    useUtils: () => PROVIDER_MOCKS.utils,
     inAppAgent: {
       listConversations: {
-        useInfiniteQuery: () => providerMocks.listQuery,
+        useInfiniteQuery: () => PROVIDER_MOCKS.listQuery,
       },
       getConversation: {
-        useQuery: () => providerMocks.conversationQuery,
+        useQuery: () => PROVIDER_MOCKS.conversationQuery,
       },
       deleteConversation: {
         useMutation: () => ({ mutateAsync: vi.fn() }),
@@ -136,13 +136,13 @@ vi.mock("@/src/utils/api", () => ({
         useMutation: () => ({ mutateAsync: vi.fn() }),
       },
       startRun: {
-        useMutation: () => providerMocks.mutations.startRun,
+        useMutation: () => PROVIDER_MOCKS.mutations.startRun,
       },
       cancelRun: {
-        useMutation: () => providerMocks.mutations.cancelRun,
+        useMutation: () => PROVIDER_MOCKS.mutations.cancelRun,
       },
       decideToolApproval: {
-        useMutation: () => providerMocks.mutations.decideToolApproval,
+        useMutation: () => PROVIDER_MOCKS.mutations.decideToolApproval,
       },
     },
   },
@@ -211,8 +211,8 @@ describe("in-app agent execution", () => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
-    providerMocks.backgroundExecutionEnabled = false;
-    providerMocks.conversationQuery.data = undefined;
+    PROVIDER_MOCKS.backgroundExecutionEnabled = false;
+    PROVIDER_MOCKS.conversationQuery.data = undefined;
     window.sessionStorage.clear();
   });
 
@@ -245,7 +245,7 @@ describe("in-app agent execution", () => {
     await waitFor(() => {
       expect(runAgent).toHaveBeenCalledOnce();
     });
-    expect(providerMocks.startRun).not.toHaveBeenCalled();
+    expect(PROVIDER_MOCKS.startRun).not.toHaveBeenCalled();
 
     await act(async () => {
       await subscriber?.onCustomEvent?.({
@@ -275,8 +275,8 @@ describe("in-app agent execution", () => {
   });
 
   it("renders persisted background messages and approval actions in the drawer", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
-    providerMocks.conversationQuery.data = {
+    PROVIDER_MOCKS.backgroundExecutionEnabled = true;
+    PROVIDER_MOCKS.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
         isWriteLocked: false,
@@ -334,7 +334,7 @@ describe("in-app agent execution", () => {
   });
 
   it("replays prompt invalidations after a detached run completes", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
+    PROVIDER_MOCKS.backgroundExecutionEnabled = true;
     const completedSnapshot = {
       conversation: {
         id: "conversation-1",
@@ -392,9 +392,9 @@ describe("in-app agent execution", () => {
         cancelRequested: false,
       },
       pendingToolApprovals: [],
-    } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
-    providerMocks.conversationQuery.data = completedSnapshot;
-    providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValueOnce(
+    } satisfies NonNullable<typeof PROVIDER_MOCKS.conversationQuery.data>;
+    PROVIDER_MOCKS.conversationQuery.data = completedSnapshot;
+    PROVIDER_MOCKS.utils.inAppAgent.getConversation.fetch.mockResolvedValueOnce(
       completedSnapshot,
     );
     window.sessionStorage.setItem(
@@ -411,17 +411,17 @@ describe("in-app agent execution", () => {
 
     // Two completed prompt tool calls must union into a single invalidation.
     await waitFor(() => {
-      expect(providerMocks.utils.prompts.invalidate).toHaveBeenCalledOnce();
+      expect(PROVIDER_MOCKS.utils.prompts.invalidate).toHaveBeenCalledOnce();
     });
-    expect(providerMocks.utils.dashboard.invalidate).not.toHaveBeenCalled();
+    expect(PROVIDER_MOCKS.utils.dashboard.invalidate).not.toHaveBeenCalled();
     expect(
-      providerMocks.utils.dashboardWidgets.invalidate,
+      PROVIDER_MOCKS.utils.dashboardWidgets.invalidate,
     ).not.toHaveBeenCalled();
   });
 
   it("keeps a hydrated in-flight tool call visibly running", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
-    providerMocks.conversationQuery.data = {
+    PROVIDER_MOCKS.backgroundExecutionEnabled = true;
+    PROVIDER_MOCKS.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
         isWriteLocked: false,
@@ -472,8 +472,8 @@ describe("in-app agent execution", () => {
   });
 
   it("keeps approval cancellation visibly stopping until hydration settles", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
-    providerMocks.conversationQuery.data = {
+    PROVIDER_MOCKS.backgroundExecutionEnabled = true;
+    PROVIDER_MOCKS.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
         isWriteLocked: false,
@@ -504,11 +504,11 @@ describe("in-app agent execution", () => {
         },
       ],
     };
-    providerMocks.cancelRun.mockResolvedValueOnce({
+    PROVIDER_MOCKS.cancelRun.mockResolvedValueOnce({
       cancelledImmediately: true,
       status: InAppAgentRunStatus.CANCELLED,
     });
-    providerMocks.utils.inAppAgent.getConversation.fetch.mockImplementationOnce(
+    PROVIDER_MOCKS.utils.inAppAgent.getConversation.fetch.mockImplementationOnce(
       () => new Promise(() => undefined),
     );
     window.sessionStorage.setItem(
@@ -521,7 +521,7 @@ describe("in-app agent execution", () => {
 
     await waitFor(() => {
       expect(
-        providerMocks.utils.inAppAgent.getConversation.fetch,
+        PROVIDER_MOCKS.utils.inAppAgent.getConversation.fetch,
       ).toHaveBeenCalledOnce();
     });
     expect(screen.getByRole("button", { name: "Stopping run" })).toBeDisabled();
@@ -529,7 +529,7 @@ describe("in-app agent execution", () => {
   });
 
   it("does not observe a cached active run while the assistant is closed", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
+    PROVIDER_MOCKS.backgroundExecutionEnabled = true;
     const runningSnapshot = {
       conversation: { id: "conversation-1", isWriteLocked: false },
       messages: [],
@@ -541,9 +541,9 @@ describe("in-app agent execution", () => {
         cancelRequested: false,
       },
       pendingToolApprovals: [],
-    } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
-    providerMocks.conversationQuery.data = runningSnapshot;
-    providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValue(
+    } satisfies NonNullable<typeof PROVIDER_MOCKS.conversationQuery.data>;
+    PROVIDER_MOCKS.conversationQuery.data = runningSnapshot;
+    PROVIDER_MOCKS.utils.inAppAgent.getConversation.fetch.mockResolvedValue(
       runningSnapshot,
     );
     const watchFetch = vi
@@ -565,7 +565,7 @@ describe("in-app agent execution", () => {
   });
 
   it("settles the drawer without restarting its activity state after Stop", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
+    PROVIDER_MOCKS.backgroundExecutionEnabled = true;
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({
@@ -615,12 +615,12 @@ describe("in-app agent execution", () => {
       },
     };
 
-    providerMocks.conversationQuery.data = runningSnapshot;
-    providerMocks.cancelRun.mockResolvedValue({
+    PROVIDER_MOCKS.conversationQuery.data = runningSnapshot;
+    PROVIDER_MOCKS.cancelRun.mockResolvedValue({
       cancelledImmediately: false,
       status: InAppAgentRunStatus.RUNNING,
     });
-    providerMocks.utils.inAppAgent.getConversation.fetch
+    PROVIDER_MOCKS.utils.inAppAgent.getConversation.fetch
       .mockResolvedValueOnce(runningSnapshot)
       .mockResolvedValueOnce(cancellingSnapshot)
       .mockResolvedValueOnce(cancelledSnapshot);
@@ -739,7 +739,7 @@ describe("in-app agent execution", () => {
   });
 
   it("settles a newly submitted run as soon as Stop receives a terminal status", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
+    PROVIDER_MOCKS.backgroundExecutionEnabled = true;
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({
@@ -750,7 +750,7 @@ describe("in-app agent execution", () => {
     );
 
     const finalText = "The investigation was cancelled before it completed.";
-    providerMocks.conversationQuery.data = {
+    PROVIDER_MOCKS.conversationQuery.data = {
       conversation: { id: "conversation-1", isWriteLocked: false },
       messages: [],
       eventCursor: -1,
@@ -784,14 +784,14 @@ describe("in-app agent execution", () => {
         errorCode: InAppAgentRunErrorCode.CANCELLED,
       },
     };
-    providerMocks.startRun
+    PROVIDER_MOCKS.startRun
       .mockResolvedValueOnce({ runId: "run-1" })
       .mockResolvedValueOnce({ runId: "run-2" });
-    providerMocks.cancelRun.mockResolvedValue({
+    PROVIDER_MOCKS.cancelRun.mockResolvedValue({
       cancelledImmediately: false,
       status: InAppAgentRunStatus.RUNNING,
     });
-    providerMocks.utils.inAppAgent.getConversation.fetch
+    PROVIDER_MOCKS.utils.inAppAgent.getConversation.fetch
       .mockResolvedValueOnce(cancellingSnapshot)
       .mockResolvedValueOnce(cancelledSnapshot);
 
@@ -922,7 +922,7 @@ describe("in-app agent execution", () => {
     expect(sendButton).toBeEnabled();
     fireEvent.click(sendButton);
     await waitFor(() => {
-      expect(providerMocks.startRun).toHaveBeenCalledTimes(2);
+      expect(PROVIDER_MOCKS.startRun).toHaveBeenCalledTimes(2);
     });
   });
 });

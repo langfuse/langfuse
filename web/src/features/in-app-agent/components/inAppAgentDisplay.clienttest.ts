@@ -6,7 +6,7 @@ import {
   recordInAppAgentToolCallForDisplay,
 } from "@/src/features/in-app-agent/lib/display";
 
-const assistantToolMessage = {
+const ASSISTANT_TOOL_MESSAGE = {
   id: "assistant-tools",
   role: "assistant",
   content: "",
@@ -39,7 +39,7 @@ describe("in-app agent display projection", () => {
       initialMessages[0],
       {
         ...assistantMessage,
-        toolCalls: assistantToolMessage.toolCalls.slice(0, 2),
+        toolCalls: ASSISTANT_TOOL_MESSAGE.toolCalls.slice(0, 2),
       },
     ] satisfies AgUiMessage[];
     let displayState = createInAppAgentDisplayState();
@@ -88,7 +88,7 @@ describe("in-app agent display projection", () => {
         role: "user",
         content: "Investigate this",
       },
-      assistantToolMessage,
+      ASSISTANT_TOOL_MESSAGE,
       {
         id: "result-tool-1",
         role: "tool",
@@ -110,8 +110,8 @@ describe("in-app agent display projection", () => {
     displayState = recordInAppAgentMessagesForDisplay(displayState, [
       messages[0],
       {
-        ...assistantToolMessage,
-        toolCalls: [assistantToolMessage.toolCalls[0]],
+        ...ASSISTANT_TOOL_MESSAGE,
+        toolCalls: [ASSISTANT_TOOL_MESSAGE.toolCalls[0]],
       },
     ]);
     displayState = recordInAppAgentToolCallForDisplay(
@@ -164,7 +164,7 @@ describe("in-app agent display projection", () => {
       },
     ]);
     expect(
-      assistantToolMessage.toolCalls.map((toolCall) => toolCall.id),
+      ASSISTANT_TOOL_MESSAGE.toolCalls.map((toolCall) => toolCall.id),
     ).toEqual(["tool-1", "tool-2", "tool-3"]);
   });
 

@@ -9,7 +9,7 @@ import {
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 
 const capture = vi.fn();
-const controlledAgent = vi.hoisted(() => ({
+const CONTROLLED_AGENT = vi.hoisted(() => ({
   value: {
     conversations: [],
     error: null,
@@ -54,7 +54,7 @@ vi.mock("next/router", () => ({
 }));
 
 vi.mock("./InAppAiAgentProvider", () => ({
-  useInAppAiAgent: () => controlledAgent.value,
+  useInAppAiAgent: () => CONTROLLED_AGENT.value,
 }));
 
 const finishAnimation = vi.fn();
@@ -236,9 +236,9 @@ describe("ControlledInAppAgentWindow composer", () => {
 
   it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {
     const onSubmit = vi.fn().mockResolvedValue(true);
-    controlledAgent.value.isRunning = true;
-    controlledAgent.value.pendingToolApprovals = [];
-    controlledAgent.value.submit = onSubmit;
+    CONTROLLED_AGENT.value.isRunning = true;
+    CONTROLLED_AGENT.value.pendingToolApprovals = [];
+    CONTROLLED_AGENT.value.submit = onSubmit;
     render(
       <TooltipProvider>
         <ControlledInAppAgentWindow
@@ -269,9 +269,9 @@ describe("ControlledInAppAgentWindow composer", () => {
   });
 
   it("keeps navigation disabled while an approval is pending", () => {
-    controlledAgent.value.isRunning = false;
-    controlledAgent.value.pendingToolApprovals = [{ id: "approval-1" }];
-    controlledAgent.value.submit = vi.fn();
+    CONTROLLED_AGENT.value.isRunning = false;
+    CONTROLLED_AGENT.value.pendingToolApprovals = [{ id: "approval-1" }];
+    CONTROLLED_AGENT.value.submit = vi.fn();
 
     render(
       <TooltipProvider>
@@ -300,9 +300,9 @@ describe("ControlledInAppAgentWindow composer", () => {
 describe("ControlledInAppAgentWindow stop", () => {
   it("flushes the paced reveal and cancels the run from one Stop click", () => {
     const cancel = vi.fn();
-    controlledAgent.value.isRunning = true;
-    controlledAgent.value.pendingToolApprovals = [];
-    controlledAgent.value.execution = {
+    CONTROLLED_AGENT.value.isRunning = true;
+    CONTROLLED_AGENT.value.pendingToolApprovals = [];
+    CONTROLLED_AGENT.value.execution = {
       type: "background",
       run: {
         id: "run-1",

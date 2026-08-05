@@ -24,7 +24,7 @@ import {
 } from "@langfuse/shared/in-app-agent";
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
 import { env } from "@/src/env.mjs";
-import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+import { InAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 import type * as SharedServerModule from "@langfuse/shared/src/server";
@@ -147,7 +147,7 @@ describe("in-app agent background runs", () => {
     return {
       ...setup,
       userId,
-      caller: inAppAgentRouter.createCaller({ ...ctx, prisma }),
+      caller: InAppAgentRouter.createCaller({ ...ctx, prisma }),
     };
   };
 
@@ -876,7 +876,7 @@ describe("in-app agent background runs", () => {
       environment: {} as any,
     };
 
-    const intruder = inAppAgentRouter.createCaller({
+    const intruder = InAppAgentRouter.createCaller({
       ...createInnerTRPCContext({ session: intruderSession, headers: {} }),
       prisma,
     });

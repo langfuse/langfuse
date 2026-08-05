@@ -458,7 +458,7 @@ export const LoadingToolCallGroup = meta.story({
   },
 });
 
-const longReasoningText = [
+const LONG_REASONING_TEXT = [
   "Reading the current trace context and the visible filters.",
   "Checking whether the user is asking about latency, quality, or cost first.",
   "Comparing recent observations with error levels and score names.",
@@ -483,7 +483,7 @@ export const CompletedReasoning = meta.story({
     role: "assistant",
     content: {
       type: "reasoning",
-      text: longReasoningText,
+      text: LONG_REASONING_TEXT,
       isStreaming: false,
     },
   },
@@ -494,7 +494,7 @@ export const StreamingReasoning = meta.story({
     role: "assistant",
     content: {
       type: "reasoning",
-      text: longReasoningText,
+      text: LONG_REASONING_TEXT,
       isStreaming: true,
     },
   },
@@ -506,7 +506,7 @@ export const CompactStreamingReasoning = meta.story({
     isCompact: true,
     content: {
       type: "reasoning",
-      text: longReasoningText,
+      text: LONG_REASONING_TEXT,
       isStreaming: true,
     },
   },

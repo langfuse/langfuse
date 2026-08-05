@@ -899,15 +899,18 @@ function withTextContent(message: AgUiMessage, content: string) {
   throw new Error("Only assistant and reasoning messages can be smoothed");
 }
 
-const graphemeSegmenter =
+const GRAPHEME_SEGMENTER =
   typeof Intl.Segmenter === "function"
     ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
     : null;
 
 function splitGraphemes(value: string) {
-  if (!graphemeSegmenter) {
+  if (!GRAPHEME_SEGMENTER) {
     return Array.from(value);
   }
 
-  return Array.from(graphemeSegmenter.segment(value), ({ segment }) => segment);
+  return Array.from(
+    GRAPHEME_SEGMENTER.segment(value),
+    ({ segment }) => segment,
+  );
 }

@@ -93,7 +93,7 @@ import {
 // and every policy key must still exist in the registry.
 IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES satisfies Record<McpToolName, unknown>;
 type AssertPolicyKeysInRegistry<T extends McpToolName = McpToolName> = T;
-export type _InAppAgentPolicyKeysAreRegistryTools =
+export type InAppAgentPolicyKeysAreRegistryTools =
   AssertPolicyKeysInRegistry<InAppAgentLangfuseMcpToolName>;
 
 const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";

@@ -5,7 +5,7 @@ import type { InAppAgentPendingToolApproval } from "./InAppAiAgentProvider";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 
-const userMessage = {
+const USER_MESSAGE = {
   id: "user",
   role: "user",
   content: "Investigate this",
@@ -66,7 +66,6 @@ const pendingToolApproval = (
   }) satisfies InAppAgentPendingToolApproval;
 
 let prefersReducedMotion = false;
-const noPendingToolApprovals: InAppAgentPendingToolApproval[] = [];
 
 function runAllAnimationFrames() {
   while (vi.getTimerCount() > 0) {
@@ -87,7 +86,7 @@ function advanceAnimationFrames(frameCount: number) {
 function TestConsumer({
   liveMessageVersion,
   messages,
-  pendingToolApprovals = noPendingToolApprovals,
+  pendingToolApprovals = [],
 }: {
   liveMessageVersion: number;
   messages: AgUiMessage[];
@@ -184,7 +183,7 @@ describe("useSmoothStreamingMessages", () => {
       }) satisfies AgUiMessage & { isLoading: boolean };
     const { rerender } = render(
       <StrictMode>
-        <TestConsumer liveMessageVersion={0} messages={[userMessage]} />
+        <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />
       </StrictMode>,
     );
 
@@ -192,7 +191,7 @@ describe("useSmoothStreamingMessages", () => {
       <StrictMode>
         <TestConsumer
           liveMessageVersion={1}
-          messages={[userMessage, assistantMessage(true)]}
+          messages={[USER_MESSAGE, assistantMessage(true)]}
         />
       </StrictMode>,
     );
@@ -204,7 +203,7 @@ describe("useSmoothStreamingMessages", () => {
       <StrictMode>
         <TestConsumer
           liveMessageVersion={1}
-          messages={[userMessage, assistantMessage(false)]}
+          messages={[USER_MESSAGE, assistantMessage(false)]}
         />
       </StrictMode>,
     );
@@ -253,13 +252,13 @@ describe("useSmoothStreamingMessages", () => {
     const firstConversationText = "a".repeat(80);
     const cachedConversationText = "b".repeat(80);
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantMessage(firstConversationText)]}
+        messages={[USER_MESSAGE, assistantMessage(firstConversationText)]}
       />,
     );
     runAllAnimationFrames();
@@ -288,14 +287,14 @@ describe("useSmoothStreamingMessages", () => {
     const content =
       "This final response arrived atomically but should still be displayed smoothly.";
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
         messages={[
-          userMessage,
+          USER_MESSAGE,
           {
             id: "assistant",
             role: "assistant",
@@ -318,13 +317,13 @@ describe("useSmoothStreamingMessages", () => {
     const content =
       "The server has already completed this response while the drawer is still revealing it.";
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantMessage(content)]}
+        messages={[USER_MESSAGE, assistantMessage(content)]}
       />,
     );
 
@@ -353,13 +352,13 @@ describe("useSmoothStreamingMessages", () => {
    */
   it("reveals a whole compacted block progressively, not at the default crawl", () => {
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantMessage("")]}
+        messages={[USER_MESSAGE, assistantMessage("")]}
       />,
     );
     act(() => {
@@ -370,7 +369,7 @@ describe("useSmoothStreamingMessages", () => {
     rerender(
       <TestConsumer
         liveMessageVersion={2}
-        messages={[userMessage, assistantMessage(generatedContent)]}
+        messages={[USER_MESSAGE, assistantMessage(generatedContent)]}
       />,
     );
 
@@ -410,14 +409,14 @@ describe("useSmoothStreamingMessages", () => {
       content: "done",
     } satisfies AgUiMessage;
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
         messages={[
-          userMessage,
+          USER_MESSAGE,
           reasoningMessage(reasoningContent),
           {
             id: "assistant-2",
@@ -445,13 +444,13 @@ describe("useSmoothStreamingMessages", () => {
     const content =
       "Checking 👨‍👩‍👧‍👦 cafe\u0301 latency across the selected traces.";
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, reasoningMessage(content)]}
+        messages={[USER_MESSAGE, reasoningMessage(content)]}
       />,
     );
 
@@ -470,7 +469,7 @@ describe("useSmoothStreamingMessages", () => {
 
   it("detects content when the agent mutates a message in place", () => {
     const reasoning = reasoningMessage("");
-    const messages = [userMessage, reasoning];
+    const messages = [USER_MESSAGE, reasoning];
     const { rerender } = render(
       <TestConsumer liveMessageVersion={0} messages={messages} />,
     );
@@ -489,13 +488,13 @@ describe("useSmoothStreamingMessages", () => {
 
   it("applies small chunks immediately", () => {
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantMessage("Short")]}
+        messages={[USER_MESSAGE, assistantMessage("Short")]}
       />,
     );
 
@@ -514,19 +513,19 @@ describe("useSmoothStreamingMessages", () => {
       content: "done",
     } satisfies AgUiMessage;
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantMessage(content)]}
+        messages={[USER_MESSAGE, assistantMessage(content)]}
       />,
     );
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantMessage(content), toolMessage]}
+        messages={[USER_MESSAGE, assistantMessage(content), toolMessage]}
       />,
     );
 
@@ -542,14 +541,14 @@ describe("useSmoothStreamingMessages", () => {
 
   it("reveals at most two tools per second", () => {
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
         messages={[
-          userMessage,
+          USER_MESSAGE,
           assistantToolMessage(["tool-1", "tool-2", "tool-3"], true),
         ]}
       />,
@@ -580,13 +579,13 @@ describe("useSmoothStreamingMessages", () => {
 
   it("preserves tool pacing across loading-only updates", () => {
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
     rerender(
       <TestConsumer
         liveMessageVersion={1}
         messages={[
-          userMessage,
+          USER_MESSAGE,
           assistantToolMessage(["tool-1", "tool-2"], true),
         ]}
       />,
@@ -599,7 +598,7 @@ describe("useSmoothStreamingMessages", () => {
       <TestConsumer
         liveMessageVersion={1}
         messages={[
-          userMessage,
+          USER_MESSAGE,
           assistantToolMessage(["tool-1", "tool-2"], false),
         ]}
       />,
@@ -621,12 +620,12 @@ describe("useSmoothStreamingMessages", () => {
 
   it("keeps a completed tool running for at least 750 ms", () => {
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantToolMessage(["tool-1"], true)]}
+        messages={[USER_MESSAGE, assistantToolMessage(["tool-1"], true)]}
       />,
     );
 
@@ -637,7 +636,7 @@ describe("useSmoothStreamingMessages", () => {
       <TestConsumer
         liveMessageVersion={2}
         messages={[
-          userMessage,
+          USER_MESSAGE,
           assistantToolMessage(["tool-1"], false),
           toolResultMessage("tool-1"),
         ]}
@@ -660,7 +659,7 @@ describe("useSmoothStreamingMessages", () => {
 
   it("paces approval appearance but applies submitting immediately", () => {
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
     const firstApproval = pendingToolApproval("approval-1", "pending");
     const secondApproval = pendingToolApproval("approval-2", "pending");
@@ -668,7 +667,7 @@ describe("useSmoothStreamingMessages", () => {
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage]}
+        messages={[USER_MESSAGE]}
         pendingToolApprovals={[firstApproval, secondApproval]}
       />,
     );
@@ -681,7 +680,7 @@ describe("useSmoothStreamingMessages", () => {
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage]}
+        messages={[USER_MESSAGE]}
         pendingToolApprovals={[
           pendingToolApproval("approval-1", "submitting"),
           secondApproval,
@@ -707,14 +706,14 @@ describe("useSmoothStreamingMessages", () => {
     // last — so it waited behind the whole backlog while `isAnimating` kept the
     // drawer looking like the run was still executing.
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={0}
         messages={[
-          userMessage,
+          USER_MESSAGE,
           assistantToolMessage(["tool-1", "tool-2", "tool-3"], true),
         ]}
         pendingToolApprovals={[pendingToolApproval("approval-1", "pending")]}
@@ -735,13 +734,13 @@ describe("useSmoothStreamingMessages", () => {
     const content =
       "This large chunk should be applied at once when reduced motion is enabled.";
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantMessage(content)]}
+        messages={[USER_MESSAGE, assistantMessage(content)]}
       />,
     );
 
@@ -754,13 +753,13 @@ describe("useSmoothStreamingMessages", () => {
     const content =
       "This active animation should finish when reduced motion becomes enabled.";
     const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantMessage(content)]}
+        messages={[USER_MESSAGE, assistantMessage(content)]}
       />,
     );
     prefersReducedMotion = true;
@@ -777,13 +776,13 @@ describe("useSmoothStreamingMessages", () => {
     const content =
       "This buffered response must not update the transcript after it unmounts.";
     const { rerender, unmount } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+      <TestConsumer liveMessageVersion={0} messages={[USER_MESSAGE]} />,
     );
 
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantMessage(content)]}
+        messages={[USER_MESSAGE, assistantMessage(content)]}
       />,
     );
     expect(vi.getTimerCount()).toBeGreaterThan(0);

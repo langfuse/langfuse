@@ -47,16 +47,16 @@ const ConversationListCursorSchema = z.object({
   id: z.string(),
 });
 
-const ConversationIdInput = z.object({
+const ConversationIdInputSchema = z.object({
   projectId: z.string(),
   conversationId: z.string(),
 });
 
-const RenameConversationInput = ConversationIdInput.extend({
+const RenameConversationInputSchema = ConversationIdInputSchema.extend({
   title: z.string().trim().min(1).max(80),
 });
 
-const StartRunInput = ConversationIdInput.extend({
+const StartRunInputSchema = ConversationIdInputSchema.extend({
   message: z.string().trim().min(1).max(MAX_IN_APP_AGENT_MESSAGE_LENGTH),
   /**
    * The same AG-UI context array the foreground path sends (current page, the
@@ -66,17 +66,17 @@ const StartRunInput = ConversationIdInput.extend({
   context: z.array(AgUiContextSchema).default([]),
 });
 
-const CancelRunInput = ConversationIdInput.extend({
+const CancelRunInputSchema = ConversationIdInputSchema.extend({
   runId: z.string(),
 });
 
-const DecideToolApprovalInput = ConversationIdInput.extend({
+const DecideToolApprovalInputSchema = ConversationIdInputSchema.extend({
   runId: z.string(),
   toolCallId: z.string(),
   approved: z.boolean(),
 });
 
-const SubmitFeedbackInput = ConversationIdInput.extend({
+const SubmitFeedbackInputSchema = ConversationIdInputSchema.extend({
   messageId: z.string(),
   runId: z.string(),
   value: InAppAgentMessageFeedbackValueSchema.nullable(),
@@ -86,7 +86,7 @@ const SubmitFeedbackInput = ConversationIdInput.extend({
 const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
 const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
-export const inAppAgentRouter = createTRPCRouter({
+export const InAppAgentRouter = createTRPCRouter({
   listConversations: protectedProjectProcedure
     .input(
       z.object({
@@ -141,7 +141,7 @@ export const inAppAgentRouter = createTRPCRouter({
     }),
 
   getConversation: protectedProjectProcedureWithoutTracing
-    .input(ConversationIdInput)
+    .input(ConversationIdInputSchema)
     .query(async ({ ctx, input }) => {
       await assertInAppAgentAvailable({
         prisma: ctx.prisma,
@@ -168,7 +168,7 @@ export const inAppAgentRouter = createTRPCRouter({
    * committed run nobody will execute.
    */
   startRun: protectedProjectProcedureWithoutTracing
-    .input(StartRunInput)
+    .input(StartRunInputSchema)
     .mutation(async ({ ctx, input }) => {
       const projectAvailability = await assertInAppAgentAvailable({
         prisma: ctx.prisma,
@@ -199,7 +199,7 @@ export const inAppAgentRouter = createTRPCRouter({
     }),
 
   cancelRun: protectedProjectProcedureWithoutTracing
-    .input(CancelRunInput)
+    .input(CancelRunInputSchema)
     .mutation(async ({ ctx, input }) => {
       await assertInAppAgentAvailable({
         prisma: ctx.prisma,
@@ -224,7 +224,7 @@ export const inAppAgentRouter = createTRPCRouter({
    * to tamper with on the way back and no fingerprint to keep in sync.
    */
   decideToolApproval: protectedProjectProcedureWithoutTracing
-    .input(DecideToolApprovalInput)
+    .input(DecideToolApprovalInputSchema)
     .mutation(async ({ ctx, input }) => {
       const projectAvailability = await assertInAppAgentAvailable({
         prisma: ctx.prisma,
@@ -254,7 +254,7 @@ export const inAppAgentRouter = createTRPCRouter({
     }),
 
   deleteConversation: protectedProjectProcedureWithoutTracing
-    .input(ConversationIdInput)
+    .input(ConversationIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       await assertInAppAgentAvailable({
         prisma: ctx.prisma,
@@ -286,7 +286,7 @@ export const inAppAgentRouter = createTRPCRouter({
     }),
 
   renameConversation: protectedProjectProcedureWithoutTracing
-    .input(RenameConversationInput)
+    .input(RenameConversationInputSchema)
     .mutation(async ({ ctx, input }) => {
       await assertInAppAgentAvailable({
         prisma: ctx.prisma,
@@ -320,7 +320,7 @@ export const inAppAgentRouter = createTRPCRouter({
     }),
 
   submitFeedback: protectedProjectProcedureWithoutTracing
-    .input(SubmitFeedbackInput)
+    .input(SubmitFeedbackInputSchema)
     .mutation(async ({ ctx, input }) => {
       const projectAvailability = await assertInAppAgentAvailable({
         prisma: ctx.prisma,

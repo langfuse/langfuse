@@ -17,14 +17,14 @@ import {
   type BackgroundExecutionView,
 } from "./backgroundExecutionSession";
 
-const message = {
+const MESSAGE = {
   id: "message-1",
   role: "assistant",
   content: "persisted",
 } satisfies AgUiMessage;
 
-const runningView = {
-  messages: [message],
+const RUNNING_VIEW = {
+  messages: [MESSAGE],
   displayState: createInAppAgentDisplayState(),
   eventCursor: 7,
   currentRun: {
@@ -39,19 +39,19 @@ const runningView = {
   "attachment" | "cancelStatus" | "liveMessageRevision"
 >;
 
-const userMessage = {
+const USER_MESSAGE = {
   id: "user-message",
   role: "user",
   content: "Add a cost widget to this dashboard",
 } satisfies AgUiMessage;
 
-const explanationMessage = {
+const EXPLANATION_MESSAGE = {
   id: "assistant-explanation",
   role: "assistant",
   content: "I will create the widget and then add it to the dashboard.",
 } satisfies AgUiMessage;
 
-const createWidgetMessage = {
+const CREATE_WIDGET_MESSAGE = {
   id: "create-widget-call",
   role: "assistant",
   content: "",
@@ -67,14 +67,14 @@ const createWidgetMessage = {
   ],
 } satisfies AgUiMessage;
 
-const createWidgetResult = {
+const CREATE_WIDGET_RESULT = {
   id: "create-widget-result",
   role: "tool",
   toolCallId: "create-widget",
   content: '{"id":"widget-1"}',
 } satisfies AgUiMessage;
 
-const addPlacementMessage = {
+const ADD_PLACEMENT_MESSAGE = {
   id: "add-placement-call",
   role: "assistant",
   content: "",
@@ -90,14 +90,14 @@ const addPlacementMessage = {
   ],
 } satisfies AgUiMessage;
 
-const addPlacementResult = {
+const ADD_PLACEMENT_RESULT = {
   id: "add-placement-result",
   role: "tool",
   toolCallId: "add-placement",
   content: '{"id":"placement-1"}',
 } satisfies AgUiMessage;
 
-const finalMessage = {
+const FINAL_MESSAGE = {
   id: "assistant-final",
   role: "assistant",
   content: "Done. I created and placed the Cost by Model widget.",
@@ -137,7 +137,7 @@ describe("BackgroundExecutionSessionController", () => {
       }),
       connectAgent: vi.fn(() => new Promise<unknown>(() => undefined)),
     };
-    const hydrate = vi.fn().mockResolvedValue(runningView);
+    const hydrate = vi.fn().mockResolvedValue(RUNNING_VIEW);
     const session = new BackgroundExecutionSessionController({
       agent,
       hydrate,
@@ -148,12 +148,12 @@ describe("BackgroundExecutionSessionController", () => {
     await session.hydrateAndAttach();
     await session.hydrateAndAttach();
 
-    expect(agent.setMessages).toHaveBeenCalledWith([message]);
+    expect(agent.setMessages).toHaveBeenCalledWith([MESSAGE]);
     expect(agent.setCursor).toHaveBeenCalledWith(7);
     expect(agent.connectAgent).toHaveBeenCalledOnce();
     expect(hydrate).toHaveBeenCalledOnce();
     expect(session.getSnapshot()).toMatchObject({
-      messages: [message],
+      messages: [MESSAGE],
       eventCursor: 7,
       liveMessageRevision: 0,
     });
@@ -167,7 +167,7 @@ describe("BackgroundExecutionSessionController", () => {
     const cancelRun = vi.fn();
     const session = new BackgroundExecutionSessionController({
       agent,
-      hydrate: vi.fn().mockResolvedValue(runningView),
+      hydrate: vi.fn().mockResolvedValue(RUNNING_VIEW),
       cancelRun,
       decideApproval: vi.fn(),
     });
@@ -179,15 +179,15 @@ describe("BackgroundExecutionSessionController", () => {
     expect(cancelRun).not.toHaveBeenCalled();
     expect(session.getSnapshot()).toMatchObject({
       attachment: { status: "detached" },
-      currentRun: runningView.currentRun,
+      currentRun: RUNNING_VIEW.currentRun,
     });
 
     await session.hydrateAndAttach();
 
     expect(agent.connectAgent).toHaveBeenCalledTimes(2);
     expect(session.getSnapshot().attachment).toEqual({ status: "attached" });
-    expect(session.getSnapshot().currentRun).toEqual(runningView.currentRun);
-    expect(session.getSnapshot().messages).toEqual([message]);
+    expect(session.getSnapshot().currentRun).toEqual(RUNNING_VIEW.currentRun);
+    expect(session.getSnapshot().messages).toEqual([MESSAGE]);
   });
 
   it("stays detached when cancellation finishes after observation stopped", async () => {
@@ -198,7 +198,7 @@ describe("BackgroundExecutionSessionController", () => {
     };
     const session = new BackgroundExecutionSessionController({
       agent,
-      hydrate: vi.fn().mockResolvedValue(runningView),
+      hydrate: vi.fn().mockResolvedValue(RUNNING_VIEW),
       cancelRun: vi.fn(
         () =>
           new Promise<void>((resolve) => {
@@ -223,9 +223,9 @@ describe("BackgroundExecutionSessionController", () => {
     const cancelRun = vi.fn().mockResolvedValue(undefined);
     const onSettled = vi.fn();
     const cancelledView = {
-      ...runningView,
+      ...RUNNING_VIEW,
       currentRun: {
-        ...runningView.currentRun,
+        ...RUNNING_VIEW.currentRun,
         status: InAppAgentRunStatus.CANCELLED,
       },
       pendingToolApprovals: [],
@@ -236,7 +236,7 @@ describe("BackgroundExecutionSessionController", () => {
       cancelRun,
       decideApproval: vi.fn(),
       onSettled,
-      initialView: { currentRun: runningView.currentRun },
+      initialView: { currentRun: RUNNING_VIEW.currentRun },
     });
 
     await session.cancel();
@@ -256,7 +256,7 @@ describe("BackgroundExecutionSessionController", () => {
       hydrate: vi.fn(),
       cancelRun: vi.fn().mockRejectedValue(mutationError),
       decideApproval: vi.fn(),
-      initialView: { currentRun: runningView.currentRun },
+      initialView: { currentRun: RUNNING_VIEW.currentRun },
     });
 
     await expect(session.cancel()).rejects.toBe(mutationError);
@@ -288,12 +288,12 @@ describe("BackgroundExecutionSessionController", () => {
     };
     let resolveCancel: () => void = () => undefined;
     // Deferred so the post-command refresh cannot mask the view cancel() wrote.
-    let resolveHydrate: (view: typeof runningView) => void = () => undefined;
+    let resolveHydrate: (view: typeof RUNNING_VIEW) => void = () => undefined;
     const session = new BackgroundExecutionSessionController({
       agent,
       hydrate: vi.fn(
         () =>
-          new Promise<typeof runningView>((resolve) => {
+          new Promise<typeof RUNNING_VIEW>((resolve) => {
             resolveHydrate = resolve;
           }),
       ),
@@ -304,7 +304,7 @@ describe("BackgroundExecutionSessionController", () => {
           }),
       ),
       decideApproval: vi.fn(),
-      initialView: { currentRun: runningView.currentRun },
+      initialView: { currentRun: RUNNING_VIEW.currentRun },
     });
 
     const cancelling = session.cancel();
@@ -326,7 +326,7 @@ describe("BackgroundExecutionSessionController", () => {
       cancelRequested: true,
     });
 
-    resolveHydrate(runningView);
+    resolveHydrate(RUNNING_VIEW);
     await cancelling;
   });
 
@@ -346,12 +346,12 @@ describe("BackgroundExecutionSessionController", () => {
       }),
     };
     let resolveCancel: () => void = () => undefined;
-    let resolveHydrate: (view: typeof runningView) => void = () => undefined;
+    let resolveHydrate: (view: typeof RUNNING_VIEW) => void = () => undefined;
     const session = new BackgroundExecutionSessionController({
       agent,
       hydrate: vi.fn(
         () =>
-          new Promise<typeof runningView>((resolve) => {
+          new Promise<typeof RUNNING_VIEW>((resolve) => {
             resolveHydrate = resolve;
           }),
       ),
@@ -362,7 +362,7 @@ describe("BackgroundExecutionSessionController", () => {
           }),
       ),
       decideApproval: vi.fn(),
-      initialView: { currentRun: runningView.currentRun },
+      initialView: { currentRun: RUNNING_VIEW.currentRun },
     });
 
     const cancelling = session.cancel();
@@ -384,7 +384,7 @@ describe("BackgroundExecutionSessionController", () => {
       cancelRequested: false,
     });
 
-    resolveHydrate(runningView);
+    resolveHydrate(RUNNING_VIEW);
     await cancelling;
   });
 
@@ -396,7 +396,7 @@ describe("BackgroundExecutionSessionController", () => {
     };
     const hydrate = vi
       .fn()
-      .mockResolvedValueOnce(runningView)
+      .mockResolvedValueOnce(RUNNING_VIEW)
       .mockRejectedValueOnce(refreshError);
     const session = new BackgroundExecutionSessionController({
       agent,
@@ -431,7 +431,7 @@ describe("BackgroundExecutionSessionController", () => {
       decideApproval: vi.fn().mockResolvedValue(undefined),
       initialView: {
         currentRun: {
-          ...runningView.currentRun,
+          ...RUNNING_VIEW.currentRun,
           status: InAppAgentRunStatus.AWAITING_APPROVAL,
         },
         pendingToolApprovals: [
@@ -473,12 +473,12 @@ describe("BackgroundExecutionSessionController", () => {
     });
     const session = new BackgroundExecutionSessionController({
       agent: createAgent(),
-      hydrate: vi.fn().mockResolvedValue(runningView),
+      hydrate: vi.fn().mockResolvedValue(RUNNING_VIEW),
       cancelRun: vi.fn(),
       decideApproval: vi.fn(() => decision),
       initialView: {
         currentRun: {
-          ...runningView.currentRun,
+          ...RUNNING_VIEW.currentRun,
           status: InAppAgentRunStatus.AWAITING_APPROVAL,
         },
         pendingToolApprovals: [
@@ -521,7 +521,7 @@ describe("BackgroundExecutionSessionController", () => {
         ...createAgent(),
         runAgent: vi.fn().mockRejectedValue(startError),
       },
-      hydrate: vi.fn().mockResolvedValue(runningView),
+      hydrate: vi.fn().mockResolvedValue(RUNNING_VIEW),
       cancelRun: vi.fn(),
       decideApproval: vi.fn(),
     });
@@ -543,7 +543,7 @@ describe("BackgroundExecutionSessionController", () => {
         ...createAgent(),
         runAgent: vi.fn().mockRejectedValue(watchError),
       },
-      hydrate: vi.fn().mockResolvedValue(runningView),
+      hydrate: vi.fn().mockResolvedValue(RUNNING_VIEW),
       cancelRun: vi.fn(),
       decideApproval: vi.fn(),
     });
@@ -569,13 +569,13 @@ describe("BackgroundExecutionSessionController", () => {
     };
     const session = new BackgroundExecutionSessionController({
       agent,
-      hydrate: vi.fn().mockResolvedValue(runningView),
+      hydrate: vi.fn().mockResolvedValue(RUNNING_VIEW),
       cancelRun: vi.fn(),
       decideApproval: vi.fn(),
     });
 
     await subscriber?.onMessagesChanged?.({
-      messages: [message],
+      messages: [MESSAGE],
     } as never);
     await subscriber?.onCustomEvent?.({
       event: {
@@ -591,7 +591,7 @@ describe("BackgroundExecutionSessionController", () => {
     } as never);
 
     expect(session.getSnapshot()).toMatchObject({
-      messages: [message],
+      messages: [MESSAGE],
       liveMessageRevision: 1,
       pendingToolApprovals: [
         {
@@ -642,7 +642,7 @@ describe("BackgroundExecutionSessionController", () => {
     };
     const session = new BackgroundExecutionSessionController({
       agent,
-      hydrate: vi.fn().mockResolvedValue(runningView),
+      hydrate: vi.fn().mockResolvedValue(RUNNING_VIEW),
       cancelRun: vi.fn(),
       decideApproval: vi.fn().mockResolvedValue(undefined),
     });
@@ -655,12 +655,12 @@ describe("BackgroundExecutionSessionController", () => {
     });
 
     expect(attachedSnapshots).toEqual([
-      { messages: [message], cursor: 7 },
-      { messages: [message], cursor: 7 },
+      { messages: [MESSAGE], cursor: 7 },
+      { messages: [MESSAGE], cursor: 7 },
     ]);
     expect(agent.abortRun).toHaveBeenCalledOnce();
     expect(session.getSnapshot()).toMatchObject({
-      messages: [message],
+      messages: [MESSAGE],
       eventCursor: 7,
       attachment: { status: "attached" },
     });
@@ -676,17 +676,17 @@ describe("BackgroundExecutionSessionController", () => {
     const placementRun = new Promise<void>((resolve) => {
       resolvePlacementRun = resolve;
     });
-    const messagesBeforeApproval = [userMessage, explanationMessage];
+    const messagesBeforeApproval = [USER_MESSAGE, EXPLANATION_MESSAGE];
     const messagesAfterCreate = [
       ...messagesBeforeApproval,
-      createWidgetMessage,
-      createWidgetResult,
+      CREATE_WIDGET_MESSAGE,
+      CREATE_WIDGET_RESULT,
     ];
     const finalPersistedMessages = [
       ...messagesAfterCreate,
-      addPlacementMessage,
-      addPlacementResult,
-      finalMessage,
+      ADD_PLACEMENT_MESSAGE,
+      ADD_PLACEMENT_RESULT,
+      FINAL_MESSAGE,
     ];
     let phase:
       | "before-create"
@@ -697,18 +697,18 @@ describe("BackgroundExecutionSessionController", () => {
     const hydrate = vi.fn(async () => {
       if (phase === "creating") {
         return {
-          ...runningView,
+          ...RUNNING_VIEW,
           messages: messagesBeforeApproval,
-          currentRun: { ...runningView.currentRun, id: "create-run" },
+          currentRun: { ...RUNNING_VIEW.currentRun, id: "create-run" },
         };
       }
 
       if (phase === "awaiting-placement") {
         return {
-          ...runningView,
+          ...RUNNING_VIEW,
           messages: messagesAfterCreate,
           currentRun: {
-            ...runningView.currentRun,
+            ...RUNNING_VIEW.currentRun,
             id: "create-run",
             status: InAppAgentRunStatus.AWAITING_APPROVAL,
           },
@@ -717,17 +717,17 @@ describe("BackgroundExecutionSessionController", () => {
 
       if (phase === "placing") {
         return {
-          ...runningView,
+          ...RUNNING_VIEW,
           messages: messagesAfterCreate,
-          currentRun: { ...runningView.currentRun, id: "placement-run" },
+          currentRun: { ...RUNNING_VIEW.currentRun, id: "placement-run" },
         };
       }
 
       return {
-        ...runningView,
+        ...RUNNING_VIEW,
         messages: finalPersistedMessages,
         currentRun: {
-          ...runningView.currentRun,
+          ...RUNNING_VIEW.currentRun,
           id: "placement-run",
           status: InAppAgentRunStatus.SUCCEEDED,
         },
@@ -754,7 +754,7 @@ describe("BackgroundExecutionSessionController", () => {
       initialView: {
         messages: messagesBeforeApproval,
         currentRun: {
-          ...runningView.currentRun,
+          ...RUNNING_VIEW.currentRun,
           id: "approval-run",
           status: InAppAgentRunStatus.AWAITING_APPROVAL,
         },
@@ -785,9 +785,9 @@ describe("BackgroundExecutionSessionController", () => {
       // Reproduce the live-only loss of the previously completed create call.
       messages: [
         ...messagesBeforeApproval,
-        addPlacementMessage,
-        addPlacementResult,
-        finalMessage,
+        ADD_PLACEMENT_MESSAGE,
+        ADD_PLACEMENT_RESULT,
+        FINAL_MESSAGE,
       ],
     } as never);
     phase = "complete";
@@ -814,7 +814,7 @@ describe("BackgroundExecutionSessionController", () => {
     };
     const session = new BackgroundExecutionSessionController({
       agent,
-      hydrate: vi.fn().mockResolvedValue(runningView),
+      hydrate: vi.fn().mockResolvedValue(RUNNING_VIEW),
       cancelRun: vi.fn(),
       decideApproval: vi.fn(),
       onError,
@@ -830,7 +830,7 @@ describe("BackgroundExecutionSessionController", () => {
         status: "error",
         retryable: true,
       },
-      currentRun: runningView.currentRun,
+      currentRun: RUNNING_VIEW.currentRun,
     });
 
     await session.hydrateAndAttach();
@@ -838,7 +838,7 @@ describe("BackgroundExecutionSessionController", () => {
     expect(agent.connectAgent).toHaveBeenCalledTimes(2);
     expect(session.getSnapshot()).toMatchObject({
       attachment: { status: "attached" },
-      currentRun: runningView.currentRun,
+      currentRun: RUNNING_VIEW.currentRun,
     });
   });
 });
@@ -860,7 +860,7 @@ describe("BackgroundExecutionSessionController hydration", () => {
         messages: [question],
         displayState,
         eventCursor: 7,
-        currentRun: runningView.currentRun,
+        currentRun: RUNNING_VIEW.currentRun,
         pendingToolApprovals: [],
       })
       // Keep the completed-run convergence open so this assertion observes
@@ -997,7 +997,7 @@ describe("BackgroundExecutionSessionController hydration", () => {
         messages: [question, answerAfterThought, thought],
         displayState,
         eventCursor: 7,
-        currentRun: runningView.currentRun,
+        currentRun: RUNNING_VIEW.currentRun,
         pendingToolApprovals: [],
       })
       // The post-execution converge would refetch the settled transcript and
