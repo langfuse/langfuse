@@ -122,11 +122,14 @@ properly (below).
    keeping user content out of them. Session Replay is the one masked channel:
    [`instrumentation-client.ts`](../../../web/instrumentation-client.ts) gates
    `maskAllText`/`blockAllMedia` so replays are fully masked everywhere except
-   the EU/US non-HIPAA cloud regions. **Never remove or weaken that gate** — a
-   CI guard
-   ([`instrumentation-client-replay-mask.clienttest.ts`](../../../web/src/__tests__/instrumentation-client-replay-mask.clienttest.ts))
-   fails if you do, and any diff touching `instrumentation-client.ts` or replay
-   config must pass the reviewer checklist in the
+   the EU/US non-HIPAA cloud regions. **Never remove or weaken that gate** —
+   the gate (`isEuOrUsRegionNonHipaa` → the `replayIntegration` options) must
+   be covered by a CI regression test asserting the masked/unmasked regions on
+   the real module (the mask-guard
+   `instrumentation-client-replay-mask.clienttest.ts`; landing with #15802).
+   Reject any diff that touches the gate without that guard passing, and run
+   every diff touching `instrumentation-client.ts` or replay config through
+   the reviewer checklist in the
    [reference](references/sentry-capture-contract.md#pii-and-the-hipaa-compliance-boundary).
    A message that interpolates user data both leaks and shatters grouping
    (Rule 5).

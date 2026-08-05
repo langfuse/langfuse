@@ -45,13 +45,15 @@ cover **different channels**. Do not conflate them.
 1. **Session Replay → the region-gated mask.**
    [`instrumentation-client.ts`](../../../../web/instrumentation-client.ts)
    configures `replayIntegration({ maskAllText, blockAllMedia })` gated on the
-   cloud region: replays are **fully masked everywhere except the EU/US
-   non-HIPAA cloud regions** (HIPAA, JP, STAGING, DEV, and self-hosted/unset
-   all mask — default-deny). The gate must never be removed or weakened. A CI
-   guard,
-   [`instrumentation-client-replay-mask.clienttest.ts`](../../../../web/src/__tests__/instrumentation-client-replay-mask.clienttest.ts),
-   executes the real module per region and fails on any change to the gate, so
-   a diff that trips it is a compliance change, not a broken test.
+   cloud region via `isEuOrUsRegionNonHipaa`: replays are **fully masked
+   everywhere except the EU/US non-HIPAA cloud regions** (HIPAA, JP, STAGING,
+   DEV, and self-hosted/unset all mask — default-deny). The gate must never be
+   removed or weakened, and it must be covered by a CI regression test that
+   executes the real module per region and fails on any change to the gate
+   (the mask-guard `instrumentation-client-replay-mask.clienttest.ts`; landing
+   with #15802). A diff that trips that guard is a compliance change, not a
+   broken test; a diff that touches the gate without the guard passing must be
+   rejected.
 2. **Error events → the capture discipline (SKILL rule 7).** The mask covers
    Session Replay ONLY. Error-event payloads — message, breadcrumbs, `extra`,
    tags — are **not masked in any region**. The rule "no user content in
@@ -65,8 +67,8 @@ replay integration, or region gating:**
 
 - `maskAllText`/`blockAllMedia` still derive from the region gate (masked
   unless the region is exactly `EU` or `US`), and the mask-guard clienttest
-  still asserts against the real module — not a copy of the config or an
-  uncalled predicate.
+  (landing with #15802) asserts against the real module — not a copy of the
+  config or an uncalled predicate.
 - No new replay option weakens masking for masked regions (e.g.
   `maskAllInputs: false`, unmask/unblock selectors).
 - `sendDefaultPii` remains unset/false; no integration starts attaching
