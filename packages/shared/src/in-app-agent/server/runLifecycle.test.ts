@@ -127,6 +127,7 @@ describe("global lifecycle work selection", () => {
     claimedAt: null,
     heartbeatAt: null,
     finishedAt: null,
+    mcpApiKeyId: null,
     ...overrides,
   });
 

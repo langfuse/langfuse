@@ -13,17 +13,47 @@ const BATCH_SIZE = 100;
 const ORPHAN_CREDENTIAL_AGE_MS = 30 * 60_000;
 
 /**
- * Revoke the ephemeral MCP credentials that background runs mint per run.
+ * Backstop for the ephemeral MCP credentials that background runs mint per run.
  *
- * Two batches on purpose. The first bounds a *known* leak: a terminal run whose
- * delete failed still points at its key, and retrying immediately keeps the
- * credential's lifetime at a minute rather than the orphan sweep's 30. The
- * second is the backstop for keys no run points at any more, including keys
- * whose run row was cascade-deleted with its project.
+ * The two paths that normally revoke a credential are the worker's own
+ * `onFinish` and, when that worker died, `revokeRunCredential` from the
+ * lifecycle sweep at the moment it terminalizes the run. This job only catches
+ * what both missed: a run terminalized by the read path, or a key whose run row
+ * was cascade-deleted with its project.
+ *
+ * Deliberately hourly. Neither query can use an index — `finished_at IS NOT
+ * NULL` is the complement of the partial active-run index, and `api_keys` has
+ * none on `is_in_app_agent_key` — so each pass is a sequential scan, and
+ * `in_app_agent_runs` grows forever. Running it every minute would buy nothing:
+ * the credential a run leaks is already revoked within a sweep tick, and the
+ * secret never leaves the worker process that minted it, so what is left here
+ * is hygiene rather than exposure.
  */
 export async function runInAppAgentCredentialMaintenance(): Promise<void> {
   await retryTerminalRunCredentials();
   await revokeOrphanedCredentials();
+}
+
+/**
+ * Revoke one run's credential and clear its pointer. Used by the lifecycle
+ * sweep the instant it terminalizes a run, which is the case that matters: a
+ * worker killed mid-run never got to revoke its own key, and nothing else
+ * knows the key exists except that pointer.
+ */
+export async function revokeRunCredential(params: {
+  runId: string;
+  projectId: string;
+  mcpApiKeyId: string;
+}): Promise<void> {
+  await revokeCredential({
+    apiKeyId: params.mcpApiKeyId,
+    projectId: params.projectId,
+  });
+
+  await prisma.inAppAgentRun.updateMany({
+    where: { id: params.runId, projectId: params.projectId },
+    data: { mcpApiKeyId: null },
+  });
 }
 
 async function retryTerminalRunCredentials(): Promise<void> {

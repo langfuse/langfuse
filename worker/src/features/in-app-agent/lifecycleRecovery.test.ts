@@ -83,6 +83,7 @@ async function seedRun(
     createdAt: Date;
     claimedAt?: Date | null;
     heartbeatAt?: Date | null;
+    mcpApiKeyId?: string | null;
   },
 ) {
   // Each run needs its own conversation: an unfinished run is unique per
@@ -146,6 +147,35 @@ describe("in-app agent lifecycle recovery sweep", () => {
       status: InAppAgentRunStatus.RUNNING,
       errorCode: null,
     });
+  });
+
+  it("revokes the credential of the run it terminalizes", async () => {
+    const ctx = await seedConversation();
+    const key = await prisma.apiKey.create({
+      data: {
+        projectId: ctx.projectId,
+        scope: "PROJECT",
+        isInAppAgentKey: true,
+        publicKey: `pk-sweep-${randomUUID()}`,
+        hashedSecretKey: `hsk-sweep-${randomUUID()}`,
+        displaySecretKey: "sk-...abcd",
+      },
+    });
+    const abandoned = await seedRun(ctx, {
+      status: InAppAgentRunStatus.RUNNING,
+      createdAt: ago(5 * 60_000),
+      claimedAt: ago(5 * 60_000),
+      heartbeatAt: ago(90_000),
+      mcpApiKeyId: key.id,
+    });
+
+    await runInAppAgentLifecycleRecovery();
+
+    // A worker killed mid-run never revoked the key it minted, and only this
+    // pointer knows the key exists. Waiting for the hourly backstop would leave
+    // an unowned project credential live for an hour.
+    expect(await prisma.apiKey.count({ where: { id: key.id } })).toBe(0);
+    expect((await reload(abandoned)).mcpApiKeyId).toBeNull();
   });
 
   it("never touches a foreground-shaped run", async () => {

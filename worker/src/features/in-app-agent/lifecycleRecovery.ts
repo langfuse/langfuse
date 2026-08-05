@@ -15,6 +15,8 @@ import {
   type InAppAgentTerminalWorkItem,
 } from "@langfuse/shared/in-app-agent/server";
 
+import { revokeRunCredential } from "./credentialMaintenance";
+
 const METRIC_PREFIX = "langfuse.in_app_agent_lifecycle";
 
 /**
@@ -133,12 +135,30 @@ async function applyTerminalTransition(
       error_code: item.errorCode,
     });
 
-    if (applied) {
-      logger.info("Reconciled stale in-app agent run", {
-        projectId: item.run.projectId,
-        conversationId: item.run.conversationId,
+    if (!applied) {
+      return;
+    }
+
+    logger.info("Reconciled stale in-app agent run", {
+      projectId: item.run.projectId,
+      conversationId: item.run.conversationId,
+      runId: item.run.id,
+      errorCode: item.errorCode,
+    });
+
+    // The run is dead and its worker never revoked the credential it minted.
+    // Doing it here, off a row we already hold, bounds the credential's life to
+    // one sweep tick without the hourly backstop's sequential scan.
+    if (item.run.mcpApiKeyId) {
+      await revokeRunCredential({
         runId: item.run.id,
-        errorCode: item.errorCode,
+        projectId: item.run.projectId,
+        mcpApiKeyId: item.run.mcpApiKeyId,
+      });
+
+      recordIncrement(`${METRIC_PREFIX}.action`, 1, {
+        action: "terminal_credential",
+        outcome: "applied",
       });
     }
   } catch (error) {

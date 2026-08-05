@@ -5,7 +5,13 @@ import { logger } from "../logger";
 
 /** Recovery cadence. Heartbeat staleness (60s) is the slowest thing it detects. */
 const LIFECYCLE_RECOVERY_INTERVAL_MS = 5_000;
-const CREDENTIAL_MAINTENANCE_INTERVAL_MS = 60_000;
+
+/**
+ * Credential maintenance is only a backstop: recovery revokes a dead run's key
+ * as it terminalizes the run. Its queries cannot use an index, so a frequent
+ * pass would sequentially scan a forever-growing table to find nothing.
+ */
+const CREDENTIAL_MAINTENANCE_INTERVAL_MS = 60 * 60_000;
 
 /**
  * Scheduled sweeps that recover background agent runs without a browser.

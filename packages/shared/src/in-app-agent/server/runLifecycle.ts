@@ -541,6 +541,8 @@ type StaleRunRow = {
   claimedAt: Date | null;
   heartbeatAt: Date | null;
   finishedAt: Date | null;
+  /** Carried so terminalizing a run can revoke its credential immediately. */
+  mcpApiKeyId: string | null;
 };
 
 export type InAppAgentTerminalWorkItem = {
@@ -621,6 +623,7 @@ export async function findInAppAgentLifecycleWork(params: {
       claimedAt: true,
       heartbeatAt: true,
       finishedAt: true,
+      mcpApiKeyId: true,
     },
   });
 
