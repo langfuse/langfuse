@@ -67,7 +67,7 @@ import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
 
 const renderExperimentSpecificHeader = (label: string) => (
-  <span className="text-muted-foreground">{label}</span>
+  <span className="text-tertiary">{label}</span>
 );
 
 /**
@@ -154,7 +154,7 @@ const StackedExperimentCell = ({
                 {content}
               </>
             ) : (
-              <span className="text-muted-foreground">—</span>
+              <span className="text-tertiary">—</span>
             )}
           </div>
         );
@@ -250,7 +250,7 @@ const StackedOutputCell = ({
                 singleLine={singleLine}
               />
             ) : (
-              <span className="text-muted-foreground px-2 py-1">—</span>
+              <span className="text-tertiary px-2 py-1">—</span>
             )}
           </div>
         );
@@ -592,8 +592,7 @@ export default function ExperimentItemsTable({
                 const scoresData = exp[scoreField] ?? {};
                 const value = scoresData[scoreKey];
 
-                if (!value)
-                  return <span className="text-muted-foreground">-</span>;
+                if (!value) return <span className="text-tertiary">-</span>;
 
                 const mockRow = {
                   getValue: (key: string) =>
@@ -765,7 +764,7 @@ export default function ExperimentItemsTable({
                 {exp.totalCost != null ? (
                   usdFormatter(exp.totalCost, 2, 6)
                 ) : (
-                  <span className="text-muted-foreground">-</span>
+                  <span className="text-tertiary">-</span>
                 )}
               </span>
             )}
@@ -1186,7 +1185,7 @@ export default function ExperimentItemsTable({
                 />
               ) : (
                 <div className="flex flex-1 items-center justify-center">
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-tertiary text-sm">
                     Please select a baseline experiment.
                   </span>
                 </div>
@@ -1211,7 +1210,7 @@ export default function ExperimentItemsTable({
                 peekView={peekConfig}
                 noResultsMessage={
                   !hasSelectedRuns ? (
-                    <span className="text-muted-foreground text-sm">
+                    <span className="text-tertiary text-sm">
                       Please select a baseline experiment.
                     </span>
                   ) : undefined

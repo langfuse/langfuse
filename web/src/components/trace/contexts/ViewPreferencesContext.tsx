@@ -39,8 +39,6 @@ interface ViewPreferencesContextValue {
   setShowCostTokens: (value: boolean) => void;
   showScores: boolean;
   setShowScores: (value: boolean) => void;
-  colorCodeMetrics: boolean;
-  setColorCodeMetrics: (value: boolean) => void;
   showComments: boolean;
   setShowComments: (value: boolean) => void;
   showGraph: boolean;
@@ -110,10 +108,6 @@ export function ViewPreferencesProvider({
     "scoresOnObservationTree",
     true,
   );
-  const [colorCodeMetrics, setColorCodeMetrics] = useLocalStorage(
-    "colorCodeMetricsOnObservationTree",
-    true,
-  );
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
   const [storedGraphViewMode, setGraphViewMode] =
@@ -156,8 +150,6 @@ export function ViewPreferencesProvider({
       setShowCostTokens,
       showScores,
       setShowScores,
-      colorCodeMetrics,
-      setColorCodeMetrics,
       showComments,
       setShowComments,
       showGraph,
@@ -187,8 +179,6 @@ export function ViewPreferencesProvider({
       setShowCostTokens,
       showScores,
       setShowScores,
-      colorCodeMetrics,
-      setColorCodeMetrics,
       showComments,
       setShowComments,
       showGraph,

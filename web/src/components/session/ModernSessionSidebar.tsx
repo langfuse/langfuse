@@ -226,7 +226,7 @@ const TurnCard = React.memo(
         }}
         className={cn(
           "group hover:bg-muted/60 rounded-sm border border-transparent p-2 transition-colors duration-150",
-          isActive && "border-primary-accent/50 bg-background dark:bg-muted",
+          isActive && "border-brand/50 bg-background dark:bg-muted",
           isTraceLevelIOOnly && "cursor-pointer",
         )}
         data-observation-list-active={isActive}
@@ -473,7 +473,7 @@ export function ModernSessionSidebar(
         <div className="flex items-center gap-1 px-2 py-2.5">
           <div className="relative min-w-0 flex-1">
             <Search
-              className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
+              className="text-disabled absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
               strokeWidth={1.6}
             />
             <Input

@@ -54,7 +54,7 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
       {isLoading && (
         <div className="flex flex-1 items-center justify-center">
           <Spinner size="md" variant="muted" />
-          <span className="text-muted-foreground ml-2 text-sm">
+          <span className="text-tertiary ml-2 text-sm">
             Loading observations (0/{totalCount})...
           </span>
         </div>
@@ -92,7 +92,7 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
       {/* Empty state */}
       {!data && !isLoading && !isError && (
         <div className="flex flex-1 items-center justify-center">
-          <div className="text-muted-foreground text-sm">
+          <div className="text-tertiary text-sm">
             No observation data available
           </div>
         </div>

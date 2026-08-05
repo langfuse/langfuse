@@ -38,9 +38,9 @@ export const composerTokenVariants = cva("max-w-full", {
     kind: {
       filter: "",
       freeText:
-        "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
+        "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-secondary/90 transition-colors hover:border-border hover:bg-hover",
       operator: "font-bold uppercase text-qlang-keyword",
-      paren: "text-muted-foreground",
+      paren: "text-tertiary",
       invalid:
         "mr-1 inline rounded border border-dashed px-1.5 py-0.5 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",
     },
@@ -84,11 +84,11 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
           hyphen, so a line wrap would otherwise break it away from its field.
           The value stays outside so long grouped values can still wrap. */}
       <span className="whitespace-nowrap">
-        {dash && <span className="text-muted-foreground">-</span>}
+        {dash && <span className="text-tertiary">-</span>}
         <span data-part="field" className="text-qlang-field">
           {segment.displayField}
         </span>
-        <span data-part="operator" className="text-muted-foreground">
+        <span data-part="operator" className="text-tertiary">
           :
         </span>
       </span>

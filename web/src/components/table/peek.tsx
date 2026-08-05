@@ -335,7 +335,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                 // No overflow-hidden here: the resize handle straddles the left
                 // edge (overhangs onto the table) so it's grabbable from either
                 // side. The body clips its own content instead.
-                "bg-modal top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 border-l",
+                "bg-elevated top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 border-l",
                 // Soft shadow cast leftward (toward the table) to lift the peek
                 // off the content behind it. Token-backed so it stays a DARK
                 // cast in both modes: foreground is near-black in light mode,

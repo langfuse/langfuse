@@ -414,13 +414,13 @@ function VerifiedSignupFlow({
             <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
               Check your email
             </h2>
-            <p className="text-muted-foreground mt-2 text-center text-sm">
+            <p className="text-tertiary mt-2 text-center text-sm">
               We sent a verification code to{" "}
               <span className="font-bold">{otpEmail}</span>
             </p>
           </div>
 
-          <div className="bg-background mt-14 px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+          <div className="bg-canvas mt-14 px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
             <div className="space-y-6">
               <div>
                 <label
@@ -454,7 +454,7 @@ function VerifiedSignupFlow({
                   {otpError}
                 </div>
               )}
-              <p className="text-muted-foreground text-center text-xs">
+              <p className="text-tertiary text-center text-xs">
                 The code is valid for 3 minutes.{" "}
                 <button
                   type="button"
@@ -570,7 +570,7 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
 
         <CloudRegionSwitch isSignUpPage />
 
-        <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+        <div className="bg-canvas mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           {children}
         </div>
         <CloudPrivacyNotice action="creating an account" />
@@ -582,7 +582,7 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
 function SignupFooter() {
   const router = useRouter();
   return (
-    <p className="text-muted-foreground mt-10 text-center text-sm">
+    <p className="text-tertiary mt-10 text-center text-sm">
       Already have an account?{" "}
       <Link
         href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}

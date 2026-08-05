@@ -42,8 +42,7 @@ function Calendar({
         ),
         [UI.MonthGrid]: "w-full border-collapse space-y-1",
         [UI.Weekdays]: "flex",
-        [UI.Weekday]:
-          "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+        [UI.Weekday]: "text-tertiary rounded-md w-9 font-normal text-[0.8rem]",
         [UI.Week]: "flex w-full mt-2",
         [UI.Day]:
           "h-9 w-9 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
@@ -51,20 +50,20 @@ function Calendar({
           buttonVariants({ variant: "ghost" }),
           "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
           // can't use SelectionState.range_start here because Tailwind classes can't be constructed dynamically
-          "group-[.selection-edge]:bg-primary group-[.selection-edge]:text-primary-foreground group-[.today]:font-bold",
+          "group-[.selection-edge]:bg-primary group-[.selection-edge]:text-on-fill group-[.today]:font-bold",
         ),
         [SelectionState.range_start]:
-          "group selection-edge bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground rounded-l-md rounded-r-none",
+          "group selection-edge bg-hover text-on-hover hover:bg-hover hover:text-on-hover focus:bg-hover focus:text-on-hover rounded-l-md rounded-r-none",
         [SelectionState.range_middle]:
-          "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground rounded-none",
+          "bg-hover text-on-hover hover:bg-hover hover:text-on-hover rounded-none",
         [SelectionState.range_end]:
-          "group selection-edge bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground rounded-r-md rounded-l-none",
+          "group selection-edge bg-hover text-on-hover hover:bg-hover hover:text-on-hover focus:bg-hover focus:text-on-hover rounded-r-md rounded-l-none",
         [SelectionState.selected]:
-          "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground rounded-md",
+          "bg-hover text-on-hover hover:bg-hover hover:text-on-hover focus:bg-hover focus:text-on-hover rounded-md",
         [DayFlag.today]: "group today",
         [DayFlag.outside]:
-          "text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30",
-        [DayFlag.disabled]: "text-muted-foreground opacity-50",
+          "text-tertiary opacity-50 aria-selected:bg-hover/50 aria-selected:text-tertiary aria-selected:opacity-30",
+        [DayFlag.disabled]: "text-tertiary opacity-50",
         [DayFlag.hidden]: "invisible",
         ...classNames,
       }}

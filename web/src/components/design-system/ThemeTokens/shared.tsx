@@ -132,6 +132,12 @@ export const PAGE_TOKEN_MATCHERS: Array<{
   test: (name: string) => boolean;
 }> = [
   {
+    // PRIVATE palette ramps ({family}-{mode}-{decade} steps in :root).
+    // Claimed for Color's collapsed primitives section.
+    page: "color",
+    test: (n) => /^--(?:neutral|blue)-(?:light|dark)-\d+$/.test(n),
+  },
+  {
     page: "charts",
     test: (n) => /^--(?:chart-\d+|chart-grid|color-\d+)$/.test(n),
   },
@@ -221,7 +227,7 @@ function TableHeader() {
 }
 
 export function EmptyCell() {
-  return <span className="text-muted-foreground font-mono text-[11px]">—</span>;
+  return <span className="text-tertiary font-mono text-[11px]">—</span>;
 }
 
 /** One canonical (declared) value, with its theme-correct swatch. */
@@ -243,7 +249,7 @@ function ValueCell({
       <Swatch color={swatch} />
       <code
         className={`${
-          emphasized ? "text-foreground" : "text-muted-foreground"
+          emphasized ? "text-foreground" : "text-tertiary"
         } truncate font-mono text-[11px]`}
         title={decl.value}
       >
@@ -358,12 +364,12 @@ export function CollapsedSection({
       <summary className="flex cursor-pointer list-none items-start gap-2 [&::-webkit-details-marker]:hidden">
         <ChevronRight
           aria-hidden
-          className="text-muted-foreground mt-1.5 size-4 shrink-0 transition-transform group-open:rotate-90"
+          className="text-tertiary mt-1.5 size-4 shrink-0 transition-transform group-open:rotate-90"
         />
         <div className="flex flex-1 items-baseline justify-between gap-4">
           <div>
             <h2 className="text-foreground text-lg font-bold">{title}</h2>
-            <p className="text-muted-foreground max-w-2xl text-sm">{blurb}</p>
+            <p className="text-tertiary max-w-2xl text-sm">{blurb}</p>
           </div>
           {count !== undefined && (
             <InlineCode>

@@ -37,15 +37,15 @@ export function ManageDefaultEvalModel({
     <div className="flex items-center">
       {!showEditButton &&
         (defaultModel ? (
-          <Check className="text-dark-green mr-2 h-4 w-4" />
+          <Check className="text-success mr-2 h-4 w-4" />
         ) : (
-          <TriangleAlert className="text-dark-yellow mr-2 h-4 w-4" />
+          <TriangleAlert className="text-warning mr-2 h-4 w-4" />
         ))}
       {defaultModel ? (
         <span
           className={cn(
             "text-sm font-bold text-nowrap",
-            variant === "color-coded" && "text-dark-green",
+            variant === "color-coded" && "text-success",
             className,
           )}
         >
@@ -56,7 +56,7 @@ export function ManageDefaultEvalModel({
         <span
           className={cn(
             "text-sm font-bold",
-            variant === "color-coded" && "text-dark-yellow",
+            variant === "color-coded" && "text-warning",
             className,
           )}
         >
@@ -78,9 +78,7 @@ export function ManageDefaultEvalModel({
             <Pencil
               className={cn(
                 "h-3 w-3",
-                variant === "color-coded" &&
-                  !defaultModel &&
-                  "text-dark-yellow",
+                variant === "color-coded" && !defaultModel && "text-warning",
               )}
             />
           </Link>

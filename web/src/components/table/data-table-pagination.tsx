@@ -109,21 +109,21 @@ export function DataTablePagination<TData>({
 
   return (
     <div className="flex items-center justify-between">
-      <div className="text-muted-foreground flex-1 text-sm">
+      <div className="text-tertiary flex-1 text-sm">
         {/* {table.getFilteredSelectedRowModel().rows.length} of{" "}
         {table.getFilteredRowModel().rows.length} row(s) selected. */}
       </div>
       <div className="flex flex-wrap items-center space-x-6 lg:space-x-8">
         {showExactTotal ? (
           // Result fits on the loaded page(s) — the total is exact, no estimate.
-          <span className="text-muted-foreground hidden text-sm font-normal whitespace-nowrap md:inline-flex md:items-center">
+          <span className="text-tertiary hidden text-sm font-normal whitespace-nowrap md:inline-flex md:items-center">
             Total&nbsp;{compactNumberFormatter(exactTotal)}
           </span>
         ) : showApproxTotal ? (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-muted-foreground hidden text-sm font-normal whitespace-nowrap md:inline-flex md:items-center">
+                <span className="text-tertiary hidden text-sm font-normal whitespace-nowrap md:inline-flex md:items-center">
                   Total&nbsp;≈&nbsp;
                   {approxTotalCount != null ? (
                     compactNumberFormatter(approxTotalCount)
@@ -135,7 +135,7 @@ export function DataTablePagination<TData>({
                   {approxTotalCountIsPartialScope &&
                     approxTotalCount != null && (
                       // Marks that the estimate ignores some filters (can exceed row count).
-                      <span className="text-muted-foreground/70 ml-0.5 align-super text-[0.65rem] leading-none">
+                      <span className="text-tertiary/70 ml-0.5 align-super text-[0.65rem] leading-none">
                         *
                       </span>
                     )}

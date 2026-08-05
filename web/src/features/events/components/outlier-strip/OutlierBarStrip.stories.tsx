@@ -60,7 +60,7 @@ export const ScaleMatrix = meta.story({
     <div className="flex flex-col gap-5 p-2">
       {(["linear", "sqrt"] as const).map((scale) => (
         <div key={scale}>
-          <div className="text-muted-foreground mb-1 font-mono text-[10px]">
+          <div className="text-tertiary mb-1 font-mono text-[10px]">
             scale: {scale}
           </div>
           <OutlierBarStrip {...spikyCost} metric="cost" scale={scale} />
@@ -75,7 +75,7 @@ export const HeightMatrix = meta.story({
     <div className="flex flex-col gap-5 p-2">
       {[40, 56, 72].map((height) => (
         <div key={height}>
-          <div className="text-muted-foreground mb-1 font-mono text-[10px]">
+          <div className="text-tertiary mb-1 font-mono text-[10px]">
             height {height}px
           </div>
           <OutlierBarStrip {...spikyCost} metric="cost" heightPx={height} />

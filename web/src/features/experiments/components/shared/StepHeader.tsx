@@ -15,7 +15,7 @@ export const StepHeader: React.FC<StepHeaderProps> = ({
   return (
     <div className="space-y-2">
       <h3 className="text-lg font-bold">{title}</h3>
-      <p className="text-muted-foreground text-sm">{description}</p>
+      <p className="text-tertiary text-sm">{description}</p>
       {errorMessage && (
         <Alert variant="destructive">
           <AlertDescription>{errorMessage}</AlertDescription>

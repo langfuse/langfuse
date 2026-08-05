@@ -29,16 +29,16 @@ export function V4IntroDialog({
             className="w-full rounded-md"
           />
           <ul className="flex flex-col gap-3">
-            <li className="text-muted-foreground text-sm">
-              <span className="text-foreground block font-bold">
+            <li className="text-tertiary text-sm">
+              <span className="text-secondary block font-bold">
                 Welcome to a faster Langfuse
               </span>{" "}
               We&apos;ve rebuilt the data model around observations rather than
               traces, which means charts, filters, and APIs are dramatically
               faster.
             </li>
-            <li className="text-muted-foreground text-sm">
-              <span className="text-foreground block font-bold">
+            <li className="text-tertiary text-sm">
+              <span className="text-secondary block font-bold">
                 New Observations table
               </span>{" "}
               Your traces are still here. The default view now shows all
@@ -46,8 +46,8 @@ export function V4IntroDialog({
               <span className="font-bold">Is Root Observation &rarr; True</span>
               .
             </li>
-            <li className="text-muted-foreground text-sm">
-              <span className="text-foreground block font-bold">
+            <li className="text-tertiary text-sm">
+              <span className="text-secondary block font-bold">
                 New Saved Table Views
               </span>{" "}
               Save your table filters as an org-wide saved view so your whole

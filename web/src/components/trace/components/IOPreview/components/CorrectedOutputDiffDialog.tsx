@@ -98,8 +98,8 @@ export const CorrectedOutputDiffDialog: React.FC<
         <DialogBody>
           {actualOutputTooLarge ? (
             <div className="space-y-4">
-              <div className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
-                <p className="text-foreground font-bold">
+              <div className="text-tertiary rounded-md border border-dashed p-4 text-sm">
+                <p className="text-secondary font-bold">
                   Original output too large to diff
                 </p>
                 <p className="mt-1">
@@ -117,7 +117,7 @@ export const CorrectedOutputDiffDialog: React.FC<
             </div>
           ) : hasNoOriginalOutput ? (
             <div className="flex flex-col items-center justify-center p-8 text-center">
-              <div className="text-muted-foreground">
+              <div className="text-tertiary">
                 <p className="text-lg font-bold">No original output</p>
                 <p className="mt-2 text-sm">
                   There is no original output to compare with the correction.

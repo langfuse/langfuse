@@ -192,9 +192,7 @@ export function MappingPreviewPanel({
       <div className="space-y-4">
         <div>
           <h3 className="text-sm font-bold">Preview</h3>
-          <p className="text-muted-foreground text-xs">
-            Sample from first observation
-          </p>
+          <p className="text-tertiary text-xs">Sample from first observation</p>
         </div>
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-32 w-full" />
@@ -207,14 +205,10 @@ export function MappingPreviewPanel({
       <div className="space-y-4">
         <div>
           <h3 className="text-sm font-bold">Preview</h3>
-          <p className="text-muted-foreground text-xs">
-            Sample from first observation
-          </p>
+          <p className="text-tertiary text-xs">Sample from first observation</p>
         </div>
         <div className="bg-muted/30 flex h-64 items-center justify-center rounded-md border p-4">
-          <p className="text-muted-foreground text-sm">
-            No observation data available
-          </p>
+          <p className="text-tertiary text-sm">No observation data available</p>
         </div>
       </div>
     );
@@ -224,16 +218,12 @@ export function MappingPreviewPanel({
     <div className="space-y-2">
       <div>
         <h3 className="text-sm font-bold">Preview</h3>
-        <p className="text-muted-foreground text-xs">
-          Sample from first observation
-        </p>
+        <p className="text-tertiary text-xs">Sample from first observation</p>
       </div>
 
       {/* Source data */}
       <div className="space-y-2">
-        <p className="text-muted-foreground text-xs font-bold">
-          Source: {sourceLabel}
-        </p>
+        <p className="text-tertiary text-xs font-bold">Source: {sourceLabel}</p>
         <div className="bg-muted/30 max-h-[21vh] overflow-auto rounded-md border">
           <JSONView json={sourceData} className="text-xs" />
         </div>
@@ -241,13 +231,13 @@ export function MappingPreviewPanel({
 
       {/* Arrow */}
       <div className="flex justify-center">
-        <ArrowDown className="text-muted-foreground h-6 w-6" />
+        <ArrowDown className="text-tertiary h-6 w-6" />
       </div>
 
       {/* Result data */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <p className="text-muted-foreground text-xs font-bold">
+          <p className="text-tertiary text-xs font-bold">
             Result: Dataset Item {fieldLabel}
           </p>
           {/* Validation status indicator */}
@@ -265,7 +255,7 @@ export function MappingPreviewPanel({
           )}
         </div>
         <div
-          className={`bg-background max-h-[21vh] overflow-auto rounded-md border ${
+          className={`bg-canvas max-h-[21vh] overflow-auto rounded-md border ${
             (jsonPathErrors.length > 0 ||
               (hasSchema && !validationResult.isValid)) &&
             config.mode !== "none"
@@ -276,7 +266,7 @@ export function MappingPreviewPanel({
           }`}
         >
           {config.mode === "none" ? (
-            <div className="text-muted-foreground p-3 text-xs italic">null</div>
+            <div className="text-tertiary p-3 text-xs italic">null</div>
           ) : (
             <JSONView json={resultData} className="text-xs" />
           )}

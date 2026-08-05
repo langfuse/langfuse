@@ -46,7 +46,7 @@ const ErrorPage = ({
       <Head>
         <title>{documentTitle}</title>
       </Head>
-      <div className="min-h-screen-with-banner bg-background text-foreground flex items-center justify-center px-6 py-10">
+      <div className="min-h-screen-with-banner bg-canvas text-secondary flex items-center justify-center px-6 py-10">
         <CrashModal
           description={description}
           sentryEventId={sentryEventId}

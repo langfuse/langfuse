@@ -43,7 +43,7 @@ export const BillingUsageChart = () => {
       <Card className="p-3">
         {usage.data !== undefined ? (
           <>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-tertiary text-sm">
               {usage.data.billingPeriod
                 ? `Consumed ${usageType} in current billing period (updated about once every 60 minutes)`
                 : `Consumed ${usageType} / last 30d`}
@@ -83,7 +83,7 @@ export const BillingUsageChart = () => {
             )}
           </>
         ) : (
-          <span className="text-muted-foreground text-sm">
+          <span className="text-tertiary text-sm">
             Loading (might take a moment) ...
           </span>
         )}

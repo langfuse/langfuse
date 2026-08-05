@@ -8,7 +8,7 @@ import { Check } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
 const checkboxVariants = cva(
-  "border-control-border ring-offset-background focus-visible:ring-ring data-[state=checked]:bg-control-fill data-[state=checked]:border-control-fill data-[state=checked]:text-primary-foreground peer shrink-0 rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+  "border-control-border ring-offset-canvas focus-visible:ring-focus data-[state=checked]:bg-control-fill data-[state=checked]:border-control-fill data-[state=checked]:text-on-fill peer shrink-0 rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       size: {

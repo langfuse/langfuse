@@ -197,8 +197,8 @@ export function PresetDashboardWidget({
 
   if (!renderPreset) {
     return (
-      <div className="bg-background flex h-full items-center justify-center rounded-lg border p-4">
-        <div className="text-muted-foreground">
+      <div className="bg-elevated flex h-full items-center justify-center rounded-lg border p-4">
+        <div className="text-tertiary">
           Unknown preset: {placement.presetId}
         </div>
       </div>
@@ -210,16 +210,16 @@ export function PresetDashboardWidget({
       <div className="h-full w-full overflow-y-auto">{renderPreset(ctx)}</div>
       {/* The menu (copy) stays available on read-only surfaces like Home —
           only the edit affordances (drag, delete) are gated. */}
-      <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
+      <div className="bg-elevated/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
         {!readOnly && (hasCUDAccess || isLockedEditable) && (
           <>
             <GripVerticalIcon
               size={16}
-              className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
+              className="drag-handle text-tertiary hover:text-secondary hidden cursor-grab active:cursor-grabbing lg:block"
             />
             <button
               onClick={handleDelete}
-              className="text-muted-foreground hover:text-destructive"
+              className="text-tertiary hover:text-destructive"
               aria-label="Delete widget"
             >
               <TrashIcon size={16} />
@@ -229,7 +229,7 @@ export function PresetDashboardWidget({
         <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
           <DropdownMenuTrigger asChild>
             <button
-              className="text-muted-foreground hover:text-foreground"
+              className="text-tertiary hover:text-secondary"
               aria-label="Widget actions"
             >
               <MoreVerticalIcon size={16} />

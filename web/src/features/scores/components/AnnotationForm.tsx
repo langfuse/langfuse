@@ -200,7 +200,7 @@ function AnnotateHeader({
               <Check className="h-3 w-3" />
             )}
           </div>
-          <span className="text-muted-foreground text-xs">
+          <span className="text-tertiary text-xs">
             {showSaving ? "Saving score data" : "Score data saved"}
           </span>
         </div>,
@@ -826,7 +826,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       data-annotation-form
       className="mx-auto w-full space-y-2 overflow-y-auto md:max-h-full"
     >
-      <div className="bg-background sticky top-0 z-10 rounded-sm">
+      <div className="bg-canvas sticky top-0 z-10 rounded-sm">
         <AnnotateHeader
           showSaving={showSaving}
           actionButtons={actionButtons}
@@ -905,7 +905,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                         aria-label={score.name}
                         className={cn(
                           "group grid w-full grid-cols-[1fr_2fr] items-center gap-3 rounded-md px-3 py-1 text-left transition-colors outline-none",
-                          "focus-within:ring-primary/30 focus-within:bg-accent/40 focus-within:ring-1 focus-within:ring-inset",
+                          "focus-within:ring-primary/30 focus-within:bg-hover/40 focus-within:ring-1 focus-within:ring-inset",
                         )}
                       >
                         <div className="flex h-full min-w-0 items-center">
@@ -918,7 +918,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                   className={cn(
                                     "decoration-muted-gray line-clamp-2 min-w-0 text-xs font-bold wrap-break-word underline decoration-dashed underline-offset-2",
                                     config.isArchived
-                                      ? "text-foreground/40"
+                                      ? "text-secondary/40"
                                       : "",
                                   )}
                                 >
@@ -933,7 +933,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                             <span
                               className={cn(
                                 "line-clamp-2 min-w-0 text-xs font-bold wrap-break-word",
-                                config.isArchived ? "text-foreground/40" : "",
+                                config.isArchived ? "text-secondary/40" : "",
                               )}
                               title={score.name}
                             >
@@ -1235,7 +1235,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
             // the whole strip on touch viewports rather than just the kbd
             // chips inside it (LFE-11067) — the shortcuts themselves still
             // work if a physical keyboard is attached.
-            <div className="text-muted-foreground hidden flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px] md:flex">
+            <div className="text-tertiary hidden flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px] md:flex">
               {rowCount > 1 && (
                 <span className="flex items-center gap-1">
                   <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
@@ -1252,7 +1252,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                   <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
                     1
                   </KeyboardShortcut>
-                  <span className="text-muted-foreground">…</span>
+                  <span className="text-tertiary">…</span>
                   <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
                     9
                   </KeyboardShortcut>

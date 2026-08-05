@@ -43,7 +43,7 @@ export function VersionUpdateBannerView({
         // banner, places it ~16px from the viewport top).
         "top-banner-offset fixed left-1/2 mt-4 -translate-x-1/2",
         "flex items-center gap-3 rounded-full py-1.5 pr-1.5 pl-4",
-        "border-border/60 bg-background/80 border shadow-xl ring-1 ring-black/5 backdrop-blur-xl dark:ring-white/10",
+        "border-border/60 bg-canvas/80 border shadow-xl ring-1 ring-black/5 backdrop-blur-xl dark:ring-white/10",
         // `fill-mode-both` holds the entrance keyframes' start state on the
         // mount frame, before the animation's first tick — without it the pill
         // can paint one frame at its final position/opacity and then snap back
@@ -53,7 +53,7 @@ export function VersionUpdateBannerView({
       )}
     >
       <Sparkles className="text-primary h-4 w-4 shrink-0" />
-      <span className="text-foreground text-sm whitespace-nowrap">
+      <span className="text-secondary text-sm whitespace-nowrap">
         Langfuse just got an update
       </span>
       <Button size="sm" className="rounded-full" onClick={onReload}>
@@ -63,7 +63,7 @@ export function VersionUpdateBannerView({
       <Button
         size="icon-sm"
         variant="ghost"
-        className="text-muted-foreground rounded-full"
+        className="text-tertiary rounded-full"
         onClick={onDismiss}
         aria-label="Dismiss"
         title="Dismiss"

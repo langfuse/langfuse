@@ -226,7 +226,7 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
                 <TableCell
                   density="comfortable"
                   colSpan={6}
-                  className="text-muted-foreground text-center"
+                  className="text-tertiary text-center"
                 >
                   No callout endpoint configured.
                 </TableCell>
@@ -323,7 +323,7 @@ function HeaderList(props: { endpoint: WebCalloutEndpoint }) {
   const headers = props.endpoint.requestHeaderKeys;
 
   if (headers.length === 0) {
-    return <span className="text-muted-foreground">None</span>;
+    return <span className="text-tertiary">None</span>;
   }
 
   return (
@@ -697,7 +697,7 @@ export function WebCalloutIntegrationCard(props: {
   return (
     <Card className="p-3">
       <div className="mb-4 flex items-center gap-2">
-        <Webhook className="text-foreground h-5 w-5" />
+        <Webhook className="text-secondary h-5 w-5" />
         <span className="font-bold">Web Callouts</span>
       </div>
       <p className="text-primary mb-4 text-sm">

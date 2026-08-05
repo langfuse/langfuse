@@ -142,7 +142,7 @@ export function DistributionBooleanCard() {
           <CardTitle>Distribution</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="text-muted-foreground flex h-[340px] flex-col items-center justify-center pl-0 text-sm">
+        <CardContent className="text-tertiary flex h-[340px] flex-col items-center justify-center pl-0 text-sm">
           Select a score to view distribution
         </CardContent>
       </Card>
@@ -248,7 +248,7 @@ export function DistributionBooleanCard() {
             colors={chartColors}
           />
         ) : (
-          <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+          <div className="text-tertiary flex h-full items-center justify-center text-sm">
             No distribution data available for the selected time range
           </div>
         )}

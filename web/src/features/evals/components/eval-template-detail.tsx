@@ -189,8 +189,8 @@ export const EvalTemplateDetail = () => {
                   {allTemplates.data.templates.map((template, index) => (
                     <div
                       key={template.id}
-                      className={`hover:bg-accent flex cursor-pointer flex-col rounded-md px-2 py-1.5 ${
-                        template.id === templateId ? "bg-accent" : ""
+                      className={`hover:bg-hover flex cursor-pointer flex-col rounded-md px-2 py-1.5 ${
+                        template.id === templateId ? "bg-hover" : ""
                       }`}
                       onClick={() => handleTemplateSelect(template)}
                     >
@@ -201,7 +201,7 @@ export const EvalTemplateDetail = () => {
                               e.stopPropagation();
                             }}
                             variant="outline"
-                            className="bg-background/50 h-6 shrink-0"
+                            className="bg-canvas/50 h-6 shrink-0"
                             data-version-trigger="false"
                           >
                             # {template.version}
@@ -210,7 +210,7 @@ export const EvalTemplateDetail = () => {
                             <StatusBadge type="active" key="active" />
                           )}
                         </div>
-                        <span className="text-muted-foreground text-xs">
+                        <span className="text-tertiary text-xs">
                           {template.createdAt.toLocaleDateString()}
                         </span>
                       </div>
@@ -291,9 +291,7 @@ export function UpdateTemplate({
     return (
       <div className="flex items-center gap-2">
         <LangfuseIcon size={16} />
-        <span className="text-muted-foreground text-sm font-bold">
-          View only
-        </span>
+        <span className="text-tertiary text-sm font-bold">View only</span>
       </div>
     );
   }

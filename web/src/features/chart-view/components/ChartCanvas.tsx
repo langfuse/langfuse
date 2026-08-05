@@ -51,7 +51,7 @@ export const ChartCanvas = React.memo(function ChartCanvas({
 
   if (data.length === 0) {
     return (
-      <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+      <div className="text-tertiary flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
         <BarChart3 className="h-10 w-10 opacity-40" />
         <p className="text-sm">{emptyMessage}</p>
       </div>

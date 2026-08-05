@@ -141,7 +141,7 @@ export const DetailPageNav = (props: {
       cn(
         "transition-[background-color,border-color,box-shadow,color] duration-150",
         !compact && "gap-1.5 px-2",
-        active && "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
+        active && "border-primary/60 bg-hover/60 ring-primary/20 ring-2",
       );
     return (
       <div className="flex flex-row gap-1">

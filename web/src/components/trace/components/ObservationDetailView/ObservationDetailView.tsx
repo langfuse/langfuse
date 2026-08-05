@@ -383,7 +383,7 @@ export function ObservationDetailView({
                             sideOffset={8}
                           >
                             <p className="font-bold">JSON view unavailable</p>
-                            <p className="text-muted-foreground mt-1">
+                            <p className="text-tertiary mt-1">
                               Disabled for traces with{" "}
                               {
                                 TRACE_VIEW_CONFIG.logView
@@ -412,9 +412,7 @@ export function ObservationDetailView({
                           checked={jsonBetaEnabled}
                           onCheckedChange={handleBetaToggle}
                         />
-                        <span className="text-muted-foreground text-xs">
-                          Beta
-                        </span>
+                        <span className="text-tertiary text-xs">Beta</span>
                       </div>
                     )}
                 </>

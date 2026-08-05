@@ -50,7 +50,7 @@ export default function HfSpaces({ deploymentDomain }: PageProps) {
           </h2>
         </div>
 
-        <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+        <div className="bg-canvas mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-8">
             <CodeView content={deploymentDomain} title="HF Space Host" />
 

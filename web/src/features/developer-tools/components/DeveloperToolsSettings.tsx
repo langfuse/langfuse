@@ -25,7 +25,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
   return (
     <div>
       <Header title="MCP & CLI" />
-      <p className="text-muted-foreground mb-6 text-sm">
+      <p className="text-tertiary mb-6 text-sm">
         Bring Langfuse into your terminal and AI coding agents. These tools let
         you and your agents read and write Langfuse data—traces, prompts,
         datasets, scores, and more—without leaving your development environment.
@@ -33,7 +33,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
       <div className="space-y-6">
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
-            <Sparkles className="text-foreground h-5 w-5" />
+            <Sparkles className="text-secondary h-5 w-5" />
             <span className="font-bold">Agent Skill</span>
           </div>
           <p className="text-primary mb-4 text-sm">
@@ -54,7 +54,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
 
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
-            <Bot className="text-foreground h-5 w-5" />
+            <Bot className="text-secondary h-5 w-5" />
             <span className="font-bold">MCP Server</span>
           </div>
           <p className="text-primary mb-4 text-sm">
@@ -78,7 +78,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
 
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
-            <SquareTerminal className="text-foreground h-5 w-5" />
+            <SquareTerminal className="text-secondary h-5 w-5" />
             <span className="font-bold">CLI</span>
           </div>
           <p className="text-primary mb-4 text-sm">

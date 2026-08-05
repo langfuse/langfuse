@@ -195,7 +195,7 @@ export function CodeEvalTestRunCard({
           />
         ) : null}
 
-        <p className="text-muted-foreground text-xs">
+        <p className="text-tertiary text-xs">
           Read-only preview. Inputs are sampled from the first matching
           observation.
         </p>
@@ -229,7 +229,7 @@ function CodeEvalTestRunInputPreview({
 
   if (!previewData) {
     return (
-      <div className="text-muted-foreground flex min-h-32 items-center justify-center rounded-md border border-dashed p-4 text-center text-sm">
+      <div className="text-tertiary flex min-h-32 items-center justify-center rounded-md border border-dashed p-4 text-center text-sm">
         No matching observation
       </div>
     );
@@ -281,9 +281,7 @@ function CodeEvalTestRunInputCards({
   return (
     <div className="bg-muted/20 min-w-0 rounded-md border">
       <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
-        <span className="text-muted-foreground text-xs font-bold">
-          Evaluator input
-        </span>
+        <span className="text-tertiary text-xs font-bold">Evaluator input</span>
       </div>
       <PrettyJsonView
         json={inputPreviewJson}

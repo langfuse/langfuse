@@ -384,8 +384,8 @@ export const AnnotationQueueItemPage: React.FC<{
     if (!relevantItem) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden border-none">
-          <SearchXIcon className="text-muted-foreground mb-2 h-8 w-8" />
-          <span className="text-muted-foreground max-w-96 text-sm text-wrap">
+          <SearchXIcon className="text-tertiary mb-2 h-8 w-8" />
+          <span className="text-tertiary max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
             Previously added scores and underlying reference trace are
             unaffected by this action.
@@ -440,7 +440,7 @@ export const AnnotationQueueItemPage: React.FC<{
                   className={cn(
                     "gap-1.5 px-4 transition-colors duration-150",
                     shortcutPulse === "back" &&
-                      "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
+                      "border-primary/60 bg-hover/60 ring-primary/20 ring-2",
                   )}
                   aria-label="Previous item"
                 >
@@ -454,7 +454,7 @@ export const AnnotationQueueItemPage: React.FC<{
               </TooltipContent>
             </Tooltip>
             {/* Shortcut legend so annotators can discover keyboard-first flow */}
-            <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
+            <span className="text-tertiary hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
               <KeyboardShortcut
                 className="h-4 px-1 text-[9px]"
                 keys={[modLabel, "↵"]}
@@ -468,7 +468,7 @@ export const AnnotationQueueItemPage: React.FC<{
             <button
               type="button"
               onClick={() => setShowShortcuts(true)}
-              className="text-muted-foreground hover:text-foreground hidden items-center gap-1 text-[11px] transition-colors lg:flex"
+              className="text-tertiary hover:text-secondary hidden items-center gap-1 text-[11px] transition-colors lg:flex"
               aria-label="Show keyboard shortcuts"
             >
               <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
@@ -490,7 +490,7 @@ export const AnnotationQueueItemPage: React.FC<{
                     "gap-1.5 px-4 transition-colors duration-150",
                     !relevantItem ? "w-full" : "",
                     shortcutPulse === "next" &&
-                      "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
+                      "border-primary/60 bg-hover/60 ring-primary/20 ring-2",
                   )}
                   variant="outline"
                   aria-label="Skip to next item"
@@ -525,7 +525,7 @@ export const AnnotationQueueItemPage: React.FC<{
                     <span>Mark Completed</span>
                     {!isSingleItem && (
                       <KeyboardShortcut
-                        className="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
+                        className="bg-primary-foreground/20 text-on-fill border-primary-foreground/30"
                         keys={[modLabel, "↵"]}
                       />
                     )}
@@ -543,7 +543,7 @@ export const AnnotationQueueItemPage: React.FC<{
                 </TooltipContent>
               </Tooltip>
             ) : (
-              <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-bold">
+              <div className="border-success bg-success-tint inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-bold">
                 Completed
               </div>
             ))}
@@ -559,7 +559,7 @@ export const AnnotationQueueItemPage: React.FC<{
           </DialogHeader>
           <DialogBody className="gap-4 py-3">
             <div>
-              <p className="text-muted-foreground mb-1 text-xs font-bold tracking-wide uppercase">
+              <p className="text-tertiary mb-1 text-xs font-bold tracking-wide uppercase">
                 Navigate
               </p>
               <ShortcutRow label="Complete & go to next item">
@@ -573,7 +573,7 @@ export const AnnotationQueueItemPage: React.FC<{
               </ShortcutRow>
             </div>
             <div>
-              <p className="text-muted-foreground mb-1 text-xs font-bold tracking-wide uppercase">
+              <p className="text-tertiary mb-1 text-xs font-bold tracking-wide uppercase">
                 Score the item
               </p>
               <ShortcutRow label="Move between score fields">
@@ -582,7 +582,7 @@ export const AnnotationQueueItemPage: React.FC<{
               </ShortcutRow>
               <ShortcutRow label="Select an option on the focused field">
                 <KeyboardShortcut>1</KeyboardShortcut>
-                <span className="text-muted-foreground text-xs">–</span>
+                <span className="text-tertiary text-xs">–</span>
                 <KeyboardShortcut>9</KeyboardShortcut>
               </ShortcutRow>
               <ShortcutRow label="Edit a field / open a dropdown">
@@ -590,11 +590,11 @@ export const AnnotationQueueItemPage: React.FC<{
               </ShortcutRow>
               <ShortcutRow label="Commit a number / leave a text field">
                 <KeyboardShortcut>Esc</KeyboardShortcut>
-                <span className="text-muted-foreground text-xs">/</span>
+                <span className="text-tertiary text-xs">/</span>
                 <KeyboardShortcut>Tab</KeyboardShortcut>
               </ShortcutRow>
             </div>
-            <p className="text-muted-foreground border-t pt-3 text-xs">
+            <p className="text-tertiary border-t pt-3 text-xs">
               Bare{" "}
               <KeyboardShortcut className="h-4 px-1 text-[9px]">
                 ↵

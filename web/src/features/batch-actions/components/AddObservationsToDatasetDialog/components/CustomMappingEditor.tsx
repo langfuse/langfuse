@@ -180,7 +180,7 @@ export function CustomMappingEditor({
                 placeholder="$.path.to.field"
               />
             </div>
-            <p className="text-muted-foreground p-1 text-xs">
+            <p className="text-tertiary p-1 text-xs">
               Start with $. to use a JSONPath (e.g., $.field)
             </p>
           </div>
@@ -190,7 +190,7 @@ export function CustomMappingEditor({
       {config.type === "keyValueMap" && (
         <div className="max-h-[35vh] space-y-3 overflow-auto">
           <Label className="text-sm font-bold">Key-value mappings</Label>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-tertiary text-xs">
             Build an object with custom keys. Values starting with $ are treated
             as JSONPaths.
           </p>
@@ -263,13 +263,13 @@ function KeyValueEntryRow({
 
   return (
     <div
-      className={`bg-background space-y-2 rounded-md border p-3 ${
+      className={`bg-canvas space-y-2 rounded-md border p-3 ${
         isSchemaField ? "border-primary/30" : ""
       }`}
     >
       <div className="grid grid-cols-[1fr_auto] gap-2">
         <div>
-          <Label className="text-muted-foreground text-xs">
+          <Label className="text-tertiary text-xs">
             Key
             {isRequired && <span className="text-destructive ml-1">*</span>}
             {isSchemaField && (
@@ -301,9 +301,7 @@ function KeyValueEntryRow({
           >
             <Trash2
               className={`h-4 w-4 ${
-                !canRemove
-                  ? "text-muted-foreground/30"
-                  : "text-muted-foreground"
+                !canRemove ? "text-tertiary/30" : "text-tertiary"
               }`}
             />
           </Button>
@@ -312,7 +310,7 @@ function KeyValueEntryRow({
 
       <div className="grid grid-cols-[38fr_62fr] gap-2">
         <div>
-          <Label className="text-muted-foreground text-xs">Source</Label>
+          <Label className="text-tertiary text-xs">Source</Label>
           <div className="mt-1">
             <SourceFieldSelector
               value={entry.sourceField}
@@ -322,7 +320,7 @@ function KeyValueEntryRow({
           </div>
         </div>
         <div>
-          <Label className="text-muted-foreground text-xs">
+          <Label className="text-tertiary text-xs">
             Value {!isPath && "(literal)"}
           </Label>
           <div className="mt-1">
@@ -343,7 +341,7 @@ function KeyValueEntryRow({
               />
             )}
 
-            <p className="text-muted-foreground pt-1 text-xs">
+            <p className="text-tertiary pt-1 text-xs">
               Start with $. to use a JSONPath (e.g., $.field)
             </p>
           </div>

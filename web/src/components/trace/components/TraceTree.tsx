@@ -22,7 +22,6 @@ import { useDesktopLayoutContextOptional } from "./_layout/TraceLayoutDesktop";
 import { useMobileLayoutContextOptional } from "./_layout/TraceLayoutMobile";
 import { type TreeNode } from "../lib/types";
 import { cn } from "@/src/utils/tailwind";
-import type Decimal from "decimal.js";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "../hooks/useTraceAnalyticsDimensions";
 
@@ -40,8 +39,6 @@ const TraceTreeRow = memo(function TraceTreeRow({
   isCollapsed,
   onToggleCollapse,
   onSelect,
-  rootTotalCost,
-  rootTotalDuration,
   commentCount,
   onHover,
 }: {
@@ -51,8 +48,6 @@ const TraceTreeRow = memo(function TraceTreeRow({
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelect: () => void;
-  rootTotalCost?: Decimal;
-  rootTotalDuration?: number;
   commentCount?: number;
   onHover: (node: TreeNode) => void;
 }) {
@@ -62,7 +57,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
     <div
       className={cn(
         "transition-colors duration-150",
-        isActive && "bg-primary-accent/15",
+        isActive && "bg-brand/15",
       )}
     >
       <VirtualizedTreeNodeWrapper
@@ -76,8 +71,6 @@ const TraceTreeRow = memo(function TraceTreeRow({
       >
         <SpanContent
           node={node}
-          parentTotalCost={rootTotalCost}
-          parentTotalDuration={rootTotalDuration}
           commentCount={commentCount}
           onSelect={onSelect}
           onHover={() => onHover(node)}
@@ -113,23 +106,6 @@ export function TraceTree() {
     if (id) mobileLayout?.switchToInfoTab();
   };
 
-  // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTimeline/index.tsx
-  // Calculate aggregated totals across all roots for heatmap color scaling
-  const rootTotalCost = roots.reduce(
-    (acc, r) => {
-      if (!r.totalCost) return acc;
-      return acc ? acc.plus(r.totalCost) : r.totalCost;
-    },
-    undefined as (typeof roots)[0]["totalCost"],
-  );
-
-  const rootTotalDuration =
-    roots.length > 0
-      ? Math.max(
-          ...roots.map((r) => (r.latency != null ? r.latency * 1000 : 0)),
-        )
-      : undefined;
-
   return (
     <VirtualizedTree
       roots={roots}
@@ -152,8 +128,6 @@ export function TraceTree() {
           isCollapsed={isCollapsed}
           onToggleCollapse={onToggleCollapse}
           onSelect={onSelect}
-          rootTotalCost={rootTotalCost}
-          rootTotalDuration={rootTotalDuration}
           commentCount={comments.get(node.id)}
           onHover={handleHover}
         />

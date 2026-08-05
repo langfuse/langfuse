@@ -32,11 +32,11 @@ export const V4MigrationPanel = ({
   return (
     <div
       className={cn([
-        "bg-background flex h-full w-full min-w-0 flex-col",
+        "bg-canvas flex h-full w-full min-w-0 flex-col",
         className,
       ])}
     >
-      <div className="bg-background">
+      <div className="bg-canvas">
         <div className="flex min-h-11 w-full items-center justify-between gap-1 px-4 py-1">
           <span className="text-sm font-bold">Update</span>
           {showCloseButton && (
@@ -52,7 +52,7 @@ export const V4MigrationPanel = ({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto border-t">
-        <div className="bg-background sticky top-0 z-[1] px-4 pt-4">
+        <div className="bg-canvas sticky top-0 z-[1] px-4 pt-4">
           <V4MigrationHeaderContent
             key={project?.id}
             projectName={project?.name}

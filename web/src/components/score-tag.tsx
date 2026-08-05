@@ -58,18 +58,18 @@ export const scoreLevelFromScore = (score: {
           : "trace";
 
 // The global score-level color coding: one hue per level, used identically on
-// every surface (do not restate these colors at call sites). Hue pairs live in
-// globals.css (light + dark themes): observation=blue, trace=violet,
-// session=teal, experiment=yellow.
+// every surface (do not restate these colors at call sites). Tokens live in
+// globals.css (light + dark themes): trace and session carry their own
+// score-* identity pairs; observation rides info, experiment rides warning.
 const scoreTagVariants = cva(
   "inline-flex shrink-0 items-center rounded-sm px-1 py-0 text-xs",
   {
     variants: {
       level: {
-        observation: "bg-light-blue text-dark-blue",
-        trace: "bg-light-violet text-dark-violet",
-        session: "bg-light-teal text-dark-teal",
-        experiment: "bg-light-yellow text-dark-yellow",
+        observation: "bg-info-tint text-info",
+        trace: "bg-score-trace-tint text-score-trace",
+        session: "bg-score-session-tint text-score-session",
+        experiment: "bg-warning-tint text-warning",
       },
     },
   },
@@ -78,10 +78,10 @@ const scoreTagVariants = cva(
 const scoreDotVariants = cva("inline-block size-2 shrink-0 rounded-full", {
   variants: {
     level: {
-      observation: "bg-dark-blue",
-      trace: "bg-dark-violet",
-      session: "bg-dark-teal",
-      experiment: "bg-dark-yellow",
+      observation: "bg-info",
+      trace: "bg-score-trace",
+      session: "bg-score-session",
+      experiment: "bg-warning",
     },
   },
 });

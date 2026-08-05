@@ -13,10 +13,7 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
-import {
-  heatMapTextColor,
-  getSubtreeDurationOverflowMs,
-} from "@/src/components/trace/lib/helpers";
+import { getSubtreeDurationOverflowMs } from "@/src/components/trace/lib/helpers";
 import { isPresent } from "@langfuse/shared";
 
 const SUBTREE_DURATION_TITLE =
@@ -34,9 +31,6 @@ export function TimelineBar({
   showCostTokens,
   showScores,
   showComments,
-  colorCodeMetrics,
-  parentTotalCost,
-  parentTotalDuration,
   commentCount,
   scores,
 }: TimelineBarProps) {
@@ -59,31 +53,20 @@ export function TimelineBar({
   // Ring driven by shared row state (not group-hover) so it lights up whether
   // the chart bar or the caption is hovered.
   const ringClass = isSelected
-    ? "ring-primary-accent ring-2"
+    ? "ring-brand ring-2"
     : isHovered
-      ? "ring-tertiary ring-2"
+      ? "ring-muted-gray ring-2"
       : "";
 
   // Trailing label: rides just after the bar so metrics stay readable no matter
   // how thin the bar is. Respects the same view toggles as the tree.
   const label = (
-    <div className="text-muted-foreground flex items-center gap-2 text-xs whitespace-nowrap">
+    <div className="text-tertiary flex items-center gap-2 text-xs whitespace-nowrap">
       {showComments && commentCount ? (
         <CommentCountIcon count={commentCount} />
       ) : null}
       {showDuration && isPresent(ownDurationMs) && (
-        <span
-          className={cn(
-            parentTotalDuration &&
-              colorCodeMetrics &&
-              heatMapTextColor({
-                max: parentTotalDuration,
-                value: ownDurationMs,
-              }),
-          )}
-        >
-          {formatIntervalSeconds(ownDurationMs / 1000)}
-        </span>
+        <span>{formatIntervalSeconds(ownDurationMs / 1000)}</span>
       )}
       {isPresent(ownDurationMs) && subtreeWallClockOverflowMs != null && (
         <span title={SUBTREE_DURATION_TITLE}>
@@ -92,18 +75,7 @@ export function TimelineBar({
         </span>
       )}
       {showCostTokens && node.totalCost && (
-        <span
-          className={cn(
-            parentTotalCost &&
-              colorCodeMetrics &&
-              heatMapTextColor({
-                max: parentTotalCost,
-                value: node.totalCost,
-              }),
-          )}
-        >
-          {usdFormatter(node.totalCost.toNumber())}
-        </span>
+        <span>{usdFormatter(node.totalCost.toNumber())}</span>
       )}
       {showScores && scores && scores.length > 0 && (
         <div className="flex max-h-5 gap-1">

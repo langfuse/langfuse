@@ -114,7 +114,7 @@ export function PlaybackControls() {
             strokeDasharray={RING_C}
             strokeDashoffset={RING_C}
             transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
-            className="stroke-primary-accent"
+            className="stroke-brand"
           />
         </svg>
         {isPlaying ? (

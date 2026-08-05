@@ -148,7 +148,7 @@ function DatasetRunLegacy() {
                   />
                 )}
                 {!run.data?.description && !run.data?.metadata && (
-                  <div className="text-muted-foreground mt-1 px-1 text-sm">
+                  <div className="text-tertiary mt-1 px-1 text-sm">
                     No description or metadata for this run
                   </div>
                 )}

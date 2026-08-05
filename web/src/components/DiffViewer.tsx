@@ -193,7 +193,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   };
 
   if (oldString === newString) {
-    return <div className="text-muted-foreground text-sm">No changes</div>;
+    return <div className="text-tertiary text-sm">No changes</div>;
   }
 
   return (
@@ -205,7 +205,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
               {oldLabel}
               {oldSubLabel && (
                 <div
-                  className="text-muted-foreground truncate text-xs"
+                  className="text-tertiary truncate text-xs"
                   title={oldSubLabel}
                 >
                   {oldSubLabel}
@@ -216,7 +216,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
               {newLabel}
               {newSubLabel && (
                 <div
-                  className="text-muted-foreground truncate text-xs"
+                  className="text-tertiary truncate text-xs"
                   title={newSubLabel}
                 >
                   {newSubLabel}

@@ -38,7 +38,7 @@ export function MatchedTierCard({ tier }: MatchedTierCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
+        <CardTitle className="text-tertiary text-xs font-bold tracking-wide uppercase">
           Matched Pricing Tier
         </CardTitle>
       </CardHeader>
@@ -50,13 +50,13 @@ export function MatchedTierCard({ tier }: MatchedTierCardProps) {
               Default
             </Badge>
           )}
-          <span className="text-muted-foreground text-xs">
+          <span className="text-tertiary text-xs">
             Priority: {tier.priority}
           </span>
         </div>
 
         <div>
-          <div className="text-muted-foreground mb-2 text-xs font-bold">
+          <div className="text-tertiary mb-2 text-xs font-bold">
             Prices (per {priceUnit}):
           </div>
           <div className="space-y-1.5">
@@ -65,7 +65,7 @@ export function MatchedTierCard({ tier }: MatchedTierCardProps) {
                 key={usageType}
                 className="bg-muted/50 flex items-center justify-between rounded px-3 py-1.5"
               >
-                <span className="text-muted-foreground font-mono text-xs">
+                <span className="text-tertiary font-mono text-xs">
                   {usageType}:
                 </span>
                 <span className="font-mono text-sm font-bold">

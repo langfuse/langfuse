@@ -215,7 +215,7 @@ export default function AIFeatureSwitch() {
                 <ExternalLink className="h-3 w-3" />
               </a>
             </span>
-            <p className="text-muted-foreground mt-3 text-sm">
+            <p className="text-tertiary mt-3 text-sm">
               Are you sure you want to proceed?
             </p>
           </DialogBody>

@@ -47,7 +47,7 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
             disabled={!hasEvalWriteAccess}
           />
         ) : (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             {!hasEvalReadAccess
               ? "You don't have permission to manage evaluators"
               : "Please select a dataset first to configure evaluators"}

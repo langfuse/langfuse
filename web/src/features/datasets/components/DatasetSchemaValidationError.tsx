@@ -64,7 +64,7 @@ export const DatasetSchemaValidationError: React.FC<
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground font-mono text-xs">
+                    <span className="text-tertiary font-mono text-xs">
                       #{idx + 1}
                     </span>
                     <Link
@@ -85,7 +85,7 @@ export const DatasetSchemaValidationError: React.FC<
                 <ul className="ml-6 space-y-1 text-sm">
                   {error.errors.map((err, errIdx) => (
                     <li key={errIdx} className="text-destructive">
-                      <span className="text-muted-foreground font-mono text-xs">
+                      <span className="text-tertiary font-mono text-xs">
                         Path {err.path}
                       </span>
                       : {err.message}
@@ -96,7 +96,7 @@ export const DatasetSchemaValidationError: React.FC<
             ))}
 
             {hasMoreThan10 && (
-              <p className="text-muted-foreground pt-2 text-xs">
+              <p className="text-tertiary pt-2 text-xs">
                 Fix these errors to see if there are additional validation
                 issues.
               </p>

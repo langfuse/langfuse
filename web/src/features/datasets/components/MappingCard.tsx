@@ -41,9 +41,9 @@ function SchemaKeyDropZone({
         "min-h-[52px] rounded-md border border-dashed text-sm transition-colors",
         isOver &&
           mappedColumns.length === 0 &&
-          "border-primary bg-background border-solid",
+          "border-primary bg-canvas border-solid",
         mappedColumns.length > 0 &&
-          "border-accent-dark-blue bg-light-blue/40 border-solid",
+          "border-accent-dark-blue bg-info-tint/40 border-solid",
       )}
     >
       {mappedColumns.length === 0 ? (
@@ -86,9 +86,9 @@ function FreeformDropZone({
         "min-h-[60px] rounded-md border border-dashed p-2 transition-colors",
         isOver &&
           columns.length === 0 &&
-          "border-primary bg-background border border-solid",
+          "border-primary bg-canvas border border-solid",
         columns.length > 0 &&
-          "border-accent-dark-blue bg-light-blue/40 border-solid",
+          "border-accent-dark-blue bg-info-tint/40 border-solid",
       )}
     >
       {columns.length > 0 && (
@@ -186,7 +186,7 @@ export function MappingCard({
         {/* INPUT SECTION */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-muted-foreground text-sm font-bold tracking-wide">
+            <h3 className="text-tertiary text-sm font-bold tracking-wide">
               Input
             </h3>
             {inputSchemaKeys && inputSchemaKeys.length > 0 && (
@@ -201,13 +201,13 @@ export function MappingCard({
                 </div>
                 <Label
                   htmlFor="direct-mapping-input"
-                  className="text-muted-foreground cursor-pointer text-xs font-normal"
+                  className="text-tertiary cursor-pointer text-xs font-normal"
                 >
                   Direct Mapping
                 </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <InfoIcon className="text-muted-foreground h-3 w-3" />
+                    <InfoIcon className="text-tertiary h-3 w-3" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-[250px]" side="left">
                     {useDirectMappingForInput
@@ -244,7 +244,7 @@ export function MappingCard({
         {/* OUTPUT SECTION */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-muted-foreground text-sm font-bold tracking-wide">
+            <h3 className="text-tertiary text-sm font-bold tracking-wide">
               Expected Output
             </h3>
             {expectedOutputSchemaKeys &&
@@ -260,13 +260,13 @@ export function MappingCard({
                   </div>
                   <Label
                     htmlFor="direct-mapping-expected"
-                    className="text-muted-foreground cursor-pointer text-xs font-normal"
+                    className="text-tertiary cursor-pointer text-xs font-normal"
                   >
                     Direct mapping
                   </Label>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <InfoIcon className="text-muted-foreground h-3 w-3" />
+                      <InfoIcon className="text-tertiary h-3 w-3" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-[250px]" side="left">
                       {useDirectMappingForExpectedOutput
@@ -302,7 +302,7 @@ export function MappingCard({
 
         {/* METADATA SECTION */}
         <div className="space-y-2">
-          <h3 className="text-muted-foreground text-sm font-bold tracking-wide">
+          <h3 className="text-tertiary text-sm font-bold tracking-wide">
             Metadata
           </h3>
           <FreeformDropZone

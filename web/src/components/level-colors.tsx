@@ -4,9 +4,9 @@ import { cn } from "@/src/utils/tailwind";
 
 export const LevelColors = {
   DEFAULT: { text: "", bg: "" },
-  DEBUG: { text: "text-muted-foreground", bg: "bg-tertiary" },
-  WARNING: { text: "text-dark-yellow", bg: "bg-light-yellow" },
-  ERROR: { text: "text-dark-red", bg: "bg-light-red" },
+  DEBUG: { text: "text-tertiary", bg: "bg-muted-gray" },
+  WARNING: { text: "text-warning", bg: "bg-warning-tint" },
+  ERROR: { text: "text-danger", bg: "bg-danger-tint" },
 };
 
 export type LevelColor = { text: string; bg: string };
@@ -36,8 +36,8 @@ export function getLevelColors(level: string | null | undefined): LevelColor {
 const levelBarColors: Record<string, string> = {
   DEFAULT: "bg-accent-dark-green",
   DEBUG: "bg-muted-foreground/40",
-  WARNING: "bg-dark-yellow",
-  ERROR: "bg-dark-red",
+  WARNING: "bg-warning",
+  ERROR: "bg-danger",
 };
 
 /** Renders the colored status bar for a level facet option (renderIcon). */

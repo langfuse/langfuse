@@ -83,13 +83,11 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
         <div className="flex items-center gap-2">
           {evaluatorRequiresMigration && (
-            <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+            <span className="bg-warning-tint text-warning inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
               Deprecated
             </span>
           )}
-          <span
-            className={cn("text-sm", isEditMode ? "" : "text-muted-foreground")}
-          >
+          <span className={cn("text-sm", isEditMode ? "" : "text-tertiary")}>
             Edit Mode
           </span>
           <Switch

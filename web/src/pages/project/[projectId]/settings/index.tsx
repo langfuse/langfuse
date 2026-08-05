@@ -299,7 +299,7 @@ const Integrations = (props: { projectId: string }) => {
       <div className="space-y-6">
         <Card className="p-3">
           {}
-          <PostHogLogo className="text-foreground mb-4 w-40" />
+          <PostHogLogo className="text-secondary mb-4 w-40" />
           <p className="text-primary mb-4 text-sm">
             We have teamed up with PostHog (OSS product analytics) to make
             Langfuse Events/Metrics available in your Posthog Dashboards.
@@ -324,7 +324,7 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <MixpanelLogo className="text-foreground mb-4 w-20" />
+          <MixpanelLogo className="text-secondary mb-4 w-20" />
           <p className="text-primary mb-4 text-sm">
             Integrate with Mixpanel to sync your Langfuse traces, generations,
             and scores for advanced product analytics and insights.
@@ -377,7 +377,7 @@ const Integrations = (props: { projectId: string }) => {
 
         <Card className="p-3">
           <div className="mb-4 flex items-center gap-2">
-            <SiSlack className="text-foreground h-5 w-5" />
+            <SiSlack className="text-secondary h-5 w-5" />
             <span className="font-bold">Slack</span>
           </div>
           <p className="text-primary mb-4 text-sm">

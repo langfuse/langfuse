@@ -37,7 +37,7 @@ type DrawerContentProps = React.ComponentPropsWithoutRef<
 // https://tailwindcss.com/docs/responsive-design
 const TAILWIND_MD_MEDIA_QUERY = 768;
 
-const drawerVariants = cva("fixed flex flex-col border bg-modal", {
+const drawerVariants = cva("fixed flex flex-col border bg-elevated", {
   variants: {
     direction: {
       bottom: "inset-x-0 bottom-0 rounded-t-lg",
@@ -208,7 +208,7 @@ const DrawerDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Description
     ref={ref}
-    className={cn("text-muted-foreground text-sm", className)}
+    className={cn("text-tertiary text-sm", className)}
     {...props}
   />
 ));

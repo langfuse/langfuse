@@ -57,7 +57,8 @@
   --spacing-banner-offset: var(--banner-offset);
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
 
-  --color-primary-accent: hsl(var(--primary-accent));
+  --color-brand: hsl(var(--brand));
+  --color-primary-accent: hsl(var(--primary-accent)); /* deprecated → brand */
   --color-link: hsl(var(--link));
   --color-link-hover: hsl(var(--link-hover));
   --color-preview-banner: hsl(var(--preview-banner));
@@ -68,31 +69,31 @@
   --color-control-fill: hsl(var(--control-fill));
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
-  --color-foreground-tertiary: hsl(var(--foreground-tertiary));
-  --color-surface-code: hsl(var(--surface-code));
-  --color-surface-code-header: hsl(var(--surface-code-header));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
   --color-muted-gray: hsl(var(--muted-gray));
   --color-accent-light-green: hsl(var(--accent-light-green));
   --color-accent-dark-green: hsl(var(--accent-dark-green));
-  /* These six status tokens hold complete oklch colors (tints carry baked
-     alpha), unlike the hsl-triplet tokens around them — do not wrap in hsl(). */
-  --color-light-red: var(--light-red);
-  --color-dark-red: var(--dark-red);
-  --color-light-yellow: var(--light-yellow);
-  --color-dark-yellow: var(--dark-yellow);
-  --color-light-green: var(--light-green);
-  --color-dark-green: var(--dark-green);
-  --color-light-blue: hsl(var(--light-blue));
-  --color-dark-blue: hsl(var(--dark-blue));
+  /* Status roles: danger/warning/success hold complete oklch colors (tints
+     carry baked alpha), unlike the hsl-triplet tokens around them — do not
+     wrap those in hsl(). info and the score pairs stay hsl triplets. */
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-info: hsl(var(--info));
+  --color-info-tint: hsl(var(--info-tint));
   --color-accent-light-blue: hsl(var(--accent-light-blue));
   --color-accent-dark-blue: hsl(var(--accent-dark-blue));
-  --color-light-violet: hsl(var(--light-violet));
-  --color-dark-violet: hsl(var(--dark-violet));
-  --color-light-teal: hsl(var(--light-teal));
-  --color-dark-teal: hsl(var(--dark-teal));
+  /* Score-level identity (ScoreTag): trace + session pairs; observation and
+     experiment ride info / warning in component code. */
+  --color-score-trace: hsl(var(--score-trace));
+  --color-score-trace-tint: hsl(var(--score-trace-tint));
+  --color-score-session: hsl(var(--score-session));
+  --color-score-session-tint: hsl(var(--score-session-tint));
 
   /* Search-bar query syntax highlighting (key:value token parts). Operators
      (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
@@ -100,6 +101,24 @@
   --color-qlang-value: hsl(var(--qlang-value));
   --color-qlang-number: hsl(var(--qlang-number));
   --color-qlang-keyword: hsl(var(--qlang-keyword));
+
+  /* Role utilities — the design-system vocabulary (tokens in :root below):
+     text-primary/secondary/tertiary/disabled/on-fill/on-hover,
+     bg-canvas/elevated/popover/muted/hover/selected,
+     border/border-contrast, ring-focus.
+     NOTE: --color-secondary and --color-tertiary now carry the TEXT roles;
+     the old secondary/tertiary FILLS are gone — use bg-muted /
+     bg-muted-gray. text-primary keeps resolving through --primary (the
+     button-fill token rides the same text tier). */
+  --color-canvas: hsl(var(--bg-canvas));
+  --color-hover: hsl(var(--bg-hover));
+  --color-focus: hsl(var(--focus));
+  --color-contrast: hsl(var(--text-contrast));
+  --color-secondary: hsl(var(--text-secondary));
+  --color-tertiary: hsl(var(--text-tertiary));
+  --color-disabled: hsl(var(--text-disabled));
+  --color-on-fill: hsl(var(--text-on-fill));
+  --color-on-hover: hsl(var(--text-on-hover));
 
   --color-border: hsl(var(--border));
   --color-border-contrast: hsl(var(--border-contrast));
@@ -109,32 +128,20 @@
   --color-foreground: hsl(var(--foreground));
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-tertiary: hsl(var(--tertiary));
-  --color-tertiary-foreground: hsl(var(--tertiary-foreground));
-  --color-destructive: hsl(var(--destructive));
+  /* --destructive aliases --danger (a complete oklch color) — no hsl(). */
+  --color-destructive: var(--destructive);
   --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-muted: hsl(var(--muted));
+  --color-muted: hsl(var(--bg-muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-popover: hsl(var(--popover));
+  --color-popover: hsl(var(--bg-popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-card: hsl(var(--card));
+  --color-popover-border: hsl(var(--popover-border));
+  --color-elevated: hsl(var(--bg-elevated));
+  --color-card: hsl(var(--bg-elevated));
   --color-card-foreground: hsl(var(--card-foreground));
-  --color-modal: hsl(var(--modal));
-  --color-modal-foreground: hsl(var(--modal-foreground));
-  --color-header: hsl(var(--header));
-  --color-header-foreground: hsl(var(--header-foreground));
-  --color-sidebar: hsl(var(--sidebar-background));
-  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
-  --color-sidebar-primary: hsl(var(--sidebar-primary));
-  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
-  --color-sidebar-accent: hsl(var(--sidebar-accent));
-  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
-  --color-sidebar-border: hsl(var(--sidebar-border));
-  --color-sidebar-ring: hsl(var(--sidebar-ring));
+  --color-selected: hsl(var(--bg-selected));
 
   --color-find-match-background: hsl(var(--find-match-background));
   --color-find-match-selected-background: hsl(
@@ -154,7 +161,7 @@
      text opts in via `font-bold` (the bold role) — never a raw number.
      Any other weight utility is drift (the theme-lab tool samples drift
      per token). */
-  --text-xs: 0.7rem;
+  --text-xs: 0.75rem;
   --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
   --text-sm--font-weight: var(--font-weight-regular);
@@ -239,138 +246,259 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* ── PRIVATE palette ramps ──────────────────────────────────────────
+       {family}-{mode}-{decade}, ascending = LIGHTER; decades leave
+       insertion gaps. Light "greys" are blue-tinted — hence the family is
+       `neutral`, not gray. PRIVATE: only the role tokens below may
+       reference these — never @theme inline, never components. */
+    --neutral-dark-10: 28 14% 5%;
+    --neutral-dark-20: 28 12% 7%;
+    --neutral-dark-30: 28 10% 11%;
+    --neutral-dark-40: 28 9% 15%;
+    --neutral-dark-50: 28 8% 19%;
+    --neutral-dark-60: 28 7% 26%;
+    --neutral-dark-70: 28 6% 38%;
+    --neutral-dark-80: 28 6% 50%;
+    --neutral-dark-90: 28 8% 65%;
+    --neutral-dark-110: 28 12% 86%;
+    --neutral-dark-120: 28 20% 96%; /* text-contrast only — rare */
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --neutral-light-5: 224 50% 4.5%; /* text-contrast only — rare */
+    --neutral-light-10: 222.2 47.4% 9%;
+    --neutral-light-20: 222 16% 22%;
+    --neutral-light-30: 215.4 16.3% 46.9%;
+    --neutral-light-40: 215 12% 60%;
+    --neutral-light-50: 215 12% 62%;
+    --neutral-light-60: 214.3 20% 80%;
+    /* 80 (91%) vs 90 (91.4%): merge candidate, pending approval. */
+    --neutral-light-80: 214 32% 91%;
+    --neutral-light-90: 214.3 31.8% 91.4%;
+    --neutral-light-110: 210 40% 96.1%;
+    --neutral-light-130: 0 0% 100%;
+
+    /* Carbon blue family (light = blue-70/60, dark = blue-40/30). */
+    --blue-light-10: 220 100% 40%;
+    --blue-light-20: 219 99% 53%;
+    --blue-dark-10: 218 100% 74%;
+    --blue-dark-20: 217 100% 83%;
+
+    /* ── Design-token vocabulary ────────────────────────────────────────
+       Role-named tokens riding the private palette ramps above: raw
+       values live on the palette, role tokens reference a palette step —
+       or another role — via var(); sharing between roles is a reference,
+       never a repeated value. (Status pairs, charts, and the muted-*
+       chromatics still hold raw values — their palette pass is a future
+       task.) Shared definitions live here on :root; `.dark`
+       rebinds ONLY the tokens whose value or reference differs, and
+       un-rebound references resolve per mode at use time.
+       Fills: canvas < elevated (sidebar, cards, dialogs — one raised tier)
+         < popover < muted < hover — in light the ladder alternates back
+         to white per Carbon's light-layer model (canvas, card, popover
+         are all white); in dark every stacked layer steps lighter (see
+         the ladder narrative on the .dark block). A tier may only be MERGED when
+         both modes agree it's redundant — tiers exist for the union of
+         the two modes' distinctions.
+       Text: primary (titles, active, links) > secondary (body, the
+         inherited default) > tertiary (meta) > disabled (faint), plus
+         on-fill (ink on inverted fills) and on-hover (ink on the hover
+         fill).
+       Lines: border (quiet structure — also inputs and popover edges)
+         < border-contrast (assertive: outline buttons, viz lines, controls).
+       Interaction rule: hover = the fill, focus = the ring. */
+
+    /* Text roles. Light ramp: primary 9% < secondary 22% < tertiary 46.9%
+       < disabled 62% — darker is louder on a light canvas. */
+    /* Rare, maximum-attention ink — page titles only. */
+    --text-contrast: var(--neutral-light-5);
+    --text-primary: var(
+      --neutral-light-10
+    ); /* brightest tier: titles, active nav/tabs, links, button fills */
+    --text-secondary: var(--neutral-light-20); /* body */
+    --text-tertiary: var(
+      --neutral-light-30
+    ); /* meta, captions, secondary labels */
     /* Faintest text tier: placeholders, disabled, hints — one step below
-       muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
-       on white — flagged in review, kept per design preference for now. */
-    --foreground-tertiary: 215 12% 62%;
-    /* Code blocks sit a step BELOW their surrounding surface ("code is a
-         well"), matching the docs site's --surface-code convention. */
-    --surface-code: 0 0% 92%;
-    --surface-code-header: 0 0% 86%;
+       tertiary (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1 on
+       white — flagged in review, kept per design preference for now. */
+    --text-disabled: var(--neutral-light-50);
+    /* Text on bright fills = the canvas color (inverted ink). */
+    --text-on-fill: var(--bg-canvas);
+    /* Text on the hover fill rides the brightest tier. */
+    --text-on-hover: var(--text-primary);
 
-    --popover: 0 0% 100%;
-    --popover-foreground: var(--foreground);
+    /* Fill roles */
+    --bg-canvas: var(--neutral-light-130);
 
-    --card: 0 0% 100%;
-    --card-foreground: var(--foreground);
+    /* Elevated: sidebar + cards + dialogs — one raised tier. Light is
+       white; dark is the
+       raised tier shared with the sidebar chrome. */
+    --bg-elevated: var(--neutral-light-130);
+    --card-foreground: var(--text-secondary);
 
-    /* Blocking overlay surfaces (Dialog/AlertDialog/Sheet/Drawer/peek).
-       Light themes keep the alternating white model (Carbon: light layers
-       alternate, dark layers step lighter), so this matches --background. */
-    --modal: 0 0% 100%;
-    --modal-foreground: var(--foreground);
+    /* Blocking overlay surfaces (Dialog/AlertDialog/Sheet/Drawer/peek)
+       share the elevated tier with --card. */
 
-    --header: 210 40% 98%;
-    --header-foreground: var(--foreground);
+    --bg-popover: var(--neutral-light-130);
+    --popover-foreground: var(--text-secondary);
 
-    --border: 214.3 31.8% 91.4%;
+    --bg-muted: var(--neutral-light-110);
+
+    /* The interactive fill: hovered/highlighted rows, menu items, chips
+       (hover = the fill, focus = the ring). */
+    --bg-hover: var(--neutral-light-110);
+
+    /* Line roles */
+    --border: var(--neutral-light-90); /* default hairline */
+    /* Inputs + popover borders: coincides with the hairline in light; dark
+       lifts it above the hairline (see .dark) so text fields and the top
+       layer keep a visible edge on the near-black surfaces. */
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
        one clear step stronger than the hairline --border. */
-    --border-contrast: 214.3 20% 80%;
-    --input: 214.3 31.8% 91.4%;
+    --border-contrast: var(--neutral-light-60);
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Focus ring (hover = the fill, focus = the ring). */
+    --focus: var(
+      --neutral-light-10
+    ); /* neutral focus ring (Kumo model): near-black on light */
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Primary action fill: buttons paint the brightest ink — same tier as
+       text-primary (the text-primary utility resolves through this token
+       via --color-primary). */
+    --primary: var(--text-primary);
 
-    --tertiary: 214 32% 91%;
-    --tertiary-foreground: 222.2 47.4% 11.2%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 220 8.9% 46.1%;
-
-    --destructive: 0 84.2% 60.2%;
+    /* On-fill ink for the danger/destructive button fill (not deprecated). */
     --destructive-foreground: 210 40% 98%;
 
-    --ring: 215 20.2% 65.1%;
+    /* ── DEPRECATED shadcn aliases ──────────────────────────────────────
+       Old shadcn token names kept as pure var() references onto the role
+       vocabulary above, so pasted shadcn/ui components and the long tail
+       of un-migrated call sites keep resolving unchanged. Never give an
+       alias its own raw value; new code uses the role tokens. */
+    --background: var(--bg-canvas);
+    --foreground: var(
+      --text-secondary
+    ); /* stays the inherited default via the body rule */
+    --muted-foreground: var(--text-tertiary);
+    --primary-foreground: var(--text-on-fill);
+    --accent: var(--bg-hover);
+    --accent-foreground: var(--text-on-hover);
+    --input: var(--border);
+    --popover-border: var(--border);
+    --ring: var(--focus);
+    --primary-accent: var(--brand);
+    /* Destructive folds into danger: the two reds are unified — the alias
+       keeps the ~200 destructive call sites resolving (as oklch, see @theme
+       inline). --destructive-foreground stays its own token above. */
+    --destructive: var(--danger);
 
-    --primary-accent: 243 75.4% 58.6%;
-    /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
-       same lavender family as dark, but muted — links shouldn't be the
+    /* Brand accent: active tabs & the selection underline — rides the Carbon
+       blue ramp (links keep their own pair below). */
+    --brand: var(--blue-light-20);
+    /* Hyperlinks get their own pair (tabs/selection stay on --brand):
+       same Kumo blue family as dark, but deeper — links shouldn't be the
        loudest thing on a light page — with a clearly darker hover step. */
-    --link: 246 40% 50%;
-    --link-hover: 246 55% 36%;
+    --link: var(--blue-light-20);
+    --link-hover: var(--blue-light-10);
     /* Preview-deployment strip (PR previews only): soft blue tint with text
-       darker than the fill, links a step brighter than body text. Values are
-       the blue-100/950/200/700/800 ramp. */
+       darker than the fill. Its links are links — they ride --link. */
     --preview-banner: 214 95% 93%;
     --preview-banner-foreground: 226 57% 21%;
     --preview-banner-border: 213 97% 87%;
-    --preview-banner-link: 224 76% 48%;
-    --preview-banner-link-hover: 226 71% 40%;
+    --preview-banner-link: var(--link);
+    --preview-banner-link-hover: var(--link-hover);
     /* Checked selection controls (checkbox/switch): monochrome in BOTH
        modes — dark fill + light glyph in light, muted-white fill + dark
-       glyph in dark. Deliberately dimmer than --primary in dark so checked
-       controls don't outshine content (fills read louder than text).
+       glyph in dark (rides the bright text tier).
        --control-track is the switch's off-state track. */
-    --control-fill: 222.2 47.4% 11.2%;
-    --control-track: 214.3 31.8% 91.4%;
+    --control-fill: var(--text-primary);
+    --control-track: var(--neutral-light-90);
     /* Unchecked control boundary — quieter than the near-black fill in light,
        a touch above --input in dark so the box still reads on the canvas. */
-    --control-border: 215 12% 60%;
+    --control-border: var(--neutral-light-40);
 
     --muted-green: 84 81% 44%;
     --muted-magenta: 330 90% 70%;
     --muted-blue: 239 84% 67%;
-    --muted-gray: 210 50% 91.1%;
+
+    /* Observation-type identity colors (ItemBadge): equal OKLCH lightness
+       per mode (L .55 light, .70 dark) so no hue outshouts another; chroma
+       clamped per hue, trimmed on magenta/fuchsia (H-K effect). Icons are
+       the primary identity — color is reinforcement. */
+    --obs-trace: 166 99% 29.8%;
+    --obs-generation: 320 100% 34.5%;
+    --obs-event: 86 100% 29%;
+    --obs-span: 200 100% 39.8%;
+    --obs-agent: 263 58% 51%;
+    --obs-tool: 34 100% 36.5%;
+    --obs-chain: 296 67% 38.2%;
+    --obs-retriever: 184 100% 29.4%;
+    --obs-embedding: 51 100% 29.2%;
+    --obs-guardrail: 351 98% 39%;
+    /* Entity types (session, user, dataset, prompt, …) ride the brand blue. */
+    --obs-entity: var(--brand);
+    /* Rides the hover-fill tier. In dark that tier stays clearly above
+       --card so chart grids (--chart-grid) and disabled badge fills stay
+       discernible on elevated surfaces, without the harshness of
+       --border-contrast (26%). */
+    --muted-gray: var(--bg-hover);
 
     --accent-light-green: 138 76.5% 96.7%;
     --accent-dark-green: 112 100% 32%;
 
-    /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
-       readable text/icon color on them. */
-    --light-red: oklch(93.6% 0.032 17.717 / 0.7);
-    --dark-red: oklch(63.7% 0.237 25.331);
+    /* Status roles (Kumo model): the solid is the text/icon/status-bar
+       color; -tint is the chip/banner fill (alpha baked in).
+       danger/warning/success hold complete oklch colors, info an hsl
+       triplet (see @theme inline). Danger doubles as the destructive
+       button fill, so it must hold ≥3:1 vs the canvas and carry
+       --destructive-foreground at ≥4.5:1 in both modes — red-600 here
+       (red-500 only reached 3.65:1 under the on-fill ink). */
+    --danger: oklch(57.7% 0.245 27.325);
+    --danger-tint: oklch(93.6% 0.032 17.717 / 0.7);
 
-    --light-yellow: oklch(97.3% 0.071 103.193 / 0.7);
-    --dark-yellow: oklch(47.6% 0.114 61.907);
+    --warning: oklch(47.6% 0.114 61.907);
+    --warning-tint: oklch(97.3% 0.071 103.193 / 0.7);
 
-    --light-green: oklch(95% 0.052 163.051 / 0.7);
-    --dark-green: oklch(59.6% 0.145 163.225);
+    --success: oklch(59.6% 0.145 163.225);
+    --success-tint: oklch(95% 0.052 163.051 / 0.7);
 
-    --light-blue: 214 94.6% 92.7%;
-    --dark-blue: 219 85% 52%;
+    --info: 219 85% 52%;
+    --info-tint: 214 94.6% 92.7%;
 
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
 
-    /* Violet + teal hue pairs, same bg/fg recipe as the light-X/dark-X pairs
-       above. Added for the score-level color coding (ScoreTag, LFE-10596):
-       observation=blue, trace=violet, session=teal, experiment=yellow — the
-       blue and yellow pairs are reused from above. */
-    --light-violet: 251 91% 95.5%;
-    --dark-violet: 262 72% 54%;
+    /* Score-level identity (NOT status) — the global score-level color
+       coding (ScoreTag, LFE-10596): trace=violet, session=teal;
+       observation rides --info and experiment rides --warning in component
+       code. Same solid + -tint recipe as the status roles above. */
+    --score-trace: 262 72% 54%;
+    --score-trace-tint: 251 91% 95.5%;
 
-    --light-teal: 167 85% 89%;
-    --dark-teal: 175 84% 28%;
+    --score-session: 175 84% 28%;
+    --score-session-tint: 167 85% 89%;
 
     /* Search-bar query syntax highlighting — a DELIBERATE editor-style syntax
        theme (like a code editor's theme), intentionally its own thing rather
        than the app palette: field=violet, value=green, number=orange,
        keyword=blue. Scoped to the filter grammar (key:value pills); retune
        freely, a designer can own these later. Operators reuse muted-foreground.
-       Values from the langfuse-search-bar prototype. */
+       Values from the langfuse-search-bar prototype; keyword snapped onto the
+       app's blue ramp. */
     --qlang-field: 262 60% 47%;
     --qlang-value: 152 60% 30%;
     --qlang-number: 24 75% 42%;
-    --qlang-keyword: 221 83% 53%;
+    --qlang-keyword: var(--blue-light-20);
 
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 40% 96.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Frame tint: one step off the canvas so the nav reads as chrome
+       (dark shares the raised --card tier, see .dark). */
+    /* Selected-nav fill: light needs a stronger fill than any ladder step
+       (the 96% muted tier is too faint against the 98% chrome — per
+       conversation with Trang), so it keeps its own palette step; dark
+       aligns with the muted/popover level (see .dark). */
+    --bg-selected: var(
+      --neutral-light-80
+    ); /* persistently-selected fill — stronger than hover in light */
 
     --find-match-background: 60 60% 85%;
     --find-match-selected-background: 60 100% 50%;
@@ -400,109 +528,107 @@
   }
 
   .dark {
-    /* Surface ladder — "layers become one step lighter with each added
+    /* ── Dark bindings ──────────────────────────────────────────────────
+       Fill ladder — "layers become one step lighter with each added
        layer" (Carbon's dark-theme layering model; Hex and Cloudflare Kumo
-       follow the same structure). The GLOBAL FRAME (header/sidebar chrome)
-       is the darkest tier; the content canvas sits one step above it, and
-       every stacked layer steps up from there:
-         chrome 2% < canvas 6% < card 7.5% < modal 9% < popover 12%.
-       The bottom step is the widest (chrome→canvas) — equal pp steps read
+       follow the same structure). The content CANVAS is the darkest tier;
+       the GLOBAL FRAME (the sidebar chrome) lifts one step above it
+       (Linear-style lifted panels), and every layer stacked on the canvas
+       steps up from there:
+         canvas < elevated < popover/muted < hover.
+       The bottom step is the widest (canvas→chrome) — equal pp steps read
        smaller near black, and the frame/content split carries the layout.
        Popovers outrank modals because menus/tooltips open on top of dialogs.
        Never paint a surface darker than what it floats above (Carbon rule).
-       --surface-code stays BELOW its surroundings — it is the one recessed
-       tier ("code is a well"). Elevation is carried by these lightness steps
-       plus hairline borders, not shadows. */
-    /* Neutral (zero-saturation) ladder — de-tinted per Trang's call after a
-       cool/neutral/warm A-B. Text hierarchy comes from the WIDE GAP between
-       tiers: emphasis 91% > body 70% > meta 54% > faint 40% (body tuned live 2026-07-16), with sidebar nav
-       dimmer than content until active. Bright tiers cap near 91% (the docs
-       site caps at 90%) — never near-white. Don't compress the ramp — the
-       gap is the hierarchy. */
-    --background: 0 0% 6%;
-    --foreground: 0 0% 70%;
+       Code blocks ride bg-muted (the well tier retired 2026-08-04).
+       Elevation is carried by these lightness steps plus hairline
+       borders, not shadows. */
+    /* Warm text ladder (Conductor-style trial, 2026-08-04 — replaces the
+       earlier zero-saturation ramp): body sits CLOSE UNDER primary and the
+       big gap opens BELOW it — primary 92 > body 80 > meta 50 > disabled
+       38. Reading copy is bright; dimming is reserved for true meta.
+       Primary caps at 92% — never pure white. */
+    --text-contrast: var(--neutral-dark-120);
+    --text-primary: var(--neutral-dark-110);
+    --text-secondary: var(--neutral-dark-90);
+    --text-tertiary: var(
+      --neutral-dark-80
+    ); /* meta — TRIAL re-split from body (was merged at 60) */
+    --text-disabled: var(--neutral-dark-70);
 
-    --muted: 0 0% 11.6%;
-    --muted-foreground: 0 0% 54%;
-    --foreground-tertiary: 0 0% 40%;
-    --surface-code: 0 0% 2.3%;
-    --surface-code-header: 0 0% 8.2%;
+    --bg-canvas: var(--neutral-dark-10);
+    --bg-elevated: var(--neutral-dark-20);
+    /* Frame and elevated share the raised tier in dark. */
+    --bg-popover: var(--neutral-dark-30);
+    --bg-muted: var(--neutral-dark-30);
+    /* Hover fill: one clear step above --popover (10%) — focus:bg-hover is
+       the only focus cue in menus/selects/⌘K, and 14.3% was a
+       near-invisible ~1.13:1. */
+    --bg-hover: var(--neutral-dark-50);
+    /* Selected-nav fill aligns with the muted/popover level in dark. */
+    --bg-selected: var(
+      --bg-hover
+    ); /* selected == hover level in dark (deliberate) */
 
-    --popover: 0 0% 12%;
-    --popover-foreground: var(--foreground);
+    /* One quiet line for everything non-assertive — dividers, inputs,
+       popover edges (edge tier merged down per Trang, 2026-08-03). */
+    --border: var(--neutral-dark-40);
+    --border-contrast: var(--neutral-dark-50);
 
-    --card: 0 0% 7.5%;
-    --card-foreground: var(--foreground);
+    --focus: var(--neutral-dark-110); /* near-white on dark */
 
-    --modal: 0 0% 9%;
-    --modal-foreground: var(--foreground);
+    /* ── Raw per-mode overrides (no shared role) ─────────────────────── */
+    --destructive-foreground: 0 0% 88%;
 
-    --header: 0 0% 2%;
-    --header-foreground: var(--foreground);
-
-    /* Hairline must read on EVERY surface tier, including popover (12%). */
-    --border: 0 0% 15%;
-    --border-contrast: 0 0% 26%;
-    --input: 0 0% 18%;
-
-    --primary: 0 0% 90%;
-    --primary-foreground: 0 0% 3.5%;
-
-    --secondary: 0 0% 11.6%;
-    --secondary-foreground: 0 0% 88%;
-
-    --tertiary: 0 0% 16.5%;
-    --tertiary-foreground: 0 0% 88%;
-
-    /* One clear step above --popover (12%) — focus:bg-accent is the only
-       focus cue in menus/selects/⌘K, and 14.3% was a near-invisible ~1.13:1. */
-    --accent: 0 0% 18%;
-    --accent-foreground: 0 0% 91%;
-
-    --destructive: 0 78.7% 63.1%;
-    --destructive-foreground: 0 0% 100%;
-
-    --ring: 246 55% 70%;
-
-    --primary-accent: 246 55% 70%;
-    --link: 246 55% 70%;
-    --link-hover: 246 95% 85%;
-    /* Preview-deployment strip: fill is blue-500/25 precomposed over the 6%
-       canvas, border is blue-300/20 precomposed over that fill — the strip
-       needs opaque colors. Body text stays on the neutral foreground tier;
-       links are blue-400/300. */
+    --brand: var(--blue-dark-10);
+    --link: var(--blue-dark-10);
+    --link-hover: var(--blue-dark-20);
+    /* Preview-deployment strip: fill is blue-500/25 precomposed over the
+       dark canvas, border is blue-300/20 precomposed over that fill — the
+       strip needs opaque colors. Body text stays on the neutral foreground
+       tier; links ride --link (see :root). */
     --preview-banner: 217 47% 19%;
-    --preview-banner-foreground: 0 0% 70%;
+    --preview-banner-foreground: var(--neutral-dark-90);
     --preview-banner-border: 215 37% 31%;
-    --preview-banner-link: 213 94% 68%;
-    --preview-banner-link-hover: 212 96% 78%;
-    --control-fill: 0 0% 78%;
-    --control-track: 0 0% 24%;
+    --control-track: var(--neutral-dark-60);
     /* Matches --border-contrast: unchecked checkboxes/radios read by their
        border alone; 20% was ~1.58:1 on the canvas. */
-    --control-border: 0 0% 26%;
+    --control-border: var(--border-contrast);
 
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
-    /* Stays clearly above --card so chart grids (--chart-grid) and disabled
-       badge fills stay discernible on elevated surfaces, without the harshness
-       of --border-contrast (26%). */
-    --muted-gray: 0 0% 16%;
 
-    /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
-       dark-* the readable text/icon color on them. */
-    --light-red: oklch(39.6% 0.141 25.723 / 0.7);
-    --dark-red: oklch(57.7% 0.245 27.325);
+    /* Observation-type identity colors — brighter variants on dark. */
+    --obs-trace: 164 76% 42.7%;
+    --obs-generation: 329 65% 69.4%;
+    --obs-event: 93 40% 52.7%;
+    --obs-span: 203 88% 60.6%;
+    --obs-agent: 256 79% 75.9%;
+    --obs-tool: 29 75% 56.3%;
+    --obs-chain: 297 45% 67.5%;
+    --obs-retriever: 185 79% 43.7%;
+    --obs-embedding: 50 70% 43.7%;
+    --obs-guardrail: 4 80% 70.4%;
 
-    --light-yellow: oklch(55.4% 0.135 66.442 / 0.4);
-    --dark-yellow: oklch(79.5% 0.184 86.047);
+    /* Status roles: -tint is a dark tinted fill (alpha baked in), the solid
+       the readable text/icon color on it. Retuned 2026-08-05 so a chip
+       separates from bg-card (every tint ≥1.5:1 vs the card) and the solids
+       stop screaming (each still ≥4.5:1 on its own tint — except danger,
+       which is pinned dark by the destructive-button gates: it must stay
+       ≥3:1 vs the canvas AND carry --destructive-foreground at ≥4.5:1, which
+       caps its lightness; its on-tint contrast is the accepted trade). */
+    --danger: oklch(52.5% 0.21 27);
+    --danger-tint: oklch(41.5% 0.13 26 / 0.7);
 
-    --light-green: oklch(37.8% 0.077 168.94 / 0.7);
-    --dark-green: oklch(76.5% 0.177 163.223);
+    --warning: oklch(76% 0.17 82);
+    --warning-tint: oklch(43% 0.11 66 / 0.7);
 
-    --light-blue: 209 45% 15%;
-    --dark-blue: 209 88% 60%;
+    --success: oklch(72% 0.15 163);
+    --success-tint: oklch(42% 0.07 169 / 0.7);
+
+    --info: 209 88% 64%;
+    --info-tint: 209 45% 22%;
 
     /* accent-light-green doubles as a full-height output/diff surface
        (PrettyJsonView), so it stays a whisper above --card, not chip-strength. */
@@ -512,30 +638,20 @@
     --accent-light-blue: 240 32.4% 13.9%;
     --accent-dark-blue: 246 70% 76%;
 
-    /* Score-level violet + teal (see :root): dark tinted bg + bright fg. */
-    --light-violet: 258 40% 16%;
-    --dark-violet: 255 92% 76%;
+    /* Score-level violet + teal (see :root): dark tinted bg + readable fg,
+       retuned to the same ≥1.5:1-vs-card / ≥4.5:1-on-tint bar as status. */
+    --score-trace: 255 92% 77%;
+    --score-trace-tint: 258 42% 28%;
 
-    --light-teal: 175 40% 12%;
-    --dark-teal: 172 66% 50%;
+    --score-session: 172 66% 44%;
+    --score-session-tint: 175 40% 18%;
 
     /* Search-bar query syntax highlighting (dark). Brighter than light so the
        key/value read against the dark surface. See :root for the contract. */
     --qlang-field: 255 92% 76%;
     --qlang-value: 158 64% 52%;
     --qlang-number: 27 96% 61%;
-    --qlang-keyword: 213 94% 68%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 2%;
-    --sidebar-foreground: 0 0% 60%;
-    --sidebar-primary: 0 0% 90%;
-    --sidebar-primary-foreground: 0 0% 3.5%;
-    --sidebar-accent: 0 0% 10%;
-    --sidebar-accent-foreground: 0 0% 91%;
-    --sidebar-border: 0 0% 12%;
-    --sidebar-ring: 246 55% 70%;
+    --qlang-keyword: var(--blue-dark-10);
 
     --find-match-background: 60 100% 20%;
     --find-match-selected-background: 60 100% 50%;
@@ -687,4 +803,40 @@
   -webkit-user-select: text !important;
   -moz-user-select: text !important;
   -ms-user-select: text !important;
+}
+
+/* Observation-type icon utilities (ItemBadge): a deliberate `icon-*` API —
+   these colors are for icon glyphs only, never text or fills. */
+@utility icon-obs-trace {
+  color: hsl(var(--obs-trace));
+}
+@utility icon-obs-generation {
+  color: hsl(var(--obs-generation));
+}
+@utility icon-obs-event {
+  color: hsl(var(--obs-event));
+}
+@utility icon-obs-span {
+  color: hsl(var(--obs-span));
+}
+@utility icon-obs-agent {
+  color: hsl(var(--obs-agent));
+}
+@utility icon-obs-tool {
+  color: hsl(var(--obs-tool));
+}
+@utility icon-obs-chain {
+  color: hsl(var(--obs-chain));
+}
+@utility icon-obs-retriever {
+  color: hsl(var(--obs-retriever));
+}
+@utility icon-obs-embedding {
+  color: hsl(var(--obs-embedding));
+}
+@utility icon-obs-guardrail {
+  color: hsl(var(--obs-guardrail));
+}
+@utility icon-obs-entity {
+  color: hsl(var(--obs-entity));
 }

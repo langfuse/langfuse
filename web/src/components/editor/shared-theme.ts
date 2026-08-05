@@ -6,20 +6,20 @@ export const defaultSettingsBothThemes: CreateThemeOptions["settings"] = {
   // instead of CodeMirror's generic `monospace` default. createTheme applies
   // this to `.cm-scroller`, which `.cm-content` and `.cm-gutters` inherit.
   fontFamily: "var(--font-mono)",
-  background: "hsl(var(--background))",
+  background: "hsl(var(--bg-canvas))",
   foreground: "hsl(var(--foreground))",
   caret: "hsl(var(--foreground))",
-  gutterBackground: "hsl(var(--sidebar-background))",
+  gutterBackground: "hsl(var(--bg-elevated))",
   gutterForeground: "hsl(var(--sidebar-foreground))",
   gutterBorder: "hsl(var(--sidebar-border))",
   gutterActiveForeground: "hsl(var(--sidebar-primary))",
   selection: "hsl(var(--accent))",
-  selectionMatch: "hsl(var(--muted))",
-  lineHighlight: "hsl(var(--muted))",
+  selectionMatch: "hsl(var(--bg-muted))",
+  lineHighlight: "hsl(var(--bg-muted))",
 };
 
 export const bothThemeStyles: CreateThemeOptions["styles"] = [
-  { tag: t.invalid, color: "var(--dark-red)" },
+  { tag: t.invalid, color: "var(--danger)" },
   {
     tag: [
       t.name,
@@ -31,7 +31,7 @@ export const bothThemeStyles: CreateThemeOptions["styles"] = [
       t.labelName,
       t.definition(t.name),
     ],
-    color: "hsl(var(--primary-accent))",
+    color: "hsl(var(--brand))",
   },
   { tag: t.strong, fontWeight: "bold" },
   { tag: t.emphasis, fontStyle: "italic" },

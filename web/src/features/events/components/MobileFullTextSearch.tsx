@@ -52,7 +52,7 @@ export function MobileFullTextSearch({
   };
 
   return (
-    <div className="border-input bg-background flex h-9 min-w-0 items-center rounded-md border pl-2">
+    <div className="border-input bg-canvas flex h-9 min-w-0 items-center rounded-md border pl-2">
       <Button
         variant="ghost"
         size="icon"

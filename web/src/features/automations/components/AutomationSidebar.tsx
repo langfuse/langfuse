@@ -35,7 +35,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
           sidebarWidth,
         )}
       >
-        <div className="text-muted-foreground p-4 text-center text-sm">
+        <div className="text-tertiary p-4 text-center text-sm">
           Loading automations...
         </div>
       </div>
@@ -50,7 +50,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
           sidebarWidth,
         )}
       >
-        <div className="text-muted-foreground p-4 text-center text-sm">
+        <div className="text-tertiary p-4 text-center text-sm">
           No automations configured. Create your first automation to streamline
           workflows.
         </div>
@@ -73,10 +73,10 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                 <div
                   key={automation.id}
                   className={cn(
-                    "hover:bg-background/50 group relative rounded-lg border p-3 transition-colors",
+                    "hover:bg-canvas/50 group relative rounded-lg border p-3 transition-colors",
                     isSelected
                       ? "border-primary bg-primary/5"
-                      : "border-border bg-background/20",
+                      : "border-border bg-canvas/20",
                   )}
                 >
                   <div
@@ -100,7 +100,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                       </div>
 
                       {/* Bottom row: eventSource -> automation type */}
-                      <p className="text-muted-foreground text-xs">
+                      <p className="text-tertiary text-xs">
                         <span className="font-mono">
                           {automation.trigger.eventSource}
                         </span>

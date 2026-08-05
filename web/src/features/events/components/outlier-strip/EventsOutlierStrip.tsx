@@ -98,7 +98,7 @@ const AggDropdown = ({
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${metricLabel} aggregation: ${value}`}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-[13px] leading-none underline-offset-2 hover:underline"
+          className="text-tertiary hover:text-secondary flex items-center gap-0.5 text-[13px] leading-none underline-offset-2 hover:underline"
         >
           {value}
           <ChevronDown className="h-2.5 w-2.5" />
@@ -139,7 +139,7 @@ const ModeDropdown = ({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`Chart mode: ${modeLabel(value)}`}
-        className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[13px] leading-none font-bold"
+        className="text-secondary hover:text-tertiary flex items-center gap-0.5 text-[13px] leading-none font-bold"
       >
         {modeLabel(value)}
         <ChevronDown className="h-2.5 w-2.5" />
@@ -407,7 +407,7 @@ export function EventsOutlierStrip({
           ) : isLoading || width === 0 ? (
             <div className="bg-muted h-[76px] animate-pulse rounded" />
           ) : queryResult.isError ? (
-            <div className="text-muted-foreground flex h-[76px] items-center justify-center text-[11px]">
+            <div className="text-tertiary flex h-[76px] items-center justify-center text-[11px]">
               No Data
             </div>
           ) : (

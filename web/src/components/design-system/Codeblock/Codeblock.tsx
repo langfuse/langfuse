@@ -22,8 +22,8 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme }) => {
   };
 
   return (
-    <div className="codeblock bg-surface-code relative w-full overflow-hidden rounded border font-sans">
-      <div className="bg-surface-code-header flex w-full items-center justify-between px-2">
+    <div className="codeblock bg-muted relative w-full overflow-hidden rounded border font-sans">
+      <div className="flex w-full items-center justify-between border-b px-2">
         <span className="text-xs lowercase">{language}</span>
         <div className="flex items-center py-1">
           <Button

@@ -53,14 +53,14 @@ export function TimelineGutterRow({
         // highlights the caption too). Selected uses an accent tint so it stays
         // distinct from the neutral bar (bg-muted) — otherwise the bar vanishes
         // into the selected row; hover stays neutral.
-        isSelected ? "bg-primary-accent/10" : isHovered ? "bg-muted" : "",
+        isSelected ? "bg-brand/10" : isHovered ? "bg-muted" : "",
       )}
       onClick={onSelect}
       onMouseEnter={onHover}
     >
       {/* Selected accent bar (no layout shift). */}
       {isSelected && (
-        <div className="bg-primary-accent absolute inset-y-0 left-0 w-0.5" />
+        <div className="bg-brand absolute inset-y-0 left-0 w-0.5" />
       )}
       {/* Ancestor rails: continue through this row for ancestors with a sibling below. */}
       {treeLines
@@ -118,7 +118,7 @@ export function TimelineGutterRow({
         <span
           className={cn(
             "min-w-0 flex-1 truncate text-xs font-bold",
-            isSelected ? "text-foreground" : "dark:text-muted-foreground",
+            isSelected ? "text-secondary" : "dark:text-tertiary",
           )}
           title={node.name}
         >

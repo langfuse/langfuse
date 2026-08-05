@@ -71,7 +71,7 @@ const HistogramChart = ({
 
   if (!histogramData.length) {
     return (
-      <div className="text-muted-foreground flex h-full items-center justify-center">
+      <div className="text-tertiary flex h-full items-center justify-center">
         No data available
       </div>
     );

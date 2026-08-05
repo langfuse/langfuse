@@ -247,7 +247,7 @@ export function SSOButtons({
           action === "sign in" ? (
             <div className="border-border my-6 border-t"></div>
           ) : (
-            <div className="text-muted-foreground my-6 text-center text-xs">
+            <div className="text-tertiary my-6 text-center text-xs">
               or {action} with
             </div>
           )
@@ -808,7 +808,7 @@ export default function SignIn({
         </div>
 
         {isLangfuseCloud && (
-          <div className="bg-card mt-4 -mb-4 rounded-lg p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
+          <div className="bg-elevated mt-4 -mb-4 rounded-lg p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
             If you are experiencing issues signing in, please force refresh this
             page (CMD + SHIFT + R) or clear your browser cache.{" "}
             <a
@@ -822,7 +822,7 @@ export default function SignIn({
 
         <CloudRegionSwitch />
 
-        <div className="bg-background mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+        <div className="bg-canvas mt-14 px-6 py-10 shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
             {/* Email / (optional) password form – only when credentials auth is enabled */}
             {authProviders.credentials && (
@@ -908,7 +908,7 @@ export default function SignIn({
                 </Form>
                 <div
                   className={cn(
-                    "text-muted-foreground mt-1 text-center text-xs",
+                    "text-tertiary mt-1 text-center text-xs",
                     hasMultipleAuthMethods &&
                       lastUsedAuthMethod === "credentials"
                       ? "block"
@@ -938,7 +938,7 @@ export default function SignIn({
           {!signUpDisabled &&
           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
           authProviders.credentials ? (
-            <p className="text-muted-foreground mt-10 text-center text-sm">
+            <p className="text-tertiary mt-10 text-center text-sm">
               No account yet?{" "}
               <Link
                 href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}

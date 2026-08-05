@@ -54,13 +54,13 @@ const ExampleCard = ({
     <div
       className={
         tall
-          ? "bg-background h-[240px] w-full rounded-md border p-2"
-          : "bg-background h-[150px] w-full rounded-md border p-2"
+          ? "bg-canvas h-[240px] w-full rounded-md border p-2"
+          : "bg-canvas h-[150px] w-full rounded-md border p-2"
       }
     >
       {children}
     </div>
-    <div className="text-muted-foreground w-full text-xs">{caption}</div>
+    <div className="text-tertiary w-full text-xs">{caption}</div>
   </div>
 );
 
@@ -187,7 +187,7 @@ export const NullHandling = meta.story({
             <Line
               type="linear"
               dataKey="y"
-              stroke="hsl(var(--destructive))"
+              stroke="var(--destructive)"
               strokeWidth={2.5}
               dot={false}
               isAnimationActive={false}
@@ -292,7 +292,7 @@ const ChartFrame = ({
   title: string;
   children: React.ReactNode;
 }) => (
-  <div className="bg-background rounded-md border p-3">
+  <div className="bg-canvas rounded-md border p-3">
     <div className="mb-1 text-sm font-bold">{title}</div>
     <div className="h-[280px] w-full">{children}</div>
   </div>

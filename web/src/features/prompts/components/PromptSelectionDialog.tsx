@@ -107,7 +107,7 @@ export function PromptSelectionDialog({
         </DialogHeader>
         <DialogBody>
           <div className="flex flex-col gap-4">
-            <p className="text-muted-foreground text-sm">
+            <p className="text-tertiary text-sm">
               Referenced prompts are dynamically resolved and inserted when
               fetched via API/SDK. This enables modular design—create complex
               prompts from reusable, independently maintained components.
@@ -133,7 +133,7 @@ export function PromptSelectionDialog({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-muted-foreground text-xs">
+              <p className="text-tertiary text-xs">
                 Only text prompts can be referenced inline.
               </p>
             </div>
@@ -228,7 +228,7 @@ export function PromptSelectionDialog({
                   <CopyIcon className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-muted-foreground text-xs">
+              <p className="text-tertiary text-xs">
                 {onSelect
                   ? "This tag will be inserted into the prompt content."
                   : "This tag will be copied to clipboard to be then inserted into the prompt"}

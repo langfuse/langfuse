@@ -35,7 +35,7 @@ const ScoreDetailRow = ({
   value: React.ReactNode;
 }) => (
   <div className="flex justify-between gap-2">
-    <span className="text-muted-foreground w-14 font-bold">{label}</span>
+    <span className="text-tertiary w-14 font-bold">{label}</span>
     <div className="min-w-0 flex-1 text-right">
       {typeof value === "string" ? (
         <span className="wrap-break-word">{value}</span>
@@ -65,11 +65,11 @@ const ScoreValueSection = ({
           )}
         </>
       ) : (
-        <span className="text-muted-foreground text-sm">-</span>
+        <span className="text-tertiary text-sm">-</span>
       )}
       {aggregate?.comment && (
         <div className="flex h-3 w-3 items-center justify-center">
-          <MessageCircleMore size={12} className="text-muted-foreground" />
+          <MessageCircleMore size={12} className="text-tertiary" />
         </div>
       )}
     </div>
@@ -111,10 +111,7 @@ export const ScoreRow = ({
   if (!aggregate) {
     return (
       <div className="flex h-6 w-full items-center gap-2">
-        <span
-          className="text-muted-foreground w-32 shrink-0 truncate"
-          title={name}
-        >
+        <span className="text-tertiary w-32 shrink-0 truncate" title={name}>
           {name}
         </span>
         <ScoreValueSection aggregate={aggregate} diff={diff} />

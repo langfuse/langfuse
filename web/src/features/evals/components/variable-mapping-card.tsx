@@ -164,7 +164,7 @@ export const VariableMappingCard = ({
     <div className="flex items-center gap-2">
       {shouldShowPreviewControls && (
         <>
-          <span className="text-muted-foreground text-xs">Preview</span>
+          <span className="text-tertiary text-xs">Preview</span>
           <Switch
             checked={showPreview}
             onCheckedChange={setShowPreview}
@@ -283,7 +283,7 @@ export const VariableMappingCard = ({
                         </div>
                       </div>
                       <div className="flex h-full w-full flex-1 items-center justify-center rounded border">
-                        <p className="text-muted-foreground text-center text-sm">
+                        <p className="text-tertiary text-center text-sm">
                           No trace data found, please adjust filters or switch
                           to not show preview.
                         </p>

@@ -47,7 +47,7 @@ export const TopbarAccount = ({ className }: { className?: string }) => {
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          "focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:outline-hidden",
+          "focus-visible:ring-focus rounded-full focus-visible:ring-2 focus-visible:outline-hidden",
           className,
         )}
         aria-label="Account menu"
@@ -63,10 +63,7 @@ export const TopbarAccount = ({ className }: { className?: string }) => {
             <span className="truncate font-bold" title={name}>
               {name}
             </span>
-            <span
-              className="text-muted-foreground truncate text-xs"
-              title={email}
-            >
+            <span className="text-tertiary truncate text-xs" title={email}>
               {email}
             </span>
           </div>

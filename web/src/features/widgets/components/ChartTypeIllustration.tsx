@@ -20,7 +20,7 @@ export function ChartTypeIllustration({
       viewBox="0 0 72 48"
       fill="none"
       aria-hidden
-      className={cn("text-muted-foreground/60", className)}
+      className={cn("text-tertiary/60", className)}
     >
       {illustrations[type] ?? illustrations.LINE_TIME_SERIES}
     </svg>

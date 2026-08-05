@@ -25,9 +25,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
   const capture = usePostHogClientCapture();
   const isError = type === "ERROR";
-  const textColor = isError
-    ? "text-destructive-foreground"
-    : "text-dark-yellow";
+  const textColor = isError ? "text-destructive-foreground" : "text-warning";
 
   // const handleReportIssueClick = () => {
   //   if (chatAvailable) {

@@ -848,7 +848,7 @@ export const InnerEvalTemplateForm = (props: {
                               name={`categories.${index}.value`}
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="text-muted-foreground text-xs">
+                                  <FormLabel className="text-tertiary text-xs">
                                     Category
                                   </FormLabel>
                                   <FormControl>
@@ -866,7 +866,7 @@ export const InnerEvalTemplateForm = (props: {
                                 disabled={!props.isEditing}
                                 onClick={() => remove(index)}
                               >
-                                <Trash className="text-muted-foreground h-4 w-4" />
+                                <Trash className="text-tertiary h-4 w-4" />
                               </Button>
                             </div>
                           </div>
@@ -875,7 +875,7 @@ export const InnerEvalTemplateForm = (props: {
                       <Button
                         type="button"
                         variant="outline"
-                        className="text-muted-foreground"
+                        className="text-tertiary"
                         disabled={!props.isEditing}
                         onClick={() => append({ value: "" })}
                       >
@@ -1028,15 +1028,15 @@ function CodeEvalSdkVersionCallout({
   return (
     <Alert
       variant="default"
-      className="border-dark-yellow bg-light-yellow max-w-4xl"
+      className="border-warning bg-warning-tint max-w-4xl"
     >
-      <AlertTriangle className="text-dark-yellow h-4 w-4" />
+      <AlertTriangle className="text-warning h-4 w-4" />
       <AlertDescription>
         <div className="flex flex-col gap-1">
-          <span className="text-foreground font-bold">
+          <span className="text-secondary font-bold">
             Please verify your SDK version
           </span>
-          <span className="text-foreground text-sm">
+          <span className="text-secondary text-sm">
             Code evaluators require JS SDK v4+ or Python SDK v3+. You can create
             this evaluator now, but it will only run once your project ingests
             data with a compatible SDK.{" "}
@@ -1044,7 +1044,7 @@ function CodeEvalSdkVersionCallout({
               href="https://langfuse.com/docs/observability/sdk/upgrade-path"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-dark-blue font-bold hover:opacity-80"
+              className="text-info font-bold hover:opacity-80"
             >
               Learn more
             </a>

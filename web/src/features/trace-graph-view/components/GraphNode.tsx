@@ -22,7 +22,7 @@ const TYPE_BORDER_CLASS: Record<string, string> = {
   SPAN: "border-muted-blue",
   CHAIN: "border-pink-600",
   RETRIEVER: "border-teal-600",
-  EVALUATOR: "border-primary-accent",
+  EVALUATOR: "border-brand",
   EVENT: "border-muted-green",
   EMBEDDING: "border-amber-600",
   GUARDRAIL: "border-red-600",
@@ -74,19 +74,19 @@ function GraphNodeComponent({
   const shared = cn(
     "absolute flex select-none items-center justify-center gap-1.5 overflow-hidden rounded-md px-2 text-xs font-bold transition-[box-shadow]",
     onSelect && [
-      "cursor-pointer hover:ring-2 hover:ring-ring/40",
-      "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+      "cursor-pointer hover:ring-2 hover:ring-focus/40",
+      "focus-visible:ring-focus focus-visible:ring-2 focus-visible:outline-none",
     ],
     // Playhead glow ("playing at the playhead"): lift + soft accent halo. Ring
     // colors live in exactly one branch each so tailwind-merge never has to
     // arbitrate: selected+active shares the accent ring (the two signals
     // reinforce), selected-only keeps the neutral selection ring.
-    active && "z-10 shadow-[0_0_16px_2px_hsl(var(--primary-accent)/0.65)]",
-    active && !selected && "ring-primary-accent ring-2",
+    active && "z-10 shadow-[0_0_16px_2px_hsl(var(--brand)/0.65)]",
+    active && !selected && "ring-brand ring-2",
     selected &&
       (active
-        ? "ring-primary-accent ring-2 ring-offset-1"
-        : "ring-ring ring-2 ring-offset-1"),
+        ? "ring-brand ring-2 ring-offset-1"
+        : "ring-focus ring-2 ring-offset-1"),
   );
 
   // Real-HTML accessibility (the win over the old canvas renderer): selectable
@@ -150,7 +150,7 @@ function GraphNodeComponent({
       title={containerTitle}
       className={cn(
         shared,
-        "bg-background text-foreground border-2",
+        "bg-canvas text-secondary border-2",
         TYPE_BORDER_CLASS[type] ?? DEFAULT_BORDER_CLASS,
       )}
       {...handlers}
@@ -162,7 +162,7 @@ function GraphNodeComponent({
             {display}
           </span>
           {counter && (
-            <span className="text-muted-foreground shrink-0 tabular-nums">
+            <span className="text-tertiary shrink-0 tabular-nums">
               {counter}
             </span>
           )}

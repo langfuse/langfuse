@@ -176,8 +176,8 @@ export default function NewEvaluatorPage() {
             <BreadcrumbPage
               className={cn(
                 step !== "select"
-                  ? "text-muted-foreground"
-                  : "text-foreground font-bold",
+                  ? "text-tertiary"
+                  : "text-secondary font-bold",
               )}
             >
               1. Select Evaluator
@@ -191,8 +191,8 @@ export default function NewEvaluatorPage() {
             <BreadcrumbPage
               className={cn(
                 isProviderStepActive
-                  ? "text-foreground font-bold"
-                  : "text-muted-foreground",
+                  ? "text-secondary font-bold"
+                  : "text-tertiary",
               )}
             >
               2. Set up LLM connection
@@ -205,9 +205,7 @@ export default function NewEvaluatorPage() {
           <BreadcrumbItem>
             <BreadcrumbPage
               className={cn(
-                step !== "run"
-                  ? "text-muted-foreground"
-                  : "text-foreground font-bold",
+                step !== "run" ? "text-tertiary" : "text-secondary font-bold",
               )}
             >
               <div className="flex flex-row">

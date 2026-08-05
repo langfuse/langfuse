@@ -32,12 +32,12 @@ export const PropertyHoverCard = ({
           {(unit || type) && (
             <div className="mb-2 flex flex-wrap gap-2 text-xs">
               {unit && (
-                <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5">
+                <span className="bg-muted text-tertiary rounded px-1.5 py-0.5">
                   Unit: {unit}
                 </span>
               )}
               {type && (
-                <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5">
+                <span className="bg-muted text-tertiary rounded px-1.5 py-0.5">
                   Type: {type}
                 </span>
               )}

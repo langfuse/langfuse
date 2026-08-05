@@ -20,6 +20,8 @@ import {
   PageSection,
   Panel,
   parsed,
+  type TokenContext,
+  useTokenContexts,
 } from "./shared";
 
 /** `@theme static` values (font stacks + weight roles) by token name. */
@@ -93,14 +95,14 @@ function TypeScaleRow({ token }: { token: TokenDeclaration }) {
       <div className="flex flex-wrap items-center gap-2">
         <InlineCode>{token.name.replace(/^--/, "")}</InlineCode>
       </div>
-      <div className="text-muted-foreground font-mono text-[11px] leading-4">
+      <div className="text-tertiary font-mono text-[11px] leading-4">
         {token.value} / {formatPx(declaredPx)}
       </div>
       <div className="min-w-0 font-mono text-[11px] leading-4">
         {usage ? (
           <span className="text-foreground">used in · {usage}</span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          <span className="text-tertiary">—</span>
         )}
       </div>
     </div>
@@ -143,7 +145,7 @@ function TypefaceSpecimen({
         </div>
       </Panel>
       <code
-        className="text-muted-foreground truncate font-mono text-[10px] leading-4"
+        className="text-tertiary truncate font-mono text-[10px] leading-4"
         title={stackCaption}
       >
         {stackCaption}
@@ -164,7 +166,7 @@ function WeightRoleRow({ token }: { token: TokenDeclaration }) {
       >
         The quick brown fox jumps over the lazy dog
       </span>
-      <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] leading-4">
+      <div className="text-tertiary flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] leading-4">
         <span>
           {token.name}: {token.value}
         </span>
@@ -173,6 +175,101 @@ function WeightRoleRow({ token }: { token: TokenDeclaration }) {
         </span>
       </div>
     </div>
+  );
+}
+
+/**
+ * The four text-color tiers (full light/dark table on the Color page).
+ * Role token first; the utility that consumes it rides alongside.
+ */
+const TEXT_TIERS: Array<{
+  tier: string;
+  token: string;
+  role: string;
+  usage: string;
+}> = [
+  {
+    tier: "primary",
+    token: "--text-primary",
+    role: "text-primary",
+    usage: "titles, emphasis, active nav & tabs",
+  },
+  {
+    tier: "body",
+    token: "--text-secondary",
+    role: "text-secondary",
+    usage: "default copy",
+  },
+  {
+    tier: "meta",
+    token: "--text-tertiary",
+    role: "text-tertiary",
+    usage: "captions, labels, secondary cells",
+  },
+  {
+    tier: "faint",
+    token: "--text-disabled",
+    role: "text-disabled",
+    usage: "placeholders, disabled, hints",
+  },
+];
+
+function TextTierRow({
+  tier,
+  ctx,
+}: {
+  tier: (typeof TEXT_TIERS)[number];
+  ctx: TokenContext;
+}) {
+  return (
+    <div className="grid items-center gap-x-8 gap-y-1 border-t py-3 md:grid-cols-[minmax(0,1fr)_260px_minmax(0,1fr)]">
+      <span
+        className="block truncate text-sm"
+        title={SAMPLE_LINE}
+        style={{ color: ctx.color(tier.token) }}
+      >
+        {SAMPLE_LINE}
+      </span>
+      <div className="flex flex-wrap items-baseline gap-x-2 font-mono text-[11px] leading-4">
+        <code className="text-foreground">{tier.token}</code>
+        <span className="text-tertiary">→ {tier.role}</span>
+      </div>
+      <div className="text-tertiary min-w-0 font-mono text-[11px] leading-4">
+        {tier.tier} · {tier.usage}
+      </div>
+    </div>
+  );
+}
+
+/** Text color tiers + the active-state rule. Repaints with the toolbar theme. */
+function TextTiersSection() {
+  const { ctx } = useTokenContexts();
+  return (
+    <PageSection
+      title="Text color tiers"
+      blurb="Four tiers, one rule: color carries state — an element brightens a tier when it activates, it never gains weight."
+      aside={<InlineCode>{TEXT_TIERS.length} tiers</InlineCode>}
+    >
+      <div className="flex flex-col">
+        {TEXT_TIERS.map((tier) => (
+          <TextTierRow key={tier.token} tier={tier} ctx={ctx} />
+        ))}
+      </div>
+      <div className="bg-elevated flex max-w-md flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-sm">
+        <span style={{ color: ctx.color("--primary") }}>Active item</span>
+        <span style={{ color: ctx.color("--muted-foreground") }}>
+          Idle item
+        </span>
+        <span className="text-tertiary font-mono text-[10px]">
+          same weight — only the tier changes
+        </span>
+      </div>
+      <p className="text-tertiary text-sm">
+        On bright fills, ink inverts to <InlineCode>text-on-fill</InlineCode> —
+        light and dark values side by side in the Color page&apos;s Text colors
+        table.
+      </p>
+    </PageSection>
   );
 }
 
@@ -186,7 +283,7 @@ const MONO_EXAMPLES: Array<{
   {
     label: "Eyebrow label",
     className:
-      "font-mono text-[10px] tracking-[0.05em] uppercase text-muted-foreground",
+      "font-mono text-[10px] tracking-[0.05em] uppercase text-tertiary",
     sample: "Production · EU region",
     seenIn: "EnvLabelBadge, section eyebrows on this page",
   },
@@ -198,7 +295,7 @@ const MONO_EXAMPLES: Array<{
   },
   {
     label: "Identifier",
-    className: "font-mono text-[11px] text-muted-foreground",
+    className: "font-mono text-[11px] text-tertiary",
     sample: "trace 7f3a9c2e-41d0-4b8a-9a71",
     seenIn: "ModernSession header, TraceEventsRow",
   },
@@ -219,8 +316,8 @@ export function Typography() {
           title="Typography"
           lede={
             <>
-              Two typefaces, two weights, {sizeTokens.length} sizes. Parsed at
-              build time from{" "}
+              Two typefaces, two weights, {sizeTokens.length} sizes, four
+              text-color tiers. Parsed at build time from{" "}
               <code className="font-mono">src/styles/globals.css</code>.
             </>
           }
@@ -252,14 +349,14 @@ export function Typography() {
               />
             )}
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             No third face: display text is the sans stack at a larger size.
           </p>
         </PageSection>
 
         <PageSection
           title="Weight roles"
-          blurb="Two roles: regular and bold. Components never hardcode weight numbers."
+          blurb="Two roles, regular and bold — components never hardcode weight numbers."
           aside={<InlineCode>{weightTokens.length} roles</InlineCode>}
         >
           <div className="flex flex-col">
@@ -267,15 +364,17 @@ export function Typography() {
               <WeightRoleRow key={token.name} token={token} />
             ))}
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             <InlineCode>font-medium</InlineCode>,{" "}
             <InlineCode>font-semibold</InlineCode> and raw numbers are drift.
           </p>
         </PageSection>
 
+        <TextTiersSection />
+
         <PageSection
           title="Type scale"
-          blurb="Each size carries its canonical weight. No line-height; opt in with leading-*."
+          blurb="Each size carries its canonical weight; no line-height — opt in with leading-*."
           aside={<InlineCode>{sizeTokens.length} sizes</InlineCode>}
         >
           <div className="flex flex-col">
@@ -287,7 +386,7 @@ export function Typography() {
 
         <PageSection
           title="Mono conventions"
-          blurb="Numerals, IDs, code and eyebrow labels are always mono. Samples use the exact app classes."
+          blurb="Numerals, IDs, code and eyebrow labels are always mono — samples use the exact app classes."
           aside={<InlineCode>--font-mono</InlineCode>}
         >
           <div className="flex flex-col">
@@ -297,12 +396,12 @@ export function Typography() {
                 className="grid items-center gap-x-8 gap-y-1 border-t py-3 md:grid-cols-[140px_minmax(0,1fr)_minmax(0,1.2fr)]"
               >
                 <Eyebrow>{example.label}</Eyebrow>
-                <div className="bg-card min-w-0 rounded-md border px-3 py-2">
+                <div className="bg-elevated min-w-0 rounded-md border px-3 py-2">
                   <span className={`${example.className} block truncate`}>
                     {example.sample}
                   </span>
                 </div>
-                <div className="text-muted-foreground flex min-w-0 flex-col gap-0.5 font-mono text-[10px] leading-4">
+                <div className="text-tertiary flex min-w-0 flex-col gap-0.5 font-mono text-[10px] leading-4">
                   <span className="break-all">{example.className}</span>
                   <span>as in · {example.seenIn}</span>
                 </div>

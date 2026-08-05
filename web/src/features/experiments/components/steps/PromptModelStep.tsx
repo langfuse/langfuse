@@ -255,7 +255,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
               </Popover>
             </div>
             {selectedPromptToolConfig.status === "invalid" && (
-              <p className="text-dark-yellow flex items-center gap-1.5 text-sm">
+              <p className="text-warning flex items-center gap-1.5 text-sm">
                 <TriangleAlert className="h-4 w-4 shrink-0" />
                 Invalid tool config detected on this prompt version. Its tools
                 will be ignored when running the experiment.

@@ -79,7 +79,7 @@ export function SelectDashboardDialog({
                 Error: {dashboards.error.message}
               </div>
             ) : dashboards.data?.dashboards.length === 0 ? (
-              <div className="text-muted-foreground py-8 text-center">
+              <div className="text-tertiary py-8 text-center">
                 No dashboards found.
               </div>
             ) : (

@@ -11,7 +11,7 @@ export function SessionsOnboarding() {
     >
       <div className="mt-8">
         <h3 className="mb-4 text-2xl font-bold">Start using sessions</h3>
-        <p className="text-muted-foreground mb-4 text-sm">
+        <p className="text-tertiary mb-4 text-sm">
           To start using sessions, you need to add a <code>sessionId</code> to
           your traces.
         </p>

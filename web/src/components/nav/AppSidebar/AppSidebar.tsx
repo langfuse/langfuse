@@ -352,7 +352,7 @@ function SidebarNotifications({
             <Card
               key={`stack-${stackIndex}`}
               aria-hidden
-              className="bg-card pointer-events-none absolute inset-0 rounded-md shadow-none"
+              className="bg-elevated pointer-events-none absolute inset-0 rounded-md shadow-none"
               style={{
                 transform: `translateY(${stackIndex * peekOffset}px) scaleX(${
                   1 - stackIndex * peekScaleStep
@@ -365,7 +365,7 @@ function SidebarNotifications({
         })}
         <Card
           key={frontNotification.id}
-          className="bg-card relative max-h-60 overflow-hidden rounded-md shadow-none"
+          className="bg-elevated relative max-h-60 overflow-hidden rounded-md shadow-none"
           style={{ zIndex: visibleNotifications.length }}
         >
           <Button
@@ -476,7 +476,7 @@ function NavUser({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="data-[state=open]:bg-selected data-[state=open]:text-primary"
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage src={user.avatar} alt={user.name} />
@@ -584,8 +584,8 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
   }`;
   const color = React.useMemo(() => {
     if (!update) return undefined;
-    if (update.updateType === "major") return "text-dark-red";
-    if (update.updateType === "minor") return "text-dark-yellow";
+    if (update.updateType === "major") return "text-danger";
+    if (update.updateType === "minor") return "text-warning";
     if (update.updateType === "patch") return undefined;
     return assertUnreachable(update.updateType);
   }, [update]);

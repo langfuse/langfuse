@@ -154,7 +154,7 @@ export default function PlaygroundPage() {
               <MessageSearchToolbar className="max-w-96" />
 
               {/* Window Count Display - Hidden on mobile */}
-              <div className="text-muted-foreground hidden items-center gap-2 text-sm md:flex">
+              <div className="text-tertiary hidden items-center gap-2 text-sm md:flex">
                 <span className="whitespace-nowrap">
                   {windowIds.length} window
                   {windowIds.length === 1 ? "" : "s"}

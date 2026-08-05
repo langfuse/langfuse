@@ -5,7 +5,7 @@ const classes = cva("animate-spin", {
   variants: {
     variant: {
       primary: "text-primary",
-      muted: "text-muted-foreground",
+      muted: "text-tertiary",
     },
     size: {
       xxs: "size-3",

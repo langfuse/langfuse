@@ -122,7 +122,7 @@ export function ExperimentOverviewPanel({
                   >
                     {promptName}
                     {promptVersion !== null && (
-                      <span className="text-muted-foreground ml-1">
+                      <span className="text-tertiary ml-1">
                         (v{promptVersion})
                       </span>
                     )}
@@ -175,7 +175,7 @@ export function ExperimentOverviewPanel({
           <ExperimentMetadataSection metadata={additionalMetadata} />
         </>
       ) : (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-tertiary text-sm">
           Select a baseline to view its details.
         </p>
       )}

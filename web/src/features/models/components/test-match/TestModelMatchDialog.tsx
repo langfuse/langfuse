@@ -84,7 +84,7 @@ export function TestModelMatchDialog({
                 {/* Model Name Input */}
                 <div className="space-y-2">
                   <div className="text-sm font-bold">Model Name *</div>
-                  <div className="text-muted-foreground text-sm">
+                  <div className="text-tertiary text-sm">
                     The model name on your generations.
                   </div>
                   <Input
@@ -132,7 +132,7 @@ export function TestModelMatchDialog({
                 {hasSubmitted && (
                   <>
                     {isLoading && (
-                      <div className="bg-muted/30 text-muted-foreground flex min-h-[300px] items-center justify-center gap-2 rounded-lg border p-6">
+                      <div className="bg-muted/30 text-tertiary flex min-h-[300px] items-center justify-center gap-2 rounded-lg border p-6">
                         <Spinner size="md" />
                         <span>Testing match...</span>
                       </div>

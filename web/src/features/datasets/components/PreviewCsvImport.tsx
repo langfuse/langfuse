@@ -195,12 +195,12 @@ export function PreviewCsvImport({
               <DragOverlay dropAnimation={null} adjustScale={false}>
                 {dragAndDrop.activeColumn ? (
                   dragAndDrop.activeColumn.startsWith("mapped-") ? (
-                    <div className="bg-accent-dark-blue text-muted-foreground cursor-grabbing rounded-md px-2 py-1 text-sm font-bold shadow-xl">
+                    <div className="bg-accent-dark-blue text-tertiary cursor-grabbing rounded-md px-2 py-1 text-sm font-bold shadow-xl">
                       {dragAndDrop.activeColumn.replace("mapped-", "")}
                     </div>
                   ) : (
-                    <div className="bg-background flex cursor-grabbing items-center gap-2 rounded-md border p-2 shadow-xl">
-                      <GripVertical className="text-muted-foreground/70 h-4 w-4 shrink-0" />
+                    <div className="bg-canvas flex cursor-grabbing items-center gap-2 rounded-md border p-2 shadow-xl">
+                      <GripVertical className="text-tertiary/70 h-4 w-4 shrink-0" />
                       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                         <span
                           className="truncate text-sm"
@@ -208,7 +208,7 @@ export function PreviewCsvImport({
                         >
                           {dragAndDrop.activeColumn}
                         </span>
-                        <span className="text-muted-foreground shrink-0 text-xs">
+                        <span className="text-tertiary shrink-0 text-xs">
                           {
                             preview.columns.find(
                               (col) => col.name === dragAndDrop.activeColumn,
@@ -249,7 +249,7 @@ export function PreviewCsvImport({
             </Label>
             <Tooltip>
               <TooltipTrigger asChild>
-                <InfoIcon className="text-muted-foreground h-3.5 w-3.5" />
+                <InfoIcon className="text-tertiary h-3.5 w-3.5" />
               </TooltipTrigger>
               <TooltipContent className="max-w-[300px]">
                 When a single csv column is mapped to a dataset item field, wrap

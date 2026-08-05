@@ -305,7 +305,7 @@ function DatasetCompareRunsTableInternal(props: {
         }}
         noResultsMessage={
           hasActiveRunFilters ? (
-            <div className="text-muted-foreground flex flex-col items-center gap-1 text-sm">
+            <div className="text-tertiary flex flex-col items-center gap-1 text-sm">
               <span>No dataset run items match the current filters.</span>
               <span className="text-xs">
                 Adjust or clear filters to compare items again.

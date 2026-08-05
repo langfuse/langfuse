@@ -83,12 +83,7 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
                   {user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? "U"}
                 </AvatarFallback>
               </Avatar>
-              <span
-                className={cn(
-                  "text-sm",
-                  !user?.name && "text-muted-foreground",
-                )}
-              >
+              <span className={cn("text-sm", !user?.name && "text-tertiary")}>
                 {user?.name ?? user?.email ?? user.id}
               </span>
             </div>

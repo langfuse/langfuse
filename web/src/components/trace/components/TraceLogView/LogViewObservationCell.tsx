@@ -92,7 +92,7 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
         {displayName}
       </span>
       {childrenCount > 0 && (
-        <span className="text-muted-foreground shrink-0 text-xs">
+        <span className="text-tertiary shrink-0 text-xs">
           {childrenCount} {childrenCount === 1 ? "item" : "items"}
         </span>
       )}

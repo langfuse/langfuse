@@ -338,7 +338,7 @@ export const PromptDetail = ({
             <CommandInput
               showBorder={false}
               placeholder="Search..."
-              className="text-muted-foreground h-fit border-none py-0 text-sm focus:ring-0"
+              className="text-tertiary h-fit border-none py-0 text-sm focus:ring-0"
             />
 
             <Button
@@ -592,7 +592,7 @@ export const PromptDetail = ({
               <div className="flex h-full min-h-0 w-full flex-col gap-2 overflow-y-auto pb-4">
                 {pythonCode && <CodeView content={pythonCode} title="Python" />}
                 {jsCode && <CodeView content={jsCode} title="JS/TS" />}
-                <p className="text-muted-foreground pl-1 text-xs">
+                <p className="text-tertiary pl-1 text-xs">
                   See{" "}
                   <a
                     href="https://langfuse.com/docs/prompts"

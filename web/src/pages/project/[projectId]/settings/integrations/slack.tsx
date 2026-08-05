@@ -139,14 +139,14 @@ export default function SlackIntegrationSettings() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
                         <p className="text-sm font-bold">Channel Name</p>
-                        <p className="text-muted-foreground text-sm">
+                        <p className="text-tertiary text-sm">
                           #{selectedChannel.name}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm font-bold">Channel Type</p>
                         {isManualEntry ? (
-                          <span className="text-muted-foreground text-xs">
+                          <span className="text-tertiary text-xs">
                             Available after sending a test message
                           </span>
                         ) : (
@@ -158,11 +158,11 @@ export default function SlackIntegrationSettings() {
                       <div>
                         <p className="text-sm font-bold">Channel ID</p>
                         {isManualEntry ? (
-                          <span className="text-muted-foreground text-xs">
+                          <span className="text-tertiary text-xs">
                             Available after sending a test message
                           </span>
                         ) : (
-                          <p className="text-muted-foreground font-mono text-sm">
+                          <p className="text-tertiary font-mono text-sm">
                             {selectedChannel.id}
                           </p>
                         )}
@@ -195,7 +195,7 @@ export default function SlackIntegrationSettings() {
               )}
 
               {!selectedChannel && (
-                <div className="text-muted-foreground text-sm">
+                <div className="text-tertiary text-sm">
                   Select a channel above to view its details and test message
                   delivery. For private channels, invite the app first with{" "}
                   <code className="bg-muted rounded px-1 py-0.5">

@@ -26,7 +26,7 @@ export function TraceSearchListItem({
   onSelect,
   onHover,
 }: TraceSearchListItemProps) {
-  const { node, parentTotalCost, parentTotalDuration } = item;
+  const { node } = item;
   const { comments } = useTraceData();
 
   // Format relative timestamps
@@ -51,14 +51,12 @@ export function TraceSearchListItem({
       <div className="min-w-0 flex-1 space-y-0.5">
         <SpanContent
           node={node}
-          parentTotalCost={parentTotalCost}
-          parentTotalDuration={parentTotalDuration}
           commentCount={comments.get(node.id)}
           onSelect={onSelect}
         />
         {/* Temporal and depth context - only show for observations (not TRACE root) */}
         {node.type !== "TRACE" && (
-          <div className="text-muted-foreground/70 text-xs">
+          <div className="text-tertiary/70 text-xs">
             depth {node.depth} • +{traceRelativeTime}
             {parentRelativeTime !== null &&
               ` • +${parentRelativeTime} from parent`}

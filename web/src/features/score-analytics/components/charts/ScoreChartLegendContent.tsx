@@ -80,7 +80,7 @@ const LegendItem = ({
       />
       <span
         className={cn(
-          "text-muted-foreground",
+          "text-tertiary",
           !noTruncate && "max-w-[120px] truncate",
           !visible && "line-through", // Strike through when hidden
         )}
@@ -444,7 +444,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                   ref={buttonRef}
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:bg-accent h-6 shrink-0 gap-1 px-2 text-xs"
+                  className="text-tertiary hover:bg-hover h-6 shrink-0 gap-1 px-2 text-xs"
                   aria-label={`Show all ${payload.length} categories`}
                 >
                   <span>Show all {payload.length}</span>
@@ -462,7 +462,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-bold">All Categories</p>
-                    <span className="text-muted-foreground text-xs">
+                    <span className="text-tertiary text-xs">
                       {payload.length} total
                     </span>
                   </div>
@@ -472,7 +472,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                         <div key={groupName}>
                           {/* Only show subheader if there are multiple groups */}
                           {Object.keys(groupedItems).length > 1 && (
-                            <h4 className="text-muted-foreground mb-2 text-xs font-bold">
+                            <h4 className="text-tertiary mb-2 text-xs font-bold">
                               {groupName}
                             </h4>
                           )}
@@ -491,7 +491,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                               return (
                                 <div
                                   key={key}
-                                  className="hover:bg-accent/50 rounded-sm px-2 py-1.5"
+                                  className="hover:bg-hover/50 rounded-sm px-2 py-1.5"
                                 >
                                   <LegendItem
                                     color={color}

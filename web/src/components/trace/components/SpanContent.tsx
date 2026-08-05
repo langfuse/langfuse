@@ -25,13 +25,9 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import {
-  heatMapTextColor,
-  getSubtreeDurationOverflowMs,
-} from "@/src/components/trace/lib/helpers";
+import { getSubtreeDurationOverflowMs } from "@/src/components/trace/lib/helpers";
 import { useViewPreferences } from "../contexts/ViewPreferencesContext";
 import { useTraceData } from "../contexts/TraceDataContext";
-import type Decimal from "decimal.js";
 
 // How many distinct score groups to show inline on a tree/search row before
 // collapsing the rest into a "+N" pill. Keeps dense-score rows compact; the
@@ -40,8 +36,6 @@ const MAX_INLINE_SCORE_GROUPS = 3;
 
 interface SpanContentProps {
   node: TreeNode;
-  parentTotalCost?: Decimal;
-  parentTotalDuration?: number;
   commentCount?: number;
   onSelect?: () => void;
   onHover?: () => void;
@@ -50,21 +44,14 @@ interface SpanContentProps {
 
 export function SpanContent({
   node,
-  parentTotalCost,
-  parentTotalDuration,
   commentCount,
   onSelect,
   onHover,
   className,
 }: SpanContentProps) {
   const { mergedScores, roots } = useTraceData();
-  const {
-    showDuration,
-    showCostTokens,
-    showScores,
-    colorCodeMetrics,
-    showComments,
-  } = useViewPreferences();
+  const { showDuration, showCostTokens, showScores, showComments } =
+    useViewPreferences();
 
   // Use pre-computed cost from the TreeNode
   const totalCost = node.totalCost;
@@ -176,16 +163,7 @@ export function SpanContent({
                     ? "Total trace duration"
                     : "Own span duration"
                 }
-                className={cn(
-                  "text-foreground-tertiary text-xs",
-                  parentTotalDuration &&
-                    colorCodeMetrics &&
-                    heatMapTextColor({
-                      max: parentTotalDuration,
-                      value:
-                        duration || (node.latency ? node.latency * 1000 : 0),
-                    }),
-                )}
+                className="text-tertiary text-xs"
               >
                 {formatIntervalSeconds(
                   (duration || (node.latency ? node.latency * 1000 : 0)) / 1000,
@@ -197,7 +175,7 @@ export function SpanContent({
             {shouldRenderSubtreeDuration ? (
               <span
                 title="Subtree wall-clock duration (first start → last end)"
-                className="text-foreground-tertiary text-xs"
+                className="text-disabled text-xs"
               >
                 {"∑ "}
                 {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
@@ -207,7 +185,7 @@ export function SpanContent({
             {/* Token counts */}
             {shouldRenderCostTokens &&
             (node.inputUsage || node.outputUsage || node.totalUsage) ? (
-              <span className="text-foreground-tertiary text-xs">
+              <span className="text-disabled text-xs">
                 {formatTokenCounts(
                   node.inputUsage,
                   node.outputUsage,
@@ -224,15 +202,7 @@ export function SpanContent({
                     ? "Aggregated cost of all child observations"
                     : undefined
                 }
-                className={cn(
-                  "text-foreground-tertiary text-xs",
-                  parentTotalCost &&
-                    colorCodeMetrics &&
-                    heatMapTextColor({
-                      max: parentTotalCost,
-                      value: totalCost,
-                    }),
-                )}
+                className="text-tertiary text-xs"
               >
                 {node.children.length > 0 || node.type === "TRACE" ? "∑ " : ""}
                 {usdFormatter(totalCost.toNumber())}

@@ -60,7 +60,7 @@ export function UsageDetailsEditor({
     <div className="space-y-4">
       <div>
         <div className="pb-2 text-sm font-bold">Usage Details (optional)</div>
-        <div className="text-muted-foreground text-sm">
+        <div className="text-tertiary text-sm">
           Add usage details to test pricing tier matching. Leave empty to match
           the default tier.
         </div>
@@ -68,9 +68,7 @@ export function UsageDetailsEditor({
 
       {/* Template Buttons */}
       <div className="space-y-2">
-        <div className="text-muted-foreground text-sm">
-          Prefill from template:
-        </div>
+        <div className="text-tertiary text-sm">Prefill from template:</div>
         <div className="flex gap-2">
           <Button
             type="button"

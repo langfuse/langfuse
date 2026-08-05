@@ -106,7 +106,9 @@ export function JSONView(props: {
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green/30"
             : "",
-          props.title === "system" || props.title === "Input" ? "bg-card" : "",
+          props.title === "system" || props.title === "Input"
+            ? "bg-elevated"
+            : "",
           props.scrollable || props.borderless ? "" : "rounded-sm border",
           props.codeClassName,
         )}
@@ -165,9 +167,7 @@ export function JSONView(props: {
       </div>
       {props.media && props.media.length > 0 && (
         <>
-          <div className="text-muted-foreground my-1 px-0 py-1 text-xs">
-            Media
-          </div>
+          <div className="text-tertiary my-1 px-0 py-1 text-xs">Media</div>
           <div className="flex flex-wrap gap-2 pt-1 pb-4">
             {props.media.map((m) => (
               <LangfuseMediaView
@@ -278,7 +278,7 @@ export function CodeView(props: {
         <Check className="h-3 w-3" />
         {copiedToClipboardMessage && (
           <div
-            className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap"
+            className="text-primary absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap"
             title={copiedToClipboardMessage}
           >
             {copiedToClipboardMessage}

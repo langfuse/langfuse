@@ -102,7 +102,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   };
 
   return (
-    <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
+    <div className="bg-canvas flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
       {/* Large Trace indicator - only shown for virtualized mode */}
       {isVirtualized && (
         <HoverCard openDelay={200}>
@@ -117,11 +117,11 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             sideOffset={8}
           >
             <p className="font-bold">Optimized for performance</p>
-            <p className="text-muted-foreground mt-1.5">
+            <p className="text-tertiary mt-1.5">
               This trace has {observationCount?.toLocaleString() ?? "many"}{" "}
               observations. To keep things smooth:
             </p>
-            <ul className="text-muted-foreground mt-1.5 list-inside list-disc space-y-0.5">
+            <ul className="text-tertiary mt-1.5 list-inside list-disc space-y-0.5">
               <li>Content loads as you scroll</li>
               <li>JSON view is disabled</li>
               <li>Download/copy includes I/O for cached observations only</li>
@@ -156,7 +156,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                 size="icon"
                 className={cn(
                   "h-7 w-7",
-                  indentEnabled && "bg-primary text-primary-foreground",
+                  indentEnabled && "bg-primary text-on-fill",
                   indentDisabled && "cursor-not-allowed opacity-50",
                 )}
                 onClick={indentDisabled ? undefined : onToggleIndent}
@@ -175,7 +175,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             {indentDisabled && (
               <HoverCardContent className="w-56 text-sm" sideOffset={8}>
                 <p className="font-bold">Indentation unavailable</p>
-                <p className="text-muted-foreground mt-1">
+                <p className="text-tertiary mt-1">
                   Disabled for deeply nested trees to maintain readability.
                 </p>
               </HoverCardContent>
@@ -190,7 +190,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             size="icon"
             className={cn(
               "h-7 w-7",
-              showMilliseconds && "bg-primary text-primary-foreground",
+              showMilliseconds && "bg-primary text-on-fill",
             )}
             onClick={onToggleMilliseconds}
             title={showMilliseconds ? "Hide milliseconds" : "Show milliseconds"}
@@ -268,13 +268,13 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             {isCopyOrDownloadCacheOnly && !isCopyOrDownloadLoading && (
               <HoverCardContent className="w-64 text-sm" sideOffset={8}>
                 <p className="font-bold">Cache-only mode</p>
-                <p className="text-muted-foreground mt-1">
+                <p className="text-tertiary mt-1">
                   For large traces, only expanded observations include full I/O
                   data.
                 </p>
                 {loadedObservationCount !== undefined &&
                   observationCount !== undefined && (
-                    <p className="text-muted-foreground mt-1.5">
+                    <p className="text-tertiary mt-1.5">
                       <span className="font-bold">
                         {loadedObservationCount} of {observationCount}
                       </span>{" "}
@@ -320,13 +320,13 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             {isCopyOrDownloadCacheOnly && !isCopyOrDownloadLoading && (
               <HoverCardContent className="w-64 text-sm" sideOffset={8}>
                 <p className="font-bold">Cache-only mode</p>
-                <p className="text-muted-foreground mt-1">
+                <p className="text-tertiary mt-1">
                   For large traces, only expanded observations include full I/O
                   data.
                 </p>
                 {loadedObservationCount !== undefined &&
                   observationCount !== undefined && (
-                    <p className="text-muted-foreground mt-1.5">
+                    <p className="text-tertiary mt-1.5">
                       <span className="font-bold">
                         {loadedObservationCount} of {observationCount}
                       </span>{" "}

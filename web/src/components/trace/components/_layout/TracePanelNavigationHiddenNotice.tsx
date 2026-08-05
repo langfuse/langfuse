@@ -29,7 +29,7 @@ export function TracePanelNavigationHiddenNotice() {
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-1 border-b px-4 py-1">
-      <span className="text-muted-foreground flex flex-col gap-1 text-xs sm:flex-row">
+      <span className="text-tertiary flex flex-col gap-1 text-xs sm:flex-row">
         <p>
           {hiddenObservationsCount} hidden observations below{" "}
           {minObservationLevel} level.

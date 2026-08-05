@@ -401,9 +401,9 @@ export const CreateOrEditAnnotationQueueButton = ({
                             >
                               <div className="flex items-center gap-2">
                                 {isAdvancedOpen ? (
-                                  <ChevronDown className="text-muted-foreground h-4 w-4" />
+                                  <ChevronDown className="text-tertiary h-4 w-4" />
                                 ) : (
-                                  <ChevronRight className="text-muted-foreground h-4 w-4" />
+                                  <ChevronRight className="text-tertiary h-4 w-4" />
                                 )}
                                 <span className="text-sm font-bold">
                                   User Assignment

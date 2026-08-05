@@ -219,7 +219,7 @@ function GroupVisibilityHeader<TData, TValue>({
                 ? column.header
                 : column.accessorKey}
             </span>
-            <span className="text-muted-foreground text-xs">
+            <span className="text-tertiary text-xs">
               ({groupVisibleCount}/{groupTotalCount})
             </span>
           </div>
@@ -402,7 +402,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         <DrawerContent overlayClassName="bg-primary/10">
           <div className="mx-auto w-full overflow-y-auto md:max-h-full">
             <div className="sticky top-0 z-10">
-              <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-2">
+              <DrawerHeader className="bg-elevated flex flex-row items-center justify-between rounded-sm px-3 py-2">
                 <DrawerTitle>Column Visibility</DrawerTitle>
                 <div className="flex flex-row gap-2">
                   <Button

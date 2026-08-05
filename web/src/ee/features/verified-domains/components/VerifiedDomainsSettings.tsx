@@ -80,7 +80,7 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
   const heading = (
     <>
       <Header title="Verified Domains" />
-      <p className="text-muted-foreground mb-4 text-sm">
+      <p className="text-tertiary mb-4 text-sm">
         You can only configure SSO for domains your organization owns. Verify a
         domain via DNS to enable SSO for it.
       </p>
@@ -124,7 +124,7 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
         title="Verified Domains"
         actionButtons={<AddDomainButton orgId={orgId} />}
       />
-      <p className="text-muted-foreground text-sm">
+      <p className="text-tertiary text-sm">
         You can only configure SSO for domains your organization owns. Verify a
         domain via DNS to enable SSO for it.
       </p>
@@ -149,7 +149,7 @@ function DomainsTable({ orgId }: { orgId: string }) {
             <TableHead />
           </TableRow>
         </TableHeader>
-        <TableBody className="text-muted-foreground">
+        <TableBody className="text-tertiary">
           {query.data && query.data.length === 0 ? (
             <TableRow>
               <TableCell
@@ -304,7 +304,7 @@ function DnsInstructions({
           </TableBody>
         </Table>
       </Card>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-tertiary text-xs">
         DNS changes may take up to 24h to propagate. After adding the record,
         click <span className="font-bold">Verify</span>.
       </p>

@@ -327,12 +327,12 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               ) : null}
               {hadDraft && (
                 <p
-                  className={`text-muted-foreground mb-1 text-right text-xs ${initialPrompt ? "-mt-2" : "mt-1"}`}
+                  className={`text-tertiary mb-1 text-right text-xs ${initialPrompt ? "-mt-2" : "mt-1"}`}
                 >
                   Draft restored.{" "}
                   <button
                     type="button"
-                    className="hover:text-foreground underline"
+                    className="hover:text-secondary underline"
                     onClick={() => {
                       clearDraft();
                       form.reset(defaultValues);

@@ -179,7 +179,7 @@ function PlaygroundWindowContent({
   return (
     <div
       ref={windowContainerRef}
-      className="playground-window bg-background @container flex h-full min-w-0 flex-col rounded-lg border shadow-xs"
+      className="playground-window bg-canvas @container flex h-full min-w-0 flex-col rounded-lg border shadow-xs"
     >
       {/* Window Header */}
       <div className="bg-muted/50 relative shrink-0 border-b px-3 py-1">

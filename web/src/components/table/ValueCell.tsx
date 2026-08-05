@@ -281,7 +281,7 @@ function ValueCellActionsMenu({
           size="icon"
           aria-label="Value actions"
           title="Actions"
-          className="bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100 data-[state=open]:opacity-100"
+          className="bg-canvas/80 hover:bg-canvas absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100 data-[state=open]:opacity-100"
           onClick={(e) => e.stopPropagation()}
         >
           <EllipsisVertical className="h-3 w-3" />
@@ -311,7 +311,7 @@ function ValueCellActionsMenu({
               <span className="flex min-w-0 flex-col">
                 <span>Include in filter</span>
                 <span
-                  className="text-muted-foreground truncate font-mono"
+                  className="text-tertiary truncate font-mono"
                   title={includeFilterText}
                 >
                   {includeFilterText}
@@ -326,7 +326,7 @@ function ValueCellActionsMenu({
               <span className="flex min-w-0 flex-col">
                 <span>Exclude from filter</span>
                 <span
-                  className="text-muted-foreground truncate font-mono"
+                  className="text-tertiary truncate font-mono"
                   title={excludeFilterText}
                 >
                   {excludeFilterText}
@@ -507,7 +507,7 @@ export const ValueCell = memo(
           <Button
             variant="ghost"
             size="icon"
-            className="bg-background/80 hover:bg-background absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
+            className="bg-canvas/80 hover:bg-canvas absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
             onClick={handleCopy}
             title="Copy value"
             aria-label="Copy cell value"

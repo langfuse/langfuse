@@ -76,7 +76,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
           </DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             This action permanently deletes the folder{" "}
             <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-bold break-all">
               {folderPath}
@@ -101,7 +101,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
                 {prompts.data?.prompts.map((p) => (
                   <li
                     key={`${p.row_type}-${p.id}`}
-                    className="text-muted-foreground flex items-center gap-2"
+                    className="text-tertiary flex items-center gap-2"
                   >
                     {p.row_type === "folder" ? (
                       <Folder className="h-3 w-3 text-blue-500" />
@@ -114,12 +114,12 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
                   </li>
                 ))}
                 {(prompts.data?.totalCount ?? 0) > 100 && (
-                  <li className="text-muted-foreground pt-1 italic">
+                  <li className="text-tertiary pt-1 italic">
                     And {(prompts.data?.totalCount ?? 0) - 100} more prompts...
                   </li>
                 )}
                 {prompts.data?.prompts.length === 0 && (
-                  <li className="text-muted-foreground italic">
+                  <li className="text-tertiary italic">
                     No prompts found in this folder.
                   </li>
                 )}

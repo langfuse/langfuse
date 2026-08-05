@@ -539,9 +539,9 @@ export function DataTable<TData extends object, TValue>({
                                 header.getResizeHandler(),
                               )}
                               className={cn(
-                                "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
+                                "bg-muted absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
                                 header.column.getIsResizing() &&
-                                  "bg-primary-accent opacity-100",
+                                  "bg-brand opacity-100",
                               )}
                             />
                           </div>
@@ -595,7 +595,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (
-        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
+        <div className="bg-canvas sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
             isLoading={data.isLoading}
@@ -688,7 +688,7 @@ function TableRowComponent<TData>({
         }
       }}
       className={cn(
-        "hover:bg-accent",
+        "hover:bg-hover",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
         (rowIsSelected || shouldHighlightAllRows) &&
           "bg-muted/40 dark:bg-muted",
@@ -833,6 +833,7 @@ function TableBodyComponent<TData>({
                       isSmallRowHeight && !topAlignCells
                         ? "items-center"
                         : "items-start",
+                      isSmallRowHeight && "min-h-7.25",
                       !isSmallRowHeight && "py-1",
                       rowheighttw,
                     )}

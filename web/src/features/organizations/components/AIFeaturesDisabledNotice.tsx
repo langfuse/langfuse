@@ -26,7 +26,7 @@ export function AIFeaturesDisabledNotice({
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">
+      <p className="text-tertiary text-sm">
         {children}
         {!canUpdateOrgSettings
           ? " Ask your organization administrator to enable AI features in organization settings."

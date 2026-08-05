@@ -118,7 +118,7 @@ export function SplashScreen({
         <h2 className="mb-2 text-2xl font-bold">{title}</h2>
         {/* text-base: without a size token this fell through to the 16px
             browser default — off the type scale. */}
-        <div className="text-muted-foreground text-base">{description}</div>
+        <div className="text-tertiary text-base">{description}</div>
       </div>
 
       <div className="mb-8 flex w-full flex-wrap justify-center gap-4">
@@ -181,7 +181,7 @@ export function SplashScreen({
                   {step.badge}
                 </div>
                 {step.description && (
-                  <p className="text-muted-foreground text-sm leading-6">
+                  <p className="text-tertiary text-sm leading-6">
                     {step.description}
                   </p>
                 )}

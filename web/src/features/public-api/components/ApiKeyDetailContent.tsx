@@ -36,7 +36,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
     <div className={cn("space-y-6", className)}>
       <div>
         <SubHeader title="Secret Key" />
-        <div className="text-muted-foreground text-sm">
+        <div className="text-tertiary text-sm">
           This key can only be viewed once. You can always create new keys in
           the {scope} settings.
         </div>
@@ -55,14 +55,14 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
           <hr />
           <div>
             <SubHeader title="Using with MCP" />
-            <p className="text-muted-foreground text-sm">
+            <p className="text-tertiary text-sm">
               For a detailed guide on how to use this API key to connect to the
               Langfuse MCP server, see the{" "}
               <a
                 href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server"
                 target="_blank"
                 rel="noreferrer"
-                className="text-foreground underline"
+                className="text-secondary underline"
               >
                 MCP setup docs
               </a>

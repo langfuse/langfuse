@@ -97,7 +97,7 @@ export function ChartLoadingState({
         aria-live="polite"
         aria-label={spinnerLabel}
         className={cn(
-          "text-muted-foreground flex h-full w-full items-center justify-center",
+          "text-tertiary flex h-full w-full items-center justify-center",
           className,
         )}
       >
@@ -121,7 +121,7 @@ export function ChartLoadingState({
       aria-live="polite"
       aria-label={spinnerLabel}
       className={cn(
-        "text-muted-foreground flex h-full min-h-0 w-full flex-col overflow-hidden",
+        "text-tertiary flex h-full min-h-0 w-full flex-col overflow-hidden",
         className,
       )}
     >
@@ -142,7 +142,7 @@ export function ChartLoadingState({
           {shouldRenderStatusTitle ? (
             <p
               className={cn(
-                "text-foreground font-bold",
+                "text-secondary font-bold",
                 shouldShowProgress ? "text-left" : "text-center",
                 isTight ? "text-xs" : "text-sm",
               )}
@@ -161,7 +161,7 @@ export function ChartLoadingState({
           {isTightProgressState ? null : (
             <p
               className={cn(
-                "text-muted-foreground",
+                "text-tertiary",
                 shouldShowProgress ? "text-left" : "text-center",
                 shouldRenderHint ? "animate-in fade-in-0 duration-300" : "",
                 isTight

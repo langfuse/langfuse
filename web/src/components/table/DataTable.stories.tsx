@@ -739,7 +739,7 @@ const meta = preview.meta({
   },
   decorators: [
     (Story) => (
-      <div className="bg-background flex h-screen flex-col p-4">
+      <div className="bg-canvas flex h-screen flex-col p-4">
         <Story />
       </div>
     ),
@@ -854,7 +854,7 @@ function RowSelectionStory() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="text-muted-foreground mb-2 text-sm">
+      <div className="text-tertiary mb-2 text-sm">
         {selectedCount} row{selectedCount === 1 ? "" : "s"} selected
       </div>
       <DataTable<TraceRow, unknown>
@@ -1006,7 +1006,7 @@ function DensityPanel({ rowHeight }: { rowHeight: RowHeight }) {
   const columns = useMemo(() => buildTraceColumns(rowHeight), [rowHeight]);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="text-muted-foreground mb-1 text-xs font-bold">
+      <div className="text-tertiary mb-1 text-xs font-bold">
         rowHeight = {rowHeight} — {label}
       </div>
       <div className="flex min-h-0 flex-1 flex-col border">
@@ -1025,7 +1025,7 @@ export const DensityMatrix = meta.story({
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <div className="bg-background flex h-screen flex-col gap-4 p-4">
+      <div className="bg-canvas flex h-screen flex-col gap-4 p-4">
         <Story />
       </div>
     ),

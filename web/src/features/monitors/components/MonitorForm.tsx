@@ -635,7 +635,7 @@ export const MonitorForm = ({
                   name="thresholdOperator"
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center gap-2 space-y-0">
-                      <span className="text-muted-foreground text-sm whitespace-nowrap">
+                      <span className="text-tertiary text-sm whitespace-nowrap">
                         Trigger when the value is
                       </span>
                       <Select
@@ -763,7 +763,7 @@ export const MonitorForm = ({
                   name="window"
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center gap-2 space-y-0">
-                      <span className="text-muted-foreground text-sm whitespace-nowrap">
+                      <span className="text-tertiary text-sm whitespace-nowrap">
                         Over the past
                       </span>
                       <Select
@@ -956,7 +956,7 @@ const Header = ({
   step?: number;
   icon?: LucideIcon;
 }) => (
-  <div className="bg-card sticky top-0 z-10">
+  <div className="bg-elevated sticky top-0 z-10">
     <h3 className="flex items-center gap-2 py-2 text-lg font-bold">
       {step != null ? (
         <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold">
@@ -1024,7 +1024,7 @@ const NoDataField = ({
         <SelectItem value={MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO}>
           <span className="inline-flex items-center gap-1.5">
             Treat missing data as
-            <code className="bg-secondary rounded border px-0.5">0</code>
+            <code className="bg-muted rounded border px-0.5">0</code>
           </span>
         </SelectItem>
         <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
@@ -1058,7 +1058,7 @@ const NoDataField = ({
     </Select>
     {value.mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA && (
       <div className="flex items-center gap-2">
-        <Label className="text-muted-foreground text-xs">Notify after</Label>
+        <Label className="text-tertiary text-xs">Notify after</Label>
         <Input
           type="number"
           min={1}
@@ -1073,7 +1073,7 @@ const NoDataField = ({
           disabled={disabled}
           className="w-24"
         />
-        <Label className="text-muted-foreground text-xs">minutes</Label>
+        <Label className="text-tertiary text-xs">minutes</Label>
       </div>
     )}
   </div>
@@ -1112,7 +1112,7 @@ const RenotifyField = ({
     </Select>
     {value.mode === "EVERY" && (
       <div className="flex items-center gap-2">
-        <Label className="text-muted-foreground text-xs">
+        <Label className="text-tertiary text-xs">
           Re-alert every (minutes)
         </Label>
         <Input

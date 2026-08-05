@@ -95,18 +95,18 @@ export function EvaluatorPausedCallout({
       id={calloutId}
       role="alert"
       aria-live="polite"
-      className="border-light-yellow bg-light-yellow rounded-lg border"
+      className="border-warning-tint bg-warning-tint rounded-lg border"
     >
       <div className="flex gap-3 p-4">
-        <AlertTriangle className="text-dark-yellow mt-0.5 h-4 w-4 shrink-0" />
+        <AlertTriangle className="text-warning mt-0.5 h-4 w-4 shrink-0" />
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-foreground text-base leading-5 font-bold">
+          <h3 className="text-secondary text-base leading-5 font-bold">
             Evaluator paused
           </h3>
 
-          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm leading-5">
-            <span className="text-muted-foreground font-bold">
+          <div className="text-tertiary mt-1 flex flex-wrap items-center gap-2 text-sm leading-5">
+            <span className="text-tertiary font-bold">
               {blockMetadata.shortLabel}
             </span>
             {blockedAtLabel ? (
@@ -119,7 +119,7 @@ export function EvaluatorPausedCallout({
             ) : null}
           </div>
 
-          <p className="text-muted-foreground mt-2 max-w-3xl text-sm leading-5">
+          <p className="text-tertiary mt-2 max-w-3xl text-sm leading-5">
             {blockMessage}
           </p>
 

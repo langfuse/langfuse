@@ -129,10 +129,10 @@ export function CommentDrawerButton({
         <MessageSquareOff
           className={
             isMenu
-              ? "text-muted-foreground h-4 w-4"
+              ? "text-tertiary h-4 w-4"
               : size === "sm"
-                ? "text-muted-foreground h-3.5 w-3.5"
-                : "text-muted-foreground h-4 w-4"
+                ? "text-tertiary h-3.5 w-3.5"
+                : "text-tertiary h-4 w-4"
           }
         />
         {isMenu ? <span className="text-sm">Add comment</span> : null}
@@ -192,7 +192,7 @@ export function CommentDrawerButton({
             />
             <span className={isMenu ? "text-sm" : undefined}>Add comment</span>
             {!!count ? (
-              <span className="bg-primary/50 text-primary-foreground flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
+              <span className="bg-primary/50 text-on-fill flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                 {count > 99 ? "99+" : count}
               </span>
             ) : null}
@@ -214,7 +214,7 @@ export function CommentDrawerButton({
             }
           }}
         >
-          <DrawerHeader className="bg-background sr-only shrink-0 rounded-sm">
+          <DrawerHeader className="bg-canvas sr-only shrink-0 rounded-sm">
             <DrawerTitle>
               <Header title="Comments"></Header>
             </DrawerTitle>

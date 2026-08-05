@@ -129,7 +129,7 @@ const ObservationHeader = ({
 }: {
   observation: SessionObservation;
 }) => (
-  <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+  <div className="text-tertiary flex flex-wrap items-center gap-2 text-xs">
     <span className="min-w-0 wrap-break-word">
       {observation.name ?? "Observation"}
     </span>
@@ -174,7 +174,7 @@ const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => (
         ? `No observation matches the "${viewLabel}" view in this trace`
         : "No observation matches the current filter in this trace"}
     </div>
-    <p className="text-muted-foreground text-xs">
+    <p className="text-tertiary text-xs">
       Its content is hidden by the current view, not missing.{" "}
       <button
         type="button"
@@ -378,7 +378,7 @@ export const TraceEventsRow = React.memo(
     return (
       <Frame
         className={
-          surface === "card" ? "border-border shadow-none" : "bg-background"
+          surface === "card" ? "border-border shadow-none" : "bg-canvas"
         }
       >
         <div
@@ -396,11 +396,11 @@ export const TraceEventsRow = React.memo(
             }
           >
             {surface === "modern" ? (
-              <div className="bg-background/95 sticky top-0 z-10 -mx-6 mb-5 flex min-w-0 items-center justify-between gap-3 px-6 py-3 backdrop-blur">
+              <div className="bg-canvas/95 sticky top-0 z-10 -mx-6 mb-5 flex min-w-0 items-center justify-between gap-3 px-6 py-3 backdrop-blur">
                 <button
                   type="button"
                   aria-label={`Open trace ${trace.name ?? "Trace"} (${trace.id})`}
-                  className="group focus-visible:ring-ring flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  className="group focus-visible:ring-focus flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                   onClick={() => openPeek(trace.id, trace)}
                 >
                   <ItemBadge type="TRACE" isSmall />
@@ -411,13 +411,13 @@ export const TraceEventsRow = React.memo(
                     {trace.name ?? "Trace"}
                   </span>
                   <span
-                    className="text-muted-foreground min-w-0 truncate font-mono text-xs group-hover:underline"
+                    className="text-tertiary min-w-0 truncate font-mono text-xs group-hover:underline"
                     title={trace.id}
                   >
                     {trace.id}
                   </span>
                 </button>
-                <time className="text-muted-foreground shrink-0 text-xs">
+                <time className="text-tertiary shrink-0 text-xs">
                   {trace.timestamp.toLocaleString()}
                 </time>
               </div>
@@ -474,7 +474,7 @@ export const TraceEventsRow = React.memo(
                   );
                 })}
                 {hasMoreObservations && (
-                  <p className="text-muted-foreground text-xs">
+                  <p className="text-tertiary text-xs">
                     Only the first {SESSION_CARD_OBSERVATIONS_NOTICE_COUNT}{" "}
                     observations are shown here.{" "}
                     <button
@@ -492,7 +492,7 @@ export const TraceEventsRow = React.memo(
               observations.length === 0 &&
               filterState.length === 0 ? (
               // No filter and the trace genuinely has no observations.
-              <div className="text-muted-foreground p-2 text-xs">
+              <div className="text-tertiary p-2 text-xs">
                 This trace has no observations.
               </div>
             ) : (
@@ -508,7 +508,7 @@ export const TraceEventsRow = React.memo(
                 <div className="mb-4 flex flex-col gap-2">
                   <Link
                     href={`/project/${projectId}/traces/${trace.id}`}
-                    className="hover:bg-accent flex items-start gap-2 rounded-lg border p-2 transition-colors"
+                    className="hover:bg-hover flex items-start gap-2 rounded-lg border p-2 transition-colors"
                     onClick={(e) => {
                       if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
                         e.preventDefault();
@@ -523,7 +523,7 @@ export const TraceEventsRow = React.memo(
                       <span className="text-xs font-bold wrap-break-word">
                         {trace.name ?? "Trace"} ({trace.id})&nbsp;↗
                       </span>
-                      <span className="text-muted-foreground text-xs">
+                      <span className="text-tertiary text-xs">
                         {trace.timestamp.toLocaleString()}
                       </span>
                     </div>

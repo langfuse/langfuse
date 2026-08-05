@@ -5,7 +5,7 @@
 
 /** The bar's box: border, background, radius, padding, min height. */
 export const COMPOSER_SURFACE_CLASSES =
-  "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5";
+  "border-input bg-canvas relative min-h-9 rounded-md border px-2 py-1.5";
 
 /** The query text metrics: mono font, pill-matched line height, wrapping. */
 export const COMPOSER_TEXT_CLASSES =

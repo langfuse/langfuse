@@ -24,7 +24,7 @@ export function TierPriceEditor({
   return (
     <div className="space-y-3">
       <FormLabel>Prices</FormLabel>
-      <div className="text-muted-foreground grid grid-cols-2 gap-1 text-sm">
+      <div className="text-tertiary grid grid-cols-2 gap-1 text-sm">
         <span>Usage type</span>
         <span>Price</span>
       </div>

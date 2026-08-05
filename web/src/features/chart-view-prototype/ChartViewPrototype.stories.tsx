@@ -131,7 +131,7 @@ export const Comparison = meta.story({
     <div className="flex h-full flex-col gap-8 overflow-y-auto">
       <div className="flex shrink-0 flex-col gap-2">
         <h3 className="text-sm font-bold">Take A — Inline explorer bar</h3>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-tertiary text-xs">
           Config in an always-on strip above the canvas. Dense, fast, feels like
           a live extension of the table.
         </p>
@@ -141,7 +141,7 @@ export const Comparison = meta.story({
       </div>
       <div className="flex shrink-0 flex-col gap-2">
         <h3 className="text-sm font-bold">Take B — Docked side panel</h3>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-tertiary text-xs">
           Maximized canvas with config in a collapsible panel. Cleaner, more
           guided, more room for the chart.
         </p>

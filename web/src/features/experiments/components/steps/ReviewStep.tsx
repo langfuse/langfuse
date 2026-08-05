@@ -47,7 +47,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
         {/* Prompt Card - Top Left */}
         <Card
-          className="hover:bg-accent cursor-pointer transition-colors"
+          className="hover:bg-hover cursor-pointer transition-colors"
           onClick={() => setActiveStep("prompt")}
         >
           <CardHeader className="pb-3">
@@ -55,11 +55,11 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Name:</span>
+              <span className="text-tertiary">Name:</span>
               <span className="font-bold">{selectedPromptName}</span>
             </div>
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Version:</span>
+              <span className="text-tertiary">Version:</span>
               <span className="font-bold">v{selectedPromptVersion}</span>
             </div>
           </CardContent>
@@ -67,7 +67,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
 
         {/* Model Card - Top Right */}
         <Card
-          className="hover:bg-accent cursor-pointer transition-colors"
+          className="hover:bg-hover cursor-pointer transition-colors"
           onClick={() => setActiveStep("prompt")}
         >
           <CardHeader className="pb-3">
@@ -75,30 +75,28 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Provider:</span>
+              <span className="text-tertiary">Provider:</span>
               <span>{modelParams.provider.value}</span>
             </div>
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Model:</span>
+              <span className="text-tertiary">Model:</span>
               <span>{modelParams.model.value}</span>
             </div>
             {modelParams.temperature.enabled && (
               <div className="flex gap-2">
-                <span className="text-muted-foreground">Temperature:</span>
+                <span className="text-tertiary">Temperature:</span>
                 <span>{modelParams.temperature.value}</span>
               </div>
             )}
             {modelParams.max_tokens.enabled && (
               <div className="flex gap-2">
-                <span className="text-muted-foreground">Max Tokens:</span>
+                <span className="text-tertiary">Max Tokens:</span>
                 <span>{modelParams.max_tokens.value}</span>
               </div>
             )}
             {structuredOutputEnabled && selectedSchemaName && (
               <div className="flex gap-2">
-                <span className="text-muted-foreground">
-                  Structured Output:
-                </span>
+                <span className="text-tertiary">Structured Output:</span>
                 <span>{selectedSchemaName}</span>
               </div>
             )}
@@ -107,7 +105,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
 
         {/* Dataset Card - Middle Left */}
         <Card
-          className="hover:bg-accent cursor-pointer transition-colors"
+          className="hover:bg-hover cursor-pointer transition-colors"
           onClick={() => setActiveStep("dataset")}
         >
           <CardHeader className="pb-3">
@@ -115,12 +113,12 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Name:</span>
+              <span className="text-tertiary">Name:</span>
               <span className="font-bold">{selectedDataset?.name}</span>
             </div>
             {validationResult?.isValid && (
               <div className="flex gap-2">
-                <span className="text-muted-foreground">Items:</span>
+                <span className="text-tertiary">Items:</span>
                 <span>{validationResult.totalItems}</span>
               </div>
             )}
@@ -130,7 +128,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         {/* Evaluators Card - Middle Right (only if there are evaluators) */}
         {activeEvaluatorNames.length > 0 && (
           <Card
-            className="hover:bg-accent cursor-pointer transition-colors"
+            className="hover:bg-hover cursor-pointer transition-colors"
             onClick={() => setActiveStep("evaluators")}
           >
             <CardHeader className="pb-3">
@@ -152,7 +150,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
 
         {/* Run Details Card - Bottom (Full Width) */}
         <Card
-          className="hover:bg-accent cursor-pointer transition-colors md:col-span-2"
+          className="hover:bg-hover cursor-pointer transition-colors md:col-span-2"
           onClick={() => setActiveStep("details")}
         >
           <CardHeader className="pb-3">
@@ -160,15 +158,15 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
-              <span className="text-muted-foreground">Experiment Name:</span>
+              <span className="text-tertiary">Experiment Name:</span>
               <span className="font-bold">{formValues.name}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Run Name:</span>
+              <span className="text-tertiary">Run Name:</span>
               <span className="font-bold">{formValues.runName}</span>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <InfoIcon className="text-muted-foreground h-3.5 w-3.5" />
+                  <InfoIcon className="text-tertiary h-3.5 w-3.5" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[300px]">
                   This run name is auto-generated from the experiment name and
@@ -179,7 +177,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             </div>
             {formValues.description && (
               <div className="flex flex-col gap-1">
-                <span className="text-muted-foreground">Description:</span>
+                <span className="text-tertiary">Description:</span>
                 <span className="text-sm">{formValues.description}</span>
               </div>
             )}

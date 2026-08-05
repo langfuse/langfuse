@@ -91,13 +91,11 @@ export const InAppAiAgentButton = ({
         "gap-2",
         // Compact icon-only launcher for the top bar.
         prominent && "size-9 shrink-0 px-0",
-        !prominent &&
-          open &&
-          "border-primary-accent bg-primary-accent/10 hover:bg-primary-accent/15",
+        !prominent && open && "border-brand bg-brand/10 hover:bg-brand/15",
       )}
     >
       <BotMessageSquare
-        className={cn("h-4 w-4", prominent && open && "text-primary-accent")}
+        className={cn("h-4 w-4", prominent && open && "text-brand")}
       />
       {/* The prominent launcher is a fixed 36px square (top bar, below md), so
           it stays strictly icon-only — the `sm:inline` label would otherwise

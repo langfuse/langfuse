@@ -49,7 +49,7 @@ const AlertDialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         motionStyles.content,
-        "bg-modal fixed top-[50%] left-[50%] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-lg sm:rounded-lg",
+        "bg-elevated fixed top-[50%] left-[50%] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-lg sm:rounded-lg",
         className,
       )}
       {...props}
@@ -104,7 +104,7 @@ const AlertDialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Description
     ref={ref}
-    className={cn("text-muted-foreground text-sm", className)}
+    className={cn("text-tertiary text-sm", className)}
     {...props}
   />
 ));

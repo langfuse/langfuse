@@ -16,8 +16,8 @@ const VISIBLE_ROWS = 14;
 const LEVEL_CLASS: Record<ObservationLevel, string> = {
   ERROR: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
   WARNING: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  DEFAULT: "bg-muted text-muted-foreground",
-  DEBUG: "bg-muted text-muted-foreground",
+  DEFAULT: "bg-muted text-tertiary",
+  DEBUG: "bg-muted text-tertiary",
 };
 
 const formatLatency = (ms: number): string =>
@@ -50,7 +50,7 @@ export const MockEventsTable = React.memo(function MockEventsTable({
     <div className="flex h-full flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-auto">
         <Table>
-          <TableHeader className="bg-background sticky top-0 z-10">
+          <TableHeader className="bg-canvas sticky top-0 z-10">
             <TableRow>
               <TableHead className="h-8">Type</TableHead>
               <TableHead className="h-8">Name</TableHead>
@@ -71,7 +71,7 @@ export const MockEventsTable = React.memo(function MockEventsTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="py-1.5 font-bold">{e.name}</TableCell>
-                <TableCell className="text-muted-foreground py-1.5 font-mono">
+                <TableCell className="text-tertiary py-1.5 font-mono">
                   {e.model ?? "–"}
                 </TableCell>
                 <TableCell className="py-1.5">
@@ -93,7 +93,7 @@ export const MockEventsTable = React.memo(function MockEventsTable({
                 <TableCell className="py-1.5 text-right font-mono">
                   {e.totalTokens.toLocaleString()}
                 </TableCell>
-                <TableCell className="text-muted-foreground py-1.5 text-right font-mono">
+                <TableCell className="text-tertiary py-1.5 text-right font-mono">
                   {formatTime(e.startTime)}
                 </TableCell>
               </TableRow>
@@ -101,7 +101,7 @@ export const MockEventsTable = React.memo(function MockEventsTable({
           </TableBody>
         </Table>
       </div>
-      <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+      <div className="text-tertiary border-t px-3 py-1.5 text-xs">
         Showing {rows.length} of {events.length.toLocaleString()} events
       </div>
     </div>

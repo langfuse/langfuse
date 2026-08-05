@@ -492,7 +492,7 @@ export function CommentList({
         <span className="mr-1.5 inline-flex">
           <Spinner size="sm" variant="muted" />
         </span>
-        <span className="text-muted-foreground text-sm opacity-60">
+        <span className="text-tertiary text-sm opacity-60">
           Loading comments...
         </span>
       </div>
@@ -517,7 +517,7 @@ export function CommentList({
             <div className="flex items-center justify-between gap-2 px-2 py-1.5">
               <div className="text-sm font-bold">Comments</div>
               <div className="relative max-w-xs flex-1">
-                <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+                <Search className="text-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
                 <Input
                   ref={searchInputRef}
                   type="text"
@@ -550,7 +550,7 @@ export function CommentList({
                 )}
               </div>
             </div>
-            <div className="text-muted-foreground px-2 pb-1 text-xs">
+            <div className="text-tertiary px-2 pb-1 text-xs">
               {searchQuery.trim()
                 ? filteredComments && filteredComments.length > 0
                   ? `Showing ${filteredComments.length} of ${comments.data?.length ?? 0} comments`
@@ -571,7 +571,7 @@ export function CommentList({
                 className={cn(
                   "group relative grid grid-cols-[auto_1fr] gap-2.5 rounded-lg border p-3 transition-colors",
                   highlightedCommentId === comment.id
-                    ? "border-primary-accent"
+                    ? "border-brand"
                     : "border-border/40 hover:bg-muted/20",
                 )}
               >
@@ -590,11 +590,11 @@ export function CommentList({
                 <div className="min-w-0">
                   {/* Name + timestamp inline */}
                   <div className="mb-1.5 flex items-center gap-2 pt-1.5 text-xs leading-none">
-                    <span className="text-foreground font-bold">
+                    <span className="text-secondary font-bold">
                       {comment.authorUserName ?? comment.authorUserId ?? "User"}
                     </span>
-                    <span className="text-muted-foreground/50">·</span>
-                    <span className="text-muted-foreground/70">
+                    <span className="text-tertiary/50">·</span>
+                    <span className="text-tertiary/70">
                       {comment.timestamp}
                     </span>
                   </div>
@@ -615,7 +615,7 @@ export function CommentList({
                         <TooltipTrigger asChild>
                           <div className="mt-1 flex w-fit items-center gap-1.5 text-xs">
                             <Badge
-                              className="text-foreground pointer-events-none px-1.5 py-0 text-[10px] font-bold"
+                              className="text-secondary pointer-events-none px-1.5 py-0 text-[10px] font-bold"
                               style={{
                                 backgroundColor:
                                   IO_FIELD_COLORS[
@@ -625,7 +625,7 @@ export function CommentList({
                             >
                               {comment.dataField.toUpperCase()}
                             </Badge>
-                            <span className="text-muted-foreground">
+                            <span className="text-tertiary">
                               {humanizeJsonPath(comment.path[0])}
                             </span>
                           </div>
@@ -708,8 +708,8 @@ export function CommentList({
         </div>
 
         {hasWriteAccess && (
-          <div className="bg-background shrink-0 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
-            <div className="text-muted-foreground relative flex flex-row items-center justify-between text-xs">
+          <div className="bg-canvas shrink-0 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
+            <div className="text-tertiary relative flex flex-row items-center justify-between text-xs">
               <span className="sr-only">New comment</span>
               <span></span>
               <span>Markdown and @-mentions support</span>

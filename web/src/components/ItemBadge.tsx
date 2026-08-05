@@ -41,7 +41,7 @@ export type LangfuseItemType =
   | "RUNNING_EVALUATOR"
   | "EXPERIMENT";
 
-const iconMap = {
+export const iconMap = {
   TRACE: ListTree,
   GENERATION: Fan,
   EVENT: CircleDot,
@@ -68,27 +68,27 @@ const iconMap = {
 const iconVariants = cva("h-4 w-4", {
   variants: {
     type: {
-      TRACE: "text-dark-green",
-      GENERATION: "text-muted-magenta",
-      EVENT: "text-muted-green",
-      SPAN: "text-muted-blue",
-      AGENT: "text-purple-600",
-      TOOL: "text-orange-600",
-      CHAIN: "text-pink-600",
-      RETRIEVER: "text-teal-600",
-      EMBEDDING: "text-amber-600",
-      GUARDRAIL: "text-red-600",
-      SESSION: "text-primary-accent",
-      USER: "text-primary-accent",
-      QUEUE_ITEM: "text-primary-accent",
-      DATASET: "text-primary-accent",
-      DATASET_RUN: "text-primary-accent",
-      DATASET_ITEM: "text-primary-accent",
-      ANNOTATION_QUEUE: "text-primary-accent",
-      PROMPT: "text-primary-accent",
-      EVALUATOR: "text-primary-accent", // usually text-indigo-600
-      RUNNING_EVALUATOR: "text-primary-accent",
-      EXPERIMENT: "text-primary-accent",
+      TRACE: "icon-obs-trace",
+      GENERATION: "icon-obs-generation",
+      EVENT: "icon-obs-event",
+      SPAN: "icon-obs-span",
+      AGENT: "icon-obs-agent",
+      TOOL: "icon-obs-tool",
+      CHAIN: "icon-obs-chain",
+      RETRIEVER: "icon-obs-retriever",
+      EMBEDDING: "icon-obs-embedding",
+      GUARDRAIL: "icon-obs-guardrail",
+      SESSION: "icon-obs-entity",
+      USER: "icon-obs-entity",
+      QUEUE_ITEM: "icon-obs-entity",
+      DATASET: "icon-obs-entity",
+      DATASET_RUN: "icon-obs-entity",
+      DATASET_ITEM: "icon-obs-entity",
+      ANNOTATION_QUEUE: "icon-obs-entity",
+      PROMPT: "icon-obs-entity",
+      EVALUATOR: "icon-obs-entity",
+      RUNNING_EVALUATOR: "icon-obs-entity",
+      EXPERIMENT: "icon-obs-entity",
     },
   },
 });
@@ -133,7 +133,7 @@ export function ItemBadge({
       variant="outline"
       title={label}
       className={cn(
-        "bg-background flex max-w-fit items-center gap-1 overflow-hidden border-2 px-1 whitespace-nowrap",
+        "bg-canvas flex max-w-fit items-center gap-1 overflow-hidden border-2 px-1 whitespace-nowrap",
         isSmall && "h-4",
       )}
     >

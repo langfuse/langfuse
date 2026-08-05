@@ -32,14 +32,14 @@ export const DatasetItemVersionedContent = ({
 }: DatasetItemVersionedContentProps) => {
   // Loading states
   if (isLoadingVersioned) {
-    return <div className="text-muted-foreground text-sm">Loading...</div>;
+    return <div className="text-tertiary text-sm">Loading...</div>;
   }
 
   // Item doesn't exist at this version
   if (itemAtVersion === null) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center">
-        <div className="text-muted-foreground">
+        <div className="text-tertiary">
           <p className="text-lg font-bold">
             Item does not exist at this version
           </p>
@@ -55,14 +55,14 @@ export const DatasetItemVersionedContent = ({
   // Show diff mode if enabled and item changed at this version
   if (showDiffMode && itemChangedAtVersion) {
     if (isLoadingLatest) {
-      return <div className="text-muted-foreground text-sm">Loading...</div>;
+      return <div className="text-tertiary text-sm">Loading...</div>;
     }
 
     // Can't show diff if latest doesn't exist
     if (latestItem === null) {
       return (
         <div className="flex flex-col items-center justify-center p-12 text-center">
-          <div className="text-muted-foreground">
+          <div className="text-tertiary">
             <p className="text-lg font-bold">Cannot show diff</p>
             <p className="mt-2 text-sm">
               The latest version of this item does not exist (has been deleted).

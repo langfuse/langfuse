@@ -88,7 +88,7 @@ export function LargeJsonFieldFallback({
     // escape hatch (raw download), so no "too large" message or preview.
     return (
       <div className="io-message-content">
-        <div className="text-muted-foreground flex items-center gap-2 px-1 py-1 text-xs">
+        <div className="text-tertiary flex items-center gap-2 px-1 py-1 text-xs">
           <span>{sizeSummary}</span>
           <Button variant="outline" size="sm" onClick={onDownload}>
             <Download className="mr-1 h-3.5 w-3.5" />
@@ -102,13 +102,13 @@ export function LargeJsonFieldFallback({
   return (
     <div className="io-message-content">
       <div className="my-2 flex flex-col gap-2 rounded-sm border border-dashed p-3">
-        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+        <div className="text-tertiary flex flex-wrap items-center gap-2 text-xs">
           {!hideTitle && (
-            <span className="text-foreground font-bold">{title}</span>
+            <span className="text-secondary font-bold">{title}</span>
           )}
           <span>{sizeSummary} — too large to render in JSON view</span>
         </div>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-tertiary text-xs">
           Rendering this much JSON at once freezes the tab. Use the{" "}
           <span className="font-bold">Formatted</span> view for the full
           payload, or download it below.

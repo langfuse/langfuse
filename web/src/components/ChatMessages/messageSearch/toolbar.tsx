@@ -64,11 +64,11 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "bg-background flex items-center gap-1 rounded-md border p-1",
+        "bg-canvas flex items-center gap-1 rounded-md border p-1",
         className,
       )}
     >
-      <Search className="text-muted-foreground ml-1 h-3.5 w-3.5 shrink-0" />
+      <Search className="text-tertiary ml-1 h-3.5 w-3.5 shrink-0" />
       <Input
         ref={inputRef}
         value={queryInput}
@@ -96,7 +96,7 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
           }
         }}
       />
-      <div className="text-muted-foreground min-w-16 px-1 text-right text-xs">
+      <div className="text-tertiary min-w-16 px-1 text-right text-xs">
         {activeCountText}
       </div>
       <IconButton

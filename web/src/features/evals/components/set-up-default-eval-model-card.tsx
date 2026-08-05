@@ -8,7 +8,7 @@ export function SetupDefaultEvalModelCard({
   projectId: string;
 }) {
   return (
-    <Card className="border-dark-yellow bg-light-yellow mt-2">
+    <Card className="border-warning bg-warning-tint mt-2">
       <CardContent className="mt-2 flex flex-col gap-1">
         <ManageDefaultEvalModel
           projectId={projectId}
@@ -29,7 +29,7 @@ export function SetupDefaultEvalModelCard({
           }
           variant="color-coded"
         />
-        <p className="text-dark-yellow/70 text-xs">
+        <p className="text-warning/70 text-xs">
           This evaluator expects to use the default evaluation model for your
           project.
         </p>

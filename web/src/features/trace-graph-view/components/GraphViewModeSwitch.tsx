@@ -37,7 +37,7 @@ export function GraphViewModeSwitch({
   onChange: (mode: GraphViewMode) => void;
 }) {
   return (
-    <div className="bg-background/80 inline-flex h-7 items-center rounded-md border p-0.5 backdrop-blur">
+    <div className="bg-canvas/80 inline-flex h-7 items-center rounded-md border p-0.5 backdrop-blur">
       {MODES.map(({ mode, icon: Icon, label, title }) => (
         <button
           key={mode}
@@ -49,8 +49,8 @@ export function GraphViewModeSwitch({
           className={cn(
             "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-bold transition-colors",
             value === mode
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
+              ? "bg-primary text-on-fill shadow-sm"
+              : "text-tertiary hover:text-secondary",
           )}
         >
           <Icon className="h-3.5 w-3.5 shrink-0" />

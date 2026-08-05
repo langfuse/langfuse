@@ -150,7 +150,7 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
                       <h4 className="leading-none font-bold">
                         Expected Dataset Structure
                       </h4>
-                      <p className="text-muted-foreground text-sm">
+                      <p className="text-tertiary text-sm">
                         Based on prompt {selectedPromptName} v
                         {selectedPromptVersion}
                       </p>
@@ -228,22 +228,22 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
       {selectedDatasetId && (
         <>
           {validationResult?.isValid === false && (
-            <Card className="border-dark-yellow bg-light-yellow relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
+            <Card className="border-warning bg-warning-tint relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
               <CardHeader className="p-2">
-                <CardTitle className="text-dark-yellow flex items-center justify-between text-sm">
+                <CardTitle className="text-warning flex items-center justify-between text-sm">
                   <span>Invalid configuration</span>
                   <Info className="h-4 w-4" />
                 </CardTitle>
-                <CardDescription className="text-foreground">
+                <CardDescription className="text-secondary">
                   {validationResult?.message}
                 </CardDescription>
               </CardHeader>
             </Card>
           )}
           {validationResult?.isValid === true && (
-            <Card className="border-dark-green bg-light-green relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
+            <Card className="border-success bg-success-tint relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
               <CardHeader className="p-2">
-                <CardTitle className="text-dark-green flex items-center justify-between text-sm">
+                <CardTitle className="text-success flex items-center justify-between text-sm">
                   <span>Valid configuration</span>
                   <CircleCheck className="h-4 w-4" />
                 </CardTitle>

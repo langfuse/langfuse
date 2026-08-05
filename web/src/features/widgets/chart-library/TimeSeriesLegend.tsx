@@ -161,7 +161,7 @@ export function SeriesOverflowNote({
 }) {
   if (totalCount <= visibleCount) return null;
   return (
-    <div className="text-muted-foreground shrink-0 pb-1 text-right text-xs">
+    <div className="text-tertiary shrink-0 pb-1 text-right text-xs">
       Showing top {visibleCount} of {totalCount} series
     </div>
   );
@@ -227,9 +227,9 @@ export function TimeSeriesLegend({
                 className="h-2 w-2 shrink-0 rounded-[2px]"
                 style={{ backgroundColor: item.color }}
               />
-              <span className="text-muted-foreground">{item.label}</span>
+              <span className="text-tertiary">{item.label}</span>
               {item.summary !== null && (
-                <span className="text-foreground font-bold">
+                <span className="text-secondary font-bold">
                   {formatSummary(item.summary)}
                 </span>
               )}

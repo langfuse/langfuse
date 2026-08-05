@@ -12,13 +12,12 @@ const meta = preview.meta({
     showCostTokens: false,
     showScores: false,
     showComments: false,
-    colorCodeMetrics: false,
   },
   // The bar positions itself absolutely on the time axis; host it in a
   // row-height relative track so its left offset renders in context.
   decorators: [
     (Story) => (
-      <div className="bg-background relative h-[26px] w-[640px] rounded border">
+      <div className="bg-canvas relative h-[26px] w-[640px] rounded border">
         <Story />
       </div>
     ),

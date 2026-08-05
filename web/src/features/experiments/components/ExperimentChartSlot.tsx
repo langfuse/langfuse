@@ -221,9 +221,7 @@ export function ExperimentChartSlot({
           />
         ) : (
           <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">
-            <span className="text-muted-foreground text-sm">
-              Select a metric
-            </span>
+            <span className="text-tertiary text-sm">Select a metric</span>
           </div>
         )}
       </div>

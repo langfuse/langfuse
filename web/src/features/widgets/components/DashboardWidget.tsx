@@ -557,16 +557,16 @@ export function DashboardWidget({
 
   if (widget.isPending) {
     return (
-      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
-        <div className="text-muted-foreground">Loading...</div>
+      <div className="bg-elevated flex items-center justify-center rounded-lg border p-4">
+        <div className="text-tertiary">Loading...</div>
       </div>
     );
   }
 
   if (!widget.data) {
     return (
-      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
-        <div className="text-muted-foreground">Widget not found</div>
+      <div className="bg-elevated flex items-center justify-center rounded-lg border p-4">
+        <div className="text-tertiary">Widget not found</div>
       </div>
     );
   }
@@ -614,7 +614,7 @@ export function DashboardWidget({
   };
 
   return (
-    <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
+    <div className="bg-elevated group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
       {isCopyDialogOpen && (
         <CopyWidgetDialog
           open={isCopyDialogOpen}
@@ -647,12 +647,12 @@ export function DashboardWidget({
             <>
               <GripVerticalIcon
                 size={16}
-                className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
+                className="drag-handle text-tertiary hover:text-secondary hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
               {isLockedEditable ? (
                 <button
                   onClick={onLockedEditAttempt}
-                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                  className="text-tertiary hover:text-secondary hidden group-hover:block"
                   aria-label="Edit widget"
                 >
                   <PencilIcon size={16} />
@@ -660,7 +660,7 @@ export function DashboardWidget({
               ) : widget.data.owner === "PROJECT" ? (
                 <button
                   onClick={handleEdit}
-                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                  className="text-tertiary hover:text-secondary hidden group-hover:block"
                   aria-label="Edit widget"
                 >
                   <PencilIcon size={16} />
@@ -674,7 +674,7 @@ export function DashboardWidget({
                     });
                     setIsCopyDialogOpen(true);
                   }}
-                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                  className="text-tertiary hover:text-secondary hidden group-hover:block"
                   aria-label="Edit widget"
                 >
                   <PencilIcon size={16} />
@@ -682,7 +682,7 @@ export function DashboardWidget({
               ) : null}
               <button
                 onClick={handleDelete}
-                className="text-muted-foreground hover:text-destructive hidden group-hover:block"
+                className="text-tertiary hover:text-destructive hidden group-hover:block"
                 aria-label="Delete widget"
               >
                 <TrashIcon size={16} />
@@ -692,7 +692,7 @@ export function DashboardWidget({
           <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
             <DropdownMenuTrigger asChild>
               <button
-                className="text-muted-foreground hover:text-foreground hidden group-hover:block data-[state=open]:block"
+                className="text-tertiary hover:text-secondary hidden group-hover:block data-[state=open]:block"
                 aria-label="Widget actions"
               >
                 <MoreVerticalIcon size={16} />
@@ -709,7 +709,7 @@ export function DashboardWidget({
                     <span className="flex flex-col">
                       <span>View as table</span>
                       {viewAsTableHint && (
-                        <span className="text-muted-foreground text-xs">
+                        <span className="text-tertiary text-xs">
                           {viewAsTableHint.count} filter
                           {viewAsTableHint.count === 1 ? "" : "s"} not shown in
                           the table
@@ -763,7 +763,7 @@ export function DashboardWidget({
         </div>
       </div>
       <div
-        className="text-muted-foreground mb-4 truncate text-sm"
+        className="text-tertiary mb-4 truncate text-sm"
         title={widget.data.description}
       >
         {widget.data.description}
@@ -777,7 +777,7 @@ export function DashboardWidget({
               showHintImmediately={true}
               hintText={queryValidation.reason}
               layout={loadingStateLayout}
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+              className="bg-elevated/80 absolute inset-0 z-20 backdrop-blur-xs"
             />
           </div>
         ) : (
@@ -817,7 +817,7 @@ export function DashboardWidget({
               onRetry={queryResult.isError ? handleRetry : undefined}
               progress={loadingProgress}
               layout={loadingStateLayout}
-              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+              className="bg-elevated/80 absolute inset-0 z-20 backdrop-blur-xs"
             />
           </div>
         )}

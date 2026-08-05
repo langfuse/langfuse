@@ -29,7 +29,7 @@ export const AllSizes = meta.story({
       {allSizes.map((size) => (
         <div key={size} className="flex flex-col items-center gap-2">
           <LangfuseIcon size={size} />
-          <span className="text-muted-foreground text-xs">{size}px</span>
+          <span className="text-tertiary text-xs">{size}px</span>
         </div>
       ))}
     </div>

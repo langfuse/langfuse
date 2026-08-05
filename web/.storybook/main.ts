@@ -26,6 +26,7 @@ const DESIGN_REFERENCE_STORIES = [
   "ThemeTokens/Typography",
   "ThemeTokens/Layout",
   "ThemeTokens/Charts",
+  "BadgesAndTags/Badges & tags",
 ] as const;
 
 /**

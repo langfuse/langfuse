@@ -1190,7 +1190,7 @@ export default function DashboardDetail() {
                   role="status"
                   aria-label="Saving"
                 >
-                  <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+                  <Loader2 className="text-tertiary h-4 w-4 animate-spin" />
                 </span>
               )}
               {hasCUDAccess && hasUnsavedFilterChanges && (
@@ -1298,10 +1298,10 @@ export default function DashboardDetail() {
         </PageHeaderControlsPortal>
         {isDraggingFile && (
           <Layer name="modal">
-            <div className="bg-background/80 pointer-events-none fixed inset-0 flex items-center justify-center backdrop-blur-xs">
-              <div className="border-primary bg-background rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
+            <div className="bg-canvas/80 pointer-events-none fixed inset-0 flex items-center justify-center backdrop-blur-xs">
+              <div className="border-primary bg-canvas rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
                 <p className="font-bold">Drop to import</p>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-tertiary text-sm">
                   Langfuse dashboard or widget JSON
                 </p>
               </div>

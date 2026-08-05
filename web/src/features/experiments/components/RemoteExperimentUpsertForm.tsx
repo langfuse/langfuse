@@ -307,7 +307,7 @@ export const RemoteExperimentUpsertForm = ({
                     />
                   </FormControl>
                   {field.value.startsWith("http://") && (
-                    <p className="text-dark-yellow text-sm">
+                    <p className="text-warning text-sm">
                       This endpoint uses plain HTTP: the payload and all headers
                       — including secret headers — will be sent unencrypted. Use
                       HTTPS for production endpoints.
@@ -364,7 +364,7 @@ export const RemoteExperimentUpsertForm = ({
                             content={existingRemoteExperiment.displaySecretKey}
                             defaultCollapsed={true}
                           />
-                          <div className="text-muted-foreground mt-1 text-xs">
+                          <div className="text-tertiary mt-1 text-xs">
                             Secret is encrypted and can only be viewed when
                             generated
                           </div>
@@ -453,7 +453,7 @@ export const RemoteExperimentUpsertForm = ({
                             {isSecret ? (
                               <Lock className="h-4 w-4 text-orange-500" />
                             ) : (
-                              <LockOpen className="text-muted-foreground h-4 w-4" />
+                              <LockOpen className="text-tertiary h-4 w-4" />
                             )}
                           </Button>
                           <Button

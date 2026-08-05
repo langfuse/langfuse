@@ -55,7 +55,7 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <span className="text-muted-foreground px-1 font-mono text-[10px] tabular-nums">
+        <span className="text-tertiary px-1 font-mono text-[10px] tabular-nums">
           {currentIndex + 1}/{total}
         </span>
         <Button

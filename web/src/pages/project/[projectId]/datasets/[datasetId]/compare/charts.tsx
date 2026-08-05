@@ -262,7 +262,7 @@ function DatasetCompareChartsLegacy() {
             ) : isLoading ? (
               <Skeleton className="h-52 w-full" />
             ) : (
-              <span className="text-muted-foreground -mt-2 text-sm">
+              <span className="text-tertiary -mt-2 text-sm">
                 {Boolean(chartDataMap?.size)
                   ? "All charts hidden. Enable them in the Charts dropdown."
                   : "Select more than one run to generate charts."}
@@ -282,7 +282,7 @@ function DatasetCompareChartsLegacy() {
             <div className="w-full space-y-4">
               <div>
                 <SubHeaderLabel title="Description" />
-                <span className="text-muted-foreground text-sm">
+                <span className="text-tertiary text-sm">
                   {dataset.data?.description ?? "No description"}
                 </span>
               </div>

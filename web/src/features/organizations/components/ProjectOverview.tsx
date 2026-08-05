@@ -103,7 +103,7 @@ const OrganizationProjectTiles = ({
               </CardHeader>
               {!project.deletedAt && lastTraceTimes && (
                 <CardContent className="pb-3">
-                  <p className="text-muted-foreground text-xs">
+                  <p className="text-tertiary text-xs">
                     {(() => {
                       const lastTraceAt = lastTraceTimes.find(
                         (t) => t.projectId === project.id,

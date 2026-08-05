@@ -13,8 +13,8 @@ export function ThemeToggle() {
       <div title="Light mode">
         <Sun
           className={cn(
-            theme === "light" ? "text-primary-accent" : "",
-            "text:primary hover:bg-input hover:text-primary-accent h-[1.6rem] w-[1.6rem] rounded-sm p-1",
+            theme === "light" ? "text-brand" : "",
+            "text:primary hover:bg-input hover:text-brand h-[1.6rem] w-[1.6rem] rounded-sm p-1",
           )}
           onClick={(e) => {
             e.preventDefault();
@@ -28,8 +28,8 @@ export function ThemeToggle() {
       <div title="Dark mode">
         <Moon
           className={cn(
-            theme === "dark" ? "text-primary-accent" : "",
-            "hover:bg-input hover:text-primary-accent h-[1.6rem] w-[1.6rem] rounded-sm p-1",
+            theme === "dark" ? "text-brand" : "",
+            "hover:bg-input hover:text-brand h-[1.6rem] w-[1.6rem] rounded-sm p-1",
           )}
           onClick={(e) => {
             e.preventDefault();
@@ -43,8 +43,8 @@ export function ThemeToggle() {
       <div title="System mode">
         <Monitor
           className={cn(
-            theme === "system" ? "text-primary-accent" : "",
-            "hover:bg-input hover:text-primary-accent h-[1.6rem] w-[1.6rem] rounded-sm p-1",
+            theme === "system" ? "text-brand" : "",
+            "hover:bg-input hover:text-brand h-[1.6rem] w-[1.6rem] rounded-sm p-1",
           )}
           onClick={(e) => {
             e.preventDefault();

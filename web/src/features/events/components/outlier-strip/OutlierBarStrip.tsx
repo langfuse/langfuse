@@ -353,7 +353,7 @@ export function OutlierBarStrip({
     return (
       <div
         className={cn(
-          "text-muted-foreground bg-muted/30 flex items-center justify-center rounded text-[11px]",
+          "text-tertiary bg-muted/30 flex items-center justify-center rounded text-[11px]",
           className,
         )}
         style={{ width: widthPx, height: heightPx + labelHeight }}
@@ -539,7 +539,7 @@ export function OutlierBarStrip({
       </svg>
 
       {!hasData && (
-        <span className="text-muted-foreground/70 pointer-events-none absolute inset-0 flex items-center justify-center text-[10px]">
+        <span className="text-tertiary/70 pointer-events-none absolute inset-0 flex items-center justify-center text-[10px]">
           {hasActivity
             ? `No ${metricSpec.shortLabel.toLowerCase()} data in range`
             : "No observations in range"}
@@ -552,7 +552,7 @@ export function OutlierBarStrip({
       {hovered && mouse && !activePreview && (
         <Layer name="tooltip">
           <div
-            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 text-[11px] leading-tight whitespace-nowrap shadow-sm"
+            className="bg-popover text-secondary pointer-events-none fixed rounded border px-1.5 py-1 text-[11px] leading-tight whitespace-nowrap shadow-sm"
             style={
               // Top-right of the cursor; flips to top-left near the viewport's
               // right edge so it never runs off screen.
@@ -569,7 +569,7 @@ export function OutlierBarStrip({
                   }
             }
           >
-            <div className="text-muted-foreground">
+            <div className="text-tertiary">
               {formatBucketRange(hovered.bucketStartMs, stepMs)}
             </div>
             <div className="font-bold">
@@ -579,7 +579,7 @@ export function OutlierBarStrip({
                   ? "no data"
                   : metricSpec.format(0)}
               {metric !== "count" && (
-                <span className="text-muted-foreground ml-1.5 font-normal">
+                <span className="text-tertiary ml-1.5 font-normal">
                   · {hovered.count} observations
                 </span>
               )}
@@ -596,7 +596,7 @@ export function OutlierBarStrip({
           <div
             key={`${activePreview.fromMs}:${activePreview.toMs}`}
             ref={measurePreview}
-            className="bg-popover text-popover-foreground fixed max-w-[calc(100vw-16px)] rounded border px-2 py-1.5 text-[11px] leading-tight whitespace-nowrap shadow-md"
+            className="bg-popover text-secondary fixed max-w-[calc(100vw-16px)] rounded border px-2 py-1.5 text-[11px] leading-tight whitespace-nowrap shadow-md"
             style={{
               // Clamp the center so the measured box stays fully on-screen —
               // edge-of-viewport taps would otherwise clip half the tooltip.
@@ -616,7 +616,7 @@ export function OutlierBarStrip({
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-muted-foreground">
+                <div className="text-tertiary">
                   {formatBucketRange(
                     activePreview.fromMs,
                     activePreview.toMs - activePreview.fromMs,
@@ -629,7 +629,7 @@ export function OutlierBarStrip({
                       ? "no data"
                       : metricSpec.format(0)}
                   {metric !== "count" && (
-                    <span className="text-muted-foreground ml-1.5 font-normal">
+                    <span className="text-tertiary ml-1.5 font-normal">
                       · {previewStats.count} observations
                     </span>
                   )}
@@ -638,7 +638,7 @@ export function OutlierBarStrip({
               <button
                 type="button"
                 aria-label="Dismiss preview"
-                className="text-muted-foreground -mt-0.5 -mr-0.5 p-0.5"
+                className="text-tertiary -mt-0.5 -mr-0.5 p-0.5"
                 onClick={() => {
                   setTouchPreview(null);
                   setHoverIndex(null);

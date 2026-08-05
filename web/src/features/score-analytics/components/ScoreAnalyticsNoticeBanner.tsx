@@ -39,7 +39,7 @@ export function ScoreAnalyticsNoticeBanner() {
     return (
       <div className="bg-muted mb-4 rounded-md px-4 py-3">
         <div className="flex items-start gap-3">
-          <Clock className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+          <Clock className="text-tertiary mt-0.5 h-4 w-4 shrink-0" />
           <div className="flex-1 space-y-1">
             <div className="text-sm font-bold">
               {showLargeDataset
@@ -47,7 +47,7 @@ export function ScoreAnalyticsNoticeBanner() {
                 : "Loading analytics..."}
             </div>
             {estimate && (
-              <div className="text-muted-foreground text-sm">
+              <div className="text-tertiary text-sm">
                 {estimate.mode === "single"
                   ? `Analyzing ~${estimate.score1Count.toLocaleString()} scores`
                   : `Analyzing ~${estimate.score1Count.toLocaleString()} (Score 1) and ~${estimate.score2Count.toLocaleString()} (Score 2) scores`}
@@ -68,7 +68,7 @@ export function ScoreAnalyticsNoticeBanner() {
     return (
       <div className="bg-muted mb-4 rounded-md px-4 py-3">
         <div className="flex items-start gap-3">
-          <Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+          <Info className="text-tertiary mt-0.5 h-4 w-4 shrink-0" />
           <div className="flex-1 space-y-1">
             <div className="flex items-center gap-2 text-sm font-bold">
               Sampled Data
@@ -77,7 +77,7 @@ export function ScoreAnalyticsNoticeBanner() {
                 mode={data.metadata.mode}
               />
             </div>
-            <div className="text-muted-foreground text-sm">
+            <div className="text-tertiary text-sm">
               {data.metadata.mode === "single"
                 ? `Results based on a ${(data.samplingMetadata.samplingRate * 100).toFixed(2)}% sample of ~${data.samplingMetadata.preflightEstimates?.score1Count.toLocaleString()} scores.`
                 : `Results based on a ${(data.samplingMetadata.samplingRate * 100).toFixed(2)}% sample of ~${data.samplingMetadata.preflightEstimates?.score1Count.toLocaleString()} Score 1 and ~${data.samplingMetadata.preflightEstimates?.score2Count.toLocaleString()} Score 2 data.`}

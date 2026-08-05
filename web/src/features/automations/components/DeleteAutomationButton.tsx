@@ -64,10 +64,10 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
           <Button
             type="button"
             variant="outline"
-            className="border-light-red flex items-center"
+            className="border-danger-tint flex items-center"
             disabled={!hasAccess}
           >
-            <span className="text-dark-red">Delete</span>
+            <span className="text-danger">Delete</span>
           </Button>
         )}
       </PopoverTrigger>

@@ -21,7 +21,7 @@ export const TotalMetric = ({
       )}
     >
       <div className="text-3xl font-bold">{metric}</div>
-      <p className="text-muted-foreground text-sm">{description}</p>
+      <p className="text-tertiary text-sm">{description}</p>
       {children}
     </div>
   );

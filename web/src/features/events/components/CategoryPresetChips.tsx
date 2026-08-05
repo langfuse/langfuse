@@ -243,7 +243,7 @@ export function CategoryPresetChips({
                 if (openedByPointerRef.current) event.preventDefault();
               }}
             >
-              <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
+              <div className="text-tertiary px-2 py-1.5 text-xs font-bold">
                 {label}
               </div>
               <div className="max-h-72 overflow-y-auto">
@@ -324,20 +324,20 @@ export function CategoryPresetChips({
                         "flex w-full items-start justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm",
                         preset.disabled
                           ? "cursor-default opacity-60"
-                          : "hover:bg-accent",
+                          : "hover:bg-hover",
                       )}
                     >
                       <span className="flex flex-col">
                         <span className="flex items-center gap-1.5 font-bold">
                           {preset.name}
                           {preset.disabled && (
-                            <span className="text-muted-foreground rounded-sm border px-1 text-[10px] font-normal uppercase">
+                            <span className="text-tertiary rounded-sm border px-1 text-[10px] font-normal uppercase">
                               Soon
                             </span>
                           )}
                         </span>
                         {preset.description && (
-                          <span className="text-muted-foreground text-xs">
+                          <span className="text-tertiary text-xs">
                             {preset.description}
                           </span>
                         )}

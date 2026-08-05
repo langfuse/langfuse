@@ -95,7 +95,7 @@ const Slider = React.forwardRef<
           className="relative flex w-full touch-none items-center select-none"
           {...props}
         >
-          <SliderPrimitive.Track className="bg-secondary relative h-2 w-full grow overflow-hidden rounded-full">
+          <SliderPrimitive.Track className="bg-muted relative h-2 w-full grow overflow-hidden rounded-full">
             <SliderPrimitive.Range
               className={cn(
                 "absolute h-full",
@@ -107,8 +107,8 @@ const Slider = React.forwardRef<
             <SliderPrimitive.Thumb
               key={index}
               className={cn(
-                "bg-background ring-offset-background focus-visible:ring-ring block h-4 w-4 rounded-full border-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50",
-                props.disabled ? "border-secondary" : "border-primary",
+                "bg-canvas ring-offset-canvas focus-visible:ring-focus block h-4 w-4 rounded-full border-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50",
+                props.disabled ? "border-muted" : "border-primary",
               )}
             />
           ))}
@@ -141,7 +141,7 @@ const Slider = React.forwardRef<
               aria-label="Slider value"
             />
             {displayAsPercentage && (
-              <span className="text-muted-foreground text-sm">%</span>
+              <span className="text-tertiary text-sm">%</span>
             )}
           </div>
         )}

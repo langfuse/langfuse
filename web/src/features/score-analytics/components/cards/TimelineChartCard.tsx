@@ -226,7 +226,7 @@ export function TimelineChartCard() {
           <CardTitle>Trend Over Time</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="text-muted-foreground flex h-[340px] items-center justify-center text-sm">
+        <CardContent className="text-tertiary flex h-[340px] items-center justify-center text-sm">
           Select a score to view trends
         </CardContent>
       </Card>
@@ -337,7 +337,7 @@ export function TimelineChartCard() {
             colors={chartColors}
           />
         ) : (
-          <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+          <div className="text-tertiary flex h-full items-center justify-center text-sm">
             No time series data available for the selected time range
           </div>
         )}

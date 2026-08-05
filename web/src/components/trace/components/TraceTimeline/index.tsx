@@ -236,13 +236,8 @@ export function TraceTimeline() {
   } = useTraceData();
   const { collapsedNodes, toggleCollapsed, selectedNodeId, setSelectedNodeId } =
     useSelection();
-  const {
-    showDuration,
-    showCostTokens,
-    showScores,
-    showComments,
-    colorCodeMetrics,
-  } = useViewPreferences();
+  const { showDuration, showCostTokens, showScores, showComments } =
+    useViewPreferences();
   const { handleHover } = useHandlePrefetchObservation();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -445,22 +440,6 @@ export function TraceTimeline() {
     }
   }, []);
 
-  // Parent totals for heatmap coloring (aggregate across all roots).
-  const parentTotalCost = useMemo(() => {
-    return roots.reduce(
-      (acc, r) => {
-        if (!r.totalCost) return acc;
-        return acc ? acc.plus(r.totalCost) : r.totalCost;
-      },
-      undefined as (typeof roots)[0]["totalCost"],
-    );
-  }, [roots]);
-  // MILLISECONDS: TimelineBar heat-maps ownDurationMs against this max, and
-  // the tree path (TraceTree rootTotalDuration) is ms too. traceDuration is
-  // seconds — passing it raw inflated the heat ratio ×1000, painting every
-  // duration label dark red.
-  const parentTotalDuration = traceDuration * 1000;
-
   // Score lookup: one pass over the scores instead of an O(scores) filter per
   // row per render. Two maps preserve the exact TRACE-vs-observation keying:
   // trace rows show every score of the trace, observation rows only their own.
@@ -554,7 +533,7 @@ export function TraceTimeline() {
           live in the shared navigation header (see PlaybackControls). */}
       <div className="flex shrink-0">
         <div
-          className="bg-background text-muted-foreground flex shrink-0 items-center pl-2 text-xs font-bold"
+          className="bg-canvas text-tertiary flex shrink-0 items-center pl-2 text-xs font-bold"
           style={{ width: `${gutterWidth}px` }}
         >
           <span className="truncate" title="Name">
@@ -591,7 +570,7 @@ export function TraceTimeline() {
                 onKeyDown={handleHandleKeyDown}
                 className={cn(
                   "absolute top-0 bottom-0 z-30 -ml-1.5 w-3 cursor-ew-resize select-none",
-                  "focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none",
+                  "focus-visible:ring-focus rounded focus-visible:ring-2 focus-visible:outline-none",
                 )}
                 style={{
                   transform: `translateX(${secToX(getPlayheadSec())}px)`,
@@ -703,9 +682,6 @@ export function TraceTimeline() {
                   showCostTokens={showCostTokens}
                   showScores={showScores}
                   showComments={showComments}
-                  colorCodeMetrics={colorCodeMetrics}
-                  parentTotalCost={parentTotalCost}
-                  parentTotalDuration={parentTotalDuration}
                   commentCount={comments.get(nodeId) ?? 0}
                   nodeScores={
                     (item.node.type === "TRACE"

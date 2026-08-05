@@ -1398,7 +1398,7 @@ export function WidgetForm({
                   showHintImmediately={chartLoadingState.showHintImmediately}
                   hintText={chartLoadingState.hintText}
                   progress={loadingProgress}
-                  className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+                  className="bg-elevated/80 absolute inset-0 z-20 backdrop-blur-xs"
                 />
               </div>
             </div>
@@ -1414,7 +1414,7 @@ export function WidgetForm({
                     progress={loadingProgress}
                   />
                 ) : (
-                  <p className="text-muted-foreground">
+                  <p className="text-tertiary">
                     Waiting for Input / Loading...
                   </p>
                 )}
@@ -1552,7 +1552,7 @@ function SingleMetricField({
             </SelectContent>
           </Select>
           {ctx.chartType === "HISTOGRAM" && (
-            <p className="text-muted-foreground text-xs">
+            <p className="text-tertiary text-xs">
               Aggregation is automatically set to &quot;histogram&quot; for
               histogram charts
             </p>
@@ -1657,7 +1657,7 @@ function PivotMetricsField({
                   variant="ghost"
                   size="sm"
                   onClick={() => removeSlot(index)}
-                  className="text-muted-foreground hover:text-destructive h-6 w-6 p-0"
+                  className="text-tertiary hover:text-destructive h-6 w-6 p-0"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -1894,7 +1894,7 @@ function PivotDimensionsField({
     <div className="space-y-4">
       <div>
         <h4 className="mb-2 text-sm font-bold">Row Dimensions</h4>
-        <p className="text-muted-foreground mb-3 text-xs">
+        <p className="text-tertiary mb-3 text-xs">
           Configure up to {MAX_PIVOT_TABLE_DIMENSIONS} dimensions for pivot
           table rows. Each dimension creates groupings with subtotals.
         </p>
@@ -1983,7 +1983,7 @@ function PivotSortField({
     <div className="space-y-4">
       <div>
         <h4 className="mb-2 text-sm font-bold">Default Sort Configuration</h4>
-        <p className="text-muted-foreground mb-3 text-xs">
+        <p className="text-tertiary mb-3 text-xs">
           Configure the default sort order for the pivot table. This will be
           applied when the widget is first loaded.
         </p>

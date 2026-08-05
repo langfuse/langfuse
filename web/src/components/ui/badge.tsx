@@ -5,21 +5,20 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-md border border-transparent font-bold transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center rounded-md border border-transparent font-bold transition-colors focus:outline-hidden focus:ring-2 focus:ring-focus focus:ring-offset-2",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        default: "bg-primary text-on-fill hover:bg-primary/80",
+        secondary: "bg-muted text-primary hover:bg-muted/80",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground",
-        "outline-solid": "border-input bg-background text-foreground",
-        tertiary: "bg-tertiary text-tertiary-foreground",
-        success: "bg-light-green text-dark-green",
-        error: "bg-light-red text-dark-red",
-        warning: "bg-light-yellow text-dark-yellow",
+        outline: "text-secondary",
+        "outline-solid": "border-input bg-canvas text-secondary",
+        tertiary: "bg-muted-gray text-primary",
+        success: "bg-success-tint text-success",
+        error: "bg-danger-tint text-danger",
+        warning: "bg-warning-tint text-warning",
       },
       size: {
         default: "px-2.5 py-0.5 text-xs",

@@ -19,7 +19,9 @@ const heightOptions = [
 ] as const;
 
 const defaultHeights: Record<RowHeight, string> = {
-  s: "h-7", // after removing the container around IO, we want the row height a bit more than 6
+  // h-7.25 (29px): a touch of air over the old h-7 at the compact text-xs
+  // size — tuned live in the 2026-07 design review.
+  s: "h-7.25",
   m: "h-24",
   l: "h-64",
 };

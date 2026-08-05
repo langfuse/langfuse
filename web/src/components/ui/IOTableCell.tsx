@@ -138,9 +138,7 @@ const IOTableCellContent = ({
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         borderless
       />
-      <div className="text-muted-foreground text-xs">
-        Content was truncated.
-      </div>
+      <div className="text-tertiary text-xs">Content was truncated.</div>
     </div>
   ) : (
     <JSONView

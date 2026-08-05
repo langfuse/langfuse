@@ -163,7 +163,7 @@ export default function ProtectedLabelsSettings({
                           aria-expanded={open}
                           className={cn(
                             "w-full justify-between",
-                            !field.value && "text-muted-foreground",
+                            !field.value && "text-tertiary",
                           )}
                           disabled={!hasAccess || !hasEntitlement}
                         >

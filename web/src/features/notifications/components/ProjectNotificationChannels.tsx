@@ -73,7 +73,7 @@ export function ProjectNotificationChannels({
   return (
     <div>
       <Header title="Project Notifications" />
-      <p className="text-muted-foreground mb-4 text-sm">
+      <p className="text-tertiary mb-4 text-sm">
         Manage project notifications. Channel notifications are sent in addition
         to the admin emails.
       </p>
@@ -94,7 +94,7 @@ export function ProjectNotificationChannels({
           <div className="flex flex-col gap-4">
             <div>
               <h3 className="text-lg font-bold">Events</h3>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 {hasChannels
                   ? "Choose which events are delivered to your channels."
                   : "Configure a channel above to enable project notifications."}
@@ -112,9 +112,7 @@ export function ProjectNotificationChannels({
                   )}
                 >
                   <p className="text-base font-bold">{event.title}</p>
-                  <p className="text-muted-foreground text-sm">
-                    {event.description}
-                  </p>
+                  <p className="text-tertiary text-sm">{event.description}</p>
                 </div>
                 <Switch
                   checked={isEventEnabled(event.value)}

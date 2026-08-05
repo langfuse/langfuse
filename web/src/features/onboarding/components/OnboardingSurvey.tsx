@@ -118,11 +118,11 @@ export function OnboardingSurvey() {
           <LangfuseIcon size={32} />
         </div>
 
-        <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
+        <div className="bg-canvas mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
           <div className="flex flex-col items-center text-center">
             <Spinner size="xl" variant="muted" />
             <h1 className="mt-6 text-xl font-bold">Setting up your project</h1>
-            <p className="text-muted-foreground mt-2 text-sm">
+            <p className="text-tertiary mt-2 text-sm">
               Taking you to tracing...
             </p>
           </div>
@@ -138,10 +138,10 @@ export function OnboardingSurvey() {
           <LangfuseIcon size={32} />
         </div>
 
-        <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
+        <div className="bg-canvas mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
           <div className="flex flex-col items-center text-center">
             <h1 className="text-xl font-bold">Failed to load onboarding</h1>
-            <p className="text-muted-foreground mt-2 text-sm">
+            <p className="text-tertiary mt-2 text-sm">
               Refresh the page to try again.
             </p>
           </div>
@@ -156,7 +156,7 @@ export function OnboardingSurvey() {
         <LangfuseIcon size={32} />
       </div>
 
-      <div className="bg-background mt-6 rounded-lg px-6 py-6 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-10">
+      <div className="bg-canvas mt-6 rounded-lg px-6 py-6 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-10">
         <Form {...form}>
           <form
             className="flex h-full flex-col"

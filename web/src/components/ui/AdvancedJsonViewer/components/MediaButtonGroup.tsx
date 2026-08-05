@@ -196,7 +196,7 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
         >
           <PopoverTrigger asChild>
             <button
-              className="hover:bg-accent relative flex h-6 w-6 items-center justify-center rounded"
+              className="hover:bg-hover relative flex h-6 w-6 items-center justify-center rounded"
               title={`${group.items.length} ${group.category} file${
                 group.items.length > 1 ? "s" : ""
               }`}
@@ -247,7 +247,7 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
             >
               <group.icon className="h-3.5 w-3.5" />
               {group.items.length > 1 && (
-                <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] font-bold">
+                <span className="bg-primary text-on-fill absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] font-bold">
                   {group.items.length}
                 </span>
               )}

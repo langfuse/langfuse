@@ -120,7 +120,7 @@ const ScoreCommentPeek = ({
           className="inline-flex cursor-pointer"
           aria-label="View score comment"
         >
-          <MessageCircleMore size={12} className="text-muted-foreground" />
+          <MessageCircleMore size={12} className="text-tertiary" />
         </button>
       </HoverCardTrigger>
       <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
@@ -129,7 +129,7 @@ const ScoreCommentPeek = ({
             onClick={handleCopy}
             variant="ghost"
             size="icon-xs"
-            className="hover:bg-accent rounded p-1"
+            className="hover:bg-hover rounded p-1"
             aria-label={copied ? "Copied" : "Copy to clipboard"}
           >
             {copied ? (
@@ -144,7 +144,7 @@ const ScoreCommentPeek = ({
           {executionTraceId && (
             <Link
               href={`/project/${projectId}/traces/${encodeURIComponent(executionTraceId)}`}
-              className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+              className="text-link hover:text-link-hover mt-2 flex items-center gap-1 hover:underline"
               target="_blank"
               rel="noopener noreferrer"
               onClick={(event) => event.stopPropagation()}
@@ -195,7 +195,7 @@ const ScoreMetadataPeek = ({
   return (
     <HoverCard onOpenChange={setIsOpen}>
       <HoverCardTrigger className="inline-flex cursor-pointer">
-        <BracesIcon size={12} className="text-muted-foreground" />
+        <BracesIcon size={12} className="text-tertiary" />
       </HoverCardTrigger>
       <HoverCardContent className="overflow-hidden rounded-md border-none p-0 text-xs break-normal whitespace-normal">
         {metadataLoaded ? (
@@ -256,7 +256,7 @@ const ScoreItem = ({
         {showScoreLevelLabel && <ScoreTag level={level} />}
         <HoverCard>
           <HoverCardTrigger className="min-w-0 cursor-default">
-            <span className="text-muted-foreground block truncate" title={name}>
+            <span className="text-tertiary block truncate" title={name}>
               {name}
             </span>
           </HoverCardTrigger>
@@ -267,11 +267,11 @@ const ScoreItem = ({
           >
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Source:</span>
+                <span className="text-tertiary">Source:</span>
                 <span className="capitalize">{source.toLowerCase()}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Type:</span>
+                <span className="text-tertiary">Type:</span>
                 <span className="capitalize">{dataType.toLowerCase()}</span>
               </div>
             </div>
@@ -280,7 +280,7 @@ const ScoreItem = ({
       </div>
       <div className="flex items-center gap-1">
         {displayValue === "-" ? (
-          <span className="text-muted-foreground text-xs">-</span>
+          <span className="text-tertiary text-xs">-</span>
         ) : (
           <Badge variant="secondary" className="text-xs">
             {displayValue}
@@ -337,7 +337,7 @@ const MetadataItem = ({
   children: React.ReactNode;
 }) => (
   <div className="flex items-center justify-between gap-4 text-xs">
-    <span className="text-muted-foreground shrink-0">{label}</span>
+    <span className="text-tertiary shrink-0">{label}</span>
     <div
       className="min-w-0 truncate"
       title={getPlainTextFromReactNode(children)}
@@ -370,7 +370,7 @@ const GroupSection = ({
             )}
           />
         )}
-        <span className="text-muted-foreground text-[10px] font-bold uppercase">
+        <span className="text-tertiary text-[10px] font-bold uppercase">
           {header}
         </span>
       </div>
@@ -571,7 +571,7 @@ export const ExperimentGridCell = ({
                   {data.totalCost != null ? (
                     usdFormatter(data.totalCost, 2, 6)
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <span className="text-tertiary">-</span>
                   )}
                   {data.totalCostDiff && (
                     <DiffLabel
@@ -592,7 +592,7 @@ export const ExperimentGridCell = ({
                   {data.latencyMs != null ? (
                     latencyFormatter(data.latencyMs)
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <span className="text-tertiary">-</span>
                   )}
                   {data.latencyDiff && (
                     <DiffLabel
@@ -697,7 +697,7 @@ export const ExperimentGridCell = ({
 export const ExperimentGridCellEmpty = () => {
   return (
     <div className="flex h-full w-full min-w-0 items-start justify-start p-2">
-      <span className="text-muted-foreground text-xs">No data</span>
+      <span className="text-tertiary text-xs">No data</span>
     </div>
   );
 };

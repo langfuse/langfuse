@@ -71,7 +71,7 @@ function TimelineGutterRowShellComponent({
       }}
       className={cn(
         "transition-colors duration-150",
-        isActive && "bg-primary-accent/15",
+        isActive && "bg-brand/15",
       )}
     >
       <TimelineGutterRow
@@ -97,7 +97,6 @@ type ChartRowShellProps = RowShellSharedProps & {
   showCostTokens: boolean;
   showScores: boolean;
   showComments: boolean;
-  colorCodeMetrics: boolean;
   parentTotalCost?: Decimal;
   parentTotalDuration?: number;
   commentCount: number;
@@ -115,7 +114,6 @@ function TimelineChartRowShellComponent({
   showCostTokens,
   showScores,
   showComments,
-  colorCodeMetrics,
   parentTotalCost,
   parentTotalDuration,
   commentCount,
@@ -142,9 +140,9 @@ function TimelineChartRowShellComponent({
         // against the row; a playhead-active row glows with the same accent;
         // hover stays neutral.
         isSelected
-          ? "bg-primary-accent/10"
+          ? "bg-brand/10"
           : isActive
-            ? "bg-primary-accent/15"
+            ? "bg-brand/15"
             : isHovered
               ? "bg-muted"
               : "",
@@ -161,7 +159,6 @@ function TimelineChartRowShellComponent({
         showCostTokens={showCostTokens}
         showScores={showScores}
         showComments={showComments}
-        colorCodeMetrics={colorCodeMetrics}
         parentTotalCost={parentTotalCost}
         parentTotalDuration={parentTotalDuration}
         commentCount={commentCount}

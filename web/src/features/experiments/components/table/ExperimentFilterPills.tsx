@@ -93,7 +93,7 @@ function FilterPillWithTarget({
       <span className="truncate" title={filterLabel}>
         {filterLabel}
       </span>
-      <span className="text-muted-foreground shrink-0">→</span>
+      <span className="text-tertiary shrink-0">→</span>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
@@ -107,7 +107,7 @@ function FilterPillWithTarget({
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-[200px] p-1" align="start">
-          <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
+          <div className="text-tertiary px-2 py-1.5 text-xs font-bold">
             Target Experiment
           </div>
           <div className="space-y-0.5">

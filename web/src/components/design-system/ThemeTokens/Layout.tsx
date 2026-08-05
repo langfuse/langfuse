@@ -64,7 +64,7 @@ function RadiusSample({
       <div
         className="h-7 w-16 border"
         style={{
-          background: ctx.color("--muted"),
+          background: ctx.color("--bg-muted"),
           borderColor: ctx.color("--border-contrast"),
           borderRadius: radius,
         }}
@@ -117,8 +117,8 @@ function BannerSystemSample({ ctx }: { ctx: TokenContext }) {
       <div
         className="flex items-center justify-center border-b px-2 py-1"
         style={{
-          background: ctx.color("--light-yellow"),
-          color: ctx.color("--dark-yellow"),
+          background: ctx.color("--warning-tint"),
+          color: ctx.color("--warning"),
         }}
       >
         <span className="font-mono text-[10px]">
@@ -126,15 +126,15 @@ function BannerSystemSample({ ctx }: { ctx: TokenContext }) {
         </span>
       </div>
       <div className="flex grow flex-col gap-1 p-2">
-        <span className="text-muted-foreground font-mono text-[10px]">
+        <span className="text-tertiary font-mono text-[10px]">
           app content · height = --spacing-screen-with-banner
         </span>
-        <span className="text-muted-foreground font-mono text-[10px]">
+        <span className="text-tertiary font-mono text-[10px]">
           sticky/fixed elements offset by --banner-offset
         </span>
         <div
           className="mt-1 grow rounded-sm border"
-          style={{ background: ctx.color("--card") }}
+          style={{ background: ctx.color("--bg-elevated") }}
         />
       </div>
     </div>
@@ -183,9 +183,11 @@ export function LayoutOffsetsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
 
 const LAYERS: Array<{ token: string; label: string }> = [
   { token: "--background", label: "app canvas" },
-  { token: "--card", label: "elevated panel" },
-  { token: "--popover", label: "menus & tooltips" },
-  { token: "--modal", label: "dialogs" },
+  {
+    token: "--bg-elevated",
+    label: "elevated: card + dialogs (--modal is this tier)",
+  },
+  { token: "--bg-popover", label: "menus & tooltips — above modals by design" },
 ];
 
 function LayerStack({
@@ -232,7 +234,7 @@ export function LayeringSection({
   return (
     <PageSection
       title="Layering model"
-      blurb="Surfaces stack from the canvas outward. Use the tiers in order; skipping flattens the depth cues."
+      blurb="Each dark layer steps lighter (light alternates back to white); elevation is lightness plus hairline borders, not shadows — never paint a surface darker than what it floats above."
       aside={<InlineCode>{layers.length} tiers</InlineCode>}
     >
       <div className="grid gap-4 lg:grid-cols-2">
@@ -246,6 +248,12 @@ export function LayeringSection({
           </div>
         ))}
       </div>
+      <p className="text-tertiary text-sm">
+        The sidebar frame (<InlineCode>--bg-elevated</InlineCode>) lifts one
+        step off the canvas beside this stack; code blocks ride{" "}
+        <InlineCode>bg-muted</InlineCode> — full ladder on the Color page&apos;s
+        surface hierarchy.
+      </p>
     </PageSection>
   );
 }
@@ -286,7 +294,7 @@ export function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
             style={{
               left: `${16 + index * 28}px`,
               top: `${16 + index * 34}px`,
-              background: ctx.color("--card"),
+              background: ctx.color("--bg-elevated"),
               color: ctx.color("--foreground"),
             }}
           >
@@ -300,11 +308,11 @@ export function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
             </span>
           </div>
         ))}
-        <span className="text-muted-foreground absolute right-3 bottom-2 font-mono text-[10px]">
+        <span className="text-tertiary absolute right-3 bottom-2 font-mono text-[10px]">
           later in LAYER_ORDER paints on top ↘
         </span>
       </div>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-tertiary text-sm">
         Source of truth: <InlineCode>LAYER_ORDER</InlineCode> in{" "}
         <code className="font-mono">components/ui/layer.tsx</code>, enforced by
         the <code className="font-mono">@repo/no-overlay-zindex</code> lint
@@ -419,7 +427,7 @@ export function Layout() {
         <LayerSystemSection ctx={ctx} />
         <BreakpointsNote />
         <AnimationsSection {...rowContexts} />
-        <p className="text-muted-foreground text-sm">
+        <p className="text-tertiary text-sm">
           Component spacing uses Tailwind&apos;s default rem scale (
           <InlineCode>p-2</InlineCode>, <InlineCode>gap-4</InlineCode>, …).
         </p>

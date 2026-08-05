@@ -80,8 +80,8 @@ export function Callout({
 
   const variantClass =
     variant === "warning"
-      ? "border-light-yellow bg-light-yellow dark:border-light-yellow dark:bg-light-yellow"
-      : "border-light-blue bg-light-blue dark:border-light-blue dark:bg-light-blue";
+      ? "border-warning-tint bg-warning-tint dark:border-warning-tint dark:bg-warning-tint"
+      : "border-info-tint bg-info-tint dark:border-info-tint dark:bg-info-tint";
   const alignmentClass = align === "middle" ? "items-center" : "items-start";
 
   const alignmentOverrides =
@@ -96,14 +96,14 @@ export function Callout({
       <AlertDescription
         className={`flex ${alignmentClass} ml-1 justify-between`}
       >
-        <div className="text-foreground flex-1 text-sm">{children}</div>
+        <div className="text-secondary flex-1 text-sm">{children}</div>
         <div className="ml-4 flex items-center gap-2">
           {actions && actions()}
           <Button
             variant="ghost"
             size="sm"
             onClick={handleDismiss}
-            className="text-muted-foreground hover:text-foreground h-6 w-6 p-0"
+            className="text-tertiary hover:text-secondary h-6 w-6 p-0"
             aria-label="Dismiss"
           >
             <X className="h-4 w-4" />

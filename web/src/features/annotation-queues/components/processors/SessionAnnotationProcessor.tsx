@@ -115,7 +115,7 @@ export const SessionAnnotationProcessor: React.FC<
   const leftPanel = (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Sticky Header */}
-      <div className="bg-background shrink-0">
+      <div className="bg-canvas shrink-0">
         <div className="mt-3 grid w-full grid-cols-[auto_auto] items-start justify-between gap-2 px-4">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
@@ -214,7 +214,7 @@ export const SessionAnnotationProcessor: React.FC<
                   >
                     Trace: {trace.name} ({trace.id})&nbsp;↗
                   </Link>
-                  <div className="text-muted-foreground text-xs">
+                  <div className="text-tertiary text-xs">
                     {trace.timestamp.toLocaleString()}
                   </div>
                 </div>

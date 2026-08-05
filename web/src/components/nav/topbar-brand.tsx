@@ -61,7 +61,7 @@ export const TopbarBrand = ({
             alt="Logo"
             className="hidden max-h-5 max-w-16 dark:block"
           />
-          <PlusIcon size={8} className="text-muted-foreground" />
+          <PlusIcon size={8} className="text-tertiary" />
           <LangfuseIcon size={16} />
         </>
       ) : variant === "wordmark" ? (

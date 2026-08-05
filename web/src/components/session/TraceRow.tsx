@@ -68,7 +68,7 @@ const TraceRow = React.memo(
             <div className="mb-4 flex flex-col gap-2">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
-                className="hover:bg-accent flex items-start gap-2 rounded-lg border p-2 transition-colors"
+                className="hover:bg-hover flex items-start gap-2 rounded-lg border p-2 transition-colors"
                 onClick={(e) => {
                   if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
                     e.preventDefault();
@@ -83,7 +83,7 @@ const TraceRow = React.memo(
                   <span className="text-xs font-bold wrap-break-word">
                     {trace.name} ({trace.id})&nbsp;↗
                   </span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-tertiary text-xs">
                     {trace.timestamp.toLocaleString()}
                   </span>
                 </div>

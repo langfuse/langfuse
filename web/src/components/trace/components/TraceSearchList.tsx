@@ -60,8 +60,8 @@ export function TraceSearchList() {
     return (
       <div className="flex h-full flex-col items-center justify-center p-8 text-center">
         <div className="space-y-4">
-          <p className="text-muted-foreground">No results found</p>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary">No results found</p>
+          <p className="text-tertiary text-sm">
             Try searching by type, title, or id
           </p>
           <Button

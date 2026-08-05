@@ -73,7 +73,7 @@ const fakeSavedViews = (
 // a facet list that flows at NATURAL height (no internal scroll), so it reads
 // correctly inside the sheet's single body scroll.
 const fakeFacets = (
-  <div className="bg-background flex w-full flex-col border-t">
+  <div className="bg-canvas flex w-full flex-col border-t">
     <div className="flex h-10 shrink-0 items-center gap-1.5 border-b px-3">
       <span className="text-sm font-bold">Filters</span>
     </div>
@@ -90,10 +90,7 @@ const fakeFacets = (
         "Cost",
         "Metadata",
       ].map((facet) => (
-        <div
-          key={facet}
-          className="text-muted-foreground border-b px-3 py-2 text-sm"
-        >
+        <div key={facet} className="text-tertiary border-b px-3 py-2 text-sm">
           {facet}
         </div>
       ))}

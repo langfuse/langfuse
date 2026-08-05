@@ -69,14 +69,14 @@ export const AutomationExecutionsTable: React.FC<
       id: "startedAt",
       cell: ({ row }) => {
         const value = row.getValue("startedAt") as string | null;
-        if (!value) return <span className="text-muted-foreground">-</span>;
+        if (!value) return <span className="text-tertiary">-</span>;
         const date = new Date(value);
         return (
           <div className="flex flex-col">
             <span className="text-xs">
               {formatDistanceToNow(date, { addSuffix: true })}
             </span>
-            <span className="text-muted-foreground text-xs">
+            <span className="text-tertiary text-xs">
               {date.toLocaleString()}
             </span>
           </div>
@@ -89,7 +89,7 @@ export const AutomationExecutionsTable: React.FC<
       id: "duration",
       cell: ({ row }) => {
         const duration = row.getValue("duration") as number | null;
-        if (!duration) return <span className="text-muted-foreground">-</span>;
+        if (!duration) return <span className="text-tertiary">-</span>;
         return (
           <span className="text-nowrap">{formatIntervalSeconds(duration)}</span>
         );
@@ -110,7 +110,7 @@ export const AutomationExecutionsTable: React.FC<
       id: "output",
       cell: ({ row }) => {
         const value = row.getValue("output");
-        if (!value) return <span className="text-muted-foreground">-</span>;
+        if (!value) return <span className="text-tertiary">-</span>;
         return <IOTableCell data={value} />;
       },
     },
@@ -121,7 +121,7 @@ export const AutomationExecutionsTable: React.FC<
       size: 150,
       cell: ({ row }) => {
         const value = row.getValue("error") as string | null;
-        if (!value) return <span className="text-muted-foreground">-</span>;
+        if (!value) return <span className="text-tertiary">-</span>;
         return value;
       },
     },

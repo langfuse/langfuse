@@ -167,14 +167,14 @@ export const BigNumber: React.FC<ChartProps> = ({
         {displayValue.prefix && (
           <span
             className={cn(
-              "text-muted-foreground font-bold",
+              "text-tertiary font-bold",
               getAffixFontSize(fontSize),
             )}
           >
             {displayValue.negative && (
               <span
                 className={cn(
-                  "text-foreground font-bold tracking-tight",
+                  "text-secondary font-bold tracking-tight",
                   fontSize,
                 )}
               >
@@ -195,7 +195,7 @@ export const BigNumber: React.FC<ChartProps> = ({
         {displayValue.suffix && (
           <span
             className={cn(
-              "text-muted-foreground font-bold",
+              "text-tertiary font-bold",
               getAffixFontSize(fontSize),
             )}
           >

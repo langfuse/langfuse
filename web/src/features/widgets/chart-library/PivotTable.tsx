@@ -137,7 +137,7 @@ const SortableHeader: React.FC<{
         )}
 
         {/* Visual indicator that appears on hover - matches traces table behavior */}
-        <div className="bg-secondary pointer-events-none absolute top-0 right-0 h-full w-1.5 touch-none opacity-0 select-none group-hover/header:opacity-100" />
+        <div className="bg-muted pointer-events-none absolute top-0 right-0 h-full w-1.5 touch-none opacity-0 select-none group-hover/header:opacity-100" />
       </div>
     </TableHead>
   );
@@ -348,7 +348,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <p className="text-muted-foreground text-sm">No data available</p>
+          <p className="text-tertiary text-sm">No data available</p>
         </div>
       </div>
     );
@@ -363,7 +363,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             Unable to process data for pivot table
           </p>
         </div>

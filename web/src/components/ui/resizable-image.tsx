@@ -153,7 +153,7 @@ export const ResizableImage = ({
               />
               <Button
                 type="button"
-                className="group-hover:bg-accent/30! absolute top-0 right-0 mt-1 mr-1 h-8 w-8 opacity-0 group-hover:opacity-100"
+                className="group-hover:bg-hover/30! absolute top-0 right-0 mt-1 mr-1 h-8 w-8 opacity-0 group-hover:opacity-100"
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsZoomedIn(!isZoomedIn)}
@@ -166,7 +166,7 @@ export const ResizableImage = ({
               </Button>
             </>
           ) : (
-            <div className="bg-muted/30 text-muted-foreground/60 flex w-full items-center gap-2 rounded border border-dashed p-2 text-xs">
+            <div className="bg-muted/30 text-tertiary/60 flex w-full items-center gap-2 rounded border border-dashed p-2 text-xs">
               <Button
                 title="Render image"
                 type="button"

@@ -148,7 +148,7 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
                   );
                 }}
               />
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 Test this channel to verify the bot can send messages.
               </p>
             </div>

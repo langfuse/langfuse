@@ -32,17 +32,17 @@ export type DropzoneProps = {
 };
 
 const dropzoneVariants = cva(
-  "ring-offset-background focus-visible:ring-ring relative inline-flex h-auto w-full flex-col items-center justify-center overflow-hidden rounded-md text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+  "ring-offset-canvas focus-visible:ring-focus relative inline-flex h-auto w-full flex-col items-center justify-center overflow-hidden rounded-md text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
         compact:
-          "border-none bg-background p-0 text-left hover:bg-accent hover:text-accent-foreground",
+          "border-none bg-canvas p-0 text-left hover:bg-hover hover:text-on-hover",
         panel:
-          "border-border-contrast bg-secondary/50 border border-dashed p-8 hover:bg-accent hover:text-accent-foreground",
+          "border-border-contrast bg-muted/50 border border-dashed p-8 hover:bg-hover hover:text-on-hover",
       },
       isDragActive: {
-        true: "ring-ring ring-1 outline-hidden",
+        true: "ring-focus ring-1 outline-hidden",
         false: null,
       },
     },
@@ -151,7 +151,7 @@ export const Dropzone = ({
       )}
       {variant === "panel" && (
         <div className="flex flex-col items-center justify-center">
-          <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
+          <div className="bg-muted text-tertiary flex size-8 items-center justify-center rounded-md">
             <UploadIcon size={16} />
           </div>
           <p
@@ -165,7 +165,7 @@ export const Dropzone = ({
           </p>
           <p
             className={cn(
-              "text-muted-foreground w-full text-xs text-wrap",
+              "text-tertiary w-full text-xs text-wrap",
               !src?.length && "truncate",
             )}
             title={src?.length ? undefined : panelDescription}
@@ -173,9 +173,7 @@ export const Dropzone = ({
             {panelDescription}
           </p>
           {!src?.length && caption && (
-            <p className="text-muted-foreground text-xs text-wrap">
-              {caption}.
-            </p>
+            <p className="text-tertiary text-xs text-wrap">{caption}.</p>
           )}
         </div>
       )}

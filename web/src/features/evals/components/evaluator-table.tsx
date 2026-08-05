@@ -56,7 +56,7 @@ import {
 function DeprecatedChipCell() {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+      <span className="bg-warning-tint text-warning inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
         Deprecated
       </span>
     </div>
@@ -273,7 +273,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         const renderText = isEventTarget(targetObject)
           ? "observations"
           : targetObject;
-        return <span className="text-muted-foreground">{renderText}</span>;
+        return <span className="text-tertiary">{renderText}</span>;
       },
     }),
     columnHelper.accessor("filter", {

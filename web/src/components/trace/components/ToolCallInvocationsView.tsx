@@ -52,8 +52,8 @@ export function ToolCallInvocationsView({
             <div className="flex w-full items-center justify-between gap-2 py-1">
               {/* Left: Tool icon + number + name */}
               <div className="flex items-center gap-2">
-                <Wrench className="text-muted-foreground h-3.5 w-3.5" />
-                <span className="text-foreground font-mono text-xs font-bold">
+                <Wrench className="text-tertiary h-3.5 w-3.5" />
+                <span className="text-secondary font-mono text-xs font-bold">
                   {invocationNumber !== undefined && (
                     <span className="mr-1">{invocationNumber}.</span>
                   )}
@@ -63,7 +63,7 @@ export function ToolCallInvocationsView({
 
               {/* Right: Call ID if available */}
               {toolCall.id && (
-                <span className="text-muted-foreground font-mono text-xs">
+                <span className="text-tertiary font-mono text-xs">
                   {toolCall.id}
                 </span>
               )}
@@ -71,7 +71,7 @@ export function ToolCallInvocationsView({
 
             {/* Arguments view */}
             <div className="py-2 [&_.io-message-content]:px-0">
-              <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+              <div className="text-tertiary mb-1.5 text-xs font-bold">
                 Arguments
               </div>
               <PrettyJsonView

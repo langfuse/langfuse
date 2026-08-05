@@ -88,7 +88,7 @@ export function ScoreAnalyticsHeader({
           <HoverCardContent className="w-80">
             <div className="space-y-2">
               <h4 className="text-sm font-bold">Beta Feature</h4>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-tertiary text-sm">
                 Score analytics is currently in beta. We&apos;re actively
                 improving this feature and would love to hear your feedback.
               </p>

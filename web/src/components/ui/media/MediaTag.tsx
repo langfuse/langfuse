@@ -98,11 +98,11 @@ const MEDIA_KIND_ICON = {
 } satisfies Record<MediaKind, LucideIcon>;
 
 const mediaTagVariants = cva(
-  "focus-visible:ring-ring inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
+  "focus-visible:ring-focus inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden",
   {
     variants: {
       intent: {
-        default: "hover:bg-accent bg-background",
+        default: "hover:bg-hover bg-canvas",
         attachment:
           "border-blue-500/40 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50",
       },
@@ -162,7 +162,7 @@ const MEDIA_KIND_PREVIEW = {
     />
   ),
   file: () => (
-    <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
+    <div className="text-tertiary flex h-24 w-64 flex-col items-center justify-center gap-2">
       <File className="h-5 w-5" />
       <span className="text-xs">No inline preview</span>
     </div>
@@ -184,7 +184,7 @@ function PeekBody({
 }) {
   if (status === "error") {
     return (
-      <div className="text-muted-foreground flex h-24 w-64 flex-col items-center justify-center gap-2">
+      <div className="text-tertiary flex h-24 w-64 flex-col items-center justify-center gap-2">
         <ImageOff className="h-5 w-5" />
         <span className="text-xs">Failed to load media</span>
       </div>
@@ -286,7 +286,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
           className="flex w-auto max-w-sm flex-col gap-2 p-2"
         >
           <div className="flex items-center justify-between gap-4">
-            <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+            <div className="text-tertiary flex min-w-0 items-center gap-1.5 text-xs">
               <KindIcon kind={kind} className="h-3.5 w-3.5 shrink-0" />
               <span
                 className="truncate font-mono leading-none"
@@ -330,9 +330,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             )}
           </div>
           {description ? (
-            <p className="text-muted-foreground max-w-64 text-xs">
-              {description}
-            </p>
+            <p className="text-tertiary max-w-64 text-xs">{description}</p>
           ) : null}
           <PeekBody
             kind={kind}

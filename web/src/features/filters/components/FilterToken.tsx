@@ -2,7 +2,7 @@ import { cva } from "class-variance-authority";
 import { type ReactNode } from "react";
 
 const filterTokenVariants = cva(
-  "inline max-w-full rounded border border-border bg-secondary px-1.5 py-0.5 text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
+  "inline max-w-full rounded border border-border bg-secondary px-1.5 py-0.5 text-primary shadow-sm transition-colors hover:border-ring hover:bg-accent",
   {
     variants: {
       deactivated: {

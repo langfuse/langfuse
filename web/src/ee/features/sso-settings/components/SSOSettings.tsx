@@ -135,7 +135,7 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
   const heading = (
     <>
       <Header title="SSO Configuration" />
-      <p className="text-muted-foreground mb-4 text-sm">
+      <p className="text-tertiary mb-4 text-sm">
         Configure Single Sign-On per verified domain. Once active, every user
         signing in with that domain is redirected to your identity provider.
       </p>
@@ -206,7 +206,7 @@ function SsoConfigsTable({ orgId }: { orgId: string }) {
   if (verifiedDomains.length === 0) {
     return (
       <Card className="overflow-hidden">
-        <p className="text-muted-foreground px-6 py-12 text-center text-sm">
+        <p className="text-tertiary px-6 py-12 text-center text-sm">
           Verify a domain in the section above to configure SSO for it.
         </p>
       </Card>
@@ -226,7 +226,7 @@ function SsoConfigsTable({ orgId }: { orgId: string }) {
             <TableHead />
           </TableRow>
         </TableHeader>
-        <TableBody className="text-muted-foreground">
+        <TableBody className="text-tertiary">
           {verifiedDomains.map((row) => (
             <SsoConfigRow
               key={row.domain}
@@ -666,7 +666,7 @@ function CallbackUrlPanel({ callbackUrl }: { callbackUrl: string }) {
           </TableBody>
         </Table>
       </Card>
-      <p className="text-muted-foreground mt-2 text-xs">
+      <p className="text-tertiary mt-2 text-xs">
         Add this URL as an authorized redirect URI in your identity provider.
       </p>
     </div>

@@ -27,7 +27,7 @@ export function CloudRegionPicker({
   isSignUpPage?: boolean;
 }) {
   return (
-    <div className="bg-card mt-8 -mb-10 rounded-lg px-6 py-6 text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+    <div className="bg-elevated mt-8 -mb-10 rounded-lg px-6 py-6 text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
       <div className="flex w-full flex-col gap-2">
         <div>
           <span className="text-sm leading-none font-bold">
@@ -35,7 +35,7 @@ export function CloudRegionPicker({
             <DataRegionInfo />
           </span>
           {isSignUpPage && selectedRegion?.name === "HIPAA" ? (
-            <p className="text-muted-foreground text-xs">
+            <p className="text-tertiary text-xs">
               Demo project is not available in the HIPAA data region.
             </p>
           ) : null}
@@ -62,7 +62,7 @@ export function CloudRegionPicker({
         </Select>
 
         {selectedRegion?.name === "HIPAA" && (
-          <div className="bg-muted/50 text-muted-foreground mt-2 rounded-md p-3 text-xs">
+          <div className="bg-muted/50 text-tertiary mt-2 rounded-md p-3 text-xs">
             <p>
               The Business Associate Agreement (BAA) is only effective on the
               Cloud Pro and Teams plans.{" "}

@@ -18,7 +18,7 @@ export const LLMApiKeyComponent = (p: {
     return (
       <div>
         <Label className="text-xs font-bold">API key</Label>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-tertiary text-sm">
           LLM API Key only visible to Owner and Admin roles.
         </p>
       </div>
@@ -33,7 +33,7 @@ export const LLMApiKeyComponent = (p: {
     return (
       <div>
         <Label className="text-xs font-bold">API key</Label>
-        <p className="text-muted-foreground text-sm">Loading...</p>
+        <p className="text-tertiary text-sm">Loading...</p>
       </div>
     );
   }

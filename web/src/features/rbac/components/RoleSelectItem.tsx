@@ -52,8 +52,7 @@ export const RoleSelectItem = ({
               <p className="mt-2 text-xs font-bold">Project Scopes</p>
               <ul className="list-inside list-disc text-xs">{projectScopes}</ul>
               <p className="mt-2 border-t pt-2 text-xs">
-                Note:{" "}
-                <span className="text-muted-foreground">Muted scopes</span> are
+                Note: <span className="text-tertiary">Muted scopes</span> are
                 inherited from lower role.
               </p>
             </>
@@ -99,7 +98,7 @@ const reduceScopesToListItems = (
         return (
           <li key={resource}>
             <span>{resource}: </span>
-            <span className="text-muted-foreground">
+            <span className="text-tertiary">
               {inheritedActions.length > 0 ? inheritedActions.join(", ") : ""}
               {newActions.length > 0 && inheritedActions.length > 0 ? ", " : ""}
             </span>

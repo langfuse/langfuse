@@ -133,7 +133,7 @@ export default function UserPage() {
             <select
               id="tabs"
               name="tabs"
-              className="border-border bg-background text-foreground block w-full rounded-md py-2 pr-10 pl-3 text-base focus:outline-hidden sm:text-sm"
+              className="border-border bg-canvas text-secondary block w-full rounded-md py-2 pr-10 pl-3 text-base focus:outline-hidden sm:text-sm"
               defaultValue={currentTab}
               onChange={(e) => handleTabChange(e.currentTarget.value)}
             >
@@ -150,8 +150,8 @@ export default function UserPage() {
                     key={tab}
                     className={cn(
                       tab === currentTab
-                        ? "border-primary-accent text-foreground"
-                        : "text-muted-foreground hover:border-border hover:text-foreground border-transparent",
+                        ? "border-brand text-secondary"
+                        : "text-tertiary hover:border-border hover:text-secondary border-transparent",
                       "border-b-2 px-4 py-3 text-sm font-bold whitespace-nowrap",
                     )}
                     aria-current={tab === currentTab ? "page" : undefined}

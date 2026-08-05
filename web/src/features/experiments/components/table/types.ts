@@ -5,7 +5,7 @@ import { type ReactNode } from "react";
 // Shared font color palette for experiment rows/columns
 export const EXPERIMENT_COLOR_STYLES = [
   {
-    textClass: "text-foreground",
+    textClass: "text-secondary",
     markerClass: "bg-foreground",
     badgeClass: "border-foreground bg-foreground text-background",
   }, // Baseline - black

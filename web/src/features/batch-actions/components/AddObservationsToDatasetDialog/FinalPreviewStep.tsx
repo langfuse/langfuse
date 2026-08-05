@@ -65,7 +65,7 @@ export function FinalPreviewStep({
     <div className="h-[62vh] space-y-6 p-6">
       <div>
         <h3 className="text-lg font-bold">Review Configuration</h3>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-tertiary text-sm">
           Adding {totalCount} observation{totalCount !== 1 ? "s" : ""} to
           dataset &quot;
           {dataset.name}&quot;
@@ -100,13 +100,13 @@ export function FinalPreviewStep({
         </IssueBanner>
       )}
 
-      <div className="text-muted-foreground text-sm">
+      <div className="text-tertiary text-sm">
         Sample dataset item preview (from first selected observation):
       </div>
 
       {!observationData ? (
         <div className="bg-muted/30 flex h-64 items-center justify-center rounded-md border p-4">
-          <p className="text-muted-foreground text-sm">
+          <p className="text-tertiary text-sm">
             No observation data available for preview
           </p>
         </div>
@@ -213,7 +213,7 @@ function PreviewCard({
       </div>
       <div className="max-h-62 overflow-auto">
         {data === null ? (
-          <div className="text-muted-foreground p-4 text-sm italic">null</div>
+          <div className="text-tertiary p-4 text-sm italic">null</div>
         ) : (
           <JSONView json={data} className="text-xs" />
         )}

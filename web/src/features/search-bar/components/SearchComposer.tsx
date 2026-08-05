@@ -1286,7 +1286,7 @@ export function SearchComposer({
           onActivateAi !== undefined && !showGlobalDiagnostics
             ? "pr-20"
             : "pr-8",
-          "focus-within:ring-ring focus-within:ring-1",
+          "focus-within:ring-focus focus-within:ring-1",
           showGlobalDiagnostics &&
             "border-destructive focus-within:ring-destructive/40",
         )}
@@ -1298,7 +1298,7 @@ export function SearchComposer({
               // to clip against — otherwise the placeholder grows to its full
               // text width and runs under the top-right "Ask AI" button. The
               // reserved gap matches the surface's pr-20/pr-8.
-              "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
+              "text-tertiary pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
               // Mirror the surface's right reservation exactly: the "Ask AI"
               // button (right-20) is hidden while diagnostics show, when the
               // error icon takes over the top-right corner (right-8).
@@ -1375,7 +1375,7 @@ export function SearchComposer({
             forward Tab moves from the field onto this button (not past the bar).
             Deliberately NOT a Tab shortcut: while typing, Tab belongs to
             autocomplete navigation. Hidden while the error icon occupies the
-            corner. bg-background keeps it legible; onMouseDown preventDefault so a
+            corner. bg-canvas keeps it legible; onMouseDown preventDefault so a
             click doesn't blur the editor first. */}
         {onActivateAi !== undefined && !showGlobalDiagnostics && (
           <button
@@ -1394,11 +1394,11 @@ export function SearchComposer({
             }}
             className={cn(
               "absolute top-1.5 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
-              "bg-background text-muted-foreground font-sans text-xs",
-              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
-              // Match the app's focus ring (ring-ring) instead of the browser's
+              "bg-canvas text-tertiary font-sans text-xs",
+              "hover:border-border hover:text-secondary hover:bg-hover transition-colors",
+              // Match the app's focus ring (ring-focus) instead of the browser's
               // default blue outline, like the shared Button used elsewhere.
-              "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+              "ring-offset-canvas focus-visible:ring-focus focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
             )}
           >
             <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1510,8 +1510,8 @@ function RemoveTokenButton({
       style={{ left: position.left, top: position.top }}
       className={cn(
         "absolute z-20 inline-flex h-4 w-4 items-center justify-center rounded-sm",
-        "border-border bg-background text-muted-foreground border shadow-sm",
-        "hover:bg-accent hover:text-foreground focus:ring-ring focus:ring-1 focus:outline-none",
+        "border-border bg-canvas text-tertiary border shadow-sm",
+        "hover:bg-hover hover:text-secondary focus:ring-focus focus:ring-1 focus:outline-none",
       )}
       onMouseDown={(event) => event.preventDefault()}
       onClick={(event) => {

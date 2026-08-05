@@ -115,7 +115,7 @@ export function ScoreAnalytics(props: {
                 <div className="mt-2 grid gap-2 lg:grid-cols-2 lg:gap-4">
                   {/* aggregate */}
                   <div>
-                    <div className="text-muted-foreground mb-2 text-sm">
+                    <div className="text-tertiary mb-2 text-sm">
                       Total aggregate scores
                       {isNumericDataType(dataType) && (
                         // TODO: v2 histogram aggregates all rows server-side (no 10k cap).
@@ -153,7 +153,7 @@ export function ScoreAnalytics(props: {
                   </div>
                   {/* timeseries */}
                   <div>
-                    <div className="text-muted-foreground mb-2 text-sm">
+                    <div className="text-tertiary mb-2 text-sm">
                       {isNumericDataType(dataType)
                         ? "Moving average over time"
                         : "Scores over time"}
@@ -202,9 +202,7 @@ export function ScoreAnalytics(props: {
         </div>
       ) : Boolean(scoreKeysAndProps.data?.scoreColumns.length) ? (
         <div className="flex min-h-36 w-full flex-1 items-center justify-center rounded-md border">
-          <p className="text-muted-foreground">
-            Select a score to view analytics
-          </p>
+          <p className="text-tertiary">Select a score to view analytics</p>
         </div>
       ) : (
         <NoDataOrLoading isLoading={scoreKeysAndProps.isPending} />
