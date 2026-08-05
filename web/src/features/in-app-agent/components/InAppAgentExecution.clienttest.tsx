@@ -285,7 +285,6 @@ describe("in-app agent execution", () => {
         {
           isApproved: true,
           toolName: "dangerousTool",
-          executionMode: "foreground",
         },
       ],
     ]);
@@ -413,7 +412,6 @@ describe("in-app agent execution", () => {
         {
           isApproved: false,
           toolName: "langfuse_createTextPrompt",
-          executionMode: "background",
         },
       ],
     ]);
