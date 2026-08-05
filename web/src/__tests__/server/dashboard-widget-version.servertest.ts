@@ -87,7 +87,6 @@ describe("dashboard widget minVersion", () => {
           v4BetaToggleVisible: false,
           observationEvals: false,
           experimentsV4Enabled: false,
-          searchBar: false,
         },
         v4BetaEnabled,
         admin: true,

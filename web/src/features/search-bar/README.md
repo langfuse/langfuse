@@ -12,24 +12,12 @@ Generally available on the v4 events tables (no opt-in). Based on the
 ## Enablement
 
 - **Generally available on the v4 events tables** — every user gets the bar; it
-  is no longer a per-user Feature Preview opt-in. `hooks/useSearchBarEnabled.ts`
-  now returns `true` for everyone, so the bar renders wherever the v4 events
-  table does.
+  is no longer a per-user Feature Preview opt-in, so the bar renders wherever
+  the v4 events table does.
 - `EventsTable` activates the bar when the table is a full-page surface
   (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
   The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
-  Observations/Traces tables, so call sites still read as
-  `isBetaEnabled && useSearchBarEnabled()`.
-- **Rollout/rollback (temporary).** GA was shipped by force-on shim, not by
-  deleting the opt-in: `useSearchBarEnabled` hard-returns `true` and the
-  "Filter Search Bar" tile was removed from the Feature Preview modal, but the
-  `searchBar` flag plumbing is intentionally **left as dead code** for a day or
-  two so a rollback is a one-line revert. The pieces still present and marked
-  `TODO(remove ~2026-06-19)`: the `searchBar` entry in
-  `features/feature-flags/available-flags.ts`, the
-  `userAccount.setFeaturePreviewEnabled` allowlist, and the modal's
-  `PreviewFlag`/registry entry (`features/feature-previews/`). Once the rollout
-  is confirmed stable, delete those and inline `true` at the call site.
+  Observations/Traces tables.
 
 ## Query language
 
