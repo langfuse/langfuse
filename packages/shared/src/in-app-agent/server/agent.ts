@@ -23,11 +23,11 @@ import {
   createSandboxTools,
   createRedirectActionTool,
   filterInAppAgentAvailableLangfuseMcpTools,
-  getPublicInAppAgentMcpToolResultContent,
   type InAppAgentUserAccess,
   withOptionalSilentMcpOutput,
   withInAppAgentToolApproval,
 } from "./tools";
+import { toPublicEvent } from "./watch";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "../../features/filters/internalEnvironments";
@@ -349,19 +349,10 @@ export async function createAgUiStream(params: {
               return;
             }
 
-            const publicEvent =
-              agUiEvent.type === EventType.TOOL_CALL_RESULT &&
-              typeof agUiEvent.content === "string"
-                ? {
-                    ...agUiEvent,
-                    content: getPublicInAppAgentMcpToolResultContent(
-                      agUiEvent.content,
-                    ),
-                  }
-                : agUiEvent;
-
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify(publicEvent)}\n\n`),
+              encoder.encode(
+                `data: ${JSON.stringify(toPublicEvent(agUiEvent))}\n\n`,
+              ),
             );
           })
           .catch((error: unknown) => {

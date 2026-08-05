@@ -229,7 +229,7 @@ function isStaleClaimedRun(
 }
 
 /** Match foreground streaming by withholding private persisted event payloads. */
-function toPublicEvent(event: AgUiEvent): AgUiEvent {
+export function toPublicEvent(event: AgUiEvent): AgUiEvent {
   if (event.type === EventType.RUN_STARTED && event.input !== undefined) {
     const publicEvent = { ...event };
     delete publicEvent.input;

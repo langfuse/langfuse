@@ -512,16 +512,17 @@ export async function getConversationMessagesForDisplay(params: {
   projectId: string;
   conversationId: string;
 }) {
-  const messages = await getConversationMessages(params);
-  return dropEmptyAssistantMessages(
-    dropUnpairedAssistantToolCalls(messages),
-  ).map((message) =>
-    message.role === "tool"
-      ? {
-          ...message,
-          content: getPublicInAppAgentMcpToolResultContent(message.content),
-        }
-      : message,
+  return getConversationMessagesForDisplayFromEvents(
+    await getConversationEvents(params),
+  );
+}
+
+export function getConversationMessagesForDisplayFromEvents(
+  events: readonly PersistedConversationEvent[],
+) {
+  const messages = getMessagesFromPersistedEvents(events);
+  return redactSilentToolMessages(
+    dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages)),
   );
 }
 
@@ -702,7 +703,7 @@ function getMessagesFromPersistedEvents(
     accumulator.processEvent(event, runId);
   }
 
-  return accumulator.getMessages();
+  return redactSilentToolMessages(accumulator.getMessages());
 }
 
 function sanitizeConversationMessagesForReplay(
@@ -717,11 +718,8 @@ function sanitizeConversationMessagesForReplay(
   const messagesWithoutOrphanToolCalls = dropUnpairedAssistantToolCalls(
     messagesWithoutRedirectActions,
   );
-  const messagesWithoutSilentToolOutput = redactSilentToolMessages(
-    messagesWithoutOrphanToolCalls,
-  );
   return stripAssistantRunIds(
-    dropEmptyAssistantMessages(messagesWithoutSilentToolOutput),
+    dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
   );
 }
 
