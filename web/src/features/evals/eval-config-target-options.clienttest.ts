@@ -1,8 +1,9 @@
 import { EvalTargetObject } from "@langfuse/shared";
 import { resolveCheckboxOperator } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
+import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
 
-describe("eval config target filter options", () => {
+describe("eval config target behavior", () => {
   it("should exclude all non-trace targets when selecting trace", () => {
     const targetColumn = evalConfigFilterColumns.find(
       (col) => col.id === "target",
@@ -34,5 +35,16 @@ describe("eval config target filter options", () => {
         EvalTargetObject.EXPERIMENT,
       ]),
     });
+  });
+
+  it("uses semantic roots when remapping trace evaluators", () => {
+    expect(DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING).toEqual([
+      {
+        column: "isRootObservation",
+        operator: "=",
+        value: true,
+        type: "boolean",
+      },
+    ]);
   });
 });

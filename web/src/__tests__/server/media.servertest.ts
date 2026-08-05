@@ -15,6 +15,7 @@ import {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
+  MediaAssociationOrigin,
   type Media,
   type ObservationMedia,
   prisma,
@@ -319,6 +320,7 @@ describe("Media Upload API", () => {
         traceId,
         mediaId: result.mediaRecord?.id,
         field,
+        origin: MediaAssociationOrigin.CLIENT_UPLOAD,
       });
       expect(result.observationMediaRecord).toBeNull();
       expect(result.fetchMediaAssetResponse?.status).toBe(200);
@@ -372,6 +374,7 @@ describe("Media Upload API", () => {
         observationId,
         mediaId: result.mediaRecord?.id,
         field,
+        origin: MediaAssociationOrigin.CLIENT_UPLOAD,
       });
       expect(result.fetchMediaAssetResponse?.status).toBe(200);
       expect(result.fetchMediaAssetResponse?.headers.get("content-type")).toBe(

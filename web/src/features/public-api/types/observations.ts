@@ -179,6 +179,9 @@ export const transformDbToApiObservation = (
     bookmarked,
 
     public: _public,
+
+    // Exclude the V2-only logical root flag from V1 responses.
+    isRootObservation: _isRootObservation,
     ...rest
   } = observation as EventsObservation &
     ObservationPriceFields & {
@@ -333,10 +336,15 @@ export const GetObservationsV2Query = z.object({
   type: ObservationType.nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
+  sessionId: z.string().nullish(),
   level: z.enum(ObservationLevel).nullish(),
   traceId: z.string().nullish(),
   version: z.string().nullish(),
   parentObservationId: z.string().nullish(),
+  isRootObservation: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .optional(),
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime.optional(),
   toStartTime: stringDateTime.optional(),
@@ -360,6 +368,7 @@ const APIObservationV2 = z
     type: z.string(),
 
     // Basic fields (field group: basic)
+    isRootObservation: z.boolean().optional(),
     name: z.string().nullable().optional(),
     level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]).optional(),
     statusMessage: z.string().nullable().optional(),

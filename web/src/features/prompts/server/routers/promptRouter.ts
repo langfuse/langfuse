@@ -21,6 +21,7 @@ import {
   optionalPaginationZod,
   paginationZod,
   PromptLabelSchema,
+  PromptNameSchema,
   promptsTableCols,
   PromptType,
   StringNoHTMLNonEmpty,
@@ -358,7 +359,9 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         promptId: z.string(),
-        name: StringNoHTMLNonEmpty,
+        // Same rules as create: a duplicate is a new prompt, so reserved
+        // names / pipes / malformed paths must not slip in through this path.
+        name: PromptNameSchema,
         isSingleVersion: z.boolean(),
       }),
     )

@@ -157,55 +157,81 @@ const ObservationMcpFilterBaseSchema = z
     `Advanced observation filter object. Example: ${OBSERVATION_MCP_FILTER_EXAMPLE_JSON}. The explicit form ${OBSERVATION_MCP_FILTER_EXAMPLE_WITH_TYPE_JSON} is also accepted.`,
   );
 
-const ObservationMcpFilterSchema = z
-  .object({ column: z.string() })
-  .loose()
-  .superRefine((filter, ctx) => {
-    if (!OBSERVATION_MCP_FILTER_COLUMN_TYPES.has(filter.column)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["column"],
-        message: `Invalid observation filter column "${filter.column}". Call getObservationFilterSchema for accepted columns.`,
-      });
-      return;
-    }
+const normalizeExactObservationIdFilter = (filter: unknown) => {
+  if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
+    return filter;
+  }
 
-    const type = OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
+  const candidate = filter as Record<string, unknown>;
+  if (
+    candidate.column !== "id" ||
+    candidate.operator !== "=" ||
+    typeof candidate.value !== "string" ||
+    (candidate.type !== undefined && candidate.type !== "string")
+  ) {
+    return filter;
+  }
 
-    if (!type || !isObservationMcpFilterType(type)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["type"],
-        message: `Invalid observation filter type "${String(type)}" for column "${filter.column}".`,
-      });
-      return;
-    }
+  return {
+    ...candidate,
+    type: "stringOptions",
+    operator: "any of",
+    value: [candidate.value],
+  };
+};
 
-    const filterParseResult = OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](
-      filter.column,
-      Boolean(filter.type),
-    ).safeParse(filter);
-
-    if (!filterParseResult.success) {
-      for (const issue of filterParseResult.error.issues) {
+const ObservationMcpFilterSchema = z.preprocess(
+  normalizeExactObservationIdFilter,
+  z
+    .object({ column: z.string() })
+    .loose()
+    .superRefine((filter, ctx) => {
+      if (!OBSERVATION_MCP_FILTER_COLUMN_TYPES.has(filter.column)) {
         ctx.addIssue({
           code: "custom",
-          path: issue.path,
-          message: issue.message,
+          path: ["column"],
+          message: `Invalid observation filter column "${filter.column}". Call getObservationFilterSchema for accepted columns.`,
         });
+        return;
       }
-    }
-  })
-  .transform((filter) => {
-    const type =
-      filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
-    return singleFilter.parse(
-      filter.column === "tags"
-        ? { ...filter, type, column: "traceTags" }
-        : { ...filter, type },
-    );
-  });
+      const type = OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
+
+      if (!type || !isObservationMcpFilterType(type)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["type"],
+          message: `Invalid observation filter type "${String(type)}" for column "${filter.column}".`,
+        });
+        return;
+      }
+
+      const filterParseResult = OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE[type](
+        filter.column,
+        Boolean(filter.type),
+      ).safeParse(filter);
+
+      if (!filterParseResult.success) {
+        for (const issue of filterParseResult.error.issues) {
+          ctx.addIssue({
+            code: "custom",
+            path: issue.path,
+            message: issue.message,
+          });
+        }
+      }
+    })
+    .transform((filter) => {
+      const type =
+        filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
+
+      return singleFilter.parse(
+        filter.column === "tags"
+          ? { ...filter, type, column: "traceTags" }
+          : { ...filter, type },
+      );
+    }),
+);
 
 const ListObservationsBaseSchema = z.object({
   fields: ObservationFieldsSchema,
@@ -218,7 +244,16 @@ const ListObservationsBaseSchema = z.object({
   level: ObservationLevelDomain.optional(),
   traceId: z.string().optional(),
   version: z.string().optional(),
-  parentObservationId: z.string().optional(),
+  parentObservationId: z
+    .string()
+    .optional()
+    .describe("Physical parent observation ID to match exactly."),
+  isRootObservation: z
+    .boolean()
+    .optional()
+    .describe(
+      "Filter by logical root status. App-root observations can match true while retaining a non-null parentObservationId.",
+    ),
   // TODO: Re-enable string[] once the public observations API correctly
   // applies allow-multiple environment filters instead of dropping arrays.
   // see: https://linear.app/langfuse/issue/LFE-9852/bug-observations-api-accepts-multiple-environment-params-but-ignores
@@ -309,7 +344,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     "Find and review observations in the current Langfuse project, such as generations, spans, events, agent steps, and tool calls.",
     "Traces consist of observations. Use this tool when the user asks to inspect traces: pass traceId to page through the observations for a specific trace; those observation records are the trace data returned by the API.",
     "Use filters to narrow results by trace, name, type, level, environment, time range, or advanced filter conditions. Results are paginated with an opaque cursor.",
-    "For metadata filters, first call getObservationFilterMetadataKeys with observationIds, traceId, or a bounded time range, then set the relevant key field in the filter.",
+    'For metadata filters, first inspect metadata on selectively scoped observations by passing traceId, an exact id filter, or both fromStartTime and toStartTime with fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter.',
     "",
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
@@ -346,6 +381,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
             type: input.type,
             environment: input.environment,
             parentObservationId: input.parentObservationId,
+            isRootObservation: input.isRootObservation,
             fromStartTime: input.fromStartTime,
             toStartTime: input.toStartTime,
             version: input.version,

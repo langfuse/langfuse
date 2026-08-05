@@ -9,7 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { V4MigrationUpdateRequiredAssistantBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
@@ -21,14 +21,13 @@ import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
-import {
-  isLegacyEvalTarget,
-  requiresLegacyMigrationAction,
-} from "@/src/features/evals/utils/typeHelpers";
+import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -49,6 +48,7 @@ const PeekViewEvaluatorConfigDetail = ({
     evaluatorId: evalConfig?.id,
     evaluator: evalConfig,
   });
+  const canUseAgent = useCanUseInAppAgent();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
@@ -72,15 +72,13 @@ const PeekViewEvaluatorConfigDetail = ({
           <span className="max-h-fit text-lg font-bold">Configuration</span>
           <div className="flex items-center gap-2">
             <StatusBadge type={displayStatus.toLowerCase()} isLive />
-            {/* Quick-deactivate is a migration aid: only shown where legacy
-                evals can no longer be set up (cloud), consistent with the
-                read-only edit gate. */}
-            {isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy && (
-              <DeactivateEvalConfig
-                projectId={projectId}
-                evalConfig={evalConfig}
-              />
-            )}
+            <DeactivateEvalConfig
+              projectId={projectId}
+              evalConfig={evalConfig}
+              // Status changes remount the form below; drop edit mode so
+              // in-progress form state cannot fight the new status.
+              onStatusChange={() => setIsEditMode(false)}
+            />
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -96,15 +94,16 @@ const PeekViewEvaluatorConfigDetail = ({
           </span>
           <Switch
             disabled={
-              !hasAccess || (evaluatorRequiresMigration && !allowLegacy)
+              !hasAccess ||
+              (isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy)
             }
             checked={isEditMode}
             onCheckedChange={setIsEditMode}
-            {...(evaluatorRequiresMigration &&
-              !allowLegacy && {
-                title:
-                  "Deprecated evaluators are only available in read-only mode",
-              })}
+            title={
+              isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy
+                ? "Deprecated evaluators are only available in read-only mode"
+                : undefined
+            }
           />
           <DeleteEvalConfigButton
             aria-label="delete"
@@ -122,8 +121,8 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
       </div>
 
-      {evaluatorRequiresMigration && evalConfig.evalTemplate && (
-        <V4MigrationUpdateRequiredAssistantBadge />
+      {evaluatorRequiresMigration && evalConfig.evalTemplate && canUseAgent && (
+        <V4MigrationUpdateRequiredBadge />
       )}
 
       <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />

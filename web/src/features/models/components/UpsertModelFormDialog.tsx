@@ -1,3 +1,4 @@
+/* eslint @repo/no-style-props: "off" */
 import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
 import { useForm, useFieldArray } from "react-hook-form";

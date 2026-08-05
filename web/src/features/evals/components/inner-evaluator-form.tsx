@@ -45,6 +45,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   evalConfigFormSchema,
+  getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
   getTargetDisplayName,
   inferDefaultMapping,
@@ -337,7 +338,10 @@ export const InnerEvaluatorForm = (props: {
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
-  renderFooter?: (params: { isLoading: boolean }) => React.ReactNode;
+  renderFooter?: (params: {
+    isLoading: boolean;
+    isSaveDisabled: boolean;
+  }) => React.ReactNode;
   oldConfigId?: string;
 }) => {
   const capture = usePostHogClientCapture();
@@ -465,6 +469,9 @@ export const InnerEvaluatorForm = (props: {
   }) as UseFormReturn<EvalFormType>;
 
   const currentMapping = form.watch("mapping") ?? [];
+  const hasJsonPathCompatibilityError = currentMapping.some((mappingRow) =>
+    Boolean(getActiveJsonPathCompatibilityWarning(mappingRow)),
+  );
   const syncStatus = useVariableMappingSync({
     templateVars: isCodeEvalConfig ? [] : props.evalTemplate?.vars,
     currentMapping: currentMapping,
@@ -1340,13 +1347,17 @@ export const InnerEvaluatorForm = (props: {
     createJobMutation.isPending || updateJobMutation.isPending;
 
   const formFooter = props.renderFooter ? (
-    props.renderFooter({ isLoading: mutationIsLoading })
+    props.renderFooter({
+      isLoading: mutationIsLoading,
+      isSaveDisabled: hasJsonPathCompatibilityError,
+    })
   ) : (
     <div className="flex w-full flex-col items-end gap-4">
       {!props.disabled ? (
         <Button
           type="submit"
           loading={mutationIsLoading}
+          disabled={hasJsonPathCompatibilityError}
           className="mt-3 max-w-fit"
         >
           {props.mode === "edit" ? "Update" : "Execute"}

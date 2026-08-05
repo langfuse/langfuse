@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+/* eslint-disable @repo/no-style-props */
+import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -6,6 +7,7 @@ import { Layer } from "@/src/components/ui/layer";
 import {
   formatBucketRange,
   OUTLIER_STRIP_METRICS,
+  prepareOutlierYTicks,
   type OutlierStripDenseBin,
   type OutlierStripMetricKey,
   type OutlierStripTick,
@@ -14,23 +16,30 @@ import {
 /**
  * OutlierBarStrip — compact, Firefox-devtools-inspired bar strip (LFE-14451).
  * Pure visualiser: renders the dense series `prepareOutlierSeries` produced
- * and decides nothing about data. Every bar is the worst single event in its
- * time bucket; clicking a bar reports the bucket's range so the caller can
- * narrow the table's time window.
+ * and decides nothing about data. Each bar is a prepared aggregate for its
+ * time bucket; clicking it reports the bucket's range so the caller can narrow
+ * the table's time window.
  *
  * The strip always spans the full `widthPx` (fractional bar slots), with a
- * baseline and sparse vertical gridline ticks so the chart's boundaries stay
- * visible even where the range holds no data.
+ * baseline and horizontal value gridlines so the chart's boundaries stay
+ * visible even where the range holds no data; sparse time labels sit on the
+ * tick grid without any vertical lines.
  */
 
 const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
+  count: "hsl(var(--chart-4))",
   cost: "hsl(var(--chart-1))",
   latency: "hsl(var(--chart-2))",
-  tokens: "hsl(var(--chart-4))",
 };
 
 /** Pointer travel before a press becomes a range-drag instead of a click. */
 const DRAG_THRESHOLD_PX = 5;
+
+/** Which gesture drove a drill-in — carried to the caller for analytics. */
+export type OutlierStripDrillTrigger =
+  | "bucket_click"
+  | "drag_span"
+  | "touch_explore";
 
 export type OutlierBarStripProps = {
   dense: OutlierStripDenseBin[];
@@ -50,15 +59,23 @@ export type OutlierBarStripProps = {
    * readable while outliers still dominate.
    */
   scale?: "linear" | "sqrt";
-  /** 1px baseline tick where events exist but carry no metric data. */
+  /** 1px baseline tick where observations exist but carry no metric data. */
   showActivityTicks?: boolean;
   /** Sparse time labels under the gridline ticks. */
   showTimeLabels?: boolean;
-  onSelectBucket?: (range: { fromMs: number; toMs: number }) => void;
+  onSelectBucket?: (
+    range: { fromMs: number; toMs: number },
+    meta: { trigger: OutlierStripDrillTrigger },
+  ) => void;
+  /** Touch preview pinned (tap or drag release) — the analytics seam for the
+   *  preview → explore funnel; never fired for mouse interactions. */
+  onPreviewPinned?: (trigger: "tap" | "drag") => void;
   /** Transient drag selection (ms range), shared across sibling charts so a
    *  drag on one strip highlights on all (LF-34, Grafana-style). */
   selection?: { fromMs: number; toMs: number } | null;
   onSelectionChange?: (range: { fromMs: number; toMs: number } | null) => void;
+  /** Why the chart cannot represent the current table state. */
+  disabledReason?: string;
   className?: string;
 };
 
@@ -76,8 +93,10 @@ export function OutlierBarStrip({
   showActivityTicks = true,
   showTimeLabels = true,
   onSelectBucket,
+  onPreviewPinned,
   selection = null,
   onSelectionChange,
+  disabledReason,
   className,
 }: OutlierBarStripProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -99,6 +118,38 @@ export function OutlierBarStrip({
   // Drag gesture bookkeeping lives in a ref: pointermove during a drag only
   // updates the SHARED selection via onSelectionChange, never local state.
   const dragRef = useRef<{ startX: number; dragging: boolean } | null>(null);
+  // The pinned preview centers on its anchor, so keeping it on-screen needs
+  // the rendered size. A callback ref measures in the commit phase (before
+  // paint — no mispositioned flash) and attaches a ResizeObserver so content
+  // changes while pinned (a live refetch growing the count, the Explore
+  // button toggling) re-clamp instead of drifting on a stale size.
+  const [previewSize, setPreviewSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const previewResizeObserverRef = useRef<ResizeObserver | null>(null);
+  const measurePreview = useCallback((el: HTMLDivElement | null) => {
+    previewResizeObserverRef.current?.disconnect();
+    previewResizeObserverRef.current = null;
+    if (!el) {
+      setPreviewSize(null);
+      return;
+    }
+    const measure = () =>
+      setPreviewSize((prev) => {
+        const width = el.offsetWidth;
+        const height = el.offsetHeight;
+        return prev && prev.width === width && prev.height === height
+          ? prev
+          : { width, height };
+      });
+    measure();
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(measure);
+      observer.observe(el);
+      previewResizeObserverRef.current = observer;
+    }
+  }, []);
 
   const metricSpec = OUTLIER_STRIP_METRICS[metric];
   const color = METRIC_COLOR[metric];
@@ -141,16 +192,26 @@ export function OutlierBarStrip({
       const scaled = scale === "sqrt" ? Math.sqrt(fraction) : fraction;
       return Math.max(1.5, scaled * plotHeight);
     };
+    // Y axis: nice-value gridlines + labels, scale-mapped by the preparer so
+    // they sit exactly where a bar of that value would top out.
+    const yTicks = prepareOutlierYTicks({
+      maxValue,
+      metric,
+      plotHeightPx: plotHeight,
+      scale,
+    });
     return (
       <>
-        {/* Sparse vertical gridline ticks (Firefox-devtools style) */}
-        {ticks.map((tick) => (
+        {/* Horizontal value gridlines (behind the bars). No vertical chrome
+            at all — the time grid carries its sparse labels alone, and the
+            horizontal lines mark the y axis (design 2026-07-29). */}
+        {yTicks.map((tick) => (
           <line
-            key={`tick-${tick.index}`}
-            x1={tick.index * slotPx}
-            y1={0}
-            x2={tick.index * slotPx}
-            y2={plotHeight}
+            key={`y-tick-${tick.value}`}
+            x1={0}
+            y1={plotHeight - tick.offsetPx}
+            x2={widthPx}
+            y2={plotHeight - tick.offsetPx}
             className="stroke-foreground"
             strokeWidth={1}
             opacity={0.07}
@@ -170,7 +231,7 @@ export function OutlierBarStrip({
         {/* Bars */}
         {dense.map((bin, i) => {
           if (bin.value === null) {
-            // Events without metric data get a subtle activity tick so the
+            // Observations without metric data get a subtle activity tick so the
             // strip never reads "nothing happened" when data is merely absent.
             return showActivityTicks && bin.count > 0 ? (
               <rect
@@ -205,12 +266,36 @@ export function OutlierBarStrip({
               key={`label-${tick.index}`}
               x={tick.index * slotPx + 3}
               y={heightPx + 9}
-              className="fill-muted-foreground/80 font-mono"
+              className="fill-muted-foreground/80 font-sans"
               fontSize={9}
             >
               {tick.label}
             </text>
           ))}
+
+        {/* Y-axis labels — after the bars so they stay legible on top; the
+            background-colored stroke (paint-order) keeps them readable where
+            they overlap a bar. Every label hangs BELOW its gridline: the top
+            gridline can hug the plot's top edge (no room above), and one
+            consistent side means the preparer's line spacing is also the
+            label spacing. */}
+        {yTicks.map((tick) => {
+          const lineY = plotHeight - tick.offsetPx;
+          return (
+            <text
+              key={`y-label-${tick.value}`}
+              x={3}
+              y={lineY + 9}
+              textAnchor="start"
+              className="fill-muted-foreground stroke-background font-sans"
+              fontSize={9}
+              strokeWidth={2.5}
+              style={{ paintOrder: "stroke" }}
+            >
+              {tick.label}
+            </text>
+          );
+        })}
       </>
     );
   }, [
@@ -223,6 +308,7 @@ export function OutlierBarStrip({
     color,
     ticks,
     maxValue,
+    metric,
     scale,
     hasData,
     showActivityTicks,
@@ -232,8 +318,6 @@ export function OutlierBarStrip({
   // ?? null: a stale hoverIndex can outlive a shrinking dense array (data or
   // granularity change mid-hover), and undefined slips past a !== null check.
   const hovered = hoverIndex !== null ? (dense[hoverIndex] ?? null) : null;
-  const hoveredHasData =
-    hovered !== null && (hovered.count > 0 || hovered.value !== null);
   const windowKey = `${stepMs}:${dense[0]?.bucketStartMs ?? 0}:${dense.length}`;
   const activePreview =
     touchPreview && touchPreview.windowKey === windowKey ? touchPreview : null;
@@ -259,6 +343,26 @@ export function OutlierBarStrip({
   const previewHasData =
     previewStats !== null &&
     (previewStats.count > 0 || previewStats.value !== null);
+  // First render (pre-measure) treats the box as zero-width; the commit-phase
+  // measurement re-renders with the real clamp before the browser paints.
+  const previewHalfWidth = (previewSize?.width ?? 0) / 2;
+  const viewportWidth =
+    typeof window !== "undefined" ? window.innerWidth : Number.MAX_SAFE_INTEGER;
+
+  if (disabledReason) {
+    return (
+      <div
+        className={cn(
+          "text-muted-foreground bg-muted/30 flex items-center justify-center rounded text-[11px]",
+          className,
+        )}
+        style={{ width: widthPx, height: heightPx + labelHeight }}
+        aria-disabled="true"
+      >
+        {disabledReason}
+      </div>
+    );
+  }
 
   return (
     <div className={cn("relative", className)} style={{ width: widthPx }}>
@@ -266,15 +370,15 @@ export function OutlierBarStrip({
         width={widthPx}
         height={heightPx + labelHeight}
         role="img"
-        aria-label={`${metricSpec.shortLabel} (max / bucket)`}
-        className={cn(
-          // pan-y: horizontal touch drags select a range; vertical stays with
-          // the page scroll (LF-34 mobile gesture requirement). select-none +
-          // the pointerdown preventDefault keep a range-drag from ALSO
-          // starting a native text selection over the tick labels.
-          "block touch-pan-y select-none",
-          hoveredHasData || selection ? "cursor-pointer" : "cursor-default",
-        )}
+        aria-label={`${metricSpec.shortLabel} per bucket`}
+        // pan-y: horizontal touch drags select a range; vertical stays with
+        // the page scroll (LF-34 mobile gesture requirement). select-none +
+        // the pointerdown preventDefault keep a range-drag from ALSO
+        // starting a native text selection over the tick labels.
+        // Crosshair over the whole plot: the standard "this surface supports
+        // range selection" affordance (Grafana/Datadog) — it makes the
+        // drag-to-zoom brush discoverable where a pointer only said "click".
+        className="block cursor-crosshair touch-pan-y select-none"
         onPointerLeave={(event) => {
           if (event.pointerType !== "mouse") return;
           setHoverIndex(null);
@@ -327,12 +431,13 @@ export function OutlierBarStrip({
                 anchorY: rect.top,
                 windowKey,
               });
+              onPreviewPinned?.("drag");
               return;
             }
             // Mouse, Grafana-style: apply the dragged span to the range.
             onSelectionChange?.(null);
             setTouchPreview(null);
-            onSelectBucket?.(range);
+            onSelectBucket?.(range, { trigger: "drag_span" });
             return;
           }
           const index = Math.floor(x / slotPx);
@@ -353,16 +458,20 @@ export function OutlierBarStrip({
             });
             setHoverIndex(index);
             setMouse(null);
+            onPreviewPinned?.("tap");
             return;
           }
           // Mouse click without movement drills into the bucket. Mirror the
           // tooltip's guard — a truly empty bucket would just drill the table
           // into a zero-row window.
           if ((bin.count > 0 || bin.value !== null) && onSelectBucket) {
-            onSelectBucket({
-              fromMs: bin.bucketStartMs,
-              toMs: bin.bucketStartMs + stepMs,
-            });
+            onSelectBucket(
+              {
+                fromMs: bin.bucketStartMs,
+                toMs: bin.bucketStartMs + stepMs,
+              },
+              { trigger: "bucket_click" },
+            );
           }
         }}
         onPointerCancel={() => {
@@ -382,15 +491,37 @@ export function OutlierBarStrip({
             const x = Math.max(startX, 0);
             const w = Math.min(endX, widthPx) - x;
             if (w <= 0) return null;
+            // Fill alone reads faint over sparse bars; crisp 1px edge lines
+            // carry most of the band's perceived contrast (Grafana-style).
             return (
-              <rect
-                x={x}
-                y={0}
-                width={w}
-                height={plotHeight}
-                className="fill-foreground"
-                opacity={0.12}
-              />
+              <g>
+                <rect
+                  x={x}
+                  y={0}
+                  width={w}
+                  height={plotHeight}
+                  className="fill-foreground"
+                  opacity={0.18}
+                />
+                <line
+                  x1={x + 0.5}
+                  y1={0}
+                  x2={x + 0.5}
+                  y2={plotHeight}
+                  className="stroke-foreground"
+                  strokeWidth={1}
+                  opacity={0.55}
+                />
+                <line
+                  x1={x + w - 0.5}
+                  y1={0}
+                  x2={x + w - 0.5}
+                  y2={plotHeight}
+                  className="stroke-foreground"
+                  strokeWidth={1}
+                  opacity={0.55}
+                />
+              </g>
             );
           })()}
 
@@ -411,7 +542,7 @@ export function OutlierBarStrip({
         <span className="text-muted-foreground/70 pointer-events-none absolute inset-0 flex items-center justify-center text-[10px]">
           {hasActivity
             ? `No ${metricSpec.shortLabel.toLowerCase()} data in range`
-            : "No events in range"}
+            : "No observations in range"}
         </span>
       )}
 
@@ -421,7 +552,7 @@ export function OutlierBarStrip({
       {hovered && mouse && !activePreview && (
         <Layer name="tooltip">
           <div
-            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 font-mono text-[11px] leading-tight whitespace-nowrap shadow-sm"
+            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 text-[11px] leading-tight whitespace-nowrap shadow-sm"
             style={
               // Top-right of the cursor; flips to top-left near the viewport's
               // right edge so it never runs off screen.
@@ -447,9 +578,11 @@ export function OutlierBarStrip({
                 : hovered.count > 0
                   ? "no data"
                   : metricSpec.format(0)}
-              <span className="text-muted-foreground ml-1.5 font-normal">
-                · {hovered.count} events
-              </span>
+              {metric !== "count" && (
+                <span className="text-muted-foreground ml-1.5 font-normal">
+                  · {hovered.count} observations
+                </span>
+              )}
             </div>
           </div>
         </Layer>
@@ -461,15 +594,23 @@ export function OutlierBarStrip({
       {activePreview && previewStats && (
         <Layer name="tooltip">
           <div
-            className="bg-popover text-popover-foreground fixed rounded border px-2 py-1.5 font-mono text-[11px] leading-tight whitespace-nowrap shadow-md"
+            key={`${activePreview.fromMs}:${activePreview.toMs}`}
+            ref={measurePreview}
+            className="bg-popover text-popover-foreground fixed max-w-[calc(100vw-16px)] rounded border px-2 py-1.5 text-[11px] leading-tight whitespace-nowrap shadow-md"
             style={{
+              // Clamp the center so the measured box stays fully on-screen —
+              // edge-of-viewport taps would otherwise clip half the tooltip.
               left: Math.min(
-                Math.max(activePreview.anchorX, 90),
-                typeof window !== "undefined"
-                  ? window.innerWidth - 90
-                  : activePreview.anchorX,
+                Math.max(activePreview.anchorX, 8 + previewHalfWidth),
+                Math.max(
+                  viewportWidth - 8 - previewHalfWidth,
+                  8 + previewHalfWidth,
+                ),
               ),
-              top: activePreview.anchorY - 6,
+              top: Math.max(
+                activePreview.anchorY - 6,
+                (previewSize?.height ?? 0) + 8,
+              ),
               transform: "translate(-50%, -100%)",
             }}
           >
@@ -487,9 +628,11 @@ export function OutlierBarStrip({
                     : previewStats.count > 0
                       ? "no data"
                       : metricSpec.format(0)}
-                  <span className="text-muted-foreground ml-1.5 font-normal">
-                    · {previewStats.count} events
-                  </span>
+                  {metric !== "count" && (
+                    <span className="text-muted-foreground ml-1.5 font-normal">
+                      · {previewStats.count} observations
+                    </span>
+                  )}
                 </div>
               </div>
               <button
@@ -517,7 +660,7 @@ export function OutlierBarStrip({
                   setTouchPreview(null);
                   setHoverIndex(null);
                   onSelectionChange?.(null);
-                  onSelectBucket?.(range);
+                  onSelectBucket?.(range, { trigger: "touch_explore" });
                 }}
               >
                 Explore this window

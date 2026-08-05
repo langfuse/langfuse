@@ -5,11 +5,11 @@ import { makeFixtureSeries } from "./lib/fixtures";
 
 /**
  * Design surface for the outlier strip above the trace table (LFE-14451).
- * Every bar is the WORST single event in its time bucket (max cost / latency
- * / tokens) — the strip exists to click into spikes, so the visual must read
- * at a glance: compact, Firefox-devtools-inspired, values on hover only,
- * sparse gridline ticks, a baseline that keeps the plot boundary visible
- * where data is absent.
+ * Each bar aggregates its time bucket (observation count, summed cost, or
+ * p95/avg latency) — the strip exists to click into spikes, so the visual must read
+ * at a glance: compact, Firefox-devtools-inspired, exact values on hover,
+ * horizontal value gridlines with left sans labels (no vertical lines), a
+ * baseline that keeps the plot boundary visible where data is absent.
  *
  * Locked defaults (design review 2026-07-27): sqrt scale, 40px height.
  */
@@ -22,6 +22,14 @@ const spikyCost = makeFixtureSeries({
   widthPx: 720,
 });
 
+const spikyCount = makeFixtureSeries({
+  rangeMs: 24 * 3600 * 1000,
+  stepSeconds: 600,
+  profile: "spiky",
+  metric: "count",
+  widthPx: 720,
+});
+
 const meta = preview.meta({
   component: OutlierBarStrip,
   args: {
@@ -31,8 +39,16 @@ const meta = preview.meta({
 
 export const Default = meta.story({
   args: {
-    ...spikyCost,
-    metric: "cost",
+    ...spikyCount,
+    metric: "count",
+  },
+});
+
+export const Disabled = meta.story({
+  args: {
+    ...spikyCount,
+    metric: "count",
+    disabledReason: "Chart unavailable for the current filters",
   },
 });
 
@@ -69,27 +85,6 @@ export const HeightMatrix = meta.story({
   ),
 });
 
-/** The ≥1200px layout: three 400px charts side by side. */
-export const ThreeUp = meta.story({
-  render: () => {
-    const fixture = (metric: "cost" | "latency" | "tokens") =>
-      makeFixtureSeries({
-        rangeMs: 24 * 3600 * 1000,
-        stepSeconds: 1800,
-        profile: "spiky",
-        metric,
-        widthPx: 400,
-      });
-    return (
-      <div className="flex gap-6 p-2">
-        <OutlierBarStrip {...fixture("cost")} metric="cost" />
-        <OutlierBarStrip {...fixture("latency")} metric="latency" />
-        <OutlierBarStrip {...fixture("tokens")} metric="tokens" />
-      </div>
-    );
-  },
-});
-
 export const BurstyWeek = meta.story({
   args: {
     ...makeFixtureSeries({
@@ -109,14 +104,14 @@ export const SparseData = meta.story({
       rangeMs: 24 * 3600 * 1000,
       stepSeconds: 600,
       profile: "sparse",
-      metric: "tokens",
+      metric: "latency",
       widthPx: 720,
     }),
-    metric: "tokens",
+    metric: "latency",
   },
 });
 
-/** Events exist but carry no cost data (e.g. root-only shapes) — the strip
+/** Observations exist but carry no cost data (e.g. root-only shapes) — the strip
  * shows activity ticks + an honest hint instead of a fake-zero skyline. */
 export const NoMetricData = meta.story({
   args: {

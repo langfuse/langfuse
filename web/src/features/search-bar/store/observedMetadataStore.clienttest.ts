@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   mergeIntoProject,
@@ -239,5 +239,41 @@ describe("useObservedMetadataStore", () => {
     expect(useObservedMetadataStore.getState().byProject.proj?.paths).toEqual({
       "routing.queue": { type: "string", values: ["billing"] },
     });
+  });
+
+  // The persisted map is a best-effort cache: a full/blocked localStorage
+  // (quota exceeded, Safari private mode) must not throw into the React
+  // effect that records paths, and must not log at error level (the console
+  // integration turns console.error into Sentry events).
+  it("does not throw or console.error when the localStorage write fails", () => {
+    useObservedMetadataStore.setState({ byProject: {} });
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new DOMException(
+          "Failed to execute 'setItem' on 'Storage'",
+          "QuotaExceededError",
+        );
+      });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      expect(() =>
+        useObservedMetadataStore
+          .getState()
+          .actions.recordPaths("proj-quota", paths({ a: { type: "number" } })),
+      ).not.toThrow();
+      // The in-memory state still updates; only persistence is skipped.
+      expect(
+        useObservedMetadataStore.getState().byProject["proj-quota"]?.paths,
+      ).toEqual({ a: { type: "number" } });
+      expect(warnSpy).toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+    } finally {
+      setItemSpy.mockRestore();
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+    }
   });
 });

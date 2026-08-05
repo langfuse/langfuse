@@ -44,6 +44,7 @@ export const getEventsStreamForEval = async (props: {
     trace_id: string;
     project_id: string;
     parent_observation_id: string | null;
+    is_app_root: boolean;
     type: string;
     name: string | null;
     environment: string | null;

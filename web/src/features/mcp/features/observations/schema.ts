@@ -12,6 +12,8 @@ type ObservationMcpFieldMetadata = {
   default?: boolean;
   expensive?: boolean;
   sensitive?: boolean;
+  requiresScope?: boolean;
+  scopeRequirement?: string;
   description?: string;
 };
 
@@ -33,6 +35,9 @@ type ObservationMcpFieldType =
   | "string"
   | "unknown";
 
+const EXPENSIVE_FIELD_SCOPE_REQUIREMENT =
+  "Requires traceId, an exact id filter, or both fromStartTime and toStartTime.";
+
 const OBSERVATION_MCP_FIELDS = OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap(
   (group) => OBSERVATION_FIELD_GROUP_FIELD_NAMES[group],
 );
@@ -49,6 +54,12 @@ const OBSERVATION_MCP_FIELD_METADATA: Record<
   endTime: { type: "datetime", nullable: true, default: true },
   projectId: { type: "string", sensitive: true },
   parentObservationId: { type: "string", nullable: true, default: true },
+  isRootObservation: {
+    type: "boolean",
+    default: true,
+    description:
+      "Whether this observation is a logical root. App-root observations can be roots while retaining a non-null parentObservationId.",
+  },
   type: { type: "string", default: true },
   name: { type: "string", nullable: true, default: true },
   level: { type: "string", default: true },
@@ -62,12 +73,26 @@ const OBSERVATION_MCP_FIELD_METADATA: Record<
   completionStartTime: { type: "datetime", nullable: true },
   createdAt: { type: "datetime" },
   updatedAt: { type: "datetime" },
-  input: { type: "unknown", expensive: true, sensitive: true },
-  output: { type: "unknown", expensive: true, sensitive: true },
+  input: {
+    type: "unknown",
+    expensive: true,
+    sensitive: true,
+    requiresScope: true,
+    scopeRequirement: EXPENSIVE_FIELD_SCOPE_REQUIREMENT,
+  },
+  output: {
+    type: "unknown",
+    expensive: true,
+    sensitive: true,
+    requiresScope: true,
+    scopeRequirement: EXPENSIVE_FIELD_SCOPE_REQUIREMENT,
+  },
   metadata: {
     type: "record",
     expensive: true,
     sensitive: true,
+    requiresScope: true,
+    scopeRequirement: EXPENSIVE_FIELD_SCOPE_REQUIREMENT,
     description:
       "Metadata values are truncated to 200 UTF-8 characters per key by default. When requesting metadata explicitly, pass expandMetadataKeys with the keys that may need full values.",
   },
@@ -98,11 +123,15 @@ export type { ObservationMcpField };
 
 export const OBSERVATION_MCP_FIELD_DEFINITIONS: ObservationMcpFieldDefinition[] =
   OBSERVATION_FIELD_GROUPS_PUBLIC_API.flatMap((group) =>
-    OBSERVATION_FIELD_GROUP_FIELD_NAMES[group].map((field) => ({
-      field,
-      group,
-      ...OBSERVATION_MCP_FIELD_METADATA[field],
-    })),
+    OBSERVATION_FIELD_GROUP_FIELD_NAMES[group]
+      .filter((field): field is ObservationMcpField =>
+        OBSERVATION_MCP_FIELD_SET.has(field),
+      )
+      .map((field) => ({
+        field,
+        group,
+        ...OBSERVATION_MCP_FIELD_METADATA[field],
+      })),
   );
 
 export const OBSERVATION_MCP_DEFAULT_FIELDS = OBSERVATION_MCP_FIELDS.filter(

@@ -30,13 +30,24 @@ function strip(node: ASTNode | null): unknown {
 
 describe("langQ parser", () => {
   it("resolves aliases to canonical field ids", () => {
-    const r = parse("env:prod");
+    const r = parse("env:prod apiKey:pk-lf-test");
     expect(r.valid).toBe(true);
     expect(strip(r.ast)).toEqual({
-      kind: "filter",
-      key: "environment",
-      op: "=",
-      values: ["prod"],
+      kind: "and",
+      children: [
+        {
+          kind: "filter",
+          key: "environment",
+          op: "=",
+          values: ["prod"],
+        },
+        {
+          kind: "filter",
+          key: "ingestionApiKey",
+          op: "=",
+          values: ["pk-lf-test"],
+        },
+      ],
     });
   });
 

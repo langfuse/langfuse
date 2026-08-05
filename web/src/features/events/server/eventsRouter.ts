@@ -64,6 +64,10 @@ const GetEventFilterOptionsInput = zodSchema.object({
   columns: zodSchema
     .array(zodSchema.enum(EVENT_FILTER_OPTIONS_COLUMNS))
     .optional(),
+  // When true, the response also carries the approximate total observation
+  // count ("Total ≈ X") — uniq(span_id) over the same bulk facet scan, matching
+  // `filter`. Sent only on the eager bulk request.
+  includeApproxCount: zodSchema.boolean().optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -184,6 +188,7 @@ export const eventsRouter = createTRPCRouter({
                 ? !input.hasParentObservation
                 : undefined), // backward compat for legacy hasParentObservation filterOption
             columns: input.columns,
+            includeApproxCount: input.includeApproxCount,
           });
         },
       );

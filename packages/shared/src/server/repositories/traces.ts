@@ -14,6 +14,10 @@ import {
 import { orderByToClickhouseSql } from "../queries";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
+import {
+  planScoreFilterPushdown,
+  resolveScoreDataRequirement,
+} from "../queries/clickhouse-sql/score-filter-pushdown";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { OrderByState } from "../../interfaces/orderBy";
 import snakeCase from "lodash/snakeCase";
@@ -1617,6 +1621,12 @@ async function buildTracesBaseQuery(
       f.field === "s.score_categories" ||
       f.field === "s.score_booleans",
   );
+  const scoreRowsFilter = planScoreFilterPushdown({
+    filters: filter,
+    scoreDataRequirement: resolveScoreDataRequirement({
+      selectsScoreData: select.includeScores,
+    }),
+  });
 
   const ctes = [];
 
@@ -1683,6 +1693,7 @@ async function buildTracesBaseQuery(
         AND data_type IN ({dataTypes: Array(String)})
         ${fromTimeFilter ? `AND timestamp >= {cteFromTimeFilter: DateTime64(3)}` : ""}
         ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
+        ${scoreRowsFilter ? `AND ${scoreRowsFilter.query}` : ""}
         GROUP BY
           project_id,
           trace_id,
@@ -1709,6 +1720,7 @@ async function buildTracesBaseQuery(
       AND data_type IN ({dataTypes: Array(String)})
       ${fromTimeFilter ? `AND timestamp >= {cteFromTimeFilter: DateTime64(3)}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
+      ${scoreRowsFilter ? `AND ${scoreRowsFilter.query}` : ""}
       GROUP BY project_id, trace_id
     )`);
     }
@@ -1850,6 +1862,7 @@ async function buildTracesBaseQuery(
   const params = {
     ...appliedEnvironmentFilter.params,
     ...appliedFilter.params,
+    ...scoreRowsFilter?.params,
     projectId,
     dataTypes: LISTABLE_SCORE_TYPES,
     ...(pagination !== undefined

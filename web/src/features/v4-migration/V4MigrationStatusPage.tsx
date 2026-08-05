@@ -2,9 +2,8 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { ArrowRight, Copy } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Card } from "@/src/components/ui/card";
 import {
   Table,
@@ -27,6 +26,7 @@ import {
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
   getProjectMigrationReadiness,
+  type MigrationActionState,
   type MigrationCountState,
   type ProjectMigrationReadiness,
   type ProjectMigrationStatus,
@@ -66,10 +66,26 @@ function AffectedCell({ count }: { count: MigrationCountState }) {
   return <span>{count.count}</span>;
 }
 
+function MigrationActionCell({ state }: { state: MigrationActionState }) {
+  if (state.status === "loading") {
+    return <span className="text-foreground-tertiary">Checking…</span>;
+  }
+  if (state.status === "error") {
+    return <span className="text-foreground-tertiary">Unavailable</span>;
+  }
+  return state.result === "required" ? (
+    <span>Update required</span>
+  ) : state.result === "sdk_usage_inconclusive" ? (
+    <span>Needs review</span>
+  ) : (
+    <span className="text-foreground-tertiary">Up to date</span>
+  );
+}
+
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
   const label =
     readiness === "ready"
-      ? "Ready"
+      ? "Migrated"
       : readiness === "checking"
         ? "Checking"
         : readiness === "unavailable"
@@ -97,6 +113,7 @@ type SortKey =
   | "status"
   | "sdk"
   | "evals"
+  | "experiments"
   | "apis"
   | "exports"
   | "lastTrace";
@@ -212,17 +229,25 @@ function OrgStatusSection({
           ? 5
           : row.status?.sdk.status === "otel_realtime"
             ? 5
-            : row.status?.sdk.status === "legacy"
-              ? 4
-              : row.status?.sdk.status === "otel_header_required"
-                ? 3
-                : row.status?.sdk.status === "unknown"
-                  ? 2
-                  : row.status?.sdk.status === "checking"
-                    ? 1
-                    : 0;
+            : row.status?.sdk.status === "no_data"
+              ? 5
+              : row.status?.sdk.status === "legacy"
+                ? 4
+                : row.status?.sdk.status === "otel_header_required"
+                  ? 3
+                  : row.status?.sdk.status === "unknown"
+                    ? 2
+                    : row.status?.sdk.status === "checking"
+                      ? 1
+                      : 0;
       case "evals":
         return row.status?.evals.count ?? 0;
+      case "experiments":
+        return row.status?.experiments.result === "required"
+          ? 2
+          : row.status?.experiments.result === "sdk_usage_inconclusive"
+            ? 1
+            : 0;
       case "apis":
         return row.status?.apis.count ?? 0;
       case "exports":
@@ -277,6 +302,12 @@ function OrgStatusSection({
                 <SortableHead
                   label="Affected Evals"
                   column="evals"
+                  orderBy={orderBy}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  label="Affected Experiments"
+                  column="experiments"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
@@ -337,6 +368,10 @@ function OrgStatusSection({
                         <span className="text-foreground-tertiary">
                           OTel real-time
                         </span>
+                      ) : row.status.sdk.status === "no_data" ? (
+                        <span className="text-foreground-tertiary">
+                          No data detected
+                        </span>
                       ) : row.status.sdk.status === "checking" ? (
                         <span className="text-foreground-tertiary">
                           Checking…
@@ -364,6 +399,9 @@ function OrgStatusSection({
                     </TableCell>
                     <TableCell density="comfortable">
                       <AffectedCell count={row.status.evals} />
+                    </TableCell>
+                    <TableCell density="comfortable">
+                      <MigrationActionCell state={row.status.experiments} />
                     </TableCell>
                     <TableCell density="comfortable">
                       <AffectedCell count={row.status.apis} />
@@ -504,11 +542,6 @@ function V4MigrationStatusPageContent() {
   const isChecking =
     session.status === "loading" ||
     readiness.some((state) => state === "checking");
-  const projectsNeedingAction = readiness.filter(
-    (state) => state === "action-needed",
-  ).length;
-  const shouldShowUpdateAllButton =
-    !isChecking && totalProjects > 0 && projectsNeedingAction > 0;
 
   return (
     <ContainerPage
@@ -543,14 +576,6 @@ function V4MigrationStatusPageContent() {
               )}
             </div>
           </div>
-          {shouldShowUpdateAllButton && (
-            <RainbowButton onClick={handleCopyPrompt}>
-              <Copy className="mr-1.5 h-4 w-4 shrink-0" />
-              <span className="min-w-0 truncate" title="Update all with agents">
-                Update all with agents
-              </span>
-            </RainbowButton>
-          )}
         </Card>
 
         {orgs.map((org) => (

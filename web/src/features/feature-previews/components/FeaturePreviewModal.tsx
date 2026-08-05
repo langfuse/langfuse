@@ -12,6 +12,7 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
+import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 
 import filterSearchBarDarkIllustration from "../assets/filter-search-bar-dark.svg";
 import filterSearchBarLightIllustration from "../assets/filter-search-bar-light.svg";
@@ -23,12 +24,14 @@ import modernSessionLightIllustration from "../assets/modern-session-light.svg";
  *  `searchBar` is retired and no longer renders a tile — see
  *  ControlledFeaturePreviewModal. It remains as rollback plumbing.
  *  TODO(remove ~2026-06-19): drop "searchBar" once GA is confirmed. */
-export type PreviewFlag = "modernSession" | "searchBar";
+export type PreviewFlag = FeaturePreviewFlag;
 
 type PreviewIllustration = {
   light: React.ComponentProps<typeof Image>["src"];
   dark: React.ComponentProps<typeof Image>["src"];
   alt: string;
+  width?: number;
+  height?: number;
 };
 
 type PreviewRegistryItem = {
@@ -67,6 +70,23 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       light: modernSessionLightIllustration,
       dark: modernSessionDarkIllustration,
       alt: "Compact Session View showing a trace minimap beside a continuous session conversation feed.",
+    },
+  },
+  {
+    flag: "v4UpgradeUi",
+    title: "V4 Migration",
+    sidebarLabel: "V4 Migration",
+    description:
+      "Review each project's readiness for Langfuse v4 and get guided steps for anything that still needs an update.",
+    details:
+      "The V4 Migration experience adds a migration status page, project-level readiness indicators, and contextual upgrade guidance for SDKs, evaluators, deprecated APIs, and integrations.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+    illustration: {
+      light: "/assets/v4-beta-intro.jpg",
+      dark: "/assets/v4-beta-intro.jpg",
+      alt: "Langfuse v4 performance improvements across common observability workflows.",
+      width: 1024,
+      height: 598,
     },
   },
   // TODO(remove ~2026-06-19): dead registry entry — "searchBar" is GA on the v4
@@ -231,11 +251,15 @@ function PreviewMockupPanel({
       <Image
         src={illustration.light}
         alt={illustration.alt}
+        width={illustration.width}
+        height={illustration.height}
         className="block h-auto w-full dark:hidden"
       />
       <Image
         src={illustration.dark}
         alt={illustration.alt}
+        width={illustration.width}
+        height={illustration.height}
         className="hidden h-auto w-full dark:block"
       />
     </div>

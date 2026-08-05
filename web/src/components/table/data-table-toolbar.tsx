@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
@@ -125,9 +126,6 @@ interface DataTableToolbarProps<TData, TValue> {
    * query — not the toolbar's stale local mirror — is captured. */
   currentSearchQuery?: string;
   actionButtons?: React.ReactNode;
-  /** Rendered at the start of the right-aligned control cluster (left of the
-   *  Columns toggle) — e.g. the events table's "Pulse" reopen button. */
-  preColumnsSlot?: React.ReactNode;
   filterState?: FilterState;
   setFilterState?:
     | Dispatch<SetStateAction<FilterState>>
@@ -209,7 +207,6 @@ export function DataTableToolbar<TData, TValue>({
   searchConfig,
   currentSearchQuery,
   actionButtons,
-  preColumnsSlot,
   filterState,
   setFilterState,
   columnVisibility,
@@ -495,7 +492,6 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @3xl:ml-auto">
-          {preColumnsSlot}
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}

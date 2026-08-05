@@ -12,7 +12,11 @@ import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
 
-import { InAppAgentRunErrorCode, type Plan } from "@langfuse/shared";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type Plan,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Prisma } from "@langfuse/shared/src/db";
 import {
@@ -24,7 +28,15 @@ import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
 } from "@langfuse/shared/in-app-agent";
-import { type AgUiEvent } from "@langfuse/shared/in-app-agent";
+import {
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
+  type AgUiEvent,
+} from "@langfuse/shared/in-app-agent";
+import {
+  deserializeInAppAgentDisplayState,
+  projectInAppAgentMessagesForDisplay,
+} from "@/src/features/in-app-agent/lib/display";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
   createRun,
@@ -996,6 +1008,142 @@ describe("in-app agent persistence", () => {
     ).resolves.toEqual(expectedReplayMessages);
   });
 
+  it("preserves reasoning order when hydrating an assistant message that continues afterward", async () => {
+    const { projectId, userId, caller } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events: [
+        {
+          type: EventType.RUN_STARTED,
+          threadId: conversation.id,
+          runId: run.id,
+          input: {
+            threadId: conversation.id,
+            runId: run.id,
+            state: null,
+            messages: [
+              {
+                id: "interleaved-user",
+                role: "user",
+                content: "Investigate this",
+              },
+            ],
+            tools: [],
+            context: [],
+            forwardedProps: {},
+          },
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: "interleaved-assistant",
+          role: "assistant",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "interleaved-assistant",
+          delta: "Initial answer.",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_START,
+          messageId: "interleaved-reasoning",
+          role: "reasoning",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_CONTENT,
+          messageId: "interleaved-reasoning",
+          delta: "A later thought.",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: "interleaved-reasoning",
+        },
+      ],
+    });
+
+    // Persist the continuation separately, as it would arrive after the
+    // snapshot prefix containing the interleaved reasoning message.
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events: [
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "interleaved-assistant",
+          delta: " Final answer.",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: "interleaved-assistant",
+        },
+      ],
+    });
+
+    // The wire carries canonical messages: the assistant message keeps its full
+    // content so a resumed run can append to it. Interleaved ordering travels
+    // separately, in the display state.
+    const snapshot = await caller.getConversation({
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    expect(snapshot.messages).toMatchObject([
+      {
+        id: "interleaved-user",
+        role: "user",
+        content: "Investigate this",
+      },
+      {
+        id: "interleaved-assistant",
+        role: "assistant",
+        content: "Initial answer. Final answer.",
+      },
+      {
+        id: "interleaved-reasoning",
+        role: "reasoning",
+        content: "A later thought.",
+      },
+    ]);
+    expect(
+      projectInAppAgentMessagesForDisplay(
+        snapshot.messages,
+        deserializeInAppAgentDisplayState(snapshot.displayState),
+      ),
+    ).toMatchObject([
+      {
+        id: "interleaved-user",
+        role: "user",
+        content: "Investigate this",
+      },
+      {
+        id: "interleaved-assistant",
+        role: "assistant",
+        content: "Initial answer.",
+      },
+      {
+        id: "interleaved-reasoning",
+        role: "reasoning",
+        content: "A later thought.",
+      },
+      {
+        id: "display-text-interleaved-assistant-1",
+        role: "assistant",
+        content: " Final answer.",
+      },
+    ]);
+  });
+
   it("stores only compact events and skips raw adapter payloads", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -1394,7 +1542,24 @@ describe("in-app agent persistence", () => {
       conversationId: conversation.id,
     });
 
-    expect(detail.messages).toEqual([
+    // The snapshot stays canonical and keeps the unpaired call: a run resuming
+    // from here still needs it present for its result to attach to, and a
+    // pending approval renders against it.
+    expect(
+      detail.messages.flatMap((message) =>
+        message.role === "assistant" ? (message.toolCalls ?? []) : [],
+      ),
+    ).toMatchObject([
+      { id: "paired-tool-call" },
+      { id: "unapproved-tool-call" },
+    ]);
+
+    // Settled transcripts prune it at render time instead.
+    expect(
+      dropEmptyAssistantMessages(
+        dropUnpairedAssistantToolCalls(detail.messages),
+      ),
+    ).toEqual([
       { id: "user-1", role: "user", content: "search" },
       {
         id: "assistant-1",
@@ -2047,6 +2212,50 @@ describe("in-app agent persistence", () => {
     expect(newRun.finishedAt).toBeNull();
   });
 
+  it("leaves a claimed background run alone when a foreground run starts", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const backgroundRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    // A background run legitimately runs for up to RUN_MAX_DURATION, far past
+    // the 150s foreground staleness window. Execution mode is not sticky per
+    // conversation, so a foreground submit landing here is a normal state — and
+    // it must not fence a healthy worker, which stale-closing would (both
+    // finishRun and the event append guard on the run still being open).
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: backgroundRun.id, projectId } },
+      data: {
+        createdAt: new Date("2026-05-20T10:00:00.000Z"),
+        claimedAt: new Date("2026-05-20T10:00:01.000Z"),
+        heartbeatAt: new Date(),
+      },
+    });
+
+    await expect(
+      createConversationRun({
+        projectId,
+        conversationId: conversation.id,
+        userId,
+      }),
+    ).rejects.toMatchObject({
+      message: "Assistant is already responding in this conversation",
+    });
+
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: backgroundRun.id, projectId } },
+      }),
+    ).resolves.toMatchObject({
+      status: "RUNNING",
+      finishedAt: null,
+      errorCode: null,
+    });
+  });
+
   it("writes run lifecycle status on the foreground path", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -2119,6 +2328,7 @@ describe("in-app agent persistence", () => {
           id: createInAppAgentRunId(),
           projectId,
           conversationId: conversation.id,
+          status: InAppAgentRunStatus.RUNNING,
         },
       }),
     ).rejects.toMatchObject({

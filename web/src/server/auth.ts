@@ -39,6 +39,10 @@ import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import { nextAuthLogger } from "./utils/nextAuthLogger";
 import {
+  getRequestCookies,
+  isValidCallbackUrl,
+} from "./utils/nextAuthCallbackUrl";
+import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
@@ -128,7 +132,12 @@ const staticProviders: Provider[] = [
         email: dbUser.email,
         image: dbUser.image,
         emailVerified: dbUser.emailVerified?.toISOString(),
-        featureFlags: parseFlags(dbUser.featureFlags),
+        featureFlags: parseFlags(dbUser.featureFlags, {
+          email: dbUser.email,
+          // The full session callback resolves deployment and rollout
+          // availability before applying employee defaults.
+          v4BetaEnabled: false,
+        }),
         canCreateOrganizations: canCreateOrganizations(dbUser.email),
         organizations: [],
       };
@@ -773,6 +782,8 @@ export async function getAuthOptions(signupAttribution?: {
       // keeps the default same-origin semantics while turning malformed input
       // into a safe redirect to baseUrl instead of a 500.
       redirect({ url, baseUrl }) {
+        if (!isValidCallbackUrl(url)) return baseUrl;
+
         try {
           // Relative callback URLs are always safe to resolve against baseUrl.
           if (url.startsWith("/")) return `${baseUrl}${url}`;
@@ -855,6 +866,11 @@ export async function getAuthOptions(signupAttribution?: {
           const dualPreviewAvailable =
             isLangfuseCloud ||
             env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+          const v4BetaEnabled =
+            v4WriteMode === "events_only" ||
+            (v4WriteMode === "dual" &&
+              dualPreviewAvailable &&
+              dbUser?.v4BetaEnabled === true);
 
           return {
             ...session,
@@ -878,12 +894,7 @@ export async function getAuthOptions(signupAttribution?: {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled:
-                      v4WriteMode === "events_only"
-                        ? true
-                        : v4WriteMode === "dual" && dualPreviewAvailable
-                          ? dbUser.v4BetaEnabled
-                          : false,
+                    v4BetaEnabled,
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud
@@ -968,7 +979,10 @@ export async function getAuthOptions(signupAttribution?: {
                       },
                     ),
                     emailVerified: dbUser.emailVerified?.toISOString(),
-                    featureFlags: parseFlags(dbUser.featureFlags),
+                    featureFlags: parseFlags(dbUser.featureFlags, {
+                      email: dbUser.email,
+                      v4BetaEnabled,
+                    }),
                     hasPassword: Boolean(dbUser.password),
                   }
                 : null,
@@ -1172,5 +1186,66 @@ export const getServerAuthSession = async (ctx: {
   ctx.res.setHeader("Pragma", "no-cache");
   ctx.res.setHeader("Expires", "0");
 
+  sanitizeServerSessionCallbackUrl(
+    ctx.req,
+    ctx.req.url?.split("?")[0]?.slice(0, 200),
+  );
+
   return getServerSession(ctx.req, ctx.res, authOptions);
+};
+
+/**
+ * App Router equivalent of getServerAuthSession. Passing the request and
+ * response explicitly lets us sanitize the parsed cookies before next-auth's
+ * config assertion runs.
+ */
+export const getServerAuthSessionForRequest = async (request: Request) => {
+  const authOptions = await getAuthOptions();
+  const cookies = getRequestCookies(request);
+  const req = {
+    headers: Object.fromEntries(request.headers.entries()),
+    cookies,
+  } as GetServerSidePropsContext["req"];
+
+  sanitizeServerSessionCallbackUrl(
+    req,
+    new URL(request.url).pathname.slice(0, 200),
+  );
+
+  const res = {
+    getHeader: () => undefined,
+    setCookie: () => undefined,
+    setHeader: () => undefined,
+  } as unknown as GetServerSidePropsContext["res"];
+
+  const session = await getServerSession(req, res, authOptions);
+
+  // Match getServerSession's App Router behavior. The explicit request/response
+  // form above selects its Pages Router branch, which otherwise keeps expires.
+  if (!session) return session;
+
+  const { expires: _expires, ...sessionWithoutExpires } = session;
+
+  return sessionWithoutExpires as Session;
+};
+
+const sanitizeServerSessionCallbackUrl = (
+  req: { cookies?: Partial<Record<string, string>> },
+  path: string | undefined,
+) => {
+  const callbackUrlCookieName = getCookieName("next-auth.callback-url");
+  const callbackUrlCookie = req.cookies?.[callbackUrlCookieName];
+
+  if (!callbackUrlCookie || isValidCallbackUrl(callbackUrlCookie)) return;
+
+  const { [callbackUrlCookieName]: _invalidCallbackUrl, ...sanitizedCookies } =
+    req.cookies ?? {};
+  req.cookies = sanitizedCookies;
+
+  logger.warn(
+    "[NEXT_AUTH] Ignored invalid callback URL for server-side session",
+    {
+      path,
+    },
+  );
 };

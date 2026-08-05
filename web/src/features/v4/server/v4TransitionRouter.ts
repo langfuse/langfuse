@@ -15,6 +15,7 @@ import {
   classifyIngestionSdkVersion,
   convertDateToClickhouseDateTime,
   INTERNAL_INGESTION_SDK_NAMES,
+  logger,
   queryClickhouse,
   systemTableRef,
   type IngestionSdkAttributionStatus,
@@ -97,12 +98,14 @@ type LegacyApiUsageRow = {
   time: string;
   entrypoint: string;
   count: string | number;
+  lastSeen: string;
 };
 
 type LegacyApiUsageResultRow = {
   time: string;
   entrypoint: string;
   count: number;
+  lastSeen: string | null;
 };
 
 type LegacyApiUsageSummaryByProjectRow = {
@@ -189,7 +192,20 @@ type SdkUsageSummaryByProjectResultRow = {
   projectId: string;
   outdatedSdkUsageSeriesCount: number;
   delayedOtelIngestionSeriesCount: number;
+  experimentInstrumentationMigration: {
+    status:
+      | "required"
+      | "not_required"
+      | "sdk_usage_inconclusive"
+      | "check_failed";
+    upgradePath: "sdk" | "api" | null;
+  };
   sdkUsageSeries: SdkUsageSummaryByProjectSeries[];
+};
+
+type DatasetRunItemsPostUsageByProjectRow = {
+  projectId: string;
+  count: string | number;
 };
 
 const getEmptyTimelineBuckets = (
@@ -208,6 +224,7 @@ const getEmptyTimelineBuckets = (
       time: formatTimelineBucket(bucket),
       entrypoint: "",
       count: 0,
+      lastSeen: null,
     });
   }
 
@@ -928,8 +945,9 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
     AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
-      const rows = await queryClickhouse<SdkUsageSummaryByProjectRow>({
-        query: `
+      const [rows, datasetRunItemsPostUsageResult] = await Promise.all([
+        queryClickhouse<SdkUsageSummaryByProjectRow>({
+          query: `
 WITH selected AS (
   SELECT
     project_id,
@@ -961,18 +979,62 @@ SELECT
 FROM selected
 GROUP BY project_id, sdk_name, sdk_version, public_key
 ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
-        `,
-        params: {
-          projectIds,
-          fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
-          toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
-          internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
-        },
-        tags: {
-          route: "v4-org-sdk-usage-summary",
-        },
-        preferredClickhouseService: "EventsReadOnly",
-      });
+          `,
+          params: {
+            projectIds,
+            fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
+            toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
+            internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
+          },
+          tags: {
+            route: "v4-org-sdk-usage-summary",
+          },
+          preferredClickhouseService: "EventsReadOnly",
+        }),
+        queryClickhouse<DatasetRunItemsPostUsageByProjectRow>({
+          query: `
+SELECT
+  JSONExtractString(log_comment, 'projectId') AS projectId,
+  count() AS count
+FROM ${systemTableRef("system.query_log")}
+WHERE
+  event_time >= {fromTimestamp: DateTime64(3)}
+  AND event_time <= {toTimestamp: DateTime64(3)}
+  AND event_date >= toDate({fromTimestamp: DateTime64(3)})
+  AND event_date <= toDate({toTimestamp: DateTime64(3)})
+  AND type = 'QueryFinish'
+  AND JSONExtractString(log_comment, 'tag_schema_version') = '1'
+  AND JSONExtractString(log_comment, 'surface') = 'publicapi'
+  AND JSONExtractString(log_comment, 'projectId') IN {projectIds: Array(String)}
+  AND splitByChar('?', JSONExtractString(log_comment, 'route'))[1] = 'POST /api/public/dataset-run-items'
+GROUP BY projectId
+SETTINGS skip_unavailable_shards = 1
+          `,
+          params: {
+            projectIds,
+            fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
+            toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
+          },
+          tags: {
+            route: "v4-org-experiment-instrumentation-summary",
+          },
+          preferredClickhouseService: "EventsReadOnly",
+          clickhouseSettings: {
+            skip_unavailable_shards: 1,
+          },
+        })
+          .then((rows) => ({ status: "success" as const, rows }))
+          .catch((error: unknown) => {
+            logger.warn(
+              "Failed to query dataset-run-items POST usage for v4 migration",
+              error,
+            );
+            return {
+              status: "error" as const,
+              rows: [] as DatasetRunItemsPostUsageByProjectRow[],
+            };
+          }),
+      ]);
 
       const rowsByProjectId = new Map<string, SdkUsageSummaryByProjectRow[]>();
       for (const row of rows) {
@@ -980,6 +1042,11 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
         projectRows.push(row);
         rowsByProjectId.set(row.projectId, projectRows);
       }
+      const projectsUsingDatasetRunItemsPost = new Set(
+        datasetRunItemsPostUsageResult.rows
+          .filter((row) => Number(row.count) > 0)
+          .map((row) => row.projectId),
+      );
 
       return projectIds.map((projectId): SdkUsageSummaryByProjectResultRow => {
         const projectRows = (rowsByProjectId.get(projectId) ?? []).map(
@@ -1046,6 +1113,57 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
             };
           },
         );
+        const usesDatasetRunItemsPost =
+          projectsUsingDatasetRunItemsPost.has(projectId);
+        const langfuseSdkUsage = projectRows.filter(
+          (series) => series.canonicalSdkName !== null,
+        );
+        const hasCurrentExperimentInstrumentation =
+          langfuseSdkUsage.length > 0 &&
+          langfuseSdkUsage.every(
+            (series) =>
+              getSdkVersionCapabilityStatus(
+                {
+                  language: series.sdkName,
+                  version: series.sdkVersion,
+                },
+                "experimentLinkDeprecation",
+              ) === "supported",
+          );
+        const hasInconclusiveExperimentSdkUsage = langfuseSdkUsage.some(
+          (series) => {
+            const runnerStatus = getSdkVersionCapabilityStatus(
+              {
+                language: series.sdkName,
+                version: series.sdkVersion,
+              },
+              "experimentRunner",
+            );
+            const currentInstrumentationStatus = getSdkVersionCapabilityStatus(
+              {
+                language: series.sdkName,
+                version: series.sdkVersion,
+              },
+              "experimentLinkDeprecation",
+            );
+
+            return (
+              currentInstrumentationStatus === "unknown" ||
+              (runnerStatus !== "unsupported" &&
+                currentInstrumentationStatus !== "supported")
+            );
+          },
+        );
+        const experimentInstrumentationMigration: SdkUsageSummaryByProjectResultRow["experimentInstrumentationMigration"] =
+          datasetRunItemsPostUsageResult.status === "error"
+            ? { status: "check_failed", upgradePath: null }
+            : !usesDatasetRunItemsPost
+              ? { status: "not_required", upgradePath: null }
+              : hasCurrentExperimentInstrumentation
+                ? { status: "not_required", upgradePath: null }
+                : hasInconclusiveExperimentSdkUsage
+                  ? { status: "sdk_usage_inconclusive", upgradePath: "sdk" }
+                  : { status: "required", upgradePath: "api" };
 
         return {
           projectId,
@@ -1061,6 +1179,7 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
               series.hasDelayedOtelEvents === true &&
               series.canonicalSdkName === null,
           ).length,
+          experimentInstrumentationMigration,
           sdkUsageSeries,
         };
       });
@@ -1112,13 +1231,15 @@ classified AS (
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
         'GET /api/public/metrics',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), route_path,
       match(route_path, '^GET /api/public/traces/[^/?#]+$'), 'GET /api/public/traces/{id}',
       match(route_path, '^GET /api/public/sessions/[^/?#]+$'), 'GET /api/public/sessions/{id}',
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 'GET /api/public/observations/{id}',
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 'GET /api/public/scores/{id}',
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/{id}',
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 'GET /api/public/datasets/{datasetName}/runs/{runName}',
       NULL
     ) AS legacy_route,
     multiIf(
@@ -1129,7 +1250,8 @@ classified AS (
         'GET /api/public/observations',
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), 2,
       route_path IN (
         'GET /api/public/sessions',
@@ -1140,6 +1262,7 @@ classified AS (
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 1,
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1,
       NULL
     ) AS clickhouse_queries_per_api_call
   FROM selected
@@ -1196,6 +1319,7 @@ SETTINGS skip_unavailable_shards = 1
 WITH selected AS (
   SELECT
     ${bucketTimeSql} AS bucket_time,
+    event_time_microseconds,
     splitByChar('?', JSONExtractString(log_comment, 'route'))[1] AS route_path
   FROM ${systemTableRef("system.query_log")}
   WHERE
@@ -1211,6 +1335,7 @@ WITH selected AS (
 classified AS (
   SELECT
     bucket_time,
+    event_time_microseconds,
     multiIf(
       route_path IN (
         'GET /api/public/spans',
@@ -1221,13 +1346,15 @@ classified AS (
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
         'GET /api/public/metrics',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), route_path,
       match(route_path, '^GET /api/public/traces/[^/?#]+$'), 'GET /api/public/traces/{id}',
       match(route_path, '^GET /api/public/sessions/[^/?#]+$'), 'GET /api/public/sessions/{id}',
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 'GET /api/public/observations/{id}',
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 'GET /api/public/scores/{id}',
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/{id}',
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 'GET /api/public/datasets/{datasetName}/runs/{runName}',
       NULL
     ) AS legacy_route,
     multiIf(
@@ -1238,7 +1365,8 @@ classified AS (
         'GET /api/public/observations',
         'GET /api/public/scores',
         'GET /api/public/v2/scores',
-        'GET /api/public/metrics/daily'
+        'GET /api/public/metrics/daily',
+        'GET /api/public/dataset-run-items'
       ), 2,
       route_path IN (
         'GET /api/public/sessions',
@@ -1249,6 +1377,7 @@ classified AS (
       match(route_path, '^GET /api/public/observations/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 1,
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 1,
+      match(route_path, '^GET /api/public/datasets/[^/?#]+/runs/[^/?#]+$'), 1,
       NULL
     ) AS clickhouse_queries_per_api_call
   FROM selected
@@ -1257,7 +1386,8 @@ classified AS (
 SELECT
   formatDateTime(bucket_time, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time,
   concat('publicapi: ', legacy_route) AS entrypoint,
-  sum(1.0 / clickhouse_queries_per_api_call) AS count
+  sum(1.0 / clickhouse_queries_per_api_call) AS count,
+  formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen
 FROM classified
 WHERE legacy_route IS NOT NULL
   AND clickhouse_queries_per_api_call IS NOT NULL
@@ -1284,6 +1414,7 @@ SETTINGS skip_unavailable_shards = 1
         time: row.time,
         entrypoint: row.entrypoint,
         count: Number(row.count),
+        lastSeen: row.lastSeen,
       }));
 
       return dataRows.length === 0
