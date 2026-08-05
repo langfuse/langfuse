@@ -170,6 +170,80 @@ export const isExpectedTrpcClientError = (error: unknown): boolean => {
   );
 };
 
+// HTTP statuses returned when a request's URL/headers are too large for the
+// browser or an upstream proxy. The response body is usually not a tRPC
+// envelope, so these are otherwise hard to diagnose.
+const REQUEST_TOO_LARGE_STATUSES = [414, 431];
+
+type SyntaxErrorWithResponseStatus = SyntaxError & { responseStatus?: number };
+
+/**
+ * `@trpc/client` (11.13.4) rejects with the bare `SyntaxError` when
+ * JSON-parsing a response body fails — the link only records the response
+ * meta (and so the HTTP status) for fulfilled requests. This fetch wrapper
+ * re-attaches the status to the parse `SyntaxError` so error classification
+ * can tell an app-owned 414/431 failure from transport garbage.
+ * Exported for tests.
+ */
+export const fetchWithParseErrorStatus: typeof fetch = async (input, init) => {
+  const response = await fetch(input, init);
+  const originalJson = response.json.bind(response);
+  response.json = async () => {
+    try {
+      return await originalJson();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        (error as SyntaxErrorWithResponseStatus).responseStatus =
+          response.status;
+      }
+      throw error;
+    }
+  };
+  return response;
+};
+
+/** HTTP status of a failed tRPC response: from the annotated parse error
+ * (`fetchWithParseErrorStatus`) or, when a link attached it, the response meta. */
+const getResponseStatus = (error: TRPCClientError<any>): number | undefined => {
+  const cause = getCause(error);
+  if (
+    cause instanceof SyntaxError &&
+    typeof (cause as SyntaxErrorWithResponseStatus).responseStatus === "number"
+  ) {
+    return (cause as SyntaxErrorWithResponseStatus).responseStatus;
+  }
+  return error.meta?.response instanceof Response
+    ? error.meta.response.status
+    : undefined;
+};
+
+/**
+ * True when `error` is a TRPCClientError caused by the tRPC client failing to
+ * JSON-parse the HTTP response body (a `SyntaxError` cause, e.g. "JSON.parse:
+ * unexpected character at line 1 column 1 of the JSON data" / "Unexpected end
+ * of JSON input").
+ *
+ * Our tRPC handler always returns JSON, so a non-JSON body means something
+ * between server and client replaced or truncated it (a proxy/LB error page,
+ * an interrupted connection, an intercepting proxy). That is transport state,
+ * not an app bug — the server owns the real signal. A parsed tRPC error
+ * envelope (`error.data`) means the server DID answer with a real error
+ * shape; those keep flowing to Sentry unchanged.
+ *
+ * Deliberately NOT matched: a parse failure on HTTP 414/431. That is the
+ * app-owned oversized-GET-URL bug class (see `sendAsPostOption`) and must
+ * keep capturing. Unknown status (no annotation, no meta) stays classified
+ * as transport — the live client drops the response meta on parse failures,
+ * which is why `fetchWithParseErrorStatus` exists.
+ */
+export const isTrpcResponseParseError = (error: unknown): boolean => {
+  if (!(error instanceof TRPCClientError)) return false;
+  if (error.data) return false;
+  if (!(getCause(error) instanceof SyntaxError)) return false;
+  const status = getResponseStatus(error);
+  return status === undefined || !REQUEST_TOO_LARGE_STATUSES.includes(status);
+};
+
 /**
  * tRPC serializes query input into the GET URL. For reads whose input scales with
  * the number of rows (the `*.batchIO` I/O fetches), that URL grows large (~6KB at
@@ -266,6 +340,20 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
           httpStatus,
         },
       });
+    } else if (isTrpcResponseParseError(error)) {
+      // The response body was not JSON (proxy error page, truncated body) —
+      // transport state, not an app bug. Breadcrumb instead of capture; the
+      // toast below still renders. See `isTrpcResponseParseError`.
+      addBreadcrumb({
+        category: "trpc",
+        type: "http",
+        level: "warning",
+        message: "Suppressed tRPC response parse error (not sent to Sentry)",
+        data: {
+          message: error.message,
+          status: getResponseStatus(error),
+        },
+      });
     } else {
       // Real tRPC errors keep flowing to Sentry, now tagged by procedure/code
       // so they group and route instead of collapsing into one opaque bucket.
@@ -324,11 +412,6 @@ const buildIdLink = (): TRPCLink<AppRouter> => () => {
   };
 };
 
-// HTTP statuses returned when a request's URL/headers are too large for the
-// browser or an upstream proxy. The response body is usually not a tRPC
-// envelope, so these are otherwise hard to diagnose.
-const REQUEST_TOO_LARGE_STATUSES = [414, 431];
-
 // Logs request-size context to the console when a GET-routed query fails because
 // its URL was too large. tRPC serializes query input into the GET URL, so an
 // oversized input (a long list, a wide filter selection, ...) can trip HTTP 414
@@ -346,10 +429,9 @@ const requestTooLargeDiagnosticsLink = (): TRPCLink<AppRouter> => () => {
         error(err) {
           const sentAsGet =
             op.type === "query" && op.context.sendAsPost !== true;
-          const status =
-            err.meta?.response instanceof Response
-              ? err.meta.response.status
-              : undefined;
+          // Annotation-first (meta is dropped on JSON-parse failures — the
+          // common shape of a real 414/431, whose body is empty/HTML).
+          const status = getResponseStatus(err);
 
           if (
             sentAsGet &&
@@ -446,10 +528,12 @@ export const api = createTRPCNext<AppRouter>({
               url: `${getBaseUrl()}/api/trpc`,
               transformer: superjson,
               methodOverride: "POST",
+              fetch: fetchWithParseErrorStatus,
             }),
             false: httpLink({
               url: `${getBaseUrl()}/api/trpc`,
               transformer: superjson,
+              fetch: fetchWithParseErrorStatus,
             }),
           }),
           // when condition is false, use batching
@@ -457,6 +541,7 @@ export const api = createTRPCNext<AppRouter>({
             url: `${getBaseUrl()}/api/trpc`,
             transformer: superjson,
             maxURLLength: 2083, // avoid too large batches
+            fetch: fetchWithParseErrorStatus,
           }),
         }),
       ],
