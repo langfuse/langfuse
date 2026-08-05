@@ -2,9 +2,12 @@
   "$schema": "https://turbo.build/schema.json",
   "noUpdateNotifier": true,
   "globalDependencies": [".env"],
+  // VITEST is set by Vitest in the test process; the in-app agent reads it to
+  // skip creating a real sandbox provider while tests run.
   "globalEnv": [
     "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
-    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF"
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF",
+    "VITEST"
   ],
   "envMode": "loose",
   "tasks": {

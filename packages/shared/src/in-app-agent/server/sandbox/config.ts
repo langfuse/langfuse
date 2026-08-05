@@ -11,6 +11,15 @@ export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProv
     return null;
   }
 
+  // Vitest loads the developer's ../.env (web/vitest.config.mts,
+  // worker/vitest.config.ts), so a locally configured provider would otherwise
+  // spawn real sandboxes during tests. Key off Vitest's own signal rather than
+  // NODE_ENV: NODE_ENV is ambient and deploy-settable, and a deployment that
+  // set it to "test" silently stripped the agent's sandbox tools instead.
+  if (process.env.VITEST) {
+    return null;
+  }
+
   if (providerType === "dangerous-docker" && env.NODE_ENV !== "development") {
     throw new Error(
       "The dangerous-docker in-app agent sandbox provider is only supported in development.",

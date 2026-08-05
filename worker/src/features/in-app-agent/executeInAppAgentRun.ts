@@ -288,7 +288,7 @@ export async function executeInAppAgentRun(params: {
     // ---- Sandbox (session created/resumed lazily per tool call). ----
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
     const sandboxProvider =
-      sandboxProviderType === null || env.NODE_ENV === "test"
+      sandboxProviderType === null
         ? undefined
         : await createInAppAgentSandboxProvider(sandboxProviderType);
 
