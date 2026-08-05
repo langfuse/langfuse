@@ -89,7 +89,13 @@ const SURFACE_HIERARCHY: HierarchyRow[] = [
   {
     utility: "bg-hover",
     token: "--bg-hover",
-    purpose: "Hovered rows, focused menu items, selected nav",
+    purpose: "Hovered rows, focused menu items",
+  },
+  {
+    utility: "bg-selected",
+    token: "--bg-selected",
+    purpose:
+      "Persistently selected item — nav; stronger than hover in light, same level in dark",
   },
 ];
 
@@ -345,54 +351,6 @@ const CONTROL_HIERARCHY: HierarchyRow[] = [
     utility: "border-control-border",
     token: "--control-border",
     purpose: "Unchecked control boundary",
-    kind: "line",
-  },
-];
-
-const SIDEBAR_HIERARCHY: HierarchyRow[] = [
-  {
-    utility: "text-sidebar-foreground",
-    token: "--sidebar-foreground",
-    purpose: "Resting nav ink — dimmer than content until active",
-    kind: "text",
-    on: "--bg-sidebar",
-  },
-  {
-    utility: "bg-sidebar-accent",
-    token: "--sidebar-accent",
-    purpose: "Selected nav fill — bg-hover tier in dark, its own step in light",
-    kind: "fill",
-  },
-  {
-    utility: "text-sidebar-accent-foreground",
-    token: "--sidebar-accent-foreground",
-    purpose: "Ink on the selected item — the bright tier",
-    kind: "text",
-    on: "--sidebar-accent",
-  },
-  {
-    utility: "bg-sidebar-primary",
-    token: "--sidebar-primary",
-    purpose: "Primary item fill — rides the bright ink tier",
-    kind: "fill",
-  },
-  {
-    utility: "text-sidebar-primary-foreground",
-    token: "--sidebar-primary-foreground",
-    purpose: "Ink on the primary fill",
-    kind: "text",
-    on: "--sidebar-primary",
-  },
-  {
-    utility: "border-sidebar-border",
-    token: "--sidebar-border",
-    purpose: "Sidebar hairline — alias of --border",
-    kind: "line",
-  },
-  {
-    utility: "ring-sidebar-ring",
-    token: "--sidebar-ring",
-    purpose: "Focus ring in the sidebar — alias of --focus",
     kind: "line",
   },
 ];
@@ -854,7 +812,6 @@ const ALL_HIERARCHIES: HierarchyRow[][] = [
   STATUS_HIERARCHY,
   SCORE_HIERARCHY,
   CONTROL_HIERARCHY,
-  SIDEBAR_HIERARCHY,
   VIZ_HIERARCHY,
   QLANG_HIERARCHY,
   FIND_MATCH_HIERARCHY,
@@ -974,13 +931,6 @@ export function Color() {
           title="Controls"
           blurb="Checkbox / switch fill, off-state track and unchecked boundary."
           rows={CONTROL_HIERARCHY}
-          lightCtx={lightCtx}
-          darkCtx={darkCtx}
-        />
-        <HierarchySection
-          title="Sidebar"
-          blurb="Nav chrome states — the frame fill itself sits in the surface hierarchy."
-          rows={SIDEBAR_HIERARCHY}
           lightCtx={lightCtx}
           darkCtx={darkCtx}
         />

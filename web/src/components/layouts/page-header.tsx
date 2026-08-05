@@ -157,7 +157,7 @@ const PageHeader = ({
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
                   {/* Explicit color: the SidebarProvider shell sets
-                      text-sidebar-foreground (60% grey in dark) on the whole
+                      text-secondary (60% grey in dark) on the whole
                       app, so unstyled text here would inherit the dimmed
                       sidebar tint. text-contrast is the rare maximum-attention
                       ink — page titles only. */}

@@ -142,13 +142,7 @@
   --color-card-foreground: hsl(var(--card-foreground));
   --color-modal: hsl(var(--bg-modal));
   --color-sidebar: hsl(var(--bg-sidebar));
-  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
-  --color-sidebar-primary: hsl(var(--sidebar-primary));
-  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
-  --color-sidebar-accent: hsl(var(--sidebar-accent));
-  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
-  --color-sidebar-border: hsl(var(--sidebar-border));
-  --color-sidebar-ring: hsl(var(--sidebar-ring));
+  --color-selected: hsl(var(--bg-selected));
 
   --color-find-match-background: hsl(var(--find-match-background));
   --color-find-match-selected-background: hsl(
@@ -393,7 +387,6 @@
     --input: var(--border);
     --popover-border: var(--border);
     --ring: var(--focus);
-    --sidebar-ring: var(--focus);
     --primary-accent: var(--brand);
     /* Destructive folds into danger: the two reds are unified — the alias
        keeps the ~200 destructive call sites resolving (as oklch, see @theme
@@ -502,16 +495,13 @@
     /* Frame tint: one step off the canvas so the nav reads as chrome
        (dark shares the raised --card tier, see .dark). */
     --bg-sidebar: var(--neutral-light-120);
-    --sidebar-foreground: var(--text-secondary);
-    --sidebar-primary: var(--text-primary);
-    --sidebar-primary-foreground: var(--text-on-fill);
     /* Selected-nav fill: light needs a stronger fill than any ladder step
        (the 96% muted tier is too faint against the 98% chrome — per
        conversation with Trang), so it keeps its own palette step; dark
        aligns with the muted/popover level (see .dark). */
-    --sidebar-accent: var(--neutral-light-80);
-    --sidebar-accent-foreground: var(--text-primary);
-    --sidebar-border: var(--border);
+    --bg-selected: var(
+      --neutral-light-80
+    ); /* persistently-selected fill — stronger than hover in light */
 
     --find-match-background: 60 60% 85%;
     --find-match-selected-background: 60 100% 50%;
@@ -581,7 +571,9 @@
        near-invisible ~1.13:1. */
     --bg-hover: var(--neutral-dark-50);
     /* Selected-nav fill aligns with the muted/popover level in dark. */
-    --sidebar-accent: var(--bg-hover);
+    --bg-selected: var(
+      --bg-hover
+    ); /* selected == hover level in dark (deliberate) */
 
     /* One quiet line for everything non-assertive — dividers, inputs,
        popover edges (edge tier merged down per Trang, 2026-08-03). */
