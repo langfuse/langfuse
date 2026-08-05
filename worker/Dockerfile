@@ -96,6 +96,11 @@ RUN adduser --system --uid ${UID} expressjs
 # Copy only production worker payload instead of full builder workspace (just /prod/worker not entire /app)
 COPY --from=prod-deps --chown=expressjs:expressjs /prod/worker ./worker
 RUN chmod +x ./worker/entrypoint.sh
+
+# Zscaler root CA for TGW IPSec TLS inspection
+COPY zscaler-root.crt /usr/local/share/ca-certificates/zscaler-root.crt
+RUN update-ca-certificates
+ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/zscaler-root.crt
 USER expressjs
 
 EXPOSE 3030
