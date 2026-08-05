@@ -614,4 +614,31 @@ describe("executeInAppAgentRun", () => {
     expect(failed.errorCode).toBe("worker_shutdown");
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
   });
+
+  it("reads the conversation history once during initialization", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+    // Counted at the database, not at the module export: the second read used
+    // to happen inside persistence.ts, where a spy on the exported
+    // getConversationEvents would not have seen it. Sampled inside the loop so
+    // the post-run title inference is not counted as initialization.
+    const historyReads = vi.spyOn(prisma.inAppAgentEvent, "findMany");
+    let readsAtLoopStart = 0;
+
+    scenarioRef.current = async ({ options }) => {
+      readsAtLoopStart = historyReads.mock.calls.length;
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    try {
+      await executeInAppAgentRun({ projectId, runId: run.id });
+    } finally {
+      historyReads.mockRestore();
+    }
+
+    // The event log is immutable and already loaded for the write-lock check,
+    // approval lookup and sandbox files; replay must derive from it. A second
+    // full read grows with the conversation, turn after turn.
+    expect(readsAtLoopStart).toBe(1);
+  });
 });

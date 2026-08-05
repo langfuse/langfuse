@@ -505,8 +505,22 @@ export async function getConversationMessagesForReplay(params: {
   projectId: string;
   conversationId: string;
 }) {
+  return getConversationMessagesForReplayFromEvents(
+    await getConversationEvents(params),
+  );
+}
+
+/**
+ * Replay derivation over an already-loaded history. The event log is immutable
+ * once written, so a caller that already holds it (the worker, which needs the
+ * same rows for the write-lock check, approval lookup and sandbox files) must
+ * not pay for a second full read of it.
+ */
+export function getConversationMessagesForReplayFromEvents(
+  events: readonly PersistedConversationEvent[],
+) {
   return sanitizeConversationMessagesForReplay(
-    await getConversationMessages(params),
+    getMessagesFromPersistedEvents(events),
   );
 }
 

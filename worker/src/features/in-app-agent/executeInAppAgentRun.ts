@@ -31,7 +31,7 @@ import {
   finishClaimedRun,
   flushPendingRunEvents,
   getConversationEvents,
-  getConversationMessagesForReplay,
+  getConversationMessagesForReplayFromEvents,
   getInAppAgentPromptClient,
   getSandboxToolCallFiles,
   heartbeatClaimedRun,
@@ -234,11 +234,10 @@ export async function executeInAppAgentRun(params: {
     }
 
     const request = parsedRequest.data;
-    const replayMessages = await getConversationMessagesForReplay({
-      prisma,
-      projectId,
-      conversationId: conversation.id,
-    });
+    // Derived from the history loaded above, not re-read: the event log is
+    // immutable, and a second full read grows with the conversation.
+    const replayMessages =
+      getConversationMessagesForReplayFromEvents(conversationEvents);
     const approvalRequest =
       request.kind === "approvalDecision"
         ? findPersistedApprovalRequest(conversationEvents, request)
