@@ -550,7 +550,7 @@ function ModeSwatch({
 }
 
 const HIERARCHY_GRID =
-  "grid grid-cols-[minmax(140px,auto)_minmax(220px,1fr)_150px_150px] gap-x-4";
+  "grid grid-cols-[minmax(140px,auto)_minmax(180px,1fr)_minmax(200px,240px)_minmax(200px,240px)] gap-x-4";
 
 /** Kumo-style hierarchy table: token chip, purpose, light + dark swatches. */
 function HierarchySection({
