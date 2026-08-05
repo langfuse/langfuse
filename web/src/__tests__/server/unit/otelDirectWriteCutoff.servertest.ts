@@ -70,7 +70,7 @@ describe("isOrgPastOtelDirectWriteCutoff", () => {
     ).toBe(false);
   });
 
-  it("falls back to the pre-cutoff behaviour on unparseable dates", () => {
+  it("falls back to the pre-cutoff behaviour on unparsable dates", () => {
     expect(
       isOrgPastOtelDirectWriteCutoff({
         ...inScope,

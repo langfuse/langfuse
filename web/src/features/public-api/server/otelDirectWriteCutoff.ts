@@ -40,7 +40,7 @@ export const isOrgPastOtelDirectWriteCutoff = (params: {
       : Date.parse(orgCreatedAt);
 
   // A malformed cutoff is rejected by env validation, but the organization date
-  // arrives via the Redis cache. Treat anything unparseable as "age unknown"
+  // arrives via the Redis cache. Treat anything unparsable as "age unknown"
   // and keep the pre-cutoff behaviour rather than guessing.
   if (isNaN(cutoffMs) || isNaN(orgCreatedAtMs)) {
     return false;
