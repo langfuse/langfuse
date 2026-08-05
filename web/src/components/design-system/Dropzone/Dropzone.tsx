@@ -26,7 +26,7 @@ export type DropzoneProps = {
   onError: ((error: Error) => void) | undefined;
   src: File[] | undefined;
   maxFiles: number;
-  maxSize: number;
+  maxSize: number | undefined;
   onDrop: (acceptedFiles: File[]) => void;
   variant: "compact" | "panel";
 };
