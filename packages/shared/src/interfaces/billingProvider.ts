@@ -25,7 +25,7 @@ export function getChbCutoffDate(): Date | null {
 /**
  * Resolve which billing provider owns an organization.
  *
- * Decision order (see CHB integration plan §3.1):
+ * Decision order:
  * 1. Explicit CHB state always wins — the org is already on CHB. Sticky from
  *    the first checkout (which persists `clickhouse.organizationId`), so
  *    later cutoff changes cannot strand an org mid-flow.

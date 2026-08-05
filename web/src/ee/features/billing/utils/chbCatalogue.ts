@@ -39,10 +39,11 @@ export const mapPlanToChbPlanCode = (plan: Plan): ChbPlanCode | null =>
   chbPlans.find((p) => p.mappedPlan === plan)?.planCode ?? null;
 
 /**
- * Transitional bridge (CHB integration plan §3.4): the plan-selection tRPC
- * mutations still take a `stripeProductId`. For CHB orgs the service maps
- * product id → Plan → PlanCode via the two catalogues. Retire together with
- * the product-id input once plan-code-first inputs ship.
+ * Transitional bridge: the plan-selection tRPC mutations still take a
+ * `stripeProductId`, because the plan picker is shared across providers and
+ * predates CHB. For CHB orgs the service maps product id → Plan → PlanCode via
+ * the two catalogues. Retire together with the product-id input once the
+ * mutations accept a plan code directly.
  */
 export const mapStripeProductIdToChbPlanCode = (
   stripeProductId: string,
