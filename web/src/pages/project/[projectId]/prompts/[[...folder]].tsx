@@ -3,15 +3,25 @@ import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
 import { PromptTable } from "@/src/features/prompts/components/prompts-table";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { PlusIcon } from "lucide-react";
+import { Download, UploadIcon, PlusIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
 import PromptMetrics from "./metrics";
 import { useQueryParams, StringParam } from "use-query-params";
-import React from "react";
+import { useState } from "react";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
+import { ImportPromptsButtonDialogController } from "@/src/features/prompts/components/ImportPromptsButtonDialogController";
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { toast } from "sonner";
 
 export default function PromptsWithFolder() {
   const router = useRouter();
@@ -40,7 +50,37 @@ export default function PromptsWithFolder() {
     projectId,
     scope: "prompts:CUD",
   });
+  const hasReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "prompts:read",
+  });
   const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
+  const utils = api.useUtils();
+  const [isExporting, setIsExporting] = useState(false);
+  const capture = usePostHogClientCapture();
+
+  const handleExport = async (mode: "latest" | "all") => {
+    setIsExporting(true);
+    try {
+      const data = await utils.prompts.exportAll.fetch({
+        projectId,
+        includeAllVersions: mode === "all",
+      });
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `langfuse-prompts-${mode}-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      capture("prompts:bulk_export", { mode });
+    } catch {
+      toast.error("Failed to export prompts. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Check if the project has any prompts
   const { data: hasAnyPrompt, isLoading } = api.prompts.hasAny.useQuery(
@@ -89,6 +129,39 @@ export default function PromptsWithFolder() {
         actionButtonsRight: (
           <>
             {projectId && <AutomationButton projectId={projectId} />}
+            {hasReadAccess && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" disabled={isExporting}>
+                    <UploadIcon className="mr-1 h-4 w-4" />
+                    {isExporting ? "Exporting…" : "Export"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExport("latest")}>
+                    Latest version per prompt
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("all")}>
+                    All versions
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {projectId && (
+              <ImportPromptsButtonDialogController projectId={projectId}>
+                {({ disabled, openDialog }) => (
+                  <Button
+                    variant="outline"
+                    disabled={Boolean(disabled)}
+                    title={disabled?.reason}
+                    onClick={openDialog}
+                  >
+                    <Download className="mr-1 h-4 w-4" />
+                    Import
+                  </Button>
+                )}
+              </ImportPromptsButtonDialogController>
+            )}
             <ActionButton
               icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
               hasAccess={hasCUDAccess}
