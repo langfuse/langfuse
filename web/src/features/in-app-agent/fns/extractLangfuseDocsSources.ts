@@ -61,8 +61,7 @@ const InkeepChoiceResultSchema = z.object({
 export function extractLangfuseDocsSources(
   tools: readonly InAppAgentToolCallContent[],
 ): InAppAgentMessageSource[] {
-  return mergeSources(
-    [],
+  return deduplicateBy(
     tools.flatMap((tool) => {
       if (!tool.name.startsWith("langfuseDocs_") || !tool.result) {
         return [];
@@ -70,6 +69,7 @@ export function extractLangfuseDocsSources(
 
       return extractSourcesFromToolResult(tool.result);
     }),
+    (source) => source.url,
   );
 }
 
@@ -94,12 +94,4 @@ function extractSourcesFromToolResult(
 
     return parsedSource.data;
   });
-}
-
-// TODO: Inline this
-function mergeSources(
-  existing: readonly InAppAgentMessageSource[],
-  next: readonly InAppAgentMessageSource[],
-): InAppAgentMessageSource[] {
-  return deduplicateBy([...existing, ...next], (source) => source.url);
 }

@@ -277,7 +277,10 @@ export function getDrawerMessages({
 
     if (role === "assistant" && toolContent.length > 0 && !text.trim()) {
       if (docsSources.length > 0) {
-        pendingSources = mergeSources(pendingSources, docsSources);
+        return deduplicateBy(
+          [...pendingSources, ...docsSources],
+          (source) => source.url,
+        );
       }
 
       pendingToolGroupId ??= `tools-${message.id}`;
@@ -322,7 +325,10 @@ export function getDrawerMessages({
         pendingSources = [];
 
         if (docsSources.length > 0) {
-          pendingSources = mergeSources(pendingSources, docsSources);
+          return deduplicateBy(
+            [...pendingSources, ...docsSources],
+            (source) => source.url,
+          );
         }
       }
     }
@@ -487,12 +493,4 @@ function getRedirectActionFromToolResult(
   } catch {
     return null;
   }
-}
-
-// TODO: Inline this
-function mergeSources(
-  existing: readonly InAppAgentMessageSource[],
-  next: readonly InAppAgentMessageSource[],
-): InAppAgentMessageSource[] {
-  return deduplicateBy([...existing, ...next], (source) => source.url);
 }
