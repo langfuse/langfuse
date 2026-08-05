@@ -33,12 +33,9 @@ import {
   VersionBadge,
   LevelBadge,
   StatusMessageBadge,
-} from "./ObservationMetadataBadgesSimple";
-import {
-  SessionBadge,
-  UserIdBadge,
-} from "../TraceDetailView/TraceMetadataBadges";
-import { CostBadge, UsageBadge } from "./ObservationMetadataBadgesTooltip";
+} from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
+import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
 import { ModelBadge } from "./ObservationMetadataBadgeModel";
 import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
 import {

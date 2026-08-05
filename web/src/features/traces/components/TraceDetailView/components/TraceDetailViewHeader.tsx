@@ -33,12 +33,9 @@ import {
   ReleaseBadge,
   VersionBadge,
   TargetTraceBadge,
-} from "./TraceMetadataBadges";
-import { LatencyBadge } from "../ObservationDetailView/ObservationMetadataBadgesSimple";
-import {
-  CostBadge,
-  UsageBadge,
-} from "../ObservationDetailView/ObservationMetadataBadgesTooltip";
+} from "../../TraceMetadataBadges";
+import { LatencyBadge } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/trace-aggregation";
 import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolve-metadata";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";

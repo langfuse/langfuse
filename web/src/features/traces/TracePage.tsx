@@ -81,7 +81,7 @@ export function TracePage({
         title="Back to Langfuse"
         className="px-3"
       >
-        <Link href="/web/public">Langfuse</Link>
+        <Link href="/">Langfuse</Link>
       </Button>
     ) : (
       <Button

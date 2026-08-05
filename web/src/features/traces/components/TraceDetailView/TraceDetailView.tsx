@@ -43,7 +43,7 @@ import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 
 // Extracted components
-import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
+import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/config/trace-view-config";
 import ScoresTable from "@/src/components/table/use-cases/scores";
