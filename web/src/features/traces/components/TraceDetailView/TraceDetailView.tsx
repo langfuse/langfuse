@@ -41,6 +41,8 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useSession } from "next-auth/react";
 
 // Extracted components
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
@@ -147,6 +149,11 @@ export function TraceDetailView({
     });
 
   // Fetch comments for this trace (for inline comment highlighting)
+  const session = useSession();
+  const hasCommentsReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "comments:read",
+  });
   const traceComments = api.comments.getByObjectId.useQuery(
     {
       projectId,
@@ -155,6 +162,7 @@ export function TraceDetailView({
     },
     {
       refetchOnMount: false,
+      enabled: hasCommentsReadAccess && session.status === "authenticated",
     },
   );
 

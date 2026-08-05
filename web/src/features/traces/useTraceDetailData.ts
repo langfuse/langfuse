@@ -1,6 +1,7 @@
 import { api } from "@/src/utils/api";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
+import { useSession } from "next-auth/react";
 
 /**
  * Single source of truth for fetching a trace's detail data, beta-aware (events
@@ -21,6 +22,20 @@ export function useTraceDetailData({
   enabled?: boolean;
 }) {
   const { isBetaEnabled } = useV4Beta();
+  const { status: sessionStatus } = useSession();
+  const isUnauthenticated = sessionStatus === "unauthenticated";
+  const traceReadConfig = api.public.traceReadConfig.useQuery(undefined, {
+    enabled: isUnauthenticated,
+    staleTime: Infinity,
+  });
+  const isTraceSourceLoading =
+    sessionStatus === "loading" ||
+    (isUnauthenticated && traceReadConfig.isLoading);
+  const unauthenticatedEventsReadEnabled =
+    traceReadConfig.data?.v4WriteMode === "dual" ||
+    traceReadConfig.data?.v4WriteMode === "events_only";
+  const useEventsTraceSource =
+    isBetaEnabled || (isUnauthenticated && unauthenticatedEventsReadEnabled);
 
   // Old path: traces table (beta OFF).
   const tracesQuery = api.traces.byIdWithObservationsAndScores.useQuery(
@@ -30,7 +45,8 @@ export function useTraceDetailData({
       timestamp,
     },
     {
-      enabled: enabled && !!traceId && !isBetaEnabled,
+      enabled:
+        enabled && !!traceId && !isTraceSourceLoading && !useEventsTraceSource,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -48,10 +64,23 @@ export function useTraceDetailData({
     projectId,
     traceId: traceId ?? "",
     timestamp,
-    enabled: enabled && !!traceId && isBetaEnabled,
+    enabled:
+      enabled && !!traceId && !isTraceSourceLoading && useEventsTraceSource,
   });
 
-  if (isBetaEnabled) {
+  if (isTraceSourceLoading) {
+    return {
+      data: undefined,
+      isLoading: true,
+      error: null,
+      isError: false,
+      isNotFound: false,
+      isUnauthorized: false,
+      cutoffObservationsAfterMaxCount: false,
+    };
+  }
+
+  if (useEventsTraceSource) {
     // useEventsTraceData types its error as `unknown`; narrow to the trpc shape
     // to read the code (the non-beta branch gets this for free from the typed
     // tracesQuery.error).
