@@ -31,10 +31,6 @@ export const IN_APP_AGENT_WATCH_TAIL_POLL_MS =
 export const IN_APP_AGENT_WATCH_KEEPALIVE_MS =
   env.LANGFUSE_IN_APP_AGENT_WATCH_KEEPALIVE_MS;
 
-/** Reconcile on attach, then independently from the event polling cadence. */
-export const IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS =
-  env.LANGFUSE_IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS;
-
 /**
  * Deliberate stream end; the client reconnects with its cursor through the
  * same path as a fresh page load, so route/LB duration limits are never hit
