@@ -224,6 +224,11 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  // Independent of the execution consumer so the sweeps can be killed during
+  // an incident without also stopping every background run.
+  QUEUE_CONSUMER_IN_APP_AGENT_LIFECYCLE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),

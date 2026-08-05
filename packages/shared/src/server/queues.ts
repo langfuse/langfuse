@@ -87,6 +87,9 @@ export const InAppAgentRunQueueEventSchema = z.object({
   projectId: z.string(),
   runId: z.string(),
 });
+// Scheduled sweeps carry no payload: they select their own work from Postgres,
+// which is the only authority on run lifecycle and credential state.
+export const InAppAgentLifecycleQueueEventSchema = z.object({});
 export const CloudSpendAlertJobSchema = z.object({
   orgId: z.string(),
 });
@@ -331,6 +334,9 @@ export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type InAppAgentRunQueueEventType = z.infer<
   typeof InAppAgentRunQueueEventSchema
 >;
+export type InAppAgentLifecycleQueueEventType = z.infer<
+  typeof InAppAgentLifecycleQueueEventSchema
+>;
 export type CloudSpendAlertJobType = z.infer<typeof CloudSpendAlertJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
@@ -415,6 +421,9 @@ export enum QueueName {
   NotificationQueue = "notification-queue",
   MonitorQueue = "monitor-queue",
   InAppAgentRunQueue = "in-app-agent-run-queue",
+  // Deliberately separate from the execution queue: recovery must not queue
+  // behind the long-running agent jobs it exists to recover.
+  InAppAgentLifecycleQueue = "in-app-agent-lifecycle-queue",
 }
 
 export enum QueueJobs {
@@ -453,6 +462,8 @@ export enum QueueJobs {
   NotificationJob = "notification-job",
   MonitorJob = "monitor-job",
   InAppAgentRunJob = "in-app-agent-run-job",
+  InAppAgentLifecycleRecoveryJob = "in-app-agent-lifecycle-recovery-job",
+  InAppAgentCredentialMaintenanceJob = "in-app-agent-credential-maintenance-job",
 }
 
 export type TQueueJobTypes = {
@@ -645,5 +656,13 @@ export type TQueueJobTypes = {
     id: string;
     payload: InAppAgentRunQueueEventType;
     name: QueueJobs.InAppAgentRunJob;
+  };
+  [QueueName.InAppAgentLifecycleQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: InAppAgentLifecycleQueueEventType;
+    name:
+      | QueueJobs.InAppAgentLifecycleRecoveryJob
+      | QueueJobs.InAppAgentCredentialMaintenanceJob;
   };
 };

@@ -29,6 +29,7 @@ import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
 import { MonitorQueue } from "./monitorQueue";
 import { InAppAgentRunQueue } from "./inAppAgentRunQueue";
+import { InAppAgentLifecycleQueue } from "./inAppAgentLifecycleQueue";
 
 // Sharded queues require a sharding key.
 // Use the queue class directly, for example IngestionQueue.getInstance({ shardingKey }).
@@ -105,6 +106,8 @@ export function getQueue(
       return MonitorQueue.getInstance();
     case QueueName.InAppAgentRunQueue:
       return InAppAgentRunQueue.getInstance();
+    case QueueName.InAppAgentLifecycleQueue:
+      return InAppAgentLifecycleQueue.getInstance();
     default: {
       const _exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

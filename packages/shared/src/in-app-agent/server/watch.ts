@@ -7,11 +7,9 @@ import {
   type InAppAgentWatchFrame,
 } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
-import { reconcileConversationRuns } from "./runLifecycle";
 import {
   IN_APP_AGENT_WATCH_KEEPALIVE_MS,
   IN_APP_AGENT_WATCH_MAX_CONNECTION_MS,
-  IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS,
   IN_APP_AGENT_WATCH_TAIL_POLL_MS,
 } from "./tunables";
 
@@ -19,6 +17,11 @@ import {
  * Tail persisted events while preserving AG-UI run framing. Synthetic frames
  * never advance beyond the event they frame, so reconnect cannot skip a row.
  * `null` asks the SSE transport to emit a keep-alive comment.
+ *
+ * A pure reader: it holds no lifecycle authority and writes nothing. Stale runs
+ * are terminalized by the worker's lifecycle sweep, by snapshot hydration, and
+ * by the next submit. A watch attached to a run whose worker died therefore
+ * sees `done` once the sweep gets to it, not because the watch went looking.
  */
 export async function* watchConversationFrames(params: {
   prisma: PrismaClient;
@@ -37,23 +40,10 @@ export async function* watchConversationFrames(params: {
   const startedAt = now();
   let cursor = params.cursor;
   let lastKeepaliveAt = startedAt;
-  let lastReconciledAt: number | null = null;
   let openRunId: string | null = null;
   let lastStatusKey: string | null = null;
 
   while (!params.signal?.aborted) {
-    if (
-      lastReconciledAt === null ||
-      now() - lastReconciledAt >= IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS
-    ) {
-      await reconcileConversationRuns({
-        prisma: params.prisma,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-      });
-      lastReconciledAt = now();
-    }
-
     // Read status first: terminal CAS happens after the worker appends events.
     const { latestRun, events } = await params.prisma.$transaction(
       async (tx) => ({

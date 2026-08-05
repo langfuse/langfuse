@@ -524,6 +524,11 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(5 * 60_000),
+  LANGFUSE_IN_APP_AGENT_QUEUE_REDISPATCH_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10_000),
   LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS: z.coerce
     .number()
     .int()
@@ -544,11 +549,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(15_000),
-  LANGFUSE_IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5_000),
   LANGFUSE_IN_APP_AGENT_WATCH_MAX_CONNECTION_MS: z.coerce
     .number()
     .int()

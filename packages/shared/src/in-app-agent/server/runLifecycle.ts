@@ -6,7 +6,6 @@ import {
 } from "../../index";
 import { Prisma } from "../../db";
 import type { InAppAgentRun, PrismaClient } from "../../db";
-import { logger } from "../../server";
 import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
 import {
@@ -23,6 +22,7 @@ import {
 import {
   IN_APP_AGENT_APPROVAL_TTL_MS,
   IN_APP_AGENT_HEARTBEAT_STALE_MS,
+  IN_APP_AGENT_QUEUE_REDISPATCH_MS,
   IN_APP_AGENT_QUEUE_TIMEOUT_MS,
   IN_APP_AGENT_RUN_MAX_DURATION_MS,
 } from "./tunables";
@@ -473,32 +473,217 @@ async function reconcileConversationRunsInTransaction(params: {
     const failure = classifyStaleRun(run, now);
     if (!failure) continue;
 
-    const { count } = await tx.inAppAgentRun.updateMany({
-      where: {
-        id: run.id,
-        projectId,
-        status: run.status,
-        ...(failure.errorCode === InAppAgentRunErrorCode.WORKER_LOST
-          ? {
-              claimedAt: run.claimedAt,
-              heartbeatAt: run.heartbeatAt,
-            }
-          : {}),
-      },
-      data: {
-        status: InAppAgentRunStatus.FAILED,
-        finishedAt: new Date(),
-        errorCode: failure.errorCode,
-        errorMessage: failure.errorMessage,
-      },
+    const applied = await applyStaleRunTerminalCas({
+      client: tx,
+      projectId,
+      run,
+      failure,
     });
 
-    if (count > 0) {
+    if (applied) {
       reconciled.push({ runId: run.id, errorCode: failure.errorCode });
     }
   }
 
   return reconciled;
+}
+
+type InAppAgentRunCasClient = Pick<InAppAgentTx, "inAppAgentRun">;
+
+/**
+ * The one terminal transition for a stale run, shared by conversation reads and
+ * the global sweep so the two can never disagree about what a race means.
+ *
+ * `worker_lost` additionally fences on the observed claim/heartbeat pair: a
+ * worker that renewed its heartbeat between our read and this write keeps the
+ * run, and we report the race instead of killing a healthy run.
+ */
+async function applyStaleRunTerminalCas(params: {
+  client: InAppAgentRunCasClient;
+  projectId: string;
+  run: {
+    id: string;
+    status: string | null;
+    claimedAt: Date | null;
+    heartbeatAt: Date | null;
+  };
+  failure: { errorCode: InAppAgentRunErrorCode; errorMessage: string };
+}): Promise<boolean> {
+  const { count } = await params.client.inAppAgentRun.updateMany({
+    where: {
+      id: params.run.id,
+      projectId: params.projectId,
+      status: params.run.status,
+      ...(params.failure.errorCode === InAppAgentRunErrorCode.WORKER_LOST
+        ? {
+            claimedAt: params.run.claimedAt,
+            heartbeatAt: params.run.heartbeatAt,
+          }
+        : {}),
+    },
+    data: {
+      status: InAppAgentRunStatus.FAILED,
+      finishedAt: new Date(),
+      errorCode: params.failure.errorCode,
+      errorMessage: params.failure.errorMessage,
+    },
+  });
+
+  return count > 0;
+}
+
+type StaleRunRow = {
+  id: string;
+  projectId: string;
+  conversationId: string;
+  status: string | null;
+  createdAt: Date;
+  claimedAt: Date | null;
+  heartbeatAt: Date | null;
+  finishedAt: Date | null;
+};
+
+export type InAppAgentTerminalWorkItem = {
+  run: StaleRunRow;
+  errorCode: InAppAgentRunErrorCode;
+  errorMessage: string;
+};
+
+export type InAppAgentLifecycleWork = {
+  /** QUEUED, past its dispatch delay, still inside the queue timeout. */
+  redispatch: Array<{ runId: string; projectId: string; createdAt: Date }>;
+  terminalize: InAppAgentTerminalWorkItem[];
+  candidateCount: number;
+};
+
+/**
+ * Select and classify globally recoverable runs in one query.
+ *
+ * Only age-eligible rows are selected, so a healthy system reads a handful of
+ * rows and writes nothing. The predicates are a deliberate superset of what
+ * `classifyStaleRun` will act on (a QUEUED run becomes a candidate at the
+ * redispatch delay but is only failed at the queue timeout), so a drift between
+ * filter and classifier can delay a recovery but never cause a wrong one.
+ *
+ * Foreground-shaped runs must never be selected: they insert as RUNNING with a
+ * NULL claim, and the classifier's 150s staleness branch would terminalize a
+ * healthy in-flight foreground run and drop its result. Every RUNNING branch
+ * below therefore keys off a claim or heartbeat timestamp, which a foreground
+ * run never has; the explicit `claimedAt` guard states that intent so a future
+ * branch cannot quietly reintroduce them. Foreground staleness stays owned by
+ * the read path.
+ *
+ * That carve-out is transitional. Once foreground execution is removed after
+ * the background GA, no claim-less RUNNING row can exist and the guard, along
+ * with the classifier's foreground branch, becomes dead code.
+ */
+export async function findInAppAgentLifecycleWork(params: {
+  prisma: PrismaClient;
+  redispatchLimit: number;
+  terminalizeLimit: number;
+  now?: Date;
+}): Promise<InAppAgentLifecycleWork> {
+  const now = params.now ?? new Date();
+  const nowMs = now.getTime();
+  const since = (ms: number) => new Date(nowMs - ms);
+
+  const candidates = await params.prisma.inAppAgentRun.findMany({
+    where: {
+      finishedAt: null,
+      OR: [
+        {
+          status: InAppAgentRunStatus.QUEUED,
+          createdAt: { lt: since(IN_APP_AGENT_QUEUE_REDISPATCH_MS) },
+        },
+        {
+          status: InAppAgentRunStatus.RUNNING,
+          claimedAt: { not: null },
+          OR: [
+            { heartbeatAt: { lt: since(IN_APP_AGENT_HEARTBEAT_STALE_MS) } },
+            // A claim always writes a heartbeat, but do not depend on it.
+            {
+              heartbeatAt: null,
+              claimedAt: { lt: since(IN_APP_AGENT_HEARTBEAT_STALE_MS) },
+            },
+            { claimedAt: { lt: since(IN_APP_AGENT_RUN_MAX_DURATION_MS) } },
+          ],
+        },
+      ],
+    },
+    orderBy: { createdAt: "asc" },
+    take: params.redispatchLimit + params.terminalizeLimit,
+    select: {
+      id: true,
+      projectId: true,
+      conversationId: true,
+      status: true,
+      createdAt: true,
+      claimedAt: true,
+      heartbeatAt: true,
+      finishedAt: true,
+    },
+  });
+
+  const work: InAppAgentLifecycleWork = {
+    redispatch: [],
+    terminalize: [],
+    candidateCount: candidates.length,
+  };
+
+  for (const run of candidates) {
+    const failure = classifyStaleRun(run, nowMs);
+
+    if (failure) {
+      if (work.terminalize.length < params.terminalizeLimit) {
+        work.terminalize.push({ run, ...failure });
+      }
+      continue;
+    }
+
+    // Unstale and still queued: the classifier is the single authority on the
+    // window, so a run past its queue timeout can never be woken up here.
+    if (
+      run.status === InAppAgentRunStatus.QUEUED &&
+      work.redispatch.length < params.redispatchLimit
+    ) {
+      work.redispatch.push({
+        runId: run.id,
+        projectId: run.projectId,
+        createdAt: run.createdAt,
+      });
+    }
+  }
+
+  return work;
+}
+
+/** Apply one classified terminal transition. `false` means another writer won. */
+export async function terminalizeStaleRun(params: {
+  prisma: PrismaClient;
+  item: InAppAgentTerminalWorkItem;
+}): Promise<boolean> {
+  return applyStaleRunTerminalCas({
+    client: params.prisma,
+    projectId: params.item.run.projectId,
+    run: params.item.run,
+    failure: {
+      errorCode: params.item.errorCode,
+      errorMessage: params.item.errorMessage,
+    },
+  });
+}
+
+/** Backlog gauge source: the canary monitor watches oldest queued run age. */
+export async function getOldestQueuedRunCreatedAt(
+  prisma: PrismaClient,
+): Promise<Date | null> {
+  const oldest = await prisma.inAppAgentRun.findFirst({
+    where: { finishedAt: null, status: InAppAgentRunStatus.QUEUED },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
+  });
+
+  return oldest?.createdAt ?? null;
 }
 
 function classifyStaleRun(
@@ -564,48 +749,6 @@ function classifyStaleRun(
   }
 
   return null;
-}
-
-/** Retry terminal-run MCP-key cleanup outside the lifecycle transaction. */
-export async function cleanupTerminalRunMcpApiKeys(params: {
-  prisma: PrismaClient;
-  projectId: string;
-  conversationId: string;
-  deleteApiKey: (apiKeyId: string) => Promise<void>;
-}): Promise<number> {
-  const staleKeyRuns = await params.prisma.inAppAgentRun.findMany({
-    where: {
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      finishedAt: { not: null },
-      mcpApiKeyId: { not: null },
-    },
-    select: { id: true, mcpApiKeyId: true },
-  });
-
-  let cleaned = 0;
-
-  for (const run of staleKeyRuns) {
-    if (!run.mcpApiKeyId) continue;
-
-    try {
-      await params.deleteApiKey(run.mcpApiKeyId);
-      await clearRunMcpApiKeyPointer({
-        prisma: params.prisma,
-        projectId: params.projectId,
-        runId: run.id,
-      });
-      cleaned += 1;
-    } catch (error) {
-      logger.error("Failed to clean up in-app agent MCP key on reconcile", {
-        projectId: params.projectId,
-        runId: run.id,
-        error,
-      });
-    }
-  }
-
-  return cleaned;
 }
 
 async function createRunRow(

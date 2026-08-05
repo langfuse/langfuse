@@ -13,6 +13,15 @@ export const IN_APP_AGENT_QUEUE_TIMEOUT_MS =
   env.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS;
 
 /**
+ * QUEUED and unclaimed for longer than this is re-delivered by the lifecycle
+ * sweep. Covers the commit-before-enqueue window, where the run row exists but
+ * no job does. Redispatch stops at QUEUE_TIMEOUT_MS, so a run can never be
+ * woken up long after the user gave up on it.
+ */
+export const IN_APP_AGENT_QUEUE_REDISPATCH_MS =
+  env.LANGFUSE_IN_APP_AGENT_QUEUE_REDISPATCH_MS;
+
+/**
  * RUNNING for longer than this since claim is failed (run_timeout) on read —
  * the backstop against a hung tool renewing a healthy heartbeat forever.
  */
@@ -30,10 +39,6 @@ export const IN_APP_AGENT_WATCH_TAIL_POLL_MS =
 /** SSE comment interval, so load-balancer idle timeouts never fire. */
 export const IN_APP_AGENT_WATCH_KEEPALIVE_MS =
   env.LANGFUSE_IN_APP_AGENT_WATCH_KEEPALIVE_MS;
-
-/** Reconcile on attach, then independently from the event polling cadence. */
-export const IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS =
-  env.LANGFUSE_IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS;
 
 /**
  * Deliberate stream end; the client reconnects with its cursor through the

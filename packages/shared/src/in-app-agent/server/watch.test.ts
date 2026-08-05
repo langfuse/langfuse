@@ -1,5 +1,5 @@
 import { EventType } from "@ag-ui/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { InAppAgentRunStatus } from "../../index";
 import type { PrismaClient } from "../../db";
@@ -324,5 +324,29 @@ describe("watchConversationFrames", () => {
       EventType.TEXT_MESSAGE_START,
       EventType.RUN_FINISHED,
     ]);
+  });
+
+  it("never reconciles: the watch is a reader, not a lifecycle owner", async () => {
+    // Reconciliation moved to the worker's lifecycle sweep so that a run whose
+    // worker died is recovered whether or not a browser is attached. A watch
+    // that quietly kept doing it would put a write-capable transaction back on
+    // the SSE path for every attached viewer.
+    const active: RunRow = {
+      id: "run-1",
+      status: InAppAgentRunStatus.RUNNING,
+      errorCode: null,
+    };
+    const prisma = fakePrisma([
+      { events: [], run: active },
+      { events: [], run: active },
+      { events: [], run: { ...succeeded, id: "run-1" } },
+    ]);
+    const reconcileReads = vi.spyOn(prisma.inAppAgentRun, "findMany");
+    const reconcileWrites = vi.spyOn(prisma.inAppAgentRun, "updateMany");
+
+    await collect(prisma, -1);
+
+    expect(reconcileReads).not.toHaveBeenCalled();
+    expect(reconcileWrites).not.toHaveBeenCalled();
   });
 });

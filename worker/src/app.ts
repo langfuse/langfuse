@@ -22,6 +22,7 @@ import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { monitorQueueProcessor } from "./queues/monitorQueue";
 import { inAppAgentRunQueueProcessor } from "./queues/inAppAgentRunQueue";
+import { inAppAgentLifecycleQueueProcessor } from "./queues/inAppAgentLifecycleQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
@@ -45,6 +46,7 @@ import {
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   CodeEvalExecutionQueue,
+  InAppAgentLifecycleQueue,
 } from "@langfuse/shared/src/server";
 import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server";
@@ -434,6 +436,22 @@ if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
       // and the lock outlives the run-duration backstop.
       lockDuration: IN_APP_AGENT_RUN_MAX_DURATION_MS + 60_000,
       maxStalledCount: 0,
+    },
+  );
+}
+
+// Deliberately its own queue rather than a job on the execution queue above:
+// that queue runs 15-minute jobs at concurrency 5, so recovery scheduled there
+// would wait behind exactly the saturation it exists to resolve.
+if (env.QUEUE_CONSUMER_IN_APP_AGENT_LIFECYCLE_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  InAppAgentLifecycleQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.InAppAgentLifecycleQueue,
+    inAppAgentLifecycleQueueProcessor,
+    {
+      concurrency: 1,
     },
   );
 }

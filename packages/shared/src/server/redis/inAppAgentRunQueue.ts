@@ -30,7 +30,12 @@ export class InAppAgentRunQueue {
             prefix: getQueuePrefix(QueueName.InAppAgentRunQueue),
             defaultJobOptions: {
               removeOnComplete: true,
-              removeOnFail: 100,
+              // Terminal jobs must not linger: `add` against a retained jobId
+              // is a silent no-op, so a failed job would poison the
+              // deterministic `jobId = runId` and block the lifecycle sweep
+              // from ever redispatching that run. Postgres already keeps the
+              // failure on the run row (errorCode/errorMessage).
+              removeOnFail: true,
               // Postgres owns correctness (claim CAS + reconcile-on-read);
               // BullMQ is delivery-only, so never redeliver on its own.
               attempts: 1,

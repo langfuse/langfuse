@@ -12,9 +12,7 @@ import {
   InAppAgentRunQueue,
   logger,
   QueueJobs,
-  redis,
 } from "@langfuse/shared/src/server";
-import { deleteApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
@@ -32,7 +30,6 @@ import {
   type PersistedConversationEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import {
-  cleanupTerminalRunMcpApiKeys,
   createQueuedRun,
   decideToolApproval,
   reconcileConversationRuns,
@@ -62,20 +59,9 @@ export async function getBackgroundConversationSnapshot(params: {
     conversationId: params.conversationId,
   });
 
-  await cleanupTerminalRunMcpApiKeys({
-    prisma: params.prisma,
-    projectId: params.projectId,
-    conversationId: params.conversationId,
-    deleteApiKey: async (apiKeyId) => {
-      await deleteApiKeyFromDb({
-        prisma: params.prisma,
-        id: apiKeyId,
-        entityId: params.projectId,
-        scope: "PROJECT",
-        redis,
-      });
-    },
-  });
+  // Credential revocation is owned by the worker's credential-maintenance
+  // sweep, which retries a failed delete within a minute whether or not anyone
+  // reopens this conversation.
 
   // The worker commits terminal status and its final events atomically. Keep
   // both reads on one version so the cursor cannot describe an older prefix.
