@@ -457,6 +457,7 @@ export default async function handler(request: Request) {
 
                 return flushPersistedRunEvents();
               },
+              onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
               onApprovedToolCallExecuted: () => {
                 approvedToolResultPersisted = true;
               },

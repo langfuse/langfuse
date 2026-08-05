@@ -39,6 +39,7 @@ import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
 import {
+  type CompletedInAppAgentMcpToolCall,
   getPublicInAppAgentMcpToolResultContent,
   getSandboxInAppAgentMcpToolResultContent,
   IN_APP_AGENT_SANDBOX_TOOL_NAMES,
@@ -421,10 +422,7 @@ export async function getConversationEvents(params: {
   }));
 }
 
-/**
- * Returns `tool_calls` file payloads reconstructed from prior non-sandbox tool
- * calls so each sandbox session can mount the same context.
- */
+/** Builds sandbox `tool_calls` files from persisted and live MCP calls. */
 export function createSandboxToolCallFileAccumulator(
   events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
 ) {
@@ -437,6 +435,31 @@ export function createSandboxToolCallFileAccumulator(
     }
   >();
   const files: Array<{ path: string; content: string }> = [];
+  const completedToolCallIds = new Set<string>();
+
+  const processToolCall = (toolCall: CompletedInAppAgentMcpToolCall) => {
+    if (completedToolCallIds.has(toolCall.toolCallId)) {
+      return;
+    }
+
+    const draft = drafts.get(toolCall.toolCallId);
+    drafts.delete(toolCall.toolCallId);
+    completedToolCallIds.add(toolCall.toolCallId);
+    files.push({
+      path: `tool_calls/${formatSandboxToolCallTimestamp(draft?.createdAt ?? toolCall.createdAt)}_${draft?.toolName ?? toolCall.toolName}_${toolCall.toolCallId}.json`,
+      content: JSON.stringify(
+        {
+          request: draft
+            ? parseSandboxToolCallValue(draft.request)
+            : toolCall.request,
+          response: toolCall.response,
+          error: toolCall.error,
+        },
+        null,
+        2,
+      ),
+    });
+  };
 
   const processEvent = ({
     event,
@@ -448,6 +471,7 @@ export function createSandboxToolCallFileAccumulator(
 
       if (
         toolCallId &&
+        !completedToolCallIds.has(toolCallId) &&
         toolName &&
         !IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName)
       ) {
@@ -477,11 +501,12 @@ export function createSandboxToolCallFileAccumulator(
     const toolCallId = getString(event, "toolCallId");
     const draft = toolCallId ? drafts.get(toolCallId) : undefined;
 
-    if (!toolCallId || !draft) {
+    if (!toolCallId || completedToolCallIds.has(toolCallId) || !draft) {
       return;
     }
 
     drafts.delete(toolCallId);
+    completedToolCallIds.add(toolCallId);
     files.push({
       path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
       content: JSON.stringify(
@@ -505,6 +530,7 @@ export function createSandboxToolCallFileAccumulator(
 
   return {
     processEvent,
+    processToolCall,
     getFiles: () => files,
   };
 }

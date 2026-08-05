@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
+  createSandboxToolCallFileAccumulator,
   getConversationMessagesForDisplay,
   getSandboxToolCallFiles,
 } from "@langfuse/shared/in-app-agent/server/persistence";
@@ -110,7 +111,7 @@ describe("in-app agent sandbox", () => {
 
   it("syncs same-turn silent tool output into sandbox tool-call files", async () => {
     const files = new Map<string, string>();
-    let readonlyFiles = getSandboxToolCallFiles([]);
+    const toolCallFiles = createSandboxToolCallFileAccumulator([]);
     const sandbox = await createInAppAgentSandbox({
       conversationId: "conversation-1",
       projectId: "project-1",
@@ -146,45 +147,33 @@ describe("in-app agent sandbox", () => {
           };
         },
       },
-      getToolCallFiles: async () => readonlyFiles,
+      getToolCallFiles: async () => toolCallFiles.getFiles(),
       saveState: async () => undefined,
     });
+    const tools = withOptionalSilentMcpOutput({
+      tools: {
+        listObservations: new Tool({
+          id: "listObservations",
+          description: "List observations",
+          inputSchema: z.object({}),
+          execute: async () => ({ data: [{ id: "observation-1" }] }),
+        }),
+      },
+      sandbox: sandbox.sandbox,
+      onToolCallCompleted: toolCallFiles.processToolCall,
+    });
 
-    readonlyFiles = getSandboxToolCallFiles([
-      {
-        createdAt: new Date("2026-07-02T12:00:00.000Z"),
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_START,
-          toolCallId: "tool-call-1",
-          toolCallName: "langfuse_listObservations",
-        },
-      },
-      {
-        createdAt: new Date("2026-07-02T12:00:00.100Z"),
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_ARGS,
-          toolCallId: "tool-call-1",
-          delta: '{"silent":true}',
-        },
-      },
-      {
-        createdAt: new Date("2026-07-02T12:00:00.200Z"),
-        runId: "run-1",
-        event: {
-          type: EventType.TOOL_CALL_RESULT,
-          toolCallId: "tool-call-1",
-          content: JSON.stringify({
-            type: "silent-mcp-output",
-            output: { data: [{ id: "observation-1" }] },
-          }),
-        },
-      },
-    ]);
+    await tools.listObservations.execute?.({ silent: true }, {
+      agent: { toolCallId: "tool-call-1" },
+    } as never);
+
+    const path = toolCallFiles.getFiles()[0]?.path;
+    if (!path) {
+      throw new Error("Expected completed tool call file");
+    }
 
     const result = await sandbox.sandbox.read({
-      path: "tool_calls/2026-07-02T12-00-00.000Z_langfuse_listObservations_tool-call-1.json",
+      path,
     });
 
     expect(JSON.parse((result as { content: string }).content)).toEqual({

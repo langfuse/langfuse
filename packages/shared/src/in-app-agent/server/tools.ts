@@ -540,9 +540,19 @@ type SilentMcpToolOutput = {
   output: unknown;
 };
 
+export type CompletedInAppAgentMcpToolCall = {
+  toolCallId: string;
+  toolName: string;
+  request: unknown;
+  response: unknown;
+  error: string | null;
+  createdAt: Date;
+};
+
 export function withOptionalSilentMcpOutput(params: {
   tools: Record<string, unknown> | undefined;
   sandbox?: InAppAgentSandbox;
+  onToolCallCompleted?: (toolCall: CompletedInAppAgentMcpToolCall) => void;
 }): Record<string, Tool> {
   return Object.fromEntries(
     Object.entries(params.tools ?? {}).map(([toolName, tool]) => {
@@ -586,8 +596,37 @@ export function withOptionalSilentMcpOutput(params: {
 
       tool.execute = async (input, context) => {
         const { silent, ...toolInput } = SilentMcpToolInputSchema.parse(input);
+        const toolCallId = getToolCallId(context);
+        const createdAt = new Date();
+        let result: unknown;
 
-        const result: unknown = await execute(toolInput, context);
+        try {
+          result = await execute(toolInput, context);
+        } catch (error) {
+          if (toolCallId) {
+            params.onToolCallCompleted?.({
+              toolCallId,
+              toolName,
+              request: input,
+              response: null,
+              error: error instanceof Error ? error.message : String(error),
+              createdAt,
+            });
+          }
+
+          throw error;
+        }
+
+        if (toolCallId) {
+          params.onToolCallCompleted?.({
+            toolCallId,
+            toolName,
+            request: input,
+            response: result,
+            error: null,
+            createdAt,
+          });
+        }
 
         if (!silent) {
           return result;
@@ -610,6 +649,22 @@ export function withOptionalSilentMcpOutput(params: {
       return [toolName, tool];
     }),
   ) as Record<string, Tool>;
+}
+
+function getToolCallId(context: unknown) {
+  if (
+    typeof context !== "object" ||
+    context === null ||
+    !("agent" in context) ||
+    typeof context.agent !== "object" ||
+    context.agent === null ||
+    !("toolCallId" in context.agent) ||
+    typeof context.agent.toolCallId !== "string"
+  ) {
+    return undefined;
+  }
+
+  return context.agent.toolCallId;
 }
 
 export function getPublicInAppAgentMcpToolResultContent(content: string) {

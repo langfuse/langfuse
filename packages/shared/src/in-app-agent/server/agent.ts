@@ -23,6 +23,7 @@ import {
   createSandboxTools,
   createRedirectActionTool,
   filterInAppAgentAvailableLangfuseMcpTools,
+  type CompletedInAppAgentMcpToolCall,
   type InAppAgentUserAccess,
   withOptionalSilentMcpOutput,
   withInAppAgentToolApproval,
@@ -155,6 +156,7 @@ export function getBedrockReasoningProviderOptions(modelId: string) {
 
 type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
+  onMcpToolCallCompleted?: (toolCall: CompletedInAppAgentMcpToolCall) => void;
   onApprovedToolCallExecuted?: () => void | Promise<void>;
   onComplete?: () => void | Promise<void>;
   onAbort?: () => void | Promise<void>;
@@ -779,23 +781,22 @@ async function createMastraAdapter(params: {
     // discovery, then prefix tool names for constructor-based tools so the
     // model sees the same names that later appear in AG-UI tool-call events.
     const tools = withInAppAgentToolApproval({
-      ...prefixToolsetTools(
-        "langfuse",
-        withOptionalSilentMcpOutput({
-          tools: filterInAppAgentAvailableLangfuseMcpTools({
+      ...withOptionalSilentMcpOutput({
+        tools: prefixToolsetTools(
+          "langfuse",
+          filterInAppAgentAvailableLangfuseMcpTools({
             tools: toolsets.langfuse,
             userAccess: params.options.langfuseMcp.userAccess,
           }),
-          sandbox: params.options.sandbox,
-        }),
-      ),
-      ...prefixToolsetTools(
-        "langfuseDocs",
-        withOptionalSilentMcpOutput({
-          tools: toolsets.langfuseDocs,
-          sandbox: params.options.sandbox,
-        }),
-      ),
+        ),
+        sandbox: params.options.sandbox,
+        onToolCallCompleted: params.options.onMcpToolCallCompleted,
+      }),
+      ...withOptionalSilentMcpOutput({
+        tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+        sandbox: params.options.sandbox,
+        onToolCallCompleted: params.options.onMcpToolCallCompleted,
+      }),
       [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
         projectId: params.options.redirectAction.projectId,
         isV4Enabled: params.options.redirectAction.isV4Enabled,

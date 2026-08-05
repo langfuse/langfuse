@@ -430,6 +430,7 @@ export async function executeInAppAgentRun(params: {
 
           return flushPersistedRunEvents();
         },
+        onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
         onComplete: async () => {
           await flushPersistedRunEvents(
             interruptRequest
