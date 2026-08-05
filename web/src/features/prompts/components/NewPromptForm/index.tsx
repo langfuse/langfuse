@@ -49,6 +49,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
+import { getPromptDetailHref } from "@/src/features/prompts/utils";
 import { useFormPersistence } from "@/src/hooks/useFormPersistence";
 
 type NewPromptFormProps = {
@@ -170,9 +171,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         onFormSuccess?.();
         form.reset();
         if ("name" in newPrompt) {
-          router.push(
-            `/project/${projectId}/prompts/${encodeURIComponent(newPrompt.name)}`,
-          );
+          router.push(getPromptDetailHref(projectId, newPrompt.name));
         }
       })
       .catch((error) => {
@@ -262,9 +261,13 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                         <p className="text-destructive text-sm font-bold">
                           {errorMessage}
                         </p>
-                        {errorMessage?.includes("already exist") ? (
+                        {errorMessage?.includes("already exist") &&
+                        projectId ? (
                           <Link
-                            href={`/project/${projectId}/prompts/${currentName.trim()}`}
+                            href={getPromptDetailHref(
+                              projectId,
+                              currentName.trim(),
+                            )}
                             className="flex flex-row items-center"
                           >
                             Create a new version for it here.

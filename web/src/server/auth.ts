@@ -132,7 +132,12 @@ const staticProviders: Provider[] = [
         email: dbUser.email,
         image: dbUser.image,
         emailVerified: dbUser.emailVerified?.toISOString(),
-        featureFlags: parseFlags(dbUser.featureFlags),
+        featureFlags: parseFlags(dbUser.featureFlags, {
+          email: dbUser.email,
+          // The full session callback resolves deployment and rollout
+          // availability before applying employee defaults.
+          v4BetaEnabled: false,
+        }),
         canCreateOrganizations: canCreateOrganizations(dbUser.email),
         organizations: [],
       };
@@ -861,6 +866,11 @@ export async function getAuthOptions(signupAttribution?: {
           const dualPreviewAvailable =
             isLangfuseCloud ||
             env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+          const v4BetaEnabled =
+            v4WriteMode === "events_only" ||
+            (v4WriteMode === "dual" &&
+              dualPreviewAvailable &&
+              dbUser?.v4BetaEnabled === true);
 
           return {
             ...session,
@@ -884,12 +894,7 @@ export async function getAuthOptions(signupAttribution?: {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled:
-                      v4WriteMode === "events_only"
-                        ? true
-                        : v4WriteMode === "dual" && dualPreviewAvailable
-                          ? dbUser.v4BetaEnabled
-                          : false,
+                    v4BetaEnabled,
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud
@@ -974,7 +979,10 @@ export async function getAuthOptions(signupAttribution?: {
                       },
                     ),
                     emailVerified: dbUser.emailVerified?.toISOString(),
-                    featureFlags: parseFlags(dbUser.featureFlags),
+                    featureFlags: parseFlags(dbUser.featureFlags, {
+                      email: dbUser.email,
+                      v4BetaEnabled,
+                    }),
                     hasPassword: Boolean(dbUser.password),
                   }
                 : null,

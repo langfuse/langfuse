@@ -160,6 +160,109 @@ describe("validateOtelSpanIds", () => {
     });
   });
 
+  // The production payload (prod-us, 2026-08-04): a hand-rolled exporter that
+  // serializes span attributes as a JSON object instead of an OTLP KeyValue
+  // list. Every id is valid hex and both collections are arrays, so the id
+  // checks wave it through — and then extractSpanAttributes reduces over the
+  // object in the worker and fails the file through all six attempts.
+  it("rejects span attributes serialized as a JSON object", () => {
+    const result = validateOtelSpanIds([
+      {
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "ai-control-plane" } },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "ai-control-plane.agent", version: "1.0.0" },
+            spans: [
+              {
+                traceId: "631d6c6420ad4a7598b5f496f614c8b5",
+                spanId: "424e9dc6ea864dee",
+                parentSpanId: "f51a5c11ad4f4a96",
+                name: "Capability: document_retrieval",
+                kind: "INTERNAL",
+                startTimeUnixNano: "1785884062122000000",
+                attributes: {
+                  "capability.id": "document_retrieval",
+                  "run.id": "agent-1785884041268-eou2re",
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(result).toMatchObject({ totalSpanCount: 1, invalidSpanCount: 1 });
+    expect(result.reasonCounts).toEqual({ "attributes:not_an_array": 1 });
+    expect(result.scopeNames).toEqual(["ai-control-plane.agent"]);
+  });
+
+  // The worker reduces over span attributes and filters over span events, so a
+  // present-but-non-array value in any of them throws there just like a bad id.
+  // Each is attributable to a span, so each counts as an invalid span and keeps
+  // the endpoint's discardedValidSpans invariant exact.
+  it.each([
+    {
+      shape: "object attributes",
+      span: {
+        traceId: TRACE_ID,
+        spanId: SPAN_ID,
+        attributes: { "run.id": "agent-1" },
+      },
+      reason: "attributes:not_an_array",
+    },
+    {
+      shape: "object events",
+      span: { traceId: TRACE_ID, spanId: SPAN_ID, events: {} },
+      reason: "events:not_an_array",
+    },
+    {
+      shape: "object attributes on a span event",
+      span: {
+        traceId: TRACE_ID,
+        spanId: SPAN_ID,
+        events: [{ name: "gen_ai.choice", attributes: { role: "assistant" } }],
+      },
+      reason: "event.attributes:not_an_array",
+    },
+  ])("rejects a span with $shape", ({ span, reason }) => {
+    const result = validateOtelSpanIds(wrap([span]));
+    expect(result).toMatchObject({ totalSpanCount: 1, invalidSpanCount: 1 });
+    expect(result.reasons).toEqual([reason]);
+    expect(result.scopeNames).toEqual(["my-tracer"]);
+  });
+
+  // Resource and scope attributes are reduced before any span is touched, so
+  // they fail the file even when the subtree holds no spans at all. There is no
+  // span to attribute them to, so they land in malformedCollectionCount.
+  it.each([
+    {
+      shape: "the resource",
+      payload: [{ resource: { attributes: {} }, scopeSpans: [] }],
+      reason: "resource.attributes:not_an_array",
+    },
+    {
+      shape: "the instrumentation scope",
+      payload: [
+        {
+          scopeSpans: [
+            { scope: { name: "my-tracer", attributes: {} }, spans: [] },
+          ],
+        },
+      ],
+      reason: "scope.attributes:not_an_array",
+    },
+  ])("rejects non-array attributes on $shape", ({ payload, reason }) => {
+    const result = validateOtelSpanIds(payload);
+    expect(result).toMatchObject({
+      invalidSpanCount: 0,
+      malformedCollectionCount: 1,
+    });
+    expect(result.reasons).toEqual([reason]);
+  });
+
   // Absent and empty collections are legitimate and must stay accepted.
   it.each([
     { shape: "non-array", payload: undefined },
@@ -169,6 +272,29 @@ describe("validateOtelSpanIds", () => {
       payload: [{ scopeSpans: [{ scope: null, spans: null }] }],
     },
     { shape: "empty spans", payload: [{ scopeSpans: [{ spans: [] }] }] },
+    // Over-rejection guard: the overwhelming majority of real exports omit or
+    // empty these, and flagging them would 400 traffic that ingests fine today.
+    {
+      shape: "absent and empty attributes and events",
+      payload: [
+        {
+          resource: {},
+          scopeSpans: [
+            {
+              scope: { name: "my-tracer", attributes: [] },
+              spans: [
+                {
+                  traceId: TRACE_ID,
+                  spanId: SPAN_ID,
+                  attributes: [],
+                  events: [{ name: "gen_ai.choice" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
   ])("accepts $shape", ({ payload }) => {
     const result = validateOtelSpanIds(payload);
     expect(result.invalidSpanCount).toBe(0);

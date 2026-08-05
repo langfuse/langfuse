@@ -104,6 +104,10 @@ overrides:
   # Remove once next-auth allows nodemailer ^9.
   "next-auth>nodemailer": "^9.0.3"
 patchedDependencies:
+  # focusFirst crashes on null item refs (items unmounting while entry focus
+  # runs), e.g. opening a row-actions dropdown while a table re-renders.
+  # Still unfixed upstream as of 1.1.19; remove once Radix guards focusFirst.
+  '@radix-ui/react-roving-focus@1.1.11': patches/@radix-ui__react-roving-focus@1.1.11.patch
   next-auth@4.24.15: patches/next-auth@4.24.15.patch
 publicHoistPattern:
   - "*prisma*"
