@@ -15,11 +15,13 @@ import {
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import {
   CommentObjectType,
+  CreatePromptSchema,
   CreatePromptTRPCSchema,
   LATEST_PROMPT_LABEL,
   optionalPaginationZod,
   paginationZod,
   PromptLabelSchema,
+  PromptNameSchema,
   promptsTableCols,
   PromptType,
   StringNoHTMLNonEmpty,
@@ -44,6 +46,7 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
+import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   if (!pathPrefix) {
@@ -356,7 +359,9 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         promptId: z.string(),
-        name: StringNoHTMLNonEmpty,
+        // Same rules as create: a duplicate is a new prompt, so reserved
+        // names / pipes / malformed paths must not slip in through this path.
+        name: PromptNameSchema,
         isSingleVersion: z.boolean(),
       }),
     )
@@ -1512,6 +1517,206 @@ export const promptRouter = createTRPCRouter({
       );
 
       return { success: true };
+    }),
+
+  exportAll: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        includeAllVersions: z.boolean().default(false),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+
+      const count = await ctx.prisma.prompt.count({
+        where: { projectId: input.projectId },
+      });
+
+      if (count > 10_000) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Project has ${count} prompt versions which exceeds the export limit of 10,000. Please contact support for bulk exports of large projects.`,
+        });
+      }
+
+      const prompts = await ctx.prisma.prompt.findMany({
+        where: { projectId: input.projectId },
+        orderBy: [{ name: "asc" }, { version: "asc" }],
+        select: {
+          name: true,
+          version: true,
+          type: true,
+          prompt: true,
+          config: true,
+          tags: true,
+          labels: true,
+          commitMessage: true,
+        },
+      });
+
+      if (input.includeAllVersions) {
+        return prompts;
+      }
+
+      // Return only latest version per prompt name
+      const latestByName = new Map<string, (typeof prompts)[number]>();
+      for (const p of prompts) {
+        const existing = latestByName.get(p.name);
+        if (!existing || p.version > existing.version) {
+          latestByName.set(p.name, p);
+        }
+      }
+      return Array.from(latestByName.values());
+    }),
+
+  importBulk: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        prompts: z.array(CreatePromptSchema).max(500),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:CUD",
+      });
+
+      const importItems = input.prompts.map((item) => ({
+        item,
+        labels: item.labels.filter(
+          (label) => label !== "latest" && label !== "production",
+        ),
+      }));
+
+      const promptLimit = hasEntitlementLimit({
+        entitlementLimit: "prompt-management-count-prompts",
+        sessionUser: ctx.session.user,
+        projectId: input.projectId,
+      });
+
+      if (promptLimit !== false) {
+        const importedPromptNames = Array.from(
+          new Set(importItems.map(({ item }) => item.name)),
+        );
+        const [existingImportedPrompts, promptCountRows] = await Promise.all([
+          ctx.prisma.prompt.groupBy({
+            by: ["name"],
+            where: {
+              projectId: input.projectId,
+              name: { in: importedPromptNames },
+            },
+          }),
+          ctx.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+            SELECT COUNT(DISTINCT name) AS count
+            FROM prompts
+            WHERE project_id = ${input.projectId}
+          `),
+        ]);
+        const existingImportedPromptNames = new Set(
+          existingImportedPrompts.map(({ name }) => name),
+        );
+        const newPromptCount = importedPromptNames.filter(
+          (name) => !existingImportedPromptNames.has(name),
+        ).length;
+        const currentPromptCount = Number(promptCountRows[0]?.count ?? 0);
+
+        if (
+          newPromptCount > 0 &&
+          currentPromptCount + newPromptCount > promptLimit
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Import would create ${newPromptCount} new prompts and exceed the project limit of ${promptLimit} prompts (${currentPromptCount} existing).`,
+          });
+        }
+      }
+
+      const { hasProtectedLabels, protectedLabels } =
+        await checkHasProtectedLabels({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          labelsToCheck: importItems.flatMap(({ labels }) => labels),
+        });
+
+      if (hasProtectedLabels) {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "promptProtectedLabels:CUD",
+          forbiddenErrorMessage: `You don't have permission to import prompts with protected labels. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
+        });
+      }
+
+      const results: Array<{
+        name: string;
+        success: boolean;
+        error?: string;
+      }> = [];
+
+      for (const { item, labels } of importItems) {
+        try {
+          const sharedParams = {
+            projectId: input.projectId,
+            name: item.name,
+            config: item.config ?? {},
+            tags: item.tags ?? [],
+            labels,
+            commitMessage: item.commitMessage ?? null,
+            createdBy: ctx.session.user.id,
+            prisma: ctx.prisma,
+            user: {
+              id: ctx.session.user.id,
+              name: ctx.session.user.name ?? null,
+              email: ctx.session.user.email ?? null,
+            },
+          };
+          let createdPrompt;
+          if (item.type === "chat") {
+            createdPrompt = await createPrompt({
+              ...sharedParams,
+              type: PromptType.Chat,
+              prompt: item.prompt,
+            });
+          } else {
+            createdPrompt = await createPrompt({
+              ...sharedParams,
+              type: PromptType.Text,
+              prompt: item.prompt,
+            });
+          }
+          await auditLog(
+            {
+              session: ctx.session,
+              resourceType: "prompt",
+              resourceId: createdPrompt.id,
+              action: "create",
+              after: createdPrompt,
+            },
+            ctx.prisma,
+          ).catch((error) => {
+            logger.error(
+              `Failed to create audit log for bulk-imported prompt ${createdPrompt.id} in project ${input.projectId}`,
+              error,
+            );
+          });
+          results.push({ name: item.name, success: true });
+        } catch (e) {
+          results.push({
+            name: item.name,
+            success: false,
+            error: e instanceof Error ? e.message : "Unknown error",
+          });
+        }
+      }
+
+      return { results };
     }),
 });
 

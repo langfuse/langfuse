@@ -26,17 +26,8 @@ import {
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
   type ObservationsOmittableFilterColumn,
 } from "@/src/features/filters/config/observations-config";
-import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
-import { formatIntervalSeconds } from "@/src/utils/dates";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
-  TableBadgeLoadingCell,
-  TableIconBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
+  DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
   type FilterState,
   BatchExportTableName,
@@ -48,9 +39,19 @@ import {
   type TimeFilter,
   type OrderByState,
   type TracingSearchType,
+  type ScoreAggregate,
 } from "@langfuse/shared";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { formatIntervalSeconds } from "@/src/utils/dates";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  TableBadgeLoadingCell,
+  TableIconBadgeLoadingCell,
+  TableTextLoadingCell,
+} from "@/src/components/table/loading-cells";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
-import { LevelColors } from "@/src/components/level-colors";
+import { getLevelColors } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -62,14 +63,13 @@ import {
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
-} from "@/src/components/trace/components/_shared/BreakdownToolTip";
+} from "@/src/features/traces/components/_shared/BreakdownToolTip";
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -791,8 +791,8 @@ export default function ObservationsTable({
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              LevelColors[value].bg,
-              LevelColors[value].text,
+              getLevelColors(value).bg,
+              getLevelColors(value).text,
             )}
           >
             {value}

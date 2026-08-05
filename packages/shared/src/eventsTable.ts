@@ -1,8 +1,27 @@
 import { type ColumnDefinition } from "./tableDefinitions";
 
 export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
+export const eventsTableIsRootObservationSqlForAlias = (alias: string) => {
+  const prefix = alias ? `${alias}.` : "";
+  return `(${prefix}parent_span_id = '' OR ${prefix}is_app_root = true)`;
+};
 export const eventsTableIsRootObservationSql =
-  "(e.parent_span_id = '' OR e.is_app_root = true)";
+  eventsTableIsRootObservationSqlForAlias("e");
+export const eventsTableTraceNameSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(${alias}.trace_name, ''), if(${eventsTableIsRootObservationSqlForAlias(alias)}, nullIf(${alias}.name, ''), NULL))`;
+export const eventsTableTraceNameSql = eventsTableTraceNameSqlForAlias("e");
+export const eventsTableTraceNameAggregationSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, ${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> ''), ''))`;
+export const eventsTableTraceNameAggregationSql =
+  eventsTableTraceNameAggregationSqlForAlias("e");
+
+export const isRootObservation = ({
+  parentObservationId,
+  isAppRoot,
+}: {
+  parentObservationId: string | null | undefined;
+  isAppRoot: boolean | null | undefined;
+}): boolean => !parentObservationId || isAppRoot === true;
 // True when the observation carries input / output. NULL/'' both count as
 // absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
 export const eventsTableHasInputSql = "e.input != ''";
@@ -67,10 +86,24 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "API Key",
+    id: "ingestionApiKey",
+    type: "stringOptions",
+    internal: "e.ingestion_api_key",
+    options: [], // to be added at runtime
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",
     internal: "e.version",
+    nullable: true,
+  },
+  {
+    name: "Release",
+    id: "release",
+    type: "string",
+    internal: "e.release",
     nullable: true,
   },
   {
@@ -91,7 +124,7 @@ const eventsTableColsDefinition = [
     name: "Trace Name",
     id: "traceName",
     type: "stringOptions",
-    internal: "e.trace_name",
+    internal: eventsTableTraceNameSql,
     options: [], // to be added at runtime
     nullable: true,
   },
@@ -430,6 +463,7 @@ const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
   "output",
   "metadata",
   "traceTags",
+  "isRootObservation",
   "hasParentObservation",
 ] as const satisfies readonly EventsTableColumnId[];
 

@@ -32,7 +32,7 @@ import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import { StarToggle } from "@/src/components/star-toggle";
 import TagList from "@/src/features/tag/components/TagList";
 import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
-import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/features/traces/components/_shared/BreakdownToolTip";
 import {
   TableBadgeLoadingCell,
   TableIconButtonLoadingCell,

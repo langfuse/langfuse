@@ -6,7 +6,10 @@ import {
 } from "@langfuse/shared";
 import { useMemo, Fragment, useState } from "react";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
-import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
+import {
+  calculateNumericDiff,
+  type BaselineDiff,
+} from "@/src/features/datasets/lib/calculateBaselineDiff";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { Separator } from "@/src/components/ui/separator";
 import { type VisibilityState } from "@tanstack/react-table";
@@ -21,7 +24,13 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { MessageCircleMore, BracesIcon, Copy, Check } from "lucide-react";
+import {
+  MessageCircleMore,
+  BracesIcon,
+  Copy,
+  Check,
+  ExternalLink,
+} from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
@@ -30,6 +39,8 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
+import Link from "next/link";
+import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -39,8 +50,12 @@ type ExperimentGridCellProps = {
   startTime: Date;
   totalCost?: number | null;
   latencyMs?: number | null;
+  baselineTotalCost?: number | null;
+  baselineLatencyMs?: number | null;
   observationId: string;
   traceId: string;
+  /** Render the output cell as single-line text (true) or JSON tree (false). */
+  singleLine: boolean;
   scores: ScoreAggregate;
   traceScores: ScoreAggregate;
   observationScoreOrder: string[];
@@ -51,6 +66,7 @@ type ExperimentGridCellProps = {
   isLoading?: boolean;
   columnVisibility?: VisibilityState;
   markerClassName?: string;
+  showScoreLevelLabels: boolean;
 };
 
 /**
@@ -64,6 +80,8 @@ type GridCellData = {
   startTime: Date;
   totalCost?: number | null;
   latencyMs?: number | null;
+  totalCostDiff?: BaselineDiff;
+  latencyDiff?: BaselineDiff;
   observationId: string;
   traceId: string;
   scores: ScoreAggregate;
@@ -76,7 +94,15 @@ type GridCellData = {
 /**
  * Component to show score comment on hover
  */
-const ScoreCommentPeek = ({ comment }: { comment: string }) => {
+const ScoreCommentPeek = ({
+  comment,
+  executionTraceId,
+  projectId,
+}: {
+  comment: string;
+  executionTraceId?: string | null;
+  projectId: string;
+}) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -88,8 +114,14 @@ const ScoreCommentPeek = ({ comment }: { comment: string }) => {
 
   return (
     <HoverCard>
-      <HoverCardTrigger className="inline-flex cursor-pointer">
-        <MessageCircleMore size={12} className="text-muted-foreground" />
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex cursor-pointer"
+          aria-label="View score comment"
+        >
+          <MessageCircleMore size={12} className="text-muted-foreground" />
+        </button>
       </HoverCardTrigger>
       <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
         <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-end px-1">
@@ -109,6 +141,18 @@ const ScoreCommentPeek = ({ comment }: { comment: string }) => {
         </div>
         <div className="max-h-[40vh] overflow-y-auto p-3 pt-0">
           <p className="whitespace-pre-wrap">{comment}</p>
+          {executionTraceId && (
+            <Link
+              href={`/project/${projectId}/traces/${encodeURIComponent(executionTraceId)}`}
+              className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <ExternalLink className="h-3 w-3" />
+              View execution trace
+            </Link>
+          )}
         </div>
       </HoverCardContent>
     </HoverCard>
@@ -173,11 +217,15 @@ const ScoreItem = ({
   aggregate,
   diff,
   projectId,
+  level,
+  showScoreLevelLabel,
 }: {
   scoreKey: string;
   aggregate: AggregatedScoreData | null;
   diff?: BaselineDiff | null;
   projectId: string;
+  level: Extract<ScoreLevel, "observation" | "trace">;
+  showScoreLevelLabel: boolean;
 }) => {
   // Decompose the key to get name, source, and dataType
   const { name, source, dataType } = decomposeAggregateScoreKey(scoreKey);
@@ -204,38 +252,47 @@ const ScoreItem = ({
 
   return (
     <div className="flex items-center justify-between gap-1 text-xs">
-      <HoverCard>
-        <HoverCardTrigger className="max-w-[50%] cursor-default">
-          <span className="text-muted-foreground block truncate" title={name}>
-            {name}
-          </span>
-        </HoverCardTrigger>
-        <HoverCardContent
-          side="left"
-          className="w-auto p-2 text-xs"
-          align="start"
-        >
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Source:</span>
-              <span className="capitalize">{source.toLowerCase()}</span>
+      <div className="flex max-w-[50%] min-w-0 items-center gap-1">
+        {showScoreLevelLabel && <ScoreTag level={level} />}
+        <HoverCard>
+          <HoverCardTrigger className="min-w-0 cursor-default">
+            <span className="text-muted-foreground block truncate" title={name}>
+              {name}
+            </span>
+          </HoverCardTrigger>
+          <HoverCardContent
+            side="left"
+            className="w-auto p-2 text-xs"
+            align="start"
+          >
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Source:</span>
+                <span className="capitalize">{source.toLowerCase()}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Type:</span>
+                <span className="capitalize">{dataType.toLowerCase()}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Type:</span>
-              <span className="capitalize">{dataType.toLowerCase()}</span>
-            </div>
-          </div>
-        </HoverCardContent>
-      </HoverCard>
+          </HoverCardContent>
+        </HoverCard>
+      </div>
       <div className="flex items-center gap-1">
         {displayValue === "-" ? (
-          <span className="text-muted-foreground font-mono text-xs">-</span>
+          <span className="text-muted-foreground text-xs">-</span>
         ) : (
-          <Badge variant="secondary" className="font-mono text-xs">
+          <Badge variant="secondary" className="text-xs">
             {displayValue}
           </Badge>
         )}
-        {hasComment && <ScoreCommentPeek comment={aggregate.comment!} />}
+        {hasComment && (
+          <ScoreCommentPeek
+            comment={aggregate.comment!}
+            executionTraceId={aggregate.executionTraceId}
+            projectId={projectId}
+          />
+        )}
         {hasMetadata && (
           <ScoreMetadataPeek scoreId={aggregate.id!} projectId={projectId} />
         )}
@@ -244,6 +301,30 @@ const ScoreItem = ({
     </div>
   );
 };
+
+const getScoreRowDefinition = (
+  scoreKey: string,
+  level: Extract<ScoreLevel, "observation" | "trace">,
+  showScoreLevelLabel: boolean,
+): CellRowDef<GridCellData> => ({
+  accessorKey: level === "trace" ? `Trace-${scoreKey}` : scoreKey,
+  cell: ({ data }) => (
+    <ScoreItem
+      scoreKey={scoreKey}
+      aggregate={
+        level === "trace" ? data.traceScores[scoreKey] : data.scores[scoreKey]
+      }
+      diff={
+        level === "trace"
+          ? data.traceScoreDiffs?.[scoreKey]
+          : data.scoreDiffs?.[scoreKey]
+      }
+      projectId={data.projectId}
+      level={level}
+      showScoreLevelLabel={showScoreLevelLabel}
+    />
+  ),
+});
 
 /**
  * Simple key-value display for metadata fields
@@ -310,8 +391,11 @@ export const ExperimentGridCell = ({
   startTime,
   totalCost,
   latencyMs,
+  baselineTotalCost,
+  baselineLatencyMs,
   observationId,
   traceId,
+  singleLine,
   scores,
   traceScores,
   observationScoreOrder,
@@ -322,6 +406,7 @@ export const ExperimentGridCell = ({
   isLoading = false,
   columnVisibility = {},
   markerClassName,
+  showScoreLevelLabels,
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
@@ -337,6 +422,17 @@ export const ExperimentGridCell = ({
         ? undefined
         : computeScoreDiffs(traceScores, baselineTraceScores),
     [traceScores, baselineTraceScores, isBaseline],
+  );
+
+  const totalCostDiff = useMemo(
+    () =>
+      isBaseline ? null : calculateNumericDiff(totalCost, baselineTotalCost),
+    [baselineTotalCost, isBaseline, totalCost],
+  );
+  const latencyDiff = useMemo(
+    () =>
+      isBaseline ? null : calculateNumericDiff(latencyMs, baselineLatencyMs),
+    [baselineLatencyMs, isBaseline, latencyMs],
   );
 
   const orderedObservationKeys = useMemo(
@@ -363,6 +459,8 @@ export const ExperimentGridCell = ({
     startTime,
     totalCost,
     latencyMs,
+    totalCostDiff,
+    latencyDiff,
     observationId,
     traceId,
     scores,
@@ -373,7 +471,7 @@ export const ExperimentGridCell = ({
   };
 
   // Define cell rows declaratively - mirrors LangfuseColumnDef pattern
-  // Fixed order: output, scores, trace scores, metadata
+  // Fixed order: output, scores, metadata
   const cellRows: CellRowDef<GridCellData>[] = useMemo(
     () => [
       // Output section
@@ -385,42 +483,28 @@ export const ExperimentGridCell = ({
             isLoading={data.isLoading}
             data={data.output ?? null}
             className="bg-accent-light-green min-h-8"
-            singleLine={false}
+            singleLine={singleLine}
             enableExpandOnHover
           />
         ),
       },
-      // Observation scores
+      // Keep all score levels together. Individual score visibility still
+      // follows the list-view columns.
       {
-        accessorKey: "observationScores",
+        accessorKey: "scores",
         header: "Scores",
-        children: orderedObservationKeys.map((key) => ({
-          accessorKey: key,
-          cell: ({ data }) => (
-            <ScoreItem
-              scoreKey={key}
-              aggregate={data.scores[key]}
-              diff={data.scoreDiffs?.[key]}
-              projectId={data.projectId}
-            />
-          ),
-        })),
-      },
-      // Trace scores
-      {
-        accessorKey: "traceScores",
-        header: "Trace Scores",
-        children: orderedTraceKeys.map((key) => ({
-          accessorKey: `Trace-${key}`,
-          cell: ({ data }) => (
-            <ScoreItem
-              scoreKey={key}
-              aggregate={data.traceScores[key]}
-              diff={data.traceScoreDiffs?.[key]}
-              projectId={data.projectId}
-            />
-          ),
-        })),
+        children: [
+          ...(columnVisibility.observationScores !== false
+            ? orderedObservationKeys.map((key) =>
+                getScoreRowDefinition(key, "observation", showScoreLevelLabels),
+              )
+            : []),
+          ...(columnVisibility.traceScores !== false
+            ? orderedTraceKeys.map((key) =>
+                getScoreRowDefinition(key, "trace", showScoreLevelLabels),
+              )
+            : []),
+        ],
       },
       // Metadata group - itemId, observationId, level, startTime
       {
@@ -444,6 +528,26 @@ export const ExperimentGridCell = ({
             ),
           },
           {
+            accessorKey: "traceId",
+            cell: ({ data }) => (
+              <MetadataItem label="Execution Trace">
+                <Link
+                  href={`/project/${encodeURIComponent(data.projectId)}/traces/${encodeURIComponent(data.traceId)}?observation=${encodeURIComponent(data.observationId)}`}
+                  className="text-primary inline-flex max-w-full items-center gap-1 hover:underline"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <span
+                    className="truncate font-mono text-xs"
+                    title={data.traceId}
+                  >
+                    {data.traceId}
+                  </span>
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </Link>
+              </MetadataItem>
+            ),
+          },
+          {
             accessorKey: "level",
             cell: ({ data }) => (
               <MetadataItem label="Level">
@@ -463,11 +567,18 @@ export const ExperimentGridCell = ({
             accessorKey: "totalCost",
             cell: ({ data }) => (
               <MetadataItem label="Total Cost">
-                <span className="text-xs">
+                <span className="inline-flex items-center gap-1 text-xs">
                   {data.totalCost != null ? (
                     usdFormatter(data.totalCost, 2, 6)
                   ) : (
                     <span className="text-muted-foreground">-</span>
+                  )}
+                  {data.totalCostDiff && (
+                    <DiffLabel
+                      diff={data.totalCostDiff}
+                      preferNegativeDiff
+                      formatValue={(value) => usdFormatter(value, 2, 6)}
+                    />
                   )}
                 </span>
               </MetadataItem>
@@ -475,19 +586,35 @@ export const ExperimentGridCell = ({
           },
           {
             accessorKey: "latencyMs",
-            cell: ({ data }) =>
-              data.latencyMs != null ? (
-                <MetadataItem label="Latency">
-                  <span className="text-xs">
-                    {latencyFormatter(data.latencyMs)}
-                  </span>
-                </MetadataItem>
-              ) : undefined,
+            cell: ({ data }) => (
+              <MetadataItem label="Latency">
+                <span className="inline-flex items-center gap-1 text-xs">
+                  {data.latencyMs != null ? (
+                    latencyFormatter(data.latencyMs)
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                  {data.latencyDiff && (
+                    <DiffLabel
+                      diff={data.latencyDiff}
+                      preferNegativeDiff
+                      formatValue={(value) => latencyFormatter(value)}
+                    />
+                  )}
+                </span>
+              </MetadataItem>
+            ),
           },
         ],
       },
     ],
-    [orderedObservationKeys, orderedTraceKeys],
+    [
+      columnVisibility,
+      orderedObservationKeys,
+      orderedTraceKeys,
+      showScoreLevelLabels,
+      singleLine,
+    ],
   );
 
   // Filter and compute visible rows
@@ -514,7 +641,7 @@ export const ExperimentGridCell = ({
     .filter((section) => section.content !== null);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-y-auto">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto">
       {sectionsToRender.map((section, index) => {
         const { row, content } = section;
         const isFirst = index === 0;
@@ -528,7 +655,9 @@ export const ExperimentGridCell = ({
                 header={row.header}
                 markerClassName={isFirst ? markerClassName : undefined}
               >
-                {row.cell({ data: cellData })}
+                <div className="h-16 overflow-hidden">
+                  {row.cell({ data: cellData })}
+                </div>
               </GroupSection>
               {!isLast && <Separator />}
             </Fragment>
@@ -567,7 +696,7 @@ export const ExperimentGridCell = ({
  */
 export const ExperimentGridCellEmpty = () => {
   return (
-    <div className="flex h-full w-full items-start justify-start p-2">
+    <div className="flex h-full w-full min-w-0 items-start justify-start p-2">
       <span className="text-muted-foreground text-xs">No data</span>
     </div>
   );

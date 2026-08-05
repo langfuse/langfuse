@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";

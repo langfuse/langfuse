@@ -3,6 +3,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { api } from "@/src/utils/api";
 
 import {
@@ -19,6 +20,7 @@ type ControlledFeaturePreviewModalProps = {
 const PREVIEW_LABEL: Record<PreviewFlag, string> = {
   modernSession: "Compact Session View",
   searchBar: "Filter Search Bar",
+  v4UpgradeUi: "V4 Migration",
 };
 
 export function ControlledFeaturePreviewModal({
@@ -60,11 +62,16 @@ export function ControlledFeaturePreviewModal({
         !isBetaEnabled ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       warningReason: !isBetaEnabled
-        ? "Compact Session View is only available on the events-backed session view. Turn on Fast (Preview) to enable it."
+        ? `Compact Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
         : authSession.data?.environment.enableExperimentalFeatures === true
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
       onToggle: onToggle("modernSession"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
+    v4UpgradeUi: {
+      enabled: authSession.data?.user?.featureFlags.v4UpgradeUi === true,
+      onToggle: onToggle("v4UpgradeUi"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
     // The "Filter Search Bar" preview is retired — the bar is now generally

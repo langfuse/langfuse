@@ -3,17 +3,23 @@ import {
   eventsTableCols,
   eventsTableHasParentObservationSql,
   eventsTableIsRootObservationSql,
+  eventsTableTraceNameSql,
 } from "../../../eventsTable";
 import type { FilterState } from "../../../types";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import { FilterList } from "./clickhouse-filter";
-import {
-  EventsAggQueryBuilder,
-  EventsQueryBuilder,
-} from "./event-query-builder";
+import { EventsAggQueryBuilder } from "./event-query-builder";
+import { buildEventsObservationRowSelection } from "./events-observation-row-selection";
 import { createFilterFromFilterState } from "./factory";
 
 export const EVENTS_FILTER_OPTION_TOP_N = 1000;
+
+// Sentinel "column" carrying the approx total observation count in the facet result.
+export const EVENTS_APPROX_TOTAL_COUNT_MARKER = "__approxTotalCount__";
+
+// Facet tuple format: (option name, option value, value-occurrence count, sort order).
+const EVENTS_APPROX_TOTAL_COUNT_TUPLE = `tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0))`;
+
 const EVENTS_FILTER_OPTION_TOP_K_MAX_N = 65_536;
 
 type EventFilterOptionSort = "countDesc" | "alpha" | "booleanAsc";
@@ -59,8 +65,8 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
   },
   traceName: {
     kind: "scalar",
-    expression: "e.trace_name",
-    includeWhen: "e.trace_name IS NOT NULL AND length(e.trace_name) > 0",
+    expression: eventsTableTraceNameSql,
+    includeWhen: `${eventsTableTraceNameSql} IS NOT NULL`,
     sort: "countDesc",
   },
   type: {
@@ -81,6 +87,12 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     includeWhen: "e.version IS NOT NULL AND length(e.version) > 0",
     sort: "countDesc",
   },
+  release: {
+    kind: "scalar",
+    expression: "e.release",
+    includeWhen: "e.release IS NOT NULL AND length(e.release) > 0",
+    sort: "countDesc",
+  },
   sessionId: {
     kind: "scalar",
     expression: "e.session_id",
@@ -97,6 +109,12 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     kind: "scalar",
     expression: "e.environment",
     includeWhen: "e.environment IS NOT NULL AND length(e.environment) > 0",
+    sort: "countDesc",
+  },
+  ingestionApiKey: {
+    kind: "scalar",
+    expression: "e.ingestion_api_key",
+    includeWhen: "length(e.ingestion_api_key) > 0",
     sort: "countDesc",
   },
   promptName: {
@@ -354,26 +372,27 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   columns: readonly EventFilterOptionColumn[];
   limit: number;
   scope?: EventFilterOptionScope;
+  // approx total = uniq(span_id) over the bulk scan's full-filter WHERE; re-verify if the scan ever drops predicates
+  includeApproxCount?: boolean;
 }): { query: string; params: Record<string, unknown> } | null => {
   const columns = uniqueEventFilterOptionColumns(params.columns);
   if (columns.length === 0 || params.limit <= 0) {
     return null;
   }
 
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      params.filter,
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
   const optionLimit = Math.min(params.limit, EVENTS_FILTER_OPTION_TOP_K_MAX_N);
-  const aggregatedOptionsBuilder = new EventsQueryBuilder({
-    projectId: params.projectId,
-  })
-    .selectRaw(...columns.map(optionTopKSelectExpression))
-    .where(eventsFilter.apply());
+  const { queryBuilder: aggregatedOptionsBuilder } =
+    buildEventsObservationRowSelection({
+      projectId: params.projectId,
+      filter: params.filter,
+    });
+
+  const includeApproxTotal = params.includeApproxCount === true;
+
+  aggregatedOptionsBuilder.selectRaw(
+    ...columns.map(optionTopKSelectExpression),
+    ...(includeApproxTotal ? ["uniq(e.span_id) AS approx_total_count"] : []),
+  );
 
   if (params.scope) {
     aggregatedOptionsBuilder.whereRaw(
@@ -384,6 +403,11 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   const { query: aggregatedOptionsQuery, params: aggregatedOptionsParams } =
     aggregatedOptionsBuilder.buildWithParams();
 
+  // Approx total rides one extra sentinel row so the result shape stays {column, value, count}.
+  const approxTotalCountRow = includeApproxTotal
+    ? `,\n      [${EVENTS_APPROX_TOTAL_COUNT_TUPLE}]`
+    : "";
+
   const query = `
 WITH aggregated_options AS (
 ${aggregatedOptionsQuery}
@@ -391,7 +415,7 @@ ${aggregatedOptionsQuery}
 option_rows AS (
   SELECT
     arrayJoin(arrayConcat(
-      ${columns.map(optionRowsArrayExpression).join(",\n      ")}
+      ${columns.map(optionRowsArrayExpression).join(",\n      ")}${approxTotalCountRow}
     )) AS option
   FROM aggregated_options
 )

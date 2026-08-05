@@ -80,7 +80,10 @@ import {
   completeEvalExecution,
   type EvalExecutionResult,
 } from "./evalCompletion";
-import { isEvalTargetEnvironmentAllowed } from "./isEvalTargetEnvironmentAllowed";
+import {
+  isEvalTargetEnvironmentAllowed,
+  isInternalEvalEnvironment,
+} from "./isEvalTargetEnvironmentAllowed";
 import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
@@ -90,6 +93,10 @@ import {
   buildEvalExecutionSpanAttributes,
   buildEvaluatorLlmErrorSpanAttributes,
 } from "./evalSpanAttributes";
+import {
+  getDeterministicSamplingValue,
+  shouldSampleEvaluation,
+} from "./deterministicSampling";
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
@@ -235,20 +242,19 @@ export const createEvalJobs = async ({
   // Without this safeguard: user trace → eval → eval trace → another eval → infinite loop
   //
   // IMPLEMENTATION:
-  // - Block ALL traces with environment starting with "langfuse-" when coming from trace-upsert queue
+  // - Block internal environments and their public-ingestion aliases when coming from trace-upsert queue
   // - This excludes traces from prompt experiments that come via dataset-run-item-upsert queue
   // - Internal traces (e.g., eval executions) use LangfuseInternalTraceEnvironment enum values
   //
-  // DUAL SAFEGUARD:
+  // DEFENSE IN DEPTH:
   // - This check prevents eval job CREATION for internal traces
-  // - The shared LLM runtime enforces that internal traces MUST use the
-  //   "langfuse-" prefix
+  // - Eval executors repeat the same environment check before execution
   //
   // See: packages/shared/src/server/llm (enforcement)
   // See: packages/shared/src/server/llm/types.ts (LangfuseInternalTraceEnvironment enum)
   if (
     sourceEventType === "trace-upsert" &&
-    event.traceEnvironment?.startsWith("langfuse")
+    isInternalEvalEnvironment(event.traceEnvironment)
   ) {
     logger.debug("Skipping eval job creation for internal Langfuse trace", {
       traceId: event.traceId,
@@ -394,6 +400,12 @@ export const createEvalJobs = async ({
         job.jobInputObservationId === observationId,
     );
   };
+
+  const samplingTargetId =
+    "observationId" in event && event.observationId
+      ? event.observationId
+      : event.traceId;
+  const samplingValue = getDeterministicSamplingValue(samplingTargetId);
 
   for (const config of configs) {
     if (config.status === JobConfigState.INACTIVE) {
@@ -638,16 +650,17 @@ export const createEvalJobs = async ({
         continue;
       }
 
-      // apply sampling. Only if the job is sampled, we create a job
-      // user supplies a number between 0 and 1, which is the probability of sampling
-      if (Number(config.sampling) !== 1) {
-        const random = Math.random();
-        if (random > Number(config.sampling)) {
-          logger.debug(
-            `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
-          );
-          continue;
-        }
+      const samplingRate = Number(config.sampling);
+      if (
+        !shouldSampleEvaluation({
+          samplingValue,
+          samplingRate,
+        })
+      ) {
+        logger.debug(
+          `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
+        );
+        continue;
       }
 
       logger.debug(

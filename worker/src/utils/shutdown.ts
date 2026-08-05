@@ -8,6 +8,7 @@ import { freeAllTokenizers } from "../features/tokenisation/usage";
 import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage";
 import { WorkerManager } from "../queues/workerManager";
 import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
+import { abortActiveInAppAgentRuns } from "../features/in-app-agent/executeInAppAgentRun";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 import {
@@ -69,6 +70,11 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
 
   // Before closeWorkers(), while the registry is still populated (LFE-10388).
   logInFlightBlobExportsOnShutdown();
+
+  // Abort in-flight agent loops at their next step boundary so closeWorkers()
+  // does not wait out a full agent turn; each run finishes FAILED
+  // (worker_shutdown) with its events flushed.
+  abortActiveInAppAgentRuns();
 
   // Shutdown workers (https://docs.bullmq.io/guide/going-to-production#gracefully-shut-down-workers)
   await WorkerManager.closeWorkers();

@@ -10,7 +10,7 @@ import {
 import {
   buildDashboardUrl,
   buildDashboardWidgetUrl,
-} from "@/src/utils/product-url";
+} from "@langfuse/shared/src/server";
 import {
   GetUnstableDashboardWidgetsQuery,
   DashboardWidgetIdQuery,

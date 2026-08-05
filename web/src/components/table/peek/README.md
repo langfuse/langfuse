@@ -71,11 +71,11 @@ resolves against a transient mid-open width) keeps that default deterministic.
 The full-page trace view keeps its own share-based, per-tab layout.
 
 The peek and the standalone trace page already share one beta-aware fetch
-([`../../trace/useTraceDetailData.ts`](../../trace/useTraceDetailData.ts)), one
+([`../../trace/useTraceDetailData.ts`](../../../features/traces/useTraceDetailData.ts)), one
 body + title
-([`../../trace/TraceDetailBody.tsx`](../../trace/TraceDetailBody.tsx) →
+([`../../trace/TraceDetailBody.tsx`](../../../features/traces/TraceDetailBody.tsx) →
 `TraceDetailBody` / `traceDetailTitle`), and one action set
-([`../../trace/TraceDetailActions.tsx`](../../trace/TraceDetailActions.tsx) —
+([`../../trace/TraceDetailActions.tsx`](../../../features/traces/TraceDetailActions.tsx) —
 star / publish / delete) — `usePeekData` is now a thin wrapper over the shared
 hook. **Next slice:** collapse the `<Trace context>` branching and fold these
 primitives into a single `TraceDetailSurface` wrapper so the peek and `TracePage`
@@ -200,11 +200,15 @@ The `PeekTableState` interface defines what state is persisted:
 ```typescript
 interface PeekTableState {
   filters: FilterState;
-  sorting: OrderByState;
+  sorting: OrderByState | undefined;
   pagination: { pageIndex: number; pageSize: number };
   search: { query: string | null; type: string[] };
 }
 ```
+
+An undefined `sorting` value means the table uses the default passed to
+`useOrderByState`. Once the user changes or disables sorting, that explicit
+peek-local value is persisted.
 
 ## Implementation Guide
 

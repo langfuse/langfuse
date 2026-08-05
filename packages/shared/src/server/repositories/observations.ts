@@ -1714,6 +1714,7 @@ const buildObservationsForBlobStorageExportQuery = (
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[],
+  skipDedup: boolean,
 ) => {
   // core is always required (provides id, trace_id, start/end_time used for deduplication)
   const effectiveGroups = new Set<ObservationFieldGroupFull>([
@@ -1728,6 +1729,10 @@ const buildObservationsForBlobStorageExportQuery = (
       LEGACY_OBSERVATION_EXPORT_SQL_OVERRIDES[column.field] ?? column.field,
   );
 
+  // Dedup (latest event_ts per id/project_id/type) requires sorting the full
+  // range before the first row can stream. shouldSkipObservationsFinal-gated
+  // projects write observations exactly once, so the sort buys nothing there
+  // and the query degrades to a pure streaming scan.
   const query = `
     SELECT
       ${selectedColumns.join(",\n      ")}
@@ -1735,8 +1740,12 @@ const buildObservationsForBlobStorageExportQuery = (
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
     AND start_time <= {maxTimestamp: DateTime64(3)}
-    ORDER BY event_ts DESC
-    LIMIT 1 BY id, project_id, type
+    ${
+      skipDedup
+        ? ""
+        : `ORDER BY event_ts DESC
+    LIMIT 1 BY id, project_id, type`
+    }
   `;
 
   return {
@@ -1755,18 +1764,19 @@ const buildObservationsForBlobStorageExportQuery = (
   };
 };
 
-export const getObservationsForBlobStorageExport = function (
+export const getObservationsForBlobStorageExport = async function* (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
 ) {
-  return queryClickhouseStream<Record<string, unknown>>(
+  yield* queryClickhouseStream<Record<string, unknown>>(
     buildObservationsForBlobStorageExportQuery(
       projectId,
       minTimestamp,
       maxTimestamp,
       fieldGroups,
+      await shouldSkipObservationsFinal(projectId),
     ),
   );
 };
@@ -1774,18 +1784,19 @@ export const getObservationsForBlobStorageExport = function (
 // Raw-passthrough variant (LFE-10402): yields each row's unparsed JSONEachRow
 // text, skipping the per-row parse/enrich/serialize cycle. Price columns are
 // NOT added here — that enrichment is dropped on this path.
-export const getObservationsForBlobStorageExportRaw = function (
+export const getObservationsForBlobStorageExportRaw = async function* (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
 ) {
-  return queryClickhouseStreamRawText(
+  yield* queryClickhouseStreamRawText(
     buildObservationsForBlobStorageExportQuery(
       projectId,
       minTimestamp,
       maxTimestamp,
       fieldGroups,
+      await shouldSkipObservationsFinal(projectId),
     ),
   );
 };
@@ -1793,7 +1804,7 @@ export const getObservationsForBlobStorageExportRaw = function (
 // LFE-10463: FORMAT Parquet export — reuses the field-group-aware builder and
 // streams raw binary bytes to upload. Like raw passthrough, no JS enrichment, so
 // price columns are NOT added.
-export const getObservationsForBlobStorageExportParquet = function (
+export const getObservationsForBlobStorageExportParquet = async function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
@@ -1805,6 +1816,7 @@ export const getObservationsForBlobStorageExportParquet = function (
       minTimestamp,
       maxTimestamp,
       fieldGroups,
+      await shouldSkipObservationsFinal(projectId),
     ),
     format: "Parquet",
     clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
@@ -1988,36 +2000,42 @@ export const getObservationCountsByProjectAndDay = async ({
   }));
 };
 
-/**
- * Get total cost grouped by evaluator ID (job_configuration_id) for the last week.
- *
- * @param projectId - Project ID
- * @param evaluatorIds - Array of evaluator IDs (job_configuration_id from metadata)
- * @returns Array of { evaluatorId, totalCost } objects
- */
-export const getCostByEvaluatorIds = async (
+const evaluatorCostFields = {
+  avgCost: {
+    select: "avg(total_cost) as avg_cost",
+    column: "avg_cost",
+  },
+  totalCost: {
+    select: "sum(total_cost) as total_cost",
+    column: "total_cost",
+  },
+  executionCount: {
+    select: "count(*) as execution_count",
+    column: "execution_count",
+  },
+} as const;
+
+const getEvaluatorCostMetricsByIds = async <
+  const TFields extends readonly (keyof typeof evaluatorCostFields)[],
+>(
   projectId: string,
   evaluatorIds: string[],
-): Promise<Array<{ evaluatorId: string; totalCost: number }>> => {
+  fields: TFields,
+) => {
   if (evaluatorIds.length === 0) return [];
 
-  const query = `
-    SELECT
-      metadata['job_configuration_id'] as evaluator_id,
-      sum(total_cost) as total_cost
-    FROM observations FINAL
-    WHERE project_id = {projectId: String}
-      AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
-      AND type = 'GENERATION'
-      AND start_time > today() - 7
-    GROUP BY metadata['job_configuration_id']
-  `;
-
-  const rows = await queryClickhouse<{
-    evaluator_id: string;
-    total_cost: string;
-  }>({
-    query,
+  const rows = await queryClickhouse<Record<string, string>>({
+    query: `
+      SELECT
+        metadata['job_configuration_id'] as evaluator_id,
+        ${fields.map((field) => evaluatorCostFields[field].select).join(",\n        ")}
+      FROM observations FINAL
+      WHERE project_id = {projectId: String}
+        AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
+        AND type = 'GENERATION'
+        AND start_time > today() - 7
+      GROUP BY metadata['job_configuration_id']
+    `,
     params: {
       projectId,
       evaluatorIds,
@@ -2025,11 +2043,31 @@ export const getCostByEvaluatorIds = async (
     tags: { projectId },
   });
 
-  return rows.map((row) => ({
-    evaluatorId: row.evaluator_id,
-    totalCost: Number(row.total_cost),
-  }));
+  return rows.map((row) => {
+    const metrics = Object.fromEntries(
+      fields.map((field) => [
+        field,
+        Number(row[evaluatorCostFields[field].column]),
+      ]),
+    ) as Record<TFields[number], number>;
+
+    return { evaluatorId: row.evaluator_id, ...metrics };
+  });
 };
+
+export const getCostByEvaluatorIds = async (
+  projectId: string,
+  evaluatorIds: string[],
+) => getEvaluatorCostMetricsByIds(projectId, evaluatorIds, ["totalCost"]);
+
+export const getAvgCostByEvaluatorIdsFromObservations = async (
+  projectId: string,
+  evaluatorIds: string[],
+) =>
+  getEvaluatorCostMetricsByIds(projectId, evaluatorIds, [
+    "avgCost",
+    "executionCount",
+  ]);
 
 // ─── Public-API observation query helpers ─────────────────────────────────────
 

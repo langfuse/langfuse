@@ -43,6 +43,7 @@ type AppliedDimensionType = {
 type AppliedMetricType = {
   sql: string;
   aggregation: z.infer<typeof metricAggregations>;
+  queryAggregation?: z.infer<typeof metricAggregations>;
   alias?: string;
   relationTable?: string;
   aggs?: Record<string, string>;
@@ -135,7 +136,9 @@ export class QueryBuilder {
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
-    switch (metric.aggregation) {
+    const aggregation = metric.queryAggregation ?? metric.aggregation;
+
+    switch (aggregation) {
       case "sum":
         return `sum(${metric.alias || metric.sql})`;
       case "avg":
@@ -165,9 +168,9 @@ export class QueryBuilder {
         return `uniq(${metric.alias || metric.sql})`;
       default: {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const exhaustiveCheck: never = metric.aggregation;
+        const exhaustiveCheck: never = aggregation;
         throw new InvalidRequestError(
-          `Invalid aggregation: ${metric.aggregation satisfies never}`,
+          `Invalid aggregation: ${aggregation satisfies never}`,
         );
       }
     }
@@ -301,16 +304,23 @@ export class QueryBuilder {
         );
       }
       const measureDef = view.measures[metric.measure];
-      const validAggs = getValidAggregationsForMeasureType(measureDef.type);
+      const aggregationOverride =
+        measureDef.aggregationOverrides?.[metric.aggregation];
+      const resolvedMeasureDef = aggregationOverride
+        ? { ...measureDef, ...aggregationOverride }
+        : measureDef;
+      const validAggs = getValidAggregationsForMeasureType(
+        resolvedMeasureDef.type,
+      );
       if (!validAggs.includes(metric.aggregation)) {
         throw new InvalidRequestError(
-          `Aggregation "${metric.aggregation}" is not valid for measure "${metric.measure}" (type: ${measureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
+          `Aggregation "${metric.aggregation}" is not valid for measure "${metric.measure}" (type: ${resolvedMeasureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
         );
       }
       return {
-        ...view.measures[metric.measure],
+        ...resolvedMeasureDef,
         aggregation: metric.aggregation,
-        aggs: view.measures[metric.measure].aggs,
+        aggs: resolvedMeasureDef.aggs,
         measureName: metric.measure,
       };
     });
@@ -962,12 +972,13 @@ export class QueryBuilder {
 
     // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
     // When the view has a rootEventCondition, prefer the root event's timestamp for
-    // time bucketing. Falls back to min(start_time) when no root event exists for a
-    // trace (e.g. parent_span_id is not populated).
+    // time bucketing. Falls back to min(start_time) when no semantic-root event
+    // exists for a trace.
     let wrappedSql: string;
     if (wrapInAgg && view.rootEventCondition) {
-      const alias = this.tableAlias(view);
-      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${alias}.${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
+      // The condition owns its qualification because prefixing a compound SQL
+      // expression here would produce invalid SQL such as `alias.(a OR b)`.
+      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
     } else if (wrapInAgg) {
       wrappedSql = `${wrapInAgg}(${timeDimensionSql})`;
     } else {
@@ -1645,13 +1656,14 @@ export class QueryBuilder {
         const toP = `subTo${uid}`;
         const projP = `subProj${uid}`;
         const baseTable = this.actualTableName(view);
+        const tableAlias = this.tableAlias(view);
         const { column, condition } = view.rootEventCondition;
         const subquery =
-          `SELECT ${column} FROM ${baseTable} ` +
-          `WHERE project_id = {${projP}: String} ` +
+          `SELECT ${tableAlias}.${column} FROM ${baseTable} ${tableAlias} ` +
+          `WHERE ${tableAlias}.project_id = {${projP}: String} ` +
           `AND ${condition} ` +
-          `AND ${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
-          `AND ${view.timeDimension} <= {${toP}: DateTime64(3)}`;
+          `AND ${tableAlias}.${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
+          `AND ${tableAlias}.${view.timeDimension} <= {${toP}: DateTime64(3)}`;
         fromClause +=
           ` AND (${baseTable}.${column} IN (${subquery})` +
           ` OR NOT EXISTS (${subquery} LIMIT 1))`;

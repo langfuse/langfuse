@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 
 export default function TableIdOrName({

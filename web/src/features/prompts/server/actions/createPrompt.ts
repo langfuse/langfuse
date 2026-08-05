@@ -18,6 +18,7 @@ import {
   PromptService,
   escapeSqlLikePattern,
   redis,
+  logger,
   extractPlaceholderNames,
   type PromptResult,
 } from "@langfuse/shared/src/server";
@@ -206,30 +207,55 @@ export const createPrompt = async ({
     ...PromptDependency[],
   ];
 
-  // Rotate cache epoch only after successful commit.
-  await promptService.invalidateCache({ projectId });
+  // Once the transaction commits, side-effect failures must not report the
+  // persisted prompt as failed and cause callers to create another version.
+  try {
+    await promptService.invalidateCache({ projectId });
+  } catch (error) {
+    logger.error(
+      `Failed to invalidate prompt cache after creating prompt ${createdPrompt.id} in project ${projectId}`,
+      error,
+    );
+  }
 
-  const updatedPrompts = await prisma.prompt.findMany({
-    where: {
-      id: { in: touchedPromptIds },
-      projectId,
-    },
-  });
-
-  await Promise.all([
-    ...updatedPrompts.map(async (prompt) =>
+  try {
+    const updatedPrompts = await prisma.prompt.findMany({
+      where: {
+        id: { in: touchedPromptIds },
+        projectId,
+      },
+    });
+    const eventPromises = updatedPrompts.map(async (prompt) =>
       promptChangeEventSourcing(
         await promptService.resolvePrompt(prompt),
         "updated",
         user,
       ),
-    ),
-    promptChangeEventSourcing(
-      await promptService.resolvePrompt(createdPrompt),
-      "created",
-      user,
-    ),
-  ]);
+    );
+    eventPromises.push(
+      (async () =>
+        promptChangeEventSourcing(
+          await promptService.resolvePrompt(createdPrompt),
+          "created",
+          user,
+        ))(),
+    );
+
+    const eventResults = await Promise.allSettled(eventPromises);
+    for (const result of eventResults) {
+      if (result.status === "rejected") {
+        logger.error(
+          `Failed to publish prompt change event after creating prompt ${createdPrompt.id} in project ${projectId}`,
+          result.reason,
+        );
+      }
+    }
+  } catch (error) {
+    logger.error(
+      `Failed to prepare prompt change events after creating prompt ${createdPrompt.id} in project ${projectId}`,
+      error,
+    );
+  }
 
   return createdPrompt;
 };

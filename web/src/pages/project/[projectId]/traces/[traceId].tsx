@@ -1,5 +1,5 @@
-import { TracePage } from "@/src/components/trace/TracePage";
-import { parseTraceTimestampFromQuery } from "@/src/utils/parseTraceTimestampFromQuery";
+import { TracePage } from "@/src/features/traces/TracePage";
+import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";
 import { useRouter } from "next/router";
 
 export default function Trace() {

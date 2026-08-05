@@ -5,7 +5,7 @@ import { WebhookActionForm, formatWebhookHeaders } from "./WebhookActionForm";
 import {
   type AutomationDomain,
   AvailableWebhookApiSchema,
-  WebhookDefaultHeaders,
+  WebhookProtectedHeaders,
   TriggerEventSource,
   type ActionCreate,
   type ActionDomain,
@@ -119,8 +119,6 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
 
     // Validate headers
     if (formData.webhook?.headers) {
-      const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
-
       formData.webhook.headers.forEach((header: HeaderPair, index: number) => {
         // Only validate non-empty headers
         if (header.name.trim() || header.value.trim()) {
@@ -136,10 +134,10 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
             );
           }
 
-          // Check if header name conflicts with default headers
+          // Check if header name conflicts with managed headers
           if (
             header.name.trim() &&
-            defaultHeaderKeys.includes(header.name.trim().toLowerCase())
+            WebhookProtectedHeaders.includes(header.name.trim().toLowerCase())
           ) {
             errors.push(
               `Header ${index + 1}: "${header.name}" is automatically added by Langfuse and cannot be customized`,

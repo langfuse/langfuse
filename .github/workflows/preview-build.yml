@@ -3,9 +3,10 @@ name: AWS preview build
 # Build the PR's web + worker images and push them to ECR as pr-<n>-<sha>.
 # The Argo CD ApplicationSet in the infrastructure repo deploys whichever image
 # tag exists for a labeled PR; this workflow only builds and pushes, then posts
-# the preview URL on the PR — as the marker-tagged status comment and as a
-# native GitHub deployment (the "View deployment" button), so the URL is
-# findable without scrolling the timeline.
+# the preview URL on the PR — as the marker-tagged status comment, as a native
+# GitHub deployment (the "View deployment" button), and as a machine-managed
+# block pinned atop the PR description. All PR deployments
+# share one GitHub environment; Argo CD still owns the real preview lifecycle.
 #
 # The two images are independent artifacts pushed to two independent ECR repos
 # under the same tag, with no ordering dependency between them. They therefore
@@ -19,24 +20,33 @@ name: AWS preview build
 #
 # Builds every SAME-REPO PR on open/update (write access is the gate — opening a
 # same-repo PR requires push access). It deliberately does NOT trigger on the
-# `preview` label: the auto-labeler applies that label with the default
-# GITHUB_TOKEN, and GitHub does not start workflow runs from GITHUB_TOKEN-applied
-# events (anti-recursion), so a `labeled` trigger would never fire for
-# auto-labeled PRs. The label is only the Argo *deploy* filter (infra repo), and
-# the deploy allowlist lives in the ApplicationSet — not here. Fork PRs are
-# excluded (the head.repo check below) and can't mint an OIDC token anyway
+# `preview` label applied by the auto-labeler: GitHub does not start workflow
+# runs from GITHUB_TOKEN-applied events (anti-recursion), while the PR's `open`
+# event already starts the build. A manually re-added `preview` label does
+# trigger a build so its deleted native deployment record is recreated. The
+# label is the Argo *deploy* filter (infra repo), and the deploy allowlist lives
+# in the ApplicationSet — not here. Fork PRs are excluded (the head.repo check
+# below) and can't mint an OIDC token anyway
 # (public repo, read-only token); the ECR-push role's trust is scoped to
 # sub=repo:langfuse/langfuse:pull_request AND ref=refs/pull/* (GitHub OIDC has no
 # event_name claim), so pull_request_target / review — which carry the base
 # branch ref — cannot assume it either.
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled]
 
 permissions: {}
 
 concurrency:
-  group: preview-build-${{ github.event.pull_request.number }}
+  # The group is claimed at queue time, before the job `if`s, so an unrelated
+  # `labeled` run would cancel a live build and then skip every job. Only
+  # building runs join `preview-build-<n>`, which preview-deactivate.yml matches
+  # verbatim to cancel on close; the rest get a throwaway per-run group.
+  group: >-
+    ${{ (github.event.pull_request.state == 'open'
+         && (github.event.action != 'labeled' || github.event.label.name == 'preview'))
+        && format('preview-build-{0}', github.event.pull_request.number)
+        || format('preview-build-noop-{0}', github.run_id) }}
   cancel-in-progress: true
 
 jobs:
@@ -45,14 +55,17 @@ jobs:
   # place. Lightweight: no build context, only the base-branch composite action.
   meta:
     name: Resolve tags and mark building
-    # Any SAME-REPO PR (= write access) builds on open/update. No label gate here:
-    # the auto-labeler's GITHUB_TOKEN-applied label can't trigger this workflow,
-    # and the label is the Argo deploy filter, not the build trigger. Fork PRs are
-    # excluded (head.repo check) and can't mint OIDC anyway.
+    # Any SAME-REPO PR (= write access) builds on open/update; a manual label
+    # event is accepted only for `preview`, to recreate a deployment after
+    # teardown. Fork PRs are excluded and can't mint OIDC anyway.
     # AWS_PREVIEW_ECR_PUSH_ROLE_ARN doubles as the feature flag: unset => no-op.
+    # `labeled` (unlike the other three) also fires on closed/merged PRs, which
+    # Argo never deploys — so gate on state or a build there records a dead URL.
     if: >-
       vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'preview')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -75,7 +88,7 @@ jobs:
       # touches the build context, so the base checkout at the workspace root is
       # all it needs.
       - name: Checkout base local actions
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.base.sha }}
@@ -139,7 +152,9 @@ jobs:
     needs: meta
     if: >-
       vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'preview')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -155,7 +170,10 @@ jobs:
             # The cloud region must be baked at build time (NEXT_PUBLIC_* is
             # inlined into the client bundle) so previews render the cloud-only
             # AI features; the worker reads it from runtime env instead.
-            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV
+            # Auto sign-in with the shared seeded demo identity — previews are
+            # disposable, synthetic-data-only environments with an intentionally
+            # public login, so visitors should not have to type it.
+            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV --build-arg NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN=true
           - target: worker
             image: ${{ needs.meta.outputs.worker_image }}
             dockerfile: worker/Dockerfile
@@ -165,13 +183,13 @@ jobs:
       # pins to. This job posts no comments, so it needs no base checkout and can
       # take the build context at the workspace root.
       - name: Checkout PR head (build context)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           aws-region: ${{ vars.AWS_PREVIEW_REGION }}
           role-to-assume: ${{ vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN }}
@@ -186,6 +204,12 @@ jobs:
           DOCKERFILE: ${{ matrix.dockerfile }}
           # Static, workflow-defined literal (per-target flags) — no user input.
           EXTRA_BUILD_ARGS: ${{ matrix.extra_build_args }}
+          TARGET: ${{ matrix.target }}
+          # PR metadata for the preview strip the web app renders (a link back
+          # to the PR + its author). Passed via env, never interpolated into
+          # the script body.
+          PR_HTML_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
 
@@ -216,12 +240,28 @@ jobs:
           fi
 
           echo "${IMAGE} not found — building and pushing."
+
+          # Bake PR metadata into the web client bundle so previews render a
+          # top-of-page strip linking back to the PR (NEXT_PUBLIC_* is inlined
+          # at build time; the worker has no client bundle). The timestamp is
+          # the build time of this head commit, i.e. when the preview content
+          # last changed.
+          preview_meta_args=()
+          if [ "${TARGET}" = "web" ]; then
+            preview_meta_args+=(
+              --build-arg "NEXT_PUBLIC_PREVIEW_PR_URL=${PR_HTML_URL}"
+              --build-arg "NEXT_PUBLIC_PREVIEW_PR_AUTHOR=${PR_AUTHOR}"
+              --build-arg "NEXT_PUBLIC_PREVIEW_LAST_UPDATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            )
+          fi
+
           # EXTRA_BUILD_ARGS is a trusted workflow literal and must word-split
           # into separate flags, so it is intentionally left unquoted.
           # shellcheck disable=SC2086
           docker build \
             --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
             ${EXTRA_BUILD_ARGS} \
+            "${preview_meta_args[@]}" \
             -f "${DOCKERFILE}" \
             -t "${IMAGE}" \
             .
@@ -239,17 +279,19 @@ jobs:
     if: >-
       always() &&
       vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'preview')
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-      # createDeployment/createDeploymentStatus for the native "View deployment"
-      # button on the PR (see "Record GitHub deployment" below).
+      # Create the native "View deployment" entry and retire the previous
+      # deployment for this PR after an update.
       deployments: write
     steps:
       - name: Checkout base local actions
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.base.sha }}
@@ -266,7 +308,7 @@ jobs:
             Argo CD is rolling it out — the environment is usually ready within a
             few minutes of this comment.
 
-            **URL:** https://${{ needs.meta.outputs.preview_host }}
+            **URL:** https://${{ needs.meta.outputs.preview_host }} (signs you in automatically; opt out with `/auth/sign-in?autoSignIn=false`)
             **Login:** `${{ needs.meta.outputs.login_email }}` / `${{ needs.meta.outputs.login_password }}`
             **API keys:** `${{ needs.meta.outputs.public_key }}` / `${{ needs.meta.outputs.secret_key }}`
             **Commit:** ${{ needs.meta.outputs.commit_sha }}
@@ -285,42 +327,51 @@ jobs:
 
             Synthetic preview data only. Never add production data to public accounts.
 
-      # Record a native GitHub deployment for the preview, so the PR shows
-      # "deployed to pr-<n>" with a "View deployment" button in the timeline /
-      # merge box, and the environment appears on the repo's Deployments page.
-      # Inline step (not the base-checkout composite action): it needs no shared
-      # logic, and inline steps run from the PR's own workflow file.
+      # GitHub environments are durable configuration objects, so all PRs share
+      # one `PR Preview` environment instead of creating an unbounded `pr-<n>`
+      # environment per PR. The PR-specific task lets cleanup query only this
+      # PR's deployments while the immutable SHA remains the deployment ref.
       #
-      # `state: success` mirrors the 🟢 comment's semantics — images pushed,
-      # Argo CD rolling out; the URL is usually live minutes later. Like the
-      # comment, it cannot see the infra-repo deploy allowlist, so for a
-      # non-allowlisted author the deployment records but the URL 404s (same
-      # caveat as the comment's debug-guide link). `auto_inactive` retires the
-      # previous SHA's deployment on every new push; the preview-deactivate
-      # workflow retires the last one when the PR closes.
+      # A new deployment is made successful before the prior deployment is
+      # retired, so a cleanup/API failure cannot remove the PR's last working
+      # "View deployment" link.
       - name: Record GitHub deployment
         if: needs.build.result == 'success'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PREVIEW_SHA: ${{ needs.meta.outputs.commit_sha }}
           PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
-          PREVIEW_ENVIRONMENT: pr-${{ github.event.pull_request.number }}
+          PREVIEW_TASK: preview-pr-${{ github.event.pull_request.number }}
         with:
           script: |
             const { owner, repo } = context.repo;
-            const environment = process.env.PREVIEW_ENVIRONMENT;
+            // Environment + task are a literal contract with
+            // preview-deactivate.yml and preview-stale-cleanup.yml: if they
+            // drift, listDeployments silently matches nothing and dead records
+            // pile up.
+            const environment = "PR Preview";
+            const task = process.env.PREVIEW_TASK;
+
+            const previousDeployments = await github.paginate(
+              github.rest.repos.listDeployments,
+              { owner, repo, environment, task, per_page: 100 },
+            );
 
             const { data: deployment } = await github.rest.repos.createDeployment({
               owner,
               repo,
               ref: process.env.PREVIEW_SHA,
               environment,
+              task,
               // The images are the deployable; don't gate on commit statuses
               // (this very workflow is one of them) and never let GitHub
               // auto-merge base into the ref.
               required_contexts: [],
               auto_merge: false,
-              transient_environment: true,
+              // The shared GitHub environment is durable even though each
+              // underlying Argo preview and deployment record is temporary.
+              transient_environment: false,
+              production_environment: false,
               description: `Langfuse PR preview at https://${process.env.PREVIEW_HOST}`,
             });
             // required_contexts: [] makes a non-201 unrepresentable in practice,
@@ -338,9 +389,89 @@ jobs:
               state: "success",
               environment_url: `https://${process.env.PREVIEW_HOST}`,
               log_url: `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`,
-              auto_inactive: true,
+              // Other PRs share this environment and must remain active.
+              auto_inactive: false,
             });
-            core.info(`Recorded deployment ${deployment.id} for ${environment}.`);
+            core.info(`Recorded deployment ${deployment.id} for ${task}.`);
+
+            let failures = 0;
+            for (const previous of previousDeployments) {
+              try {
+                await github.rest.repos.createDeploymentStatus({
+                  owner,
+                  repo,
+                  deployment_id: previous.id,
+                  state: "inactive",
+                });
+                await github.rest.repos.deleteDeployment({
+                  owner,
+                  repo,
+                  deployment_id: previous.id,
+                });
+              } catch (e) {
+                failures++;
+                core.warning(`Previous deployment ${previous.id}: ${e.message} — continuing`);
+              }
+            }
+            core.info(`Deleted ${previousDeployments.length - failures} of ${previousDeployments.length} previous deployment(s) for ${task}.`);
+            if (failures) {
+              core.setFailed(`${failures} of ${previousDeployments.length} previous deployment(s) could not be deleted.`);
+            }
+
+      # Pin the preview URL to the very top of the PR description, where it
+      # stays visible no matter how long the discussion below grows (GitHub has
+      # no pinned comments for PRs). The block is machine-managed between
+      # hidden markers; the author's own text below it is never touched. Runs
+      # after the deployment record on purpose: a pin API failure still fails
+      # the job loudly, but can no longer skip the more functional artifact.
+      - name: Pin preview link to the PR description
+        if: needs.build.result == 'success'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
+        with:
+          script: |
+            // Markers + regex must stay byte-identical to the removal snippets
+            // in preview-deactivate.yml and preview-stale-cleanup.yml, or a
+            // torn-down preview keeps advertising a dead URL at the top of
+            // the PR forever.
+            const START = "<!-- aws-preview-pin:start -->";
+            const END = "<!-- aws-preview-pin:end -->";
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const host = process.env.PREVIEW_HOST;
+
+            // Exactly one bold line, by request — the markdown link is needed
+            // because a schemeless hostname does not auto-link.
+            const block = [
+              START,
+              `🟡 **Live preview: [${host}](https://${host})**`,
+              END,
+              "",
+              "",
+            ].join("\n");
+
+            // Sweep every existing block (line-anchored, so a block displaced
+            // by a manual description edit can't duplicate or outlive the
+            // preview; inline mentions of the markers mid-sentence are never
+            // matched — only a full quoted block with markers on their own
+            // lines would be swept), then prepend the fresh block at the top.
+            // The (?:\r?\n)* tail matters: web-UI edits resubmit bodies with
+            // CRLF endings. Last-writer-wins against a concurrent manual edit
+            // is acceptable for one machine-managed line every build rewrites.
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            const body = pr.body ?? "";
+            const strayRe = new RegExp(`(^|\\r?\\n)(?:${START}[\\s\\S]*?${END}(?:\\r?\\n)*)+`, "g");
+            const next = block + body.replace(strayRe, "$1").replace(/^(?:\r?\n)+/, "");
+            if (next.length > 65536) {
+              // Degrade to a warning: a huge description should not fail
+              // preview builds (a real API failure below still fails loudly).
+              core.warning("PR body would exceed GitHub's 65536-char limit; leaving it unchanged.");
+              return;
+            }
+            if (next !== body) {
+              await github.rest.pulls.update({ owner, repo, pull_number, body: next });
+            }
 
       # Two distinct failure paths, each keyed on `== 'failure'` (NOT
       # `!= 'success'`): that keeps them from firing on `cancelled` (a

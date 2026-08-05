@@ -1,13 +1,14 @@
 import { EventType } from "@ag-ui/core";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/ee/features/in-app-agent/server/tools";
-import { storePendingToolApproval } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { filterInAppAgentAvailableLangfuseMcpTools } from "@langfuse/shared/in-app-agent/server/tools";
+import { storePendingToolApproval } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 import type {
   AgUiEvent,
   InAppAgentToolApprovalRequest,
-} from "@/src/ee/features/in-app-agent/schema";
-import { replaceRunEvents } from "@/src/ee/features/in-app-agent/server/persistence";
+} from "@langfuse/shared/in-app-agent";
+import { appendRunEvents } from "@langfuse/shared/in-app-agent/server/persistence";
 import { env } from "@/src/env.mjs";
+import { InAppAgentRunStatus } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   createAndAddApiKeysToDb,
@@ -23,8 +24,7 @@ import { beforeEach, vi } from "vitest";
 import { z } from "zod";
 
 const authMocks = vi.hoisted(() => ({
-  getServerSession: vi.fn(),
-  getAuthOptions: vi.fn().mockResolvedValue({}),
+  getServerAuthSessionForRequest: vi.fn(),
 }));
 
 const entitlementMocks = vi.hoisted(() => ({
@@ -50,12 +50,15 @@ const langfuseClientMocks = vi.hoisted(() => ({
   getLangfuseClient: vi.fn(() => ({})),
 }));
 
-vi.mock("next-auth", () => ({
-  getServerSession: authMocks.getServerSession,
-}));
+vi.hoisted(() => {
+  // This suite mocks the agent stream and does not exercise a sandbox
+  // provider. Keep its provider selection explicit rather than inheriting the
+  // developer's root .env.
+  delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
+});
 
 vi.mock("@/src/server/auth", () => ({
-  getAuthOptions: authMocks.getAuthOptions,
+  getServerAuthSessionForRequest: authMocks.getServerAuthSessionForRequest,
 }));
 
 vi.mock("@/src/features/entitlements/server/hasEntitlement", () => ({
@@ -76,7 +79,7 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   }),
 }));
 
-vi.mock("@/src/ee/features/in-app-agent/server/agent", () => ({
+vi.mock("@langfuse/shared/in-app-agent/server/agent", () => ({
   createAgUiStream: agentMocks.createAgUiStream,
 }));
 
@@ -92,6 +95,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 describe("in-app agent public API route auth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    entitlementMocks.hasEntitlement.mockReturnValue(true);
     agentMocks.createAgUiStream.mockResolvedValue(new ReadableStream());
     langfuseClientMocks.getLangfuseClient.mockReturnValue({});
     rateLimitMocks.rateLimitRequest.mockResolvedValue({
@@ -194,12 +198,12 @@ describe("in-app agent public API route auth", () => {
   });
 
   it("adds the authenticated user to the request span", async () => {
-    authMocks.getServerSession.mockResolvedValue(
+    authMocks.getServerAuthSessionForRequest.mockResolvedValue(
       createInAppAgentSession({ orgId: "org-1", projectId: "project-1" }),
     );
 
     const { default: handler } =
-      await import("@/src/ee/features/in-app-agent/server/handler");
+      await import("@/src/features/in-app-agent/server/handler");
     await handler(new Request("http://localhost/api/in-app-agent"));
 
     expect(instrumentationMocks.addUserToSpan).toHaveBeenCalledWith({
@@ -249,7 +253,7 @@ describe("in-app agent public API route auth", () => {
           name: "In-app Agent User",
         },
       });
-      authMocks.getServerSession.mockResolvedValue(
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(
         createInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
@@ -264,7 +268,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -340,6 +344,209 @@ describe("in-app agent public API route auth", () => {
         error: "Invalid forwarded props",
       });
       expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("background watch route authorization", () => {
+    async function setupWatchConversation() {
+      const { org, project } = await createOrgProjectAndApiKey();
+      const userId = `watch-owner-${randomUUID()}`;
+      const conversationId = `conversation-${randomUUID()}`;
+
+      await prisma.organization.update({
+        where: { id: org.id },
+        data: { aiFeaturesEnabled: true },
+      });
+      await prisma.user.create({
+        data: {
+          id: userId,
+          email: `${userId}@example.com`,
+        },
+      });
+      await prisma.inAppAgentConversation.create({
+        data: {
+          id: conversationId,
+          projectId: project.id,
+          createdByUserId: userId,
+          title: "Watch authorization test",
+        },
+      });
+
+      return { conversationId, org, project, userId };
+    }
+
+    async function callWatchRoute(params: {
+      projectId: string;
+      conversationId: string;
+    }) {
+      const { default: watchHandler } =
+        await import("@/src/features/in-app-agent/server/watchHandler");
+
+      return watchHandler(
+        new Request(
+          `http://localhost/api/in-app-agent/watch?projectId=${params.projectId}&conversationId=${params.conversationId}&cursor=-1`,
+        ),
+      );
+    }
+
+    it("allows the owner to watch the project-scoped conversation", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, org, project, userId } =
+          await setupWatchConversation();
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: org.id,
+            projectId: project.id,
+            userId,
+          }),
+        );
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain(
+          "text/event-stream",
+        );
+        await expect(response.text()).resolves.toContain("event: done");
+      });
+    });
+
+    it("rejects an unauthenticated watch", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, project } = await setupWatchConversation();
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(null);
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(401);
+      });
+    });
+
+    it("rejects a watcher without project membership", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, org, project, userId } =
+          await setupWatchConversation();
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: org.id,
+            projectId: project.id,
+            userId,
+            includeProjectMembership: false,
+          }),
+        );
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(403);
+      });
+    });
+
+    it("rejects a watcher without the in-app-agent entitlement", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, org, project, userId } =
+          await setupWatchConversation();
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: org.id,
+            projectId: project.id,
+            userId,
+          }),
+        );
+        entitlementMocks.hasEntitlement.mockReturnValue(false);
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(403);
+      });
+    });
+
+    it("rejects a watch when organization AI features are disabled", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, org, project, userId } =
+          await setupWatchConversation();
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: org.id,
+            projectId: project.id,
+            userId,
+          }),
+        );
+        await prisma.organization.update({
+          where: { id: org.id },
+          data: { aiFeaturesEnabled: false },
+        });
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(403);
+      });
+    });
+
+    it("does not reveal a conversation to another project member", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, org, project } = await setupWatchConversation();
+        const otherUserId = `watch-member-${randomUUID()}`;
+        await prisma.user.create({
+          data: {
+            id: otherUserId,
+            email: `${otherUserId}@example.com`,
+          },
+        });
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: org.id,
+            projectId: project.id,
+            userId: otherUserId,
+          }),
+        );
+
+        const response = await callWatchRoute({
+          projectId: project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(404);
+      });
+    });
+
+    it("does not resolve a conversation through another project", async () => {
+      await withInAppAgentCloudEnv(async () => {
+        const { conversationId, userId } = await setupWatchConversation();
+        const other = await createOrgProjectAndApiKey();
+        await prisma.organization.update({
+          where: { id: other.org.id },
+          data: { aiFeaturesEnabled: true },
+        });
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
+          createInAppAgentSession({
+            orgId: other.org.id,
+            projectId: other.project.id,
+            userId,
+          }),
+        );
+
+        const response = await callWatchRoute({
+          projectId: other.project.id,
+          conversationId,
+        });
+
+        expect(response.status).toBe(404);
+      });
     });
   });
 
@@ -670,9 +877,10 @@ describe("in-app agent public API route auth", () => {
           triggeredByUserId: userId,
           model: "haiku",
           mcpApiKeyId: "api-key-old-sandbox",
+          status: InAppAgentRunStatus.RUNNING,
         },
       });
-      await replaceRunEvents({
+      await appendRunEvents({
         prisma,
         projectId: project.id,
         conversationId,
@@ -692,7 +900,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -745,9 +953,10 @@ describe("in-app agent public API route auth", () => {
           triggeredByUserId: userId,
           model: "haiku",
           mcpApiKeyId: "api-key-old-sandbox-resume",
+          status: InAppAgentRunStatus.RUNNING,
         },
       });
-      await replaceRunEvents({
+      await appendRunEvents({
         prisma,
         projectId: project.id,
         conversationId,
@@ -819,7 +1028,7 @@ describe("in-app agent public API route auth", () => {
       if (!sessionUser) {
         throw new Error("Expected an authenticated session user");
       }
-      authMocks.getServerSession.mockResolvedValue(session);
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(session);
       rateLimitMocks.rateLimitRequest.mockResolvedValue({
         isRateLimited: () => true,
         res: {
@@ -843,7 +1052,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -919,7 +1128,7 @@ describe("in-app agent public API route auth", () => {
         admin: true,
         includeProjectMembership: false,
       });
-      authMocks.getServerSession.mockResolvedValue(session);
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(session);
       rateLimitMocks.rateLimitRequest.mockResolvedValue({
         isRateLimited: () => true,
         res: {
@@ -943,7 +1152,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -1000,7 +1209,7 @@ describe("in-app agent public API route auth", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true },
       });
-      authMocks.getServerSession.mockResolvedValue(
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(
         await createPersistedInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
@@ -1008,7 +1217,7 @@ describe("in-app agent public API route auth", () => {
       );
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -1119,7 +1328,7 @@ describe("in-app agent public API route auth", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true },
       });
-      authMocks.getServerSession.mockResolvedValue(
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(
         await createPersistedInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
@@ -1127,7 +1336,7 @@ describe("in-app agent public API route auth", () => {
       );
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -1255,7 +1464,7 @@ describe("in-app agent public API route auth", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true },
       });
-      authMocks.getServerSession.mockResolvedValue(
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(
         await createPersistedInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
@@ -1263,7 +1472,7 @@ describe("in-app agent public API route auth", () => {
       );
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
 
       const lookupScenarios = [
         { viewId: otherProjectView.id },
@@ -1340,7 +1549,7 @@ describe("in-app agent public API route auth", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true },
       });
-      authMocks.getServerSession.mockResolvedValue(
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(
         await createPersistedInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
@@ -1348,7 +1557,7 @@ describe("in-app agent public API route auth", () => {
       );
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -1498,7 +1707,7 @@ async function setupInAppAgentProjectSession() {
       name: "In-app Agent User",
     },
   });
-  authMocks.getServerSession.mockResolvedValue(
+  authMocks.getServerAuthSessionForRequest.mockResolvedValue(
     createInAppAgentSession({ orgId: org.id, projectId: project.id, userId }),
   );
 
@@ -1529,7 +1738,7 @@ async function callInAppAgentRoute(params: {
   forwardedProps: ReturnType<typeof createResumeForwardedProps>;
 }) {
   const { default: handler } =
-    await import("@/src/ee/features/in-app-agent/server/handler");
+    await import("@/src/features/in-app-agent/server/handler");
   const response = await handler(
     new Request("http://localhost/api/in-app-agent", {
       method: "POST",

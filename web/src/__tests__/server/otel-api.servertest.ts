@@ -488,6 +488,135 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     });
   });
 
+  // Both rejection gates in one request: spans with unusable ids, and a
+  // scopeSpans that is present but not an array. The latter used to be accepted
+  // here and then fail the queue job through every retry attempt, because the
+  // worker iterates that field behind a `?? []` fallback which does not guard a
+  // non-nullish non-array.
+  it("should reject unprocessable spans and non-array collections", async () => {
+    const response = await makeAPICall<{ error: string }>(
+      "POST",
+      "/api/public/otel/v1/traces",
+      {
+        resourceSpans: [
+          {
+            resource: { attributes: [] },
+            scopeSpans: [
+              {
+                scope: { name: "uvicorn.access" },
+                spans: [
+                  // Both ids absent, and an id of a type Buffer.from rejects.
+                  { traceState: "INFO" },
+                  { traceId: 42, spanId: 42 },
+                ],
+              },
+            ],
+          },
+          { resource: { attributes: [] }, scopeSpans: {} },
+        ],
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("2 of 2 span(s)");
+    expect(response.body.error).toContain(
+      "1 resource- or scope-level field(s)",
+    );
+    expect(response.body.error).toContain("scopeSpans:not_an_array");
+    expect(response.body.error).toContain("uvicorn.access");
+  });
+
+  // The prod-us shape: ids are valid hex and every collection is an array
+  // except the span attributes, which a hand-rolled OTLP/JSON exporter emitted
+  // as a {key: value} object. It cleared the id validation and then failed in
+  // the worker on attributes.reduce, losing the file after all six attempts.
+  it("should reject span attributes sent as a JSON object", async () => {
+    const response = await makeAPICall<{ error: string }>(
+      "POST",
+      "/api/public/otel/v1/traces",
+      {
+        resourceSpans: [
+          {
+            resource: {
+              attributes: [
+                {
+                  key: "service.name",
+                  value: { stringValue: "ai-control-plane" },
+                },
+              ],
+            },
+            scopeSpans: [
+              {
+                scope: { name: "ai-control-plane.agent", version: "1.0.0" },
+                spans: [
+                  {
+                    traceId: randomBytes(16).toString("hex"),
+                    spanId: randomBytes(8).toString("hex"),
+                    name: "Capability: document_retrieval",
+                    attributes: { "capability.id": "document_retrieval" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("1 of 1 span(s)");
+    expect(response.body.error).toContain("attributes:not_an_array");
+    expect(response.body.error).toContain("not a JSON object");
+    expect(response.body.error).toContain("ai-control-plane.agent");
+  });
+
+  // An OTLP *logs* export pointed at this endpoint. ResourceLogs and
+  // ResourceSpans share protobuf field numbers, so log records decode into
+  // spans that keep a valid instrumentation scope but carry no ids, which used
+  // to fail in the worker and burn all six queue attempts.
+  it("should reject an OTLP logs payload sent to the traces endpoint", async () => {
+    const requestBody =
+      $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.encode(
+        $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.fromObject(
+          {
+            resourceLogs: [
+              {
+                resource: { attributes: [] },
+                scopeLogs: [
+                  {
+                    scope: { name: "codex_otel.log_only" },
+                    logRecords: [{ severityText: "INFO" }],
+                  },
+                ],
+              },
+            ],
+          },
+        ),
+      ).finish();
+
+    // makeAPICall JSON-stringifies its body, so send the binary payload
+    // with a plain fetch instead.
+    const response = await fetch(
+      "http://localhost:3000/api/public/otel/v1/traces",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-protobuf",
+          Authorization: createBasicAuthHeader(
+            "pk-lf-1234567890",
+            "sk-lf-1234567890",
+          ),
+        },
+        body: requestBody,
+      },
+    );
+
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toContain("traceId:absent");
+    expect(body.error).toContain("codex_otel.log_only");
+  });
+
   it("should transform deployment.environment to lowercase", async () => {
     const traceId = randomBytes(16);
     const spanId = randomBytes(8);

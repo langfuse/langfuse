@@ -7,7 +7,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod";
-import { ChatMessageList } from "@/src/components/trace/components/IOPreview/components/ChatMessageList";
+import { ChatMessageList } from "@/src/features/traces/components/IOPreview/components/ChatMessageList";
 import {
   TabsBar,
   TabsBarList,

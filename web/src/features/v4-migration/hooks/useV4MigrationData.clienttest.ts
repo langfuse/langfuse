@@ -46,8 +46,13 @@ const currentSdkSeries = {
   sdkVersion: "4.7.0",
   canonicalSdkName: "python" as const,
   publicKey: "pk-lf-python",
+  count: 1,
+  firstSeen: "2026-07-23T09:00:00Z",
   lastSeen: "2026-07-23T10:00:00Z",
+  hasDelayedOtelEvents: true,
+  attributionStatus: "attributed" as const,
   v4MigrationStatus: "compatible" as const,
+  upgradeCompleted: false,
 };
 
 describe("account v4 migration data", () => {
@@ -86,6 +91,11 @@ describe("account v4 migration data", () => {
           {
             projectId: "project-1",
             outdatedSdkUsageSeriesCount: 0,
+            delayedOtelIngestionSeriesCount: 0,
+            experimentInstrumentationMigration: {
+              status: "sdk_usage_inconclusive" as const,
+              upgradePath: "sdk" as const,
+            },
             sdkUsageSeries: [currentSdkSeries],
           },
         ]),
@@ -126,8 +136,13 @@ describe("account v4 migration data", () => {
         status: "latest",
         sdkUsageSeries: [currentSdkSeries],
         upgradeRequiredCount: 0,
+        delayedOtelIngestionCount: 0,
       },
       evals: { status: "loaded", count: 2 },
+      experiments: {
+        status: "loaded",
+        result: "sdk_usage_inconclusive",
+      },
       apis: { status: "loaded", count: 2 },
       exports: { status: "loaded", count: 1 },
     });

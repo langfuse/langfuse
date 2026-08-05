@@ -112,6 +112,23 @@ export const PreviewFile = meta.story({
   },
 });
 
+// Oversized observation fields are preserved as attachments rather than
+// looking like discarded data.
+export const OversizedField = meta.story({
+  args: {
+    contentType: "text/plain",
+    label: "Full value attached",
+    description:
+      "This field was too large to process inline, so Langfuse saved the complete original value as an attachment at ingestion.",
+    openActionLabel: "Open original",
+    intent: "attachment",
+    open: true,
+    status: "ready",
+    url: "data:text/plain,original%20oversized%20field",
+    contentLength: 2.5 * 1024 * 1024,
+  },
+});
+
 // Design showcase: one chip per media kind, collapsed.
 export const AllKinds = meta.story({
   render: () => (

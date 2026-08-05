@@ -12,10 +12,20 @@ const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
 const DESIGN_COMPONENT_STORIES = [
   "Checkbox/Checkbox",
   "Codeblock/Codeblock",
+  "Dropzone/Dropzone",
   "LangfuseIcon/LangfuseIcon",
+  "LangfuseLogo/LangfuseLogo",
   "Progress/Progress",
   "Spinner/Spinner",
   "Switch/Switch",
+] as const;
+// Design-system reference pages that sit directly under Design (not
+// Design/Components): the token reference, one single-leaf page per element.
+const DESIGN_REFERENCE_STORIES = [
+  "ThemeTokens/Color",
+  "ThemeTokens/Typography",
+  "ThemeTokens/Layout",
+  "ThemeTokens/Charts",
 ] as const;
 
 /**
@@ -46,12 +56,49 @@ const config: StorybookConfig = {
       files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design/Components",
     })),
+    // Design-system reference pages shown directly under Design.
+    ...DESIGN_REFERENCE_STORIES.map((storyPath) => ({
+      directory: "../src/components/design-system",
+      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Design",
+    })),
     // All other component stories belong to the flat Playground by default.
+    // Outside components/design-system the exclusion is by path, so a generic
+    // basename like Charts.stories.tsx elsewhere still reaches the Playground;
+    // inside design-system the curated names are negated by basename, which is
+    // safe there because those files are exactly the curated ones. Disjoint
+    // globs because !(...) matches a single path segment — which also means
+    // `!(dir)/**` requires at least one leading segment, so files sitting
+    // directly in the entry's directory need their own `*.stories` entry
+    // (hence the depth-one entries below). Caveat: picomatch
+    // treats !(Name) as a prefix negation here, so a design-system story whose
+    // basename merely starts with a curated name (e.g. ColorPicker) would be
+    // skipped too; give such a story a non-colliding basename or its own entry.
     {
       directory: "../src",
-      files: `**/!(${DESIGN_COMPONENT_STORIES.map((storyPath) =>
-        basename(storyPath),
-      ).join("|")}).stories.${STORY_EXTENSIONS}`,
+      files: `*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src",
+      files: `!(components)/**/*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src/components",
+      files: `*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src/components",
+      files: `!(design-system)/**/*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src/components/design-system",
+      files: `**/!(${[...DESIGN_COMPONENT_STORIES, ...DESIGN_REFERENCE_STORIES]
+        .map((storyPath) => basename(storyPath))
+        .join("|")}).stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
     },
   ],
@@ -62,7 +109,7 @@ const config: StorybookConfig = {
     getAbsolutePath("@storybook/addon-vitest"),
   ],
   framework: getAbsolutePath("@storybook/nextjs-vite"),
-  staticDirs: ["../public"],
+  staticDirs: ["../public", "./public"],
   // Resolve `@langfuse/shared` to its TypeScript source, mirroring the app's
   // own alias (next.config.mjs: webpack alias + turbopack.resolveAlias both map
   // "@langfuse/shared" -> "./packages/shared/src"). The package's published
@@ -113,6 +160,14 @@ const config: StorybookConfig = {
       {
         find: /^@langfuse\/shared\/query$/,
         replacement: `${sharedSrc}/features/query`,
+      },
+      // Client-safe entry of the in-app-agent module (imported by the agent
+      // window components and their stories). Deliberately no rule for the
+      // `/server` subpaths: a story that pulls server code should fail the
+      // build, not silently resolve.
+      {
+        find: /^@langfuse\/shared\/in-app-agent$/,
+        replacement: `${sharedSrc}/in-app-agent`,
       },
       {
         find: /^\.prisma\/client\/index-browser$/,

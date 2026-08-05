@@ -17,7 +17,14 @@ export const signOutCleanly = async () => {
   if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
     posthog.reset();
   }
+  // On preview deployments the sign-in page signs visitors back in
+  // automatically; an explicit sign-out must land on the opted-out form or
+  // staying signed out via the UI is impossible.
+  const autoSignInOptOut =
+    env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN === "true"
+      ? "?autoSignIn=false"
+      : "";
   await signOut({
-    callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,
+    callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in${autoSignInOptOut}`,
   });
 };

@@ -1,5 +1,6 @@
 export * from "./constants";
 export { decodeUnicodeEscapesOnly } from "./utils/unicode";
+export { stringify, stringifyForCsv } from "./utils/stringify";
 export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";
@@ -49,6 +50,17 @@ export { BatchTableNames } from "./interfaces/tableNames";
 
 // in-app agent
 export * from "./features/inAppAgent/types";
+
+// rbac
+export * from "./features/rbac/projectAccessRights";
+
+// filters
+export * from "./features/filters/internalEnvironments";
+export * from "./features/filters/filterQueryEncoding";
+export * from "./features/filters/sessionPositionInTrace";
+
+// date ranges
+export * from "./utils/dateRanges";
 
 // annotation
 export * from "./features/annotation/types";
