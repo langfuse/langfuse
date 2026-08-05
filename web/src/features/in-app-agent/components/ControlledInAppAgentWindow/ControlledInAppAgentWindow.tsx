@@ -2,8 +2,8 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/router";
-import { InAppAgentWindow } from "../InAppAgentWindow/InAppAgentWindow";
-import type { InAppAgentWindowConversation } from "../InAppAgentWindow/InAppAgentWindow";
+import { InAppAgentWindow } from "./components/InAppAgentWindow/InAppAgentWindow";
+import type { InAppAgentWindowConversation } from "./components/InAppAgentWindow/InAppAgentWindow";
 import { useInAppAiAgent } from "../InAppAgentProvider/InAppAiAgentProvider";
 import { useSmoothStreamingMessages } from "./hooks/useSmoothStreamingMessages";
 import { getDrawerMessages } from "./fns/getDrawerMessages";

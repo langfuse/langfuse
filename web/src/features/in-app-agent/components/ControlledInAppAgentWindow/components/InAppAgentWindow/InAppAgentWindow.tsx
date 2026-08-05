@@ -53,7 +53,7 @@ import type {
   InAppAgentScreenContextDescription,
   InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/types";
-import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentWindow/components/InAppAgentToolCallCard/InAppAgentToolCallCard";
+import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/components/InAppAgentWindow/components/InAppAgentToolCallCard/InAppAgentToolCallCard";
 import {
   IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
   type InAppAgentError,
@@ -64,7 +64,7 @@ import { isInAppAgentQuickActionContext } from "@/src/features/in-app-agent/fns/
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { isInAppAgentRateLimited } from "@/src/features/in-app-agent/fns/isInAppAgentRateLimited";
-import { getInAppAgentQuickActions } from "@/src/features/in-app-agent/components/InAppAgentWindow/fns/getInAppAgentQuickActions";
+import { getInAppAgentQuickActions } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/components/InAppAgentWindow/fns/getInAppAgentQuickActions";
 
 const IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS: Record<
   InAppAgentQuickActionContext,

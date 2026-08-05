@@ -1,5 +1,5 @@
-import { InAppAgentMessage } from "@/src/features/in-app-agent/components/InAppAgentWindow/components/InAppAgentMessage/InAppAgentMessage";
-import preview from "../../../../../../../.storybook/preview";
+import { InAppAgentMessage } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow/components/InAppAgentWindow/components/InAppAgentMessage/InAppAgentMessage";
+import preview from "../../../../../../../../../.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 const meta = preview.meta({

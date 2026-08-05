@@ -1,4 +1,4 @@
-import preview from "../../../../../.storybook/preview";
+import preview from "../../../../../../../.storybook/preview";
 import { ScanSearch } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
@@ -10,7 +10,7 @@ import {
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
-} from "../InAppAgentWindowHost/components/InAppAgentWindowShell";
+} from "../../../InAppAgentWindowHost/components/InAppAgentWindowShell";
 import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/fns/getInAppAgentQuickActionContext";
 
 function InAppAgentWindowStoryShell({
