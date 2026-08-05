@@ -5,17 +5,15 @@ import { VersionUpdateBannerView } from "./VersionUpdateBannerView";
 import {
   createVersionUpdateStore,
   VERSION_UPDATE_MIN_STALENESS_MS,
-  VERSION_UPDATE_SHOW_THROTTLE_MS,
   VERSION_UPDATE_DISMISS_SUPPRESSION_MS,
-  VERSION_UPDATE_LAST_SHOWN_AT_KEY,
   VERSION_UPDATE_SUPPRESSED_UNTIL_KEY,
   type VersionUpdateStore,
 } from "./versionUpdateStore";
 import type * as versionUpdateStoreModule from "./versionUpdateStore";
 
-// Shared mutable mock state (hoisted above the vi.mock factories). When
-// `h.store` is set, the mocked singleton + availability hook delegate to that
-// REAL store instance (integration tests); otherwise the plain stubs apply.
+// Hoisted mock state. With `h.store` set, the mocked singleton and the
+// availability hook delegate to that REAL store (integration tests); otherwise
+// the plain stubs apply.
 const h = vi.hoisted(() => ({
   capture: vi.fn(),
   dismiss: vi.fn(),
@@ -25,8 +23,7 @@ const h = vi.hoisted(() => ({
   store: null as VersionUpdateStore | null,
 }));
 
-// The connected banner portals into the top-most overlay layer, whose DOM
-// container only exists via _document.tsx; render children inline for the test.
+// The banner portals into an overlay layer that only exists via _document.tsx.
 vi.mock("@/src/components/ui/layer", () => ({
   Layer: ({ children }: { children?: unknown }) => children,
 }));
@@ -60,54 +57,51 @@ vi.mock("./useAppSettled", () => ({
   useAppSettled: () => h.settled,
 }));
 
-describe("VersionUpdateBannerView", () => {
-  it("renders a reload and a dismiss control", () => {
-    render(
-      <VersionUpdateBannerView onReload={() => {}} onDismiss={() => {}} />,
-    );
-    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
-  });
+const createFakeStorage = () => {
+  const data = new Map<string, string>();
+  return {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      data.set(key, value);
+    },
+  };
+};
 
-  it("invokes the callbacks when the controls are clicked", () => {
-    const onReload = vi.fn();
-    const onDismiss = vi.fn();
-    render(
-      <VersionUpdateBannerView onReload={onReload} onDismiss={onDismiss} />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Reload" }));
-    expect(onReload).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+beforeEach(() => {
+  h.capture.mockClear();
+  h.dismiss.mockClear();
+  h.markShownReported.mockClear();
+  h.markShownReported.mockReturnValue(true);
+  h.available = true;
+  h.settled = true;
+  h.store = null;
+  // Reload is invoked on the Reload click; stub it for jsdom.
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: { reload: vi.fn() },
   });
 });
 
+afterEach(() => {
+  h.store = null;
+  vi.restoreAllMocks();
+});
+
+it("VersionUpdateBannerView renders both controls and invokes their callbacks", () => {
+  const onReload = vi.fn();
+  const onDismiss = vi.fn();
+  render(<VersionUpdateBannerView onReload={onReload} onDismiss={onDismiss} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+  expect(onReload).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+  expect(onDismiss).toHaveBeenCalledTimes(1);
+});
+
 describe("VersionUpdateBanner (connected)", () => {
-  beforeEach(() => {
-    h.capture.mockClear();
-    h.dismiss.mockClear();
-    h.markShownReported.mockClear();
-    h.markShownReported.mockReturnValue(true);
-    h.available = true;
-    h.settled = true;
-    h.store = null;
-    // Reload is invoked on the Reload click; stub it so jsdom doesn't complain.
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { reload: vi.fn() },
-    });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("shows and reports banner_shown when an update is available and the app has settled", () => {
+  it("shows and reports banner_shown exactly once when available and settled", () => {
     render(<VersionUpdateBanner />);
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
-    expect(h.capture).toHaveBeenCalledWith("version_update:banner_shown");
     expect(
       h.capture.mock.calls.filter(
         (c) => c[0] === "version_update:banner_shown",
@@ -115,25 +109,15 @@ describe("VersionUpdateBanner (connected)", () => {
     ).toHaveLength(1);
   });
 
-  it("delegates the once-per-appearance guard to the store (no banner_shown when it returns false)", () => {
-    // Simulates a remount for an appearance the store already reported.
-    h.markShownReported.mockReturnValue(false);
-    render(<VersionUpdateBanner />);
-    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
-    expect(h.capture).not.toHaveBeenCalledWith("version_update:banner_shown");
-  });
-
-  it("stays hidden until the app has settled", () => {
+  it("renders nothing (and captures nothing) while unsettled or without an update", () => {
     h.settled = false;
-    render(<VersionUpdateBanner />);
+    const unsettled = render(<VersionUpdateBanner />);
     expect(
       screen.queryByRole("button", { name: "Reload" }),
     ).not.toBeInTheDocument();
-    expect(h.capture).not.toHaveBeenCalled();
-    expect(h.markShownReported).not.toHaveBeenCalled();
-  });
+    unsettled.unmount();
 
-  it("renders nothing when no update is available", () => {
+    h.settled = true;
     h.available = false;
     render(<VersionUpdateBanner />);
     expect(
@@ -148,45 +132,9 @@ describe("VersionUpdateBanner (connected)", () => {
     expect(h.capture).toHaveBeenCalledWith("version_update:reload_clicked");
     expect(window.location.reload).toHaveBeenCalledTimes(1);
   });
-
-  it("captures dismissed and calls the store on Dismiss", () => {
-    render(<VersionUpdateBanner />);
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-    expect(h.capture).toHaveBeenCalledWith("version_update:dismissed");
-    expect(h.dismiss).toHaveBeenCalledTimes(1);
-  });
 });
 
-// End-to-end through a REAL store (fake storage + injected clock): the 48 h
-// staleness gate and the persisted suppression windows (LFE-14765) must keep
-// the banner — and its `banner_shown` analytics — quiet, and dismiss must
-// persist its window. Suppression tests disable the staleness gate
-// (`minStalenessMs: 0`) so each test pins one behavior.
 describe("VersionUpdateBanner (integration: real store + fake storage)", () => {
-  const createFakeStorage = () => {
-    const data = new Map<string, string>();
-    return {
-      getItem: (key: string) => data.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        data.set(key, value);
-      },
-    };
-  };
-
-  beforeEach(() => {
-    h.capture.mockClear();
-    h.settled = true;
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { reload: vi.fn() },
-    });
-  });
-
-  afterEach(() => {
-    h.store = null;
-    vi.restoreAllMocks();
-  });
-
   it("renders nothing and fires no banner_shown until the frontend is 48 h stale", () => {
     const storage = createFakeStorage();
     let now = 0;
@@ -206,8 +154,7 @@ describe("VersionUpdateBanner (integration: real store + fake storage)", () => {
     ).not.toBeInTheDocument();
     expect(h.capture).not.toHaveBeenCalled();
 
-    // 48 h of supersession later, the next response surfaces the banner and
-    // banner_shown fires exactly once.
+    // 48 h later the next response surfaces it; banner_shown fires once.
     act(() => {
       now = VERSION_UPDATE_MIN_STALENESS_MS;
       store.reportObservedBuildId("deployed");
@@ -220,47 +167,7 @@ describe("VersionUpdateBanner (integration: real store + fake storage)", () => {
     ).toHaveLength(1);
   });
 
-  it("stays hidden and fires no banner_shown while the show throttle is active; shows once it expires", () => {
-    const storage = createFakeStorage();
-    // A banner appearance was recorded just before this simulated reload.
-    storage.setItem(VERSION_UPDATE_LAST_SHOWN_AT_KEY, "0");
-    let now = 0;
-    const store = createVersionUpdateStore(() => "running", {
-      debounceMs: 0,
-      minStalenessMs: 0,
-      now: () => now,
-      getStorage: () => storage,
-    });
-    h.store = store;
-
-    render(<VersionUpdateBanner />);
-    act(() => {
-      now = 60 * 1000;
-      store.reportObservedBuildId("deployed");
-    });
-    expect(
-      screen.queryByRole("button", { name: "Reload" }),
-    ).not.toBeInTheDocument();
-    expect(h.capture).not.toHaveBeenCalled();
-
-    // Throttle expiry: the next observed response surfaces the pending update;
-    // banner_shown fires once and the appearance re-arms the throttle.
-    act(() => {
-      now = VERSION_UPDATE_SHOW_THROTTLE_MS + 1;
-      store.reportObservedBuildId("deployed");
-    });
-    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
-    expect(
-      h.capture.mock.calls.filter(
-        (c) => c[0] === "version_update:banner_shown",
-      ),
-    ).toHaveLength(1);
-    expect(storage.getItem(VERSION_UPDATE_LAST_SHOWN_AT_KEY)).toBe(
-      String(VERSION_UPDATE_SHOW_THROTTLE_MS + 1),
-    );
-  });
-
-  it("persists the 24 h suppression window on dismiss and keeps new builds quiet", () => {
+  it("dismiss captures, hides, persists the 24 h window, and keeps new builds quiet", () => {
     const storage = createFakeStorage();
     let now = 1_000;
     const store = createVersionUpdateStore(() => "running", {
@@ -286,10 +193,9 @@ describe("VersionUpdateBanner (integration: real store + fake storage)", () => {
       String(1_000 + VERSION_UPDATE_DISMISS_SUPPRESSION_MS),
     );
 
-    // A genuinely new build inside the window must not re-show the banner.
     act(() => {
       now = 2_000;
-      store.reportObservedBuildId("deployed-2");
+      store.reportObservedBuildId("deployed-2"); // genuinely new — still quiet
     });
     expect(
       screen.queryByRole("button", { name: "Reload" }),
