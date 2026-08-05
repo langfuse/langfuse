@@ -1,10 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import {
-  getBillingProvider,
-  getChbCutoffDate,
-  hasPaidBillingState,
-} from "./billingProvider";
+import { getBillingProvider, hasPaidBillingState } from "./billingProvider";
 import { CloudConfigSchema } from "./cloudConfigSchema";
 
 const CHB_ORG_ID = "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a";
@@ -14,24 +10,9 @@ const orgWith = (cloudConfig: unknown) => ({
     cloudConfig === null ? null : CloudConfigSchema.parse(cloudConfig),
 });
 
-const PAST = "2020-01-01T00:00:00.000Z";
-const FUTURE = "2099-01-01T00:00:00.000Z";
+const PAST = new Date("2020-01-01T00:00:00.000Z");
 
 describe("getBillingProvider", () => {
-  const originalCutoff = process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE;
-
-  beforeEach(() => {
-    delete process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE;
-  });
-
-  afterEach(() => {
-    if (originalCutoff === undefined) {
-      delete process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE;
-    } else {
-      process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = originalCutoff;
-    }
-  });
-
   describe("orgs with existing Stripe state are pinned to stripe", () => {
     it.each([
       ["customerId only", { stripe: { customerId: "cus_123" } }],
@@ -39,33 +20,15 @@ describe("getBillingProvider", () => {
         "activeSubscriptionId only",
         { stripe: { activeSubscriptionId: "sub_123" } },
       ],
-      [
-        "full subscription state",
-        {
-          stripe: {
-            customerId: "cus_123",
-            activeSubscriptionId: "sub_123",
-            activeProductId: "prod_123",
-          },
-        },
-      ],
     ])("%s, even with a past cutoff", (_label, cloudConfig) => {
-      process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = PAST;
-      expect(getBillingProvider(orgWith(cloudConfig))).toBe("stripe");
+      expect(getBillingProvider(orgWith(cloudConfig), { cutoff: PAST })).toBe(
+        "stripe",
+      );
     });
   });
 
   describe("orgs with CHB state resolve to clickhouse", () => {
-    it("with cutoff unset (sticky decision)", () => {
-      expect(
-        getBillingProvider(
-          orgWith({ clickhouse: { organizationId: CHB_ORG_ID } }),
-        ),
-      ).toBe("clickhouse");
-    });
-
-    it("with a future cutoff (sticky decision)", () => {
-      process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = FUTURE;
+    it("with no cutoff (sticky decision)", () => {
       expect(
         getBillingProvider(
           orgWith({ clickhouse: { organizationId: CHB_ORG_ID } }),
@@ -92,37 +55,28 @@ describe("getBillingProvider", () => {
       ["empty cloudConfig", {}],
       ["null cloudConfig", null],
       ["manual plan override only", { plan: "Team" }],
-    ])("%s: cutoff unset resolves to stripe", (_label, cloudConfig) => {
+    ])("%s: no cutoff resolves to stripe", (_label, cloudConfig) => {
       expect(getBillingProvider(orgWith(cloudConfig))).toBe("stripe");
     });
 
+    // `now` omitted on purpose: covers the real-clock default.
     it("cutoff in the past resolves to clickhouse", () => {
-      process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = PAST;
-      expect(getBillingProvider(orgWith({}))).toBe("clickhouse");
-    });
-
-    it("cutoff in the future resolves to stripe", () => {
-      process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = FUTURE;
-      expect(getBillingProvider(orgWith({}))).toBe("stripe");
+      expect(getBillingProvider(orgWith({}), { cutoff: PAST })).toBe(
+        "clickhouse",
+      );
     });
 
     it("cutoff boundary: now exactly at the cutoff resolves to clickhouse", () => {
-      const cutoff = "2026-01-01T00:00:00.000Z";
-      process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = cutoff;
-      expect(getBillingProvider(orgWith({}), { now: new Date(cutoff) })).toBe(
+      const cutoff = new Date("2026-01-01T00:00:00.000Z");
+      expect(getBillingProvider(orgWith({}), { cutoff, now: cutoff })).toBe(
         "clickhouse",
       );
       expect(
         getBillingProvider(orgWith({}), {
-          now: new Date(new Date(cutoff).getTime() - 1),
+          cutoff,
+          now: new Date(cutoff.getTime() - 1),
         }),
       ).toBe("stripe");
-    });
-
-    it("unparsable cutoff fails closed to stripe", () => {
-      process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = "not-a-date";
-      expect(getChbCutoffDate()).toBeNull();
-      expect(getBillingProvider(orgWith({}))).toBe("stripe");
     });
   });
 });

@@ -7,22 +7,6 @@ type OrgWithCloudConfig = {
 };
 
 /**
- * Parse the ClickHouse Billing cutoff instant from the environment.
- *
- * First-time upgrades on/after this instant route to CHB; unset (or
- * unparsable) means the CHB path is off entirely. Read lazily so web and
- * worker share one implementation and tests can vary the env — format
- * validation happens loudly in each app's env schema, so an invalid value
- * here only ever fails closed to Stripe.
- */
-export function getChbCutoffDate(): Date | null {
-  const raw = process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE;
-  if (!raw) return null;
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-/**
  * Resolve which billing provider owns an organization.
  *
  * Decision order:
@@ -36,12 +20,16 @@ export function getChbCutoffDate(): Date | null {
  *    of when the org was created. Until a checkout writes CHB state,
  *    resolving to "clickhouse" has no side effects.
  *
- * Unset cutoff ⇒ zero behavior change: nothing resolves to "clickhouse"
+ * The cutoff is injected rather than read from the environment: this module is
+ * exported from the client-safe barrel, so it must not reach for the server env
+ * schema. Each app passes the value from its own validated env.
+ *
+ * Absent cutoff ⇒ zero behavior change: nothing resolves to "clickhouse"
  * unless it already carries a `clickhouse` block.
  */
 export function getBillingProvider(
   org: OrgWithCloudConfig,
-  opts?: { now?: Date },
+  opts?: { cutoff?: Date | null; now?: Date },
 ): BillingProvider {
   if (org.cloudConfig?.clickhouse?.organizationId) return "clickhouse";
   if (
@@ -49,7 +37,7 @@ export function getBillingProvider(
     org.cloudConfig?.stripe?.activeSubscriptionId
   )
     return "stripe";
-  const cutoff = getChbCutoffDate();
+  const cutoff = opts?.cutoff;
   if (cutoff && (opts?.now ?? new Date()).getTime() >= cutoff.getTime())
     return "clickhouse";
   return "stripe";
