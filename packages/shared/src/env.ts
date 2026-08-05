@@ -544,11 +544,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(15_000),
-  LANGFUSE_IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5_000),
   LANGFUSE_IN_APP_AGENT_WATCH_MAX_CONNECTION_MS: z.coerce
     .number()
     .int()
