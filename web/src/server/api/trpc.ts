@@ -93,6 +93,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { recordTraceViewAudit } from "@/src/features/audit-logs/recordTraceViewAudit";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
 import { type Flag } from "@/src/features/feature-flags/types";
@@ -490,6 +491,25 @@ const inputTraceSchema = z.object({
   verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
 });
 
+/**
+ * tRPC procedure paths (`opts.path`) that count as a genuine single-trace
+ * *content* view and are opted into durable read-audit logging in
+ * `enforceTraceAccess`. This is the single source of truth: the middleware
+ * gates on it and a drift-guard test (recordTraceViewAudit.drift.servertest.ts)
+ * asserts every entry still resolves to a real procedure, so a rename/move
+ * can't silently turn auditing off.
+ *
+ * Includes both detail-view paths: `traces.byIdWithObservationsAndScores`
+ * (v3/traces-table backing) and `events.byTraceId` (v4/events-table backing —
+ * fired first by the events detail hook, gating the rest). Deliberately EXCLUDES
+ * high-frequency table-cell fetches (`traces.byId`, `events.batchIO`) and
+ * non-content paths (`*.getAgentGraphData`, `events.scoresForTrace`).
+ */
+export const AUDITED_TRACE_VIEW_PROCEDURES: ReadonlySet<string> = new Set([
+  "traces.byIdWithObservationsAndScores",
+  "events.byTraceId",
+]);
+
 const enforceTraceAccess = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   const actualInput = await opts.getRawInput();
@@ -602,6 +622,65 @@ const enforceTraceAccess = t.middleware(async (opts) => {
       email: ctx.session.user.email,
       projectId,
     });
+  }
+
+  // Durable read-audit of authenticated single-trace views. We reach here only
+  // after auth passed and the trace exists, so we never audit denied/404
+  // access. Anonymous public-share views have no actor/org to attribute, so
+  // they are skipped.
+  //
+  // The audited set (AUDITED_TRACE_VIEW_PROCEDURES) is the single source of
+  // truth for which procedures count as a genuine single-trace content view:
+  // `traces.byIdWithObservationsAndScores` (v3 detail) and `events.byTraceId`
+  // (v4 events-backed detail). This middleware also serves high-frequency
+  // table-cell fetches (`traces.byId`, `events.batchIO`) and non-content paths
+  // (`*.getAgentGraphData`, `events.scoresForTrace`), which are excluded to
+  // avoid false positives.
+  const isSingleTraceView = AUDITED_TRACE_VIEW_PROCEDURES.has(opts.path);
+  if (isSingleTraceView && traceId && ctx.session?.user?.id) {
+    const userId = ctx.session.user.id;
+    const memberOrg = ctx.session.user.organizations.find((org) =>
+      org.projects.some((project) => project.id === projectId),
+    );
+    if (memberOrg) {
+      // Fire-and-forget: recordTraceViewAudit never throws and we do not await
+      // it, so the audit write cannot add latency to or fail the trace view.
+      recordTraceViewAudit({
+        session: {
+          user: { id: userId },
+          orgId: memberOrg.id,
+          orgRole: memberOrg.role,
+          projectId,
+          projectRole: sessionProject?.role,
+        },
+        resourceId: traceId,
+      });
+    } else if (ctx.session.user.admin === true) {
+      // Admins bypass membership but their org is not in the session — resolve
+      // it off the request path so the lookup adds no latency to the view.
+      ctx.prisma.project
+        .findFirst({
+          select: { orgId: true },
+          where: { id: projectId, deletedAt: null },
+        })
+        .then((project: { orgId: string } | null) => {
+          if (project) {
+            return recordTraceViewAudit({
+              session: {
+                user: { id: userId },
+                orgId: project.orgId,
+                orgRole: Role.OWNER,
+                projectId,
+                projectRole: Role.OWNER,
+              },
+              resourceId: traceId,
+            });
+          }
+        })
+        .catch((e: unknown) =>
+          logger.error("Failed to record admin trace-view audit", e),
+        );
+    }
   }
 
   return next({
