@@ -77,8 +77,8 @@ describe("NextAdapterPagesWithReadyGuard", () => {
     const router = makeRouter(true);
     const adapter = renderGuardedAdapter(router);
 
-    adapter.replace({ search: "?filter=a", hash: "" });
-    adapter.push({ search: "?page=2", hash: "" });
+    adapter.replace({ search: "?filter=a" });
+    adapter.push({ search: "?page=2" });
 
     expect(router.replace).toHaveBeenCalledTimes(1);
     expect(router.replace).toHaveBeenCalledWith(

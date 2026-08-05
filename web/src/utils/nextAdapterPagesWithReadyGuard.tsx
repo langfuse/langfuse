@@ -35,7 +35,8 @@ export const NextAdapterPagesWithReadyGuard: QueryParamAdapterComponent = ({
       // flip and the next render is not incorrectly dropped.
       if (!router.isReady) {
         console.warn(
-          `[use-query-params] Dropped query param ${method} issued before the Next.js router was ready (dynamic route params are not hydrated yet):`,
+          "[use-query-params] Dropped query param write issued before the Next.js router was ready (dynamic route params are not hydrated yet):",
+          method,
           location.search,
         );
         return;
