@@ -32,6 +32,7 @@ import {
   assertInAppAgentRateLimit,
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
+import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
@@ -176,14 +177,19 @@ export const inAppAgentRouter = createTRPCRouter({
         user: ctx.session.user,
       });
 
-      await assertInAppAgentRateLimit(
-        getInAppAgentApiAccessScope(
-          ctx.session.user,
-          input.projectId,
-          projectAvailability,
-        ),
-        "in-app-agent-run",
+      const rateLimitScope = getInAppAgentApiAccessScope(
+        ctx.session.user,
+        input.projectId,
+        projectAvailability,
       );
+
+      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+      await assertInAppAgentRunCapacity({
+        prisma: ctx.prisma,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
+        userId: ctx.session.user.id,
+      });
 
       return startBackgroundRun({
         prisma: ctx.prisma,
@@ -232,14 +238,22 @@ export const inAppAgentRouter = createTRPCRouter({
         user: ctx.session.user,
       });
 
-      await assertInAppAgentRateLimit(
-        getInAppAgentApiAccessScope(
-          ctx.session.user,
-          input.projectId,
-          projectAvailability,
-        ),
-        "in-app-agent-run",
+      const rateLimitScope = getInAppAgentApiAccessScope(
+        ctx.session.user,
+        input.projectId,
+        projectAvailability,
       );
+
+      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+      // A continuation is a fresh run that occupies a worker slot, and parked
+      // approvals accumulate without holding one, so this path needs the
+      // ceiling for the same reason it already needs the daily bucket.
+      await assertInAppAgentRunCapacity({
+        prisma: ctx.prisma,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
+        userId: ctx.session.user.id,
+      });
 
       return decideBackgroundApproval({
         prisma: ctx.prisma,

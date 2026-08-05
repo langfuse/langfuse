@@ -15,6 +15,7 @@ import {
   checkInAppAgentRateLimit,
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
+import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { getInAppAgentInstrumentationTraceId } from "@langfuse/shared/in-app-agent";
 import {
   AgUiRunAgentInputSchema,
@@ -235,7 +236,8 @@ export default async function handler(request: Request) {
       plan: rateLimitScope.plan,
     });
 
-    // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
+    // TODO: Add a per-user submission bucket once the rate-limit service
+    // supports non-org keys; the concurrency ceiling below is per user already.
     const rateLimitResponse = await rateLimitInAppAgentRequest(
       rateLimitScope,
       "in-app-agent-run",
@@ -244,6 +246,15 @@ export default async function handler(request: Request) {
     if (rateLimitResponse) {
       return rateLimitResponse;
     }
+
+    // Also applied here so the ceiling cannot be bypassed by submitting through
+    // the foreground path, exactly as the shared rate-limit scope is.
+    await assertInAppAgentRunCapacity({
+      prisma,
+      orgId: rateLimitScope.orgId,
+      plan: rateLimitScope.plan,
+      userId,
+    });
 
     const conversation = await ensureOwnedConversation({
       prisma,
