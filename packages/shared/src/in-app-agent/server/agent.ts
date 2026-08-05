@@ -708,7 +708,7 @@ export async function createAgUiStream(params: {
 
 type ExecutableInAppAgentTool = {
   execute?: (inputData: unknown, context: unknown) => Promise<unknown>;
-  toModelOutput?: (output: unknown) => unknown;
+  toModelOutput?: (output: unknown) => unknown | PromiseLike<unknown>;
 };
 
 async function createMastraAdapter(params: {
@@ -874,7 +874,9 @@ async function createMastraAdapter(params: {
 
         return {
           result,
-          modelResult: tool.toModelOutput ? tool.toModelOutput(result) : result,
+          modelResult: tool.toModelOutput
+            ? await tool.toModelOutput(result)
+            : result,
         };
       },
       interrupt: () => agent.abortRunStream(params.input.runId),

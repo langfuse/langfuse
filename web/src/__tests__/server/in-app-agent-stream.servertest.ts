@@ -58,6 +58,18 @@ const adapterEvents = vi.hoisted(() => ({
     name: "readiness",
     dataType: "NUMERIC",
   }),
+  createScoreConfigToModelOutput: vi.fn((output: unknown) => {
+    if (
+      typeof output === "object" &&
+      output !== null &&
+      "type" in output &&
+      output.type === "silent-mcp-output"
+    ) {
+      return "Output saved to /workspace/tool_calls";
+    }
+
+    return output;
+  }),
 }));
 
 const instrumentationMocks = vi.hoisted(() => {
@@ -210,18 +222,7 @@ vi.mock("@mastra/mcp", () => ({
             createScoreConfig: {
               server: "langfuse",
               execute: adapterEvents.createScoreConfigExecute,
-              toModelOutput: (output: unknown) => {
-                if (
-                  typeof output === "object" &&
-                  output !== null &&
-                  "type" in output &&
-                  output.type === "silent-mcp-output"
-                ) {
-                  return "Output saved to /workspace/tool_calls";
-                }
-
-                return output;
-              },
+              toModelOutput: adapterEvents.createScoreConfigToModelOutput,
             },
           },
           langfuseDocs: {
@@ -1105,6 +1106,9 @@ describe("createAgUiStream", () => {
         secret: "full-tool-output",
       },
     });
+    adapterEvents.createScoreConfigToModelOutput.mockImplementationOnce(
+      async () => "Output saved to /workspace/tool_calls",
+    );
     adapterEvents.inputs = [];
     adapterEvents.items = [
       {
