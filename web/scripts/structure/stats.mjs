@@ -7,6 +7,7 @@
 //                                            count only violations touching a path
 //   pnpm structure:stats --diff              list new/fixed items vs the baseline
 //   pnpm structure:stats --baseline          (re)write .structure-baseline.json
+//   pnpm structure:stats --next [n]          top n work items to fix next (default 6)
 //   pnpm structure:stats --json              machine-readable output
 //
 // Import-shaped rules run on a dependency-cruiser graph (same options as
@@ -19,6 +20,7 @@ import { cruise } from "dependency-cruiser";
 import extractTsConfig from "dependency-cruiser/config-utl/extract-ts-config";
 import { buildCensus } from "./census.mjs";
 import * as d from "./detectors.mjs";
+import { computeNextItems } from "./next.mjs";
 
 /** @typedef {import("./detectors.mjs").Violation} Violation */
 
@@ -265,6 +267,56 @@ const baselineKeys = (id) => {
 };
 
 // --- output ------------------------------------------------------------------
+if (flag("next")) {
+  const nextArg = opt("next");
+  const topN = nextArg && /^\d+$/.test(nextArg) ? Number(nextArg) : 6;
+  const items = computeNextItems(results, topN);
+  if (flag("json")) {
+    console.log(
+      JSON.stringify(
+        items.map((it) => ({
+          path: it.path,
+          score: it.score,
+          violations: it.count,
+          byRule: Object.fromEntries(it.byRule),
+          hint: it.hint,
+          samples: it.samples,
+        })),
+        null,
+        2,
+      ),
+    );
+    process.exit(0);
+  }
+  console.log(
+    bold(`what to fix next${scope ? ` — ${scope}` : " — web/src"}`) +
+      dim(
+        `  (top ${items.length}, leverage = violations cleared × rule weight)`,
+      ),
+  );
+  console.log();
+  items.forEach((it, i) => {
+    const rules = [...it.byRule.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([id, n]) => `${n}× rule ${id}`)
+      .join(", ");
+    console.log(
+      `${String(i + 1).padStart(2)}. ${bold(String(it.score).padStart(4) + " pts")}  ${it.path}`,
+    );
+    console.log(`     ${rules}${it.hint ? ` — ${it.hint}` : ""}`);
+    for (const s of it.samples) console.log(dim(`     e.g. ${s}`));
+    console.log();
+  });
+  if (!items.length) console.log("nothing left in scope 🎉");
+  else
+    console.log(
+      dim(
+        "full list for an item:  pnpm structure:stats --rule <n> --scope <path>",
+      ),
+    );
+  process.exit(0);
+}
+
 if (flag("json")) {
   console.log(
     JSON.stringify(

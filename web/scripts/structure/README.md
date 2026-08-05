@@ -9,12 +9,24 @@ pnpm structure:stats --rule 8                 # list rule 8's offending imports
 pnpm structure:stats --scope src/features/traces   # counts for one subtree
 pnpm structure:stats --diff                   # what got fixed / added vs baseline
 pnpm structure:stats --baseline               # re-snapshot .structure-baseline.json
-pnpm structure:stats --json                   # machine-readable
+pnpm structure:stats --next [n]               # top n ranked work items (default 6)
+pnpm structure:stats --json                   # machine-readable (also with --next)
 ```
 
 A full run takes ~3s (dependency-cruiser graph) + ~1s (TS-parse census).
 `.structure-baseline.json` is committed; regenerate it deliberately after a
 fix batch so the Δ column and `--diff` track real progress.
+
+## What to fix next
+
+`--next` turns the violation lists into ranked work items, each sized for one
+small PR: every violation is attributed to the path where its fix lands (the
+file to split, the folder to move, the feature that needs an `index.ts`),
+subjects roll up to a directory when one rule dominates the subtree, and a
+greedy pass picks the highest-leverage item, consumes its violations, and
+rescores. Leverage = violations cleared × rule weight (`RULE_WEIGHTS` in
+`next.mjs` — runtime hazards outrank naming nits). The intended loop:
+`--next --scope <area>` → fix item 1 as its own PR → re-run.
 
 ## Rule → mechanism
 
