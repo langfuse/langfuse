@@ -3,9 +3,57 @@ import {
   checkHeaderBasedDirectWrite,
   checkSdkVersionRequirements,
   getSdkInfoFromResourceSpans,
+  resolveOtelWritePath,
   shouldProcessLegacyOtelMedia,
   type SdkInfo,
 } from "../otelIngestionQueue";
+
+describe("resolveOtelWritePath", () => {
+  const none = {
+    headerBasedDirectWrite: false,
+    envForcesDirect: false,
+    scopeBasedDirectWrite: false,
+    orgCutoffForcesDirect: false,
+  };
+
+  it("falls back to the dual write when no signal qualifies", () => {
+    expect(resolveOtelWritePath(none)).toEqual({
+      useDirectEventWrite: false,
+      writePath: "dual",
+    });
+  });
+
+  it.each([
+    { signal: "headerBasedDirectWrite", writePath: "direct_header" },
+    { signal: "envForcesDirect", writePath: "direct_env" },
+    { signal: "scopeBasedDirectWrite", writePath: "direct_scope" },
+    { signal: "orgCutoffForcesDirect", writePath: "direct_org_cutoff" },
+  ] as const)("$signal alone routes to $writePath", ({ signal, writePath }) => {
+    expect(resolveOtelWritePath({ ...none, [signal]: true })).toEqual({
+      useDirectEventWrite: true,
+      writePath,
+    });
+  });
+
+  // The org cutoff must not absorb batches another signal already routed
+  // directly, otherwise the metric overstates what the rollout moved.
+  it.each([
+    { signal: "headerBasedDirectWrite", writePath: "direct_header" },
+    { signal: "envForcesDirect", writePath: "direct_env" },
+    { signal: "scopeBasedDirectWrite", writePath: "direct_scope" },
+  ] as const)(
+    "attributes to $writePath rather than the org cutoff when both apply",
+    ({ signal, writePath }) => {
+      expect(
+        resolveOtelWritePath({
+          ...none,
+          [signal]: true,
+          orgCutoffForcesDirect: true,
+        }),
+      ).toEqual({ useDirectEventWrite: true, writePath });
+    },
+  );
+});
 
 describe("shouldProcessLegacyOtelMedia", () => {
   it("processes media whenever legacy tables are written", () => {

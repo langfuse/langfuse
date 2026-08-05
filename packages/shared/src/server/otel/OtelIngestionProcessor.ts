@@ -77,6 +77,13 @@ export interface OtelIngestionProcessorConfig {
   sdkVersion: string;
   ingestionVersion?: string;
   /**
+   * Set when the owning organization is past the Cloud OTel direct-write
+   * cutoff (LFE-14536). Carried on the queue payload so the consumer routes
+   * the batch to the direct events_full write without an SDK or
+   * ingestion-version signal.
+   */
+  forceDirectWrite?: boolean;
+  /**
    * Marks Langfuse-internal telemetry (e.g. LLM-as-a-judge /
    * prompt-experiment executions). Propagated through the ingestion queue so
    * the consumer parses these events with the internal ingestion schema,
@@ -215,6 +222,7 @@ export class OtelIngestionProcessor {
   private readonly sdkName: string;
   private readonly sdkVersion: string;
   private readonly ingestionVersion?: string;
+  private readonly forceDirectWrite?: boolean;
   private readonly isLangfuseInternal?: boolean;
   private readonly fileKey?: string;
 
@@ -230,6 +238,7 @@ export class OtelIngestionProcessor {
     // Ingestion protocol version from x-langfuse-ingestion-version. This is
     // only used as a write-path hint, not as SDK attribution.
     this.ingestionVersion = config.ingestionVersion;
+    this.forceDirectWrite = config.forceDirectWrite;
     this.isLangfuseInternal = config.isLangfuseInternal;
     this.fileKey = config.fileKey;
   }
@@ -280,6 +289,7 @@ export class OtelIngestionProcessor {
             sdkName: this.sdkName,
             sdkVersion: this.sdkVersion,
             ingestionVersion: this.ingestionVersion,
+            ...(this.forceDirectWrite ? { forceDirectWrite: true } : {}),
             ...(this.isLangfuseInternal ? { isLangfuseInternal: true } : {}),
           },
         })

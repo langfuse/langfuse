@@ -488,9 +488,18 @@ describe("Authenticate API calls", () => {
 
       const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey2!));
 
+      // The organization signup date rides along on the cache entry so the
+      // ingestion path can apply the Cloud OTel direct-write cutoff without a
+      // second lookup (LFE-14536).
+      const org = await prisma.organization.findUniqueOrThrow({
+        where: { id: testApiKey.orgId },
+        select: { createdAt: true },
+      });
+
       expect(parsed).toEqual({
         ...apiKey,
         orgId: testApiKey.orgId,
+        orgCreatedAt: org.createdAt.toISOString(),
         plan: "cloud:hobby",
         rateLimitOverrides: [
           {
@@ -605,6 +614,7 @@ describe("Authenticate API calls", () => {
       expect(parsed).toEqual({
         ...apiKey,
         orgId: testApiKey.orgId,
+        orgCreatedAt: expect.any(String),
         plan: "cloud:hobby",
         scope: "PROJECT", // Now the scope is present
         projectId: testApiKey.projectId,
@@ -747,6 +757,7 @@ describe("Authenticate API calls", () => {
         createdByApiKeyId: null,
         projectId: expect.any(String),
         orgId: testApiKey.orgId,
+        orgCreatedAt: expect.any(String),
         plan: "cloud:hobby",
         scope: "PROJECT",
       });
@@ -834,6 +845,7 @@ describe("Authenticate API calls", () => {
       expect(parsed).toEqual({
         ...apiKey,
         orgId: testApiKey.orgId,
+        orgCreatedAt: expect.any(String),
         plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
         scope: "PROJECT",

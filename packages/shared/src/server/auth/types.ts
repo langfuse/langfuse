@@ -22,6 +22,13 @@ const ApiKeyBaseSchema = z.object({
   // these columns existed
   createdByUserId: z.string().nullish(),
   createdByApiKeyId: z.string().nullish(),
+  // Signup date of the owning organization, used by the Cloud OTel
+  // direct-write cutoff (LFE-14536). Nullish so cache entries written before
+  // this field existed stay parseable during a rolling deploy; consumers must
+  // treat a missing value as "org age unknown" and fall back to the
+  // pre-cutoff behaviour. Entries refresh within
+  // LANGFUSE_CACHE_API_KEY_TTL_SECONDS.
+  orgCreatedAt: z.iso.datetime().nullish(),
 });
 
 export const OrgEnrichedApiKey = z.discriminatedUnion("scope", [
@@ -68,6 +75,8 @@ type BaseApiAccessScope = {
 
 type ApiAccessScopeMetadata = {
   orgId: string;
+  // Nullish when resolved from an API-key cache entry predating the field.
+  orgCreatedAt?: string | null;
   plan: Plan;
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
   apiKeyId: string;

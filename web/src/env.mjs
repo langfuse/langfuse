@@ -473,6 +473,25 @@ export const env = createEnv({
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH: z
       .enum(["true", "false"])
       .default("false"),
+    // Cloud-only cutoff (LFE-14536) for automatic direct OTel event writes.
+    // Organizations created on or after this date are past the point where the
+    // v4 preview is force-enabled and cannot be switched off, so their OTLP
+    // traffic must reach the events table in real time even when the exporter
+    // does not send `x-langfuse-ingestion-version: 4`. A plain ISO date
+    // (YYYY-MM-DD) is enough precision and is easier to reason about than a
+    // timestamp; it is interpreted as midnight UTC. Unset disables the rule,
+    // which is the correct default for self-hosted deployments: those flip the
+    // whole deployment at once via LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR
+    // instead of rolling a tenant cohort forward.
+    LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CUTOFF: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected an ISO date (YYYY-MM-DD)")
+      .refine(
+        (value) => !isNaN(new Date(`${value}T00:00:00.000Z`).getTime()),
+        "Expected a valid calendar date",
+      )
+      .optional(),
+
     // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
     // public API routes that rely on the legacy traces/observations tables.
     // The worker owns the writes; the web only needs to know whether legacy
@@ -987,6 +1006,8 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CUTOFF:
+      process.env.LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CUTOFF,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:

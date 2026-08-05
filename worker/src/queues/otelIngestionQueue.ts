@@ -113,6 +113,50 @@ export function checkHeaderBasedDirectWrite(params: {
   return false;
 }
 
+export type OtelWritePath =
+  | "dual"
+  | "direct_header"
+  | "direct_env"
+  | "direct_scope"
+  | "direct_org_cutoff";
+
+/**
+ * Resolve which persistence path a batch takes, and which signal decided it.
+ *
+ * Precedence is header > env > scope > org cutoff. The org cutoff sits last so
+ * the `direct_org_cutoff` label counts only the traffic that rule genuinely
+ * moves off the dual path, rather than absorbing batches that a header or a
+ * recognized SDK scope would have routed directly anyway.
+ */
+export function resolveOtelWritePath(params: {
+  headerBasedDirectWrite: boolean;
+  envForcesDirect: boolean;
+  scopeBasedDirectWrite: boolean;
+  orgCutoffForcesDirect: boolean;
+}): { useDirectEventWrite: boolean; writePath: OtelWritePath } {
+  const {
+    headerBasedDirectWrite,
+    envForcesDirect,
+    scopeBasedDirectWrite,
+    orgCutoffForcesDirect,
+  } = params;
+
+  if (headerBasedDirectWrite) {
+    return { useDirectEventWrite: true, writePath: "direct_header" };
+  }
+  if (envForcesDirect) {
+    return { useDirectEventWrite: true, writePath: "direct_env" };
+  }
+  if (scopeBasedDirectWrite) {
+    return { useDirectEventWrite: true, writePath: "direct_scope" };
+  }
+  if (orgCutoffForcesDirect) {
+    return { useDirectEventWrite: true, writePath: "direct_org_cutoff" };
+  }
+
+  return { useDirectEventWrite: false, writePath: "dual" };
+}
+
 function extractBaseSdkVersion(sdkVersion: string): string {
   const version = sdkVersion.trim();
 
@@ -397,6 +441,9 @@ export const otelIngestionQueueProcessorBuilder = (
       //
       // Priority 2 (fallback): Per-span OTEL scope inspection (legacy).
       //   - scope.name contains "langfuse", sdk-experiment environment, Python >= 3.9.0 or JS >= 4.4.0
+      //
+      // Priority 3 (last resort): organization signup date past the Cloud OTel
+      //   direct-write cutoff, resolved by the producer (see below).
       const headerBasedDirectWrite = checkHeaderBasedDirectWrite({
         sdkName: job.data.payload.sdkName,
         sdkVersion: job.data.payload.sdkVersion,
@@ -407,9 +454,23 @@ export const otelIngestionQueueProcessorBuilder = (
       //   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct forces every batch
       //   onto the direct events_full path regardless of SDK headers/scopes.
       const envForcesDirect = v4ForceDirectOtelWrite(env);
-      let useDirectEventWrite = envForcesDirect || headerBasedDirectWrite;
 
-      if (!useDirectEventWrite) {
+      // Priority 0b: organization-level rollout (LFE-14536). The producer sets
+      // this when the owning organization signed up past the Cloud OTel
+      // direct-write cutoff, which also means it is force-enabled on v4 and
+      // reads the events table only. It applies to every batch on the endpoint,
+      // including old Langfuse SDKs: such an organization has no prior
+      // expectation of the dual-write shape, so the direct path is simply the
+      // correct experience for it.
+      const orgCutoffForcesDirect = job.data.payload.forceDirectWrite === true;
+
+      // Evaluated whenever the higher-precedence header/env signals did not
+      // already qualify — including when the org cutoff will force the direct
+      // write anyway — so the write_path label can attribute the decision
+      // exactly and `direct_org_cutoff` counts only the traffic this rule
+      // genuinely moves off the dual path.
+      let scopeBasedDirectWrite = false;
+      if (!envForcesDirect && !headerBasedDirectWrite) {
         const hasExperimentEnvironment = observations.some((o) => {
           const body = o.body as { environment?: string };
           return body.environment === "sdk-experiment";
@@ -422,22 +483,18 @@ export const otelIngestionQueueProcessorBuilder = (
                 scopeVersion: null,
                 telemetrySdkLanguage: null,
               };
-        useDirectEventWrite = checkSdkVersionRequirements(
+        scopeBasedDirectWrite = checkSdkVersionRequirements(
           sdkInfo,
           hasExperimentEnvironment,
         );
       }
 
-      let writePath: "dual" | "direct_header" | "direct_env" | "direct_scope";
-      if (!useDirectEventWrite) {
-        writePath = "dual";
-      } else if (headerBasedDirectWrite) {
-        writePath = "direct_header";
-      } else if (envForcesDirect) {
-        writePath = "direct_env";
-      } else {
-        writePath = "direct_scope";
-      }
+      const { useDirectEventWrite, writePath } = resolveOtelWritePath({
+        headerBasedDirectWrite,
+        envForcesDirect,
+        scopeBasedDirectWrite,
+        orgCutoffForcesDirect,
+      });
 
       span?.setAttribute("langfuse.ingestion.otel.write_path", writePath);
       recordIncrement("langfuse.ingestion.otel.write_path", 1, {

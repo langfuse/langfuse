@@ -1,5 +1,6 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { isOrgPastOtelDirectWriteCutoff } from "@/src/features/public-api/server/otelDirectWriteCutoff";
 import {
   getCurrentSpan,
   logger,
@@ -293,10 +294,28 @@ export default withMiddlewares({
         }
       }
 
+      // Organizations past the Cloud cutoff are force-enabled on v4 and read
+      // the events table only, so their batches take the direct write even
+      // without the ingestion-version header (LFE-14536). Resolved here rather
+      // than in the worker because the organization signup date already rides
+      // along on the authenticated scope.
+      const forceDirectWrite = isOrgPastOtelDirectWriteCutoff({
+        orgCreatedAt: auth.scope.orgCreatedAt,
+        cutoff: env.LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CUTOFF,
+        isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+      });
+      if (forceDirectWrite) {
+        getCurrentSpan()?.setAttribute(
+          "langfuse.ingestion.otel.force_direct_write",
+          true,
+        );
+      }
+
       const processor = new OtelIngestionProcessor({
         projectId: auth.scope.projectId,
         publicKey: auth.scope.publicKey,
         orgId: auth.scope.orgId,
+        forceDirectWrite,
         propagatedHeaders:
           Object.keys(propagatedHeaders).length > 0
             ? propagatedHeaders
