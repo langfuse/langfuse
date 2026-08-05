@@ -518,14 +518,28 @@ function ModeSwatch({
       />
     );
   }
+  // The routing: what this mode's declaration references (e.g.
+  // `var(--neutral-dark-10)`), so the map is visible, not just the raw value.
+  const declared = paint.decl(token)?.trim();
+  const reference =
+    declared && declared.startsWith("var(") ? declared : undefined;
   return (
     <div
       className="rounded-md border p-1.5"
       style={{ background: canvas, borderColor: hairline }}
     >
       {tile}
+      {reference && (
+        <code
+          className="mt-1 block truncate font-mono text-[10px] leading-4"
+          style={{ color: paint.color("--text-secondary") }}
+          title={reference}
+        >
+          {reference}
+        </code>
+      )}
       <code
-        className="mt-1 block truncate font-mono text-[10px] leading-4"
+        className="block truncate font-mono text-[10px] leading-4"
         style={{ color: paint.color("--text-tertiary") }}
         title={triplet}
       >
