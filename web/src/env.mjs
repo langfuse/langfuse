@@ -401,8 +401,13 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     // ClickHouse Billing (CHB) integration. First-time upgrades on/after this
     // UTC date route to CHB; unset = feature off. Date-only (YYYY-MM-DD) so the
-    // cutline is a single unambiguous instant of UTC midnight.
-    LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso.date().optional(),
+    // cutline is a single unambiguous instant of UTC midnight, which is what
+    // new Date() yields for a date-only string. Parsed here so every consumer
+    // gets the same instant; keep in sync with worker/src/env.ts.
+    LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso
+      .date()
+      .optional()
+      .transform((date) => (date ? new Date(date) : null)),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),

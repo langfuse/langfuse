@@ -28,8 +28,13 @@ const EnvSchema = z.object({
   // @langfuse/shared (getBillingProvider). The worker only consults it in the
   // defensive usage-metering guard; unset = CHB routing off. Date-only
   // (YYYY-MM-DD) so the cutline is a single unambiguous instant of UTC
-  // midnight; keep in sync with web/src/env.mjs.
-  LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso.date().optional(),
+  // midnight, which is what new Date() yields for a date-only string. Parsed
+  // here so every consumer gets the same instant; keep in sync with
+  // web/src/env.mjs.
+  LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso
+    .date()
+    .optional()
+    .transform((date) => (date ? new Date(date) : null)),
 
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),

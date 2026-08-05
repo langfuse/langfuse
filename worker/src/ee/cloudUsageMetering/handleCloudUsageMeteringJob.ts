@@ -151,11 +151,6 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   // setup stripe client
   const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
-  // Date-only env value, so this is UTC midnight of the cutoff date.
-  const chbCutoffDate = env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE
-    ? new Date(env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE)
-    : null;
-
   // for each org, calculate the meter and push to stripe
   let countProcessedOrgs = 0;
   let countProcessedObservations = 0;
@@ -168,7 +163,11 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     // which CHB-billed orgs never get (their `stripe` block stays empty).
     // If that invariant ever breaks, skip + count instead of double-metering —
     // CHB meters its orgs by polling our billing metrics API.
-    if (getBillingProvider(org, { cutoff: chbCutoffDate }) !== "stripe") {
+    if (
+      getBillingProvider(org, {
+        cutoff: env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
+      }) !== "stripe"
+    ) {
       traceException(
         `[CLOUD USAGE METERING] Org ${org.id} resolves to a non-Stripe billing provider but carries a Stripe customer id, skipping`,
       );
