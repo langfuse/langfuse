@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Loader2, Wrench } from "lucide-react";
+import { Loader2, ShieldCheck, Wrench } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
@@ -70,7 +70,7 @@ export function InAppAgentToolCallCard({
                 {isApprovalSubmitting ? (
                   <Loader2 className="mr-1 size-3 animate-spin" />
                 ) : (
-                  <Check className="mr-1 size-3" />
+                  <ShieldCheck className="mr-1 size-3" />
                 )}
                 Confirm
               </Button>

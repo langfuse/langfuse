@@ -150,6 +150,15 @@ vi.mock("@/src/utils/api", () => ({
 
 Element.prototype.scrollTo = vi.fn();
 
+const TOOL_APPROVAL_DECIDED_EVENT =
+  "in_app_agent:tool_approval_decided" as const;
+
+function getToolApprovalCaptureCalls() {
+  return providerMocks.capture.mock.calls.filter(
+    ([eventName]) => eventName === TOOL_APPROVAL_DECIDED_EVENT,
+  );
+}
+
 function sseFrame(frame: unknown): string {
   return `data: ${JSON.stringify(frame)}\n\n`;
 }
@@ -270,6 +279,17 @@ describe("in-app agent execution", () => {
       expect(runAgent).toHaveBeenCalledTimes(2);
     });
 
+    expect(getToolApprovalCaptureCalls()).toEqual([
+      [
+        TOOL_APPROVAL_DECIDED_EVENT,
+        {
+          isApproved: true,
+          toolName: "dangerousTool",
+          executionMode: "foreground",
+        },
+      ],
+    ]);
+
     unmount();
     expect(abortRun).toHaveBeenCalled();
   });
@@ -331,6 +351,72 @@ describe("in-app agent execution", () => {
         name: "Reject",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("tracks a background rejection decision exactly once", async () => {
+    providerMocks.backgroundExecutionEnabled = true;
+    providerMocks.conversationQuery.data = {
+      conversation: {
+        id: "conversation-1",
+        isWriteLocked: false,
+      },
+      messages: [
+        {
+          id: "persisted-user",
+          role: "user",
+          content: "Create the prompt",
+        },
+      ],
+      eventCursor: 12,
+      latestRun: {
+        id: "run-1",
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [
+        {
+          runId: "run-1",
+          approvalRequest: {
+            type: "tool_approval_request",
+            toolCallId: "tool-call-1",
+            toolName: "langfuse_createTextPrompt",
+            runId: "run-1",
+          },
+        },
+      ],
+    };
+    providerMocks.decideToolApproval.mockResolvedValueOnce({
+      runId: "continuation-run",
+    });
+    window.sessionStorage.setItem(
+      "langfuse:in-app-ai-agent-selected-conversation:project-1",
+      JSON.stringify("conversation-1"),
+    );
+
+    renderExecutionUi();
+    fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+
+    await waitFor(() => {
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledWith({
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        runId: "run-1",
+        toolCallId: "tool-call-1",
+        approved: false,
+      });
+    });
+
+    expect(getToolApprovalCaptureCalls()).toEqual([
+      [
+        TOOL_APPROVAL_DECIDED_EVENT,
+        {
+          isApproved: false,
+          toolName: "langfuse_createTextPrompt",
+          executionMode: "background",
+        },
+      ],
+    ]);
   });
 
   it("replays prompt invalidations after a detached run completes", async () => {
