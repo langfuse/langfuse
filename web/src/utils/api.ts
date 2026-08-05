@@ -104,20 +104,28 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  *  - FORBIDDEN     — the signed-in user may not access this resource (a trace in
  *                    another org, a project they are not a member of)
  *  - UNAUTHORIZED  — the session expired or the user is not signed in
+ *  - UNPROCESSABLE_CONTENT — a resource guardrail rejected the request with
+ *                    user-facing advice. The server mints this code only for
+ *                    query resource limits (`ClickHouseResourceError` → "narrow
+ *                    your request…", see `withErrorHandling` in
+ *                    `web/src/server/api/trpc.ts`) and oversized payloads
+ *                    (`PayloadTooLargeError`, httpCode 422)
  *
  * The UI already renders each of these as an error page or toast — it is the
  * product working as designed, not a regression a human should act on. Sending
  * them to Sentry turns the error tracker into a log of ordinary navigation
  * (`Trace not found` alone is the #2 issue by volume, ~30k events / ~3.3k
- * users) and drowns real signal.
+ * users; the query-guardrail advice minted ~2.3k events / ~600 users in two
+ * weeks) and drowns real signal.
  *
  * Suppressing capture here does NOT blind us to real authz/lookup regressions:
  * the server owns that signal — a genuine regression surfaces as a 4xx-rate
  * anomaly server-side and as user reports, whereas the client Sentry event is
  * only an amplified, lower-fidelity copy. The server itself already logs
- * NOT_FOUND / UNAUTHORIZED as non-errors (`web/src/server/api/trpc.ts`), and
- * `handleTrpcError` leaves a breadcrumb for each suppressed error so its path +
- * code stay in the trail of any real event captured later in the session.
+ * NOT_FOUND / UNAUTHORIZED as non-errors and every guardrail hit as a warning
+ * (`web/src/server/api/trpc.ts`), and `handleTrpcError` leaves a breadcrumb
+ * for each suppressed error so its path + code stay in the trail of any real
+ * event captured later in the session.
  *
  * Deliberately narrow: only these codes on an actual `TRPCClientError`. A 5xx
  * (`INTERNAL_SERVER_ERROR`), a `BAD_REQUEST`, an unrecognized code, or any
@@ -127,6 +135,7 @@ export const EXPECTED_TRPC_ERROR_CODES = [
   "NOT_FOUND",
   "FORBIDDEN",
   "UNAUTHORIZED",
+  "UNPROCESSABLE_CONTENT",
 ] as const;
 
 const getTrpcErrorData = (
