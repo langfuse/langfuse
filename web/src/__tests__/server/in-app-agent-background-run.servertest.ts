@@ -168,6 +168,7 @@ describe("in-app agent background runs", () => {
     conversationId: string;
     userId: string;
     toolCallId: string;
+    context?: Array<{ description: string; value: string }>;
     parkedAt?: Date;
   }) => {
     const runId = createInAppAgentRunId();
@@ -180,7 +181,10 @@ describe("in-app agent background runs", () => {
         triggeredByUserId: params.userId,
         status: InAppAgentRunStatus.AWAITING_APPROVAL,
         finishedAt: params.parkedAt ?? new Date(),
-        request: { kind: "userMessage", context: [] },
+        request: {
+          kind: "userMessage",
+          context: params.context ?? [],
+        },
       },
     });
 
@@ -320,11 +324,19 @@ describe("in-app agent background runs", () => {
   it("decides an approval exactly once and reads the tool args server-side", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
+    const context = [
+      {
+        description: "current_url",
+        value: '{"pathname":"/project/project-1/traces"}',
+      },
+      { description: "user_name", value: "Agent User" },
+    ];
     const parkedRunId = await parkRunForApproval({
       projectId,
       conversationId: conversation.id,
       userId,
       toolCallId: "tool-call-1",
+      context,
     });
 
     const { runId: continuationRunId } = await caller.decideToolApproval({
@@ -351,6 +363,7 @@ describe("in-app agent background runs", () => {
       parentRunId: parkedRunId,
       toolCallId: "tool-call-1",
       approved: true,
+      context,
     });
 
     const decisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
@@ -385,6 +398,83 @@ describe("in-app agent background runs", () => {
         },
       }),
     ).toBe(1);
+  });
+
+  it("preserves context through an approved then rejected chained continuation", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const context = [
+      {
+        description: "current_url",
+        value:
+          '{"pathname":"/project/project-1/traces","search":"?filter=error"}',
+      },
+      { description: "current_timezone", value: "Europe/Berlin" },
+    ];
+    const initialRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+      context,
+    });
+
+    const { runId: approvedContinuationId } = await caller.decideToolApproval({
+      projectId,
+      conversationId: conversation.id,
+      runId: initialRunId,
+      toolCallId: "tool-call-1",
+      approved: true,
+    });
+
+    await prisma.inAppAgentRun.update({
+      where: {
+        id_projectId: { id: approvedContinuationId, projectId },
+      },
+      data: {
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        finishedAt: new Date(),
+      },
+    });
+    await prisma.inAppAgentEvent.create({
+      data: {
+        projectId,
+        conversationId: conversation.id,
+        runId: approvedContinuationId,
+        sequenceNumber: 2,
+        type: EventType.CUSTOM,
+        event: {
+          type: EventType.CUSTOM,
+          name: "on_interrupt",
+          value: {
+            type: "mastra_suspend",
+            toolCallId: "tool-call-2",
+            toolName: "langfuse_createTextPrompt",
+            args: { name: "second-tool" },
+            runId: approvedContinuationId,
+          },
+        },
+      },
+    });
+
+    const { runId: rejectedContinuationId } = await caller.decideToolApproval({
+      projectId,
+      conversationId: conversation.id,
+      runId: approvedContinuationId,
+      toolCallId: "tool-call-2",
+      approved: false,
+    });
+
+    const rejectedContinuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: rejectedContinuationId, projectId },
+    });
+    expect(rejectedContinuation.request).toMatchObject({
+      kind: "approvalDecision",
+      parentRunId: approvedContinuationId,
+      toolCallId: "tool-call-2",
+      approved: false,
+      context,
+    });
   });
 
   it("rate-limits approval continuations before persisting or enqueueing them", async () => {

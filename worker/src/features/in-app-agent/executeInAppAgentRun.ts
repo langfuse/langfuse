@@ -260,7 +260,7 @@ export async function executeInAppAgentRun(params: {
       state: null,
       messages: [...replayMessages],
       tools: [],
-      context: request.kind === "userMessage" ? request.context : [],
+      context: request.context,
       forwardedProps:
         request.kind === "approvalDecision" && approvalRequest
           ? {
