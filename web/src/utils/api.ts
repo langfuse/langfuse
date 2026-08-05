@@ -420,10 +420,9 @@ const requestTooLargeDiagnosticsLink = (): TRPCLink<AppRouter> => () => {
         error(err) {
           const sentAsGet =
             op.type === "query" && op.context.sendAsPost !== true;
-          const status =
-            err.meta?.response instanceof Response
-              ? err.meta.response.status
-              : undefined;
+          // Annotation-first (meta is dropped on JSON-parse failures — the
+          // common shape of a real 414/431, whose body is empty/HTML).
+          const status = getResponseStatus(err);
 
           if (
             sentAsGet &&
