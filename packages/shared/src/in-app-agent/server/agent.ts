@@ -496,6 +496,7 @@ export async function createAgUiStream(params: {
               params.options.onApprovedToolCallExecuted,
           });
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
+          currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
 
           if (
             forwardedProps?.command?.resume?.approved === true &&
@@ -539,6 +540,7 @@ export async function createAgUiStream(params: {
 
             cleanupAdapter = currentAdapter.cleanup;
             interruptAdapter = currentAdapter.interrupt;
+            currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
           }
 
           subscription = currentAdapter.adapter.run(runInput.input).subscribe({
@@ -811,10 +813,17 @@ async function createMastraAdapter(params: {
       params.options.awsBedrock.modelId,
     );
 
+    // @ag-ui/mastra currently forwards only assistant, user, and tool
+    // messages. Keep approval outcomes as developer messages in the AG-UI
+    // transcript, while mirroring them through Mastra's model-facing
+    // instruction channel so the model receives the same higher-priority
+    // guidance on resumed runs.
+    let developerGuidance: string | undefined;
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
-      instructions: params.instructions,
+      instructions: () =>
+        [params.instructions, developerGuidance].filter(Boolean).join("\n\n"),
       model: bedrock(
         params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
       ),
@@ -844,6 +853,9 @@ async function createMastraAdapter(params: {
 
     return {
       adapter,
+      setDeveloperGuidance: (guidance: string | undefined) => {
+        developerGuidance = guidance;
+      },
       executeToolCall: async (
         approvalRequest: InAppAgentToolApprovalRequest,
       ) => {

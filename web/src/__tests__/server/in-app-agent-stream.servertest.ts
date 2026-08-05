@@ -741,10 +741,10 @@ describe("createAgUiStream", () => {
     expect(promptMocks.compile.mock.calls[0]?.[0].screenContext).not.toContain(
       '"user_name"',
     );
-    expect(Agent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        instructions: "Prompt-managed assistant instructions",
-      }),
+    const baseInstructions = vi.mocked(Agent).mock.calls[0]?.[0].instructions;
+    expect(baseInstructions).toEqual(expect.any(Function));
+    expect((baseInstructions as () => string)()).toBe(
+      "Prompt-managed assistant instructions",
     );
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
@@ -947,9 +947,10 @@ describe("createAgUiStream", () => {
       expect.objectContaining({
         forwardedProps: {},
         messages: expect.arrayContaining([
-          {
+          expect.objectContaining({
             id: "tool-call-1-approval-tool-call",
             role: "assistant",
+            content: "",
             runId: "interrupted-run-1",
             toolCalls: [
               {
@@ -966,8 +967,8 @@ describe("createAgUiStream", () => {
                 },
               },
             ],
-          },
-          {
+          }),
+          expect.objectContaining({
             id: "tool-call-1-approval-tool-result",
             role: "tool",
             toolCallId: "tool-call-1",
@@ -976,7 +977,14 @@ describe("createAgUiStream", () => {
               name: "readiness",
               dataType: "NUMERIC",
             }),
-          },
+          }),
+          expect.objectContaining({
+            id: "tool-call-1-approval-guidance",
+            role: "developer",
+            content: expect.stringContaining(
+              "action was completed successfully",
+            ),
+          }),
         ]),
       }),
     ]);
@@ -985,6 +993,12 @@ describe("createAgUiStream", () => {
     // the single-tool override on the approved mutation, the second continues
     // the run without that header so follow-up reads are not blocked.
     expect(vi.mocked(Agent)).toHaveBeenCalledTimes(2);
+    const finalApprovalInstructions =
+      vi.mocked(Agent).mock.calls[1]?.[0].instructions;
+    expect(finalApprovalInstructions).toEqual(expect.any(Function));
+    expect((finalApprovalInstructions as () => string)()).toContain(
+      "action was completed successfully",
+    );
     expect(vi.mocked(MCPClient)).toHaveBeenCalledTimes(2);
     expect(vi.mocked(MCPClient).mock.calls[0]?.[0]).toMatchObject({
       servers: {
@@ -1488,6 +1502,12 @@ describe("createAgUiStream", () => {
     expect(adapterEvents.createScoreConfigExecute).not.toHaveBeenCalled();
     expect(vi.mocked(MCPClient)).toHaveBeenCalledOnce();
     expect(vi.mocked(Agent)).toHaveBeenCalledOnce();
+    const rejectionInstructions =
+      vi.mocked(Agent).mock.calls[0]?.[0].instructions;
+    expect(rejectionInstructions).toEqual(expect.any(Function));
+    expect((rejectionInstructions as () => string)()).toContain(
+      "Do not retry this tool call",
+    );
     expect(persistedEvents).toEqual([
       {
         type: EventType.RUN_STARTED,

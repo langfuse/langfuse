@@ -67,10 +67,11 @@ describe("createManualToolApprovalRunInput", () => {
         content: "Tool call was not approved by the user.",
       }),
       expect.objectContaining({
-        role: "user",
+        role: "developer",
         content: expect.stringContaining("Do not retry this tool call"),
       }),
     ]);
+    expect(result.developerGuidance).toContain("Do not retry this tool call");
   });
 
   it("passes approved tool calls to the model as completed decisions", async () => {
@@ -97,9 +98,12 @@ describe("createManualToolApprovalRunInput", () => {
         content: JSON.stringify({ created: true }),
       }),
       expect.objectContaining({
-        role: "user",
+        role: "developer",
         content: expect.stringContaining("action was completed successfully"),
       }),
     ]);
+    expect(result.developerGuidance).toContain(
+      "action was completed successfully",
+    );
   });
 });
