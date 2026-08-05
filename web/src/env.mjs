@@ -402,11 +402,6 @@ export const env = createEnv({
     // ClickHouse Billing (CHB) integration. The cutoff routes first-time
     // upgrades on/after this instant to CHB; unset = feature off.
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso.datetime().optional(),
-    CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
-    CLICKHOUSE_BILLING_SERVICE_TOKEN: z.string().optional(),
-    CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET: z.string().optional(),
-    CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
-    CLICKHOUSE_BILLING_EVENT_BUS_URL: z.url().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -940,15 +935,6 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE:
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
-    CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
-    CLICKHOUSE_BILLING_SERVICE_TOKEN:
-      process.env.CLICKHOUSE_BILLING_SERVICE_TOKEN,
-    CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET:
-      process.env.CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET,
-    CLICKHOUSE_BILLING_METRICS_API_KEY:
-      process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
-    CLICKHOUSE_BILLING_EVENT_BUS_URL:
-      process.env.CLICKHOUSE_BILLING_EVENT_BUS_URL,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
