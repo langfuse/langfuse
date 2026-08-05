@@ -11,7 +11,7 @@ const readStoredColumnOrder = (localStorageKey: string): string[] => {
     const storedValue = localStorage.getItem(localStorageKey);
     return storedValue ? JSON.parse(storedValue) : [];
   } catch (error) {
-    console.error("Error reading from local storage", error);
+    console.warn("Error reading from local storage", error);
     return [];
   }
 };
@@ -49,7 +49,7 @@ const hasRunMigration = (versionKey: string): boolean => {
   try {
     return localStorage.getItem(versionKey) !== null;
   } catch (error) {
-    console.error("Error reading migration flag from local storage", error);
+    console.warn("Error reading migration flag from local storage", error);
     return true;
   }
 };
@@ -61,7 +61,7 @@ const markMigrationRun = (versionKey: string): void => {
   try {
     localStorage.setItem(versionKey, "1");
   } catch (error) {
-    console.error("Error writing migration flag to local storage", error);
+    console.warn("Error writing migration flag to local storage", error);
   }
 };
 
