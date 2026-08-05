@@ -1148,15 +1148,15 @@ export default function ObservationsTable({
           cell: ({ row }) => {
             const latency: number | undefined = row.getValue("latency");
             const usage: {
-              promptTokens: number;
-              completionTokens: number;
-              totalTokens: number;
+              inputUsage: number;
+              outputUsage: number;
+              totalUsage: number;
             } = row.getValue("usage");
             return latency !== undefined &&
-              (usage.completionTokens !== 0 || usage.totalTokens !== 0) ? (
+              (usage.outputUsage !== 0 || usage.totalUsage !== 0) ? (
               <span>
-                {usage.completionTokens && latency
-                  ? Number((usage.completionTokens / latency).toFixed(1))
+                {usage.outputUsage && latency
+                  ? Number((usage.outputUsage / latency).toFixed(1))
                   : undefined}
               </span>
             ) : undefined;
