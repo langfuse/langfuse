@@ -470,7 +470,7 @@ jobs:
           if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -613,22 +613,58 @@ jobs:
       - name: run tests
         working-directory: web
         # The server tests are I/O-bound (Postgres/ClickHouse/HTTP roundtrips),
-        # so 8 workers on the 4-vCPU runner overlap DB waits. Worker isolation
-        # is configured per project in vitest.config.mts. The CPU-bound client
-        # (jsdom) tests measured slower when merged into this invocation, so
-        # they keep their own step below.
+        # but still need one runner vCPU per worker to avoid oversubscribing the
+        # local databases when several DB-heavy files run concurrently. Worker
+        # isolation is configured per project in vitest.config.mts. The
+        # CPU-bound client (jsdom) tests measured slower when merged into this
+        # invocation, so they run in their own parallel job below.
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-unit --maxWorkers=8
-      - name: run test-client
-        if: matrix.deploy-mode == ''
-        working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project client
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8
       - name: Prune stale turbo cache entries
         if: env.CI_CACHE_ALLOWED == 'true'
         # Each run saves the restored archive plus new entries, so the cache
         # grows without bound unless old entries are dropped before the save.
         run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
+
+  tests-web-client:
+    timeout-minutes: 10
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.10.0
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: pnpm install
+      - name: Load default env
+        run: cp .env.dev.example .env
+      - name: Build client test dependencies
+        # Client tests import workspace packages directly. Build only web's
+        # dependencies (not the Next.js app) so cold caches have package entry
+        # points without paying for an unnecessary production web build.
+        run: pnpm turbo run build --filter=web^...
+      - name: run test-client
+        working-directory: web
+        run: pnpm run test-client
 
   tests-worker:
     timeout-minutes: 20
@@ -1037,6 +1073,7 @@ jobs:
         tests-storybook,
         tests-shared,
         tests-web,
+        tests-web-client,
         tests-worker,
         test-worker-llm-connections,
         e2e-tests,

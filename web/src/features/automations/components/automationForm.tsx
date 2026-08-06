@@ -464,19 +464,13 @@ export const AutomationForm = ({
     if (actionType === "WEBHOOK") {
       // Use action handler to get default values with proper typing
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const webhookDefaults = handler.getDefaultValues(
-        automation,
-        resolvedEventSource,
-      );
+      const webhookDefaults = handler.getDefaultValues(automation);
       return {
         ...baseValues,
         actionType: "WEBHOOK" as const,
         webhook: {
           url: webhookDefaults.webhook.url || "",
           headers: webhookDefaults.webhook.headers || [],
-          apiVersion: webhookDefaults.webhook.apiVersion || {
-            prompt: "v1" as const,
-          },
         },
       };
     } else if (actionType === "SLACK") {
@@ -539,7 +533,10 @@ export const AutomationForm = ({
       return;
     }
 
-    const actionConfig = handler.buildActionConfig(data);
+    const actionConfig = handler.buildActionConfig(
+      data,
+      data.eventSource as TriggerEventSource,
+    );
 
     // Project-notification names are auto-generated from the destination (the
     // name field is hidden for this source; regenerated on every save so the
@@ -605,10 +602,7 @@ export const AutomationForm = ({
 
     if (value === "WEBHOOK") {
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const defaultValues = handler.getDefaultValues(
-        undefined,
-        form.getValues("eventSource") as TriggerEventSource,
-      );
+      const defaultValues = handler.getDefaultValues();
       form.setValue("webhook", defaultValues.webhook);
     } else if (value === "SLACK") {
       const handler = ActionHandlerRegistry.getHandler("SLACK");
