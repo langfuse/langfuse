@@ -640,17 +640,17 @@ jobs:
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
           version: 11.10.0
-      - name: Use Node.js 24 without cache
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
-      - name: Use Node.js 24 with pnpm cache
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] test job dependency cache only; no released artifacts are built or published from this cached state
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
