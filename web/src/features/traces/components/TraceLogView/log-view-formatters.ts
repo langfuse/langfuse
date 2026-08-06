@@ -5,7 +5,7 @@
  * data transformation and component rendering.
  */
 
-import { type TreeNode } from "@/src/features/traces/fns/types";
+import { type TreeNode } from "@/src/features/traces/types/treeNode";
 
 /**
  * Formats a node's display name for the log view.

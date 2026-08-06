@@ -4,10 +4,10 @@ import {
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
+  TraceDetailActions,
   TraceDetailBody,
   traceDetailTitle,
-} from "@/src/features/traces/TraceDetailBody";
-import { TraceDetailActions } from "@/src/features/traces/TraceDetailActions";
+} from "@/src/features/traces";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { useRouter } from "next/router";

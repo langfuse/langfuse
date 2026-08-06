@@ -12,12 +12,12 @@ import { FilterX } from "lucide-react";
 import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
-import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
-import { useChatMLParser } from "@/src/features/traces/components/IOPreview/hooks/useChatMLParser";
+import { type IOPreviewContentMode } from "@/src/features/traces";
+import { useChatMLParser } from "@/src/features/traces";
 import {
   hasRenderableConversationMessages,
   isOnlyJsonMessage,
-} from "@/src/features/traces/components/IOPreview/components/chat-message-utils";
+} from "@/src/features/traces";
 
 export type TraceEventsSurface = "card" | "modern";
 
