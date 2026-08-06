@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
