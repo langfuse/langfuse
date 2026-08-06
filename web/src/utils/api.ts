@@ -159,6 +159,24 @@ export const getTrpcErrorPath = (error: unknown): string | undefined => {
 };
 
 /**
+ * Sentry fingerprint for a captured tRPC client error.
+ *
+ * Sentry's default grouping keys on the stack trace, and every
+ * `TRPCClientError` throws from the same client-link frames — so unrelated
+ * failures (different procedures, different codes, different messages)
+ * collapse into one mega-issue. Grouping by code + procedure path gives each
+ * distinct failure class its own issue with bounded cardinality
+ * (procedures × codes) and no user data: `data.path` is the static procedure
+ * name from the router definition (e.g. `traces.deleteMany`) — query input,
+ * ids, and messages are never part of it.
+ */
+export const getTrpcErrorFingerprint = (error: unknown): string[] => [
+  "trpc-client-error",
+  getTrpcErrorCode(error) ?? "unknown",
+  getTrpcErrorPath(error) ?? "unknown",
+];
+
+/**
  * True when `error` is a TRPCClientError whose code is an EXPECTED, user-facing
  * state that should not be captured to Sentry.
  * See {@link EXPECTED_TRPC_ERROR_CODES}.
@@ -356,10 +374,12 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
         },
       });
     } else {
-      // Real tRPC errors keep flowing to Sentry, tagged by procedure/code
-      // so they group and route instead of collapsing into one opaque bucket.
+      // Real tRPC errors keep flowing to Sentry, tagged and fingerprinted by
+      // procedure/code so each failure class gets its own issue instead of
+      // collapsing into one opaque bucket (see getTrpcErrorFingerprint).
       reportError(error, {
         area: "trpc",
+        fingerprint: getTrpcErrorFingerprint(error),
         tags: {
           "trpc.code": getTrpcErrorCode(error),
           "trpc.path": getTrpcErrorPath(error),
@@ -374,6 +394,46 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
   if (!shouldSilenceError && shouldShowToast(error)) {
     trpcErrorToast(error);
   }
+};
+
+/**
+ * Error handler for `mutateAsync` catch blocks whose mutation KEEPS the
+ * react-query default `onError`: the seam (`handleTrpcError`) already
+ * classified, captured, and toasted the tRPC failure, so the catch only needs
+ * to swallow the rejection — a `console.error` there would mint a second,
+ * unclassified Sentry event via `captureConsoleIntegration`. Non-tRPC errors
+ * (thrown by the catch's own post-success work: callbacks, router.push, ...)
+ * were NOT seen by the seam and are reported with the caller's `area`.
+ */
+export const reportNonTrpcError = (
+  error: unknown,
+  area: string,
+  extra?: Record<string, unknown>,
+): void => {
+  if (error instanceof TRPCClientError) return;
+  reportError(error, { area, extra });
+};
+
+/**
+ * Error handler for `mutateAsync` catch blocks whose mutation defines a local
+ * `onError` (which REPLACES the react-query default): nothing classified or
+ * captured the failure, so route it through the seam here — with the standard
+ * error toast silenced, since the local `onError` owns the UX (form errors,
+ * custom toasts). Replaces the `console.error(error)` anti-pattern, which
+ * minted unclassified Sentry events via `captureConsoleIntegration`.
+ * Non-tRPC errors (thrown by the catch's own post-success work) were never a
+ * tRPC failure, so they are reported with the caller's `area` — mirroring
+ * `reportNonTrpcError` — instead of the seam's generic `trpc` area.
+ */
+export const reportTrpcErrorWithoutToast = (
+  error: unknown,
+  area: string,
+): void => {
+  if (error instanceof TRPCClientError) {
+    handleTrpcError(error, true);
+    return;
+  }
+  reportError(error, { area });
 };
 
 // Reads the `x-build-id` response header (the build id serving this response)

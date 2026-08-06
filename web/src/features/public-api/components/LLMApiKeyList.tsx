@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
@@ -194,9 +194,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
             capture("project_settings:llm_api_key_delete");
             setOpen(false);
           })
-          .catch((error) => {
-            console.error(error);
-          });
+          .catch((error) => reportNonTrpcError(error, "llm-api-keys"));
       }}
     />
   );

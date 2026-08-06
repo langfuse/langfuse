@@ -26,7 +26,7 @@ import {
   WebhookDefaultHeaders,
   WebhookProtectedHeaders,
 } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { useState } from "react";
 import {
   Dialog,
@@ -383,7 +383,7 @@ export const RegenerateWebhookSecretButton = ({
       });
       setShowConfirmPopover(false);
     } catch (error) {
-      console.error("Failed to regenerate webhook secret:", error);
+      reportNonTrpcError(error, "automations");
     }
   };
 
