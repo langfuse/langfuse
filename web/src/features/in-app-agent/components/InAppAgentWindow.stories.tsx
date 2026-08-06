@@ -925,6 +925,10 @@ export const GroupedAssistantTurn = meta.story({
   args: {
     isExpanded: true,
     selectedConversationId: "conversation-1",
+    screenContextDescription: {
+      type: "trace-list",
+      hasAppliedFilters: true,
+    },
     messages: [
       {
         id: "grouped-user",
