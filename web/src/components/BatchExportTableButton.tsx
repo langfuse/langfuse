@@ -86,6 +86,8 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
         return "Note: Filters on Comments are not included in session exports. You may receive more data than expected.";
       case BatchTableNames.AuditLogs:
         return "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported.";
+      case BatchTableNames.Prompts:
+        return "Note: Filters and search are not applied to prompt exports. All prompt versions for this project will be exported.";
       default:
         // Note: for Scores, DatasetRunItems, DatasetItems, filters should work as expected
         return null;

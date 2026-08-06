@@ -48,6 +48,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   dataset_run_items: "createdAt",
   dataset_items: "createdAt", // TODO: flip to validFrom once we write in new format
   audit_logs: "createdAt",
+  prompts: "createdAt",
 };
 const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   scores: "timestamp",
@@ -59,6 +60,7 @@ const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   dataset_run_items: "createdAt",
   dataset_items: "createdAt",
   audit_logs: "createdAt",
+  prompts: "createdAt",
 };
 const isGenerationTimestampFilter = (
   filter: FilterCondition,
@@ -659,6 +661,44 @@ export const getDatabaseReadStreamPaginated = async ({
             action: log.action,
             before: log.before,
             after: log.after,
+          }));
+        },
+        env.BATCH_EXPORT_PAGE_SIZE,
+        rowLimit,
+      );
+    }
+    case "prompts": {
+      // Export all prompt versions of the project. Filters are not applied
+      // (consistent with audit_logs); the UI warns users accordingly.
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const prompts = await prisma.prompt.findMany({
+            where: {
+              projectId: projectId,
+              createdAt: {
+                lt: cutoffCreatedAt,
+              },
+            },
+            // Order by createdAt plus the unique id so offset-based pagination
+            // is stable even when prompts share a creation timestamp.
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            skip: offset,
+            take: pageSize,
+          });
+
+          return prompts.map((prompt) => ({
+            id: prompt.id,
+            name: prompt.name,
+            version: prompt.version,
+            type: prompt.type,
+            prompt: prompt.prompt,
+            labels: prompt.labels,
+            tags: prompt.tags,
+            config: prompt.config,
+            commitMessage: prompt.commitMessage,
+            createdAt: prompt.createdAt,
+            updatedAt: prompt.updatedAt,
+            createdBy: prompt.createdBy,
           }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
