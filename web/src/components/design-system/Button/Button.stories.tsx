@@ -51,7 +51,7 @@ export const Disabled = meta.story({
 });
 
 const IMPORTANCES = ["primary", "secondary", "borderless"] as const;
-const STATUSES = ["default", "warning"] as const;
+const STATUSES = ["default", "error", "warning", "success", "info"] as const;
 const STATES = ["default", "hovered", "focused", "disabled"] as const;
 const ICONS = ["text-only", "text-and-icon", "icon-only"] as const;
 
