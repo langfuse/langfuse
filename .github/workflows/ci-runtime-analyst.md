@@ -212,6 +212,15 @@ steps:
 tools:
   github:
     toolsets: [actions, pull_requests]
+    # mcpg v0.4.8 (github/gh-aw-mcpg#10472) only returns public secrecy when the
+    # visibility lookup is unknown AND the policy scope includes Public. Left to
+    # automatic lockdown the gateway still reports allowOnlyPublic=false, so
+    # state the scope explicitly. Must be the string 'public' — a specific
+    # owner/repo does not satisfy the precondition.
+    allowed-repos: public
+    # Required by the compiler once allowed-repos is set; same value automatic
+    # lockdown picks for a public repo.
+    min-integrity: approved
   bash:
     [
       "pnpm:*",
