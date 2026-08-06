@@ -153,7 +153,7 @@ function MappingSection({
   tokens,
 }: {
   title: string;
-  blurb: ReactNode;
+  blurb?: ReactNode;
   tokens: SemanticToken[];
 }) {
   return (
@@ -188,15 +188,9 @@ function MappingSection({
 
 const STATUS: SemanticToken[] = [
   {
-    token: "--status-error-fill",
-    purpose: "Destructive fill: hovered danger buttons",
+    token: "--status-error",
+    purpose: "Danger text, icons and hovered danger fill",
     light: ref(RED, "800"),
-    dark: ref(RED, "400"),
-  },
-  {
-    token: "--status-error-text",
-    purpose: "Danger text and icons",
-    light: ref(RED, "700"),
     dark: ref(RED, "400"),
   },
 ];
@@ -220,7 +214,7 @@ const SHADOWS = [
 
 function ShadowSection() {
   return (
-    <DocsSection title="Shadow" blurb="Elevation shadows.">
+    <DocsSection title="Shadow">
       <div className="flex flex-col">
         <div className={`${MAPPING_GRID} border-b pb-1.5`}>
           {["Token", "Usage", "Value", "Sample"].map((label) => (
@@ -260,7 +254,7 @@ function ShadowSection() {
 
 function IconSizeSection() {
   return (
-    <DocsSection title="Icon" blurb="Icon sizing.">
+    <DocsSection title="Icon">
       <div className="flex flex-col">
         <div className={`${MAPPING_GRID} border-b pb-1.5`}>
           {["Token", "Usage", "Size", "Sample"].map((label) => (
@@ -308,24 +302,14 @@ export function SemanticTokens() {
         />
         <MappingSection
           title="Background / Fill / From / Via / To"
-          blurb="Surface elevation, outermost first."
           tokens={BG_ELEVATION}
         />
         <MappingSection
           title="Border / Divide / Outline / Stroke"
-          blurb="Lines and strokes."
           tokens={BORDER}
         />
-        <MappingSection
-          title="Text / Placeholder"
-          blurb="Text tiers, brightest last."
-          tokens={TEXT}
-        />
-        <MappingSection
-          title="Status"
-          blurb="Destructive intent."
-          tokens={STATUS}
-        />
+        <MappingSection title="Text / Placeholder" tokens={TEXT} />
+        <MappingSection title="Status" tokens={STATUS} />
         <ShadowSection />
         <IconSizeSection />
       </div>

@@ -30,11 +30,7 @@ primary | secondary | borderless | danger` beats `type` x `status` with
 - Check both themes for every state. Dark mode surfaced an unreadable hover
   fill, an invisible border and a vanishing disabled state that light mode
   never showed.
-- Hover colors are tokens like every other color. The Button started with
-  brightness filters because they felt cheap to maintain; they dodged the
-  token system, needed per-theme direction tweaks and produced invisible
-  hovers. Every hover fill now routes through a token (bg-elevation-4,
-  bg-inverse-hover, bg-status-error-fill).
+- Hover colors are tokens like every other color, no filters.
 - The rest and hover fills must be far enough apart to notice at a glance.
   A 4% brightness shift on a white fill is invisible; one real elevation
   step (bg-elevation-1 to bg-elevation-4) is not.

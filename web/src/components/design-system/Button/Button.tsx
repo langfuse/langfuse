@@ -59,7 +59,7 @@ export const BUTTON_TOKENS: Record<ButtonType, string> = {
     "bg-elevation-1 · text-primary · border-default · hover: bg-elevation-4",
   borderless: "text-secondary · hover: bg-elevation-4",
   danger:
-    "bg-elevation-1 · text-status-error · border-default · hover: bg-status-error-fill + text-on-inverse",
+    "bg-elevation-1 · text-status-error · border-default · hover: bg-status-error + text-on-inverse",
 };
 
 /** Hover fills, all token-routed. `forced` mirrors the hover: classes
@@ -79,8 +79,8 @@ const HOVER: Record<ButtonType, { hover: string; forced: string }> = {
   },
   danger: {
     hover:
-      "hover:border-status-error-fill hover:bg-status-error-fill hover:text-on-inverse",
-    forced: "border-status-error-fill bg-status-error-fill text-on-inverse",
+      "hover:border-status-error hover:bg-status-error hover:text-on-inverse",
+    forced: "border-status-error bg-status-error text-on-inverse",
   },
 };
 
