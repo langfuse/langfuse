@@ -306,6 +306,7 @@ export const events = {
     "community_hours_click",
   ], // also used on landing page for consistency
   in_app_agent: [
+    "activity_opened",
     "entry_point_click",
     "new_chat_started",
     "new_chat_turn",
