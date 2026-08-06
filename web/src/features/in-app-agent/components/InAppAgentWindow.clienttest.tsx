@@ -265,7 +265,9 @@ describe("ControlledInAppAgentWindow composer", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("keeps navigation disabled while an approval is pending", () => {
+  it("blocks another turn here but still lets you leave", () => {
+    // A parked approval owns this conversation's composer, not the whole
+    // assistant: the run is durable, so leaving does not abandon it.
     controlledAgent.value.isRunning = false;
     controlledAgent.value.pendingToolApprovals = [{ id: "approval-1" }];
     controlledAgent.value.submit = vi.fn();
@@ -287,10 +289,10 @@ describe("ControlledInAppAgentWindow composer", () => {
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Start new conversation" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     expect(
       screen.getByRole("button", { name: "Conversation history" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 });
 
