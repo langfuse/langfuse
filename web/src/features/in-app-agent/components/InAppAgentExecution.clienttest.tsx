@@ -110,7 +110,7 @@ vi.mock("@/src/features/projects/hooks", () => ({
   }),
 }));
 
-vi.mock("@/src/features/in-app-agent/lib/backgroundExecutionFlag", () => ({
+vi.mock("@/src/features/in-app-agent/lib/executionMode", () => ({
   useInAppAgentBackgroundExecutionEnabled: () =>
     providerMocks.backgroundExecutionEnabled,
 }));

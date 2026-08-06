@@ -1,8 +1,9 @@
 # In-App Agent
 
 The in-app agent is Langfuse's project-scoped assistant inside the authenticated
-product UI. Foreground execution remains the production default; an opt-in
-background path executes the same conversation through a worker-owned run.
+product UI. Background execution through a worker-owned run is the default; the
+request-scoped foreground path remains as the rollback target until it is
+deleted.
 
 `ARCHITECTURE.md` covers why the feature is shaped this way: the one-log /
 three-derivations contract, where code lives and why, the target state after
@@ -20,11 +21,16 @@ The browser owns interaction state and submits intent. The server owns authoriza
 A conversation can have one active run. The browser uses one execution mode for
 a turn:
 
-- **Foreground (default):** `HttpAgent` owns the live request. The run cannot
-  outlive the browser session.
-- **Background (local opt-in):** the browser starts a durable run, hydrates one
+- **Background (default):** the browser starts a durable run, hydrates one
   persisted transcript/cursor snapshot, and observes its tail. Closing the
   drawer detaches observation without cancelling the server run.
+- **Foreground (rollback):** `HttpAgent` owns the live request. The run cannot
+  outlive the browser session and is capped by the route's 120s `maxDuration`.
+
+`lib/executionMode.ts` resolves which one applies, from the deployment's
+`LANGFUSE_IN_APP_AGENT_EXECUTION_MODE` read through
+`inAppAgent.getExecutionMode`. There is no per-user override. See "Rollout And
+Migration" below.
 
 ## Major Files
 
@@ -54,7 +60,7 @@ a turn:
 - `lib/backgroundAgentClient.ts`: durable run start/watch AG-UI adapter.
 - `lib/backgroundExecutionSession.ts`: background transcript, cursor, run,
   approval, attachment, cancel, and decision owner.
-- `lib/backgroundExecutionFlag.ts`: local, default-off background opt-in.
+- `lib/executionMode.ts`: reads the deployment's execution mode.
 
 Outside this feature folder, `packages/in-app-agent-sandbox-runtime/src/*` provides the shared sandbox runtime and contract types used by both the local Docker provider and the Lambda MicroVM image.
 
@@ -114,8 +120,8 @@ flowchart TB
 
 ### Background
 
-1. The provider selects the background client only when the local opt-in is
-   enabled and starts the durable run through `startRun`.
+1. The provider selects the background client unless the resolved execution mode
+   is foreground, and starts the durable run through `startRun`.
 2. `BackgroundExecutionSessionController` installs the persisted canonical
    messages, the display state, and the cursor before attaching the watch
    stream. The seed is never projected or pruned; see `ARCHITECTURE.md`.
@@ -165,11 +171,30 @@ no product decision that a separate click event would answer yet.
 
 ## Rollout And Migration
 
-Background execution is default-off while the remaining project work is
-completed and canaried. Conversation switching, detached invalidations,
-capacity controls, retry, and conversation-list run statuses are separate
-project issues. After background execution is stable, the foreground transport
-and its state can be removed rather than preserved as a permanent abstraction.
+Background execution is the default everywhere.
+
+**Rollback is one line:** flip the `LANGFUSE_IN_APP_AGENT_EXECUTION_MODE`
+default in `packages/shared/src/env.ts` to `"foreground"` and ship. Nothing sets
+that variable per region, so that default is the single source of truth, and a
+one-line PR puts every deployment back on the request-scoped path. It takes
+effect on each client's next page load.
+
+The variable exists on top of the default so an operator can override without a
+code change if a redeploy is too slow. Anything that sets it per region would
+become a second place to check during an incident, which is why nothing does.
+It is server-owned rather than `NEXT_PUBLIC_*` because `web/Dockerfile` bakes
+`NEXT_PUBLIC_*` at image build time.
+
+`QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED` must be on wherever turns run
+in background, otherwise runs commit as `QUEUED` and die at `queue_timeout`. It
+is already enabled in every Langfuse Cloud region. Check
+`LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG` against execution capacity too:
+its default of 20 equals full US capacity and exceeds JP and staging.
+
+Conversation switching, detached invalidations, retry, and conversation-list run
+statuses are separate project issues. After background execution is stable, the
+foreground transport and its state can be removed rather than preserved as a
+permanent abstraction.
 
 ## Sandbox Runtime
 

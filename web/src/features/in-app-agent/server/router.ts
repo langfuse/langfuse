@@ -11,6 +11,7 @@ import {
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
@@ -88,6 +89,14 @@ const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
 const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
+  // Deployment config, not agent access, so no availability assert: an org
+  // without the entitlement should get an answer rather than an error.
+  getExecutionMode: protectedProjectProcedureWithoutTracing
+    .input(z.object({ projectId: z.string() }))
+    .query(() => ({
+      mode: sharedEnv.LANGFUSE_IN_APP_AGENT_EXECUTION_MODE,
+    })),
+
   listConversations: protectedProjectProcedure
     .input(
       z.object({
