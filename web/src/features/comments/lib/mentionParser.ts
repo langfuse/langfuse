@@ -12,11 +12,15 @@ export const MENTION_USER_PREFIX = "user:";
 /**
  * Mention format: @[Display Name](user:userId)
  * Regex pattern with bounded quantifiers to prevent ReDoS attacks
- * - Display name: 1-100 characters, excluding brackets
+ * - Display name: 1-100 characters. May contain brackets (e.g. SSO names like
+ *   "John Doe[ Platform Team ]"); it ends at the first `](user:` suffix, which
+ *   is unambiguous because the userId — not the display name — is the
+ *   authoritative part. Each character is either a non-`]` or a `]` not
+ *   followed by `(user:`, so matching is deterministic (no backtracking).
  * - User ID: 1-30 characters (CUID is 25 chars, custom IDs may include hyphens/underscores)
  */
 const MENTION_REGEX = new RegExp(
-  `@\\[([^[\\]]{1,100})\\]\\(${MENTION_USER_PREFIX}([a-z0-9_-]{1,30})\\)`,
+  `@\\[((?:[^\\]]|\\](?!\\(${MENTION_USER_PREFIX})){1,100})\\]\\(${MENTION_USER_PREFIX}([a-z0-9_-]{1,30})\\)`,
   "gi",
 );
 
