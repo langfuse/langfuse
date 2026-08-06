@@ -188,6 +188,12 @@ const STATUS: SemanticToken[] = [
     dark: ref(RED, "700"),
   },
   {
+    token: "--status-error-fill-hover",
+    purpose: "Hovered destructive solid",
+    light: ref(RED, "800"),
+    dark: ref(RED, "800"),
+  },
+  {
     token: "--status-error-text",
     purpose: "Danger text and icons",
     light: ref(RED, "700"),

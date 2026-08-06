@@ -24,24 +24,29 @@ type IconProps =
       Icon: ComponentType<{ className?: string }>;
     };
 
+/** Destructive intent is not available on the primary type. */
+type VariantProps =
+  | { type?: ButtonType; status?: "default" }
+  | { type?: "secondary" | "borderless"; status: "danger" };
+
 export type ButtonProps = {
   /** Visible label; icon-only buttons expose it as the accessible name. */
   label: string;
-  type?: ButtonType;
-  /** Destructive intent: the red treatment of the given type. */
-  status?: Status;
   state?: ForcedState;
   onClick?: () => void;
-} & IconProps;
+} & VariantProps &
+  IconProps;
 
 const CONTROL_BASE =
   "inline-flex h-[26px] items-center rounded-[2px] text-xs tracking-[-0.06px] whitespace-nowrap transition-[filter,color,background-color,border-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50";
 
-const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
+const CONTROL_STYLES: {
+  primary: { default: string };
+  secondary: Record<Status, string>;
+  borderless: Record<Status, string>;
+} = {
   primary: {
     default: "bg-inverse text-on-inverse shadow-1 border border-transparent",
-    danger:
-      "border-status-error-fill bg-status-error-fill text-on-inverse shadow-1 border",
   },
   secondary: {
     default: "border-default bg-elevation-1 text-primary shadow-1 border",
@@ -55,10 +60,13 @@ const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
 
 /** Human-readable token routing per variant, shown by the Storybook
  * variant matrix. Keep in sync with CONTROL_STYLES above. */
-export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
+export const BUTTON_TOKENS: {
+  primary: { default: string };
+  secondary: Record<Status, string>;
+  borderless: Record<Status, string>;
+} = {
   primary: {
     default: "bg-inverse · text-on-inverse",
-    danger: "bg-status-error-fill · text-on-inverse · border-status-error-fill",
   },
   secondary: {
     default: "bg-elevation-1 · text-primary · border-default",
@@ -73,16 +81,16 @@ export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
 /** Hover treatment per slot: mostly a brightness filter; the danger
  * secondary swaps to the red fill (GitHub-style). `forced` mirrors the
  * hover: classes for the spec-only state="hovered". */
-const HOVER_FILTER: Record<
-  ButtonType,
-  Record<Status, { hover: string; forced: string }>
-> = {
+const HOVER_FILTER: {
+  primary: { default: { hover: string; forced: string } };
+  secondary: Record<Status, { hover: string; forced: string }>;
+  borderless: Record<Status, { hover: string; forced: string }>;
+} = {
   primary: {
     default: {
       hover: "hover:brightness-[1.4] dark:hover:brightness-90",
       forced: "brightness-[1.4] dark:brightness-90",
     },
-    danger: { hover: "hover:brightness-90", forced: "brightness-90" },
   },
   secondary: {
     default: {
@@ -91,8 +99,9 @@ const HOVER_FILTER: Record<
     },
     danger: {
       hover:
-        "hover:border-status-error-fill hover:bg-status-error-fill hover:text-on-inverse",
-      forced: "border-status-error-fill bg-status-error-fill text-on-inverse",
+        "hover:border-status-error-fill-hover hover:bg-status-error-fill-hover hover:text-on-inverse",
+      forced:
+        "border-status-error-fill-hover bg-status-error-fill-hover text-on-inverse",
     },
   },
   borderless: {
@@ -119,17 +128,22 @@ const ICON_LAYOUT: Record<"text-only" | "text-and-icon" | "icon-only", string> =
   };
 
 export function Button(props: ButtonProps) {
-  const {
-    label,
-    type = "primary",
-    status = "default",
-    state = "default",
-    onClick,
-  } = props;
+  const { label, state = "default", onClick } = props;
+  const status = props.status ?? "default";
+  // Danger has no primary treatment; an unspecified type falls back to
+  // secondary there (the union already forbids the explicit combination).
+  const type = props.type ?? (status === "danger" ? "secondary" : "primary");
   const icon = props.icon ?? "text-only";
   const IconComponent = "Icon" in props ? props.Icon : undefined;
   const disabled = state === "disabled";
-  const hoverFilter = HOVER_FILTER[type][status];
+  const control =
+    type === "primary"
+      ? CONTROL_STYLES.primary.default
+      : CONTROL_STYLES[type][status];
+  const hoverFilter =
+    type === "primary"
+      ? HOVER_FILTER.primary.default
+      : HOVER_FILTER[type][status];
 
   return (
     <button
@@ -139,7 +153,7 @@ export function Button(props: ButtonProps) {
       onClick={onClick}
       className={cn(
         CONTROL_BASE,
-        CONTROL_STYLES[type][status],
+        control,
         hoverFilter.hover,
         state === "hovered" && hoverFilter.forced,
         state === "focused" && FORCED_FOCUS,

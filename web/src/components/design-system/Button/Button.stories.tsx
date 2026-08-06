@@ -3,7 +3,7 @@ import { Fragment } from "react";
 import { fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Button, BUTTON_TOKENS } from "./Button";
+import { Button, BUTTON_TOKENS, type ButtonProps } from "./Button";
 
 const meta = preview.meta({
   component: Button,
@@ -53,6 +53,8 @@ export const Disabled = meta.story({
 });
 
 const TYPES = ["primary", "secondary", "borderless"] as const;
+const typesFor = (status: (typeof STATUSES)[number]) =>
+  status === "danger" ? (["secondary", "borderless"] as const) : TYPES;
 const STATUSES = ["default", "danger"] as const;
 const STATES = ["default", "hovered", "focused", "disabled"] as const;
 
@@ -64,9 +66,15 @@ export const VariantMatrix = meta.story({
           <span className="text-muted-foreground font-mono text-[10px] uppercase">
             {status}
           </span>
-          <div className="grid grid-cols-[56px_repeat(3,auto)] items-center gap-x-6 gap-y-2">
+          <div
+            className={
+              status === "danger"
+                ? "grid grid-cols-[56px_repeat(2,auto)] items-center gap-x-6 gap-y-2"
+                : "grid grid-cols-[56px_repeat(3,auto)] items-center gap-x-6 gap-y-2"
+            }
+          >
             <span />
-            {TYPES.map((type) => (
+            {typesFor(status).map((type) => (
               <span
                 key={type}
                 className="text-muted-foreground font-mono text-[9px]"
@@ -79,26 +87,23 @@ export const VariantMatrix = meta.story({
                 <span className="text-muted-foreground font-mono text-[10px]">
                   {state}
                 </span>
-                {TYPES.map((type) => (
+                {typesFor(status).map((type) => (
                   <div key={type} className="flex items-center gap-1.5">
                     <Button
+                      {...({ type, status } as ButtonProps)}
                       label="Button"
-                      type={type}
-                      status={status}
                       state={state}
                     />
                     <Button
+                      {...({ type, status } as ButtonProps)}
                       label="Button"
-                      type={type}
-                      status={status}
                       state={state}
                       icon="text-and-icon"
                       Icon={Sparkles}
                     />
                     <Button
+                      {...({ type, status } as ButtonProps)}
                       label="Button"
-                      type={type}
-                      status={status}
                       state={state}
                       icon="icon-only"
                       Icon={Sparkles}
@@ -109,12 +114,15 @@ export const VariantMatrix = meta.story({
             ))}
           </div>
           <div className="flex flex-col gap-0.5 pt-1">
-            {TYPES.map((type) => (
+            {typesFor(status).map((type) => (
               <span
                 key={type}
                 className="text-muted-foreground font-mono text-[9px]"
               >
-                {type} — {BUTTON_TOKENS[type][status]}
+                {type} —{" "}
+                {type === "primary"
+                  ? BUTTON_TOKENS.primary.default
+                  : BUTTON_TOKENS[type][status]}
               </span>
             ))}
           </div>
