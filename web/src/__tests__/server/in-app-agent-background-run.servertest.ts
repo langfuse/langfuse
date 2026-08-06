@@ -1289,4 +1289,109 @@ describe("in-app agent background runs", () => {
 
     expect(enqueuedJobs).toHaveLength(0);
   });
+
+  it("reports only the caller's runs and classifies a dead worker without writing", async () => {
+    const { getInAppAgentActivity } =
+      await import("@/src/features/in-app-agent/server/backgroundRunService");
+    const { projectId, userId } = await createCaller();
+    const mine = await createConversation({ projectId, userId });
+    const otherUserId = `user-${randomUUID()}`;
+    const theirsId = createInAppAgentConversationId();
+
+    await prisma.user.create({
+      data: { id: otherUserId, email: `${otherUserId}@example.com` },
+    });
+    await prisma.inAppAgentConversation.create({
+      data: {
+        id: theirsId,
+        projectId,
+        createdByUserId: otherUserId,
+        title: "Theirs",
+      },
+    });
+
+    const deadRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: mine.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: new Date(Date.now() - 5 * 60_000),
+        heartbeatAt: new Date(Date.now() - 5 * 60_000),
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: theirsId,
+        triggeredByUserId: otherUserId,
+        status: InAppAgentRunStatus.RUNNING,
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+
+    const activity = await getInAppAgentActivity({
+      prisma,
+      projectId,
+      userId,
+      trackedRunIds: [],
+    });
+
+    expect(activity.map((run) => run.conversationId)).toEqual([mine.id]);
+    expect(activity[0]).toMatchObject({
+      runId: deadRun.id,
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.WORKER_LOST,
+    });
+
+    const stored = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: deadRun.id, projectId },
+    });
+    expect(stored.status).toBe(InAppAgentRunStatus.RUNNING);
+    expect(stored.finishedAt).toBeNull();
+  });
+
+  it("adjudicates a tracked run that finished while the client was away", async () => {
+    const { getInAppAgentActivity } =
+      await import("@/src/features/in-app-agent/server/backgroundRunService");
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const finishedRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.SUCCEEDED,
+        finishedAt: new Date(),
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+
+    await expect(
+      getInAppAgentActivity({
+        prisma,
+        projectId,
+        userId,
+        trackedRunIds: [],
+      }),
+    ).resolves.toEqual([]);
+
+    await expect(
+      getInAppAgentActivity({
+        prisma,
+        projectId,
+        userId,
+        trackedRunIds: [finishedRun.id],
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        runId: finishedRun.id,
+        status: InAppAgentRunStatus.SUCCEEDED,
+      }),
+    ]);
+  });
 });

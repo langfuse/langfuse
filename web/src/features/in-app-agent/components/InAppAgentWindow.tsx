@@ -44,6 +44,8 @@ import {
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
+import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import { ConversationActivityIndicator } from "@/src/features/in-app-agent/components/ConversationActivityIndicator";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
   type InAppAgentError,
@@ -266,6 +268,8 @@ export type InAppAgentWindowExecutionUi = {
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
+  /** Per-conversation attention state, for the recent-conversation indicators. */
+  activityByConversationId: InAppAgentActivityByConversationId;
   disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   executionUi: InAppAgentWindowExecutionUi;
@@ -370,6 +374,7 @@ function InAppAgentGenericError({
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
+    activityByConversationId,
     conversations,
     disablePendingToolApprovalActions = false,
     error,
@@ -610,6 +615,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 conversations.map((conversation) => {
                   const conversationTitle =
                     conversation.title?.trim() || "Untitled conversation";
+                  const activityState = activityByConversationId.get(
+                    conversation.id,
+                  )?.state;
 
                   return (
                     <DropdownMenuItem
@@ -629,15 +637,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       >
                         {conversationTitle}
                       </span>
+                      {activityState ? (
+                        <ConversationActivityIndicator state={activityState} />
+                      ) : null}
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon-xs"
                         className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
-                        disabled={
-                          isConversationInteractionDisabled ||
-                          isAssistantTurnInProgress
-                        }
+                        // Deleting is always allowed; it cancels whatever the
+                        // conversation was doing rather than refusing.
+                        disabled={isConversationInteractionDisabled}
                         aria-label="Delete conversation"
                         onClick={(event) => {
                           event.preventDefault();

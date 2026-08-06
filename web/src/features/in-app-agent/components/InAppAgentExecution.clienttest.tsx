@@ -30,6 +30,7 @@ const providerMocks = vi.hoisted(() => {
       decideToolApproval: { mutateAsync: decideToolApproval },
     },
     getConversation: vi.fn(),
+    activityQuery: { data: undefined, refetch: vi.fn() },
     listQuery: {
       data: { pages: [{ conversations: [] }] },
       error: null,
@@ -118,6 +119,8 @@ vi.mock("@/src/utils/api", () => ({
     inAppAgent: {
       listConversations: {
         useInfiniteQuery: () => providerMocks.listQuery,
+        // The activity sidecar caller: same procedure, `limit: 1`.
+        useQuery: () => providerMocks.activityQuery,
       },
       getConversation: {
         useQuery: (...args: unknown[]) => {
@@ -1178,7 +1181,7 @@ describe("in-app agent concurrent conversations", () => {
     expect(screen.getByText("Retry question")).toBeVisible();
     expect(providerMocks.capture).toHaveBeenCalledWith(
       "in_app_agent:new_chat_started",
-      { entryPoint: "chat" },
+      { entryPoint: "chat", hasOtherActiveRun: false },
     );
     expect(
       providerMocks.capture.mock.calls.filter(

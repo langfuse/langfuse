@@ -5,6 +5,7 @@ import {
   BaseError,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  InAppAgentRunStatusSchema,
   LangfuseNotFoundError,
   type Plan,
 } from "@langfuse/shared";
@@ -19,6 +20,7 @@ import { deleteApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
+  IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
   parseInAppAgentApprovalDecisionEvent,
   type AgUiRunAgentInput,
 } from "@langfuse/shared/in-app-agent";
@@ -36,6 +38,7 @@ import {
 import {
   cancelConversationRunsInTransaction,
   cleanupTerminalRunMcpApiKeys,
+  classifyStaleRun,
   createQueuedRun,
   decideToolApproval,
   reconcileConversationRuns,
@@ -147,6 +150,105 @@ export async function getBackgroundConversationSnapshot(params: {
       conversationId: params.conversationId,
     },
   };
+}
+
+export type InAppAgentActivityRun = {
+  conversationId: string;
+  title: string | null;
+  runId: string;
+  status: InAppAgentRunStatus;
+  errorCode: string | null;
+  cancelRequested: boolean;
+};
+
+const IN_APP_AGENT_ACTIVITY_RUN_SELECT = {
+  id: true,
+  conversationId: true,
+  status: true,
+  errorCode: true,
+  cancelRequestedAt: true,
+  // Everything `classifyStaleRun` reads, carried on the row we already fetch.
+  createdAt: true,
+  claimedAt: true,
+  heartbeatAt: true,
+  finishedAt: true,
+  conversation: { select: { title: true } },
+} as const;
+
+/**
+ * Run summaries for the assistant's cross-conversation activity surface.
+ *
+ * Summaries, not transcripts: the caller renders a badge and a row indicator,
+ * so it never needs the event log of a conversation it is not showing. That is
+ * what lets one polled query replace one watch stream per active conversation.
+ *
+ * Two reads, and never a per-conversation loop:
+ * - the attention set, every unsettled run the caller owns in this project;
+ * - the runs the caller is still tracking, by primary key
+ *   (`@@id([id, projectId])`), which is how a run that finished while the app
+ *   was closed is discovered at all — it is in neither the attention set nor
+ *   any in-memory state that survived the reload.
+ *
+ * Stale runs are classified but **not** written. A dead worker leaves a row
+ * RUNNING until something reconciles it, and reconciliation is conversation
+ * scoped, so without this the badge would spin forever on a conversation nobody
+ * opens. Persisting the verdict stays with `reconcileConversationRuns` on the
+ * read paths that already own it; polling must not write.
+ */
+export async function getInAppAgentActivity(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  userId: string;
+  trackedRunIds: readonly string[];
+}): Promise<InAppAgentActivityRun[]> {
+  const ownedByCaller = {
+    projectId: params.projectId,
+    conversation: { createdByUserId: params.userId, deletedAt: null },
+  };
+
+  const [attentionRuns, trackedRuns] = await Promise.all([
+    params.prisma.inAppAgentRun.findMany({
+      where: {
+        ...ownedByCaller,
+        status: { in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES] },
+      },
+      select: IN_APP_AGENT_ACTIVITY_RUN_SELECT,
+    }),
+    params.trackedRunIds.length === 0
+      ? []
+      : params.prisma.inAppAgentRun.findMany({
+          where: { ...ownedByCaller, id: { in: [...params.trackedRunIds] } },
+          select: IN_APP_AGENT_ACTIVITY_RUN_SELECT,
+        }),
+  ]);
+
+  const now = Date.now();
+  const byRunId = new Map<string, InAppAgentActivityRun>();
+
+  for (const run of [...attentionRuns, ...trackedRuns]) {
+    if (byRunId.has(run.id)) {
+      continue;
+    }
+
+    // Legacy rows predate the status column and cannot be described.
+    const parsedStatus = InAppAgentRunStatusSchema.safeParse(run.status);
+    if (!parsedStatus.success) {
+      continue;
+    }
+
+    const stale = classifyStaleRun(run, now);
+
+    byRunId.set(run.id, {
+      conversationId: run.conversationId,
+      title: run.conversation.title,
+      runId: run.id,
+      status: stale ? InAppAgentRunStatus.FAILED : parsedStatus.data,
+      errorCode: stale ? stale.errorCode : run.errorCode,
+      cancelRequested: Boolean(run.cancelRequestedAt),
+    });
+  }
+
+  return [...byRunId.values()];
 }
 
 export async function startBackgroundRun(params: {
