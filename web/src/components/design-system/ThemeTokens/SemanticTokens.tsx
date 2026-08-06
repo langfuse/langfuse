@@ -94,8 +94,8 @@ const TEXT: SemanticToken[] = [
   {
     token: "--text-primary",
     purpose: "Most of the text on the screen",
-    light: ref(NEUTRAL, "800"),
-    dark: ref(STONE, "200"),
+    light: ref(NEUTRAL, "700"),
+    dark: ref(STONE, "300"),
   },
   {
     token: "--text-secondary",

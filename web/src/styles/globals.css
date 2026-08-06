@@ -702,7 +702,7 @@
   --bg-elevation-4: oklch(92.2% 0 0); /* neutral-200 */
   --border-default: oklch(92.2% 0 0); /* neutral-200 */
   --border-faint: oklch(97% 0 0); /* neutral-100 */
-  --text-primary: oklch(26.9% 0 0); /* neutral-800 */
+  --text-primary: oklch(37.1% 0 0); /* neutral-700 */
   --text-secondary: oklch(43.9% 0 0); /* neutral-600 */
   --text-tertiary: oklch(55.6% 0 0); /* neutral-500 */
   --text-contrast: oklch(14.5% 0 0); /* neutral-950 */
@@ -725,7 +725,7 @@
   --bg-elevation-4: oklch(37.4% 0.01 67.558); /* stone-700 */
   --border-default: oklch(37.4% 0.01 67.558); /* stone-700 */
   --border-faint: oklch(21.6% 0.006 56.043); /* stone-900 */
-  --text-primary: oklch(92.3% 0.003 48.717); /* stone-200 */
+  --text-primary: oklch(86.9% 0.005 56.366); /* stone-300 */
   --text-secondary: oklch(70.9% 0.01 56.259); /* stone-400 */
   --text-tertiary: oklch(55.3% 0.013 58.071); /* stone-500 */
   --text-contrast: oklch(98.5% 0.001 106.423); /* stone-50 */
