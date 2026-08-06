@@ -94,8 +94,8 @@ const TEXT: SemanticToken[] = [
   {
     token: "--text-on-inverse",
     purpose: "Ink on the inverse fill",
-    light: WHITE,
-    dark: ref(STONE, "950"),
+    light: ref(NEUTRAL, "100"),
+    dark: ref(STONE, "900"),
   },
   {
     token: "--text-primary",
