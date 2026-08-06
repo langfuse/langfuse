@@ -433,43 +433,75 @@ describe("InAppAgentWindow message actions", () => {
     });
     vi.stubGlobal("ClipboardItem", undefined);
 
-    render(
+    const activityMessages = [
+      {
+        id: "user-1",
+        role: "user" as const,
+        content: { type: "text" as const, text: "Investigate latency" },
+      },
+      {
+        id: "assistant-intro",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant" as const,
+        content: {
+          type: "text" as const,
+          text: "I will inspect the slow traces.",
+        },
+      },
+      {
+        id: "assistant-reasoning",
+        role: "assistant" as const,
+        content: {
+          type: "reasoning" as const,
+          text: "This private reasoning is not part of the answer.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-tool",
+        role: "assistant" as const,
+        content: { type: "toolGroup" as const, tools: [] },
+      },
+    ];
+    const finalAnswer = {
+      id: "assistant-conclusion",
+      runId: "run-1",
+      timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+      role: "assistant" as const,
+      content: {
+        type: "text" as const,
+        text: "The reranker is the bottleneck.",
+      },
+    };
+
+    const { rerender } = render(
       windowElement({
-        messages: [
-          {
-            id: "user-1",
-            role: "user",
-            content: { type: "text", text: "Investigate latency" },
-          },
-          {
-            id: "assistant-intro",
-            role: "assistant",
-            content: { type: "text", text: "I will inspect the slow traces." },
-          },
-          {
-            id: "assistant-reasoning",
-            role: "assistant",
-            content: {
-              type: "reasoning",
-              text: "This private reasoning is not part of the answer.",
-              isStreaming: false,
-            },
-          },
-          {
-            id: "assistant-tool",
-            role: "assistant",
-            content: { type: "toolGroup", tools: [] },
-          },
-          {
-            id: "assistant-conclusion",
-            runId: "run-1",
-            timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
-            role: "assistant",
-            content: { type: "text", text: "The reranker is the bottleneck." },
-          },
-        ],
+        isAssistantTurnInProgress: true,
+        messages: activityMessages,
       }),
     );
+
+    const workingTrigger = screen.getByRole("button", { name: "Working…" });
+    expect(workingTrigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("I will inspect the slow traces.")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Copy message" }),
+    ).not.toBeInTheDocument();
+
+    rerender(windowElement({ messages: activityMessages.concat(finalAnswer) }));
+
+    const activityTrigger = screen.getByRole("button", {
+      name: "Worked for 51s",
+    });
+    expect(activityTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByText("I will inspect the slow traces."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("The reranker is the bottleneck.")).toBeVisible();
+
+    fireEvent.click(activityTrigger);
+    expect(activityTrigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("I will inspect the slow traces.")).toBeVisible();
 
     const actionRows = screen.getAllByTestId("in-app-agent-message-actions");
     expect(actionRows).toHaveLength(1);
