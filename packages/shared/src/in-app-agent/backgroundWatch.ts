@@ -20,7 +20,7 @@ export const InAppAgentApprovalDecisionSchema = z.object({
   /**
    * Render-only, so the transcript can distinguish a one-off approval from one
    * that granted the tool for the conversation. Execution policy reads the
-   * conversation's `approvedToolNames`, never this. Optional: decisions
+   * conversation's `alwaysAllowedTools`, never this. Optional: decisions
    * recorded before conversation grants existed were all one-off.
    */
   scope: z.enum(["once", "conversation"]).optional(),

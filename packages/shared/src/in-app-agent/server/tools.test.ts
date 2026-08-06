@@ -7,7 +7,7 @@ describe("createInAppAgentToolPolicy", () => {
   // run. A tool the owner's role no longer covers must fall out of both sets,
   // not just out of what the model can see.
   it("drops a stored grant the user's role no longer covers", () => {
-    const grants = ["createModel"];
+    const grants = ["langfuse_createModel"];
 
     const asOwner = createInAppAgentToolPolicy({
       userAccess: { projectRole: "OWNER", isAdmin: false },
@@ -26,12 +26,19 @@ describe("createInAppAgentToolPolicy", () => {
     expect(asMember.autoApproved.has("createModel")).toBe(false);
   });
 
-  it("ignores grants naming tools that are not in the registry", () => {
+  // The `langfuse_` prefix is part of a grant's identity. Without it a stored
+  // name could match a same-named tool on a different MCP surface, so an
+  // unprefixed or foreign-prefixed entry must not authorize anything.
+  it("ignores grants that are unprefixed, foreign, or not in the registry", () => {
     const policy = createInAppAgentToolPolicy({
       userAccess: { projectRole: "OWNER", isAdmin: false },
-      additionalAutoApproved: ["aToolThatWasDeleted"],
+      additionalAutoApproved: [
+        "createModel",
+        "someOtherServer_createModel",
+        "langfuse_aToolThatWasDeleted",
+      ],
     });
 
-    expect([...policy.autoApproved]).not.toContain("aToolThatWasDeleted");
+    expect(policy.autoApproved.has("createModel")).toBe(false);
   });
 });

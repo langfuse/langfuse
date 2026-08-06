@@ -23,7 +23,7 @@ import {
   type AgUiRunAgentInput,
 } from "@langfuse/shared/in-app-agent";
 import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
-import { getInAppAgentRegistryToolName } from "@langfuse/shared/in-app-agent/server/tools";
+import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/tools";
 import {
   ensureOwnedConversation,
   getConversationEvents,
@@ -336,9 +336,9 @@ export async function decideBackgroundApproval(params: {
   // Resolved from the persisted interrupt, never from client input: the browser
   // sends an id and a scope, and the tool it grants is whatever the agent
   // actually asked to run.
-  const grantedToolName =
+  const alwaysAllowToolName =
     params.approvalScope === "conversation" && params.approved
-      ? getInAppAgentRegistryToolName(
+      ? getInAppAgentPrefixedToolName(
           parseInAppAgentInterruptEvent(approvalRequest.event)?.toolName,
         )
       : undefined;
@@ -351,7 +351,7 @@ export async function decideBackgroundApproval(params: {
     continuationRunId: createInAppAgentRunId(),
     toolCallId: params.toolCallId,
     approved: params.approved,
-    grantedToolName,
+    alwaysAllowToolName,
     decidedByUserId: params.userId,
     model: params.model,
   });
