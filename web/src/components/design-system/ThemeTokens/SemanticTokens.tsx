@@ -80,7 +80,7 @@ const BORDER: SemanticToken[] = [
     token: "--border-default",
     purpose: "Default hairline across the app",
     light: ref(NEUTRAL, "200"),
-    dark: ref(STONE, "700"),
+    dark: ref(STONE, "800"),
   },
   {
     token: "--border-contrast",
@@ -191,7 +191,7 @@ const STATUS: SemanticToken[] = [
     token: "--status-error",
     purpose: "Danger text, icons and hovered danger fill",
     light: ref(RED, "800"),
-    dark: ref(RED, "300"),
+    dark: ref(RED, "400"),
   },
 ];
 
