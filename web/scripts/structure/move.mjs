@@ -92,15 +92,14 @@ if (positional.length < 2) {
 /** Web-relative, forward-slashed. Accepts web-relative, repo-relative or absolute input. */
 /** @type {(p: string) => string} */
 function toWebRel(p) {
-  const direct = relative(webRoot, resolve(invokedFrom, p)).replace(/\\/g, "/");
-  if (!direct.startsWith("..")) return direct;
-  const fromRepo = relative(webRoot, resolve(invokedFrom, "..", p)).replace(
-    /\\/g,
-    "/",
-  );
-  if (!fromRepo.startsWith("..")) return fromRepo;
-  console.error(`${red("outside web/:")} ${p}`);
-  process.exit(1);
+  const rel = relative(webRoot, resolve(invokedFrom, p)).replace(/\\/g, "/");
+  if (rel.startsWith("..")) {
+    console.error(`${red("outside web/:")} ${p}`);
+    process.exit(1);
+  }
+  // `web/src/...` pasted while already inside web/ — there is no web/web
+  if (rel.startsWith("web/") && !existsSync(abs("web"))) return rel.slice(4);
+  return rel;
 }
 /** @type {(rel: string) => string} */
 const abs = (rel) => `${webRoot}/${rel}`;
@@ -232,7 +231,7 @@ const parsed = ts.getParsedCommandLineOfConfigFile(
   `${webRoot}/tsconfig.json`,
   {},
   {
-    useCaseSensitiveFileNames: true,
+    useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
     readDirectory: ts.sys.readDirectory,
     fileExists: ts.sys.fileExists,
     readFile: ts.sys.readFile,
@@ -294,7 +293,7 @@ const lsHost = {
   getCurrentDirectory: () => webRoot,
   getCompilationSettings: () => parsed.options,
   getDefaultLibFileName: (o) => ts.getDefaultLibFilePath(o),
-  useCaseSensitiveFileNames: () => true,
+  useCaseSensitiveFileNames: () => ts.sys.useCaseSensitiveFileNames,
   fileExists: (f) => {
     const p = norm(f);
     if (removed.has(p)) return false;
@@ -573,42 +572,69 @@ if (dryRun) {
 }
 
 // --- apply -------------------------------------------------------------------
-for (const m of pending) {
-  const destParent = abs(m.to).slice(0, abs(m.to).lastIndexOf("/"));
-  mkdirSync(destParent, { recursive: true });
-  try {
-    git("mv", [m.from, m.to]);
-  } catch {
-    // untracked source: git mv refuses, a plain rename + add is equivalent
-    renameSync(abs(m.from), abs(m.to));
-    git("add", ["--", m.to]);
+// The way back out of any state this can reach is the inverse move, so print
+// that rather than a reset — including when the apply itself dies halfway.
+/** @type {(moves: Move[]) => void} */
+function printRevert(moves) {
+  if (!moves.length) return;
+  /** @type {Map<string, string[]>} original parent dir -> new paths that came from it */
+  const byParent = new Map();
+  for (const m of moves) {
+    const parent = m.from.slice(0, m.from.lastIndexOf("/"));
+    byParent.set(parent, [...(byParent.get(parent) ?? []), m.to]);
   }
+  console.log();
+  console.log(dim("revert:"));
+  for (const [parent, tos] of byParent)
+    console.log(dim(`  pnpm structure:move ${tos.join(" ")} ${parent}`));
 }
-// git does not track directories, so a move that empties one leaves it on
-// disk. rmdir only ever succeeds on an empty one, so this cannot lose work.
-for (const m of pending) {
-  let dir = m.from.slice(0, m.from.lastIndexOf("/"));
-  while (dir.startsWith("src/") && dir !== "src") {
-    try {
-      rmdirSync(abs(dir));
-    } catch {
-      break;
-    }
-    dir = dir.slice(0, dir.lastIndexOf("/"));
-  }
-}
-const rewritten = [...importerFiles, ...followed.keys()];
-for (const f of rewritten) writeFileSync(f, currentText(f) ?? "", "utf8");
 
-if (rewritten.length) {
-  const rels = rewritten.map((f) => relative(webRoot, f));
-  // a specifier gets longer or shorter, so prettier may want to re-wrap the line
-  execFileSync(
-    "pnpm",
-    ["exec", "prettier", "--write", "--log-level", "warn", ...rels],
-    { cwd: webRoot, stdio: "inherit" },
+/** @type {Move[]} */
+const appliedMoves = [];
+try {
+  for (const m of pending) {
+    const destParent = abs(m.to).slice(0, abs(m.to).lastIndexOf("/"));
+    mkdirSync(destParent, { recursive: true });
+    try {
+      git("mv", [m.from, m.to]);
+    } catch {
+      // untracked source: git mv refuses, a plain rename + add is equivalent
+      renameSync(abs(m.from), abs(m.to));
+      git("add", ["--", m.to]);
+    }
+    appliedMoves.push(m);
+  }
+  // git does not track directories, so a move that empties one leaves it on
+  // disk. rmdir only ever succeeds on an empty one, so this cannot lose work.
+  for (const m of pending) {
+    let dir = m.from.slice(0, m.from.lastIndexOf("/"));
+    while (dir.startsWith("src/") && dir !== "src") {
+      try {
+        rmdirSync(abs(dir));
+      } catch {
+        break;
+      }
+      dir = dir.slice(0, dir.lastIndexOf("/"));
+    }
+  }
+  const rewritten = [...importerFiles, ...followed.keys()];
+  for (const f of rewritten) writeFileSync(f, currentText(f) ?? "", "utf8");
+  if (rewritten.length) {
+    const rels = rewritten.map((f) => relative(webRoot, f));
+    // a specifier gets longer or shorter, so prettier may want to re-wrap the line
+    execFileSync(
+      "pnpm",
+      ["exec", "prettier", "--write", "--log-level", "warn", ...rels],
+      { cwd: webRoot, stdio: "inherit" },
+    );
+    git("add", ["--", ...rels]);
+  }
+} catch (err) {
+  console.error(
+    red(`\napply failed: ${err instanceof Error ? err.message : String(err)}`),
   );
-  git("add", ["--", ...rels]);
+  printRevert(appliedMoves);
+  process.exit(1);
 }
 console.log();
 console.log(
@@ -658,16 +684,7 @@ if (dangling.length) {
   console.log(dim("no string references to the old path survive."));
 }
 
-/** @type {Map<string, string[]>} original parent dir -> new paths that came from it */
-const revert = new Map();
-for (const m of pending) {
-  const parent = m.from.slice(0, m.from.lastIndexOf("/"));
-  revert.set(parent, [...(revert.get(parent) ?? []), m.to]);
-}
-console.log();
-console.log(dim("revert:"));
-for (const [parent, tos] of revert)
-  console.log(dim(`  pnpm structure:move ${tos.join(" ")} ${parent}`));
+printRevert(pending);
 
 // --- verify ------------------------------------------------------------------
 if (!verify) process.exit(0);
