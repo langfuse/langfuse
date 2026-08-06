@@ -80,69 +80,6 @@ export function nestObservations(
   };
 }
 
-export function calculateDisplayTotalCost(p: {
-  allObservations: ObservationReturnType[];
-  rootObservationId?: string;
-}): Decimal | undefined {
-  // if parentObservationId is provided, only calculate cost for children of that observation
-  // need to be checked recursively for all children and children of children
-  // loop until no more children to be added
-  let observations = p.allObservations;
-
-  if (p.rootObservationId) {
-    observations = observations.filter(
-      (o) =>
-        o.parentObservationId === p.rootObservationId ||
-        o.id === p.rootObservationId,
-    );
-
-    while (true) {
-      const childrenToAdd = p.allObservations.filter(
-        (o) =>
-          o.parentObservationId &&
-          !observations.map((o2) => o2.id).includes(o.id) &&
-          observations.map((o2) => o2.id).includes(o.parentObservationId),
-      );
-      if (childrenToAdd.length === 0) break;
-      observations = [...observations, ...childrenToAdd];
-    }
-  }
-
-  const totalCost = observations.reduce<Decimal | undefined>(
-    (prev: Decimal | undefined, curr: ObservationReturnType) => {
-      // if we don't have any calculated costs, we can't do anything
-      if (!curr.totalCost && !curr.inputCost && !curr.outputCost) return prev;
-
-      // if we have either input or output cost, but not total cost, we can use that
-      if (!curr.totalCost && (curr.inputCost || curr.outputCost)) {
-        const inputCost =
-          curr.inputCost != null ? new Decimal(curr.inputCost) : new Decimal(0);
-
-        const outputCost =
-          curr.outputCost != null
-            ? new Decimal(curr.outputCost)
-            : new Decimal(0);
-
-        const combinedCost = inputCost.plus(outputCost);
-
-        return prev
-          ? prev.plus(combinedCost)
-          : combinedCost.isZero()
-            ? undefined
-            : combinedCost;
-      }
-
-      if (!curr.totalCost) return prev;
-
-      // if we have total cost, we can use that
-      return prev ? prev.plus(curr.totalCost) : new Decimal(curr.totalCost);
-    },
-    undefined,
-  );
-
-  return totalCost;
-}
-
 function getObservationLevels(minLevel: ObservationLevelType | undefined) {
   const ascendingLevels = [
     ObservationLevel.DEBUG,
@@ -220,17 +157,6 @@ export function getSubtreeDurationOverflowMs(
     return null;
   return subtreeWallClockDurationMs;
 }
-
-// Helper function to unnest observations for cost calculation
-export const unnestObservation = (nestedObservation: NestedObservation) => {
-  const unnestedObservations = [];
-  const { children, ...observation } = nestedObservation;
-  unnestedObservations.push(observation);
-  children.forEach((child) => {
-    unnestedObservations.push(...unnestObservation(child));
-  });
-  return unnestedObservations;
-};
 
 // Transform trace + observations into unified tree structure
 // Helper function to compute and enrich tree nodes with pre-computed costs
