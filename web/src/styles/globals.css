@@ -707,7 +707,7 @@
   --text-tertiary: oklch(55.6% 0 0); /* neutral-500 */
   --text-contrast: oklch(14.5% 0 0); /* neutral-950 */
   /* Icon sizing. */
-  --icon-size-md: 0.875rem; /* 14px */
+  --icon-size-md: 0.75rem; /* 12px */
   /* Soft double shadow from the langfuse.com button. */
   --ds-button-shadow:
     0 4px 8px 0 oklch(0 0 0 / 0.05), 0 4px 4px 0 oklch(0 0 0 / 0.03);

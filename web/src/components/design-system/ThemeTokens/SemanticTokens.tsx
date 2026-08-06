@@ -1,8 +1,10 @@
 /**
  * Storybook-only reference (Design → Semantic tokens): the semantic layer of
  * the new token architecture, mapped onto the primitive palette (see the
- * Palette page). Nothing here is wired to `globals.css` — review only.
+ * Palette page). The tokens live as css vars in `globals.css`; this page is
+ * the human-readable map.
  */
+import { Sparkles } from "lucide-react";
 import { type ReactNode } from "react";
 
 import { DocsPageHeader, DocsSection } from "./docsChrome";
@@ -166,6 +168,55 @@ function MappingSection({
   );
 }
 
+const ICON_SIZES = [
+  {
+    token: "--icon-size-md",
+    value: "0.75rem",
+    pixels: "12px",
+    purpose: "Default icon size: buttons, inline icons",
+  },
+];
+
+function IconSizeSection() {
+  return (
+    <DocsSection title="Icon" blurb="Icon sizing.">
+      <div className="flex flex-col">
+        <div className={`${MAPPING_GRID} border-b pb-1.5`}>
+          {["Token", "Usage", "Size", "Sample"].map((label) => (
+            <span
+              key={label}
+              className="text-muted-foreground font-mono text-[10px] tracking-[0.05em] uppercase"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+        {ICON_SIZES.map((entry) => (
+          <div key={entry.token} className={`${MAPPING_GRID} border-b py-2`}>
+            <code className="text-foreground font-mono text-[11px]">
+              {entry.token}
+            </code>
+            <span className="text-muted-foreground text-sm">
+              {entry.purpose}
+            </span>
+            <code className="text-muted-foreground font-mono text-[11px]">
+              {entry.value} · {entry.pixels}
+            </code>
+            <Sparkles
+              aria-hidden
+              className="text-foreground"
+              style={{
+                width: `var(${entry.token})`,
+                height: `var(${entry.token})`,
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    </DocsSection>
+  );
+}
+
 export function SemanticTokens() {
   return (
     <div className="p-6 md:p-10">
@@ -189,6 +240,7 @@ export function SemanticTokens() {
           blurb="Text tiers, brightest last."
           tokens={TEXT}
         />
+        <IconSizeSection />
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
 import { Sparkles } from "lucide-react";
+import { Fragment } from "react";
 import { fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Button } from "./Button";
+import { Button, BUTTON_TOKENS } from "./Button";
 
 const meta = preview.meta({
   component: Button,
@@ -16,21 +17,21 @@ export const Default = meta.story({
 });
 
 export const Secondary = meta.story({
-  args: { label: "Documentation", importance: "secondary", onClick: fn() },
+  args: { label: "Documentation", type: "secondary", onClick: fn() },
 });
 
 export const Borderless = meta.story({
-  args: { label: "Learn more", importance: "borderless", onClick: fn() },
+  args: { label: "Learn more", type: "borderless", onClick: fn() },
 });
 
 export const Danger = meta.story({
-  args: { label: "Delete project", importance: "danger", onClick: fn() },
+  args: { label: "Delete project", status: "danger", onClick: fn() },
 });
 
 export const WithIcon = meta.story({
   args: {
     label: "Onboard with AI",
-    importance: "secondary",
+    type: "secondary",
     icon: "text-and-icon",
     Icon: Sparkles,
     onClick: fn(),
@@ -50,44 +51,74 @@ export const Disabled = meta.story({
   args: { label: "Start free", state: "disabled" },
 });
 
-const IMPORTANCES = ["primary", "secondary", "borderless", "danger"] as const;
+const TYPES = ["primary", "secondary", "borderless"] as const;
+const STATUSES = ["default", "danger"] as const;
 const STATES = ["default", "hovered", "focused", "disabled"] as const;
-const ICONS = ["text-only", "text-and-icon", "icon-only"] as const;
 
 export const VariantMatrix = meta.story({
   render: () => (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        {STATES.map((state) => (
-          <div key={state} className="flex items-center gap-4">
-            <span className="text-muted-foreground w-16 font-mono text-[10px]">
-              {state}
-            </span>
-            {IMPORTANCES.map((importance) => (
-              <Button
-                key={importance}
-                label={importance}
-                importance={importance}
-                state={state}
-              />
+    <div className="flex flex-col gap-8">
+      {STATUSES.map((status) => (
+        <div key={status} className="flex flex-col gap-2">
+          <span className="text-muted-foreground font-mono text-[10px] uppercase">
+            {status}
+          </span>
+          <div className="grid grid-cols-[56px_repeat(3,auto)] items-center gap-x-6 gap-y-2">
+            <span />
+            {TYPES.map((type) => (
+              <span
+                key={type}
+                className="text-muted-foreground font-mono text-[9px]"
+              >
+                {type}
+              </span>
+            ))}
+            {STATES.map((state) => (
+              <Fragment key={state}>
+                <span className="text-muted-foreground font-mono text-[10px]">
+                  {state}
+                </span>
+                {TYPES.map((type) => (
+                  <div key={type} className="flex items-center gap-1.5">
+                    <Button
+                      label="Button"
+                      type={type}
+                      status={status}
+                      state={state}
+                    />
+                    <Button
+                      label="Button"
+                      type={type}
+                      status={status}
+                      state={state}
+                      icon="text-and-icon"
+                      Icon={Sparkles}
+                    />
+                    <Button
+                      label="Button"
+                      type={type}
+                      status={status}
+                      state={state}
+                      icon="icon-only"
+                      Icon={Sparkles}
+                    />
+                  </div>
+                ))}
+              </Fragment>
             ))}
           </div>
-        ))}
-      </div>
-      <div className="flex flex-col gap-2">
-        <span className="text-muted-foreground font-mono text-[10px] uppercase">
-          icon modes
-        </span>
-        <div className="flex items-center gap-4">
-          {ICONS.map((icon) =>
-            icon === "text-only" ? (
-              <Button key={icon} label="text-only" icon={icon} />
-            ) : (
-              <Button key={icon} label={icon} icon={icon} Icon={Sparkles} />
-            ),
-          )}
+          <div className="flex flex-col gap-0.5 pt-1">
+            {TYPES.map((type) => (
+              <span
+                key={type}
+                className="text-muted-foreground font-mono text-[9px]"
+              >
+                {type} — {BUTTON_TOKENS[type][status]}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      ))}
     </div>
   ),
 });

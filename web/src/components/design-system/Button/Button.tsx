@@ -12,7 +12,8 @@ import { cn } from "@/src/utils/tailwind";
  * states (hover, focus-visible, disabled) always apply natively too.
  */
 
-type Importance = "primary" | "secondary" | "borderless" | "danger";
+type ButtonType = "primary" | "secondary" | "borderless";
+type Status = "default" | "danger";
 type ForcedState = "default" | "focused" | "hovered" | "disabled";
 
 /** Icon modes; anything but text-only requires the icon component. */
@@ -26,7 +27,9 @@ type IconProps =
 export type ButtonProps = {
   /** Visible label; icon-only buttons expose it as the accessible name. */
   label: string;
-  importance?: Importance;
+  type?: ButtonType;
+  /** Destructive intent: the red treatment of the given type. */
+  status?: Status;
   state?: ForcedState;
   onClick?: () => void;
 } & IconProps;
@@ -34,36 +37,79 @@ export type ButtonProps = {
 const CONTROL_BASE =
   "inline-flex h-[26px] items-center rounded-[2px] text-xs tracking-[-0.06px] whitespace-nowrap transition-[filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50";
 
-const CONTROL_STYLES: Record<Importance, string> = {
-  primary:
-    "border border-[var(--text-secondary)] bg-[var(--text-primary)] text-[var(--bg-elevation-1)] shadow-[var(--ds-button-shadow)]",
-  secondary:
-    "border border-[var(--border-default)] bg-[var(--bg-elevation-1)] text-[var(--text-secondary)] shadow-[var(--ds-button-shadow)]",
-  borderless:
-    "border border-transparent bg-transparent text-[var(--text-secondary)]",
-  danger:
-    "border border-red-700 bg-red-600 text-white shadow-[var(--ds-button-shadow)]",
+const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
+  primary: {
+    default:
+      "border border-[var(--text-secondary)] bg-[var(--text-primary)] text-[var(--bg-elevation-1)] shadow-[var(--ds-button-shadow)]",
+    danger:
+      "border border-red-700 bg-red-600 text-white shadow-[var(--ds-button-shadow)]",
+  },
+  secondary: {
+    default:
+      "border border-[var(--border-default)] bg-[var(--bg-elevation-1)] text-[var(--text-secondary)] shadow-[var(--ds-button-shadow)]",
+    danger:
+      "border border-red-300 bg-[var(--bg-elevation-1)] text-red-700 shadow-[var(--ds-button-shadow)] dark:border-red-800 dark:text-red-400",
+  },
+  borderless: {
+    default:
+      "border border-transparent bg-transparent text-[var(--text-secondary)]",
+    danger:
+      "border border-transparent bg-transparent text-red-700 dark:text-red-400",
+  },
+};
+
+/** Human-readable token routing per variant, shown by the Storybook
+ * variant matrix. Keep in sync with CONTROL_STYLES above. */
+export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
+  primary: {
+    default:
+      "bg --text-primary · text --bg-elevation-1 · border --text-secondary",
+    danger: "bg red-600 · text white · border red-700",
+  },
+  secondary: {
+    default:
+      "bg --bg-elevation-1 · text --text-secondary · border --border-default",
+    danger: "bg --bg-elevation-1 · text red-700/400 · border red-300/800",
+  },
+  borderless: {
+    default: "text --text-secondary",
+    danger: "text red-700/400",
+  },
 };
 
 /** Hover = a brightness filter, no fill swap. Ink and paper fills need
- * opposite directions per theme, hence per-importance values; `forced`
- * mirrors the hover: classes for the spec-only state="hovered". */
-const HOVER_FILTER: Record<Importance, { hover: string; forced: string }> = {
+ * opposite directions per theme, hence per-slot values; `forced` mirrors
+ * the hover: classes for the spec-only state="hovered". */
+const HOVER_FILTER: Record<
+  ButtonType,
+  Record<Status, { hover: string; forced: string }>
+> = {
   primary: {
-    hover: "hover:brightness-[1.4] dark:hover:brightness-90",
-    forced: "brightness-[1.4] dark:brightness-90",
+    default: {
+      hover: "hover:brightness-[1.4] dark:hover:brightness-90",
+      forced: "brightness-[1.4] dark:brightness-90",
+    },
+    danger: { hover: "hover:brightness-90", forced: "brightness-90" },
   },
   secondary: {
-    hover: "hover:brightness-[0.96] dark:hover:brightness-[1.9]",
-    forced: "brightness-[0.96] dark:brightness-[1.9]",
+    default: {
+      hover: "hover:brightness-[0.96] dark:hover:brightness-[1.9]",
+      forced: "brightness-[0.96] dark:brightness-[1.9]",
+    },
+    danger: {
+      hover: "hover:brightness-[0.96] dark:hover:brightness-[1.9]",
+      forced: "brightness-[0.96] dark:brightness-[1.9]",
+    },
   },
   borderless: {
-    hover: "hover:brightness-75 dark:hover:brightness-125",
-    forced: "brightness-75 dark:brightness-125",
-  },
-  danger: {
-    hover: "hover:brightness-90",
-    forced: "brightness-90",
+    default: {
+      hover: "hover:brightness-75 dark:hover:brightness-125",
+      forced: "brightness-75 dark:brightness-125",
+    },
+    danger: {
+      hover: "hover:brightness-75 dark:hover:brightness-125",
+      forced: "brightness-75 dark:brightness-125",
+    },
   },
 };
 
@@ -79,11 +125,17 @@ const ICON_LAYOUT: Record<"text-only" | "text-and-icon" | "icon-only", string> =
   };
 
 export function Button(props: ButtonProps) {
-  const { label, importance = "primary", state = "default", onClick } = props;
+  const {
+    label,
+    type = "primary",
+    status = "default",
+    state = "default",
+    onClick,
+  } = props;
   const icon = props.icon ?? "text-only";
   const IconComponent = "Icon" in props ? props.Icon : undefined;
   const disabled = state === "disabled";
-  const hoverFilter = HOVER_FILTER[importance];
+  const hoverFilter = HOVER_FILTER[type][status];
 
   return (
     <button
@@ -93,7 +145,7 @@ export function Button(props: ButtonProps) {
       onClick={onClick}
       className={cn(
         CONTROL_BASE,
-        CONTROL_STYLES[importance],
+        CONTROL_STYLES[type][status],
         hoverFilter.hover,
         state === "hovered" && hoverFilter.forced,
         state === "focused" && FORCED_FOCUS,
