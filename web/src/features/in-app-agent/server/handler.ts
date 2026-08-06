@@ -41,6 +41,7 @@ import {
 } from "@langfuse/shared/in-app-agent/server/tools";
 import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import {
+  createSandboxToolCallFileAccumulator,
   createRun,
   ensureOwnedConversation,
   finishRun,
@@ -48,7 +49,6 @@ import {
   getConversationMessagesForReplay,
   isInAppAgentConversationWriteLocked,
   maybeInferAndPersistConversationTitle,
-  getSandboxToolCallFiles,
   flushPendingRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
@@ -291,6 +291,8 @@ export default async function handler(request: Request) {
     const resumeApprovalRequest = isResumeAgentInput(sanitizedInput)
       ? sanitizedInput.forwardedProps.command.resume.approvalRequest
       : undefined;
+    const sandboxToolCallFiles =
+      createSandboxToolCallFileAccumulator(conversationEvents);
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
     const sandboxProvider =
       await getInAppAgentSandboxProvider(sandboxProviderType);
@@ -300,8 +302,7 @@ export default async function handler(request: Request) {
           projectId,
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
-          getToolCallFiles: async () =>
-            getSandboxToolCallFiles(conversationEvents),
+          getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),
           saveState: async (state) => {
             await prisma.inAppAgentConversation.update({
               where: {
@@ -444,6 +445,11 @@ export default async function handler(request: Request) {
                 }
 
                 pendingPersistedEvents.push(persistedEvent);
+                sandboxToolCallFiles.processEvent({
+                  event: persistedEvent,
+                  runId: sanitizedInput.runId,
+                  createdAt: new Date(),
+                });
 
                 if (!shouldFlushPersistedEvent(persistedEvent)) {
                   return;
@@ -451,6 +457,7 @@ export default async function handler(request: Request) {
 
                 return flushPersistedRunEvents();
               },
+              onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
               onApprovedToolCallExecuted: () => {
                 approvedToolResultPersisted = true;
               },
