@@ -149,8 +149,11 @@ function SmartLink({
 export type InAppAgentMessageProps = {
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
+  copyGroupId?: string;
+  copyText?: string;
   isCompact?: boolean;
   isFeedbackDisabled?: boolean;
+  showActions?: boolean;
   timestamp?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
@@ -161,8 +164,11 @@ export type InAppAgentMessageProps = {
 export function InAppAgentMessage({
   role,
   content,
+  copyGroupId,
+  copyText,
   isCompact = false,
   isFeedbackDisabled = false,
+  showActions = true,
   timestamp,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
@@ -189,9 +195,12 @@ export function InAppAgentMessage({
       <TextMessageWithActions
         role={role}
         content={content}
+        copyGroupId={copyGroupId}
+        copyText={copyText}
         isCompact={isCompact}
         isFeedbackDisabled={isFeedbackDisabled}
         onSubmitFeedback={onSubmitFeedback}
+        showActions={showActions}
         timestamp={timestamp}
       />
     );
@@ -249,15 +258,21 @@ const MessageCard = forwardRef<
 function TextMessageWithActions({
   role,
   content,
+  copyGroupId,
+  copyText,
   isCompact,
   isFeedbackDisabled,
   onSubmitFeedback,
+  showActions,
   timestamp,
 }: {
   role: InAppAgentMessageRole;
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
+  copyGroupId?: string;
+  copyText?: string;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
+  showActions: boolean;
   timestamp?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
@@ -273,10 +288,9 @@ function TextMessageWithActions({
   const isAssistant = role === "assistant";
   const isSettled = !content.isStreaming;
   const canSubmitFeedback = isAssistant && isSettled && onSubmitFeedback;
-  const hasActions = isSettled;
-  const formattedTimestamp = timestamp
-    ? formatMessageTimestamp(timestamp)
-    : null;
+  const hasActions = isSettled && showActions;
+  const formattedTimestamp =
+    isAssistant && timestamp ? formatMessageTimestamp(timestamp) : null;
 
   const handleCopy = () => {
     if (!isAssistant) {
@@ -284,20 +298,42 @@ function TextMessageWithActions({
       return;
     }
 
-    const renderedContent = messageCardRef.current?.querySelector(
-      "[data-in-app-agent-message-content]",
-    );
-    const htmlContainer = renderedContent?.cloneNode(true) as
-      | HTMLElement
-      | undefined;
-    htmlContainer
-      ?.querySelectorAll("[data-in-app-agent-code-copy-button]")
-      .forEach((node) => {
-        node.remove();
-      });
+    const messageRoot = messageCardRef.current?.parentElement;
+    const conversationRoot = messageRoot?.closest("ol");
+    const copyGroupRoots = copyGroupId
+      ? Array.from(
+          conversationRoot?.querySelectorAll(
+            "[data-in-app-agent-copy-group]",
+          ) ?? [],
+        ).filter(
+          (node) =>
+            node.getAttribute("data-in-app-agent-copy-group") === copyGroupId,
+        )
+      : messageRoot
+        ? [messageRoot]
+        : [];
+    const html = copyGroupRoots
+      .map((root) => {
+        const renderedContent = root.querySelector(
+          "[data-in-app-agent-message-content]",
+        );
+        const htmlContainer = renderedContent?.cloneNode(true) as
+          | HTMLElement
+          | undefined;
+        htmlContainer
+          ?.querySelectorAll("[data-in-app-agent-code-copy-button]")
+          .forEach((node) => {
+            node.remove();
+          });
+
+        return htmlContainer?.innerHTML;
+      })
+      .filter((value): value is string => Boolean(value))
+      .join("<br><br>");
+
     copyRich({
-      text: content.text,
-      html: htmlContainer?.innerHTML ?? content.text,
+      text: copyText ?? content.text,
+      html: html || content.text,
     }).catch(() => undefined);
   };
 
@@ -343,6 +379,7 @@ function TextMessageWithActions({
 
   return (
     <div
+      data-in-app-agent-copy-group={copyGroupId}
       className={cn(
         "group/message flex max-w-full flex-col",
         role === "user" ? "items-end" : "items-start",
@@ -356,6 +393,7 @@ function TextMessageWithActions({
       />
       {hasActions ? (
         <div
+          data-testid="in-app-agent-message-actions"
           className={cn(
             "flex min-h-6 max-w-full items-center",
             isCompact ? "mt-0.5" : "mt-1",
