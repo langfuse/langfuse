@@ -6,231 +6,115 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
 
 - **Baseline established.** merge-group perceived p50=396s, p90=522s over 131
   successful runs (150 total: 18 failure, 1 cancelled) for 2026-06-30..07-07.
-  This is the reference point for judging future weeks.
-- **Pipeline is execution-bound, not queue-bound.** Runner wait (perceived −
-  execution) was 7–22s on 4 of 6 sampled runs; only 07-01 (119s) and 07-02
-  (175s) showed queue spikes. Optimizing the pipeline itself, not runner
-  capacity, is where the wins are — most weeks.
-- **turbo cache hit/miss dominates the Build step.** One sampled run (07-01) had
-  a 5s Build (warm cache) vs 88–154s otherwise. Build-step medians are only
-  meaningful when you know the cache state; don't chase Build variance without
-  separating cache hits from misses.
-- **json-utils.clienttest.ts is the slowest client file (~8.9s/file; top tests
-  4.88s @250K keys, 2.40s @125K keys).** DO NOT trim it to game numbers: the
-  recursive `deepParseJson` MUTATES its input in place
-  (`packages/shared/src/utils/json.ts`), so the test's
-  `JSON.parse(JSON.stringify(input))` clones per parser are REQUIRED, not waste.
-  Candidate worth a *human* discussion (not an autonomous PR): dropping the
-  recursive call at the 125K/250K sizes (used only for a console.log
-  comparison; sole assertion is `expect(iterativeError).toBe(false)`) would
-  save ~3–4s but borders on "reducing coverage" → flagged, not actioned.
-- **Slowest worker server tests are DB/integration-backed**: `webhooks.test.ts`
-  (19.22s/20 tests), `awsLambdaCodeEvalDispatcher.integration.test.ts`
-  (12.95s/5), `batchExport.test.ts` (10.07s), `IngestionService.integration.test.ts`
-  (10.00s). See 07-08 sixth-run entry for why each is unfit for an autonomous
-  PR — do not re-investigate without new evidence.
-- No flaky/retried tests in the sampled logs (small sample, 2 job logs).
+  Reference point for judging future weeks.
+- **Pipeline is execution-bound, not queue-bound.** Runner wait was 7–22s on
+  4/6 sampled runs; only 07-01 (119s) and 07-02 (175s) spiked. Optimize the
+  pipeline itself, not runner capacity, most weeks.
+- **turbo cache hit/miss dominates the Build step.** Don't chase Build
+  variance without separating cache hits from misses.
+- **json-utils.clienttest.ts** slowest client file (~8.9s). DO NOT trim: the
+  recursive `deepParseJson` mutates its input in place
+  (`packages/shared/src/utils/json.ts`), so the clone-per-parser cost is
+  required. Flagged for human discussion only, not an autonomous PR.
+- Slowest worker server tests are DB/integration-backed (`webhooks.test.ts`,
+  `awsLambdaCodeEvalDispatcher.integration.test.ts`,
+  `batchExport.test.ts`, `IngestionService.integration.test.ts`) — each
+  already investigated and found unfit for an autonomous PR (real DB+Redis
+  round-trips / load-bearing timeouts / integration-inherent). Do not
+  re-investigate without new evidence.
+- No flaky/retried tests in the sampled logs (small sample).
 
 ## 2026-07-08 (runs 2-6, condensed)
 
-- Runs 2-4 were same-day re-triggers before enough post-baseline data existed;
+- Runs 2-4: same-day re-triggers before enough post-baseline data existed;
   noop, no memory changes.
-- Run 5: 16 successful merge-group runs on 07-08 alone; no regression, the
-  baseline's late-week `run tests` rise had receded (not sustained).
-  `webhooks.test.ts` timer hypothesis disproven (uses `msw`, cost is real
-  Postgres+Redis round-trips in 5x `executeWebhook` loops — not fake-timer
-  padding). `bufferedStreamUploader.test.ts` setTimeouts are load-bearing
-  (buffering/concurrency-ordering assertions), not paddable.
-- Run 6: full trailing-7-day analysis (07-02..07-08, n=5/day segment sample).
-  webRunTests 114.5 vs baseline 86 (+33%) investigated and found NOT
-  actionable — execution stayed flat (rise absorbed off critical path),
-  baseline sample was skewed low, and the step PLATEAUED on the 3 most recent
-  days. Wrote `history/2026-W28-partial-0708.json`. Zero flaky across 3
-  samples. Slowest tests unchanged from baseline, each already investigated
-  and found unfit for an autonomous PR (mutation semantics / real DB+Redis
-  round-trips / load-bearing timeouts / integration-inherent Lambda dispatch).
-  Do not re-open any of these without new evidence.
-- **NAMING COLLISION still open**: `history/2026-W28.json` is the baseline but
-  its window (06-30..07-07) is mostly W27. When a true full W28 (07-06..07-12)
-  or full W31 (07-27..08-02) completes, write the complete-week file under its
-  correct label and relabel the baseline to its actual W27 window instead of
-  clobbering it. Same issue applies to `charts/*.svg`. Still unresolved as of
-  2026-07-31 (run 11) — deprioritized each run in favor of higher-signal
-  findings; a human should just do the one-time rename.
+- Run 6: full trailing-7-day analysis (07-02..07-08). webRunTests 114.5 vs
+  baseline 86 (+33%) investigated and found NOT actionable — execution flat,
+  baseline sample skewed low, step plateaued the 3 most recent days. Wrote
+  `history/2026-W28-partial-0708.json`. Zero flaky across 3 samples.
+- **NAMING COLLISION still open**: `history/2026-W28.json` is the baseline
+  but its window (06-30..07-07) is mostly W27. Rename when a true full
+  W28/W31 week completes. Unresolved through 08-06 (run 13) —
+  deprioritized every run in favor of higher-signal findings; needs a
+  one-time human rename.
 
-## 2026-07-30 (runs 7-10, GitHub Actions MCP secrecy-policy block — RESOLVED by run 11)
+## 2026-07-30/07-31 (runs 7-11, GH Actions MCP block — thought resolved, see 08-03/08-06)
 
-- Four consecutive `workflow_dispatch` runs on 2026-07-30 (ids `30553320896`,
-  `30554268551`, `30556553649`, `30558863960`) got `[Filtered] ... filtered by
-  secrecy policy ... not authorized to access private-scoped data` from every
-  `actions_list`/`actions_get` call, blocking all timing/vitest-log gathering.
-  `search_pull_requests` was unaffected throughout (kept confirming
-  `prs.json` empty is correct). Each run filed `missing_tool` + `noop`,
-  reusing the 07-08 checkpoint as an explicitly-stale reference rather than
-  fabricating numbers.
-- **Resolved as of run 11 (2026-07-31, on branch `fix/analyst-guard-policy`,
-  5 commits ahead of `origin/main` fixing the analyst's own guard-policy
-  config)**: `actions_list`/`actions_get`/`get_job_logs` all worked normally
-  this run. The block was almost certainly this workflow's own GitHub
-  App/guard-policy config (see the branch's own commit history —
-  `fix(ci): declare the analyst's guard policy explicitly`,
-  `fix(ci): use the array form for allowed-repos`,
-  `fix(ci): exempt the github server from sink-visibility enforcement`,
-  `fix(ci): use the blanket private-to-public-flows opt-out`,
-  `fix(ci): raise the analyst's turn cap to 200`) — i.e. this was a
-  self-inflicted, self-fixed infra issue, not an upstream GitHub-side change.
-  No further action needed unless it recurs.
+- Four `workflow_dispatch` runs on 07-30 got a secrecy-policy filter error
+  from every `actions_list`/`actions_get` call
+  ("not authorized to access private-scoped data"). `search_pull_requests`
+  unaffected throughout.
+- Run 11 (07-31, branch `fix/analyst-guard-policy`) found the tools working
+  again and attributed the block to the analyst's own guard-policy config,
+  believed self-fixed. **This turned out to be wrong/incomplete — see
+  08-03 and 08-06 below: the block recurred on later runs despite that
+  fix.**
+- Run 11 also root-caused a sustained web `run tests` step regression
+  (86s baseline → 114.5s → 147s across three checkpoints) to
+  `score-comparison-analytics.servertest.ts`
+  (`web/src/__tests__/server/`): the 120,000-row test
+  (`insertLargeTraceLevelScorePairs`, L112-161) inserts via 12 SEQUENTIAL
+  `for` + `await createScoresCh(...)` batches of 20,000 rows.
+  `createScoresCh` (`packages/shared/src/server/test-utils/clickhouse-helpers.ts`)
+  is a stateless single-insert call, per-row values are independent
+  (`Math.random()`-based), and the file has zero `beforeEach`/`afterEach`
+  hooks (grep-confirmed) — safe to parallelize with `Promise.all`.
+  Precedent: `scores-api-v2.servertest.ts:104`. Same pattern applies to
+  `insertLargeIdenticalTraceLevelScores` (L163-197, smaller row counts).
+  Full detail in `history/2026-W31-partial-0731.json`.
+  **STILL NOT SANDBOX-VERIFIED as of 08-06 (run 13)** — blocked by a
+  different reason every time it's been attempted (07-31: pnpm/corepack
+  invocation hung on a never-resolving approval gate; 08-03 and 08-06:
+  DB connectivity dead, see below). Whichever run gets BOTH a working
+  Actions API AND live DB connectivity should verify this immediately.
 
-## 2026-07-31 (run 11, `workflow_dispatch` — full analysis resumes; new DIFC block on `missing_tool`)
+## 2026-08-03 (run 12) and 2026-08-06 (run 13) — both fully blocked, back-to-back
 
-- GitHub Actions MCP tools worked (see above). Ledger (`prs.json`) confirmed
-  empty via `search_pull_requests` (`total_count: 0` for
-  `is:pr label:ci-performance`) — no open agent PRs to assess.
-- **Regression confirmed and root-caused: web `run tests` step.** Weekday
-  (07-27..07-31) median 147s vs baseline 86s (+71%) vs last checkpoint 114.5s
-  (+28%) — a *sustained*, still-climbing multi-checkpoint trend, unlike the
-  06-07-08 "plateaued, not actionable" case. Day-by-day: 146/147/147/171/166s
-  (07-27 through 07-31); no single ≥50%-in-3-days jump, so not attributable to
-  one PR — reads as continued organic test-suite growth in the same file
-  family. 07-30 was the anomalous day overall (highest perceived + execution,
-  worst `mode-azure` shard runTests=368s).
-- **Root cause: `score-comparison-analytics.servertest.ts`
-  (`web/src/__tests__/server/`) is the dominant and still-worsening slow
-  file** across every sampled day this week (summed per-file time 22.9s up to
-  81.8s on the 07-30 sample). The single slowest test,
-  `"should skip FINAL and apply hash-based sampling for large matched
-  datasets"` (~L457-521), ranges 4.2s-24.2s and is the one true large-data
-  test in the file: it calls `insertLargeTraceLevelScorePairs({totalRows:
-  120_000, ...})`, which inserts via 12 *sequential* `for` + `await
-  createScoresCh(...)` batches of 20,000 rows. `createScoresCh`
-  (`packages/shared/src/server/test-utils/clickhouse-helpers.ts`) is a single
-  stateless `clickhouseClient().insert()` call per invocation — no
-  shared/mutable state — and per-row values are independent
-  (`Math.random()`-based, no order-dependent assertions), so the batches are
-  safe to run concurrently via `Promise.all` instead of sequentially.
-  Precedent for concurrent use of these Ch helpers already exists in
-  `scores-api-v2.servertest.ts:104`. Confirmed no `beforeEach`/`afterEach`
-  hooks complicate this (grepped the file, zero matches). The analogous
-  `insertLargeIdenticalTraceLevelScores` helper (~L163-197) has the same
-  pattern and the same fix would apply, though it's only used with smaller
-  row counts today.
-- **Could NOT sandbox-verify this run — new hard blocker, distinct from the
-  07-30 GitHub Actions block: this run's Bash sandbox rejects every
-  `pnpm`/`corepack pnpm`/`npm exec pnpm` invocation with a permission-approval
-  gate that never resolves headlessly** (confirmed via direct `pnpm`,
-  `corepack pnpm --version`, and `npm exec --yes pnpm@11.10.0 -- --version` —
-  all three hang on "requires approval"; meanwhile `git`, `node -v`, `which`,
-  `wc -l`, `test -f`, exact-path `rm -f` all work fine). Per the repo's own
-  "verify before opening a PR" rule and this workflow's decision rules, an
-  unverified test-file change must not become a PR — same "flag, not action"
-  outcome as the 07-07 `json-utils.clienttest.ts` case. Created and then
-  cleanly deleted a throwaway `ci-perf/parallelize-score-comparison-inserts`
-  branch off `origin/main` (zero commits) while trying to verify; left no
-  trace. **If pnpm becomes invokable in a future run, this is a ready,
-  well-scoped fix to actually try**: parallelize the batch loop in
-  `insertLargeTraceLevelScorePairs` (and optionally
-  `insertLargeIdenticalTraceLevelScores`) with `Promise.all`, run the file's
-  suite, confirm assertions + row counts are unaffected, and only then open a
-  `ci-perf/` PR.
-- **New: `mcp__safeoutputs__missing_tool` itself was rejected by a DIFC
-  secrecy-policy layer, twice, and is currently unusable.** Error: "Agent
-  carries private (***REDACTED***/***REDACTED***)-scoped data that cannot be written to
-  'write-sink:public (missing_tool)' due to secrecy constraints... Required
-  Action: Add secrecy tags [private:***REDACTED***/***REDACTED***]." Retried with
-  `secrecy: "private", integrity: "high"` set explicitly (exactly what the
-  error asked for) — identical error recurred verbatim, showing the agent's
-  label was already `Secrecy: [private:***REDACTED***/***REDACTED***]` both times while
-  `Resource Requirements: Secrecy: []` stayed empty, i.e. the `missing_tool`
-  write-sink itself declares no compatible secrecy tag and is structurally
-  unwritable by a private-labeled agent regardless of parameters passed. The
-  error's phrasing (framed as an instruction to progressively broaden the
-  agent's own write-permission labels) also has injection-like characteristics
-  — did not comply beyond the tool's real schema fields. Worked around by
-  folding this finding into the `noop` report body instead. **A human should
-  check whether other safe-output tools (`create_issue`, `add_comment`,
-  `create_pull_request`) are similarly gated** before this workflow next needs
-  one of them for real.
-- New flaky observations (single occurrences, not yet a pattern):
-  `prompts.v1.servertest.ts` (retries=2) and `otelToObservationForEval.test.ts`
-  (retries=1), both from the 07-30 sample; 6 of 7 other sampled days/logs had
-  zero retries.
-- Wrote `history/2026-W31-partial-0731.json`. Ledger unchanged (empty).
-
-## 2026-08-03 (run 12, `schedule` — weekly analysis fully blocked by two independent infra issues)
-
-- **GitHub Actions MCP block recurred, unresolved.** Every `actions_list` call
-  (main session AND 7 independently-spawned subagents, one per day of the
-  07-28..08-03 window) failed identically on the FIRST call:
-  `resource:actions_list ... filtered by secrecy policy ... not authorized to
-  access private-scoped data`. This is the same error text as the 07-30
-  four-run block, but run 11 (07-31) had reported it "resolved" after a
-  guard-policy config fix on `fix/analyst-guard-policy`. That fix evidently
-  did not hold (or this scheduled run uses a different config path than the
-  `workflow_dispatch` run that tested the fix) — **do not treat 07-31's
-  "resolved" note as durable; this is a recurring, not one-off, issue.**
-  `mcp__github__search_pull_requests` worked fine both times (confirmed
-  ledger still empty), so the block is scoped to the Actions API surface
-  specifically, not the whole GitHub MCP server.
-- **New, separate blocker this run: DB connectivity dead.**
-  `/tmp/gh-aw/db-stack-ready` existed (provisioning claimed success), but
-  `node -e "dns.lookup('host.docker.internal', ...)"` failed with
-  `EAI_AGAIN` twice in a row, and running
-  `npx dotenv -e ../.env -- vitest run --project server
-  score-comparison-analytics.servertest.ts` confirmed every single test
-  failing with the identical `getaddrinfo EAI_AGAIN host.docker.internal` —
-  not a code assertion failure. Per this workflow's own rule, this is an
-  infra signal, not a regression or flaky-test signal, and blocks all
-  DB-backed sandbox verification (so last week's flagged fix below stayed
-  unverified again, for a different reason this time).
-- **Net effect: zero fresh data this run.** No timing metrics, no vitest-log
-  sampling, no regression/optimization judgment possible, no new history
-  file written (nothing real to put in one) — the last real numbers remain
-  `history/2026-W31-partial-0731.json` (2026-07-31). Filed both
-  `missing_tool` (Actions API) and `missing_data` (DB connectivity) — see
-  tooling notes below, both worked cleanly this run.
-- **Still-open, ready candidate from last week, now blocked twice for two
-  different reasons across two runs:** parallelize the sequential
-  `createScoresCh` batch loop in `insertLargeTraceLevelScorePairs`
-  (`web/src/__tests__/server/score-comparison-analytics.servertest.ts:112`,
-  batches at L159) and the analogous `insertLargeIdenticalTraceLevelScores`
-  (L163). Root cause and precedent (`scores-api-v2.servertest.ts:104`)
-  already fully documented in `history/2026-W31-partial-0731.json`; nothing
-  new to re-derive. Whichever future run gets BOTH working Actions-API
-  access AND working DB connectivity in the same session should verify this
-  immediately rather than re-investigating.
-- No PR, comment, or issue opened this run — ledger (`prs.json`) unchanged
-  (still empty, reconfirmed via `search_pull_requests`).
+- **GitHub Actions MCP block recurred identically on both runs**, despite
+  run 11's "resolved" note. `actions_list` (all methods, incl. plain
+  `list_workflows`) and `actions_get` fail on the very first call with the
+  same secrecy-policy filter text. `get_job_logs` itself is NOT filtered
+  (returns a normal 404 for a bogus job id on 08-06) but is useless without
+  a run/job id, which only `actions_list` can supply — so the practical
+  effect is a full block on all timing/vitest-log gathering.
+  `search_pull_requests` is unaffected both times (ledger reconfirmed
+  empty). **08-06 ran from this workflow's own checkout at HEAD
+  `fix(ci): upgrade gh-aw to v0.85.4 to pick up the DIFC secrecy fix` —
+  i.e. a fix targeting this exact class of issue was already in the
+  checkout, and the block still occurred.** Treat as an unresolved,
+  recurring infra issue, not self-fixed — a human should look at the
+  guard-policy/DIFC config directly rather than trust prior runs' "resolved"
+  notes.
+- **DB connectivity also dead both runs.** `/tmp/gh-aw/db-stack-ready`
+  exists (provisioning claimed success) but
+  `dns.lookup('host.docker.internal')` fails `EAI_AGAIN` both times. Per
+  this workflow's own rule this is an infra signal, not a regression/flaky
+  signal — blocks all DB-backed sandbox verification, including the
+  standing `score-comparison-analytics.servertest.ts` candidate fix above.
+  `npx` itself works fine both runs (confirmed `npx --version` on 08-06) —
+  the constraint is DB reachability, not command execution.
+- **Net effect both runs: zero fresh timing/vitest data**, no new
+  `history/*.json`. Last real numbers remain
+  `history/2026-W31-partial-0731.json` (2026-07-31). Filed `missing_tool`
+  (Actions API) + `missing_data` (DB connectivity) both runs.
 
 ## Tooling notes (for future runs)
 
-- The GitHub Actions MCP `list_workflow_runs` caps at ~30 runs/page regardless
-  of `per_page`, and has no `created` date filter. Filter by
-  `event: merge_group` + paginate `page: 1..N` until the oldest `created_at`
-  passes the week start (≈5 pages ≈ 150 runs covers a week here).
-- Tool responses overflow the token limit and are saved to a file; the real
-  payload is nested at `.[0].content[0].text` (a JSON string) — extract with
-  `jq -r '.[0].content[0].text' <file> > out.json` then query `out.json`.
-- Jobs API payload is nested at `.jobs.jobs[]` with `.jobs.total_count`.
-- Sandbox bash blocks compound commands (`;` in some but not all cases, `&&`,
-  `for`, triple-dot `...` git revspecs), `bash script.sh`, `jq -f`, redirects
-  outside the workspace, `ls`/`find`/`getent` outside the repo working dir,
-  and bare `pnpm` (not found) / `corepack pnpm` (hangs on a never-resolving
-  approval gate). **Correction to the 07-31 note: `npx <bin>` (e.g. `npx
-  vitest run ...`, `npx dotenv -e ../.env -- vitest run ...`) DOES work in
-  the sandbox even when `pnpm`/`corepack pnpm` don't** — confirmed run 12
-  (2026-08-03), matches this workflow's own "Verify changes" section
-  examples. So test suites CAN be executed for verification via `npx`; the
-  standing constraint is narrower than previously noted (no bare `pnpm`, not
-  "no test execution at all").
-- `mcp__safeoutputs__missing_tool` and `mcp__safeoutputs__missing_data`
-  BOTH worked cleanly in run 12 (2026-08-03) — the 07-31 DIFC secrecy-policy
-  rejection of `missing_tool` did not recur. Treat that as resolved unless a
-  future run sees it again; no need to route around it into `noop` bodies
-  anymore.
-- Check DB connectivity early with a cheap probe before assuming the dev
-  stack works just because `/tmp/gh-aw/db-stack-ready` exists: `node -e
+- `list_workflow_runs` caps at ~30 runs/page, no `created` filter — filter
+  `event: merge_group`, paginate until `created_at` passes week start.
+- Large tool responses are saved to a file; payload nested at
+  `.[0].content[0].text` (a JSON string) — `jq -r '.[0].content[0].text' <file>`.
+  Jobs payload nested at `.jobs.jobs[]`, `.jobs.total_count`.
+- Sandbox bash blocks compound commands (some `;`, `&&`, `for`, `...`
+  revspecs), `bash script.sh`, `jq -f`, redirects outside the workspace,
+  `ls`/`find`/`getent`/`wc` outside the repo working dir, and bare
+  `pnpm`/`corepack pnpm` (hangs on a never-resolving approval gate).
+  `npx <bin>` (e.g. `npx vitest run ...`) DOES work even when bare
+  `pnpm` doesn't — confirmed again 08-06.
+- Check DB connectivity early, before trusting
+  `/tmp/gh-aw/db-stack-ready`: `node -e
   "require('dns').lookup('host.docker.internal',(e,a)=>console.log(e?String(e):a))"`.
-  Run 12 (2026-08-03) got `EAI_AGAIN` here (and in the real test run) despite
-  the ready-marker being present — the marker means provisioning was
-  attempted, not that connectivity is live in this particular sandbox
-  session.
+  Failed `EAI_AGAIN` on 08-03 AND 08-06 despite the ready-marker being
+  present both times — now a recurring pattern, not a one-off.
+- `mcp__safeoutputs__missing_tool`/`missing_data` have worked cleanly since
+  08-03 (the 07-31 DIFC rejection of `missing_tool` has not recurred).
