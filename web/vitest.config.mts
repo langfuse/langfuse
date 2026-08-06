@@ -32,14 +32,27 @@ const sharedExclude = [
 const GLOBAL_STATE_PATTERN =
   /vi\.(mock|doMock|unmock|spyOn|useFakeTimers|setSystemTime|resetModules|stubEnv|stubGlobal|unstubAllEnvs|unstubAllGlobals)|process\.env\.[A-Z0-9_]+\s*=[^=]|process\.env\[[^\]]+\]\s*=[^=]|delete\s+process\.env|\(env as any\)\.\w+\s*=[^=]|\.(disconnect|quit|shutdown)\(|disconnectQueues/;
 
-const serverTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
+const allServerTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
   cwd: import.meta.dirname,
-  exclude: [
-    "**/node_modules/**",
-    "src/__e2e__/**",
-    "src/__tests__/server/unit/**",
-  ],
+  exclude: ["**/node_modules/**", "src/__e2e__/**"],
 });
+const AGENT_SOURCE_IMPORT_PATTERN = /@langfuse\/shared\/in-app-agent/;
+const agentSourceTestFiles = allServerTestFiles.filter((file) =>
+  AGENT_SOURCE_IMPORT_PATTERN.test(
+    readFileSync(join(import.meta.dirname, file), "utf8"),
+  ),
+);
+const agentSourceUnitTestFiles = agentSourceTestFiles.filter((file) =>
+  file.startsWith("src/__tests__/server/unit/"),
+);
+const agentSourceIntegrationTestFiles = agentSourceTestFiles.filter(
+  (file) => !agentSourceUnitTestFiles.includes(file),
+);
+const serverTestFiles = allServerTestFiles.filter(
+  (file) =>
+    !file.startsWith("src/__tests__/server/unit/") &&
+    !agentSourceIntegrationTestFiles.includes(file),
+);
 const isolatedServerTestFiles = serverTestFiles.filter((file) =>
   GLOBAL_STATE_PATTERN.test(
     readFileSync(join(import.meta.dirname, file), "utf8"),
@@ -62,102 +75,96 @@ function markdownRawPlugin() {
   };
 }
 
+// The in-app-agent runtime's built dist is CJS, whose require() calls bypass
+// Vitest's mocker. Only tests that import this runtime need a source copy;
+// applying these aliases globally makes every server test transform shared.
+const agentSourceResolve = {
+  alias: [
+    {
+      find: /^@langfuse\/shared\/in-app-agent\/server\/(.+)$/,
+      replacement: join(
+        import.meta.dirname,
+        "../packages/shared/src/in-app-agent/server/$1",
+      ),
+    },
+    {
+      find: /^@langfuse\/shared\/in-app-agent\/server$/,
+      replacement: join(
+        import.meta.dirname,
+        "../packages/shared/src/in-app-agent/server/index.ts",
+      ),
+    },
+    {
+      find: /^@langfuse\/shared\/in-app-agent$/,
+      replacement: join(
+        import.meta.dirname,
+        "../packages/shared/src/in-app-agent/index.ts",
+      ),
+    },
+    // The runtime source reaches the rest of shared via relative imports
+    // (../../../server etc.), so shared's other entry points must resolve
+    // to the same source files — otherwise tests would load a second dist
+    // copy of shared (split singletons, vi.mock("@langfuse/shared/src/
+    // server") missing the runtime's imports).
+    {
+      find: /^@langfuse\/shared\/src\/(.+)$/,
+      replacement: join(import.meta.dirname, "../packages/shared/src/$1"),
+    },
+    {
+      find: /^@langfuse\/shared\/encryption$/,
+      replacement: join(
+        import.meta.dirname,
+        "../packages/shared/src/encryption/index.ts",
+      ),
+    },
+    {
+      find: /^@langfuse\/shared\/query$/,
+      replacement: join(
+        import.meta.dirname,
+        "../packages/shared/src/features/query/index.ts",
+      ),
+    },
+    {
+      find: /^@langfuse\/shared\/query\/server$/,
+      replacement: join(
+        import.meta.dirname,
+        "../packages/shared/src/features/query/server/index.ts",
+      ),
+    },
+    {
+      find: /^@langfuse\/shared\/monitors$/,
+      replacement: join(
+        import.meta.dirname,
+        "../packages/shared/src/features/monitors/index.ts",
+      ),
+    },
+    {
+      find: /^@langfuse\/shared\/monitors\/server$/,
+      replacement: join(
+        import.meta.dirname,
+        "../packages/shared/src/features/monitors/server.ts",
+      ),
+    },
+    {
+      find: /^@langfuse\/shared$/,
+      replacement: join(import.meta.dirname, "../packages/shared/src/index.ts"),
+    },
+  ],
+  // Runtime source resolves these through shared's node_modules symlinks.
+  // Dedupe keeps one module identity so mocks registered from web intercept.
+  dedupe: [
+    "@mastra/core",
+    "@mastra/mcp",
+    "@ag-ui/core",
+    "@ag-ui/client",
+    "@ag-ui/mastra",
+    "ai-sdk-amazon-bedrock-v4",
+    "langfuse",
+  ],
+};
+
 export default defineConfig({
   plugins: [markdownRawPlugin(), tsconfigPaths(), react()],
-  resolve: {
-    // The in-app-agent runtime lives in @langfuse/shared. Its built dist is
-    // CJS, whose require() calls bypass vitest's mocker — so tests that mock
-    // the runtime's dependencies (@mastra/*, instrumentation, …) would hit
-    // the real modules. Alias the runtime subpaths to shared *source* so
-    // vite processes it as ESM and mocks intercept.
-    alias: [
-      {
-        find: /^@langfuse\/shared\/in-app-agent\/server\/(.+)$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/in-app-agent/server/$1",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/in-app-agent\/server$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/in-app-agent/server/index.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/in-app-agent$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/in-app-agent/index.ts",
-        ),
-      },
-      // The runtime source reaches the rest of shared via relative imports
-      // (../../../server etc.), so shared's other entry points must resolve
-      // to the same source files — otherwise tests would load a second dist
-      // copy of shared (split singletons, vi.mock("@langfuse/shared/src/
-      // server") missing the runtime's imports).
-      {
-        find: /^@langfuse\/shared\/src\/(.+)$/,
-        replacement: join(import.meta.dirname, "../packages/shared/src/$1"),
-      },
-      {
-        find: /^@langfuse\/shared\/encryption$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/encryption/index.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/query$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/features/query/index.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/query\/server$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/features/query/server/index.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/monitors$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/features/monitors/index.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared\/monitors\/server$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/features/monitors/server.ts",
-        ),
-      },
-      {
-        find: /^@langfuse\/shared$/,
-        replacement: join(
-          import.meta.dirname,
-          "../packages/shared/src/index.ts",
-        ),
-      },
-    ],
-    // The runtime source resolves Mastra/AG-UI/Bedrock through shared's
-    // node_modules symlinks — a different module id than the test files'
-    // vi.mock registrations, which resolve through web's. Dedupe forces a
-    // single resolution so the mocks intercept the runtime's imports.
-    dedupe: [
-      "@mastra/core",
-      "@mastra/mcp",
-      "@ag-ui/core",
-      "@ag-ui/client",
-      "@ag-ui/mastra",
-      "ai-sdk-amazon-bedrock-v4",
-      "langfuse",
-    ],
-  },
   test: {
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]
@@ -230,9 +237,32 @@ export default defineConfig({
       },
       {
         extends: true,
+        resolve: agentSourceResolve,
+        test: {
+          name: "server-agent-source",
+          include: agentSourceIntegrationTestFiles,
+          exclude: sharedExclude,
+          environment: "node",
+          setupFiles: ["./src/__tests__/after-teardown.ts"],
+          globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
+        },
+      },
+      {
+        extends: true,
         test: {
           name: "server-unit",
           include: ["src/__tests__/server/unit/**/*.servertest.{ts,tsx}"],
+          exclude: [...sharedExclude, ...agentSourceUnitTestFiles],
+          environment: "node",
+          setupFiles: ["./src/__tests__/after-teardown.ts"],
+        },
+      },
+      {
+        extends: true,
+        resolve: agentSourceResolve,
+        test: {
+          name: "server-agent-source-unit",
+          include: agentSourceUnitTestFiles,
           exclude: sharedExclude,
           environment: "node",
           setupFiles: ["./src/__tests__/after-teardown.ts"],
