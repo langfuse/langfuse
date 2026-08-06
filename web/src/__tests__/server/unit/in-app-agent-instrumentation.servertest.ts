@@ -5,7 +5,10 @@ import {
   getInAppAgentInstrumentationTraceId,
 } from "@langfuse/shared/in-app-agent";
 import type { AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
-import { InAppAgentInstrumentation } from "@langfuse/shared/in-app-agent/server/instrumentation";
+import {
+  getInAppAgentRunLineageMetadata,
+  InAppAgentInstrumentation,
+} from "@langfuse/shared/in-app-agent/server/instrumentation";
 
 const runId = "run-1";
 const traceId = getInAppAgentInstrumentationTraceId(runId);
@@ -72,6 +75,26 @@ const expectedAgentRunInput = {
 describe("InAppAgentInstrumentation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("labels foreground user turns without a parent run", () => {
+    expect(getInAppAgentRunLineageMetadata(input, "foreground")).toEqual({
+      execution_runtime: "foreground",
+      run_kind: "user_turn",
+    });
+  });
+
+  it("labels worker approval continuations with their parent run", () => {
+    expect(
+      getInAppAgentRunLineageMetadata(
+        { ...input, parentRunId: "parent-run-1" },
+        "worker",
+      ),
+    ).toEqual({
+      execution_runtime: "worker",
+      run_kind: "approval_continuation",
+      parent_run_id: "parent-run-1",
+    });
   });
 
   it("records agent output and tool calls as tool observations", () => {
@@ -453,9 +476,106 @@ describe("InAppAgentInstrumentation", () => {
           message: "Tool input validation failed",
         },
         level: "ERROR",
+        statusMessage: "Tool input validation failed",
       }),
     );
-    expect(toolCreateBody).not.toHaveProperty("statusMessage");
+  });
+
+  it.each([
+    {
+      name: "top-level event errors",
+      content: "Tool input validation failed",
+      error: "Tool input validation failed",
+      expectedOutput: "Tool input validation failed",
+      expectedMessage: "Tool input validation failed",
+    },
+    {
+      name: "structured error strings",
+      content: JSON.stringify({ error: "Tool input validation failed" }),
+      expectedOutput: { error: "Tool input validation failed" },
+      expectedMessage: "Tool input validation failed",
+    },
+    {
+      name: "MCP error strings",
+      content: "MCP error: invalid score config",
+      expectedOutput: "MCP error: invalid score config",
+      expectedMessage: "MCP error: invalid score config",
+    },
+  ])(
+    "marks $name as failed",
+    ({ content, error, expectedOutput, expectedMessage }) => {
+      const instrumentation = createInstrumentation();
+
+      instrumentation.recordEvents([
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: "tool-1",
+          toolCallName: "createScoreConfig",
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: "tool-1",
+          delta: "{}",
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: "tool-1",
+        },
+        {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: "tool-1",
+          content,
+          ...(error ? { error } : {}),
+        },
+      ]);
+
+      expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+        "tool-create",
+        expect.objectContaining({
+          output: expectedOutput,
+          level: "ERROR",
+          statusMessage: expectedMessage,
+        }),
+      );
+    },
+  );
+
+  it("does not classify valid output containing the word error as a failure", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-1",
+        toolCallName: "search",
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-1",
+        delta: "{}",
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-1",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-1",
+        content: JSON.stringify({
+          message: "This record describes an error handling policy",
+        }),
+      },
+    ]);
+
+    const toolCreateBody = mocks.handler.langfuse.enqueue.mock.calls[0]?.[1];
+    expect(toolCreateBody).toEqual(
+      expect.objectContaining({
+        output: {
+          message: "This record describes an error handling policy",
+        },
+      }),
+    );
+    expect(toolCreateBody).not.toHaveProperty("level");
   });
 
   it("sets static prompt metadata on the trace and agent generation", () => {
