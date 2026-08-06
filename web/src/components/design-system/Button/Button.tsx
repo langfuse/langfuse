@@ -4,8 +4,8 @@ import { cn } from "@/src/utils/tailwind";
 
 /**
  * Design-system Button, styled after the langfuse.com button: compact,
- * near-square corners, soft double shadow, ink-solid primary. Hover is a
- * brightness filter. Colors ride the design-system-test semantic tokens
+ * near-square corners, soft double shadow, ink-solid primary. Every color,
+ * including hover fills, rides the design-system-test semantic tokens
  * (globals.css), so both themes work.
  *
  * `state` forces a visual state for specs and review; the real interactive
@@ -41,7 +41,7 @@ export type ButtonProps = {
   IconProps;
 
 const CONTROL_BASE =
-  "inline-flex h-[26px] items-center rounded-[2px] text-xs tracking-[-0.06px] whitespace-nowrap transition-[filter,color,background-color,border-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 dark:disabled:opacity-65";
+  "inline-flex h-[26px] items-center rounded-[2px] text-xs tracking-[-0.06px] whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 dark:disabled:opacity-65";
 
 const CONTROL_STYLES: Record<ButtonType, string> = {
   primary: "bg-inverse text-on-inverse shadow-1 border border-transparent",
@@ -54,29 +54,28 @@ const CONTROL_STYLES: Record<ButtonType, string> = {
 /** Human-readable token routing per variant, shown by the Storybook
  * variant matrix. Keep in sync with CONTROL_STYLES above. */
 export const BUTTON_TOKENS: Record<ButtonType, string> = {
-  primary: "bg-inverse · text-on-inverse · hover: brightness filter",
+  primary: "bg-inverse · text-on-inverse · hover: bg-inverse-hover",
   secondary:
     "bg-elevation-1 · text-primary · border-default · hover: bg-elevation-4",
-  borderless: "text-secondary · hover: brightness filter",
+  borderless: "text-secondary · hover: bg-elevation-4",
   danger:
     "bg-elevation-1 · text-status-error · border-default · hover: bg-status-error-fill + text-on-inverse",
 };
 
-/** Hover treatment: mostly a brightness filter; danger swaps to the red
- * fill (GitHub-style). `forced` mirrors the hover: classes for the
- * spec-only state="hovered". */
+/** Hover fills, all token-routed. `forced` mirrors the hover: classes
+ * for the spec-only state="hovered". */
 const HOVER: Record<ButtonType, { hover: string; forced: string }> = {
   primary: {
-    hover: "hover:brightness-[1.4] dark:hover:brightness-90",
-    forced: "brightness-[1.4] dark:brightness-90",
+    hover: "hover:bg-inverse-hover",
+    forced: "bg-inverse-hover",
   },
   secondary: {
     hover: "hover:bg-elevation-4",
     forced: "bg-elevation-4",
   },
   borderless: {
-    hover: "hover:brightness-75 dark:hover:brightness-125",
-    forced: "brightness-75 dark:brightness-125",
+    hover: "hover:bg-elevation-4",
+    forced: "bg-elevation-4",
   },
   danger: {
     hover:
