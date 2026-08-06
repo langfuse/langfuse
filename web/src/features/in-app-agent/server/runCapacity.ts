@@ -27,13 +27,24 @@ export async function assertInAppAgentRunCapacity(params: {
   plan: Plan;
   userId: string;
 }): Promise<void> {
-  // A run that outlived its own reconciliation deadline must not hold a slot
-  // forever: conversation-scoped reconciliation only fires when that
-  // conversation is read, and nothing this old can still be executing.
-  const cutoff = new Date(
+  // A row past every reconciliation deadline must not hold a slot forever:
+  // conversation-scoped reconciliation only fires when that conversation is
+  // read, so a leaked row in a conversation nobody opens would block its user
+  // indefinitely. This is a coarse "should already have been failed" test, not
+  // proof the run stopped: nothing enforces RUN_MAX_DURATION in-process, so a
+  // hung tool keeps heartbeating past it (see `classifyStaleRun`, "Duration
+  // wins because a hung tool may keep renewing its heartbeat").
+  const reconcilableBefore = new Date(
     Date.now() -
       env.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
       env.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS,
+  );
+  // Which is why a fresh heartbeat overrides that test. It is the one positive
+  // liveness signal a row carries, and a run still holding a worker must keep
+  // counting however old it is, or the ceiling leaks exactly when hung runs are
+  // accumulating.
+  const heartbeatAliveSince = new Date(
+    Date.now() - env.LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS,
   );
 
   // Grouped by user so one query answers both ceilings. Scoped through the
@@ -44,7 +55,10 @@ export async function assertInAppAgentRunCapacity(params: {
     where: {
       project: { orgId: params.orgId },
       finishedAt: null,
-      createdAt: { gt: cutoff },
+      OR: [
+        { createdAt: { gt: reconcilableBefore } },
+        { heartbeatAt: { gt: heartbeatAliveSince } },
+      ],
     },
     _count: { _all: true },
   });

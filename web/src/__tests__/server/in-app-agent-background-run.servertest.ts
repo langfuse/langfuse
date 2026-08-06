@@ -397,6 +397,45 @@ describe("in-app agent background runs", () => {
     ).toMatchObject({ status: InAppAgentRunStatus.QUEUED });
   });
 
+  it("keeps counting an overdue run whose worker is still heartbeating", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const hungConversation = await createConversation({ projectId, userId });
+
+    // Nothing enforces the maximum duration in-process, so a hung tool call
+    // heartbeats past it and holds a real worker slot. Age alone must not free
+    // its slot in the accounting, or the ceiling leaks while hung runs pile up.
+    const overdue = new Date(
+      Date.now() -
+        sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+        sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS -
+        60_000,
+    );
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: hungConversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        request: { kind: "userMessage", context: [] },
+        createdAt: overdue,
+        claimedAt: overdue,
+        heartbeatAt: new Date(),
+      },
+    });
+
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "the hung run still owns a worker",
+      }),
+    ).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+  });
+
   it("admits a replacement turn when the conversation's own run lost its worker", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
