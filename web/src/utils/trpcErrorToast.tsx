@@ -86,7 +86,7 @@ export const trpcErrorToast = (error: unknown) => {
     if (isResponseParseError(error)) {
       showErrorToast(
         "Unexpected Response",
-        "The request could not be completed. We've been notified and are looking into it. Please try again or contact support if this persists.",
+        "The request could not be completed. Please try again or contact support if this persists.",
         "WARNING",
       );
       return;

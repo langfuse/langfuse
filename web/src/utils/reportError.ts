@@ -67,6 +67,12 @@ export function coerceToError(area: string, value: unknown): Error {
  * - otherwise — coerce to a real `Error` (see {@link coerceToError}),
  *   `captureException` with an `area` tag (so issues route/group by surface) and
  *   the caller's structured `extra`, then log a companion `console.warn`.
+ *   Optional `tags` add further Sentry tags (e.g. `trpc.code`); on a key
+ *   conflict the seam's `area` tag wins. Optional `warnMessage` overrides the
+ *   companion console line's body (always prefixed with `[area]`) for callers
+ *   whose legible console text differs from the captured Error's message —
+ *   e.g. a pass-through Error that lacks the caller's context. It never
+ *   affects what is captured.
  *
  * `console.warn`, never `console.error`: `instrumentation-client.ts` enables
  * `captureConsoleIntegration({ levels: ["error"] })`, so a `console.error` here
@@ -79,7 +85,13 @@ export function coerceToError(area: string, value: unknown): Error {
  */
 export function reportError(
   error: unknown,
-  opts: { area: string; expected?: boolean; extra?: Record<string, unknown> },
+  opts: {
+    area: string;
+    expected?: boolean;
+    extra?: Record<string, unknown>;
+    tags?: Record<string, string | undefined>;
+    warnMessage?: string;
+  },
 ): void {
   if (opts.expected === true) {
     addBreadcrumb({
@@ -94,15 +106,20 @@ export function reportError(
 
   const err = coerceToError(opts.area, error);
   captureException(err, {
-    tags: { area: opts.area },
+    tags: { ...opts.tags, area: opts.area },
     extra: opts.extra,
   });
   // warn, not error → captureConsoleIntegration only captures console.error, so
   // this line does not create a second, opaque event. Show the `area` exactly
-  // once: a synthesized error already embeds `[area]` in its message
-  // (coerceToError), a pass-through real Error does not — so prefix only that
-  // branch to keep the surface legible in the console without duplicating it.
+  // once: a `warnMessage` body gets the prefix; without one, a synthesized
+  // error already embeds `[area]` in its message (coerceToError) while a
+  // pass-through real Error does not — so prefix only that branch to keep the
+  // surface legible in the console without duplicating it.
   console.warn(
-    error instanceof Error ? `[${opts.area}] ${err.message}` : err.message,
+    opts.warnMessage !== undefined
+      ? `[${opts.area}] ${opts.warnMessage}`
+      : error instanceof Error
+        ? `[${opts.area}] ${err.message}`
+        : err.message,
   );
 }
