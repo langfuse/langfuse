@@ -10,9 +10,9 @@
  */
 
 import { memo } from "react";
-import { VirtualizedTree } from "./_shared/VirtualizedTree";
-import { VirtualizedTreeNodeWrapper } from "./_shared/VirtualizedTreeNodeWrapper";
-import { type TreeNodeMetadata } from "./_shared/VirtualizedTreeNodeWrapper";
+import { VirtualizedTree } from "./VirtualizedTree";
+import { VirtualizedTreeNodeWrapper } from "./VirtualizedTreeNodeWrapper";
+import { type TreeNodeMetadata } from "./VirtualizedTreeNodeWrapper";
 import { SpanContent } from "./SpanContent";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";

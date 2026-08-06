@@ -54,7 +54,7 @@ import { TimelineChartRowShell, TimelineGutterRowShell } from "./TimelineRows";
 import {
   computeMaxVisualDepth,
   GUTTER_VISUAL_DEPTH,
-} from "../_shared/visual-depth";
+} from "../../fns/visualDepth";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
 import { type TreeNode } from "../../fns/types";

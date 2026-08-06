@@ -11,7 +11,7 @@ import {
   normalizeKey,
   normalizeExpansionState,
   denormalizeExpansionState,
-} from "./json-expansion-utils";
+} from "./jsonExpansionUtils";
 
 describe("json-expansion-utils", () => {
   describe("normalizeKey", () => {

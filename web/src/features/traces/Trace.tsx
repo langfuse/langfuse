@@ -15,7 +15,7 @@ import { TracePanelNavigation } from "@/src/features/traces/components/TracePane
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
 import { TracePanelNavigationLayoutDesktop } from "@/src/features/traces/components/TracePanelNavigationLayoutDesktop/TracePanelNavigationLayoutDesktop";
 import { TraceTree } from "@/src/features/traces/components/TraceTree";
-import { TraceTimeline } from "@/src/features/traces/components/TraceTimeline";
+import { TraceTimeline } from "@/src/features/traces/components/TraceTimeline/TraceTimeline";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";

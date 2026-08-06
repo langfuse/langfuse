@@ -6,7 +6,7 @@
  * and runs it as ESM — harmless for a dev script:
  *
  *   SCRATCH=/tmp/lfe-11082 node \
- *     web/src/components/ui/AdvancedJsonViewer/lazy/benchByteJsonIndex.ts
+ *     web/src/features/traces/components/AdvancedJsonViewer/lazy/benchByteJsonIndex.ts
  *
  * (It is a .ts, not .mts, only because this repo's concurrent ESLint crashes
  * on function-type annotations in .mts files; the engine itself is unaffected.)

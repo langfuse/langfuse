@@ -43,7 +43,7 @@ import {
 import {
   downloadLegacyTraceAsJson,
   downloadServerTraceAsJson,
-} from "../../fns/download-trace";
+} from "../../fns/downloadTrace";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
 import { PlaybackControls } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";

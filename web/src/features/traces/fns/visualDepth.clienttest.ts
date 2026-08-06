@@ -5,7 +5,7 @@ import {
   GUTTER_VISUAL_DEPTH,
   TREE_VISUAL_DEPTH,
   type VisualDepthConfig,
-} from "./visual-depth";
+} from "./visualDepth";
 
 describe("computeMaxVisualDepth", () => {
   const config: VisualDepthConfig = {

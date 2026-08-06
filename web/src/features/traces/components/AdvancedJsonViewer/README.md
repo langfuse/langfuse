@@ -7,7 +7,7 @@ A high-performance JSON viewer component built for rendering large datasets (10K
 ### Basic Usage
 
 ```tsx
-import { AdvancedJsonViewer } from "@/components/ui/AdvancedJsonViewer";
+import { MultiSectionJsonViewer } from "@/src/features/traces/components/AdvancedJsonViewer/MultiSectionJsonViewer";
 
 function MyComponent() {
   const data = { users: [{ name: "Alice", age: 30 }] };

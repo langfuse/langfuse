@@ -25,7 +25,7 @@ import {
   dedupeObservationsById,
   getObservationLevels,
   removeHiddenNodes,
-} from "../fns/tree-building";
+} from "../fns/treeBuilding";
 import {
   calculateTraceDuration,
   findEarliestStartTime,

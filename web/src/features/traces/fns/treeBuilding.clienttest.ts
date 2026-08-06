@@ -9,7 +9,7 @@ import {
   dedupeObservationsById,
   removeHiddenNodes,
   getObservationLevels,
-} from "./tree-building";
+} from "./treeBuilding";
 import { getSubtreeDurationOverflowMs } from "./helpers";
 import { type TreeNode } from "./types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";

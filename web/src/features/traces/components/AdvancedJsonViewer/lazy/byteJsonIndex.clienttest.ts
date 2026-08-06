@@ -2,7 +2,7 @@ import {
   ByteJsonIndexEngine,
   loadByteJsonIndex,
   parseNumberPreservePrecision,
-} from "@/src/components/ui/AdvancedJsonViewer/lazy/byteJsonIndex";
+} from "@/src/features/traces/components/AdvancedJsonViewer/lazy/byteJsonIndex";
 
 const enc = new TextEncoder();
 const bytes = (s: string) => enc.encode(s);

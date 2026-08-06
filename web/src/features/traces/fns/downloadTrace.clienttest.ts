@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { downloadLegacyTraceAsJson } from "./download-trace";
+import { downloadLegacyTraceAsJson } from "./downloadTrace";
 
 // jsdom does not implement URL.createObjectURL, so we install our own to
 // capture the Blob the download helper builds instead of hitting navigation.

@@ -5,8 +5,11 @@
  */
 
 import Decimal from "decimal.js";
-import { type TreeNode } from "../../fns/types";
-import { type FlatTimelineItem, type TimelineMetrics } from "./types";
+import { type TreeNode } from "@/src/features/traces/fns/types";
+import {
+  type FlatTimelineItem,
+  type TimelineMetrics,
+} from "@/src/features/traces/components/TraceTimeline/types";
 
 const BASE_START = new Date("2024-01-01T00:00:00.000Z");
 

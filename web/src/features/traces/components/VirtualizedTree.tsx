@@ -14,10 +14,10 @@ import {
   type ReactNode,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { flattenTree } from "./tree-flattening";
+import { flattenTree } from "../fns/flattenTree";
 import { cn } from "@/src/utils/tailwind";
 import { type TreeNodeMetadata } from "./VirtualizedTreeNodeWrapper";
-import { computeMaxVisualDepth, TREE_VISUAL_DEPTH } from "./visual-depth";
+import { computeMaxVisualDepth, TREE_VISUAL_DEPTH } from "../fns/visualDepth";
 
 interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
   roots: T[];

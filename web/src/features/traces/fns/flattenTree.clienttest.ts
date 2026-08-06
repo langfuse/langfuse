@@ -7,7 +7,7 @@
  * Run with: pnpm test-client "tree-flattening"
  */
 
-import { flattenTree } from "./tree-flattening";
+import { flattenTree } from "./flattenTree";
 
 // Test node type
 interface TestNode {

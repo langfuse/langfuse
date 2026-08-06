@@ -62,7 +62,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import {
   aggregateTraceMetrics,
   getDescendantIds,
-} from "@/src/features/traces/fns/trace-aggregation";
+} from "@/src/features/traces/fns/traceAggregation";
 import TagList from "@/src/features/tag/components/TagList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
