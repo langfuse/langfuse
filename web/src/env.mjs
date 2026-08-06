@@ -415,6 +415,9 @@ export const env = createEnv({
     // we present. Either unset = no events are emitted.
     CLICKHOUSE_BILLING_EVENT_BUS_URL: z.url().optional(),
     CLICKHOUSE_BILLING_SERVICE_TOKEN: z.string().optional(),
+    // CHB REST API base url. Unset (or a missing service token) makes the CHB
+    // billing service refuse to construct, so no half-configured calls go out.
+    CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -954,6 +957,7 @@ export const env = createEnv({
       process.env.CLICKHOUSE_BILLING_EVENT_BUS_URL,
     CLICKHOUSE_BILLING_SERVICE_TOKEN:
       process.env.CLICKHOUSE_BILLING_SERVICE_TOKEN,
+    CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
