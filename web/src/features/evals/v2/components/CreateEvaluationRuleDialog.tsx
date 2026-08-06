@@ -32,7 +32,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Slider } from "@/src/components/ui/slider";
 import { ActivationCostEstimate } from "@/src/features/evals/v2/components/ActivationCostEstimate";
-import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert";
+import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert/EvaluationRuleAttachmentValidationAlert";
 import {
   EvaluationRuleEvaluatorList,
   parseEvaluationRuleVariableMapping,
@@ -46,7 +46,7 @@ import {
   RuleFilterSearchBar,
 } from "@/src/features/evals/v2/components/EvaluationRuleSection";
 import { EvaluationRulePreviewTable } from "@/src/features/evals/v2/components/EvaluationRulePreviewTable";
-import { SetupStep } from "@/src/features/evals/v2/components/production/SetupStep";
+import { Stepper } from "@/src/features/evals/v2/components/production/Stepper/Stepper";
 import { useValidatedRuleDraftEvaluator } from "@/src/features/evals/v2/hooks/useValidatedRuleDraftEvaluator";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -280,7 +280,7 @@ export function CreateEvaluationRuleDialog({
           </DialogBody>
         ) : (
           <DialogBody className="gap-3">
-            <SetupStep
+            <Stepper
               number={1}
               title="Choose observations"
               description="Filter incoming observations and preview what this rule will evaluate."
@@ -330,9 +330,9 @@ export function CreateEvaluationRuleDialog({
                   />
                 </section>
               </div>
-            </SetupStep>
+            </Stepper>
 
-            <SetupStep
+            <Stepper
               number={2}
               title="Set sampling rate"
               description="Choose the share of matching observations to evaluate."
@@ -356,9 +356,9 @@ export function CreateEvaluationRuleDialog({
                   displayAsPercentage
                 />
               </div>
-            </SetupStep>
+            </Stepper>
 
-            <SetupStep
+            <Stepper
               number={3}
               title="Attach evaluator"
               description="Choose which evaluators should run on matching observations."
@@ -456,9 +456,9 @@ export function CreateEvaluationRuleDialog({
                   </p>
                 ) : null}
               </div>
-            </SetupStep>
+            </Stepper>
 
-            <SetupStep
+            <Stepper
               number={4}
               title="Name rule"
               description="Give this rule a clear name so it is easy to recognize."
@@ -487,7 +487,7 @@ export function CreateEvaluationRuleDialog({
                   The rule becomes active when it is created.
                 </p>
               </div>
-            </SetupStep>
+            </Stepper>
           </DialogBody>
         )}
 

@@ -18,8 +18,8 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { CreateEvaluationRuleDialog } from "@/src/features/evals/v2/components/CreateEvaluationRuleDialog";
-import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert";
-import { EvaluationRulePicker } from "@/src/features/evals/v2/components/production/EvaluationRulePicker";
+import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert/EvaluationRuleAttachmentValidationAlert";
+import { EvaluationRulePicker } from "@/src/features/evals/v2/components/production/EvaluationRulePicker/EvaluationRulePicker";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
@@ -128,6 +128,12 @@ export function EvaluatorRuleAssignments({
             </Button>
           )}
           availableRules={unattachedRules}
+          disabledRules={compatibleRules
+            .filter((rule) => attachedRuleIds.has(rule.id))
+            .map((rule) => ({
+              rule,
+              reason: "This evaluator is already attached to this rule",
+            }))}
           loading={availableRules.isPending}
           align="end"
           onOpenChange={setRulePickerOpen}

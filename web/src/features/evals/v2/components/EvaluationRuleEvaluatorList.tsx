@@ -12,13 +12,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { VariableMappingCard as VariableMapping } from "@/src/features/evals/v2/components/production/variable-mapping/VariableMappingCard";
 import {
-  MAPPABLE_COLUMNS,
+  VariableMapping,
+  useVariableMappingController,
   type VariableFieldState,
-} from "@/src/features/evals/v2/components/VariableMappingPopover";
+} from "@/src/features/evals/v2/components/production/VariableMapping";
 import { evaluationVariableMappingResolves } from "@/src/features/evals/v2/lib/evaluationVariableMapping";
-import { formatMappingLabel } from "@/src/features/evals/v2/lib/jsonPathSegments";
 import { ruleTimeRangeFilter } from "@/src/features/evals/v2/lib/useRuleMatchCount";
 import { api } from "@/src/utils/api";
 import { type AbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -80,31 +79,19 @@ function EvaluationRuleEvaluatorItem({
   onRemove: () => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const [activeVariable, setActiveVariable] = useState<string | null>(null);
-  const overview = evaluator.variableMapping.map((mapping) => {
-    const columnLabel =
-      MAPPABLE_COLUMNS.find((column) => column.id === mapping.selectedColumnId)
-        ?.label ?? mapping.selectedColumnId;
-    return {
-      variable: mapping.templateVariable,
-      label: formatMappingLabel(columnLabel, mapping.jsonSelector ?? null),
-      unmapped: !mapping.selectedColumnId,
-    };
-  });
+  const variableMapping = useVariableMappingController();
+  const mappings = evaluator.variableMapping.map((mapping) => ({
+    variable: mapping.templateVariable,
+    fieldState: {
+      selectedColumnId: mapping.selectedColumnId || null,
+      jsonSelector: mapping.jsonSelector ?? null,
+    },
+  }));
   const mappedVariableCount = evaluator.variableMapping.filter((mapping) =>
     sourceObject
       ? evaluationVariableMappingResolves(sourceObject, mapping)
       : mapping.selectedColumnId.trim() !== "",
   ).length;
-  const getFieldState = (templateVariable: string): VariableFieldState => {
-    const mapping = evaluator.variableMapping.find(
-      (candidate) => candidate.templateVariable === templateVariable,
-    );
-    return {
-      selectedColumnId: mapping?.selectedColumnId || null,
-      jsonSelector: mapping?.jsonSelector ?? null,
-    };
-  };
   const updateMapping = (
     templateVariable: string,
     next: VariableFieldState,
@@ -124,7 +111,7 @@ function EvaluationRuleEvaluatorItem({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <li className="min-w-0 text-sm">
+      <li className="min-w-0 text-sm" {...variableMapping.boundaryProps}>
         <div className="flex min-w-0 items-center px-1 py-1">
           <CollapsibleTrigger asChild>
             <button
@@ -176,11 +163,10 @@ function EvaluationRuleEvaluatorItem({
               className={readOnly ? "opacity-60" : undefined}
             >
               <VariableMapping
-                overview={overview}
-                activeVariable={activeVariable}
-                onActiveVariableChange={setActiveVariable}
+                mode="editable"
+                mappings={mappings}
+                {...variableMapping.mappingProps}
                 selector="drill"
-                getFieldState={getFieldState}
                 onChangeField={updateMapping}
                 sourceObject={sourceObject}
                 hasMatchingObservations={sourceObject !== null}

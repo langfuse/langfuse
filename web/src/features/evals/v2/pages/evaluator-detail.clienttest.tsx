@@ -44,18 +44,11 @@ vi.mock("@/src/components/layouts/page", () => ({
   ),
 }));
 
-vi.mock(
-  "@/src/features/evals/v2/components/production/EvaluatorDefinitionView",
-  () => ({
-    EvaluatorDefinitionView: ({
-      sourceCode,
-      prompt,
-    }: {
-      sourceCode: string | null;
-      prompt: string | null;
-    }) => <div>Saved definition: {sourceCode ?? prompt}</div>,
-  }),
-);
+vi.mock("@/src/components/design-system/Codeblock/Codeblock", () => ({
+  CodeBlock: ({ value }: { value: string }) => (
+    <div>Saved definition: {value}</div>
+  ),
+}));
 
 vi.mock("@/src/features/evals/v2/components/ActivateEvaluatorDialog", () => ({
   ActivateEvaluatorDialog: () => null,

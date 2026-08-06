@@ -97,7 +97,14 @@ describe("EvaluatorOverviewAttachToRuleButton", () => {
 
     expect(screen.getByPlaceholderText("Find a rule...")).toBeVisible();
     expect(screen.getByText("Create new rule")).toBeVisible();
-    expect(screen.queryByText("Already attached")).not.toBeInTheDocument();
+    const attachedRule = screen.getByRole("option", {
+      name: "Already attached",
+    });
+    expect(attachedRule).toHaveAttribute("aria-disabled", "true");
+    expect(attachedRule).toHaveAttribute(
+      "title",
+      "This evaluator is already attached to this rule",
+    );
     fireEvent.click(screen.getByText("Production"));
     expect(mocks.attach).toHaveBeenCalledWith({
       evaluatorId: "evaluator-1",

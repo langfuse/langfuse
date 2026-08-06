@@ -10,8 +10,8 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { CreateEvaluationRuleDialog } from "@/src/features/evals/v2/components/CreateEvaluationRuleDialog";
-import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert";
-import { EvaluationRulePicker } from "@/src/features/evals/v2/components/production/EvaluationRulePicker";
+import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert/EvaluationRuleAttachmentValidationAlert";
+import { EvaluationRulePicker } from "@/src/features/evals/v2/components/production/EvaluationRulePicker/EvaluationRulePicker";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
 import { getEvaluationRuleMappingReviewHref } from "@/src/features/evals/v2/lib/evaluationRuleMappingReviewHref";
 import { api } from "@/src/utils/api";
@@ -45,7 +45,10 @@ export function EvaluatorOverviewAttachToRuleButton({
     evaluator.data?.ruleAssignments.map(({ rule }) => rule.id) ?? [],
   );
   const compatibleRules = (availableRules.data ?? []).filter(
-    (rule) => rule.targetObject === "event" && !attachedRuleIds.has(rule.id),
+    (rule) => rule.targetObject === "event",
+  );
+  const unattachedRules = compatibleRules.filter(
+    (rule) => !attachedRuleIds.has(rule.id),
   );
 
   return (
@@ -66,7 +69,13 @@ export function EvaluatorOverviewAttachToRuleButton({
             Attach to rule
           </Button>
         )}
-        availableRules={compatibleRules}
+        availableRules={unattachedRules}
+        disabledRules={compatibleRules
+          .filter((rule) => attachedRuleIds.has(rule.id))
+          .map((rule) => ({
+            rule,
+            reason: "This evaluator is already attached to this rule",
+          }))}
         loading={availableRules.isPending || evaluator.isPending}
         align="end"
         onOpenChange={setRulePickerOpen}

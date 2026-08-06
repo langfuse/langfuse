@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ActivationCostEstimateView } from "@/src/features/evals/v2/components/production/ActivationCostEstimateView";
+import { ActivationCostEstimateView } from "@/src/features/evals/v2/components/production/ActivationCostEstimateView/ActivationCostEstimateView";
+import { calculateDailyEvaluationCost } from "@/src/features/evals/v2/fns/calculateDailyEvaluationCost";
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 
@@ -57,12 +58,6 @@ export function ActivationCostEstimate({
   const historicalCostEntry = historicalCost.data?.[evaluatorId];
   const costPerEvaluation =
     testRunCostUsd ?? historicalCostEntry?.avgCost ?? null;
-  const evaluatedObservations =
-    matchingObservations === null ? null : matchingObservations * sampling;
-  const dailyCostUsd =
-    evaluatedObservations !== null && costPerEvaluation !== null
-      ? evaluatedObservations * costPerEvaluation
-      : null;
   const loading = matchCount.isLoading || historicalCost.isLoading;
   const costSource =
     testRunCostUsd !== null
@@ -73,17 +68,23 @@ export function ActivationCostEstimate({
     loading ||
     matchingObservations === null ||
     matchingObservations === 0 ||
-    costPerEvaluation === null ||
-    dailyCostUsd === null
+    costPerEvaluation === null
   ) {
     return null;
   }
+
+  const dailyCostUsd = calculateDailyEvaluationCost({
+    matchingObservations,
+    sampling,
+    costPerEvaluation,
+  });
 
   return (
     <ActivationCostEstimateView
       matchingObservations={matchingObservations}
       sampling={sampling}
       costPerEvaluation={costPerEvaluation}
+      dailyCostUsd={dailyCostUsd}
       costSource={costSource}
     />
   );

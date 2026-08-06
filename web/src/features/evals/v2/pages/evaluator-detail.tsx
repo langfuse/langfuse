@@ -28,7 +28,7 @@ import { CreateEvaluationRuleDialog } from "@/src/features/evals/v2/components/C
 import { EvaluatorEditView } from "@/src/features/evals/v2/components/EvaluatorEditView";
 import { EvaluatorRuleAssignments } from "@/src/features/evals/v2/components/EvaluatorRuleAssignments";
 import { TablePeekViewEvaluationRuleDetail } from "@/src/features/evals/v2/components/EvaluationRulePeekView";
-import { EvaluatorVersionHistorySheet } from "@/src/features/evals/v2/components/production/evaluator-detail/EvaluatorVersionHistorySheet";
+import { EvaluatorVersionHistorySheet } from "@/src/features/evals/v2/components/production/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -82,8 +82,7 @@ export default function EvaluatorDetailPage() {
     {
       enabled:
         Boolean(projectId) &&
-        evaluator.data?.evalTemplate?.type === "LLM_AS_JUDGE" &&
-        !evaluator.data.evalTemplate.model,
+        evaluator.data?.evalTemplate?.type === "LLM_AS_JUDGE",
     },
   );
   const evaluatorVersions = api.evals.allTemplatesForName.useQuery(
@@ -178,16 +177,13 @@ export default function EvaluatorDetailPage() {
   const selectedVersion = versions.find(
     (version) => version.id === selectedVersionId,
   );
-  const selectedVersionUsesProjectDefaultModel = Boolean(
-    selectedVersion && (!selectedVersion.provider || !selectedVersion.model),
-  );
-  const selectedVersionModelLabel = selectedVersionUsesProjectDefaultModel
-    ? defaultModel.data
-      ? `${defaultModel.data.provider} / ${defaultModel.data.model}`
-      : "Project default model"
-    : selectedVersion
-      ? `${selectedVersion.provider} / ${selectedVersion.model}`
-      : "";
+  const selectedVersionModel =
+    selectedVersion?.provider && selectedVersion.model
+      ? {
+          provider: selectedVersion.provider,
+          model: selectedVersion.model,
+        }
+      : null;
 
   return (
     <Page
@@ -408,10 +404,8 @@ export default function EvaluatorDetailPage() {
         versions={versions}
         currentVersionId={template.id}
         selectedVersion={selectedVersion}
-        selectedVersionModelLabel={selectedVersionModelLabel}
-        selectedVersionUsesProjectDefaultModel={
-          selectedVersionUsesProjectDefaultModel
-        }
+        selectedVersionModel={selectedVersionModel}
+        defaultModel={defaultModel.data ?? null}
         isLoading={evaluatorVersions.isPending}
         onSelectVersion={setSelectedVersionId}
         onBack={() => setSelectedVersionId(null)}

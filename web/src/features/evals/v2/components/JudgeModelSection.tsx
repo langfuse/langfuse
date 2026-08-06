@@ -8,10 +8,10 @@ import {
 import {
   JudgeModelPicker,
   type JudgeModelMode,
-} from "@/src/features/evals/v2/components/production/JudgeModelPicker";
+} from "@/src/features/evals/v2/components/production/JudgeModelPicker/JudgeModelPicker";
 import { api } from "@/src/utils/api";
 
-export type { JudgeModelMode } from "@/src/features/evals/v2/components/production/JudgeModelPicker";
+export type { JudgeModelMode } from "@/src/features/evals/v2/components/production/JudgeModelPicker/JudgeModelPicker";
 
 /** Data and routing controller for the reusable judge model picker. */
 export function JudgeModelSection({
@@ -67,6 +67,7 @@ export function JudgeModelSection({
                 }
               : null
           }
+          disabled={false}
           onModeChange={onModeChange}
           onSelectCustom={({ provider, model }) => {
             updateModelParamValue("provider", provider);

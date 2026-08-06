@@ -13,12 +13,12 @@ import {
   getCatalogMeta,
 } from "@/src/features/evals/v2/catalog-meta";
 import { cn } from "@/src/utils/tailwind";
-import { EvaluatorGalleryView } from "./production/gallery/EvaluatorGalleryView";
+import { EvaluatorGalleryView } from "./production/EvaluatorGalleryView/EvaluatorGalleryView";
 import type {
   EvaluatorTemplate,
   GalleryNavigationItem,
   GallerySection,
-} from "./production/gallery/types";
+} from "./production/EvaluatorGalleryView/types";
 
 const CUSTOM_SECTION_KEY = "custom";
 

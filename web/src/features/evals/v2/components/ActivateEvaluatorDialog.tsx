@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Label } from "@/src/components/ui/label";
 import { ActivationCostEstimate } from "@/src/features/evals/v2/components/ActivationCostEstimate";
-import { EvaluationRulePicker } from "@/src/features/evals/v2/components/production/EvaluationRulePicker";
+import { EvaluationRulePicker } from "@/src/features/evals/v2/components/production/EvaluationRulePicker/EvaluationRulePicker";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
@@ -141,9 +141,7 @@ export function ActivateEvaluatorDialog({
                 </Button>
               )}
               availableRules={compatibleRules}
-              selectedRuleId={
-                destination === NEW_RULE_DESTINATION ? null : destination
-              }
+              disabledRules={[]}
               loading={rules.isPending}
               onSelectAvailableRule={(rule) => setSelectedDestination(rule.id)}
               onCreateRule={() => setSelectedDestination(NEW_RULE_DESTINATION)}

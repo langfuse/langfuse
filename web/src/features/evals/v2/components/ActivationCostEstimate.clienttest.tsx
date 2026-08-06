@@ -61,6 +61,7 @@ describe("ActivationCostEstimate", () => {
     );
 
     expect(screen.getByText("Estimated daily cost")).toBeInTheDocument();
+    expect(screen.getByText("≈ $0.02 / day")).toBeInTheDocument();
   });
 
   it("does not show a cost estimate for code evaluators", () => {

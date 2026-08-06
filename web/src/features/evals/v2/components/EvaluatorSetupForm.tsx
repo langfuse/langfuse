@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import {
   FlaskConical,
@@ -49,8 +42,9 @@ import {
 } from "@/src/features/evals/v2/components/JudgeModelSection";
 import {
   PromptVariableEditor,
+  type InterpolatedPromptPreviewState,
   type VariableMappingStatus,
-} from "@/src/features/evals/v2/components/PromptVariableEditor";
+} from "@/src/features/evals/v2/components/production/PromptVariableEditor/PromptVariableEditor";
 import {
   EVALUATION_OBSERVATION_EXCLUSION_FILTERS,
   EXAMPLE_FILTERS,
@@ -58,12 +52,10 @@ import {
   RuleFilterSearchBar,
 } from "@/src/features/evals/v2/components/EvaluationRuleSection";
 import { type EventsTableRow } from "@/src/features/events/components/EventsTable";
-import {
-  buildScoreOutputDefinition,
-  ScoreOutputSection,
-  toScoreOutputFormState,
-  type ScoreOutputFormState,
-} from "@/src/features/evals/v2/components/production/ScoreOutputSection";
+import { ScoreOutputConfiguration } from "@/src/features/evals/v2/components/production/ScoreOutputConfiguration/ScoreOutputConfiguration";
+import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/buildScoreOutputDefinition";
+import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/toScoreOutputFormState";
+import { type ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 import { EvaluationRulePreviewTable } from "@/src/features/evals/v2/components/EvaluationRulePreviewTable";
 import {
   TestResultPanel,
@@ -72,19 +64,21 @@ import {
   type CodeTestRunPayload,
   type TestRunPayload,
 } from "@/src/features/evals/v2/components/TestRunSection";
-import { TestRunButton } from "@/src/features/evals/v2/components/production/TestRunButton";
-import { CodeSampleContextDrawer } from "@/src/features/evals/v2/components/CodeSampleContextPreview";
+import { TestRunButton } from "@/src/features/evals/v2/components/production/TestRunButton/TestRunButton";
+import { CodeSampleContextDrawer } from "@/src/features/evals/v2/components/production/CodeSampleContextDrawer/CodeSampleContextDrawer";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import {
   MAPPABLE_COLUMNS,
+  VariableMapping,
+  useVariableMappingController,
   type VariableFieldState,
-} from "@/src/features/evals/v2/components/VariableMappingPopover";
-import { VariableMappingCard as VariableMapping } from "@/src/features/evals/v2/components/production/variable-mapping/VariableMappingCard";
-import { SetupStep } from "@/src/features/evals/v2/components/production/SetupStep";
+} from "@/src/features/evals/v2/components/production/VariableMapping";
+import { Stepper } from "@/src/features/evals/v2/components/production/Stepper/Stepper";
+import { EvaluatorExecutionSelector } from "@/src/features/evals/v2/components/production/EvaluatorExecutionSelector/EvaluatorExecutionSelector";
 import {
-  EvaluatorModeSelector,
-  type EvaluatorTab,
-} from "@/src/features/evals/v2/components/production/EvaluatorModeSelector";
+  EvaluatorCodeLanguageSelector,
+  type EvaluatorCodeLanguage,
+} from "@/src/features/evals/v2/components/production/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
 import { formatMappingLabel } from "@/src/features/evals/v2/lib/jsonPathSegments";
 import { buildEvaluationRuleFilterSuggestionSection } from "@/src/features/evals/v2/lib/evaluationRuleFilterSuggestions";
 import { removePromptVariable } from "@/src/features/evals/v2/lib/promptVariables";
@@ -115,7 +109,7 @@ import {
 
 export type CatalogTemplate = RouterOutputs["evalsV2"]["catalog"][number];
 
-export type { EvaluatorTab } from "@/src/features/evals/v2/components/production/EvaluatorModeSelector";
+type EvaluatorTab = "llm" | EvaluatorCodeLanguage;
 
 export type EvaluatorSetupRuleControls = {
   filterState: FilterState;
@@ -346,7 +340,8 @@ export function EvaluatorSetupForm({
 
   // The variable whose mapping card is open — activated by
   // clicking a {{variable}} pill in the prompt or the card's pencil.
-  const [activeVariable, setActiveVariable] = useState<string | null>(null);
+  const variableMapping = useVariableMappingController();
+  const activeVariable = variableMapping.editingVariable;
 
   // Judge model (LLM mode): project default or custom via shared model params.
   const [judgeModelMode, setJudgeModelMode] = useState<JudgeModelMode>(
@@ -515,22 +510,30 @@ export function EvaluatorSetupForm({
       jsonSelector: null,
     };
 
-  // Deactivate the mapping panel when its variable leaves the prompt — but
-  // follow renames: typing over a freshly inserted variable's name removes
-  // the old name and adds a new one in the same keystroke.
-  const previousVariablesRef = useRef<string[]>(variables);
-  useEffect(() => {
-    const previous = previousVariablesRef.current;
-    previousVariablesRef.current = variables;
-    if (!activeVariable || variables.includes(activeVariable)) return;
-    const added = variables.filter((v) => !previous.includes(v));
-    setActiveVariable(added.length === 1 ? added[0] : null);
-  }, [activeVariable, variables]);
+  const changePrompt = (nextPrompt: string) => {
+    const nextVariables = Array.from(
+      new Set(extractVariables(nextPrompt).filter(getIsCharOrUnderscore)),
+    );
+    if (
+      variableMapping.selectedVariable &&
+      !nextVariables.includes(variableMapping.selectedVariable)
+    ) {
+      const added = nextVariables.filter(
+        (variable) => !variables.includes(variable),
+      );
+      if (added.length === 1) variableMapping.editVariable(added[0]);
+      else variableMapping.collapse();
+    }
+    setPrompt(nextPrompt);
+  };
 
   // Trash action in the mapping panel: removes every {{variable}} occurrence
-  // from the prompt (the variable then leaves the panel via the effect above).
+  // from the prompt and closes its mapping panel.
   const deleteVariable = (variable: string) => {
     setPrompt(removePromptVariable(prompt, variable));
+    if (variableMapping.selectedVariable === variable) {
+      variableMapping.collapse();
+    }
     setVariableFields((prev) => {
       const next = { ...prev };
       delete next[variable];
@@ -609,44 +612,49 @@ export function EvaluatorSetupForm({
 
   // Prompt with every mapped {{variable}} replaced by its value from the
   // sample observation — the client-side twin of the server's interpolation.
-  // Rendered as nodes so the injected values read as highlights, not as
-  // indistinguishable prompt text.
-  const interpolatedPromptPreview = useMemo(() => {
-    if (!sourceObject) return null;
-    const parts: ReactNode[] = [];
-    const regex = /{{\s*([\w.]+)\s*}}/g;
-    let cursor = 0;
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(prompt)) !== null) {
-      parts.push(prompt.slice(cursor, match.index));
-      const key = match[1];
-      const fieldState = variableFields[key];
-      const { value, error } =
-        variables.includes(key) && fieldState?.selectedColumnId
-          ? extractValueFromObjectAsString(
-              sourceObject,
-              fieldState.selectedColumnId,
-              fieldState.jsonSelector ?? undefined,
-            )
-          : { value: null, error: new Error("unmapped") };
-      parts.push(
-        error ? (
-          match[0]
-        ) : (
-          <span
-            key={`${key}-${match.index}`}
-            className="bg-primary-accent/10 rounded px-0.5"
-            title={`{{${key}}}`}
-          >
-            {value ?? ""}
-          </span>
-        ),
-      );
-      cursor = match.index + match[0].length;
-    }
-    parts.push(prompt.slice(cursor));
-    return parts;
-  }, [prompt, sourceObject, variables, variableFields]);
+  // Keep interpolation decisions in the container; the production preview
+  // owns how resolved variables are visually distinguished from prompt text.
+  const interpolatedPromptPreview =
+    useMemo<InterpolatedPromptPreviewState>(() => {
+      if (!sourceObject) {
+        return {
+          status: "unavailable",
+          message:
+            "Pick a sample observation in the right pane to preview the interpolated prompt.",
+        };
+      }
+      const fragments: Extract<
+        InterpolatedPromptPreviewState,
+        { status: "ready" }
+      >["fragments"] = [];
+      const regex = /{{\s*([\w.]+)\s*}}/g;
+      let cursor = 0;
+      let match: RegExpExecArray | null;
+      while ((match = regex.exec(prompt)) !== null) {
+        fragments.push({
+          type: "text",
+          text: prompt.slice(cursor, match.index),
+        });
+        const key = match[1];
+        const fieldState = variableFields[key];
+        const { value, error } =
+          variables.includes(key) && fieldState?.selectedColumnId
+            ? extractValueFromObjectAsString(
+                sourceObject,
+                fieldState.selectedColumnId,
+                fieldState.jsonSelector ?? undefined,
+              )
+            : { value: null, error: new Error("unmapped") };
+        fragments.push(
+          error
+            ? { type: "text", text: match[0] }
+            : { type: "variable", name: key, value: value ?? "" },
+        );
+        cursor = match.index + match[0].length;
+      }
+      fragments.push({ type: "text", text: prompt.slice(cursor) });
+      return { status: "ready", fragments };
+    }, [prompt, sourceObject, variables, variableFields]);
 
   // Output definition payload: always for scratch, only when changed for
   // template-based evaluators (the server keeps the template's otherwise).
@@ -984,7 +992,7 @@ export function EvaluatorSetupForm({
       testRun.mutate(payload);
     }
     // Close any open mapping popover — the result appears in the test panel.
-    setActiveVariable(null);
+    variableMapping.showPreview();
   };
 
   // The test panel shows the result permanently once a run exists.
@@ -994,7 +1002,7 @@ export function EvaluatorSetupForm({
   // Activating a variable (inserting a new one, or a warning link) opens its
   // mapping selector.
   const activateVariable = (variable: string) => {
-    setActiveVariable(variable);
+    variableMapping.editVariable(variable);
   };
 
   const openSampleTracePeek = () => {
@@ -1005,7 +1013,10 @@ export function EvaluatorSetupForm({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      className="flex h-full min-h-0 flex-col"
+      {...variableMapping.boundaryProps}
+    >
       {renderRuleControls?.({
         filterState,
         setFilterState,
@@ -1032,7 +1043,7 @@ export function EvaluatorSetupForm({
           className="min-h-0 min-w-0 overflow-y-auto"
         >
           <div className="flex min-w-0 flex-col gap-3 p-6">
-            <SetupStep
+            <Stepper
               number={1}
               title="Define evaluation"
               description={
@@ -1043,36 +1054,43 @@ export function EvaluatorSetupForm({
               open={definitionStepOpen}
               onOpenChange={setDefinitionStepOpen}
             >
-              <div className="flex flex-col gap-2">
-                <LabelWithTooltip tooltip="How scores are produced: an LLM judging with a prompt, or your own Python or TypeScript code.">
-                  Evaluation
-                </LabelWithTooltip>
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <EvaluatorModeSelector
-                    value={tab}
-                    onValueChange={setTab}
-                    disabled={mode === "edit"}
-                  />
-                  {!isCodeMode ? (
-                    <>
-                      <span>with</span>
-                      <JudgeModelSection
-                        projectId={projectId}
-                        mode={judgeModelMode}
-                        onModeChange={setJudgeModelMode}
-                        modelParamsContext={{
-                          modelParams,
-                          availableModels,
-                          availableProviders,
-                          providerModelCombinations,
-                          updateModelParamValue,
-                          setModelParamEnabled,
-                        }}
-                      />
-                    </>
-                  ) : null}
-                </div>
-              </div>
+              <EvaluatorExecutionSelector
+                mode={isCodeMode ? "code" : "llm"}
+                onModeChange={(nextMode) =>
+                  setTab(
+                    nextMode === "llm" ? "llm" : tab === "llm" ? "python" : tab,
+                  )
+                }
+                disabled={mode === "edit"}
+              >
+                {isCodeMode ? (
+                  <>
+                    <span>written in</span>
+                    <EvaluatorCodeLanguageSelector
+                      value={tab}
+                      onValueChange={setTab}
+                      disabled={mode === "edit"}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <span>with</span>
+                    <JudgeModelSection
+                      projectId={projectId}
+                      mode={judgeModelMode}
+                      onModeChange={setJudgeModelMode}
+                      modelParamsContext={{
+                        modelParams,
+                        availableModels,
+                        availableProviders,
+                        providerModelCombinations,
+                        updateModelParamValue,
+                        setModelParamEnabled,
+                      }}
+                    />
+                  </>
+                )}
+              </EvaluatorExecutionSelector>
               {isCodeMode ? (
                 <div className="flex flex-col gap-2">
                   <LabelWithTooltip tooltip="Computes the score for each matching item — it receives the data and returns a value. Test it against the sample in the right pane.">
@@ -1112,7 +1130,7 @@ export function EvaluatorSetupForm({
                     </LabelWithTooltip>
                     <PromptVariableEditor
                       value={prompt}
-                      onChange={setPrompt}
+                      onChange={changePrompt}
                       variableStatus={variableStatus}
                       variableMappings={variableMappingLabels}
                       activeVariable={activeVariable}
@@ -1120,30 +1138,20 @@ export function EvaluatorSetupForm({
                       previewEnabled={previewEnabled}
                       onPreviewEnabledChange={setPreviewEnabled}
                       previewDisabledReason={null}
-                      previewSlot={
-                        interpolatedPromptPreview !== null ? (
-                          <pre className="bg-muted/30 max-h-[60dvh] overflow-y-auto rounded-b-md border p-3 font-sans text-sm whitespace-pre-wrap">
-                            {interpolatedPromptPreview}
-                          </pre>
-                        ) : (
-                          <p className="text-muted-foreground bg-muted/30 rounded-b-md border p-3 text-sm">
-                            Pick a sample observation in the right pane to
-                            preview the interpolated prompt.
-                          </p>
-                        )
-                      }
+                      preview={interpolatedPromptPreview}
                     />
                   </div>
-                  <ScoreOutputSection
+                  <ScoreOutputConfiguration
                     state={outputState}
+                    mode="editable"
                     onChange={setOutputState}
                   />
                 </>
               )}
-            </SetupStep>
+            </Stepper>
 
             {!isCodeMode ? (
-              <SetupStep
+              <Stepper
                 number={2}
                 title="Map variables to data"
                 description="Configure how observation data maps to variables in your evaluator prompt. Use the sample observation to preview and verify the mapping."
@@ -1151,10 +1159,12 @@ export function EvaluatorSetupForm({
                 onOpenChange={setMappingStepOpen}
               >
                 <VariableMapping
-                  overview={variableOverview}
-                  activeVariable={activeVariable}
-                  onActiveVariableChange={setActiveVariable}
-                  getFieldState={getVariableFieldState}
+                  mode="editable"
+                  mappings={variableOverview.map(({ variable }) => ({
+                    variable,
+                    fieldState: getVariableFieldState(variable),
+                  }))}
+                  {...variableMapping.mappingProps}
                   onChangeField={(variable, next) =>
                     setVariableFields((prev) => ({
                       ...prev,
@@ -1165,10 +1175,10 @@ export function EvaluatorSetupForm({
                   sourceObject={sourceObject}
                   hasMatchingObservations={observationOptions.length > 0}
                 />
-              </SetupStep>
+              </Stepper>
             ) : null}
 
-            <SetupStep
+            <Stepper
               number={isCodeMode ? 2 : 3}
               title="Name evaluator"
               description="Give the evaluator a clear name and explain when it should be used."
@@ -1201,7 +1211,7 @@ export function EvaluatorSetupForm({
                   />
                 </div>
               </div>
-            </SetupStep>
+            </Stepper>
           </div>
         </ResizablePanel>
 

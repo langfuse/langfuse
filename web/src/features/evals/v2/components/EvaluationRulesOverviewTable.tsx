@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EvaluationRuleExecutionTraceStatusHistory } from "@/src/features/evals/v2/components/production/EvaluationRuleExecutionStatusHistory";
+import { EvaluationRuleExecutionStatusHistory } from "@/src/features/evals/v2/components/production/EvaluationRuleExecutionStatusHistory/EvaluationRuleExecutionStatusHistory";
 import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar";
 import { RelationshipPills } from "@/src/features/evals/v2/components/RelationshipPills";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
@@ -232,7 +232,7 @@ export function EvaluationRulesOverviewTable({
         header: "Last 5 runs",
         size: 120,
         cell: ({ row }) => (
-          <EvaluationRuleExecutionTraceStatusHistory
+          <EvaluationRuleExecutionStatusHistory
             traces={row.original.executionTraces}
           />
         ),

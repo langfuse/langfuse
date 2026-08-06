@@ -11,14 +11,12 @@ import {
 
 import { Button } from "@/src/components/ui/button";
 import {
+  JsonPathEditor,
   MAPPABLE_COLUMNS,
-  type VariableFieldState,
-} from "@/src/features/evals/v2/components/VariableMappingPopover";
-import {
   previewOf,
   typeBadge,
-} from "@/src/features/evals/v2/components/VariableMappingPanel";
-import { JsonPathEditor } from "@/src/features/evals/v2/components/production/variable-mapping/JsonPathEditor";
+  type VariableFieldState,
+} from "@/src/features/evals/v2/components/production/VariableMapping";
 import {
   buildJsonPathSuggestions,
   tryParseJson,
@@ -154,8 +152,7 @@ function TreeRow({
         role="button"
         tabIndex={0}
         className={cn(
-          "group/row flex w-full min-w-0 cursor-pointer items-center gap-2 px-2 py-1 text-left text-sm",
-          expandable ? "hover:bg-accent/50" : "hover:bg-primary-accent/10",
+          "group/row hover:bg-muted/50 flex w-full min-w-0 cursor-pointer items-center gap-2 px-2 py-1 text-left text-sm",
           isCurrent && "bg-primary-accent/5",
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -221,7 +218,7 @@ function TreeRow({
             solid button here would compete with the real primary actions. */}
         {isCurrent && (
           <span
-            className="text-primary-accent bg-primary-accent/10 shrink-0 rounded px-1.5 py-px text-[10px] font-bold"
+            className="text-primary-accent bg-primary-accent/10 shrink-0 rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
             title={
               armedVariable
                 ? `{{${armedVariable}}} currently pulls from here`
@@ -342,85 +339,6 @@ function TreeRow({
           )
         ))}
     </>
-  );
-}
-
-/**
- * Single-variable tree selector for the merged mapping rows: the shape-first
- * sample tree, scoped to one variable — no arming, every row click binds and
- * the caller closes the surface (select semantics). The current binding's
- * path comes pre-expanded so the tree opens "where you are".
- */
-// The picker shows no existing mappings — no other-variable chips and no
-// "current" marker. It is about picking THIS variable's data; the cards
-// above already carry every mapping.
-const NO_CHIPS = new Map<string, string[]>();
-
-export function SampleDataTreeSelector({
-  variable,
-  currentColumnId,
-  currentSegments,
-  sourceObject,
-  onSelect,
-}: {
-  /** The variable being edited — every click binds it. */
-  variable: string;
-  currentColumnId: string | null;
-  /** Parsed binding segments; null = custom path (no highlight). */
-  currentSegments: PathSegment[] | null;
-  sourceObject: Record<string, unknown>;
-  onSelect: (columnId: string, segments: PathSegment[]) => void;
-}) {
-  // Open "where you are": the current binding's ancestors start expanded.
-  // The selector unmounts on collapse, so this resets per open.
-  const [expanded, setExpanded] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    if (currentColumnId && currentSegments) {
-      for (let i = 0; i < currentSegments.length; i++) {
-        initial.add(pathKey(currentColumnId, currentSegments.slice(0, i)));
-      }
-    }
-    return initial;
-  });
-  const toggleExpand = (key: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-
-  const roots = useMemo(
-    () =>
-      MAPPABLE_COLUMNS.map((col) => {
-        const raw = sourceObject[col.id];
-        return {
-          columnId: col.id,
-          label: col.label,
-          value: typeof raw === "string" ? tryParseJson(raw) : raw,
-        };
-      }),
-    [sourceObject],
-  );
-
-  return (
-    <div className="max-h-80 overflow-y-auto py-1">
-      {roots.map((root) => (
-        <TreeRow
-          key={root.columnId}
-          columnId={root.columnId}
-          segments={[]}
-          label={root.label}
-          value={root.value}
-          depth={0}
-          armedVariable={variable}
-          expanded={expanded}
-          onToggleExpand={toggleExpand}
-          boundChips={NO_CHIPS}
-          onBind={onSelect}
-        />
-      ))}
-    </div>
   );
 }
 

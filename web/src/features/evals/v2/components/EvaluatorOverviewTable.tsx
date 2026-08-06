@@ -1,5 +1,5 @@
 import { formatDistanceToNowStrict } from "date-fns";
-import { Circle, ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
@@ -8,7 +8,6 @@ import { type FilterState } from "@langfuse/shared";
 
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import {
@@ -23,7 +22,9 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EvaluationRuleExecutionTraceStatusHistory } from "@/src/features/evals/v2/components/production/EvaluationRuleExecutionStatusHistory";
+import { EvaluationRuleExecutionStatusHistory } from "@/src/features/evals/v2/components/production/EvaluationRuleExecutionStatusHistory/EvaluationRuleExecutionStatusHistory";
+import { EvaluatorActiveStatusBadge } from "@/src/features/evals/v2/components/production/EvaluatorActiveStatusBadge/EvaluatorActiveStatusBadge";
+import { EvaluatorTypeBadge } from "@/src/features/evals/v2/components/production/EvaluatorTypeBadge/EvaluatorTypeBadge";
 import { EvaluatorOverviewAttachToRuleButton } from "@/src/features/evals/v2/components/EvaluatorOverviewAttachToRuleButton";
 import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
@@ -55,12 +56,7 @@ function EvaluatorActiveStatus({
   activeRules: EvaluatorRow["activeRules"];
 }) {
   if (activeRules.length === 0) {
-    return (
-      <Badge variant="secondary" className="gap-1.5 whitespace-nowrap">
-        <Circle className="h-2 w-2 fill-current" />
-        Inactive · 0
-      </Badge>
-    );
+    return <EvaluatorActiveStatusBadge activeRuleCount={0} />;
   }
 
   return (
@@ -72,10 +68,7 @@ function EvaluatorActiveStatus({
           aria-label={`Active. Used by ${activeRules.length} active evaluation rule${activeRules.length === 1 ? "" : "s"}`}
           onClick={(event) => event.stopPropagation()}
         >
-          <Badge className="gap-1.5 bg-green-500/15 whitespace-nowrap text-green-700 hover:bg-green-500/25 dark:text-green-400">
-            <Circle className="h-2 w-2 fill-current" />
-            Active · {activeRules.length}
-          </Badge>
+          <EvaluatorActiveStatusBadge activeRuleCount={activeRules.length} />
         </button>
       </HoverCardTrigger>
       <HoverCardContent
@@ -225,7 +218,7 @@ export function EvaluatorOverviewTable({
         header: "Last 5 runs",
         size: 120,
         cell: ({ row }) => (
-          <EvaluationRuleExecutionTraceStatusHistory
+          <EvaluationRuleExecutionStatusHistory
             traces={row.original.executionTraces}
           />
         ),
@@ -236,11 +229,9 @@ export function EvaluatorOverviewTable({
         header: "Type",
         size: 150,
         cell: ({ row }) => (
-          <Badge variant="secondary" className="whitespace-nowrap">
-            {row.original.evalTemplate?.type === "CODE"
-              ? "Code"
-              : "LLM as a judge"}
-          </Badge>
+          <EvaluatorTypeBadge
+            type={row.original.evalTemplate?.type ?? "LLM_AS_JUDGE"}
+          />
         ),
       },
       {

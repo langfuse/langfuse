@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert";
+import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert/EvaluationRuleAttachmentValidationAlert";
 import { parseEvaluationRuleVariableMapping } from "@/src/features/evals/v2/components/EvaluationRuleEvaluatorList";
 import { EvaluationRuleForm } from "@/src/features/evals/v2/components/EvaluationRuleForm";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";

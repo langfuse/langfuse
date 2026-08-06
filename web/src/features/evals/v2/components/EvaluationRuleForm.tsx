@@ -32,7 +32,7 @@ import {
   mergeExampleFilters,
   RuleFilterSearchBar,
 } from "@/src/features/evals/v2/components/EvaluationRuleSection";
-import { SetupStep } from "@/src/features/evals/v2/components/production/SetupStep";
+import { Stepper } from "@/src/features/evals/v2/components/production/Stepper/Stepper";
 import { type AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 
 export function EvaluationRuleForm({
@@ -109,7 +109,7 @@ export function EvaluationRuleForm({
 
   return (
     <div className="flex flex-col gap-3">
-      <SetupStep
+      <Stepper
         number={1}
         title="Choose observations"
         description="Filter incoming observations and preview what this rule will evaluate."
@@ -166,9 +166,9 @@ export function EvaluationRuleForm({
             />
           </section>
         </div>
-      </SetupStep>
+      </Stepper>
 
-      <SetupStep
+      <Stepper
         number={2}
         title="Set sampling rate"
         description="Choose the share of matching observations to evaluate."
@@ -190,9 +190,9 @@ export function EvaluationRuleForm({
             displayAsPercentage
           />
         </div>
-      </SetupStep>
+      </Stepper>
 
-      <SetupStep
+      <Stepper
         number={3}
         title="Attach evaluator"
         description="Choose which evaluators should run on matching observations."
@@ -264,9 +264,9 @@ export function EvaluationRuleForm({
           />
           {evaluatorContent}
         </div>
-      </SetupStep>
+      </Stepper>
 
-      <SetupStep
+      <Stepper
         number={4}
         title="Name rule"
         description="Give this rule a clear name so it is easy to recognize."
@@ -290,7 +290,7 @@ export function EvaluationRuleForm({
           />
           <p className="text-muted-foreground text-xs">{nameHint}</p>
         </div>
-      </SetupStep>
+      </Stepper>
     </div>
   );
 }
