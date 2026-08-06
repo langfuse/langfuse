@@ -76,9 +76,14 @@ is instant, which is why the CLI is batch-shaped.
   move that sibling too, or do the move by hand.
 - **History is preserved**: `git mv`, so `log --follow` and `blame -C` keep
   working. Importer rewrites go through prettier (a longer specifier can push a
-  line past the print width) and are staged.
-- **Nothing is destructive.** No `reset`, no `stash`, no `checkout --`. Failures
-  print the way back — which is the inverse `structure:move`, not a reset.
+  line past the print width) and are left **unstaged** — `git mv` stages the
+  renames by nature, but staging edited importers would fold any unrelated work
+  in them into this move's index entry. A rewrite target that already has
+  uncommitted changes is called out before anything is written.
+- **Nothing is destructive.** No `reset`, no `stash`, no `checkout --`, and no
+  write that can land on top of an existing file. Failures print the way back —
+  the inverse `structure:move`, not a reset — including a batch that dies
+  halfway, which prints the inverse of whatever completed.
 - **Idempotent**: everything already at the destination is a no-op, exit 0.
 - **Blind spot, surfaced not solved**: modules named by string (`vi.mock` paths,
   worker URLs, route strings) are invisible to the compiler, so `tsc` stays

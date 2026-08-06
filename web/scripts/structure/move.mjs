@@ -106,6 +106,12 @@ const abs = (rel) => `${webRoot}/${rel}`;
 /** @type {(rel: string) => boolean} */
 const isDirOnDisk = (rel) =>
   existsSync(abs(rel)) && statSync(abs(rel)).isDirectory();
+/** "" for a file sitting directly in web/ — lastIndexOf alone would truncate it */
+/** @type {(p: string) => string} */
+const parentDir = (p) =>
+  p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
+/** @type {(p: string) => string} */
+const baseName = (p) => p.slice(p.lastIndexOf("/") + 1);
 
 /** @type {(absDir: string) => string[]} */
 function walkFiles(absDir) {
@@ -136,10 +142,9 @@ const plan = new Map();
 /** @type {(from: string, sibling: boolean, subdir?: string) => void} */
 function addMove(from, sibling, subdir = "") {
   if (plan.has(from)) return;
-  const base = from.slice(from.lastIndexOf("/") + 1);
   plan.set(from, {
     from,
-    to: `${toDir}${subdir}/${base}`,
+    to: `${toDir}${subdir}/${baseName(from)}`,
     isDir: isDirOnDisk(from),
     sibling,
   });
@@ -154,15 +159,15 @@ function isSiblingOf(stem, entry) {
 for (const from of fromArgs) {
   if (
     !existsSync(abs(from)) &&
-    !existsSync(abs(`${toDir}/${from.slice(from.lastIndexOf("/") + 1)}`))
+    !existsSync(abs(`${toDir}/${baseName(from)}`))
   ) {
     console.error(`${red("not found:")} ${from}`);
     process.exit(1);
   }
   addMove(from, false);
   if (!withSiblings || isDirOnDisk(from) || !existsSync(abs(from))) continue;
-  const dir = from.slice(0, from.lastIndexOf("/"));
-  const base = from.slice(from.lastIndexOf("/") + 1);
+  const dir = parentDir(from);
+  const base = baseName(from);
   const stem = base.slice(0, base.lastIndexOf("."));
   for (const entry of readdirSync(abs(dir)))
     if (isSiblingOf(stem, entry)) addMove(`${dir}/${entry}`, true);
@@ -172,14 +177,32 @@ for (const from of fromArgs) {
         addMove(`${dir}/__tests__/${entry}`, true, "/__tests__");
 }
 
-for (const m of plan.values())
+/** @type {(msg: string) => never} */
+function bail(msg) {
+  console.error(msg);
+  process.exit(1);
+}
+/** @type {Map<string, string>} destination -> the source that claimed it */
+const claimed = new Map();
+for (const m of plan.values()) {
+  // two sources with one basename would both target the same path; git mv
+  // refuses the second, and a rename fallback would silently clobber the first
+  const already = claimed.get(m.to);
+  if (already)
+    bail(
+      `${red("two sources, one destination:")} ${already} and ${m.from} both want ${m.to}`,
+    );
+  claimed.set(m.to, m.from);
+  if (m.isDir && (toDir === m.from || toDir.startsWith(`${m.from}/`)))
+    bail(
+      `${red("destination is inside the source:")} ${toDir} is under ${m.from}`,
+    );
   for (const other of plan.values())
-    if (other !== m && other.isDir && m.from.startsWith(`${other.from}/`)) {
-      console.error(
+    if (other !== m && other.isDir && m.from.startsWith(`${other.from}/`))
+      bail(
         `${red("nested source:")} ${m.from} is already inside ${other.from}`,
       );
-      process.exit(1);
-    }
+}
 
 // --- idempotence + conflicts --------------------------------------------------
 /** @type {Move[]} */
@@ -565,6 +588,23 @@ if (followed.size) {
 const git = (cmd, cmdArgs) =>
   execFileSync("git", [cmd, ...cmdArgs], { cwd: webRoot, encoding: "utf8" });
 
+// Rewriting a file that already has uncommitted work in it also runs prettier
+// over that work — worth saying out loud before it happens.
+if (importerFiles.length) {
+  const rels = importerFiles.map((f) => relative(webRoot, f));
+  const dirty = git("status", ["--porcelain", "--", ...rels])
+    .split("\n")
+    .filter(Boolean);
+  if (dirty.length) {
+    console.log(
+      red(
+        `${dirty.length} file${dirty.length === 1 ? "" : "s"} to rewrite already ha${dirty.length === 1 ? "s" : "ve"} uncommitted changes:`,
+      ),
+    );
+    for (const line of dirty) console.log(`  ${line}`);
+  }
+}
+
 if (dryRun) {
   console.log();
   console.log(dim("dry run — nothing written. Drop --dry-run to apply."));
@@ -593,12 +633,14 @@ function printRevert(moves) {
 const appliedMoves = [];
 try {
   for (const m of pending) {
-    const destParent = abs(m.to).slice(0, abs(m.to).lastIndexOf("/"));
-    mkdirSync(destParent, { recursive: true });
+    mkdirSync(abs(parentDir(m.to)), { recursive: true });
     try {
       git("mv", [m.from, m.to]);
-    } catch {
-      // untracked source: git mv refuses, a plain rename + add is equivalent
+    } catch (err) {
+      // git mv also refuses an untracked source; a plain rename is equivalent
+      // there, but only ever onto a destination that does not exist — rename(2)
+      // would overwrite one silently.
+      if (existsSync(abs(m.to))) throw err;
       renameSync(abs(m.from), abs(m.to));
       git("add", ["--", m.to]);
     }
@@ -607,28 +649,35 @@ try {
   // git does not track directories, so a move that empties one leaves it on
   // disk. rmdir only ever succeeds on an empty one, so this cannot lose work.
   for (const m of pending) {
-    let dir = m.from.slice(0, m.from.lastIndexOf("/"));
+    let dir = parentDir(m.from);
     while (dir.startsWith("src/") && dir !== "src") {
       try {
         rmdirSync(abs(dir));
       } catch {
         break;
       }
-      dir = dir.slice(0, dir.lastIndexOf("/"));
+      dir = parentDir(dir);
     }
   }
-  const rewritten = [...importerFiles, ...followed.keys()];
+  // Rewrites are left unstaged: `git mv` stages the renames by nature, but
+  // staging edited importers would fold any unrelated work in them into this
+  // move's index entry.
+  const rewritten = [...new Set([...importerFiles, ...followed.keys()])];
   for (const f of rewritten) writeFileSync(f, currentText(f) ?? "", "utf8");
-  if (rewritten.length) {
-    const rels = rewritten.map((f) => relative(webRoot, f));
+  if (rewritten.length)
     // a specifier gets longer or shorter, so prettier may want to re-wrap the line
     execFileSync(
       "pnpm",
-      ["exec", "prettier", "--write", "--log-level", "warn", ...rels],
+      [
+        "exec",
+        "prettier",
+        "--write",
+        "--log-level",
+        "warn",
+        ...rewritten.map((f) => relative(webRoot, f)),
+      ],
       { cwd: webRoot, stdio: "inherit" },
     );
-    git("add", ["--", ...rels]);
-  }
 } catch (err) {
   console.error(
     red(`\napply failed: ${err instanceof Error ? err.message : String(err)}`),
