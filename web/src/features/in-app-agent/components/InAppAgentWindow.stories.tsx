@@ -928,7 +928,6 @@ export const GroupedAssistantTurn = meta.story({
     messages: [
       {
         id: "grouped-user",
-        timestamp: new Date("2026-08-06T15:26:45.000Z").getTime(),
         role: "user",
         content: { type: "text", text: "Why did latency increase?" },
       },
@@ -961,6 +960,38 @@ export const GroupedAssistantTurn = meta.story({
               status: "succeeded",
               args: JSON.stringify({ orderBy: "latency.desc", limit: 10 }),
               result: JSON.stringify({ bottleneck: "document-reranking" }),
+            },
+          ],
+        },
+      },
+      {
+        id: "grouped-reasoning-2",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "The reranking step is slow across both outlier traces.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "grouped-tool-2",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_getTraces",
+              status: "succeeded",
+              args: JSON.stringify({ ids: ["trace-104", "trace-219"] }),
+              result: JSON.stringify({ count: 2 }),
+            },
+            {
+              type: "tool",
+              name: "langfuse_queryMetrics",
+              status: "succeeded",
+              args: JSON.stringify({ metric: "latency", aggregation: "p95" }),
+              result: JSON.stringify({ value: 5.82 }),
             },
           ],
         },

@@ -151,8 +151,6 @@ function SmartLink({
 export type InAppAgentMessageProps = {
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
-  copyGroupId?: string;
-  copyText?: string;
   isCompact?: boolean;
   isFeedbackDisabled?: boolean;
   showActions?: boolean;
@@ -166,8 +164,6 @@ export type InAppAgentMessageProps = {
 export function InAppAgentMessage({
   role,
   content,
-  copyGroupId,
-  copyText,
   isCompact = false,
   isFeedbackDisabled = false,
   showActions = true,
@@ -197,8 +193,6 @@ export function InAppAgentMessage({
       <TextMessageWithActions
         role={role}
         content={content}
-        copyGroupId={copyGroupId}
-        copyText={copyText}
         isCompact={isCompact}
         isFeedbackDisabled={isFeedbackDisabled}
         onSubmitFeedback={onSubmitFeedback}
@@ -260,8 +254,6 @@ const MessageCard = forwardRef<
 function TextMessageWithActions({
   role,
   content,
-  copyGroupId,
-  copyText,
   isCompact,
   isFeedbackDisabled,
   onSubmitFeedback,
@@ -270,8 +262,6 @@ function TextMessageWithActions({
 }: {
   role: InAppAgentMessageRole;
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
-  copyGroupId?: string;
-  copyText?: string;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
   showActions: boolean;
@@ -301,42 +291,21 @@ function TextMessageWithActions({
       return;
     }
 
-    const messageRoot = messageCardRef.current?.parentElement;
-    const conversationRoot = messageRoot?.closest("ol");
-    const copyGroupRoots = copyGroupId
-      ? Array.from(
-          conversationRoot?.querySelectorAll(
-            "[data-in-app-agent-copy-group]",
-          ) ?? [],
-        ).filter(
-          (node) =>
-            node.getAttribute("data-in-app-agent-copy-group") === copyGroupId,
-        )
-      : messageRoot
-        ? [messageRoot]
-        : [];
-    const html = copyGroupRoots
-      .map((root) => {
-        const renderedContent = root.querySelector(
-          "[data-in-app-agent-message-content]",
-        );
-        const htmlContainer = renderedContent?.cloneNode(true) as
-          | HTMLElement
-          | undefined;
-        htmlContainer
-          ?.querySelectorAll("[data-in-app-agent-code-copy-button]")
-          .forEach((node) => {
-            node.remove();
-          });
-
-        return htmlContainer?.innerHTML;
-      })
-      .filter((value): value is string => Boolean(value))
-      .join("<br><br>");
+    const renderedContent = messageCardRef.current?.querySelector(
+      "[data-in-app-agent-message-content]",
+    );
+    const htmlContainer = renderedContent?.cloneNode(true) as
+      | HTMLElement
+      | undefined;
+    htmlContainer
+      ?.querySelectorAll("[data-in-app-agent-code-copy-button]")
+      .forEach((node) => {
+        node.remove();
+      });
 
     copyRich({
-      text: copyText ?? content.text,
-      html: html || content.text,
+      text: content.text,
+      html: htmlContainer?.innerHTML ?? content.text,
     }).catch(() => undefined);
   };
 
@@ -371,7 +340,6 @@ function TextMessageWithActions({
 
   return (
     <div
-      data-in-app-agent-copy-group={copyGroupId}
       className={cn(
         "group/message flex max-w-full flex-col",
         role === "user" ? "items-end" : "items-start",

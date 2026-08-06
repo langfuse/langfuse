@@ -250,11 +250,6 @@ export type InAppAgentWindowMessage = {
   content: InAppAgentMessageContent;
 };
 
-type InAppAgentWindowAssistantTextMessage = InAppAgentWindowMessage & {
-  role: "assistant";
-  content: Extract<InAppAgentMessageContent, { type: "text" }>;
-};
-
 export type InAppAgentWindowConversation = {
   id: string;
   title: string | null;
@@ -867,7 +862,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 </div>
               ) : null}
 
-              <ol className="flex w-full flex-col gap-3 pb-4">
+              <ol className="flex w-full flex-col gap-1 pb-4">
                 {visibleMessages.map((message, index) => {
                   const hasFullWidthContent =
                     message.role === "assistant" ||
@@ -885,42 +880,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       : nextUserMessageIndex;
                   const isCurrentTurnInProgress =
                     isAssistantTurnInProgress && nextUserMessageIndex === -1;
-                  let turnStartIndex = -1;
-                  for (
-                    let previousIndex = index;
-                    previousIndex >= 0;
-                    previousIndex -= 1
-                  ) {
-                    if (visibleMessages[previousIndex]?.role === "user") {
-                      turnStartIndex = previousIndex;
-                      break;
-                    }
-                  }
-                  const assistantTextMessages = visibleMessages
-                    .slice(turnStartIndex + 1, nextTurnStartIndex)
-                    .filter(
-                      (
-                        turnMessage,
-                      ): turnMessage is InAppAgentWindowAssistantTextMessage =>
-                        turnMessage.role === "assistant" &&
-                        turnMessage.content.type === "text",
-                    );
-                  const assistantSources = assistantTextMessages
-                    .flatMap(
-                      (assistantMessage) =>
-                        assistantMessage.content.sources ?? [],
-                    )
-                    .filter(
-                      (source, sourceIndex, sources) =>
-                        sources.findIndex(
-                          (candidate) => candidate.url === source.url,
-                        ) === sourceIndex,
-                    );
                   const isFinalAssistantTextBlock =
-                    assistantTextMessages.at(-1)?.id === message.id;
+                    message.role === "assistant" &&
+                    message.content.type === "text" &&
+                    visibleMessages
+                      .slice(index + 1, nextTurnStartIndex)
+                      .every(
+                        (nextMessage) =>
+                          nextMessage.role !== "assistant" ||
+                          nextMessage.content.type !== "text",
+                      );
                   const showActions =
-                    message.role === "user" ||
-                    (isFinalAssistantTextBlock && !isCurrentTurnInProgress);
+                    isFinalAssistantTextBlock && !isCurrentTurnInProgress;
                   const feedbackRunId =
                     message.role === "assistant" &&
                     message.content.type === "text" &&
@@ -936,37 +907,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         "max-w-[92%]",
                         hasFullWidthContent ? "w-full" : "w-fit",
                         message.role === "user" && "ml-auto",
+                        message.role === "user" && index > 0 && "mt-3",
+                        message.role === "assistant" &&
+                          visibleMessages[index - 1]?.role === "user" &&
+                          "mt-3",
                       )}
                     >
                       <InAppAgentMessage
                         role={message.role}
-                        content={
-                          message.role === "assistant" &&
-                          message.content.type === "text" &&
-                          isFinalAssistantTextBlock
-                            ? {
-                                ...message.content,
-                                sources: assistantSources,
-                              }
-                            : message.content
-                        }
-                        copyGroupId={
-                          message.role === "assistant" &&
-                          message.content.type === "text"
-                            ? `assistant-turn-${visibleMessages[turnStartIndex]?.id ?? "initial"}`
-                            : undefined
-                        }
-                        copyText={
-                          message.role === "assistant" &&
-                          message.content.type === "text"
-                            ? assistantTextMessages
-                                .map(
-                                  (assistantMessage) =>
-                                    assistantMessage.content.text,
-                                )
-                                .join("\n\n")
-                            : undefined
-                        }
+                        content={message.content}
                         isCompact={!isExpanded}
                         isFeedbackDisabled={isConversationInteractionDisabled}
                         showActions={showActions}

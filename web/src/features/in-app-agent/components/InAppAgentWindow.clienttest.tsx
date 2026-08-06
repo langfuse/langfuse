@@ -470,7 +470,7 @@ describe("InAppAgentWindow scrolling", () => {
 });
 
 describe("InAppAgentWindow message actions", () => {
-  it("shows one action row per turn and copies only the assistant prose blocks", async () => {
+  it("shows actions only for the final answer and copies that text block", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -483,7 +483,6 @@ describe("InAppAgentWindow message actions", () => {
         messages: [
           {
             id: "user-1",
-            timestamp: new Date("2026-08-06T15:26:45.000Z").getTime(),
             role: "user",
             content: { type: "text", text: "Investigate latency" },
           },
@@ -518,29 +517,26 @@ describe("InAppAgentWindow message actions", () => {
     );
 
     const actionRows = screen.getAllByTestId("in-app-agent-message-actions");
-    expect(actionRows).toHaveLength(2);
+    expect(actionRows).toHaveLength(1);
     expect(
-      within(actionRows[0]).queryByRole("button", { name: "Good response" }),
-    ).not.toBeInTheDocument();
+      screen.getAllByRole("button", { name: "Copy message" }),
+    ).toHaveLength(1);
     expect(
-      within(actionRows[1]).getByRole("button", { name: "Good response" }),
+      within(actionRows[0]).getByRole("button", { name: "Good response" }),
     ).toBeInTheDocument();
     expect(
-      within(actionRows[1]).getByRole("button", { name: "Bad response" }),
+      within(actionRows[0]).getByRole("button", { name: "Bad response" }),
     ).toBeInTheDocument();
     expect(actionRows[0].querySelector("time")).toHaveClass("opacity-0");
-    expect(actionRows[1].querySelector("time")).toHaveClass("opacity-0");
 
     fireEvent.click(
-      within(actionRows[1]).getByRole("button", {
+      within(actionRows[0]).getByRole("button", {
         name: "Copy message",
       }),
     );
 
     await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith(
-        "I will inspect the slow traces.\n\nThe reranker is the bottleneck.",
-      );
+      expect(writeText).toHaveBeenCalledWith("The reranker is the bottleneck.");
     });
   });
 });
