@@ -200,12 +200,6 @@ const STATUS: SemanticToken[] = [
     dark: ref(RED, "700"),
   },
   {
-    token: "--on-danger",
-    purpose: "Ink on the danger solid",
-    light: WHITE,
-    dark: WHITE,
-  },
-  {
     token: "--danger-text",
     purpose: "Danger text and icons",
     light: ref(RED, "700"),

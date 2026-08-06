@@ -714,7 +714,6 @@
      text/border accents flip in .dark below. */
   --danger-fill: oklch(57.7% 0.245 27.325); /* red-600 */
   --danger-fill-border: oklch(50.5% 0.213 27.518); /* red-700 */
-  --on-danger: oklch(100% 0 0); /* white */
   --danger-text: oklch(50.5% 0.213 27.518); /* red-700 */
   --danger-border: oklch(80.8% 0.114 19.571); /* red-300 */
   /* Icon sizing. */
@@ -765,7 +764,6 @@
   --text-color-contrast: var(--text-contrast);
   --text-color-on-inverse: var(--text-on-inverse);
   --text-color-danger: var(--danger-text);
-  --text-color-on-danger: var(--on-danger);
 
   --shadow-1: var(--shadow-1);
 }

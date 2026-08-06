@@ -40,7 +40,7 @@ const CONTROL_BASE =
 const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
   primary: {
     default: "border-inverse bg-inverse text-on-inverse shadow-1 border",
-    danger: "border-danger-fill bg-danger-fill text-on-danger shadow-1 border",
+    danger: "border-danger-fill bg-danger-fill text-on-inverse shadow-1 border",
   },
   secondary: {
     default: "border-default bg-elevation-1 text-secondary shadow-1 border",
@@ -57,7 +57,7 @@ const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
 export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
   primary: {
     default: "bg-inverse · text-on-inverse · border-inverse",
-    danger: "bg-danger-fill · text-on-danger · border-danger-fill",
+    danger: "bg-danger-fill · text-on-inverse · border-danger-fill",
   },
   secondary: {
     default: "bg-elevation-1 · text-secondary · border-default",
