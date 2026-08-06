@@ -22,6 +22,11 @@ const overflowScores = Array.from({ length: 16 }, (_, index) => ({
   dataType: "NUMERIC" as const,
 })) satisfies ComponentProps<typeof ModernSessionHeader>["scores"];
 
+const manyUsers = Array.from(
+  { length: 1_000 },
+  (_, index) => `user-${index + 1}@example.com`,
+);
+
 const defaultArgs = {
   projectId: "project-1",
   countTraces: 24,
@@ -122,5 +127,55 @@ export const TestSearchesHiddenPills = meta.story({
     await expect(
       within(dialog).queryByText("Quality 1"),
     ).not.toBeInTheDocument();
+  },
+});
+
+export const TestBoundsManyUsers = meta.story({
+  name: "(Test) Bounds many users",
+  args: {
+    ...defaultArgs,
+    users: manyUsers,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelectorAll('a[href*="/users/"]').length,
+      ).toBeLessThanOrEqual(6),
+    );
+
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: /show \d+ hidden session details/i,
+      }),
+    );
+    const body = within(canvasElement.ownerDocument.body);
+    const detailsDialog = body.getByRole("dialog", {
+      name: "All session details",
+    });
+    const results = within(detailsDialog).getByRole("region", {
+      name: "Session detail results",
+    });
+    const initialUserCount = within(results).getAllByRole("link").length;
+    await expect(initialUserCount).toBeLessThanOrEqual(53);
+
+    results.scrollTop = results.scrollHeight;
+    results.dispatchEvent(new Event("scroll", { bubbles: true }));
+    await waitFor(() =>
+      expect(within(results).getAllByRole("link").length).toBeGreaterThan(
+        initialUserCount,
+      ),
+    );
+
+    const searchInput = within(detailsDialog).getByRole("textbox", {
+      name: "Search session details",
+    });
+    await userEvent.clear(searchInput);
+    await userEvent.type(searchInput, "user-999@example.com");
+    await expect(
+      within(results).getByRole("link", {
+        name: "user user-999@example.com",
+      }),
+    ).toBeInTheDocument();
   },
 });

@@ -105,10 +105,12 @@ import {
   type LegacySessionTrace,
 } from "@/src/components/session/sessionDetailPageTypes";
 import { getSessionFilterOptionsStartTimeFilters } from "@/src/components/session/sessionFilterOptions";
+import {
+  INITIAL_SESSION_USERS_DISPLAY_COUNT,
+  SESSION_USERS_PER_PAGE,
+} from "@/src/components/session/sessionUsers";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
-const INITIAL_USERS_DISPLAY_COUNT = 3;
-const USERS_PER_PAGE_IN_POPOVER = 50;
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.
 const SESSION_VIRTUALIZER_OVERSCAN = 5;
 
@@ -123,8 +125,8 @@ export function SessionUsers({
 
   if (!users) return null;
 
-  const initialUsers = users?.slice(0, INITIAL_USERS_DISPLAY_COUNT);
-  const remainingUsers = users?.slice(INITIAL_USERS_DISPLAY_COUNT);
+  const initialUsers = users?.slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT);
+  const remainingUsers = users?.slice(INITIAL_SESSION_USERS_DISPLAY_COUNT);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -161,8 +163,8 @@ export function SessionUsers({
               <div className="flex flex-col gap-2 p-2">
                 {remainingUsers
                   .slice(
-                    page * USERS_PER_PAGE_IN_POPOVER,
-                    (page + 1) * USERS_PER_PAGE_IN_POPOVER,
+                    page * SESSION_USERS_PER_PAGE,
+                    (page + 1) * SESSION_USERS_PER_PAGE,
                   )
                   .map((userId: string) => {
                     const userBadgeText = `User ID: ${userId}`;
@@ -186,7 +188,7 @@ export function SessionUsers({
                   })}
               </div>
             </ScrollArea>
-            {remainingUsers.length > USERS_PER_PAGE_IN_POPOVER && (
+            {remainingUsers.length > SESSION_USERS_PER_PAGE && (
               <div className="flex items-center justify-between border-t p-2 pt-4">
                 <Button
                   variant="outline"
@@ -198,15 +200,14 @@ export function SessionUsers({
                 </Button>
                 <span className="text-muted-foreground text-sm">
                   Page {page + 1} of{" "}
-                  {Math.ceil(remainingUsers.length / USERS_PER_PAGE_IN_POPOVER)}
+                  {Math.ceil(remainingUsers.length / SESSION_USERS_PER_PAGE)}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={
-                    (page + 1) * USERS_PER_PAGE_IN_POPOVER >=
-                    remainingUsers.length
+                    (page + 1) * SESSION_USERS_PER_PAGE >= remainingUsers.length
                   }
                 >
                   Next

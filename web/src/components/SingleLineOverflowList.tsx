@@ -4,18 +4,25 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
  * Renders keyed items on one line and moves items that do not fit into a
  * caller-rendered overflow control. The component owns DOM measurement and
  * remeasures when its width, item widths, or overflow-control width changes.
- * Item and overflow presentation remain entirely caller-defined.
+ * `additionalOverflowCount` reserves the control for paginated or virtualized
+ * entries that should not be mounted in the measurement row. Item and overflow
+ * presentation remain entirely caller-defined.
  */
 export function SingleLineOverflowList<TItem>({
   items,
+  additionalOverflowCount,
   getKey,
   renderItem,
   renderOverflow,
 }: {
   items: readonly TItem[];
+  additionalOverflowCount: number;
   getKey: (item: TItem) => string;
   renderItem: (item: TItem) => ReactNode;
-  renderOverflow: (hiddenItems: readonly TItem[]) => ReactNode;
+  renderOverflow: (props: {
+    hiddenItems: readonly TItem[];
+    overflowItemCount: number;
+  }) => ReactNode;
 }) {
   const measurementRowRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
@@ -25,6 +32,7 @@ export function SingleLineOverflowList<TItem>({
   const hiddenKeySet = new Set(hiddenKeys);
   const visibleItems = items.filter((item) => !hiddenKeySet.has(getKey(item)));
   const hiddenItems = items.filter((item) => hiddenKeySet.has(getKey(item)));
+  const overflowItemCount = hiddenItems.length + additionalOverflowCount;
 
   useEffect(() => {
     const measurementRow = measurementRowRef.current;
@@ -36,7 +44,9 @@ export function SingleLineOverflowList<TItem>({
       const contentWidth = lastItem
         ? lastItem.offsetLeft + lastItem.offsetWidth
         : 0;
-      const hasOverflow = contentWidth > measurementRow.clientWidth - 1;
+      const hasOverflow =
+        additionalOverflowCount > 0 ||
+        contentWidth > measurementRow.clientWidth - 1;
       const gap = Number.parseFloat(
         window.getComputedStyle(measurementRow).columnGap,
       );
@@ -74,7 +84,7 @@ export function SingleLineOverflowList<TItem>({
     }
 
     return () => resizeObserver.disconnect();
-  }, [itemKeySignature, hiddenItems.length]);
+  }, [additionalOverflowCount, itemKeySignature, overflowItemCount]);
 
   return (
     <div className="relative flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
@@ -110,9 +120,9 @@ export function SingleLineOverflowList<TItem>({
           );
         })}
       </div>
-      {hiddenItems.length > 0 ? (
+      {overflowItemCount > 0 ? (
         <div ref={overflowRef} className="flex shrink-0 items-center">
-          {renderOverflow(hiddenItems)}
+          {renderOverflow({ hiddenItems, overflowItemCount })}
         </div>
       ) : null}
     </div>

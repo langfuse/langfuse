@@ -4,6 +4,10 @@ import { type ReactNode, useState } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
+import {
+  INITIAL_SESSION_USERS_DISPLAY_COUNT,
+  SESSION_USERS_PER_PAGE,
+} from "@/src/components/session/sessionUsers";
 import { Input } from "@/src/components/ui/input";
 import {
   Popover,
@@ -86,6 +90,9 @@ export function ModernSessionHeader({
   scores,
 }: ModernSessionHeaderProps) {
   const [search, setSearch] = useState("");
+  const [visibleUserCount, setVisibleUserCount] = useState(
+    SESSION_USERS_PER_PAGE,
+  );
   const latencies =
     traces.state === "loaded"
       ? traces.data.flatMap((trace) =>
@@ -222,36 +229,52 @@ export function ModernSessionHeader({
     });
   }
 
-  users.forEach((user) => {
+  users.slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT).forEach((user) => {
     pills.push({
       key: `user-${user}`,
       searchText: `user ${user}`,
       content: <UserChip projectId={projectId} user={user} />,
     });
   });
+  const remainingUsers = users.slice(INITIAL_SESSION_USERS_DISPLAY_COUNT);
 
   return (
     <div className="bg-header border-b px-4 py-2">
       <SingleLineOverflowList
         items={pills}
+        additionalOverflowCount={remainingUsers.length}
         getKey={(pill) => pill.key}
         renderItem={(pill) => pill.content}
-        renderOverflow={(hiddenPills) => {
+        renderOverflow={({ hiddenItems: hiddenPills, overflowItemCount }) => {
           const normalizedSearch = search.trim().toLocaleLowerCase();
           const filteredPills = normalizedSearch
             ? hiddenPills.filter((pill) =>
                 pill.searchText.toLocaleLowerCase().includes(normalizedSearch),
               )
             : hiddenPills;
+          const filteredUsers = normalizedSearch
+            ? remainingUsers.filter((user) =>
+                user.toLocaleLowerCase().includes(normalizedSearch),
+              )
+            : remainingUsers;
+          const visibleUsers = filteredUsers.slice(0, visibleUserCount);
+          const hasResults =
+            filteredPills.length > 0 || visibleUsers.length > 0;
 
           return (
-            <Popover onOpenChange={(open) => !open && setSearch("")}>
+            <Popover
+              onOpenChange={(open) => {
+                if (open) return;
+                setSearch("");
+                setVisibleUserCount(SESSION_USERS_PER_PAGE);
+              }}
+            >
               <PopoverTrigger asChild>
                 <ModernSessionHeaderPill
                   variant="button"
-                  ariaLabel={`Show ${hiddenPills.length} hidden session details`}
+                  ariaLabel={`Show ${overflowItemCount} hidden session details`}
                 >
-                  +{hiddenPills.length}
+                  +{overflowItemCount}
                 </ModernSessionHeaderPill>
               </PopoverTrigger>
               <PopoverContent
@@ -263,17 +286,48 @@ export function ModernSessionHeader({
                   <Search className="text-muted-foreground absolute top-1/2 left-4 h-3.5 w-3.5 -translate-y-1/2" />
                   <Input
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={(event) => {
+                      setSearch(event.target.value);
+                      setVisibleUserCount(SESSION_USERS_PER_PAGE);
+                    }}
                     placeholder="Search session details"
                     aria-label="Search session details"
                     className="h-8 pl-8 text-xs"
                   />
                 </div>
-                <div className="flex max-h-72 flex-col items-start gap-2 overflow-y-auto p-2">
-                  {filteredPills.length > 0 ? (
-                    filteredPills.map((pill) => (
-                      <div key={pill.key}>{pill.content}</div>
-                    ))
+                <div
+                  role="region"
+                  aria-label="Session detail results"
+                  className="flex max-h-72 flex-col items-start gap-2 overflow-y-auto p-2"
+                  onScroll={(event) => {
+                    const element = event.currentTarget;
+                    const isAtBottom =
+                      element.scrollHeight -
+                        element.scrollTop -
+                        element.clientHeight <=
+                      16;
+                    if (!isAtBottom) return;
+                    setVisibleUserCount((current) =>
+                      Math.min(
+                        current + SESSION_USERS_PER_PAGE,
+                        filteredUsers.length,
+                      ),
+                    );
+                  }}
+                >
+                  {hasResults ? (
+                    <>
+                      {filteredPills.map((pill) => (
+                        <div key={pill.key}>{pill.content}</div>
+                      ))}
+                      {visibleUsers.map((user) => (
+                        <UserChip
+                          key={user}
+                          projectId={projectId}
+                          user={user}
+                        />
+                      ))}
+                    </>
                   ) : (
                     <p className="text-muted-foreground px-2 py-4 text-xs">
                       No session details found.
