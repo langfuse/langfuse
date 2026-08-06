@@ -112,6 +112,9 @@ const parentDir = (p) =>
   p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
 /** @type {(p: string) => string} */
 const baseName = (p) => p.slice(p.lastIndexOf("/") + 1);
+/** Web-relative join: a "" dir must not produce a leading slash, which git reads as absolute */
+/** @type {(...parts: string[]) => string} */
+const join = (...parts) => parts.filter(Boolean).join("/");
 
 /** @type {(absDir: string) => string[]} */
 function walkFiles(absDir) {
@@ -144,7 +147,7 @@ function addMove(from, sibling, subdir = "") {
   if (plan.has(from)) return;
   plan.set(from, {
     from,
-    to: `${toDir}${subdir}/${baseName(from)}`,
+    to: join(toDir, subdir, baseName(from)),
     isDir: isDirOnDisk(from),
     sibling,
   });
@@ -157,10 +160,7 @@ function isSiblingOf(stem, entry) {
 }
 
 for (const from of fromArgs) {
-  if (
-    !existsSync(abs(from)) &&
-    !existsSync(abs(`${toDir}/${baseName(from)}`))
-  ) {
+  if (!existsSync(abs(from)) && !existsSync(abs(join(toDir, baseName(from))))) {
     console.error(`${red("not found:")} ${from}`);
     process.exit(1);
   }
@@ -170,11 +170,11 @@ for (const from of fromArgs) {
   const base = baseName(from);
   const stem = base.slice(0, base.lastIndexOf("."));
   for (const entry of readdirSync(abs(dir)))
-    if (isSiblingOf(stem, entry)) addMove(`${dir}/${entry}`, true);
-  if (isDirOnDisk(`${dir}/__tests__`))
-    for (const entry of readdirSync(abs(`${dir}/__tests__`)))
+    if (isSiblingOf(stem, entry)) addMove(join(dir, entry), true);
+  if (isDirOnDisk(join(dir, "__tests__")))
+    for (const entry of readdirSync(abs(join(dir, "__tests__"))))
       if (isSiblingOf(stem, entry))
-        addMove(`${dir}/__tests__/${entry}`, true, "/__tests__");
+        addMove(join(dir, "__tests__", entry), true, "__tests__");
 }
 
 /** @type {(msg: string) => never} */
@@ -620,7 +620,7 @@ function printRevert(moves) {
   /** @type {Map<string, string[]>} original parent dir -> new paths that came from it */
   const byParent = new Map();
   for (const m of moves) {
-    const parent = m.from.slice(0, m.from.lastIndexOf("/"));
+    const parent = parentDir(m.from) || ".";
     byParent.set(parent, [...(byParent.get(parent) ?? []), m.to]);
   }
   console.log();
@@ -659,9 +659,6 @@ try {
       dir = parentDir(dir);
     }
   }
-  // Rewrites are left unstaged: `git mv` stages the renames by nature, but
-  // staging edited importers would fold any unrelated work in them into this
-  // move's index entry.
   const rewritten = [...new Set([...importerFiles, ...followed.keys()])];
   for (const f of rewritten) writeFileSync(f, currentText(f) ?? "", "utf8");
   if (rewritten.length)
@@ -678,6 +675,15 @@ try {
       ],
       { cwd: webRoot, stdio: "inherit" },
     );
+  // A moved file's respelled self-reference IS staged: `git mv` already put its
+  // pre-edit bytes in the index, so leaving it out would stage a rename whose
+  // content imports a path this same move deleted. Importer rewrites stay
+  // unstaged — those files can carry unrelated work that is not ours to commit.
+  if (followed.size)
+    git("add", [
+      "--",
+      ...[...followed.keys()].map((f) => relative(webRoot, f)),
+    ]);
 } catch (err) {
   console.error(
     red(`\napply failed: ${err instanceof Error ? err.message : String(err)}`),
