@@ -563,7 +563,12 @@ export function getInAppAgentMcpAllowedToolNames(
     }
   }
 
-  if (oneOffToolName) {
+  // Gated by `available` for the same reason a conversation grant is: an
+  // approval decided before the user lost the role must not still mint a
+  // header. The runtime already fails closed here (the tool is absent from the
+  // role-filtered tool map, so it cannot execute), but leaving the two paths
+  // inconsistent invites the question of why only one is checked.
+  if (oneOffToolName && policy.available.has(oneOffToolName)) {
     allowed.add(oneOffToolName);
   }
 
