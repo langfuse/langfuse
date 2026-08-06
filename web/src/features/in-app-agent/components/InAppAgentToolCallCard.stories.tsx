@@ -64,6 +64,30 @@ export const ApprovalRequired = meta.story({
   },
 });
 
+/** Background execution, where the tool can be granted for the conversation. */
+export const ApprovalWithConversationGrant = meta.story({
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_createDashboardWidget",
+      status: "running",
+      args: JSON.stringify(
+        { dashboardId: "dash-1", name: "p95 latency" },
+        null,
+        2,
+      ),
+      approval: {
+        id: "approval-1",
+        status: "pending",
+      },
+    },
+    onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
+    onRejectToolCall: fn(),
+  },
+});
+
 export const ApprovalSubmitting = meta.story({
   args: {
     isCompact: true,

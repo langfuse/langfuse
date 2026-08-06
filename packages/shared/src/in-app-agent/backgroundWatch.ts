@@ -17,6 +17,13 @@ export const InAppAgentApprovalDecisionSchema = z.object({
   toolCallId: z.string().min(1),
   approved: z.boolean(),
   decidedByUserId: z.string().min(1),
+  /**
+   * Render-only, so the transcript can distinguish a one-off approval from one
+   * that granted the tool for the conversation. Execution policy reads the
+   * conversation's `approvedToolNames`, never this. Optional: decisions
+   * recorded before conversation grants existed were all one-off.
+   */
+  scope: z.enum(["once", "conversation"]).optional(),
 });
 
 export type InAppAgentApprovalDecision = z.infer<

@@ -398,13 +398,11 @@ export const IN_APP_AGENT_SANDBOX_TOOL_NAMES = new Set([
   "bash",
 ]);
 
-// Tools in this set can run without a human-in-the-loop approval prompt. Every
-// other MCP tool is still exposed to the model, but Mastra suspends execution
-// until the user explicitly approves the exact call.
-export const IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES = new Set([
-  ...Object.entries(IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES)
-    .filter(([, policy]) => policy.approval === "auto")
-    .map(([toolName]) => `langfuse_${toolName}`),
+// Runtime-owned tools that never suspend: the redirect affordance and the
+// sandbox tools, which are confined to the sandbox. Callers do not choose
+// these, so they are not part of InAppAgentToolPolicy. Documentation MCP tools
+// are auto-approved by their `langfuseDocs_` prefix.
+const IN_APP_AGENT_LOCAL_AUTO_APPROVED_TOOL_NAMES = new Set<string>([
   ...IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES,
   ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
 ]);
@@ -415,6 +413,22 @@ export function isMcpToolName(
   return IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.has(
     input as InAppAgentLangfuseMcpToolName,
   );
+}
+
+/**
+ * Maps the `langfuse_`-prefixed name the model and AG-UI events use back to the
+ * unprefixed MCP registry name that tool policies and the MCP route speak.
+ */
+export function getInAppAgentRegistryToolName(
+  toolName: string | undefined,
+): InAppAgentLangfuseMcpToolName | undefined {
+  if (!toolName?.startsWith("langfuse_")) {
+    return undefined;
+  }
+
+  const registryToolName = toolName.slice("langfuse_".length);
+
+  return isMcpToolName(registryToolName) ? registryToolName : undefined;
 }
 
 export function isInAppAgentLangfuseMcpToolAvailable(params: {
@@ -438,22 +452,99 @@ export function isInAppAgentLangfuseMcpToolAvailable(params: {
   });
 }
 
+/**
+ * The Langfuse MCP tool surface for one run: which tools the model may see, and
+ * which of those execute without suspending for a human.
+ *
+ * Callers own both sets, so the runtime never learns where an approval came
+ * from. A project role, a conversation-scoped grant the user clicked, and an
+ * operator-configured headless policy all arrive here as the same two sets.
+ *
+ * Invariant: `autoApproved` is a subset of `available`. `createInAppAgentToolPolicy`
+ * establishes it by construction, which is what makes a stale grant harmless.
+ */
+export type InAppAgentToolPolicy = {
+  readonly available: ReadonlySet<InAppAgentLangfuseMcpToolName>;
+  readonly autoApproved: ReadonlySet<InAppAgentLangfuseMcpToolName>;
+};
+
+export function createInAppAgentToolPolicy(params: {
+  /** Tools to consider at all. Defaults to every classified Langfuse MCP tool. */
+  toolNames?: Iterable<InAppAgentLangfuseMcpToolName>;
+  /** Role gate. Omit to deny everything, matching isInAppAgentLangfuseMcpToolAvailable. */
+  userAccess?: InAppAgentUserAccess;
+  /**
+   * Tools to auto-approve on top of the statically read-only ones, e.g. the
+   * conversation-scoped grants a user has clicked "Always allow" on. Names that
+   * are unknown, unclassified, since reclassified as read-only, or outside the
+   * caller's role all drop out via the intersection with `available` below.
+   */
+  additionalAutoApproved?: Iterable<string>;
+}): InAppAgentToolPolicy {
+  const candidates =
+    params.toolNames ?? IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.values();
+
+  const available = new Set<InAppAgentLangfuseMcpToolName>();
+  const autoApproved = new Set<InAppAgentLangfuseMcpToolName>();
+
+  for (const toolName of candidates) {
+    if (
+      !isInAppAgentLangfuseMcpToolAvailable({
+        toolName,
+        userAccess: params.userAccess,
+      })
+    ) {
+      continue;
+    }
+
+    available.add(toolName);
+
+    if (IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[toolName].approval === "auto") {
+      autoApproved.add(toolName);
+    }
+  }
+
+  for (const toolName of params.additionalAutoApproved ?? []) {
+    if (isMcpToolName(toolName) && available.has(toolName)) {
+      autoApproved.add(toolName);
+    }
+  }
+
+  return { available, autoApproved };
+}
+
+/**
+ * The MCP override allowlist for one run. Read-only tools are permitted by the
+ * MCP route regardless, so only the mutating ones need listing.
+ */
+export function getInAppAgentMcpAllowedToolNames(
+  policy: InAppAgentToolPolicy,
+  oneOffToolName?: InAppAgentLangfuseMcpToolName,
+): InAppAgentLangfuseMcpToolName[] {
+  const allowed = new Set<InAppAgentLangfuseMcpToolName>();
+
+  for (const toolName of policy.autoApproved) {
+    if (
+      IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[toolName].approval === "approval"
+    ) {
+      allowed.add(toolName);
+    }
+  }
+
+  if (oneOffToolName) {
+    allowed.add(oneOffToolName);
+  }
+
+  return [...allowed];
+}
+
 export function filterInAppAgentAvailableLangfuseMcpTools<TTool>(params: {
   tools: Partial<Record<InAppAgentLangfuseMcpToolName, TTool>> | undefined;
-  userAccess?: InAppAgentUserAccess;
+  policy: InAppAgentToolPolicy;
 }): Partial<Record<InAppAgentLangfuseMcpToolName, TTool>> {
   return Object.fromEntries(
     Object.entries(params.tools ?? {}).flatMap(([toolName, tool]) => {
-      if (!isMcpToolName(toolName)) {
-        return [];
-      }
-
-      if (
-        !isInAppAgentLangfuseMcpToolAvailable({
-          toolName,
-          userAccess: params.userAccess,
-        })
-      ) {
+      if (!isMcpToolName(toolName) || !params.policy.available.has(toolName)) {
         return [];
       }
 
@@ -466,21 +557,33 @@ type InAppAgentTool = object;
 
 export function withInAppAgentToolApproval<TTool extends InAppAgentTool>(
   tools: Record<string, TTool>,
+  policy: InAppAgentToolPolicy,
 ): Record<string, TTool | (TTool & { requireApproval: true })> {
   return Object.fromEntries(
     Object.entries(tools).map(([toolName, tool]) => [
       toolName,
-      isInAppAgentAutoApprovedToolName(toolName)
+      isInAppAgentAutoApprovedToolName(toolName, policy)
         ? tool
         : { ...tool, requireApproval: true },
     ]),
   ) as Record<string, TTool | (TTool & { requireApproval: true })>;
 }
 
-function isInAppAgentAutoApprovedToolName(toolName: string): boolean {
-  return (
+function isInAppAgentAutoApprovedToolName(
+  toolName: string,
+  policy: InAppAgentToolPolicy,
+): boolean {
+  if (
     toolName.startsWith("langfuseDocs_") ||
-    IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES.has(toolName)
+    IN_APP_AGENT_LOCAL_AUTO_APPROVED_TOOL_NAMES.has(toolName)
+  ) {
+    return true;
+  }
+
+  const registryToolName = getInAppAgentRegistryToolName(toolName);
+
+  return (
+    registryToolName !== undefined && policy.autoApproved.has(registryToolName)
   );
 }
 

@@ -226,6 +226,7 @@ type InAppAiAgentContextType = {
     options?: InAppAgentSubmitOptions,
   ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
+  alwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
     messageId: string;
@@ -1662,6 +1663,7 @@ function InAppAiAgentProviderInner({
     async (params: {
       approval: InAppAgentPendingToolApproval;
       approved: boolean;
+      approvalScope: "once" | "conversation";
       conversationId: string;
     }) => {
       const runId =
@@ -1690,6 +1692,7 @@ function InAppAiAgentProviderInner({
           runId,
           toolCallId: params.approval.approvalRequest.toolCallId,
           approved: params.approved,
+          approvalScope: params.approvalScope,
         });
       } catch (error) {
         setError(getInAppAgentError(error));
@@ -1699,7 +1702,11 @@ function InAppAiAgentProviderInner({
   );
 
   const resumeToolApproval = useCallback(
-    async (approvalId: string, approved: boolean) => {
+    async (
+      approvalId: string,
+      approved: boolean,
+      approvalScope: "once" | "conversation" = "once",
+    ) => {
       if (selectedConversationIsWriteLocked) {
         setError({
           type: "generic",
@@ -1726,6 +1733,7 @@ function InAppAiAgentProviderInner({
         await decideBackgroundToolApproval({
           approval,
           approved,
+          approvalScope,
           conversationId: selectedConversationId,
         });
         return;
@@ -1843,6 +1851,17 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
+  // Conversation grants exist only on the background path; foreground is the
+  // rollback target and its approvals are single-use by construction.
+  const alwaysAllowToolCall = useMemo(
+    () =>
+      backgroundExecutionEnabled
+        ? (approvalId: string) =>
+            resumeToolApproval(approvalId, true, "conversation")
+        : undefined,
+    [backgroundExecutionEnabled, resumeToolApproval],
+  );
+
   const rejectToolCall = useCallback(
     (approvalId: string) => resumeToolApproval(approvalId, false),
     [resumeToolApproval],
@@ -1877,11 +1896,13 @@ function InAppAiAgentProviderInner({
       deleteConversation,
       submit,
       approveToolCall,
+      alwaysAllowToolCall,
       rejectToolCall,
       submitFeedback,
     }),
     [
       approveToolCall,
+      alwaysAllowToolCall,
       isExpanded,
       conversations,
       effectiveError,

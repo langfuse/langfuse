@@ -37,7 +37,8 @@ import {
 } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
-  isMcpToolName,
+  createInAppAgentToolPolicy,
+  getInAppAgentRegistryToolName,
   type InAppAgentLangfuseMcpToolName,
   type InAppAgentUserAccess,
 } from "@langfuse/shared/in-app-agent/server/tools";
@@ -349,7 +350,7 @@ export default async function handler(request: Request) {
         projectId,
         runId: sanitizedInput.runId,
         userId,
-        toolName: getInAppAgentMcpRegistryToolName(
+        toolName: getInAppAgentRegistryToolName(
           approvedResumeApprovalRequest?.toolName,
         ),
       },
@@ -431,6 +432,9 @@ export default async function handler(request: Request) {
             });
 
           const userAccess = getInAppAgentUserAccess(user, projectId);
+          // Foreground never carries conversation-scoped grants: it is the
+          // rollback path, and its approvals are single-use by construction.
+          const toolPolicy = createInAppAgentToolPolicy({ userAccess });
 
           const stream = await createAgUiStream({
             input: agentInput,
@@ -534,7 +538,7 @@ export default async function handler(request: Request) {
                 url: getLangfuseMcpUrl(),
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
-                userAccess,
+                toolPolicy,
                 runOverride,
               },
               redirectAction: {
@@ -771,7 +775,7 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   try {
     const runOverride = params.toolName
       ? await createInAppAgentMcpRunOverride({
-          toolName: params.toolName,
+          toolNames: [params.toolName],
         })
       : undefined;
 
@@ -782,16 +786,6 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
     });
     throw err;
   }
-}
-
-function getInAppAgentMcpRegistryToolName(toolName: string | undefined) {
-  if (!toolName?.startsWith("langfuse_")) {
-    return undefined;
-  }
-
-  const registryToolName = toolName.slice("langfuse_".length);
-
-  return isMcpToolName(registryToolName) ? registryToolName : undefined;
 }
 
 async function cleanupInAppAgentMcpApiKey(params: {

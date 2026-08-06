@@ -284,6 +284,7 @@ export type InAppAgentWindowProps = {
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
+  onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
@@ -386,6 +387,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onLoadMoreConversations,
     onNewConversation,
     onApproveToolCall,
+    onAlwaysAllowToolCall,
     onRejectToolCall,
     onOpenConversationHistory,
     onSelectConversation,
@@ -858,6 +860,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     isRateLimited || disablePendingToolApprovalActions
                   }
                   onApproveToolCall={onApproveToolCall}
+                  onAlwaysAllowToolCall={onAlwaysAllowToolCall}
                   onRejectToolCall={onRejectToolCall}
                 />
               ))}
