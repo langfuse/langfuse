@@ -19,8 +19,6 @@ got it wrong first. Token rules live on Token Architecture.
 
 - Only ship variants the design actually has. The five-status axis became a
   single danger type; unused combinations are API surface to maintain.
-- Make impossible states impossible. fullWidth only exists for primary and
-  secondary, so the union type forbids it elsewhere, not a runtime check.
 - Prefer flat enums over crossed props once the matrix collapses. `type:
 primary | secondary | borderless | danger` beats `type` x `status` with
   holes in it.
