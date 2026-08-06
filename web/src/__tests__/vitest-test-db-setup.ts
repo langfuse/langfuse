@@ -1,10 +1,65 @@
-const migrateTestDatabase = async (databaseUrl: string) => {
+export const hasGeneratedSchemaMatch = (
+  sourceSchema: string,
+  generatedSchemas: ReadonlyArray<string>,
+) =>
+  generatedSchemas.some((generatedSchema) => generatedSchema === sourceSchema);
+
+const ensurePrismaClientGenerated = async (databaseUrl: string) => {
   const { execSync } = await import("child_process");
+  const fs = await import("fs");
   const path = await import("path");
   const sharedDir = path.resolve(__dirname, "../../../packages/shared");
+  const repoRoot = path.resolve(sharedDir, "../..");
+  const schemaPath = path.join(sharedDir, "prisma", "schema.prisma");
+  const pnpmStorePath = path.join(repoRoot, "node_modules", ".pnpm");
+  const pnpmPrismaSchemaPaths = fs.existsSync(pnpmStorePath)
+    ? fs
+        .readdirSync(pnpmStorePath, {
+          withFileTypes: true,
+        })
+        .filter(
+          (entry) =>
+            entry.isDirectory() && entry.name.startsWith("@prisma+client@"),
+        )
+        .map((entry) =>
+          path.join(
+            pnpmStorePath,
+            entry.name,
+            "node_modules",
+            ".prisma",
+            "client",
+            "schema.prisma",
+          ),
+        )
+    : [];
+  const generatedSchemaPaths = [
+    path.join(repoRoot, "node_modules", ".prisma", "client", "schema.prisma"),
+    path.join(sharedDir, "node_modules", ".prisma", "client", "schema.prisma"),
+    ...pnpmPrismaSchemaPaths,
+  ];
+
+  if (!fs.existsSync(schemaPath)) {
+    throw new Error(`Prisma schema not found at: ${schemaPath}`);
+  }
+
+  const sourceSchema = fs.readFileSync(schemaPath, "utf8");
+  const generatedSchemas = generatedSchemaPaths.flatMap(
+    (generatedSchemaPath) =>
+      fs.existsSync(generatedSchemaPath)
+        ? [fs.readFileSync(generatedSchemaPath, "utf8")]
+        : [],
+  );
+  const hasCurrentGeneratedClient = hasGeneratedSchemaMatch(
+    sourceSchema,
+    generatedSchemas,
+  );
+
+  if (hasCurrentGeneratedClient) {
+    return;
+  }
 
   execSync(
-    "dotenv -e ../../.env.test -e ../../.env -- npx prisma migrate deploy",
+    "dotenv -e ../../.env.test -e ../../.env -- npx prisma generate --no-hints",
     {
       cwd: sharedDir,
       env: { ...process.env, DATABASE_URL: databaseUrl },
@@ -12,8 +67,26 @@ const migrateTestDatabase = async (databaseUrl: string) => {
     },
   );
 
+  const generatedClientMatchesSchema = generatedSchemaPaths.some(
+    (generatedSchemaPath) =>
+      fs.existsSync(generatedSchemaPath) &&
+      fs.readFileSync(generatedSchemaPath, "utf8") === sourceSchema,
+  );
+
+  if (!generatedClientMatchesSchema) {
+    throw new Error(
+      `Prisma client was not generated from the current schema. Checked: ${generatedSchemaPaths.join(", ")}`,
+    );
+  }
+};
+
+const migrateTestDatabase = async (databaseUrl: string) => {
+  const { execSync } = await import("child_process");
+  const path = await import("path");
+  const sharedDir = path.resolve(__dirname, "../../../packages/shared");
+
   execSync(
-    "dotenv -e ../../.env.test -e ../../.env -- npx prisma generate --no-hints",
+    "dotenv -e ../../.env.test -e ../../.env -- npx prisma migrate deploy",
     {
       cwd: sharedDir,
       env: { ...process.env, DATABASE_URL: databaseUrl },
@@ -31,6 +104,8 @@ const ensureTestDatabaseExists = async () => {
   ) {
     return;
   }
+
+  await ensurePrismaClientGenerated(databaseUrl);
 
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient({
