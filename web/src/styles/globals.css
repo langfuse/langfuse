@@ -706,6 +706,10 @@
   --text-secondary: oklch(37.1% 0 0); /* neutral-700 */
   --text-tertiary: oklch(55.6% 0 0); /* neutral-500 */
   --text-contrast: oklch(14.5% 0 0); /* neutral-950 */
+  /* Inverse surface: the ink-solid fill (primary buttons). */
+  --bg-inverse: oklch(20.5% 0 0); /* neutral-900 */
+  --text-on-inverse: oklch(100% 0 0); /* white */
+  --border-inverse: oklch(37.1% 0 0); /* neutral-700 */
   /* Status: danger (destructive intent). Same solid in both modes; the
      text/border accents flip in .dark below. */
   --danger-fill: oklch(57.7% 0.245 27.325); /* red-600 */
@@ -730,6 +734,39 @@
   --text-secondary: oklch(86.9% 0.005 56.366); /* stone-300 */
   --text-tertiary: oklch(55.3% 0.013 58.071); /* stone-500 */
   --text-contrast: oklch(98.5% 0.001 106.423); /* stone-50 */
+  --bg-inverse: oklch(97% 0.001 106.424); /* stone-100 */
+  --text-on-inverse: oklch(14.7% 0.004 49.25); /* stone-950 */
+  --border-inverse: oklch(86.9% 0.005 56.366); /* stone-300 */
   --danger-text: oklch(70.4% 0.191 22.216); /* red-400 */
   --danger-border: oklch(44.4% 0.177 26.899); /* red-800 */
+}
+
+/* Scoped utilities for the design-system-test semantic tokens. Tailwind v4
+   namespace keys make each token available ONLY to its property family
+   (matching the Semantic tokens page headers): --background-color-* feeds
+   bg-* and gradient from-/via-/to-, --border-color-* feeds border-/divide-/
+   outline-, --text-color-* feeds text-* — never each other. */
+@theme inline {
+  --background-color-elevation-1: var(--bg-elevation-1);
+  --background-color-elevation-2: var(--bg-elevation-2);
+  --background-color-elevation-3: var(--bg-elevation-3);
+  --background-color-elevation-4: var(--bg-elevation-4);
+  --background-color-inverse: var(--bg-inverse);
+  --background-color-danger-fill: var(--danger-fill);
+
+  --border-color-default: var(--border-default);
+  --border-color-faint: var(--border-faint);
+  --border-color-inverse: var(--border-inverse);
+  --border-color-danger: var(--danger-border);
+  --border-color-danger-fill: var(--danger-fill-border);
+
+  --text-color-primary: var(--text-primary);
+  --text-color-secondary: var(--text-secondary);
+  --text-color-tertiary: var(--text-tertiary);
+  --text-color-contrast: var(--text-contrast);
+  --text-color-on-inverse: var(--text-on-inverse);
+  --text-color-danger: var(--danger-text);
+  --text-color-on-danger: var(--on-danger);
+
+  --shadow-ds-button: var(--ds-button-shadow);
 }

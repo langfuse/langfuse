@@ -40,21 +40,18 @@ const CONTROL_BASE =
 const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
   primary: {
     default:
-      "border border-[var(--text-secondary)] bg-[var(--text-primary)] text-[var(--bg-elevation-1)] shadow-[var(--ds-button-shadow)]",
+      "border-inverse bg-inverse text-on-inverse shadow-ds-button border",
     danger:
-      "border border-[var(--danger-fill-border)] bg-[var(--danger-fill)] text-[var(--on-danger)] shadow-[var(--ds-button-shadow)]",
+      "border-danger-fill bg-danger-fill text-on-danger shadow-ds-button border",
   },
   secondary: {
     default:
-      "border border-[var(--border-default)] bg-[var(--bg-elevation-1)] text-[var(--text-secondary)] shadow-[var(--ds-button-shadow)]",
-    danger:
-      "border border-[var(--danger-border)] bg-[var(--bg-elevation-1)] text-[var(--danger-text)] shadow-[var(--ds-button-shadow)]",
+      "border-default bg-elevation-1 text-secondary shadow-ds-button border",
+    danger: "border-danger bg-elevation-1 text-danger shadow-ds-button border",
   },
   borderless: {
-    default:
-      "border border-transparent bg-transparent text-[var(--text-secondary)]",
-    danger:
-      "border border-transparent bg-transparent text-[var(--danger-text)]",
+    default: "text-secondary border border-transparent bg-transparent",
+    danger: "text-danger border border-transparent bg-transparent",
   },
 };
 
@@ -62,18 +59,16 @@ const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
  * variant matrix. Keep in sync with CONTROL_STYLES above. */
 export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
   primary: {
-    default:
-      "bg --text-primary · text --bg-elevation-1 · border --text-secondary",
-    danger: "bg --danger-fill · text --on-danger · border --danger-fill-border",
+    default: "bg-inverse · text-on-inverse · border-inverse",
+    danger: "bg-danger-fill · text-on-danger · border-danger-fill",
   },
   secondary: {
-    default:
-      "bg --bg-elevation-1 · text --text-secondary · border --border-default",
-    danger: "bg --bg-elevation-1 · text --danger-text · border --danger-border",
+    default: "bg-elevation-1 · text-secondary · border-default",
+    danger: "bg-elevation-1 · text-danger · border-danger",
   },
   borderless: {
-    default: "text --text-secondary",
-    danger: "text --danger-text",
+    default: "text-secondary",
+    danger: "text-danger",
   },
 };
 

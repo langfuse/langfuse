@@ -50,6 +50,12 @@ const BG_ELEVATION: SemanticToken[] = [
     dark: ref(STONE, "800"),
   },
   {
+    token: "--bg-inverse",
+    purpose: "Ink-solid fill: primary buttons",
+    light: ref(NEUTRAL, "900"),
+    dark: ref(STONE, "100"),
+  },
+  {
     token: "--bg-elevation-4",
     purpose: "Hover, selected",
     light: ref(NEUTRAL, "200"),
@@ -71,6 +77,12 @@ const BORDER: SemanticToken[] = [
     dark: ref(STONE, "900"),
   },
   {
+    token: "--border-inverse",
+    purpose: "Border on the inverse fill",
+    light: ref(NEUTRAL, "700"),
+    dark: ref(STONE, "300"),
+  },
+  {
     token: "--border-contrast",
     purpose: "Assertive lines: inputs, outline buttons",
     light: ref(NEUTRAL, "400"),
@@ -79,6 +91,12 @@ const BORDER: SemanticToken[] = [
 ];
 
 const TEXT: SemanticToken[] = [
+  {
+    token: "--text-on-inverse",
+    purpose: "Ink on the inverse fill",
+    light: WHITE,
+    dark: ref(STONE, "950"),
+  },
   {
     token: "--text-primary",
     purpose: "Most of the text on the screen",
