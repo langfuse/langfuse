@@ -470,7 +470,7 @@ jobs:
           if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -620,7 +620,7 @@ jobs:
         # invocation, so they run in their own parallel job below.
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=4
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8
       - name: Prune stale turbo cache entries
         if: env.CI_CACHE_ALLOWED == 'true'
         # Each run saves the restored archive plus new entries, so the cache
