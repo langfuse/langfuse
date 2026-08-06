@@ -100,7 +100,8 @@ is instant, which is why the CLI is batch-shaped.
   `AdvancedJsonViewer` calibration move left three `vi.mock()` paths behind and
   six tests failed under a green typecheck.
 
-Renames and splits are not part of the surface (follow-up LFE-14806).
+Splitting a file and directory renames are not part of the surface
+(follow-up LFE-14806).
 
 ## Rule → mechanism
 
