@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { ScanSearch } from "lucide-react";
 import { InAppAgentRunStatus } from "@langfuse/shared";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
@@ -460,5 +466,67 @@ describe("InAppAgentWindow scrolling", () => {
     expect(
       screen.queryByRole("button", { name: "Scroll to latest message" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("InAppAgentWindow message actions", () => {
+  it("shows one action row per turn and copies only the assistant prose blocks", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    vi.stubGlobal("ClipboardItem", undefined);
+
+    render(
+      windowElement({
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "Investigate latency" },
+          },
+          {
+            id: "assistant-intro",
+            role: "assistant",
+            content: { type: "text", text: "I will inspect the slow traces." },
+          },
+          {
+            id: "assistant-reasoning",
+            role: "assistant",
+            content: {
+              type: "reasoning",
+              text: "This private reasoning is not part of the answer.",
+              isStreaming: false,
+            },
+          },
+          {
+            id: "assistant-tool",
+            role: "assistant",
+            content: { type: "toolGroup", tools: [] },
+          },
+          {
+            id: "assistant-conclusion",
+            role: "assistant",
+            content: { type: "text", text: "The reranker is the bottleneck." },
+          },
+        ],
+      }),
+    );
+
+    const actionRows = screen.getAllByTestId("in-app-agent-message-actions");
+    expect(actionRows).toHaveLength(2);
+
+    fireEvent.click(
+      within(actionRows[1]).getAllByRole("button", {
+        name: "Copy message",
+      })[0],
+    );
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        "I will inspect the slow traces.\n\nThe reranker is the bottleneck.",
+      );
+    });
   });
 });

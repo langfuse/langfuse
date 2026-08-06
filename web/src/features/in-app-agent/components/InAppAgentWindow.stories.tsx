@@ -921,6 +921,62 @@ export const Conversation = meta.story({
   },
 });
 
+export const GroupedAssistantTurn = meta.story({
+  args: {
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "grouped-user",
+        role: "user",
+        content: { type: "text", text: "Why did latency increase?" },
+      },
+      {
+        id: "grouped-intro",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "I will compare the slow traces with their observations.",
+        },
+      },
+      {
+        id: "grouped-reasoning",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "The slowest traces share a reranking step.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "grouped-tool",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_getObservations",
+              status: "succeeded",
+              args: JSON.stringify({ orderBy: "latency.desc", limit: 10 }),
+              result: JSON.stringify({ bottleneck: "document-reranking" }),
+            },
+          ],
+        },
+      },
+      {
+        id: "grouped-conclusion",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The latency increase comes from document reranking. Vector search remains stable.",
+        },
+      },
+    ],
+  },
+});
+
 export const LightConversation = meta.story({
   globals: { theme: "light" },
   args: {

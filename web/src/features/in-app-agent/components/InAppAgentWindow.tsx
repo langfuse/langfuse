@@ -250,6 +250,11 @@ export type InAppAgentWindowMessage = {
   content: InAppAgentMessageContent;
 };
 
+type InAppAgentWindowAssistantTextMessage = InAppAgentWindowMessage & {
+  role: "assistant";
+  content: Extract<InAppAgentMessageContent, { type: "text" }>;
+};
+
 export type InAppAgentWindowConversation = {
   id: string;
   title: string | null;
@@ -880,14 +885,47 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       : nextUserMessageIndex;
                   const isCurrentTurnInProgress =
                     isAssistantTurnInProgress && nextUserMessageIndex === -1;
-                  const isLastMessageOfTurn = visibleMessages
-                    .slice(index + 1, nextTurnStartIndex)
-                    .every((nextMessage) => nextMessage.role !== "assistant");
+                  let turnStartIndex = -1;
+                  for (
+                    let previousIndex = index;
+                    previousIndex >= 0;
+                    previousIndex -= 1
+                  ) {
+                    if (visibleMessages[previousIndex]?.role === "user") {
+                      turnStartIndex = previousIndex;
+                      break;
+                    }
+                  }
+                  const assistantTextMessages = visibleMessages
+                    .slice(turnStartIndex + 1, nextTurnStartIndex)
+                    .filter(
+                      (
+                        turnMessage,
+                      ): turnMessage is InAppAgentWindowAssistantTextMessage =>
+                        turnMessage.role === "assistant" &&
+                        turnMessage.content.type === "text",
+                    );
+                  const assistantSources = assistantTextMessages
+                    .flatMap(
+                      (assistantMessage) =>
+                        assistantMessage.content.sources ?? [],
+                    )
+                    .filter(
+                      (source, sourceIndex, sources) =>
+                        sources.findIndex(
+                          (candidate) => candidate.url === source.url,
+                        ) === sourceIndex,
+                    );
+                  const isFinalAssistantTextBlock =
+                    assistantTextMessages.at(-1)?.id === message.id;
+                  const showActions =
+                    message.role === "user" ||
+                    (isFinalAssistantTextBlock && !isCurrentTurnInProgress);
                   const feedbackRunId =
                     message.role === "assistant" &&
                     message.content.type === "text" &&
                     !isCurrentTurnInProgress &&
-                    isLastMessageOfTurn
+                    isFinalAssistantTextBlock
                       ? message.runId
                       : undefined;
 
@@ -902,9 +940,36 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     >
                       <InAppAgentMessage
                         role={message.role}
-                        content={message.content}
+                        content={
+                          message.role === "assistant" &&
+                          message.content.type === "text" &&
+                          isFinalAssistantTextBlock
+                            ? {
+                                ...message.content,
+                                sources: assistantSources,
+                              }
+                            : message.content
+                        }
+                        copyGroupId={
+                          message.role === "assistant" &&
+                          message.content.type === "text"
+                            ? `assistant-turn-${visibleMessages[turnStartIndex]?.id ?? "initial"}`
+                            : undefined
+                        }
+                        copyText={
+                          message.role === "assistant" &&
+                          message.content.type === "text"
+                            ? assistantTextMessages
+                                .map(
+                                  (assistantMessage) =>
+                                    assistantMessage.content.text,
+                                )
+                                .join("\n\n")
+                            : undefined
+                        }
                         isCompact={!isExpanded}
                         isFeedbackDisabled={isConversationInteractionDisabled}
+                        showActions={showActions}
                         timestamp={message.timestamp}
                         onSubmitFeedback={
                           feedbackRunId
