@@ -193,7 +193,6 @@ export class ApiAuthService {
                 projectId: finalApiKey.projectId,
                 accessLevel,
                 orgId: finalApiKey.orgId,
-                orgCreatedAt: finalApiKey.orgCreatedAt,
                 plan: plan,
                 rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
                 apiKeyId: finalApiKey.id,
@@ -218,12 +217,8 @@ export class ApiAuthService {
               );
             }
 
-            const {
-              orgId,
-              orgCreatedAt,
-              cloudConfig,
-              cloudFreeTierUsageThresholdState,
-            } = this.extractOrgIdAndCloudConfig(dbKey);
+            const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
+              this.extractOrgIdAndCloudConfig(dbKey);
             const plan = getOrganizationPlanServerSide(cloudConfig);
 
             addUserToSpan(
@@ -243,7 +238,6 @@ export class ApiAuthService {
                 projectId: dbKey.projectId,
                 accessLevel: "scores" as const,
                 orgId,
-                orgCreatedAt: orgCreatedAt?.toISOString(),
                 plan,
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
                 apiKeyId: dbKey.id,
@@ -445,9 +439,6 @@ export class ApiAuthService {
     const orgId =
       apiKeyAndOrganisation.project?.organization.id ??
       apiKeyAndOrganisation.organization?.id;
-    const orgCreatedAt =
-      apiKeyAndOrganisation.project?.organization.createdAt ??
-      apiKeyAndOrganisation.organization?.createdAt;
     const rawCloudConfig =
       apiKeyAndOrganisation.project?.organization.cloudConfig ??
       apiKeyAndOrganisation.organization?.cloudConfig;
@@ -469,7 +460,6 @@ export class ApiAuthService {
 
     return {
       orgId,
-      orgCreatedAt,
       cloudConfig,
       cloudFreeTierUsageThresholdState,
     };
@@ -505,18 +495,13 @@ export class ApiAuthService {
       } | null;
     },
   ) {
-    const {
-      orgId,
-      orgCreatedAt,
-      cloudConfig,
-      cloudFreeTierUsageThresholdState,
-    } = this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
+    const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
+      this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
 
     const newApiKey = OrgEnrichedApiKey.parse({
       ...apiKeyAndOrganisation,
       createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
       orgId,
-      orgCreatedAt: orgCreatedAt?.toISOString(),
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides,
       isIngestionSuspended: cloudFreeTierUsageThresholdState === "BLOCKED",

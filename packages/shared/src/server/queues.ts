@@ -68,14 +68,6 @@ export const OtelIngestionEvent = z.object({
   sdkName: z.string().optional(),
   sdkVersion: z.string().optional(),
   ingestionVersion: z.string().optional(),
-  // Set by the producer when the owning organization is past the Cloud OTel
-  // direct-write cutoff (LFE-14536), i.e. it is force-enabled on v4 and reads
-  // the events table only. Eligibility only: the consumer routes the batch to
-  // the direct events_full write without an SDK/ingestion-version signal, but
-  // only for non-Langfuse-SDK exports — an older SDK keeps its established
-  // dual-write shape. Optional for rolling-deploy compatibility with jobs
-  // enqueued before the flag existed.
-  forceDirectWrite: z.boolean().optional(),
   // Langfuse-internal telemetry (e.g. LLM-as-a-judge / prompt-experiment
   // executions published by the internal AI SDK LLM runtime). The
   // consumer must parse these events with the INTERNAL ingestion schema:

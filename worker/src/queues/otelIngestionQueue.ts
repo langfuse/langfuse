@@ -22,6 +22,7 @@ import {
   ResourceSpan,
   type IngestionAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
+  LocalCache,
 } from "@langfuse/shared/src/server";
 import {
   applyIngestionMasking,
@@ -143,6 +144,106 @@ export function isLangfuseSdkTraffic(params: {
   return Boolean(
     scopeName && String(scopeName).toLowerCase().includes("langfuse"),
   );
+}
+
+/**
+ * Whether an organization's signup date puts it past the direct-write cutoff.
+ *
+ * Organizations created on or after the cutoff are past the point where the v4
+ * preview is force-enabled and cannot be switched off, so the events table is
+ * the only surface they read. Without `x-langfuse-ingestion-version: 4` their
+ * OTLP traffic would take the dual-write path and appear with up to ~10 minutes
+ * of delay — a broken first experience for an exporter that is otherwise set up
+ * correctly.
+ *
+ * Deliberately date-based: there is no per-organization or per-project v4
+ * column, only a per-user preview flag, so signup date is the only cohort
+ * signal available. It mirrors the UI-side rollout boundary but keys on the
+ * single organization owning the API key rather than the oldest organization a
+ * user belongs to — ingestion has no user context.
+ */
+export function isOrgPastOtelDirectWriteCutoff(params: {
+  /** Organization signup date; nullish when it could not be resolved. */
+  orgCreatedAt: Date | null | undefined;
+  /** ISO date (YYYY-MM-DD), read as midnight UTC. Unset disables the rule. */
+  cutoff: string | undefined;
+  isLangfuseCloud: boolean;
+}): boolean {
+  const { orgCreatedAt, cutoff, isLangfuseCloud } = params;
+
+  // Self-hosted deployments move the whole deployment at once via
+  // LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct; rolling a tenant cohort
+  // forward is a Cloud-only concern.
+  if (!isLangfuseCloud || !cutoff || !orgCreatedAt) {
+    return false;
+  }
+
+  // Env validation rejects a malformed cutoff at startup, so this only guards
+  // against a value reaching the comparison some other way. Treat anything
+  // unparsable as "unknown" and keep the pre-cutoff behaviour.
+  const cutoffMs = Date.parse(`${cutoff}T00:00:00.000Z`);
+  if (isNaN(cutoffMs) || isNaN(orgCreatedAt.getTime())) {
+    return false;
+  }
+
+  return orgCreatedAt.getTime() >= cutoffMs;
+}
+
+// Organization signup dates never change, so this only needs to bound memory
+// and let a deleted project fall out. A miss costs one indexed Postgres read,
+// and only for batches that no other signal already routed (see below).
+const ORG_CREATED_AT_CACHE_TTL_MS = 60 * 60 * 1000;
+const orgCreatedAtCache = new LocalCache<{ createdAt: Date }>({
+  namespace: "otel_org_created_at",
+  enabled: true,
+  ttlMs: ORG_CREATED_AT_CACHE_TTL_MS,
+  max: 10_000,
+});
+
+/**
+ * Resolve whether the project's organization is past the direct-write cutoff.
+ *
+ * Keyed on project rather than the payload's optional `orgId` so replayed jobs
+ * enqueued before that field existed resolve too. Returns false when the
+ * project cannot be found, which keeps the batch on its existing path.
+ */
+export async function isProjectOrgPastOtelDirectWriteCutoff(
+  projectId: string,
+): Promise<boolean> {
+  const cutoff = env.LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CUTOFF;
+  if (!cutoff || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    return false;
+  }
+
+  try {
+    const { value } = await orgCreatedAtCache.getOrLoad(projectId, async () => {
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { organization: { select: { createdAt: true } } },
+      });
+
+      return {
+        value: project
+          ? { createdAt: project.organization.createdAt }
+          : undefined,
+        source: "postgres",
+      };
+    });
+
+    return isOrgPastOtelDirectWriteCutoff({
+      orgCreatedAt: value?.createdAt,
+      cutoff,
+      isLangfuseCloud: true,
+    });
+  } catch (error) {
+    // A lookup failure must not fail the batch: fall back to the pre-cutoff
+    // path, which is still a correct destination in dual write mode.
+    logger.warn(
+      `Failed to resolve organization signup date for project ${projectId}; keeping the pre-cutoff OTel write path`,
+      error,
+    );
+    return false;
+  }
 }
 
 /**
@@ -475,9 +576,8 @@ export const otelIngestionQueueProcessorBuilder = (
       // Priority 2 (fallback): Per-span OTEL scope inspection (legacy).
       //   - scope.name contains "langfuse", sdk-experiment environment, Python >= 3.9.0 or JS >= 4.4.0
       //
-      // Priority 3 (last resort): organization signup date past the Cloud OTel
-      //   direct-write cutoff, resolved by the producer. Non-Langfuse-SDK
-      //   exports only (see below).
+      // Priority 3 (last resort): the owning organization signed up past the
+      //   Cloud direct-write cutoff. Non-Langfuse-SDK exports only (see below).
       const headerBasedDirectWrite = checkHeaderBasedDirectWrite({
         sdkName: job.data.payload.sdkName,
         sdkVersion: job.data.payload.sdkVersion,
@@ -489,17 +589,9 @@ export const otelIngestionQueueProcessorBuilder = (
       //   onto the direct events_full path regardless of SDK headers/scopes.
       const envForcesDirect = v4ForceDirectOtelWrite(env);
 
-      // Priority 0b: organization-level rollout (LFE-14536). The producer sets
-      // this when the owning organization signed up past the Cloud OTel
-      // direct-write cutoff, which also means it is force-enabled on v4 and
-      // reads the events table only. Applied to non-Langfuse-SDK exports only;
-      // resolveOtelWritePath owns that exclusion.
-      const orgCutoffForcesDirect = job.data.payload.forceDirectWrite === true;
-
       // Evaluated whenever the higher-precedence header/env signals did not
-      // already qualify — including when the org cutoff will force the direct
-      // write anyway — so the write_path label can attribute the decision
-      // exactly and `direct_org_cutoff` counts only the traffic this rule
+      // already qualify, so the write_path label can attribute the decision
+      // exactly and `direct_org_cutoff` counts only the traffic that rule
       // genuinely moves off the dual path.
       let scopeBasedDirectWrite = false;
       let langfuseSdkTraffic = isLangfuseSdkTraffic({
@@ -529,6 +621,18 @@ export const otelIngestionQueueProcessorBuilder = (
           langfuseSdkTraffic ||
           isLangfuseSdkTraffic({ scopeName: sdkInfo.scopeName });
       }
+
+      // Resolved only when it can still change the outcome — every
+      // higher-precedence signal has declined and this is not SDK traffic — so
+      // the Postgres lookup stays off the path for batches already routed by a
+      // header. resolveOtelWritePath remains authoritative for the rule; this
+      // guard is purely an optimization.
+      const orgCutoffForcesDirect =
+        !headerBasedDirectWrite &&
+        !envForcesDirect &&
+        !scopeBasedDirectWrite &&
+        !langfuseSdkTraffic &&
+        (await isProjectOrgPastOtelDirectWriteCutoff(projectId));
 
       const { useDirectEventWrite, writePath } = resolveOtelWritePath({
         headerBasedDirectWrite,
