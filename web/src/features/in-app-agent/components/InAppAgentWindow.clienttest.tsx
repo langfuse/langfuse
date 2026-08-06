@@ -438,6 +438,7 @@ describe("InAppAgentWindow message actions", () => {
         messages: [
           {
             id: "user-1",
+            timestamp: new Date("2026-08-06T15:26:45.000Z").getTime(),
             role: "user",
             content: { type: "text", text: "Investigate latency" },
           },
@@ -462,6 +463,8 @@ describe("InAppAgentWindow message actions", () => {
           },
           {
             id: "assistant-conclusion",
+            runId: "run-1",
+            timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
             role: "assistant",
             content: { type: "text", text: "The reranker is the bottleneck." },
           },
@@ -471,11 +474,22 @@ describe("InAppAgentWindow message actions", () => {
 
     const actionRows = screen.getAllByTestId("in-app-agent-message-actions");
     expect(actionRows).toHaveLength(2);
+    expect(
+      within(actionRows[0]).queryByRole("button", { name: "Good response" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(actionRows[1]).getByRole("button", { name: "Good response" }),
+    ).toBeInTheDocument();
+    expect(
+      within(actionRows[1]).getByRole("button", { name: "Bad response" }),
+    ).toBeInTheDocument();
+    expect(actionRows[0].querySelector("time")).toHaveClass("opacity-0");
+    expect(actionRows[1].querySelector("time")).toHaveClass("opacity-0");
 
     fireEvent.click(
-      within(actionRows[1]).getAllByRole("button", {
+      within(actionRows[1]).getByRole("button", {
         name: "Copy message",
-      })[0],
+      }),
     );
 
     await waitFor(() => {
