@@ -662,3 +662,25 @@ export const CopyMessageInteraction = meta.story({
     );
   },
 });
+
+export const UserTextWithoutActionsInteraction = meta.story({
+  name: "(Test) User Text Without Actions",
+  args: {
+    role: "user",
+    content: {
+      type: "text",
+      text: "How do I find failed traces from the last 24 hours?",
+    },
+    timestamp: storyTimestamp,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    expect(
+      canvas.queryByRole("button", { name: "Copy message" }),
+    ).not.toBeInTheDocument();
+    expect(
+      canvas.queryByTestId("in-app-agent-message-actions"),
+    ).not.toBeInTheDocument();
+  },
+});

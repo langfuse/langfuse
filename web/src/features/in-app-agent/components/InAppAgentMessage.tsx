@@ -189,9 +189,14 @@ export function InAppAgentMessage({
   }
 
   if (content.type === "text") {
+    if (role === "user") {
+      return (
+        <MessageCard role={role} content={content} isCompact={isCompact} />
+      );
+    }
+
     return (
       <TextMessageWithActions
-        role={role}
         content={content}
         isCompact={isCompact}
         isFeedbackDisabled={isFeedbackDisabled}
@@ -252,7 +257,6 @@ const MessageCard = forwardRef<
 });
 
 function TextMessageWithActions({
-  role,
   content,
   isCompact,
   isFeedbackDisabled,
@@ -260,7 +264,6 @@ function TextMessageWithActions({
   showActions,
   timestamp,
 }: {
-  role: InAppAgentMessageRole;
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
@@ -272,25 +275,19 @@ function TextMessageWithActions({
   }) => Promise<void>;
 }) {
   const messageCardRef = useRef<HTMLDivElement>(null);
-  const { copy, copyRich, isCopied } = useCopyToClipboard({
+  const { copyRich, isCopied } = useCopyToClipboard({
     successDuration: 1_500,
   });
   const sources = content.sources ?? [];
   const hasSources = sources.length > 0;
-  const isAssistant = role === "assistant";
   const isSettled = !content.isStreaming;
-  const canSubmitFeedback = isAssistant && isSettled && onSubmitFeedback;
+  const canSubmitFeedback = isSettled && onSubmitFeedback;
   const hasActions = isSettled && showActions;
   const formattedTimestamp = timestamp
     ? formatMessageTimestamp(timestamp)
     : null;
 
   const handleCopy = () => {
-    if (!isAssistant) {
-      copy(content.text).catch(() => undefined);
-      return;
-    }
-
     const renderedContent = messageCardRef.current?.querySelector(
       "[data-in-app-agent-message-content]",
     );
@@ -332,22 +329,17 @@ function TextMessageWithActions({
           onSubmitFeedback={canSubmitFeedback}
         />
       ) : null}
-      {isAssistant && hasSources ? (
+      {hasSources ? (
         <SourcesPopover sources={sources} isCompact={isCompact} />
       ) : null}
     </>
   );
 
   return (
-    <div
-      className={cn(
-        "group/message flex max-w-full flex-col",
-        role === "user" ? "items-end" : "items-start",
-      )}
-    >
+    <div className="group/message flex max-w-full flex-col items-start">
       <MessageCard
         ref={messageCardRef}
-        role={role}
+        role="assistant"
         content={content}
         isCompact={isCompact}
       />

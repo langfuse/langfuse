@@ -11,6 +11,7 @@ import {
   ArrowRight,
   ArrowDown,
   BotMessageSquare,
+  ChevronRight,
   History,
   Info,
   Maximize2,
@@ -38,7 +39,10 @@ import {
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
-import { formatApproximateDuration } from "@/src/utils/dates";
+import {
+  formatApproximateDuration,
+  formatIntervalSeconds,
+} from "@/src/utils/dates";
 import {
   InAppAgentMessage,
   type InAppAgentMessageContent,
@@ -249,6 +253,167 @@ export type InAppAgentWindowMessage = {
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
 };
+
+type ConversationDisplayItem =
+  | {
+      type: "user";
+      message: InAppAgentWindowMessage;
+      hasPreviousMessage: boolean;
+    }
+  | {
+      type: "activity";
+      messages: InAppAgentWindowMessage[];
+      endTimestamp?: number;
+      followsUser: boolean;
+      isInProgress: boolean;
+    }
+  | {
+      type: "assistant";
+      message: InAppAgentWindowMessage;
+      followsUser: boolean;
+      isFinalAnswer: boolean;
+    };
+
+function buildConversationDisplayItems(
+  messages: InAppAgentWindowMessage[],
+  isAssistantTurnInProgress: boolean,
+): ConversationDisplayItem[] {
+  const items: ConversationDisplayItem[] = [];
+
+  for (let index = 0; index < messages.length; ) {
+    const message = messages[index];
+    if (!message) {
+      break;
+    }
+
+    if (message.role === "user") {
+      items.push({
+        type: "user",
+        message,
+        hasPreviousMessage: index > 0,
+      });
+      index++;
+      continue;
+    }
+
+    const turnStartIndex = index;
+    while (index < messages.length && messages[index]?.role === "assistant") {
+      index++;
+    }
+
+    const turnMessages = messages.slice(turnStartIndex, index);
+    const isInProgress = isAssistantTurnInProgress && index === messages.length;
+    let finalAnswerIndex = -1;
+    if (!isInProgress) {
+      for (
+        let turnIndex = turnMessages.length - 1;
+        turnIndex >= 0;
+        turnIndex--
+      ) {
+        if (turnMessages[turnIndex]?.content.type === "text") {
+          finalAnswerIndex = turnIndex;
+          break;
+        }
+      }
+    }
+
+    const activityMessages =
+      finalAnswerIndex === -1
+        ? turnMessages
+        : turnMessages.slice(0, finalAnswerIndex);
+    const followsUser = messages[turnStartIndex - 1]?.role === "user";
+
+    if (activityMessages.length > 0) {
+      items.push({
+        type: "activity",
+        messages: activityMessages,
+        endTimestamp:
+          finalAnswerIndex === -1
+            ? activityMessages.at(-1)?.timestamp
+            : turnMessages[finalAnswerIndex]?.timestamp,
+        followsUser,
+        isInProgress,
+      });
+    }
+
+    if (finalAnswerIndex !== -1) {
+      turnMessages
+        .slice(finalAnswerIndex)
+        .forEach((assistantMessage, offset) => {
+          items.push({
+            type: "assistant",
+            message: assistantMessage,
+            followsUser: activityMessages.length === 0 && followsUser,
+            isFinalAnswer: offset === 0,
+          });
+        });
+    }
+  }
+
+  return items;
+}
+
+function AssistantActivityGroup({
+  endTimestamp,
+  isCompact,
+  isInProgress,
+  messages,
+}: {
+  endTimestamp?: number;
+  isCompact: boolean;
+  isInProgress: boolean;
+  messages: InAppAgentWindowMessage[];
+}) {
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const isOpen = userToggled ?? isInProgress;
+  const startTimestamp = messages.find(
+    (message) => message.timestamp !== undefined,
+  )?.timestamp;
+  const durationSeconds =
+    startTimestamp !== undefined && endTimestamp !== undefined
+      ? Math.max(1, (endTimestamp - startTimestamp) / 1_000)
+      : null;
+  const label = isInProgress
+    ? "Working…"
+    : durationSeconds !== null
+      ? `Worked for ${formatIntervalSeconds(durationSeconds, 0)}`
+      : "Activity";
+
+  return (
+    <div className="max-w-full">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        className={cn(
+          "text-muted-foreground focus-visible:ring-ring flex w-full items-center gap-1 border-b py-1 text-left outline-none focus-visible:ring-2",
+          isCompact ? "text-[0.775rem]" : "text-sm",
+        )}
+        onClick={() => {
+          setUserToggled(!isOpen);
+        }}
+      >
+        <span>{label}</span>
+        <ChevronRight
+          aria-hidden="true"
+          className={cn("size-3.5 transition-transform", isOpen && "rotate-90")}
+        />
+      </button>
+      {isOpen ? (
+        <div className="flex flex-col gap-1 pt-2 pb-1">
+          {messages.map((message) => (
+            <InAppAgentMessage
+              key={message.id}
+              role={message.role}
+              content={message.content}
+              isCompact={isCompact}
+              showActions={false}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export type InAppAgentWindowConversation = {
   id: string;
@@ -491,6 +656,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       } satisfies InAppAgentWindowMessage;
     })
     .filter((message): message is InAppAgentWindowMessage => message !== null);
+  const displayItems = buildConversationDisplayItems(
+    visibleMessages,
+    isAssistantTurnInProgress,
+  );
 
   const backgroundHint = useInAppAgentBackgroundHint({
     isRunActive: isAssistantTurnInProgress,
@@ -863,40 +1032,49 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               ) : null}
 
               <ol className="flex w-full flex-col gap-1 pb-4">
-                {visibleMessages.map((message, index) => {
-                  const hasFullWidthContent =
-                    message.role === "assistant" ||
-                    message.content.type === "toolGroup" ||
-                    message.content.type === "redirectAction" ||
-                    message.content.type === "reasoning";
+                {displayItems.map((item) => {
+                  if (item.type === "user") {
+                    return (
+                      <li
+                        key={item.message.id}
+                        className={cn(
+                          "ml-auto w-fit max-w-[92%]",
+                          item.hasPreviousMessage && "mt-3",
+                        )}
+                      >
+                        <InAppAgentMessage
+                          role={item.message.role}
+                          content={item.message.content}
+                          isCompact={!isExpanded}
+                          showActions={false}
+                        />
+                      </li>
+                    );
+                  }
 
-                  const nextUserMessageIndex = visibleMessages.findIndex(
-                    (nextMessage, nextIndex) =>
-                      nextIndex > index && nextMessage.role === "user",
-                  );
-                  const nextTurnStartIndex =
-                    nextUserMessageIndex === -1
-                      ? visibleMessages.length
-                      : nextUserMessageIndex;
-                  const isCurrentTurnInProgress =
-                    isAssistantTurnInProgress && nextUserMessageIndex === -1;
-                  const isFinalAssistantTextBlock =
-                    message.role === "assistant" &&
-                    message.content.type === "text" &&
-                    visibleMessages
-                      .slice(index + 1, nextTurnStartIndex)
-                      .every(
-                        (nextMessage) =>
-                          nextMessage.role !== "assistant" ||
-                          nextMessage.content.type !== "text",
-                      );
-                  const showActions =
-                    isFinalAssistantTextBlock && !isCurrentTurnInProgress;
+                  if (item.type === "activity") {
+                    return (
+                      <li
+                        key={`activity-${item.messages[0]?.id}`}
+                        className={cn(
+                          "w-full max-w-[92%]",
+                          item.followsUser && "mt-3",
+                        )}
+                      >
+                        <AssistantActivityGroup
+                          messages={item.messages}
+                          endTimestamp={item.endTimestamp}
+                          isCompact={!isExpanded}
+                          isInProgress={item.isInProgress}
+                        />
+                      </li>
+                    );
+                  }
+
+                  const message = item.message;
+                  const showActions = item.isFinalAnswer;
                   const feedbackRunId =
-                    message.role === "assistant" &&
-                    message.content.type === "text" &&
-                    !isCurrentTurnInProgress &&
-                    isFinalAssistantTextBlock
+                    message.content.type === "text" && item.isFinalAnswer
                       ? message.runId
                       : undefined;
 
@@ -904,13 +1082,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     <li
                       key={message.id}
                       className={cn(
-                        "max-w-[92%]",
-                        hasFullWidthContent ? "w-full" : "w-fit",
-                        message.role === "user" && "ml-auto",
-                        message.role === "user" && index > 0 && "mt-3",
-                        message.role === "assistant" &&
-                          visibleMessages[index - 1]?.role === "user" &&
-                          "mt-3",
+                        "w-full max-w-[92%]",
+                        item.followsUser && "mt-3",
                       )}
                     >
                       <InAppAgentMessage

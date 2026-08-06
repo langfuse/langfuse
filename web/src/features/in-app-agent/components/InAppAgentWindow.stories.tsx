@@ -933,6 +933,7 @@ export const GroupedAssistantTurn = meta.story({
       },
       {
         id: "grouped-intro",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
         role: "assistant",
         content: {
           type: "text",
