@@ -71,7 +71,7 @@ resolves against a transient mid-open width) keeps that default deterministic.
 The full-page trace view keeps its own share-based, per-tab layout.
 
 The peek and the standalone trace page already share one beta-aware fetch
-([`../../trace/useTraceDetailData.ts`](../../../features/traces/useTraceDetailData.ts)), one
+([`../../trace/useTraceDetailData.ts`](../../../features/traces)), one
 body + title
 ([`../../trace/TraceDetailBody.tsx`](../../../features/traces) →
 `TraceDetailBody` / `traceDetailTitle`), and one action set

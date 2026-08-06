@@ -53,8 +53,3 @@ export type TreeNode = {
   /** Maximum depth of subtree rooted at this node (0 for leaf nodes) */
   childrenDepth: number;
 };
-
-/**
- * Flattened tree node for search list and virtualized rendering.
- * Contains parent-level totals for heatmap color scaling.
- */
