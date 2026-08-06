@@ -193,12 +193,6 @@ const STATUS: SemanticToken[] = [
     light: ref(RED, "700"),
     dark: ref(RED, "400"),
   },
-  {
-    token: "--status-error-border",
-    purpose: "Danger hairline: bordered danger buttons",
-    light: ref(RED, "200"),
-    dark: ref(RED, "900"),
-  },
 ];
 
 const ICON_SIZES = [

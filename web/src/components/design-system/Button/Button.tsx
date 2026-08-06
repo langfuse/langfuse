@@ -35,7 +35,7 @@ export type ButtonProps = {
 } & IconProps;
 
 const CONTROL_BASE =
-  "inline-flex h-[26px] items-center rounded-[2px] text-xs tracking-[-0.06px] whitespace-nowrap transition-[filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex h-[26px] items-center rounded-[2px] text-xs tracking-[-0.06px] whitespace-nowrap transition-[filter,color,background-color,border-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50";
 
 const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
   primary: {
@@ -45,8 +45,7 @@ const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
   },
   secondary: {
     default: "border-default bg-elevation-1 text-primary shadow-1 border",
-    danger:
-      "border-status-error bg-elevation-1 text-status-error shadow-1 border",
+    danger: "border-default bg-elevation-1 text-status-error shadow-1 border",
   },
   borderless: {
     default: "text-secondary border border-transparent bg-transparent",
@@ -63,7 +62,7 @@ export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
   },
   secondary: {
     default: "bg-elevation-1 · text-primary · border-default",
-    danger: "bg-elevation-1 · text-status-error · border-status-error",
+    danger: "bg-elevation-1 · text-status-error · border-default",
   },
   borderless: {
     default: "text-secondary",
@@ -71,9 +70,9 @@ export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
   },
 };
 
-/** Hover = a brightness filter, no fill swap. Ink and paper fills need
- * opposite directions per theme, hence per-slot values; `forced` mirrors
- * the hover: classes for the spec-only state="hovered". */
+/** Hover treatment per slot: mostly a brightness filter; the danger
+ * secondary swaps to the red fill (GitHub-style). `forced` mirrors the
+ * hover: classes for the spec-only state="hovered". */
 const HOVER_FILTER: Record<
   ButtonType,
   Record<Status, { hover: string; forced: string }>
@@ -91,8 +90,9 @@ const HOVER_FILTER: Record<
       forced: "brightness-[0.96] dark:brightness-[1.9]",
     },
     danger: {
-      hover: "hover:brightness-[0.96] dark:hover:brightness-[1.9]",
-      forced: "brightness-[0.96] dark:brightness-[1.9]",
+      hover:
+        "hover:border-status-error-fill hover:bg-status-error-fill hover:text-on-inverse",
+      forced: "border-status-error-fill bg-status-error-fill text-on-inverse",
     },
   },
   borderless: {
