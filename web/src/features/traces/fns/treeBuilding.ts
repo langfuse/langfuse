@@ -18,8 +18,9 @@
  *
  * Main export: buildTraceUiData() - builds tree, nodeMap, and searchItems from trace + observations.
  */
+import type { TraceSearchListItem } from "@/src/features/traces/types/traceSearchListItem";
 
-import { type TreeNode, type TraceSearchListItem } from "./types";
+import { type TreeNode } from "../types/treeNode";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
 import {

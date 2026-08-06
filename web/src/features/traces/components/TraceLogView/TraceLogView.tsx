@@ -32,7 +32,7 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import { TRACE_VIEW_CONFIG } from "@/src/features/traces/config/trace-view-config";
+import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";

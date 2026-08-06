@@ -3,7 +3,7 @@
  * These functions handle all timeline positioning and sizing logic
  */
 
-import { type TreeNode } from "@/src/features/traces/fns/types";
+import { type TreeNode } from "@/src/features/traces/types/treeNode";
 
 // Fixed widths for timeline styling
 export const SCALE_WIDTH = 900;

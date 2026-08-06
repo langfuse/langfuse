@@ -18,7 +18,7 @@
  * - Preview cards (modal/panel)
  */
 
-import { type TreeNode } from "../fns/types";
+import { type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { getLevelColors } from "@/src/components/level-colors";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";

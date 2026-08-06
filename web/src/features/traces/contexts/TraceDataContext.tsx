@@ -10,6 +10,7 @@
  * - UI state (selection, collapsed nodes) - see SelectionContext
  * - Display preferences - see ViewPreferencesContext
  */
+import type { TraceSearchListItem } from "@/src/features/traces/types/traceSearchListItem";
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import {
@@ -19,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { type TreeNode, type TraceSearchListItem } from "../fns/types";
+import { type TreeNode } from "../types/treeNode";
 import {
   buildTraceUiData,
   dedupeObservationsById,

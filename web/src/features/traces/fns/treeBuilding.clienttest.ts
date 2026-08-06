@@ -11,7 +11,7 @@ import {
   getObservationLevels,
 } from "./treeBuilding";
 import { getSubtreeDurationOverflowMs } from "./helpers";
-import { type TreeNode } from "./types";
+import { type TreeNode } from "../types/treeNode";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
 

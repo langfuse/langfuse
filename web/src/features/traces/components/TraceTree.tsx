@@ -20,7 +20,7 @@ import { useIsObservationActive } from "@/src/features/traces/contexts/PlayheadC
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
 import { useMobileLayoutContextOptional } from "./TraceLayoutMobile";
-import { type TreeNode } from "../fns/types";
+import { type TreeNode } from "../types/treeNode";
 import { cn } from "@/src/utils/tailwind";
 import type Decimal from "decimal.js";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

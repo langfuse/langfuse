@@ -1,5 +1,6 @@
 import { type NestedObservation } from "@/src/utils/types";
-import { type TreeNode, type TraceSearchListItem } from "./types";
+import type { TraceSearchListItem } from "@/src/features/traces/types/traceSearchListItem";
+import { type TreeNode } from "../types/treeNode";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import Decimal from "decimal.js";

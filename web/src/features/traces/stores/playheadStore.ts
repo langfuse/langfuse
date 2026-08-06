@@ -20,7 +20,7 @@
  */
 
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { type TreeNode } from "../fns/types";
+import { type TreeNode } from "../types/treeNode";
 
 /** Activation window of one observation, in seconds from the timeline origin. */
 export type NodeWindow = { id: string; startSec: number; endSec: number };

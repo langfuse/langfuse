@@ -9,7 +9,7 @@ import {
   PLAYBACK_MAX_SECONDS,
   type NodeWindow,
 } from "./playheadStore";
-import { type TreeNode } from "../fns/types";
+import { type TreeNode } from "../types/treeNode";
 
 function makeNode(
   id: string,

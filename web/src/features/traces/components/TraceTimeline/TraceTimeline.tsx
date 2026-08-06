@@ -57,7 +57,7 @@ import {
 } from "../../fns/visualDepth";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
-import { type TreeNode } from "../../fns/types";
+import { type TreeNode } from "../../types/treeNode";
 import { cn } from "@/src/utils/tailwind";
 
 // Width of the left name gutter. Resizable; these bound it. Kept slim so the
