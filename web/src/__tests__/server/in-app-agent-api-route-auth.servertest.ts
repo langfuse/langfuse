@@ -8,7 +8,8 @@ import type {
 } from "@langfuse/shared/in-app-agent";
 import { appendRunEvents } from "@langfuse/shared/in-app-agent/server/persistence";
 import { env } from "@/src/env.mjs";
-import { InAppAgentRunStatus } from "@langfuse/shared";
+import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   createAndAddApiKeysToDb,
@@ -1189,6 +1190,84 @@ describe("in-app agent public API route auth", () => {
       (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY =
         originalAiFeaturesSecretKey;
     }
+  });
+
+  it("sweeps the conversation's own stale run before applying the active-run ceiling", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const originalMaxActiveRunsPerUser =
+        sharedEnv.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER;
+
+      await prisma.inAppAgentConversation.create({
+        data: {
+          id: conversationId,
+          projectId: project.id,
+          createdByUserId: userId,
+        },
+      });
+
+      // A foreground stream that died before finishRun ran: `createRun`
+      // stale-closes exactly this row further down, so the ceiling must not
+      // count it and reject the replacement first. This route is the rollback
+      // path, where leaked rows and users at their ceiling coincide.
+      const abandonedRun = await prisma.inAppAgentRun.create({
+        data: {
+          id: `run-${randomUUID()}`,
+          projectId: project.id,
+          conversationId,
+          triggeredByUserId: userId,
+          status: InAppAgentRunStatus.RUNNING,
+          createdAt: new Date(Date.now() - 5 * 60_000),
+        },
+      });
+
+      (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+
+      try {
+        const { default: handler } =
+          await import("@/src/features/in-app-agent/server/handler");
+        const response = await handler(
+          new Request("http://localhost/api/in-app-agent", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              threadId: conversationId,
+              runId: `client-run-${randomUUID()}`,
+              messages: [
+                {
+                  id: `message-${randomUUID()}`,
+                  role: "user",
+                  content: "my run died, let me retry",
+                },
+              ],
+              tools: [],
+              context: [],
+              state: {
+                type: "existingConversation",
+                projectId: project.id,
+                conversationId,
+              },
+              forwardedProps: {},
+            }),
+          }),
+        );
+
+        expect(response.status).toBe(200);
+        expect(agentMocks.createAgUiStream).toHaveBeenCalled();
+        await expect(
+          prisma.inAppAgentRun.findFirstOrThrow({
+            where: { id: abandonedRun.id, projectId: project.id },
+          }),
+        ).resolves.toMatchObject({
+          status: InAppAgentRunStatus.FAILED,
+          errorCode: InAppAgentRunErrorCode.STALE,
+        });
+      } finally {
+        (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
+          originalMaxActiveRunsPerUser;
+      }
+    });
   });
 
   it("passes malicious current_url search params as bounded screen context data", async () => {

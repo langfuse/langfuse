@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import Link from "next/link";
-import { captureException } from "@sentry/nextjs";
+import { reportError } from "@/src/utils/reportError";
 import { stripBasePath } from "@/src/utils/redirect";
 
 export const ErrorPage = ({
@@ -82,8 +82,9 @@ export const ErrorPageWithSentry = ({
   useEffect(() => {
     // Capture the error with Sentry
     if (window !== undefined)
-      captureException(
+      reportError(
         new Error(`ErrorPageWithSentry rendered: ${title}, ${message}`),
+        { area: "error-page" },
       );
   }, [title, message]); // Empty dependency array means this effect runs once on mount
 

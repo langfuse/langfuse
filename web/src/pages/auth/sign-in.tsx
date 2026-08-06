@@ -38,7 +38,7 @@ import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
-import { captureException } from "@sentry/nextjs";
+import { reportError } from "@/src/utils/reportError";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -572,7 +572,9 @@ export default function SignIn({
       !nextAuthErrorDescription &&
       !signInErrors.find((e) => e.code === nextAuthError)
     ) {
-      captureException(new Error(`Sign in error: ${nextAuthError}`));
+      reportError(new Error(`Sign in error: ${nextAuthError}`), {
+        area: "auth.signIn",
+      });
     }
   }, [nextAuthError, nextAuthErrorDescription]);
 
@@ -635,13 +637,16 @@ export default function SignIn({
       });
       if (result === undefined) {
         setCredentialsFormError("An unexpected error occurred.");
-        captureException(new Error("Sign in result is undefined"));
+        reportError(new Error("Sign in result is undefined"), {
+          area: "auth.signIn.credentials",
+        });
       } else if (!result.ok) {
         if (!result.error) {
-          captureException(
+          reportError(
             new Error(
               `Sign in result error is falsy, result: ${JSON.stringify(result)}`,
             ),
+            { area: "auth.signIn.credentials" },
           );
         }
         setCredentialsFormError(

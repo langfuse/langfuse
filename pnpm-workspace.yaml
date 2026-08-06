@@ -109,6 +109,12 @@ patchedDependencies:
   # Still unfixed upstream as of 1.1.19; remove once Radix guards focusFirst.
   '@radix-ui/react-roving-focus@1.1.11': patches/@radix-ui__react-roving-focus@1.1.11.patch
   next-auth@4.24.15: patches/next-auth@4.24.15.patch
+  # The document-level drag handlers crash when a panel group unmounts
+  # mid-drag: setPointerCapture on the detached separator throws
+  # InvalidStateError on every pointermove, and the pointerup teardown throws
+  # "Could not find data for Group with id ...". Guard both (skip detached
+  # elements / unmounted groups). Still unfixed upstream as of 4.12.2.
+  react-resizable-panels@4.8.0: patches/react-resizable-panels@4.8.0.patch
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"

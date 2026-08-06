@@ -26,6 +26,7 @@
     "test:e2e:server": "vitest run --project e2e-server",
     "build-trace": "dotenv -e ../.env -- next internal trace .next/trace-turbopack",
     "storybook": "dotenv -e ../.env -- storybook dev -p 6006",
+    "structure:stats": "node scripts/structure/stats.mjs",
     "build-storybook": "dotenv -e ../.env -- storybook build",
     "sfdc:backfill": "dotenv -e ../.env -- tsx src/ee/features/sfdc-sync/scripts/backfillSfdcLeads.ts"
   },
@@ -197,6 +198,7 @@
     "@types/react-grid-layout": "^1.3.6",
     "@vitejs/plugin-react": "^4.7.0",
     "@vitest/browser-playwright": "4.1.10",
+    "dependency-cruiser": "^18.1.0",
     "dockerode": "^4.0.9",
     "dotenv": "^16.6.1",
     "dotenv-cli": "^7.4.2",

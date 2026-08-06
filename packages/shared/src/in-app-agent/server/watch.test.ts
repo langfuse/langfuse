@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { InAppAgentRunStatus } from "../../index";
 import type { PrismaClient } from "../../db";
+import { IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE } from "../constants";
 import type { InAppAgentWatchFrame } from "../backgroundWatch";
 import { watchConversationFrames } from "./watch";
 
@@ -287,6 +288,44 @@ describe("watchConversationFrames", () => {
     expect(relayedRunStarted?.event).toMatchObject({
       type: EventType.RUN_STARTED,
       runId: "run-1",
+    });
+  });
+
+  it("redacts silent MCP tool outputs from relayed tool result events", async () => {
+    const frames = await collect(
+      fakePrisma([
+        {
+          events: [
+            runStarted("run-1", 0),
+            {
+              sequenceNumber: 1,
+              runId: "run-1",
+              event: {
+                type: EventType.TOOL_CALL_RESULT,
+                messageId: "tool-result-1",
+                toolCallId: "tool-call-1",
+                role: "tool",
+                content: JSON.stringify({
+                  type: "silent-mcp-output",
+                  output: { data: [{ id: "observation-1" }] },
+                }),
+              },
+            },
+            runFinished("run-1", 2),
+          ],
+          run: succeeded,
+        },
+      ]),
+      -1,
+    );
+
+    const relayedToolResult = eventFrames(frames).find(
+      (frame) => frame.event.type === EventType.TOOL_CALL_RESULT,
+    );
+
+    expect(relayedToolResult?.event).toMatchObject({
+      type: EventType.TOOL_CALL_RESULT,
+      content: IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
     });
   });
 
