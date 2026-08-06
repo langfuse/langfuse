@@ -132,7 +132,12 @@ jobs:
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] lint cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
-          path: .turbo
+          path: |
+            .turbo
+            web/.next/cache/eslint
+            packages/shared/dist/.eslintcache
+            worker/dist/.eslintcache
+            ee/dist/.eslintcache
           key: ${{ runner.os }}-turbo-lint-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-lint-
