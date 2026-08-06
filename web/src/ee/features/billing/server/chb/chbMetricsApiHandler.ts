@@ -14,18 +14,23 @@ import {
 } from "@langfuse/shared/src/server";
 
 /**
- * Billing metrics API for ClickHouse Billing (BIL-5794).
+ * Billing metrics API for ClickHouse Billing (CHB).
  *
  * CHB's metering pipeline polls this endpoint per project (`resourceId`) and
  * short trailing time window to derive billable usage. Response contract:
  * unknown resources return zeros, never 404 — a `resourceId` that never
  * existed, is already deleted, or is homed in another region yields
- * `traces/scores/observations = 0` with status 200 (requirement added on
- * BIL-5794, 2026-07-16, matching other ClickHouse products' metering).
+ * `traces/scores/observations = 0` with status 200. That is what the other
+ * ClickHouse metering pipelines do, and it keeps a poller that outlives a
+ * deleted project from stalling on 404s it cannot act on.
  *
  * Auth: dedicated bearer secret (`CLICKHOUSE_BILLING_METRICS_API_KEY`).
  * The ADMIN_API_KEY mechanism is deliberately not reused — it is hard-blocked
  * on Langfuse Cloud, which is exactly where this endpoint must run.
+ *
+ * Every exit path returns structured `{ message }` JSON, including unexpected
+ * failures: the poller reads the body, so falling through to Next.js's default
+ * 500 page would hand it HTML.
  */
 
 // Reject windows above 35 days: keeps a misbehaving caller from issuing
@@ -114,50 +119,60 @@ export async function chbMetricsApiHandler(req: NextRequest) {
     );
   }
 
-  // Telemetry-only lookup: a resourceId unknown to this region still returns
-  // zeros per contract, but zeros can mask a misconfigured/misrouted CHB
-  // poller — surface a signal without changing the response. Soft-deleted
-  // projects still have a Postgres row and are intentionally not counted as
-  // unknown.
-  const project = await prisma.project.findUnique({
-    where: { id: resourceId },
-    select: { id: true },
-  });
-  if (!project) {
-    recordIncrement("langfuse.billing_metrics.unknown_resource", 1, {
-      unit: "requests",
+  try {
+    // Telemetry-only lookup: a resourceId unknown to this region still returns
+    // zeros per contract, but zeros can mask a misconfigured/misrouted CHB
+    // poller — surface a signal without changing the response. Soft-deleted
+    // projects still have a Postgres row and are intentionally not counted as
+    // unknown.
+    const project = await prisma.project.findUnique({
+      where: { id: resourceId },
+      select: { id: true },
     });
-    logger.debug(
-      `[CHB Metrics API] resourceId ${resourceId} is unknown to this region, returning zeros`,
+    if (!project) {
+      recordIncrement("langfuse.billing_metrics.unknown_resource", 1, {
+        unit: "requests",
+      });
+      logger.debug(
+        `[CHB Metrics API] resourceId ${resourceId} is unknown to this region, returning zeros`,
+      );
+    }
+
+    const [traceCounts, observationCounts, scoreCounts] = await Promise.all([
+      getTraceCountsByProjectInCreationInterval({
+        start,
+        end,
+        projectId: resourceId,
+      }),
+      getObservationCountsByProjectInCreationInterval({
+        start,
+        end,
+        projectId: resourceId,
+      }),
+      getScoreCountsByProjectInCreationInterval({
+        start,
+        end,
+        projectId: resourceId,
+      }),
+    ]);
+
+    return NextResponse.json(
+      {
+        metrics: {
+          traces: { sum: sumForProject(traceCounts, resourceId) },
+          observations: { sum: sumForProject(observationCounts, resourceId) },
+          scores: { sum: sumForProject(scoreCounts, resourceId) },
+        },
+      },
+      { status: 200 },
+    );
+  } catch (err) {
+    // A ClickHouse or Postgres blip must not turn into a zero-valued 200: CHB
+    // would meter the org for nothing. Fail loud with a retryable 5xx.
+    logger.error("[CHB Metrics API] Failed to resolve usage metrics", err);
+    return NextResponse.json(
+      { message: "Failed to resolve usage metrics" },
+      { status: 500 },
     );
   }
-
-  const [traceCounts, observationCounts, scoreCounts] = await Promise.all([
-    getTraceCountsByProjectInCreationInterval({
-      start,
-      end,
-      projectId: resourceId,
-    }),
-    getObservationCountsByProjectInCreationInterval({
-      start,
-      end,
-      projectId: resourceId,
-    }),
-    getScoreCountsByProjectInCreationInterval({
-      start,
-      end,
-      projectId: resourceId,
-    }),
-  ]);
-
-  return NextResponse.json(
-    {
-      metrics: {
-        traces: { sum: sumForProject(traceCounts, resourceId) },
-        observations: { sum: sumForProject(observationCounts, resourceId) },
-        scores: { sum: sumForProject(scoreCounts, resourceId) },
-      },
-    },
-    { status: 200 },
-  );
 }
