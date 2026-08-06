@@ -586,21 +586,55 @@ console.log(
   `${green("moved")} ${pending.length} path${pending.length === 1 ? "" : "s"} → ${toDir}, rewrote ${importerFiles.length} importer${importerFiles.length === 1 ? "" : "s"}`,
 );
 
-// --- the two blind spots + the way back ---------------------------------------
-/** @type {Map<string, string[]>} original parent dir -> moved basenames */
+// --- the blind spot + the way back -------------------------------------------
+// Modules named by string (vi.mock, worker URLs, route strings) are invisible
+// to the compiler, so tsc stays green while they dangle. We can't rewrite them
+// safely, but we can refuse to let them pass unseen.
+const HIT_LIMIT = 30;
+/** @type {string[]} */
+const dangling = [];
+for (const m of pending) {
+  const needle = m.isDir ? m.from : m.from.slice(0, m.from.lastIndexOf("."));
+  try {
+    const out = execFileSync(
+      "git",
+      [
+        "grep",
+        "-nF",
+        needle,
+        "--",
+        ":(exclude)web/.structure-baseline.json",
+        ":(exclude)*.lock",
+        ":(exclude)pnpm-lock.yaml",
+      ],
+      { cwd: resolve(webRoot, ".."), encoding: "utf8" },
+    );
+    dangling.push(...out.trimEnd().split("\n"));
+  } catch {
+    // git grep exits 1 with no matches
+  }
+}
+console.log();
+if (dangling.length) {
+  console.log(
+    red(
+      `${dangling.length} reference${dangling.length === 1 ? "" : "s"} to the old path survive as strings — tsc cannot see these:`,
+    ),
+  );
+  for (const line of dangling.slice(0, HIT_LIMIT)) console.log(`  ${line}`);
+  if (dangling.length > HIT_LIMIT)
+    console.log(dim(`  … ${dangling.length - HIT_LIMIT} more`));
+  console.log(dim("Fix them by hand (vi.mock paths, worker URLs, docs)."));
+} else {
+  console.log(dim("no string references to the old path survive."));
+}
+
+/** @type {Map<string, string[]>} original parent dir -> new paths that came from it */
 const revert = new Map();
 for (const m of pending) {
   const parent = m.from.slice(0, m.from.lastIndexOf("/"));
   revert.set(parent, [...(revert.get(parent) ?? []), m.to]);
 }
-console.log();
-console.log(
-  dim(
-    "string-referenced modules (worker URLs, route strings) are invisible to the compiler:",
-  ),
-);
-for (const m of pending)
-  console.log(dim(`  git grep -n "${m.from.replace(/^src\//, "")}"`));
 console.log();
 console.log(dim("revert:"));
 for (const [parent, tos] of revert)

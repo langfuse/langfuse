@@ -79,9 +79,12 @@ is instant, which is why the CLI is batch-shaped.
 - **Nothing is destructive.** No `reset`, no `stash`, no `checkout --`. Failures
   print the way back — which is the inverse `structure:move`, not a reset.
 - **Idempotent**: everything already at the destination is a no-op, exit 0.
-- **Blind spot, documented not solved**: modules referenced by string (worker
-  URLs, route strings) are invisible to the compiler. Each run prints a
-  `git grep` for the old path.
+- **Blind spot, surfaced not solved**: modules named by string (`vi.mock` paths,
+  worker URLs, route strings) are invisible to the compiler, so `tsc` stays
+  green while they dangle. Each run greps the repo for the old path and prints
+  every surviving hit — fix those by hand. Not theoretical: the
+  `AdvancedJsonViewer` calibration move left three `vi.mock()` paths behind and
+  six tests failed under a green typecheck.
 
 Renames and splits are not part of the surface (follow-up LFE-14806).
 
