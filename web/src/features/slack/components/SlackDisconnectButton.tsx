@@ -118,7 +118,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
       await disconnectMutation.mutateAsync({ projectId });
     } catch (error) {
       // The mutation's local onError owns the UX; this owns classification + capture.
-      reportTrpcErrorWithoutToast(error);
+      reportTrpcErrorWithoutToast(error, "slack");
     }
   };
 

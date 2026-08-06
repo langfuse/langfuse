@@ -50,7 +50,7 @@ export const NewProjectForm = ({
         onSuccess(project.id);
         form.reset();
       })
-      .catch(reportTrpcErrorWithoutToast);
+      .catch((error) => reportTrpcErrorWithoutToast(error, "projects"));
   }
   return (
     <Form {...form}>

@@ -462,7 +462,7 @@ describe("reportTrpcErrorWithoutToast", () => {
         "Deletion of your projects is still being processed, please try deleting the organization later",
     });
 
-    reportTrpcErrorWithoutToast(error);
+    reportTrpcErrorWithoutToast(error, "organizations");
 
     expect(captureExceptionMock).not.toHaveBeenCalled();
     expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
@@ -481,7 +481,7 @@ describe("reportTrpcErrorWithoutToast", () => {
       path: "projects.create",
     });
 
-    reportTrpcErrorWithoutToast(error);
+    reportTrpcErrorWithoutToast(error, "projects");
 
     expect(captureExceptionMock).toHaveBeenCalledTimes(1);
     const [, options] = captureExceptionMock.mock.calls[0]!;
@@ -490,6 +490,7 @@ describe("reportTrpcErrorWithoutToast", () => {
       "INTERNAL_SERVER_ERROR",
       "projects.create",
     ]);
+    // tRPC failures keep the seam's own area regardless of the caller's.
     expect(options.tags).toMatchObject({
       area: "trpc",
       "trpc.code": "INTERNAL_SERVER_ERROR",
@@ -497,10 +498,12 @@ describe("reportTrpcErrorWithoutToast", () => {
     });
   });
 
-  it("captures non-tRPC errors unchanged", () => {
-    reportTrpcErrorWithoutToast(new Error("post-success work failed"));
+  it("captures non-tRPC errors with the caller's area (not the seam's `trpc`)", () => {
+    reportTrpcErrorWithoutToast(new Error("post-success work failed"), "evals");
 
     expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    const [, options] = captureExceptionMock.mock.calls[0]!;
+    expect(options.tags.area).toBe("evals");
   });
 
   it("never shows the standard error toast (the local onError owns the UX)", () => {
@@ -510,8 +513,9 @@ describe("reportTrpcErrorWithoutToast", () => {
         httpStatus: 500,
         path: "projects.create",
       }),
+      "projects",
     );
-    reportTrpcErrorWithoutToast(new Error("boom"));
+    reportTrpcErrorWithoutToast(new Error("boom"), "projects");
 
     expect(trpcErrorToastMock).not.toHaveBeenCalled();
   });

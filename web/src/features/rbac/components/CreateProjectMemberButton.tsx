@@ -129,7 +129,7 @@ export function CreateProjectMemberButton(props: {
         form.reset();
         setOpen(false);
       })
-      .catch(reportTrpcErrorWithoutToast);
+      .catch((error) => reportTrpcErrorWithoutToast(error, "members"));
   }
 
   return (

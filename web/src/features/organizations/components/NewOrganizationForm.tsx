@@ -48,7 +48,7 @@ export const NewOrganizationForm = ({
         await onSuccess(org.id);
         form.reset();
       })
-      .catch(reportTrpcErrorWithoutToast);
+      .catch((error) => reportTrpcErrorWithoutToast(error, "organizations"));
   }
 
   return (

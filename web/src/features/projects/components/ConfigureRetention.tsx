@@ -59,7 +59,7 @@ export default function ConfigureRetention() {
       .then(() => {
         form.reset();
       })
-      .catch(reportTrpcErrorWithoutToast);
+      .catch((error) => reportTrpcErrorWithoutToast(error, "projects"));
   }
 
   return (

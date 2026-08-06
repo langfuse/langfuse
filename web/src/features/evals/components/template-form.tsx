@@ -442,7 +442,7 @@ export const InnerEvalTemplateForm = (props: {
       .catch((error) => {
         // The mutation's local onError owns the form UX; this owns
         // classification + Sentry capture.
-        reportTrpcErrorWithoutToast(error);
+        reportTrpcErrorWithoutToast(error, "evals");
         if ("message" in error && typeof error.message === "string") {
           setFormError(error.message as string);
           return;

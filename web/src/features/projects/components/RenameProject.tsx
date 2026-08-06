@@ -57,7 +57,7 @@ export default function RenameProject() {
       .then(() => {
         form.reset();
       })
-      .catch(reportTrpcErrorWithoutToast);
+      .catch((error) => reportTrpcErrorWithoutToast(error, "projects"));
   }
 
   return (

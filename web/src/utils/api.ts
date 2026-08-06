@@ -421,9 +421,19 @@ export const reportNonTrpcError = (
  * error toast silenced, since the local `onError` owns the UX (form errors,
  * custom toasts). Replaces the `console.error(error)` anti-pattern, which
  * minted unclassified Sentry events via `captureConsoleIntegration`.
+ * Non-tRPC errors (thrown by the catch's own post-success work) were never a
+ * tRPC failure, so they are reported with the caller's `area` — mirroring
+ * `reportNonTrpcError` — instead of the seam's generic `trpc` area.
  */
-export const reportTrpcErrorWithoutToast = (error: unknown): void => {
-  handleTrpcError(error, true);
+export const reportTrpcErrorWithoutToast = (
+  error: unknown,
+  area: string,
+): void => {
+  if (error instanceof TRPCClientError) {
+    handleTrpcError(error, true);
+    return;
+  }
+  reportError(error, { area });
 };
 
 // Reads the `x-build-id` response header (the build id serving this response)

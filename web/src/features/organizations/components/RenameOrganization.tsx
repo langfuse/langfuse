@@ -60,7 +60,7 @@ export default function RenameOrganization() {
       .then(() => {
         form.reset();
       })
-      .catch(reportTrpcErrorWithoutToast);
+      .catch((error) => reportTrpcErrorWithoutToast(error, "organizations"));
   }
 
   return (

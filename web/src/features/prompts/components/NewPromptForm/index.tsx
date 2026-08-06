@@ -174,7 +174,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           router.push(getPromptDetailHref(projectId, newPrompt.name));
         }
       })
-      .catch(reportTrpcErrorWithoutToast);
+      .catch((error) => reportTrpcErrorWithoutToast(error, "prompts"));
   }
 
   const hasInitializedMessages = useRef(false);

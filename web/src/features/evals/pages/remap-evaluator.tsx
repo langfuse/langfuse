@@ -131,7 +131,7 @@ export default function RemapEvaluatorPage() {
       }
     } catch (err) {
       // The mutations' local onError owns the UX; this owns classification + capture.
-      reportTrpcErrorWithoutToast(err);
+      reportTrpcErrorWithoutToast(err, "evals");
     }
   };
 

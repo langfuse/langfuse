@@ -334,7 +334,7 @@ export const NewDatasetItemForm = (props: {
           `Item does not match dataset schema. Errors: ${JSON.stringify(result.validationErrors, null, 2)}`,
         );
       })
-      .catch(reportTrpcErrorWithoutToast);
+      .catch((error) => reportTrpcErrorWithoutToast(error, "datasets"));
   }
 
   return (
