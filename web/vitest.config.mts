@@ -38,6 +38,7 @@ const allServerTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
 });
 const SHARED_SOURCE_IDENTITY_PATTERN =
   /@langfuse\/shared\/(?:in-app-agent|src\/env)/;
+// Derive membership from imports so new tests cannot silently miss aliases.
 const sharedSourceTestFiles = allServerTestFiles.filter((file) =>
   SHARED_SOURCE_IDENTITY_PATTERN.test(
     readFileSync(join(import.meta.dirname, file), "utf8"),
