@@ -67,7 +67,7 @@ function RefCell({ reference }: { reference: PrimitiveRef }) {
         style={{ background: `oklch(${reference.raw})` }}
       />
       <code
-        className="text-secondary truncate font-mono text-[11px]"
+        className="text-muted-foreground truncate font-mono text-[11px]"
         title={reference.label}
       >
         {reference.label}
@@ -95,7 +95,7 @@ function MappingSection({
           {["Token", "Usage", "Light", "Dark"].map((label) => (
             <span
               key={label}
-              className="text-tertiary font-mono text-[10px] tracking-[0.05em] uppercase"
+              className="text-muted-foreground font-mono text-[10px] tracking-[0.05em] uppercase"
             >
               {label}
             </span>
@@ -106,7 +106,9 @@ function MappingSection({
             <code className="text-foreground font-mono text-[11px]">
               {entry.token}
             </code>
-            <span className="text-secondary text-sm">{entry.purpose}</span>
+            <span className="text-muted-foreground text-sm">
+              {entry.purpose}
+            </span>
             <RefCell reference={entry.light} />
             <RefCell reference={entry.dark} />
           </div>

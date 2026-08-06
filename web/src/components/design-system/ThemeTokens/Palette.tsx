@@ -255,7 +255,7 @@ function FamilyStrip({ family }: { family: Family }) {
       <h3 className="text-foreground text-sm font-bold">
         {family.name}
         {family.role && (
-          <span className="text-tertiary ml-2 text-xs font-normal">
+          <span className="text-muted-foreground ml-2 text-xs font-normal">
             · {family.role}
           </span>
         )}
@@ -287,7 +287,7 @@ function FamilyStrip({ family }: { family: Family }) {
           {STEP_NAMES.map((step) => (
             <span
               key={step}
-              className="text-tertiary flex-1 py-1.5 text-center font-mono text-[10px]"
+              className="text-muted-foreground flex-1 py-1.5 text-center font-mono text-[10px]"
             >
               {step}
             </span>
