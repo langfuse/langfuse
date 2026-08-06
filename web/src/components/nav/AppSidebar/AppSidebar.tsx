@@ -23,6 +23,7 @@ import {
   ArrowUp,
   ArrowUp10,
   BadgeCheck,
+  ChartColumn,
   ChevronsUpDown,
   ChevronDownIcon,
   ExternalLink,
@@ -646,6 +647,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             Releases
           </Link>
         </DropdownMenuItem>
+        {state.deployment === "self-hosted" && (
+          <DropdownMenuItem asChild>
+            <Link href="/instance-usage">
+              <ChartColumn size={16} className="mr-2" />
+              Usage
+            </Link>
+          </DropdownMenuItem>
+        )}
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
