@@ -54,12 +54,16 @@ directory — `fns/tree-building.ts fns/treeBuilding.ts` — and the siblings fo
 the stem (`tree-building.clienttest.ts` → `treeBuilding.clienttest.ts`).
 Renaming the _export_ inside the file is a content edit and stays manual, so a
 naming fix is two steps: the rename here, the symbol by hand. Directory renames
-are not in the surface; move the contents instead.
+are not in the surface: a directory source with a file-shaped target is
+rejected, because `git mv` would happily produce a directory called `foo.ts`.
+Move the contents instead.
 
 Case-only renames (`BreakdownToolTip.tsx` → `BreakdownTooltip.tsx`) work, and
 they are the whole naming sweep's bread and butter. They need two special
 moves: macOS reports the destination as already existing, so the conflict check
-lets a case-only pair through and `git mv -f` performs it; and TypeScript would
+lets a case-only pair through — but only once `stat` says the two paths are the
+same inode, so on a case-sensitive filesystem a genuinely different file at that
+path still blocks — and `git mv -f` performs it; and TypeScript would
 see no rename at all under a case-insensitive host, so a batch containing one
 forces case-sensitive comparison — otherwise every importer keeps the old
 spelling and only breaks on Linux CI.
@@ -83,8 +87,11 @@ is instant, which is why the CLI is batch-shaped.
 - **Colocated siblings come along.** `X.tsx` brings `X.clienttest.tsx`,
   `X.stories.tsx`, `X.fixtures.ts` (and `.servertest`/`.test`/`.spec`/`.module`),
   both flat next to it and from its `__tests__/` — where they land in a
-  `__tests__/` at the destination. `--no-siblings` opts out. The tag list is
-  closed on purpose, so `index.ts` never drags `index.tsx` along.
+  `__tests__/` at the destination. A facet segment before the tag counts
+  (`X.media.clienttest.tsx`), the same shape rule 18 reads, and the nearest
+  subject owns the file — `X.bar.clienttest.tsx` stays with `X.bar.tsx` when that
+  exists. `--no-siblings` opts out. The tag list is closed on purpose, so
+  `index.ts` never drags `index.tsx` along.
 - **Move ≠ edit (rule 15).** Rewrites land in importers. A moved file may only
   change where an alias self-reference (`@/src/<old path>/sibling`) has to
   follow the subtree it is part of; those are listed separately. A rewrite that
@@ -119,7 +126,7 @@ Splitting a file and directory renames are not part of the surface
 | 5      | kind folders closed list (+ `constants`, `types`; `docs` anywhere)                            | census (dir walk)                                                        |
 | 6      | single-feature files live in the feature                                                      | graph (used-in inversion)                                                |
 | 7      | no importing another component's internals                                                    | graph + `.dependency-cruiser.js`                                         |
-| 8      | cross-feature imports via feature `index.ts`                                                  | graph + `.dependency-cruiser.js`                                         |
+| 8      | cross-feature imports via a feature surface (`index.ts`, `server/index.ts`)                   | graph + `.dependency-cruiser.js`                                         |
 | 9      | `index.ts` at a feature root and its `server/` root                                           | census                                                                   |
 | 10     | no client → `server/` (types excepted)                                                        | graph + `.dependency-cruiser.js`                                         |
 | 11     | no runtime import cycles                                                                      | graph + `.dependency-cruiser.js`                                         |

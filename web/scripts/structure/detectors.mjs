@@ -95,7 +95,8 @@ export function rule7(modules) {
   return out;
 }
 
-// Rule 8 — features import other features only through their index.ts.
+// Rule 8 — features import other features only through a surface: the root
+// index from client code, server/index.ts from server code (rule 9, amended).
 /** @param {Module[]} modules @returns {Violation[]} */
 export function rule8(modules) {
   const out = [];
@@ -107,6 +108,9 @@ export function rule8(modules) {
       if (!to || to === from) continue;
       if (dep.resolved === `${to}index.ts` || dep.resolved === `${to}index.tsx`)
         continue;
+      // the same exception .dependency-cruiser.js carries, so the census and
+      // CI agree on the server surface
+      if (FEATURE_SERVER_INDEX.test(dep.resolved)) continue;
       out.push(v(`${mod.source} -> ${dep.resolved}`, mod.source, dep.resolved));
     }
   }
@@ -469,8 +473,10 @@ export function rule5(dirs) {
     const parentName = base(parent);
     if (name === "__tests__" || DOC_DIRS.has(name)) continue;
     // A module folder inside fns/ groups one engine's modules (RFC rule 4). It
-    // may not grow kind folders of its own — that would make it a feature.
-    if (parentName === "fns" && !PASCAL.test(name)) continue;
+    // may not grow kind folders of its own — that would make it a feature — so
+    // a reserved kind name here is not a module folder and stays in scope.
+    if (parentName === "fns" && !PASCAL.test(name) && !KIND_DIRS.has(name))
+      continue;
     if (KIND_DIRS.has(parentName) && parentName !== "components") {
       const grandparent = base(parent.slice(0, -(parentName.length + 1)));
       if (grandparent === "fns") {
