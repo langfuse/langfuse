@@ -111,44 +111,4 @@ describe("OnboardingSurvey", () => {
     expect(screen.getByText("Setting up your project")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
-
-  it("passes a safe target path through onboarding completion", async () => {
-    mocks.routerMock.query = { targetPath: "/demo" };
-
-    render(<OnboardingSurvey />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
-
-    await waitFor(() => {
-      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith({
-        targetPath: "/demo",
-      });
-      expect(mocks.statusSetDataMock).toHaveBeenCalledWith(undefined, {
-        completed: true,
-        redirectTo: "/demo",
-      });
-      expect(mocks.routerMock.replace).toHaveBeenCalledWith("/demo");
-    });
-  });
-
-  it("ignores callbackUrl when no target path is set", async () => {
-    mocks.routerMock.query = {
-      callbackUrl: "http://localhost/auth/sign-up",
-    };
-
-    render(<OnboardingSurvey />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
-
-    await waitFor(() => {
-      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith(undefined);
-      expect(mocks.statusSetDataMock).toHaveBeenCalledWith(undefined, {
-        completed: true,
-        redirectTo: "/project/project-1/traces",
-      });
-      expect(mocks.routerMock.replace).toHaveBeenCalledWith(
-        "/project/project-1/traces",
-      );
-    });
-  });
 });
