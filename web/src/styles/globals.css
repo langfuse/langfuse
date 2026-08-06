@@ -688,3 +688,69 @@
   -moz-user-select: text !important;
   -ms-user-select: text !important;
 }
+
+/* ---------------------------------------------------------------------------
+   Design-system-test semantic tokens (token-architecture RFC). Complete
+   oklch colors mapped onto the picked Tailwind primitives (neutral light /
+   stone dark; see Design → Palette & Semantic tokens in Storybook).
+   Consumed via token-backed arbitrary values, e.g. bg-[var(--bg-elevation-2)],
+   until the architecture graduates into @theme utilities. */
+:root {
+  --bg-elevation-1: oklch(100% 0 0); /* white */
+  --bg-elevation-2: oklch(98.5% 0 0); /* neutral-50 */
+  --bg-elevation-3: oklch(97% 0 0); /* neutral-100 */
+  --bg-elevation-4: oklch(92.2% 0 0); /* neutral-200 */
+  --border-default: oklch(92.2% 0 0); /* neutral-200 */
+  --border-faint: oklch(97% 0 0); /* neutral-100 */
+  --text-primary: oklch(20.5% 0 0); /* neutral-900 */
+  --text-secondary: oklch(37.1% 0 0); /* neutral-700 */
+  --text-tertiary: oklch(55.6% 0 0); /* neutral-500 */
+  --text-contrast: oklch(14.5% 0 0); /* neutral-950 */
+  /* Icon sizing. */
+  --icon-size-md: 0.875rem; /* 14px */
+  /* Soft double shadow from the langfuse.com button. */
+  --ds-button-shadow:
+    0 4px 8px 0 oklch(0 0 0 / 0.05), 0 4px 4px 0 oklch(0 0 0 / 0.03);
+}
+.dark {
+  --bg-elevation-1: oklch(14.7% 0.004 49.25); /* stone-950 */
+  --bg-elevation-2: oklch(21.6% 0.006 56.043); /* stone-900 */
+  --bg-elevation-3: oklch(26.8% 0.007 34.298); /* stone-800 */
+  --bg-elevation-4: oklch(37.4% 0.01 67.558); /* stone-700 */
+  --border-default: oklch(26.8% 0.007 34.298); /* stone-800 */
+  --border-faint: oklch(21.6% 0.006 56.043); /* stone-900 */
+  --text-primary: oklch(97% 0.001 106.424); /* stone-100 */
+  --text-secondary: oklch(86.9% 0.005 56.366); /* stone-300 */
+  --text-tertiary: oklch(55.3% 0.013 58.071); /* stone-500 */
+  --text-contrast: oklch(98.5% 0.001 106.423); /* stone-50 */
+}
+
+/* Hover crop-marks for the design-system Button, ported from langfuse.com
+   (style.css .corner-box-hover-child). An absolute child span whose ::before
+   paints four 8x8 corner brackets on wrapper hover (or when the wrapper
+   carries data-hovered, the Button's forced state). Data attributes, not
+   classes, so tailwindcss/no-custom-classname stays quiet. */
+[data-ds-corners]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--text-tertiary);
+  mask-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8' fill='none'%3E%3Cpath d='M8 0V1H3C1.89543 1 1 1.89543 1 3V8H0V0H8Z' fill='black'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8' fill='none'%3E%3Cpath d='M8 8V7H3C1.89543 7 1 6.10457 1 5V0H0V8H8Z' fill='black'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8' fill='none'%3E%3Cpath d='M0 8V7H5C6.10457 7 7 6.10457 7 5V0H8V8H0Z' fill='black'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8' fill='none'%3E%3Cpath d='M0 0V1H5C6.10457 1 7 1.89543 7 3V8H8V0H0Z' fill='black'/%3E%3C/svg%3E");
+  mask-position:
+    top left,
+    bottom left,
+    bottom right,
+    top right;
+  mask-size: 8px 8px;
+  mask-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+[data-ds-button]:hover > [data-ds-corners]::before,
+[data-ds-button][data-hovered] > [data-ds-corners]::before {
+  opacity: 1;
+}
