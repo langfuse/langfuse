@@ -100,8 +100,8 @@ const TEXT: SemanticToken[] = [
   {
     token: "--text-secondary",
     purpose: "Description, tags, metadata etc.",
-    light: ref(NEUTRAL, "700"),
-    dark: ref(STONE, "300"),
+    light: ref(NEUTRAL, "600"),
+    dark: ref(STONE, "400"),
   },
   {
     token: "--text-tertiary",
