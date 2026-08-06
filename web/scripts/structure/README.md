@@ -56,6 +56,14 @@ Renaming the _export_ inside the file is a content edit and stays manual, so a
 naming fix is two steps: the rename here, the symbol by hand. Directory renames
 are not in the surface; move the contents instead.
 
+Case-only renames (`BreakdownToolTip.tsx` → `BreakdownTooltip.tsx`) work, and
+they are the whole naming sweep's bread and butter. They need two special
+moves: macOS reports the destination as already existing, so the conflict check
+lets a case-only pair through and `git mv -f` performs it; and TypeScript would
+see no rename at all under a case-insensitive host, so a batch containing one
+forces case-sensitive comparison — otherwise every importer keeps the old
+spelling and only breaks on Linux CI.
+
 Flags: `--dry-run` (print the plan and every rewrite, change nothing),
 `--no-siblings`, `--no-verify` (skip the closing `tsc` + `--diff`), `--no-color`.
 
@@ -105,28 +113,51 @@ Splitting a file and directory renames are not part of the surface
 
 ## Rule → mechanism
 
-| Rule   | What                                                | Counted by                                                               |
-| ------ | --------------------------------------------------- | ------------------------------------------------------------------------ |
-| 1–4    | component/hook/fn/store/context file shape + naming | census (TS parse)                                                        |
-| 5      | kind folders closed list                            | census (dir walk)                                                        |
-| 6      | single-feature files live in the feature            | graph (used-in inversion)                                                |
-| 7      | no importing another component's internals          | graph + `.dependency-cruiser.js`                                         |
-| 8      | cross-feature imports via feature `index.ts`        | graph + `.dependency-cruiser.js`                                         |
-| 9      | `index.ts` only at feature roots, re-exports only   | census                                                                   |
-| 10     | no client → `server/` (types excepted)              | graph + `.dependency-cruiser.js`                                         |
-| 11     | no runtime import cycles                            | graph + `.dependency-cruiser.js`                                         |
-| 12     | `src/pages` files import only a Page component      | graph + `.dependency-cruiser.js`                                         |
-| 13     | `components/ui` frozen                              | census (file count, baseline ratchets adds)                              |
-| 14, 15 | design-system purity; git-mv moves                  | review / process — not counted                                           |
-| 16     | ESLint ignores at file level only                   | census (line-level disables)                                             |
-| 17     | baseline only shrinks                               | this baseline + `--diff`                                                 |
-| 18     | fn/hook tests colocated flat                        | census                                                                   |
-| 19     | only tests import `__tests__`                       | graph + `.dependency-cruiser.js`                                         |
-| 20     | no unused exports                                   | graph (file-level orphans; symbol-level needs a knip config — follow-up) |
+| Rule   | What                                                                                          | Counted by                                                               |
+| ------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 1–4    | component/hook/fn/store/context file shape + naming; a `fns/` module folder groups one engine | census (TS parse)                                                        |
+| 5      | kind folders closed list (+ `constants`, `types`; `docs` anywhere)                            | census (dir walk)                                                        |
+| 6      | single-feature files live in the feature                                                      | graph (used-in inversion)                                                |
+| 7      | no importing another component's internals                                                    | graph + `.dependency-cruiser.js`                                         |
+| 8      | cross-feature imports via feature `index.ts`                                                  | graph + `.dependency-cruiser.js`                                         |
+| 9      | `index.ts` at a feature root and its `server/` root                                           | census                                                                   |
+| 10     | no client → `server/` (types excepted)                                                        | graph + `.dependency-cruiser.js`                                         |
+| 11     | no runtime import cycles                                                                      | graph + `.dependency-cruiser.js`                                         |
+| 12     | `src/pages` files import only a Page component                                                | graph + `.dependency-cruiser.js`                                         |
+| 13     | `components/ui` frozen                                                                        | census (file count, baseline ratchets adds)                              |
+| 14, 15 | design-system purity; git-mv moves                                                            | review / process — not counted                                           |
+| 16     | ESLint ignores at file level only                                                             | census (line-level disables)                                             |
+| 17     | baseline only shrinks                                                                         | this baseline + `--diff`                                                 |
+| 18     | fn/hook tests colocated flat                                                                  | census                                                                   |
+| 19     | only tests import `__tests__`                                                                 | graph + `.dependency-cruiser.js`                                         |
+| 20     | no unused exports                                                                             | graph (file-level orphans; symbol-level needs a knip config — follow-up) |
 
 `.dependency-cruiser.js` carries the import rules as CI-ready warnings; the
 detectors here are the exact reference implementation (the config's regex
 approximations under-count some nested-component cases — see its header).
+
+## RFC amendments the detectors now encode
+
+Found by migrating `features/traces` and approved in-flight; the Linear RFC is
+the source of truth and carries the prose (handed over via the LFE-14804
+mailbox).
+
+- **`constants/` and `types/` are kind folders.** A constant is not a function,
+  so it does not belong in `fns/`, and a per-feature `config/` or `shared/`
+  folder is how predictability dies. `types/` holds one type per file, named
+  after it — a `types.ts` inside `fns/` is wrong twice.
+- **`docs/` is allowed at any level** and is not a kind folder: it holds prose,
+  nothing imports it. A README beside a component is prose loose in a code
+  folder.
+- **A `fns/` module folder groups one engine.** `fns/searchJson/` holding
+  `matchNode.ts`, `buildIndex.ts` — the grouping lives in the folder name so
+  each file still has one export. It may not grow kind folders of its own; the
+  moment it wants `components/` it is a feature, not a module.
+- **A feature has two surfaces**, because it is a full-stack slice: `index.ts`
+  at the root (client-safe) and `server/index.ts`. If one index re-exported
+  `server/`, every client importer would transitively evaluate Prisma and
+  ClickHouse — nothing crashes when that happens, which is exactly why it has
+  to be structural.
 
 ## Calibration notes (as of the reworked traces feature, #15784)
 
