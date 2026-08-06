@@ -45,8 +45,8 @@ const invokedFrom = process.cwd();
 // edit set also offers tsconfig entries and generated `.next/types` decls.
 const SOURCE_EXT = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 
-// A colocated sibling is `<stem>.<tag>.<ext>` next to `<stem>.<ext>`; the tag
-// list is closed so that `index.ts` never drags `index.tsx` along.
+// A colocated sibling is `<stem>.<facet?>.<tag>.<ext>` next to `<stem>.<ext>`;
+// the tag list is closed so that `index.ts` never drags `index.tsx` along.
 const SIBLING_TAGS = [
   "clienttest",
   "servertest",
@@ -157,6 +157,15 @@ if (!renameTo && !isDirOnDisk(toDir) && existsSync(abs(toDir))) {
   console.error(`${red("destination is a file:")} ${toDir}`);
   process.exit(1);
 }
+// A rename target names a file, so a directory source would just produce a
+// directory called `foo.ts` — git performs that happily. Directory renames are
+// not in the surface (README): move the contents instead.
+if (renameTo && isDirOnDisk(/** @type {string} */ (fromArgs[0]))) {
+  console.error(
+    `${red("directory rename:")} ${fromArgs[0]} is a directory — move its contents into ${toDir} instead`,
+  );
+  process.exit(1);
+}
 
 /** @type {Map<string, Move>} keyed by `from` */
 const plan = new Map();
@@ -165,11 +174,26 @@ function addMove(from, to, sibling) {
   if (plan.has(from)) return;
   plan.set(from, { from, to, isDir: isDirOnDisk(from), sibling });
 }
-/** @type {(stem: string, entry: string) => boolean} */
-function isSiblingOf(stem, entry) {
+/**
+ * `<stem>.<facet?>.<tag>.<ext>`: a facet segment before the tag is normal here
+ * (`PrettyJsonView.media.clienttest.tsx`) and rule 18 reads them the same way.
+ * The nearest subject owns the file, so `Foo.bar.clienttest.tsx` belongs to
+ * `Foo.bar.tsx` when that exists, not to `Foo.tsx`.
+ */
+/** @type {(dir: string, stem: string, entry: string) => boolean} */
+function isSiblingOf(dir, stem, entry) {
   if (!entry.startsWith(`${stem}.`)) return false;
-  const tag = entry.slice(stem.length + 1).split(".")[0];
-  return Boolean(tag) && SIBLING_TAGS.includes(tag);
+  const segments = entry.slice(stem.length + 1).split(".");
+  segments.pop(); // the extension
+  if (!segments.some((s) => SIBLING_TAGS.includes(s))) return false;
+  let subject = stem;
+  for (const segment of segments) {
+    if (SIBLING_TAGS.includes(segment)) break;
+    subject += `.${segment}`;
+    if (SOURCE_EXT.some((e) => existsSync(abs(join(dir, subject + e)))))
+      return false;
+  }
+  return true;
 }
 
 for (const from of fromArgs) {
@@ -189,11 +213,12 @@ for (const from of fromArgs) {
   /** @type {(entry: string) => string} */
   const renamed = (entry) => newStem + entry.slice(stem.length);
   for (const entry of readdirSync(abs(dir)))
-    if (isSiblingOf(stem, entry))
+    if (isSiblingOf(dir, stem, entry))
       addMove(join(dir, entry), join(toDir, renamed(entry)), true);
   if (isDirOnDisk(join(dir, "__tests__")))
+    // the subject a `__tests__/` entry belongs to still lives in `dir`
     for (const entry of readdirSync(abs(join(dir, "__tests__"))))
-      if (isSiblingOf(stem, entry))
+      if (isSiblingOf(dir, stem, entry))
         addMove(
           join(dir, "__tests__", entry),
           join(toDir, "__tests__", renamed(entry)),
@@ -204,6 +229,23 @@ for (const from of fromArgs) {
 /** @type {(m: Move) => boolean} */
 const isCaseOnly = (m) =>
   m.from !== m.to && m.from.toLowerCase() === m.to.toLowerCase();
+/**
+ * A case-insensitive filesystem reports a case-only rename's destination as
+ * existing because it IS the source — same inode. On a case-sensitive one it is
+ * a second, unrelated file, and overwriting it would be destructive, so only
+ * the same-inode case may skip the conflict check.
+ */
+/** @type {(m: Move) => boolean} */
+const isSelfCaseRename = (m) => {
+  if (!isCaseOnly(m)) return false;
+  try {
+    const from = statSync(abs(m.from));
+    const to = statSync(abs(m.to));
+    return from.ino === to.ino && from.dev === to.dev;
+  } catch {
+    return false;
+  }
+};
 
 /** @type {(msg: string) => never} */
 function bail(msg) {
@@ -248,7 +290,7 @@ for (const m of plan.values()) {
   }
   // a case-only rename looks like an existing destination on a
   // case-insensitive filesystem, but it is exactly the naming sweep's job
-  if (existsSync(abs(m.to)) && !isCaseOnly(m)) {
+  if (existsSync(abs(m.to)) && !isSelfCaseRename(m)) {
     console.error(
       `${red("destination exists:")} ${m.to} (source ${m.from} is still there too)`,
     );
@@ -679,7 +721,7 @@ try {
       // git mv also refuses an untracked source; a plain rename is equivalent
       // there, but only ever onto a destination that does not exist — rename(2)
       // would overwrite one silently.
-      if (existsSync(abs(m.to)) && !isCaseOnly(m)) throw err;
+      if (existsSync(abs(m.to)) && !isSelfCaseRename(m)) throw err;
       renameSync(abs(m.from), abs(m.to));
       git("add", ["--", m.to]);
     }
