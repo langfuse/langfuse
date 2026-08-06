@@ -60,6 +60,7 @@ function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
 const streamingSeedMessages: InAppAgentWindowMessage[] = [
   {
     id: "seed-user-1",
+    timestamp: new Date("2026-08-06T11:48:43.000Z").getTime(),
     role: "user",
     content: {
       type: "text",
@@ -68,6 +69,7 @@ const streamingSeedMessages: InAppAgentWindowMessage[] = [
   },
   {
     id: "seed-assistant-1",
+    timestamp: new Date("2026-08-06T11:49:13.000Z").getTime(),
     role: "assistant",
     content: {
       type: "text",
@@ -830,6 +832,24 @@ export const Conversation = meta.story({
         },
       },
     ],
+  },
+});
+
+export const LightConversation = meta.story({
+  globals: { theme: "light" },
+  args: {
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: streamingSeedMessages,
+  },
+});
+
+export const DarkConversation = meta.story({
+  globals: { theme: "dark" },
+  args: {
+    isExpanded: true,
+    selectedConversationId: "conversation-1",
+    messages: streamingSeedMessages,
   },
 });
 
