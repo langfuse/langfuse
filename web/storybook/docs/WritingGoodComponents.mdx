@@ -33,6 +33,9 @@ primary | secondary | borderless | danger` beats `type` x `status` with
 - Hover mechanics are a design decision per variant. Brightness filters need
   opposite directions for ink and paper fills; the danger variant swaps to
   its fill color instead.
+- The rest and hover fills must be far enough apart to notice at a glance.
+  A 4% brightness shift on a white fill is invisible; one real elevation
+  step (bg-elevation-1 to bg-elevation-4) is not.
 - The variant matrix story renders the full cross product, including icon
   modes, and lists each variant's token routing. If a combination is not in
   the matrix, it is not reviewed.
