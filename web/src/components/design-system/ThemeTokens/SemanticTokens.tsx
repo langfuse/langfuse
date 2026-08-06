@@ -65,16 +65,16 @@ const BG_ELEVATION: SemanticToken[] = [
 
 const BORDER: SemanticToken[] = [
   {
-    token: "--border-default",
-    purpose: "Default hairline across the app",
-    light: ref(NEUTRAL, "200"),
-    dark: ref(STONE, "700"),
-  },
-  {
     token: "--border-faint",
     purpose: "Side nav, side panels, dashboard widgets, cards",
     light: ref(NEUTRAL, "100"),
     dark: ref(STONE, "900"),
+  },
+  {
+    token: "--border-default",
+    purpose: "Default hairline across the app",
+    light: ref(NEUTRAL, "200"),
+    dark: ref(STONE, "700"),
   },
   {
     token: "--border-contrast",
@@ -85,6 +85,12 @@ const BORDER: SemanticToken[] = [
 ];
 
 const TEXT: SemanticToken[] = [
+  {
+    token: "--text-contrast",
+    purpose: "Titles or things that need to call out attention (use rarely)",
+    light: ref(NEUTRAL, "950"),
+    dark: ref(STONE, "50"),
+  },
   {
     token: "--text-primary",
     purpose: "Most of the text on the screen",
@@ -102,12 +108,6 @@ const TEXT: SemanticToken[] = [
     purpose: "Disabled, muted",
     light: ref(NEUTRAL, "500"),
     dark: ref(STONE, "500"),
-  },
-  {
-    token: "--text-contrast",
-    purpose: "Titles or things that need to call out attention (use rarely)",
-    light: ref(NEUTRAL, "950"),
-    dark: ref(STONE, "50"),
   },
   {
     token: "--text-on-inverse",
