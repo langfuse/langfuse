@@ -709,7 +709,10 @@
   /* Inverse surface: the ink-solid fill (primary buttons). */
   --bg-inverse: oklch(20.5% 0 0); /* neutral-900 */
   --text-on-inverse: oklch(97% 0 0); /* neutral-100 */
-  /* Status: danger (destructive intent). */
+  /* Status: danger (destructive intent). Same solid in both modes; the
+     text/border accents flip in .dark below. */
+  --status-error-fill: oklch(50.5% 0.213 27.518); /* red-700 */
+  --status-error-fill-hover: oklch(44.4% 0.177 26.899); /* red-800 */
   --status-error-text: oklch(50.5% 0.213 27.518); /* red-700 */
   /* Icon sizing. */
   --icon-size-md: 0.75rem; /* 12px */
@@ -743,9 +746,13 @@
   --background-color-elevation-3: var(--bg-elevation-3);
   --background-color-elevation-4: var(--bg-elevation-4);
   --background-color-inverse: var(--bg-inverse);
+  --background-color-status-error-fill: var(--status-error-fill);
+  --background-color-status-error-fill-hover: var(--status-error-fill-hover);
 
   --border-color-default: var(--border-default);
   --border-color-faint: var(--border-faint);
+  --border-color-status-error-fill: var(--status-error-fill);
+  --border-color-status-error-fill-hover: var(--status-error-fill-hover);
 
   --text-color-primary: var(--text-primary);
   --text-color-secondary: var(--text-secondary);
