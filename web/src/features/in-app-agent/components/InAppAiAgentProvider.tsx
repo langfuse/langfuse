@@ -47,6 +47,11 @@ import {
   recordInAppAgentToolCallForDisplay,
   type InAppAgentDisplayState,
 } from "@/src/features/in-app-agent/lib/display";
+import { useInAppAgentActivity } from "@/src/features/in-app-agent/lib/useInAppAgentActivity";
+import type {
+  InAppAgentActivityByConversationId,
+  InAppAgentActivityRunSummary,
+} from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import { InAppAgentBackgroundClient } from "@/src/features/in-app-agent/lib/backgroundAgentClient";
 import { useInAppAgentBackgroundExecutionEnabled } from "@/src/features/in-app-agent/lib/executionMode";
 import {
@@ -155,6 +160,9 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   conversations: [],
   hasMoreConversations: false,
   isLoadingMoreConversations: false,
+  activityByConversationId: new Map(),
+  attentionCount: 0,
+  markActivityDelivered: () => undefined,
   selectedConversationId: undefined,
   selectedConversationIsWriteLocked: false,
   loadMoreConversations: () => undefined,
@@ -215,6 +223,11 @@ type InAppAiAgentContextType = {
   conversations: InAppAiAgentConversation[];
   hasMoreConversations: boolean;
   isLoadingMoreConversations: boolean;
+  /** Conversations wanting attention, by id. Empty unless background is on. */
+  activityByConversationId: InAppAgentActivityByConversationId;
+  /** Conversations the user still owes a look, for the launcher badge. */
+  attentionCount: number;
+  markActivityDelivered: (conversationIds: readonly string[]) => void;
   selectedConversationId: string | undefined;
   selectedConversationIsWriteLocked: boolean;
   loadMoreConversations: () => void;
@@ -474,6 +487,55 @@ function InAppAiAgentProviderInner({
   const liveMessageVersion = backgroundExecutionEnabled
     ? backgroundExecutionView.liveMessageRevision
     : foregroundLiveMessageVersion;
+
+  /**
+   * The selected conversation's run is known first-hand from the attached
+   * session, so it is folded in directly rather than waited for from a poll
+   * this tab does not need to make.
+   */
+  const localActivityRuns = useMemo<InAppAgentActivityRunSummary[]>(() => {
+    if (!selectedConversationId || !currentBackgroundRun) {
+      return [];
+    }
+
+    return [
+      {
+        conversationId: selectedConversationId,
+        title:
+          conversations.find(
+            (conversation) => conversation.id === selectedConversationId,
+          )?.title ?? null,
+        runId: currentBackgroundRun.id,
+        status: currentBackgroundRun.status,
+        errorCode: currentBackgroundRun.errorCode,
+        cancelRequested: currentBackgroundRun.cancelRequested,
+      },
+    ];
+  }, [conversations, currentBackgroundRun, selectedConversationId]);
+
+  const backgroundAttachmentStatus = backgroundExecutionView.attachment.status;
+  const isCoveredByLiveSession = useCallback(
+    (conversationId: string) =>
+      open &&
+      conversationId === selectedConversationId &&
+      backgroundAttachmentStatus === "attached",
+    [backgroundAttachmentStatus, open, selectedConversationId],
+  );
+
+  const {
+    activityByConversationId,
+    attentionCount,
+    markConversationSeen,
+    markDelivered,
+  } = useInAppAgentActivity({
+    projectId,
+    enabled: backgroundExecutionEnabled,
+    localRuns: localActivityRuns,
+    // Only what the user can actually see counts as looked at; a selected
+    // conversation behind a closed window has not been read.
+    visibleConversationId: open ? selectedConversationId : null,
+    isCoveredByLiveSession,
+  });
 
   const effectivePendingToolApprovals = useMemo(() => {
     if (!backgroundExecutionEnabled) {
@@ -1279,11 +1341,17 @@ function InAppAiAgentProviderInner({
       resetAgent();
       setForegroundMessages([]);
       setSelectedConversationId(conversationId);
+
+      if (conversationId && open) {
+        markConversationSeen(conversationId);
+      }
     },
     [
       _selectedConversationId,
       backgroundExecutionEnabled,
       isRunning,
+      markConversationSeen,
+      open,
       resetAgent,
       setSelectedConversationId,
     ],
@@ -1291,10 +1359,6 @@ function InAppAiAgentProviderInner({
 
   const deleteConversation = useCallback(
     async (conversationId: string) => {
-      if (isRunning) {
-        return;
-      }
-
       try {
         await deleteConversationMutation.mutateAsync({
           projectId,
@@ -1333,7 +1397,6 @@ function InAppAiAgentProviderInner({
     },
     [
       deleteConversationMutation,
-      isRunning,
       projectId,
       resetAgent,
       selectedConversationId,
@@ -1438,7 +1501,15 @@ function InAppAiAgentProviderInner({
         }
         const entryPoint = options?.entryPoint ?? "chat";
         if (isNewConversation) {
-          capture("in_app_agent:new_chat_started", { entryPoint });
+          capture("in_app_agent:new_chat_started", {
+            entryPoint,
+            // Whether starting here means running two conversations at once.
+            hasOtherActiveRun: [...activityByConversationId.entries()].some(
+              ([otherId, activity]) =>
+                otherId !== conversationId &&
+                (activity.state === "running" || activity.state === "approval"),
+            ),
+          });
         }
         capture("in_app_agent:new_chat_turn", {
           entryPoint,
@@ -1488,6 +1559,7 @@ function InAppAiAgentProviderInner({
       }
     },
     [
+      activityByConversationId,
       backgroundExecutionEnabled,
       conversationQuery.data,
       capture,
@@ -1933,6 +2005,9 @@ function InAppAiAgentProviderInner({
       conversations,
       hasMoreConversations,
       isLoadingMoreConversations,
+      activityByConversationId,
+      attentionCount,
+      markActivityDelivered: markDelivered,
       selectedConversationId: selectedConversationId ?? undefined,
       selectedConversationIsWriteLocked,
       loadMoreConversations,
@@ -1945,9 +2020,12 @@ function InAppAiAgentProviderInner({
       submitFeedback,
     }),
     [
+      activityByConversationId,
       approveToolCall,
+      attentionCount,
       isExpanded,
       conversations,
+      markDelivered,
       effectiveError,
       hasMoreConversations,
       isLoadingMoreConversations,

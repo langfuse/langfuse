@@ -592,6 +592,7 @@ const meta = preview.meta({
     isExpanded: false,
     isConversationInteractionDisabled: false,
     conversations,
+    activityByConversationId: new Map(),
     canLeaveRunningConversation: false,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
