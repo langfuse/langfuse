@@ -36,22 +36,23 @@ const allServerTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
   cwd: import.meta.dirname,
   exclude: ["**/node_modules/**", "src/__e2e__/**"],
 });
-const AGENT_SOURCE_IMPORT_PATTERN = /@langfuse\/shared\/in-app-agent/;
-const agentSourceTestFiles = allServerTestFiles.filter((file) =>
-  AGENT_SOURCE_IMPORT_PATTERN.test(
+const SHARED_SOURCE_IDENTITY_PATTERN =
+  /@langfuse\/shared\/(?:in-app-agent|src\/env)/;
+const sharedSourceTestFiles = allServerTestFiles.filter((file) =>
+  SHARED_SOURCE_IDENTITY_PATTERN.test(
     readFileSync(join(import.meta.dirname, file), "utf8"),
   ),
 );
-const agentSourceUnitTestFiles = agentSourceTestFiles.filter((file) =>
+const sharedSourceUnitTestFiles = sharedSourceTestFiles.filter((file) =>
   file.startsWith("src/__tests__/server/unit/"),
 );
-const agentSourceIntegrationTestFiles = agentSourceTestFiles.filter(
-  (file) => !agentSourceUnitTestFiles.includes(file),
+const sharedSourceIntegrationTestFiles = sharedSourceTestFiles.filter(
+  (file) => !sharedSourceUnitTestFiles.includes(file),
 );
 const serverTestFiles = allServerTestFiles.filter(
   (file) =>
     !file.startsWith("src/__tests__/server/unit/") &&
-    !agentSourceIntegrationTestFiles.includes(file),
+    !sharedSourceIntegrationTestFiles.includes(file),
 );
 const isolatedServerTestFiles = serverTestFiles.filter((file) =>
   GLOBAL_STATE_PATTERN.test(
@@ -75,10 +76,11 @@ function markdownRawPlugin() {
   };
 }
 
-// The in-app-agent runtime's built dist is CJS, whose require() calls bypass
-// Vitest's mocker. Only tests that import this runtime need a source copy;
-// applying these aliases globally makes every server test transform shared.
-const agentSourceResolve = {
+// Shared's built dist is CJS, whose require() calls bypass Vitest's module
+// graph. Tests that mock the in-app-agent runtime or mutate shared's env need
+// one source module identity; applying these aliases globally makes every
+// server test transform shared.
+const sharedSourceResolve = {
   alias: [
     {
       find: /^@langfuse\/shared\/in-app-agent\/server\/(.+)$/,
@@ -254,10 +256,10 @@ export default defineConfig({
       },
       {
         extends: true,
-        resolve: agentSourceResolve,
+        resolve: sharedSourceResolve,
         test: {
-          name: "server-agent-source",
-          include: agentSourceIntegrationTestFiles,
+          name: "server-shared-source",
+          include: sharedSourceIntegrationTestFiles,
           exclude: sharedExclude,
           environment: "node",
           setupFiles: ["./src/__tests__/after-teardown.ts"],
@@ -269,17 +271,17 @@ export default defineConfig({
         test: {
           name: "server-unit",
           include: ["src/__tests__/server/unit/**/*.servertest.{ts,tsx}"],
-          exclude: [...sharedExclude, ...agentSourceUnitTestFiles],
+          exclude: [...sharedExclude, ...sharedSourceUnitTestFiles],
           environment: "node",
           setupFiles: ["./src/__tests__/after-teardown.ts"],
         },
       },
       {
         extends: true,
-        resolve: agentSourceResolve,
+        resolve: sharedSourceResolve,
         test: {
-          name: "server-agent-source-unit",
-          include: agentSourceUnitTestFiles,
+          name: "server-shared-source-unit",
+          include: sharedSourceUnitTestFiles,
           exclude: sharedExclude,
           environment: "node",
           setupFiles: ["./src/__tests__/after-teardown.ts"],
