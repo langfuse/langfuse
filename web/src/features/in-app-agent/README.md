@@ -237,7 +237,7 @@ The in-app agent uses two request-scoped inputs when calling Langfuse MCP:
 - A temporary project-scoped API key marked as an in-app-agent key.
 - An optional server-generated tool override sent with `x-langfuse-in-app-agent-tool-override`.
 
-The API key authenticates the request and scopes it to the project. Without an override, in-app-agent keys are restricted to MCP tools annotated with `readOnlyHint: true`. When the user approves a single Langfuse MCP tool call, `server/handler.ts` creates a JSON override naming that one unprefixed MCP registry tool and passes it to the MCP route through the request header above.
+The API key authenticates the request and scopes it to the project. Without an override, in-app-agent keys are restricted to MCP tools annotated with `readOnlyHint: true`. With an override, the key may additionally call the mutating tools the override names, as unprefixed MCP registry names, alongside the read-only ones. The background path mints it from the run's tool policy: the tool from a one-off approval, the conversation's `Always allow` grants, or both. Foreground names only the single approved tool. The parser also accepts the pre-allowlist `{"toolName":…}` shape so a continuation enqueued before allowlists shipped still executes.
 
 MCP registry behavior:
 
