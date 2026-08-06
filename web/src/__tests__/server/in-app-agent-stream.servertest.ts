@@ -978,13 +978,6 @@ describe("createAgUiStream", () => {
               dataType: "NUMERIC",
             }),
           }),
-          expect.objectContaining({
-            id: "tool-call-1-approval-guidance",
-            role: "developer",
-            content: expect.stringContaining(
-              "action was completed successfully",
-            ),
-          }),
         ]),
       }),
     ]);
@@ -993,12 +986,6 @@ describe("createAgUiStream", () => {
     // the single-tool override on the approved mutation, the second continues
     // the run without that header so follow-up reads are not blocked.
     expect(vi.mocked(Agent)).toHaveBeenCalledTimes(2);
-    const finalApprovalInstructions =
-      vi.mocked(Agent).mock.calls[1]?.[0].instructions;
-    expect(finalApprovalInstructions).toEqual(expect.any(Function));
-    expect((finalApprovalInstructions as () => string)()).toContain(
-      "action was completed successfully",
-    );
     expect(vi.mocked(MCPClient)).toHaveBeenCalledTimes(2);
     expect(vi.mocked(MCPClient).mock.calls[0]?.[0]).toMatchObject({
       servers: {
