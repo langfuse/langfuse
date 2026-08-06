@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 
 export const getDemoProjectConfig = () => {
   const orgId = env.NEXT_PUBLIC_DEMO_ORG_ID?.trim();
@@ -22,27 +22,4 @@ export const getConfiguredDemoProject = async () => {
       orgId: true,
     },
   });
-};
-
-export const ensureDemoProjectAccess = async ({
-  userId,
-}: {
-  userId: string;
-}) => {
-  const demoProject = await getConfiguredDemoProject();
-  if (!demoProject) return false;
-
-  await prisma.organizationMembership.upsert({
-    where: {
-      orgId_userId: { orgId: demoProject.orgId, userId },
-    },
-    update: {},
-    create: {
-      userId,
-      orgId: demoProject.orgId,
-      role: Role.VIEWER,
-    },
-  });
-
-  return true;
 };

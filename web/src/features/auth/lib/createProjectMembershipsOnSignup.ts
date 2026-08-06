@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -8,7 +8,7 @@ import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
-import { ensureDemoProjectAccess } from "@/src/features/auth/lib/demoProjectAccess";
+import { getConfiguredDemoProject } from "@/src/features/auth/lib/demoProjectAccess";
 import { projectRoleAccessRights } from "@langfuse/shared";
 
 export async function createProjectMembershipsOnSignup(
@@ -32,8 +32,21 @@ export async function createProjectMembershipsOnSignup(
       select: { id: true },
     }));
 
-    // Langfuse Cloud: provide view-only access to the demo project.
-    const hasDemoAccess = await ensureDemoProjectAccess({ userId: user.id });
+    const demoProject = await getConfiguredDemoProject();
+    if (demoProject) {
+      await prisma.organizationMembership.upsert({
+        where: {
+          orgId_userId: { orgId: demoProject.orgId, userId: user.id },
+        },
+        update: {},
+        create: {
+          orgId: demoProject.orgId,
+          userId: user.id,
+          role: Role.VIEWER,
+        },
+      });
+    }
+    const hasDemoAccess = Boolean(demoProject);
 
     // self-hosted: LANGFUSE_DEFAULT_ORG_ID (supports comma-separated list of org IDs)
     const defaultOrgIds = env.LANGFUSE_DEFAULT_ORG_ID ?? [];
