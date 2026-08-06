@@ -10,6 +10,9 @@ import { SimpleChatMlArraySchema } from "./types";
  * 3. Object with 'messages' key: {messages: [...]}
  * 4. Otherwise: null
  *
+ * Note: OTel GenAI {role, parts} messages are normalized to {role, content}
+ * upstream in toCompactVerbosity.ts before this function is called.
+ *
  * @param io - The input or output data to extract compact representation from
  * @returns Compact string representation or null if no data
  */
