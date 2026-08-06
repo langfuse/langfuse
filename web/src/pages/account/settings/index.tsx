@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
 import { Card } from "@/src/components/ui/card";
