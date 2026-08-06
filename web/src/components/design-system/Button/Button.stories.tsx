@@ -3,7 +3,7 @@ import { Fragment } from "react";
 import { fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Button, BUTTON_TOKENS } from "./Button";
+import { Button, BUTTON_TOKENS, type ButtonProps } from "./Button";
 
 const meta = preview.meta({
   component: Button,
@@ -84,17 +84,21 @@ export const VariantMatrix = meta.story({
             </span>
             {TYPES.map((type) => (
               <div key={type} className="flex items-center gap-1.5">
-                <Button label="Button" type={type} state={state} />
                 <Button
+                  {...({ type } as ButtonProps)}
                   label="Button"
-                  type={type}
+                  state={state}
+                />
+                <Button
+                  {...({ type } as ButtonProps)}
+                  label="Button"
                   state={state}
                   icon="text-and-icon"
                   Icon={Sparkles}
                 />
                 <Button
+                  {...({ type } as ButtonProps)}
                   label="Button"
-                  type={type}
                   state={state}
                   icon="icon-only"
                   Icon={Sparkles}
@@ -103,6 +107,16 @@ export const VariantMatrix = meta.story({
             ))}
           </Fragment>
         ))}
+      </div>
+      <div className="flex flex-col gap-2 pt-4">
+        <span className="text-muted-foreground font-mono text-[10px] uppercase">
+          full width
+        </span>
+        <div className="flex w-80 flex-col gap-2">
+          {(["primary", "secondary"] as const).map((type) => (
+            <Button key={type} label={type} type={type} fullWidth />
+          ))}
+        </div>
       </div>
       <div className="flex flex-col gap-0.5 pt-1">
         {TYPES.map((type) => (

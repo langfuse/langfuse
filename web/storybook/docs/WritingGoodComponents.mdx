@@ -1,0 +1,61 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Writing Good Components" />
+
+# Writing Good Components
+
+Lessons from building the design-system Button. Each rule exists because we
+got it wrong first.
+
+## Tokens
+
+- Components consume semantic tokens only, never primitives. No raw palette
+  classes (`text-red-700`), no hex values.
+- Themes flip inside the token. A component never carries `dark:` color
+  overrides; if a variant breaks in dark mode, fix the token values, not the
+  component.
+- Tokens are scoped to their property family. Background tokens only work on
+  `bg-*` and gradients, text tokens only on `text-*`. If you need an ink
+  color as a fill, mint a background token (`--bg-inverse`), do not reuse a
+  text token.
+- Sizes are tokens too. Icon dimensions come from `--icon-size-md`, not from
+  ad hoc `size-*` utilities.
+- Every new token goes on the Semantic tokens page in the same change. That
+  page is the registry; an undocumented token does not exist.
+
+## Copying a reference
+
+- Measure the reference, do not approximate. The langfuse.com button is 26px,
+  not 32px; its default size is its `small`.
+- Question every borrowed detail. The docs site's icon chip and hover
+  crop-marks came along for the ride and both got cut. Port the essentials,
+  ask about the flourishes.
+
+## Variants and API
+
+- Only ship variants the design actually has. The five-status axis became a
+  single danger type; unused combinations are API surface to maintain.
+- Make impossible states impossible while they exist. When danger excluded
+  primary, the union type enforced it, not a runtime check.
+- Prefer flat enums over crossed props once the matrix collapses. `type:
+  primary | secondary | borderless | danger` beats `type` x `status` with
+  holes in it.
+
+## States
+
+- Check both themes for every state. Dark mode surfaced an unreadable hover
+  fill, an invisible border and a vanishing disabled state that light mode
+  never showed.
+- Hover mechanics are a design decision per variant. Brightness filters need
+  opposite directions for ink and paper fills; the danger variant swaps to
+  its fill color instead.
+- The variant matrix story renders the full cross product, including icon
+  modes, and lists each variant's token routing. If a combination is not in
+  the matrix, it is not reviewed.
+- Every new prop or variant lands in the matrix in the same change,
+  no exceptions.
+
+## Copy
+
+- Curt and minimal everywhere: page ledes, purpose columns, story names.
+- No em dashes in user-facing copy.

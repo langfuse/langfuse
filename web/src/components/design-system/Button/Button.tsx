@@ -23,15 +23,22 @@ type IconProps =
       Icon: ComponentType<{ className?: string }>;
     };
 
+/** fullWidth is only available on primary and secondary. */
+type TypeProps =
+  | {
+      type?: "primary" | "secondary";
+      /** Stretch to the parent's width (forms, dialog footers). */
+      fullWidth?: boolean;
+    }
+  | { type: "borderless" | "danger"; fullWidth?: never };
+
 export type ButtonProps = {
   /** Visible label; icon-only buttons expose it as the accessible name. */
   label: string;
-  type?: ButtonType;
   state?: ForcedState;
-  /** Stretch to the parent's width (forms, dialog footers). */
-  fullWidth?: boolean;
   onClick?: () => void;
-} & IconProps;
+} & TypeProps &
+  IconProps;
 
 const CONTROL_BASE =
   "inline-flex h-[26px] items-center rounded-[2px] text-xs tracking-[-0.06px] whitespace-nowrap transition-[filter,color,background-color,border-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 dark:disabled:opacity-65";
@@ -87,13 +94,8 @@ const ICON_LAYOUT: Record<"text-only" | "text-and-icon" | "icon-only", string> =
   };
 
 export function Button(props: ButtonProps) {
-  const {
-    label,
-    type = "primary",
-    state = "default",
-    fullWidth = false,
-    onClick,
-  } = props;
+  const { label, type = "primary", state = "default", onClick } = props;
+  const fullWidth = props.fullWidth ?? false;
   const icon = props.icon ?? "text-only";
   const IconComponent = "Icon" in props ? props.Icon : undefined;
   const disabled = state === "disabled";
