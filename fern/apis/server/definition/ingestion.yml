@@ -106,6 +106,36 @@ service:
                   status: 201
               errors: []
 
+        - request:
+            batch:
+              - id: keep-0001
+                timestamp: "2022-01-01T00:00:00.000Z"
+                type: "trace-create"
+                body:
+                  id: trace-keep
+                  timestamp: "2022-01-01T00:00:00.000Z"
+                  environment: "production"
+                  name: "Sampled-in trace"
+              - id: drop-0002
+                timestamp: "2022-01-01T00:00:01.000Z"
+                type: "trace-create"
+                body:
+                  id: trace-drop
+                  timestamp: "2022-01-01T00:00:01.000Z"
+                  environment: "production"
+                  name: "Sampled-out trace"
+          response:
+            body:
+              successes:
+                - id: keep-0001
+                  status: 201
+              errors: []
+              warnings:
+                - id: drop-0002
+                  status: 200
+                  message: "Event dropped by sampling"
+                  warning: "This event was not processed because it was excluded by project-level trace sampling configuration."
+
 types:
   IngestionEvent:
     discriminant: "type"
@@ -416,10 +446,33 @@ types:
       message: optional<string>
       error: optional<unknown>
 
+  IngestionWarning:
+    docs: |
+      A warning for an event that was accepted by the API but not processed by the
+      ingestion pipeline. Currently used for events dropped by project-level
+      trace sampling: the event is acknowledged (so clients do not retry it)
+      and uploaded to blob storage, but excluded from downstream processing
+      and reported with status 200 instead of 201 because no resource was
+      materialized.
+    properties:
+      id:
+        type: string
+        docs: The event id from the request envelope.
+      status:
+        type: integer
+        docs: HTTP-like status. 200 indicates the event was acknowledged but not processed by the ingestion pipeline.
+      message:
+        type: string
+        docs: Short, machine-readable summary of the warning.
+      warning:
+        type: string
+        docs: Human-readable explanation of why the event was not processed by the ingestion pipeline.
+
   IngestionResponse:
     properties:
       successes: list<IngestionSuccess>
       errors: list<IngestionError>
+      warnings: optional<list<IngestionWarning>>
 
   OpenAICompletionUsageSchema:
     docs: OpenAI Usage schema from (Chat-)Completion APIs
