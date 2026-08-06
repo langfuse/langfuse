@@ -54,10 +54,12 @@ const CONTROL_STYLES: Record<ButtonType, string> = {
 /** Human-readable token routing per variant, shown by the Storybook
  * variant matrix. Keep in sync with CONTROL_STYLES above. */
 export const BUTTON_TOKENS: Record<ButtonType, string> = {
-  primary: "bg-inverse · text-on-inverse",
-  secondary: "bg-elevation-1 · text-primary · border-default",
-  borderless: "text-secondary",
-  danger: "bg-elevation-1 · text-status-error · border-default",
+  primary: "bg-inverse · text-on-inverse · hover: brightness filter",
+  secondary:
+    "bg-elevation-1 · text-primary · border-default · hover: bg-elevation-4",
+  borderless: "text-secondary · hover: brightness filter",
+  danger:
+    "bg-elevation-1 · text-status-error · border-default · hover: bg-status-error-fill + text-on-inverse",
 };
 
 /** Hover treatment: mostly a brightness filter; danger swaps to the red
@@ -69,8 +71,8 @@ const HOVER: Record<ButtonType, { hover: string; forced: string }> = {
     forced: "brightness-[1.4] dark:brightness-90",
   },
   secondary: {
-    hover: "hover:brightness-[0.96] dark:hover:brightness-[1.9]",
-    forced: "brightness-[0.96] dark:brightness-[1.9]",
+    hover: "hover:bg-elevation-4",
+    forced: "bg-elevation-4",
   },
   borderless: {
     hover: "hover:brightness-75 dark:hover:brightness-125",
