@@ -928,6 +928,7 @@ export const GroupedAssistantTurn = meta.story({
     messages: [
       {
         id: "grouped-user",
+        timestamp: new Date("2026-08-06T15:26:45.000Z").getTime(),
         role: "user",
         content: { type: "text", text: "Why did latency increase?" },
       },
@@ -966,6 +967,7 @@ export const GroupedAssistantTurn = meta.story({
       },
       {
         id: "grouped-conclusion",
+        runId: "grouped-run",
         timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
         role: "assistant",
         content: {

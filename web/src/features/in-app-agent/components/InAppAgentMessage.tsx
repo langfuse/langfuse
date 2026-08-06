@@ -9,7 +9,6 @@ import {
   Copy,
   BookOpenText,
   Loader2,
-  MoreHorizontal,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
@@ -292,8 +291,9 @@ function TextMessageWithActions({
   const isSettled = !content.isStreaming;
   const canSubmitFeedback = isAssistant && isSettled && onSubmitFeedback;
   const hasActions = isSettled && showActions;
-  const formattedTimestamp =
-    isAssistant && timestamp ? formatMessageTimestamp(timestamp) : null;
+  const formattedTimestamp = timestamp
+    ? formatMessageTimestamp(timestamp)
+    : null;
 
   const handleCopy = () => {
     if (!isAssistant) {
@@ -366,17 +366,6 @@ function TextMessageWithActions({
       {isAssistant && hasSources ? (
         <SourcesPopover sources={sources} isCompact={isCompact} />
       ) : null}
-      {formattedTimestamp ? (
-        <time
-          dateTime={formattedTimestamp.iso}
-          title={formattedTimestamp.full}
-          aria-label={`Sent ${formattedTimestamp.full}`}
-          suppressHydrationWarning
-          className="text-muted-foreground ml-1 text-[0.6875rem]"
-        >
-          {formattedTimestamp.short}
-        </time>
-      ) : null}
     </>
   );
 
@@ -398,29 +387,22 @@ function TextMessageWithActions({
         <div
           data-testid="in-app-agent-message-actions"
           className={cn(
-            "flex min-h-6 max-w-full items-center",
+            "flex min-h-6 max-w-full items-center gap-0.5",
             isCompact ? "mt-0.5" : "mt-1",
           )}
         >
-          <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within/message:opacity-100 group-hover/message:opacity-100 [@media(hover:none)]:hidden">
-            {actions}
-          </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                aria-label="Message actions"
-                className="text-muted-foreground hover:text-foreground hidden rounded-md p-1 [@media(hover:none)]:inline-flex"
-              >
-                <MoreHorizontal
-                  className={cn(isCompact ? "size-3" : "size-3.5")}
-                />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" side="top" className="w-auto p-1.5">
-              <div className="flex items-center gap-0.5">{actions}</div>
-            </PopoverContent>
-          </Popover>
+          <div className="flex items-center gap-0.5">{actions}</div>
+          {formattedTimestamp ? (
+            <time
+              dateTime={formattedTimestamp.iso}
+              title={formattedTimestamp.full}
+              aria-label={`Sent ${formattedTimestamp.full}`}
+              suppressHydrationWarning
+              className="text-muted-foreground ml-1 text-[0.6875rem] opacity-0 transition-opacity group-focus-within/message:opacity-100 group-hover/message:opacity-100"
+            >
+              {formattedTimestamp.short}
+            </time>
+          ) : null}
         </div>
       ) : null}
     </div>
