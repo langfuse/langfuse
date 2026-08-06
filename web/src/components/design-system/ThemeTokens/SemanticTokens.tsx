@@ -77,16 +77,16 @@ const BORDER: SemanticToken[] = [
     dark: ref(STONE, "900"),
   },
   {
-    token: "--border-inverse",
-    purpose: "Border on the inverse fill",
-    light: ref(NEUTRAL, "700"),
-    dark: ref(STONE, "300"),
-  },
-  {
     token: "--border-contrast",
     purpose: "Assertive lines: inputs, outline buttons",
     light: ref(NEUTRAL, "400"),
     dark: ref(STONE, "600"),
+  },
+  {
+    token: "--border-inverse",
+    purpose: "Border on the inverse fill",
+    light: ref(NEUTRAL, "700"),
+    dark: ref(STONE, "300"),
   },
 ];
 
