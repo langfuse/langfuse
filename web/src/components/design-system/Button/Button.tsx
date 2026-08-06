@@ -39,15 +39,12 @@ const CONTROL_BASE =
 
 const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
   primary: {
-    default:
-      "border-inverse bg-inverse text-on-inverse shadow-ds-button border",
-    danger:
-      "border-danger-fill bg-danger-fill text-on-danger shadow-ds-button border",
+    default: "border-inverse bg-inverse text-on-inverse shadow-1 border",
+    danger: "border-danger-fill bg-danger-fill text-on-danger shadow-1 border",
   },
   secondary: {
-    default:
-      "border-default bg-elevation-1 text-secondary shadow-ds-button border",
-    danger: "border-danger bg-elevation-1 text-danger shadow-ds-button border",
+    default: "border-default bg-elevation-1 text-secondary shadow-1 border",
+    danger: "border-danger bg-elevation-1 text-danger shadow-1 border",
   },
   borderless: {
     default: "text-secondary border border-transparent bg-transparent",

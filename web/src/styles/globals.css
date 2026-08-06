@@ -720,8 +720,7 @@
   /* Icon sizing. */
   --icon-size-md: 0.75rem; /* 12px */
   /* Soft double shadow from the langfuse.com button. */
-  --ds-button-shadow:
-    0 4px 8px 0 oklch(0 0 0 / 0.05), 0 4px 4px 0 oklch(0 0 0 / 0.03);
+  --shadow-1: 0 4px 8px 0 oklch(0 0 0 / 0.05), 0 4px 4px 0 oklch(0 0 0 / 0.03);
 }
 .dark {
   --bg-elevation-1: oklch(14.7% 0.004 49.25); /* stone-950 */
@@ -768,5 +767,5 @@
   --text-color-danger: var(--danger-text);
   --text-color-on-danger: var(--on-danger);
 
-  --shadow-ds-button: var(--ds-button-shadow);
+  --shadow-1: var(--shadow-1);
 }

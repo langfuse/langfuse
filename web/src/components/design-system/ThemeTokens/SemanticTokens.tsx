@@ -230,7 +230,7 @@ const ICON_SIZES = [
 
 const SHADOWS = [
   {
-    token: "--ds-button-shadow",
+    token: "--shadow-1",
     purpose: "Soft double shadow on primary and secondary buttons",
     value: "0 4px 8px oklch(0 0 0 / 0.05), 0 4px 4px oklch(0 0 0 / 0.03)",
   },
