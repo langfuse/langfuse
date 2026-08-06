@@ -78,11 +78,13 @@ describe("instanceUsage.get", () => {
   const envRecord = env as unknown as Record<string, string | undefined>;
   const originalCloudRegion = envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalWriteMode = envRecord.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+  const originalPreviewPrUrl = envRecord.NEXT_PUBLIC_PREVIEW_PR_URL;
 
   beforeEach(() => {
     // The page is self-host only; the local dev .env marks the test process as
     // cloud ("DEV"), which would trip the cloud guard.
     envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    envRecord.NEXT_PUBLIC_PREVIEW_PR_URL = undefined;
     envRecord.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
     queryClickhouseMock.mockReset();
     queryClickhouseMock.mockResolvedValue([]);
@@ -90,11 +92,43 @@ describe("instanceUsage.get", () => {
 
   afterEach(() => {
     envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    envRecord.NEXT_PUBLIC_PREVIEW_PR_URL = originalPreviewPrUrl;
     envRecord.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
   });
 
   it("rejects the request on Langfuse Cloud", async () => {
     envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    const caller = createCaller(buildSession({ role: Role.OWNER }));
+
+    await expect(caller.get()).rejects.toThrow(
+      /not available in Langfuse Cloud/,
+    );
+  });
+
+  it("serves PR previews, which build with the DEV cloud region", async () => {
+    envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    envRecord.NEXT_PUBLIC_PREVIEW_PR_URL =
+      "https://github.com/langfuse/langfuse/pull/1";
+    const caller = createCaller(buildSession({ role: Role.OWNER }));
+
+    await expect(caller.get()).resolves.toMatchObject({
+      instance: { organizations: 3 },
+    });
+  });
+
+  it("still rejects a real Cloud region that carries a stray preview URL", async () => {
+    envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    envRecord.NEXT_PUBLIC_PREVIEW_PR_URL =
+      "https://github.com/langfuse/langfuse/pull/1";
+    const caller = createCaller(buildSession({ role: Role.OWNER }));
+
+    await expect(caller.get()).rejects.toThrow(
+      /not available in Langfuse Cloud/,
+    );
+  });
+
+  it("rejects the DEV region outside a preview, ie local dev pointed at cloud config", async () => {
+    envRecord.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     const caller = createCaller(buildSession({ role: Role.OWNER }));
 
     await expect(caller.get()).rejects.toThrow(

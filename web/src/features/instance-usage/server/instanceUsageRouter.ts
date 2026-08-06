@@ -6,6 +6,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { Role } from "@langfuse/shared/src/db";
 import { logger, queryClickhouse } from "@langfuse/shared/src/server";
+import { isInstanceUsageAvailable } from "@/src/features/instance-usage/lib/availability";
 import {
   INSTANCE_USAGE_STORAGE_TABLES,
   buildMonthlyUsage,
@@ -14,13 +15,9 @@ import {
   type InstanceUsageResponse,
 } from "@/src/features/instance-usage/lib/instanceUsage";
 
-/**
- * The page is an operator tool for self-hosted instances: Langfuse Cloud has
- * its own org-scoped usage views, and an instance-wide aggregate would cross
- * tenant boundaries there.
- */
+/** The page is an operator tool; see `isInstanceUsageAvailable`. */
 const denyOnLangfuseCloud = () => {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+  if (!isInstanceUsageAvailable()) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Instance usage is not available in Langfuse Cloud",
