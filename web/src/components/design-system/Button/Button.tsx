@@ -41,7 +41,7 @@ export type ButtonProps = {
   IconProps;
 
 const CONTROL_BASE =
-  "inline-flex h-[26px] items-center rounded-[2px] text-xs tracking-[-0.06px] whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 dark:disabled:opacity-65";
+  "inline-flex h-[26px] items-center rounded-[2px] text-[length:var(--text-size-md)] tracking-[-0.06px] whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 dark:disabled:opacity-65";
 
 const CONTROL_STYLES: Record<ButtonType, string> = {
   primary: "bg-inverse text-on-inverse shadow-1 border border-transparent",

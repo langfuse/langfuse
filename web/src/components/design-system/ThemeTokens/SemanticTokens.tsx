@@ -195,6 +195,53 @@ const STATUS: SemanticToken[] = [
   },
 ];
 
+const TEXT_SIZES = [
+  {
+    token: "--text-size-md",
+    value: "0.75rem",
+    pixels: "12px",
+    purpose: "Button labels, compact UI text",
+  },
+];
+
+function TextSizeSection() {
+  return (
+    <DocsSection title="Text size">
+      <div className="flex flex-col">
+        <div className={`${MAPPING_GRID} border-b pb-1.5`}>
+          {["Token", "Usage", "Size", "Sample"].map((label) => (
+            <span
+              key={label}
+              className="text-muted-foreground font-mono text-[10px] tracking-[0.05em] uppercase"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+        {TEXT_SIZES.map((entry) => (
+          <div key={entry.token} className={`${MAPPING_GRID} border-b py-2`}>
+            <code className="text-foreground font-mono text-[11px]">
+              {entry.token}
+            </code>
+            <span className="text-muted-foreground text-sm">
+              {entry.purpose}
+            </span>
+            <code className="text-muted-foreground font-mono text-[11px]">
+              {entry.value} · {entry.pixels}
+            </code>
+            <span
+              className="text-foreground"
+              style={{ fontSize: `var(${entry.token})` }}
+            >
+              Aa
+            </span>
+          </div>
+        ))}
+      </div>
+    </DocsSection>
+  );
+}
+
 const ICON_SIZES = [
   {
     token: "--icon-size-md",
@@ -311,6 +358,7 @@ export function SemanticTokens() {
         <MappingSection title="Text / Placeholder" tokens={TEXT} />
         <MappingSection title="Status" tokens={STATUS} />
         <ShadowSection />
+        <TextSizeSection />
         <IconSizeSection />
       </div>
     </div>

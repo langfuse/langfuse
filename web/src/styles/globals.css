@@ -715,6 +715,8 @@
   --status-error: oklch(44.4% 0.177 26.899); /* red-800 */
   /* Icon sizing. */
   --icon-size-md: 0.75rem; /* 12px */
+  /* Text sizing. */
+  --text-size-md: 0.75rem; /* 12px */
   /* Soft double shadow from the langfuse.com button. */
   --shadow-1: 0 4px 8px 0 oklch(0 0 0 / 0.05), 0 4px 4px 0 oklch(0 0 0 / 0.03);
 }
