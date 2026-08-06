@@ -23,6 +23,7 @@ import {
   mkdirSync,
   readdirSync,
   renameSync,
+  rmdirSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -80,6 +81,7 @@ if (positional.length < 2) {
       "",
       "  --dry-run      show the plan and the importer rewrites, change nothing",
       "  --no-siblings  do not carry <name>.{clienttest,stories,fixtures,...} along",
+      "                 (flat next to the file, and under its __tests__/)",
       "  --no-verify    skip the closing tsc + structure:stats --diff",
     ].join("\n"),
   );
@@ -131,16 +133,23 @@ if (isDirOnDisk(toDir) === false && existsSync(abs(toDir))) {
 
 /** @type {Map<string, Move>} keyed by `from` */
 const plan = new Map();
-/** @type {(from: string, sibling: boolean) => void} */
-function addMove(from, sibling) {
+/** `subdir` keeps a `__tests__` sibling in a `__tests__` folder at the destination */
+/** @type {(from: string, sibling: boolean, subdir?: string) => void} */
+function addMove(from, sibling, subdir = "") {
   if (plan.has(from)) return;
   const base = from.slice(from.lastIndexOf("/") + 1);
   plan.set(from, {
     from,
-    to: `${toDir}/${base}`,
+    to: `${toDir}${subdir}/${base}`,
     isDir: isDirOnDisk(from),
     sibling,
   });
+}
+/** @type {(stem: string, entry: string) => boolean} */
+function isSiblingOf(stem, entry) {
+  if (!entry.startsWith(`${stem}.`)) return false;
+  const tag = entry.slice(stem.length + 1).split(".")[0];
+  return Boolean(tag) && SIBLING_TAGS.includes(tag);
 }
 
 for (const from of fromArgs) {
@@ -156,11 +165,12 @@ for (const from of fromArgs) {
   const dir = from.slice(0, from.lastIndexOf("/"));
   const base = from.slice(from.lastIndexOf("/") + 1);
   const stem = base.slice(0, base.lastIndexOf("."));
-  for (const entry of readdirSync(abs(dir))) {
-    if (entry === base || !entry.startsWith(`${stem}.`)) continue;
-    const tag = entry.slice(stem.length + 1).split(".")[0];
-    if (tag && SIBLING_TAGS.includes(tag)) addMove(`${dir}/${entry}`, true);
-  }
+  for (const entry of readdirSync(abs(dir)))
+    if (isSiblingOf(stem, entry)) addMove(`${dir}/${entry}`, true);
+  if (isDirOnDisk(`${dir}/__tests__`))
+    for (const entry of readdirSync(abs(`${dir}/__tests__`)))
+      if (isSiblingOf(stem, entry))
+        addMove(`${dir}/__tests__/${entry}`, true, "/__tests__");
 }
 
 for (const m of plan.values())
@@ -207,10 +217,13 @@ if (done.length)
   );
 
 console.log(bold(`structure:move → ${toDir}`));
-for (const m of pending)
-  console.log(
-    `  ${m.isDir ? "dir " : "file"} ${m.from}${m.sibling ? dim("  (sibling)") : ""}`,
-  );
+for (const m of pending) {
+  const destDir = m.to.slice(0, m.to.lastIndexOf("/"));
+  const note = !m.sibling
+    ? ""
+    : dim(`  (sibling${destDir === toDir ? "" : ` → ${destDir}/`})`);
+  console.log(`  ${m.isDir ? "dir " : "file"} ${m.from}${note}`);
+}
 console.log();
 
 // --- language service over a mutable in-memory layout ------------------------
@@ -386,7 +399,10 @@ for (const m of pending) {
     const before = currentText(target);
     if (before === undefined || !isSource(target)) continue;
     setText(target, applyChanges(before, fc.textChanges));
-    if (!fileRenames.has(target)) touched.add(target);
+    // a moved file already relocated by an earlier move in this batch is named
+    // by its new path here — either way it is not an importer
+    if (!fileRenames.has(target) && !movedOriginal.has(target))
+      touched.add(target);
   }
   // reflect the new layout so the next move in the batch sees it
   for (const [src, dest] of fileRenames)
@@ -566,6 +582,19 @@ for (const m of pending) {
     // untracked source: git mv refuses, a plain rename + add is equivalent
     renameSync(abs(m.from), abs(m.to));
     git("add", ["--", m.to]);
+  }
+}
+// git does not track directories, so a move that empties one leaves it on
+// disk. rmdir only ever succeeds on an empty one, so this cannot lose work.
+for (const m of pending) {
+  let dir = m.from.slice(0, m.from.lastIndexOf("/"));
+  while (dir.startsWith("src/") && dir !== "src") {
+    try {
+      rmdirSync(abs(dir));
+    } catch {
+      break;
+    }
+    dir = dir.slice(0, dir.lastIndexOf("/"));
   }
 }
 const rewritten = [...importerFiles, ...followed.keys()];

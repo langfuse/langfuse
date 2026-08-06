@@ -65,9 +65,10 @@ is instant, which is why the CLI is batch-shaped.
   moves touch, silently. That is the whole reason this is a script and not a
   `for` loop around a fresh program.
 - **Colocated siblings come along.** `X.tsx` brings `X.clienttest.tsx`,
-  `X.stories.tsx`, `X.fixtures.ts` (and `.servertest`/`.test`/`.spec`/`.module`)
-  from the same directory, unless `--no-siblings`. `__tests__/X*` does not —
-  move it explicitly.
+  `X.stories.tsx`, `X.fixtures.ts` (and `.servertest`/`.test`/`.spec`/`.module`),
+  both flat next to it and from its `__tests__/` — where they land in a
+  `__tests__/` at the destination. `--no-siblings` opts out. The tag list is
+  closed on purpose, so `index.ts` never drags `index.tsx` along.
 - **Move ≠ edit (rule 15).** Rewrites land in importers. A moved file may only
   change where an alias self-reference (`@/src/<old path>/sibling`) has to
   follow the subtree it is part of; those are listed separately. A rewrite that
