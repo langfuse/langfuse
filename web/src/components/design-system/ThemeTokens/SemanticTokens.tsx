@@ -50,16 +50,16 @@ const BG_ELEVATION: SemanticToken[] = [
     dark: ref(STONE, "800"),
   },
   {
-    token: "--bg-inverse",
-    purpose: "Ink-solid fill: primary buttons",
-    light: ref(NEUTRAL, "900"),
-    dark: ref(STONE, "100"),
-  },
-  {
     token: "--bg-elevation-4",
     purpose: "Hover, selected",
     light: ref(NEUTRAL, "200"),
     dark: ref(STONE, "700"),
+  },
+  {
+    token: "--bg-inverse",
+    purpose: "Ink-solid fill: primary buttons",
+    light: ref(NEUTRAL, "900"),
+    dark: ref(STONE, "100"),
   },
 ];
 
