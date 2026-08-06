@@ -887,6 +887,19 @@ const LoadedSessionEventsPage: React.FC<{
     [sessionDetailStore, setShowCorrections],
   );
 
+  const setInlineToolCallsForSession = (isEnabled: boolean) => {
+    capture("session_detail:inline_tools_toggled", { isEnabled, isV4: true });
+    sessionDetailStore.getState().actions.setShowInlineToolCalls(isEnabled);
+  };
+
+  const setShowSystemPromptForSession = (isEnabled: boolean) => {
+    capture("session_detail:system_prompt_toggled", {
+      isEnabled,
+      isV4: true,
+    });
+    sessionDetailStore.getState().actions.setShowSystemPrompt(isEnabled);
+  };
+
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId,
@@ -1448,6 +1461,12 @@ const LoadedSessionEventsPage: React.FC<{
                   sessionId={sessionId}
                   bookmarked={session.bookmarked}
                   isPublic={session.public}
+                  showCorrections={showCorrections}
+                  showInlineToolCalls={showInlineToolCalls}
+                  showSystemPrompt={showSystemPrompt}
+                  onShowCorrectionsChange={setShowCorrectionsForSession}
+                  onShowInlineToolCallsChange={setInlineToolCallsForSession}
+                  onShowSystemPromptChange={setShowSystemPromptForSession}
                 >
                   <DropdownMenuTrigger asChild>
                     <Button

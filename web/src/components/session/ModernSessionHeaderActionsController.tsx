@@ -3,8 +3,13 @@ import { type ReactNode } from "react";
 
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -16,12 +21,24 @@ export function ModernSessionHeaderActionsController({
   sessionId,
   bookmarked,
   isPublic,
+  showCorrections,
+  showInlineToolCalls,
+  showSystemPrompt,
+  onShowCorrectionsChange,
+  onShowInlineToolCallsChange,
+  onShowSystemPromptChange,
   children,
 }: {
   projectId: string;
   sessionId: string;
   bookmarked: boolean;
   isPublic: boolean;
+  showCorrections: boolean;
+  showInlineToolCalls: boolean;
+  showSystemPrompt: boolean;
+  onShowCorrectionsChange: (isEnabled: boolean) => void;
+  onShowInlineToolCallsChange: (isEnabled: boolean) => void;
+  onShowSystemPromptChange: (isEnabled: boolean) => void;
   children: ReactNode;
 }) {
   const capture = usePostHogClientCapture();
@@ -90,6 +107,39 @@ export function ModernSessionHeaderActionsController({
           <CopyIcon className="mr-2 h-3.5 w-3.5" />
           Copy session ID
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>Display</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuCheckboxItem
+              checked={showCorrections}
+              onClick={(event) => {
+                event.preventDefault();
+                onShowCorrectionsChange(!showCorrections);
+              }}
+            >
+              Show corrections
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={showInlineToolCalls}
+              onClick={(event) => {
+                event.preventDefault();
+                onShowInlineToolCallsChange(!showInlineToolCalls);
+              }}
+            >
+              Show tool calls
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={showSystemPrompt}
+              onClick={(event) => {
+                event.preventDefault();
+                onShowSystemPromptChange(!showSystemPrompt);
+              }}
+            >
+              Show system prompt
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
       </DropdownMenuContent>
     </DropdownMenu>
   );
