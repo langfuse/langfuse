@@ -4,8 +4,8 @@
 // web/tsconfig.json, so `@/src/...` aliases, extension-less specifiers, index
 // resolution and literal dynamic import() are all handled by the compiler.
 //
-//   pnpm structure:move <from...> <to-dir>
-//   pnpm structure:move --dry-run src/hooks/useFoo.ts src/features/bar/hooks
+//   pnpm structure:move <from...> <to-dir>     move into a directory
+//   pnpm structure:move <from> <to-file>       rename (one source, file target)
 //
 // Flags: --dry-run  --no-siblings  --no-verify  --no-color
 //
@@ -41,6 +41,10 @@ const ts = require("typescript");
 const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const invokedFrom = process.cwd();
 
+// Source we may rewrite, and the extensions that mark a rename target. The
+// edit set also offers tsconfig entries and generated `.next/types` decls.
+const SOURCE_EXT = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+
 // A colocated sibling is `<stem>.<tag>.<ext>` next to `<stem>.<ext>`; the tag
 // list is closed so that `index.ts` never drags `index.tsx` along.
 const SIBLING_TAGS = [
@@ -74,10 +78,13 @@ const bold = paint("1");
 if (positional.length < 2) {
   console.error(
     [
-      "usage: pnpm structure:move <from...> <to-dir>",
+      "usage: pnpm structure:move <from...> <to-dir>     move into a directory",
+      "       pnpm structure:move <from> <to-file>       rename in place",
       "",
-      "  <from>    files and/or folders (web-relative, e.g. src/hooks/useFoo.ts)",
-      "  <to-dir>  destination directory; created if missing",
+      "  <from>     files and/or folders (web-relative, e.g. src/hooks/useFoo.ts)",
+      "  <to-dir>   destination directory; created if missing",
+      "  <to-file>  a target ending in a source extension renames instead:",
+      "             src/f/fns/tree-building.ts src/f/fns/treeBuilding.ts",
       "",
       "  --dry-run      show the plan and the importer rewrites, change nothing",
       "  --no-siblings  do not carry <name>.{clienttest,stories,fixtures,...} along",
@@ -129,28 +136,31 @@ function walkFiles(absDir) {
 }
 
 // --- plan --------------------------------------------------------------------
-const toDir = toWebRel(
+// One source plus a target that names a file is a rename; anything else is a
+// move into a directory. `getEditsForFileRename` does not care which it is.
+const lastArg = toWebRel(
   /** @type {string} */ (positional[positional.length - 1]),
 );
 const fromArgs = positional.slice(0, -1).map(toWebRel);
+const renameTo =
+  fromArgs.length === 1 &&
+  !isDirOnDisk(lastArg) &&
+  SOURCE_EXT.some((e) => lastArg.endsWith(e))
+    ? lastArg
+    : null;
+const toDir = renameTo ? parentDir(renameTo) : lastArg;
 
-if (isDirOnDisk(toDir) === false && existsSync(abs(toDir))) {
+if (!renameTo && !isDirOnDisk(toDir) && existsSync(abs(toDir))) {
   console.error(`${red("destination is a file:")} ${toDir}`);
   process.exit(1);
 }
 
 /** @type {Map<string, Move>} keyed by `from` */
 const plan = new Map();
-/** `subdir` keeps a `__tests__` sibling in a `__tests__` folder at the destination */
-/** @type {(from: string, sibling: boolean, subdir?: string) => void} */
-function addMove(from, sibling, subdir = "") {
+/** @type {(from: string, to: string, sibling: boolean) => void} */
+function addMove(from, to, sibling) {
   if (plan.has(from)) return;
-  plan.set(from, {
-    from,
-    to: join(toDir, subdir, baseName(from)),
-    isDir: isDirOnDisk(from),
-    sibling,
-  });
+  plan.set(from, { from, to, isDir: isDirOnDisk(from), sibling });
 }
 /** @type {(stem: string, entry: string) => boolean} */
 function isSiblingOf(stem, entry) {
@@ -160,21 +170,32 @@ function isSiblingOf(stem, entry) {
 }
 
 for (const from of fromArgs) {
-  if (!existsSync(abs(from)) && !existsSync(abs(join(toDir, baseName(from))))) {
+  const to = renameTo ?? join(toDir, baseName(from));
+  if (!existsSync(abs(from)) && !existsSync(abs(to))) {
     console.error(`${red("not found:")} ${from}`);
     process.exit(1);
   }
-  addMove(from, false);
+  addMove(from, to, false);
   if (!withSiblings || isDirOnDisk(from) || !existsSync(abs(from))) continue;
   const dir = parentDir(from);
   const base = baseName(from);
   const stem = base.slice(0, base.lastIndexOf("."));
+  // a rename carries its siblings' stems along: Foo.clienttest.tsx -> Bar.clienttest.tsx
+  const newBase = baseName(to);
+  const newStem = newBase.slice(0, newBase.lastIndexOf("."));
+  /** @type {(entry: string) => string} */
+  const renamed = (entry) => newStem + entry.slice(stem.length);
   for (const entry of readdirSync(abs(dir)))
-    if (isSiblingOf(stem, entry)) addMove(join(dir, entry), true);
+    if (isSiblingOf(stem, entry))
+      addMove(join(dir, entry), join(toDir, renamed(entry)), true);
   if (isDirOnDisk(join(dir, "__tests__")))
     for (const entry of readdirSync(abs(join(dir, "__tests__"))))
       if (isSiblingOf(stem, entry))
-        addMove(join(dir, "__tests__", entry), true, "__tests__");
+        addMove(
+          join(dir, "__tests__", entry),
+          join(toDir, "__tests__", renamed(entry)),
+          true,
+        );
 }
 
 /** @type {(msg: string) => never} */
@@ -238,7 +259,9 @@ if (done.length)
     dim(`${done.length} of ${plan.size} already at ${toDir} — moving the rest`),
   );
 
-console.log(bold(`structure:move → ${toDir}`));
+console.log(
+  bold(renameTo ? `structure:move → ${renameTo}` : `structure:move → ${toDir}`),
+);
 for (const m of pending) {
   const destDir = m.to.slice(0, m.to.lastIndexOf("/"));
   const note = !m.sibling
@@ -396,9 +419,6 @@ function applyChanges(text, changes) {
   return out;
 }
 
-// The edit set also offers tsconfig `include`/`files` entries and generated
-// `.next/types` declarations; source is the only thing we rewrite.
-const SOURCE_EXT = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 /** @type {(p: string) => boolean} */
 const isSource = (p) =>
   p.startsWith(`${webRoot}/`) &&
@@ -617,14 +637,20 @@ if (dryRun) {
 /** @type {(moves: Move[]) => void} */
 function printRevert(moves) {
   if (!moves.length) return;
+  console.log();
+  console.log(dim("revert:"));
+  // a renamed file's inverse is a rename, not a move into its old directory —
+  // that would just report the destination as already occupied
   /** @type {Map<string, string[]>} original parent dir -> new paths that came from it */
   const byParent = new Map();
   for (const m of moves) {
+    if (baseName(m.from) !== baseName(m.to)) {
+      console.log(dim(`  pnpm structure:move ${m.to} ${m.from}`));
+      continue;
+    }
     const parent = parentDir(m.from) || ".";
     byParent.set(parent, [...(byParent.get(parent) ?? []), m.to]);
   }
-  console.log();
-  console.log(dim("revert:"));
   for (const [parent, tos] of byParent)
     console.log(dim(`  pnpm structure:move ${tos.join(" ")} ${parent}`));
 }

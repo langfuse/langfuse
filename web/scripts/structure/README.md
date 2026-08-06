@@ -44,9 +44,17 @@ rescores. Leverage = violations cleared × rule weight (`RULE_WEIGHTS` in
 ## structure:move — a move with the imports carried along
 
 ```sh
-pnpm structure:move <from...> <to-dir>       # files and/or folders, batched
+pnpm structure:move <from...> <to-dir>   # move files and/or folders, batched
+pnpm structure:move <from> <to-file>     # rename (one source, file target)
 pnpm structure:move --dry-run src/hooks/useFoo.ts src/features/bar/hooks
 ```
+
+A target ending in a source extension is a rename rather than a move into a
+directory — `fns/tree-building.ts fns/treeBuilding.ts` — and the siblings follow
+the stem (`tree-building.clienttest.ts` → `treeBuilding.clienttest.ts`).
+Renaming the _export_ inside the file is a content edit and stays manual, so a
+naming fix is two steps: the rename here, the symbol by hand. Directory renames
+are not in the surface; move the contents instead.
 
 Flags: `--dry-run` (print the plan and every rewrite, change nothing),
 `--no-siblings`, `--no-verify` (skip the closing `tsc` + `--diff`), `--no-color`.
