@@ -1,0 +1,630 @@
+#!/usr/bin/env node
+// structure:move — move files/folders and rewrite every importer, the way an
+// IDE does: TypeScript's own LanguageService.getEditsForFileRename over
+// web/tsconfig.json, so `@/src/...` aliases, extension-less specifiers, index
+// resolution and literal dynamic import() are all handled by the compiler.
+//
+//   pnpm structure:move <from...> <to-dir>
+//   pnpm structure:move --dry-run src/hooks/useFoo.ts src/features/bar/hooks
+//
+// Flags: --dry-run  --no-siblings  --no-verify  --no-color
+//
+// Booting the language service costs ~10-20s and every move after that is
+// instant, which is why the CLI is batch-shaped.
+//
+// Invariants:
+//   - move ≠ edit (RFC rule 15): moved files stay byte-identical; rewrites
+//     land in importers only. A move that would edit a moved file aborts.
+//   - history preserved: renames go through `git mv`.
+//   - never destructive: on failure the revert command is printed, not run.
+import { execFileSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const require = createRequire(import.meta.url);
+/** @type {typeof import("typescript")} */
+const ts = require("typescript");
+
+/** @typedef {import("typescript").TextChange} TextChange */
+/** @typedef {{ from: string, to: string, isDir: boolean, sibling: boolean }} Move */
+
+const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const invokedFrom = process.cwd();
+
+// A colocated sibling is `<stem>.<tag>.<ext>` next to `<stem>.<ext>`; the tag
+// list is closed so that `index.ts` never drags `index.tsx` along.
+const SIBLING_TAGS = [
+  "clienttest",
+  "servertest",
+  "test",
+  "spec",
+  "stories",
+  "fixtures",
+  "module",
+];
+
+// --- args -------------------------------------------------------------------
+const args = process.argv.slice(2);
+/** @type {(name: string) => boolean} */
+const flag = (name) => args.includes(`--${name}`);
+const positional = args.filter((a) => !a.startsWith("--"));
+const dryRun = flag("dry-run");
+const withSiblings = !flag("no-siblings");
+const verify = !flag("no-verify");
+
+const useColor =
+  process.stdout.isTTY && !process.env.NO_COLOR && !flag("no-color");
+/** @type {(code: string) => (s: string) => string} */
+const paint = (code) => (s) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : `${s}`);
+const green = paint("32");
+const red = paint("31");
+const dim = paint("2");
+const bold = paint("1");
+
+if (positional.length < 2) {
+  console.error(
+    [
+      "usage: pnpm structure:move <from...> <to-dir>",
+      "",
+      "  <from>    files and/or folders (web-relative, e.g. src/hooks/useFoo.ts)",
+      "  <to-dir>  destination directory; created if missing",
+      "",
+      "  --dry-run      show the plan and the importer rewrites, change nothing",
+      "  --no-siblings  do not carry <name>.{clienttest,stories,fixtures,...} along",
+      "  --no-verify    skip the closing tsc + structure:stats --diff",
+    ].join("\n"),
+  );
+  process.exit(1);
+}
+
+// --- paths -------------------------------------------------------------------
+/** Web-relative, forward-slashed. Accepts web-relative, repo-relative or absolute input. */
+/** @type {(p: string) => string} */
+function toWebRel(p) {
+  const direct = relative(webRoot, resolve(invokedFrom, p)).replace(/\\/g, "/");
+  if (!direct.startsWith("..")) return direct;
+  const fromRepo = relative(webRoot, resolve(invokedFrom, "..", p)).replace(
+    /\\/g,
+    "/",
+  );
+  if (!fromRepo.startsWith("..")) return fromRepo;
+  console.error(`${red("outside web/:")} ${p}`);
+  process.exit(1);
+}
+/** @type {(rel: string) => string} */
+const abs = (rel) => `${webRoot}/${rel}`;
+/** @type {(rel: string) => boolean} */
+const isDirOnDisk = (rel) =>
+  existsSync(abs(rel)) && statSync(abs(rel)).isDirectory();
+
+/** @type {(absDir: string) => string[]} */
+function walkFiles(absDir) {
+  /** @type {string[]} */
+  const out = [];
+  for (const e of readdirSync(absDir, { withFileTypes: true })) {
+    const p = `${absDir}/${e.name}`;
+    if (e.isDirectory()) out.push(...walkFiles(p));
+    else out.push(p);
+  }
+  return out;
+}
+
+// --- plan --------------------------------------------------------------------
+const toDir = toWebRel(
+  /** @type {string} */ (positional[positional.length - 1]),
+);
+const fromArgs = positional.slice(0, -1).map(toWebRel);
+
+if (isDirOnDisk(toDir) === false && existsSync(abs(toDir))) {
+  console.error(`${red("destination is a file:")} ${toDir}`);
+  process.exit(1);
+}
+
+/** @type {Map<string, Move>} keyed by `from` */
+const plan = new Map();
+/** @type {(from: string, sibling: boolean) => void} */
+function addMove(from, sibling) {
+  if (plan.has(from)) return;
+  const base = from.slice(from.lastIndexOf("/") + 1);
+  plan.set(from, {
+    from,
+    to: `${toDir}/${base}`,
+    isDir: isDirOnDisk(from),
+    sibling,
+  });
+}
+
+for (const from of fromArgs) {
+  if (
+    !existsSync(abs(from)) &&
+    !existsSync(abs(`${toDir}/${from.slice(from.lastIndexOf("/") + 1)}`))
+  ) {
+    console.error(`${red("not found:")} ${from}`);
+    process.exit(1);
+  }
+  addMove(from, false);
+  if (!withSiblings || isDirOnDisk(from) || !existsSync(abs(from))) continue;
+  const dir = from.slice(0, from.lastIndexOf("/"));
+  const base = from.slice(from.lastIndexOf("/") + 1);
+  const stem = base.slice(0, base.lastIndexOf("."));
+  for (const entry of readdirSync(abs(dir))) {
+    if (entry === base || !entry.startsWith(`${stem}.`)) continue;
+    const tag = entry.slice(stem.length + 1).split(".")[0];
+    if (tag && SIBLING_TAGS.includes(tag)) addMove(`${dir}/${entry}`, true);
+  }
+}
+
+for (const m of plan.values())
+  for (const other of plan.values())
+    if (other !== m && other.isDir && m.from.startsWith(`${other.from}/`)) {
+      console.error(
+        `${red("nested source:")} ${m.from} is already inside ${other.from}`,
+      );
+      process.exit(1);
+    }
+
+// --- idempotence + conflicts --------------------------------------------------
+/** @type {Move[]} */
+const pending = [];
+/** @type {Move[]} */
+const done = [];
+for (const m of plan.values()) {
+  if (!existsSync(abs(m.from))) {
+    if (existsSync(abs(m.to))) done.push(m);
+    else {
+      console.error(`${red("not found:")} ${m.from}`);
+      process.exit(1);
+    }
+    continue;
+  }
+  if (existsSync(abs(m.to))) {
+    console.error(
+      `${red("destination exists:")} ${m.to} (source ${m.from} is still there too)`,
+    );
+    process.exit(1);
+  }
+  pending.push(m);
+}
+
+if (!pending.length) {
+  console.log(
+    `${green("already applied")} — ${done.length} path${done.length === 1 ? "" : "s"} already at ${toDir}`,
+  );
+  process.exit(0);
+}
+if (done.length)
+  console.log(
+    dim(`${done.length} of ${plan.size} already at ${toDir} — moving the rest`),
+  );
+
+console.log(bold(`structure:move → ${toDir}`));
+for (const m of pending)
+  console.log(
+    `  ${m.isDir ? "dir " : "file"} ${m.from}${m.sibling ? dim("  (sibling)") : ""}`,
+  );
+console.log();
+
+// --- language service over a mutable in-memory layout ------------------------
+const t0 = Date.now();
+const parsed = ts.getParsedCommandLineOfConfigFile(
+  `${webRoot}/tsconfig.json`,
+  {},
+  {
+    useCaseSensitiveFileNames: true,
+    readDirectory: ts.sys.readDirectory,
+    fileExists: ts.sys.fileExists,
+    readFile: ts.sys.readFile,
+    getCurrentDirectory: () => webRoot,
+    onUnRecoverableConfigFileDiagnostic: (dg) => {
+      console.error(ts.flattenDiagnosticMessageText(dg.messageText, "\n"));
+      process.exit(1);
+    },
+  },
+);
+if (!parsed) {
+  console.error("could not read web/tsconfig.json");
+  process.exit(1);
+}
+
+/** @type {(p: string) => string} */
+const norm = (p) => p.replace(/\\/g, "/");
+/** @type {Map<string, string>} in-memory content (edited or relocated) */
+const overlay = new Map();
+/** @type {Set<string>} paths the in-memory layout no longer has */
+const removed = new Set();
+/** @type {Map<string, number>} */
+const versions = new Map();
+/** @type {Set<string>} */
+const scriptFileNames = new Set(parsed.fileNames.map(norm));
+let projectVersion = 0;
+
+/** @type {(p: string) => string | undefined} */
+const currentText = (p) =>
+  overlay.has(p)
+    ? overlay.get(p)
+    : removed.has(p)
+      ? undefined
+      : ts.sys.readFile(p);
+/** @type {(p: string, text: string) => void} */
+const setText = (p, text) => {
+  overlay.set(p, text);
+  removed.delete(p);
+  versions.set(p, (versions.get(p) ?? 0) + 1);
+  projectVersion++;
+};
+/** @type {(p: string) => void} */
+const dropFile = (p) => {
+  overlay.delete(p);
+  removed.add(p);
+  versions.set(p, (versions.get(p) ?? 0) + 1);
+  projectVersion++;
+};
+
+/** @type {import("typescript").LanguageServiceHost} */
+const lsHost = {
+  getScriptFileNames: () => [...scriptFileNames],
+  getScriptVersion: (f) => String(versions.get(norm(f)) ?? 0),
+  getScriptSnapshot: (f) => {
+    const text = currentText(norm(f));
+    return text === undefined ? undefined : ts.ScriptSnapshot.fromString(text);
+  },
+  getProjectVersion: () => String(projectVersion),
+  getCurrentDirectory: () => webRoot,
+  getCompilationSettings: () => parsed.options,
+  getDefaultLibFileName: (o) => ts.getDefaultLibFilePath(o),
+  useCaseSensitiveFileNames: () => true,
+  fileExists: (f) => {
+    const p = norm(f);
+    if (removed.has(p)) return false;
+    return overlay.has(p) || ts.sys.fileExists(p);
+  },
+  readFile: (f, encoding) => {
+    const p = norm(f);
+    if (removed.has(p)) return undefined;
+    return overlay.has(p) ? overlay.get(p) : ts.sys.readFile(p, encoding);
+  },
+  directoryExists: (d) => {
+    const p = norm(d);
+    if (ts.sys.directoryExists(p)) return true;
+    for (const f of overlay.keys()) if (f.startsWith(`${p}/`)) return true;
+    return false;
+  },
+  getDirectories: (d) => ts.sys.getDirectories(norm(d)),
+  readDirectory: (path, extensions, exclude, include, depth) => {
+    const dir = norm(path);
+    const found = ts.sys
+      .readDirectory(dir, extensions, exclude, include, depth)
+      .map(norm)
+      .filter((p) => !removed.has(p));
+    for (const p of overlay.keys())
+      if (
+        p.startsWith(`${dir}/`) &&
+        !found.includes(p) &&
+        (!extensions || extensions.some((e) => p.endsWith(e)))
+      )
+        found.push(p);
+    return found;
+  },
+  realpath: ts.sys.realpath,
+};
+
+const ls = ts.createLanguageService(lsHost, ts.createDocumentRegistry());
+// force the first program build so the boot cost is paid (and visible) once
+ls.getProgram();
+console.log(
+  dim(`language service ready (${((Date.now() - t0) / 1000).toFixed(1)}s)`),
+);
+
+// --- compute the rewrites ----------------------------------------------------
+const formatOptions = ts.getDefaultFormatCodeSettings("\n");
+/** @type {import("typescript").UserPreferences} */
+const preferences = { quotePreference: "double" };
+
+/** @type {Map<string, string>} moved-file new abs path -> its content before the batch */
+const movedOriginal = new Map();
+/** @type {Map<string, string>} old abs path -> new abs path, for every moved FILE */
+const fileRenames = new Map();
+/** @type {Map<string, string>} the inverse, for messages */
+const oldPaths = new Map();
+for (const m of pending) {
+  const sources = m.isDir
+    ? walkFiles(abs(m.from)).map(norm)
+    : [norm(abs(m.from))];
+  for (const src of sources) {
+    const dest = norm(abs(m.to)) + src.slice(norm(abs(m.from)).length);
+    fileRenames.set(src, dest);
+    oldPaths.set(dest, src);
+    const text = ts.sys.readFile(src);
+    if (text !== undefined) movedOriginal.set(dest, text);
+  }
+}
+/** @type {(dest: string) => string} */
+const oldPathOf = (dest) => oldPaths.get(dest) ?? dest;
+
+/** @type {(text: string, changes: readonly TextChange[]) => string} */
+function applyChanges(text, changes) {
+  let out = text;
+  for (const c of [...changes].sort((a, b) => b.span.start - a.span.start))
+    out =
+      out.slice(0, c.span.start) +
+      c.newText +
+      out.slice(c.span.start + c.span.length);
+  return out;
+}
+
+// The edit set also offers tsconfig `include`/`files` entries and generated
+// `.next/types` declarations; source is the only thing we rewrite.
+const SOURCE_EXT = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+/** @type {(p: string) => boolean} */
+const isSource = (p) =>
+  p.startsWith(`${webRoot}/`) &&
+  !p.startsWith(`${webRoot}/.next`) &&
+  !p.includes("/node_modules/") &&
+  SOURCE_EXT.some((e) => p.endsWith(e));
+
+/** @type {Set<string>} abs paths of importers we rewrote */
+const touched = new Set();
+for (const m of pending) {
+  const oldAbs = norm(abs(m.from));
+  const newAbs = norm(abs(m.to));
+  for (const fc of ls.getEditsForFileRename(
+    oldAbs,
+    newAbs,
+    formatOptions,
+    preferences,
+  )) {
+    const target = norm(fc.fileName);
+    const before = currentText(target);
+    if (before === undefined || !isSource(target)) continue;
+    setText(target, applyChanges(before, fc.textChanges));
+    if (!fileRenames.has(target)) touched.add(target);
+  }
+  // reflect the new layout so the next move in the batch sees it
+  for (const [src, dest] of fileRenames)
+    if (src === oldAbs || src.startsWith(`${oldAbs}/`)) {
+      const text = currentText(src);
+      if (text !== undefined) setText(dest, text);
+      dropFile(src);
+      if (scriptFileNames.delete(src)) scriptFileNames.add(dest);
+    }
+}
+
+// --- postcondition: move ≠ edit ---------------------------------------------
+// A moved file may only change where the subtree it moved with is spelled
+// differently from its new home (self-references written as `@/src/...`).
+// Anything else — a link to something left behind, a non-specifier edit — is
+// the compiler happily doing the wrong thing for us, so it aborts.
+/** @type {(fileName: string, text: string) => { specifiers: string[], blanked: string }} */
+function moduleSpecifiers(fileName, text) {
+  const sf = ts.createSourceFile(
+    fileName,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    fileName.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  /** @type {import("typescript").StringLiteralLike[]} */
+  const nodes = [];
+  /** @type {(n: import("typescript").Node) => void} */
+  const visit = (n) => {
+    if (
+      (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
+      n.moduleSpecifier &&
+      ts.isStringLiteralLike(n.moduleSpecifier)
+    )
+      nodes.push(n.moduleSpecifier);
+    else if (
+      ts.isImportTypeNode(n) &&
+      ts.isLiteralTypeNode(n.argument) &&
+      ts.isStringLiteralLike(n.argument.literal)
+    )
+      nodes.push(n.argument.literal);
+    else if (
+      ts.isCallExpression(n) &&
+      (n.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(n.expression) && n.expression.text === "require")) &&
+      n.arguments[0] &&
+      ts.isStringLiteralLike(n.arguments[0])
+    )
+      nodes.push(n.arguments[0]);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  nodes.sort((a, b) => a.getStart(sf) - b.getStart(sf));
+  let blanked = "";
+  let cursor = 0;
+  for (const node of nodes) {
+    blanked += text.slice(cursor, node.getStart(sf)) + "\0";
+    cursor = node.getEnd();
+  }
+  return {
+    specifiers: nodes.map((n) => n.text),
+    blanked: blanked + text.slice(cursor),
+  };
+}
+
+/** @type {import("typescript").ModuleResolutionHost} */
+const overlayResolutionHost = {
+  fileExists: (f) => lsHost.fileExists(f),
+  readFile: (f) => lsHost.readFile(f),
+  directoryExists: (d) =>
+    lsHost.directoryExists
+      ? lsHost.directoryExists(d)
+      : ts.sys.directoryExists(d),
+  getCurrentDirectory: () => webRoot,
+  getDirectories: (d) =>
+    lsHost.getDirectories ? lsHost.getDirectories(d) : [],
+  realpath: ts.sys.realpath,
+  useCaseSensitiveFileNames: true,
+};
+const destinations = new Set(fileRenames.values());
+
+/** @type {Map<string, string[]>} moved file -> "<old> → <new>" self-reference rewrites */
+const followed = new Map();
+/** @type {Map<string, string[]>} moved file -> rewrites that point outside the move */
+const stranded = new Map();
+for (const [dest, original] of movedOriginal) {
+  const now = currentText(dest) ?? "";
+  if (now === original) continue;
+  const before = moduleSpecifiers(dest, original);
+  const after = moduleSpecifiers(dest, now);
+  if (
+    before.blanked !== after.blanked ||
+    before.specifiers.length !== after.specifiers.length
+  ) {
+    stranded.set(dest, ["(edit outside a module specifier)"]);
+    continue;
+  }
+  for (const [i, spec] of after.specifiers.entries()) {
+    if (spec === before.specifiers[i]) continue;
+    const resolved = ts.resolveModuleName(
+      spec,
+      dest,
+      parsed.options,
+      overlayResolutionHost,
+    ).resolvedModule?.resolvedFileName;
+    const bucket =
+      resolved && destinations.has(norm(resolved)) ? followed : stranded;
+    bucket.set(dest, [
+      ...(bucket.get(dest) ?? []),
+      `${before.specifiers[i]} → ${spec}`,
+    ]);
+  }
+}
+
+if (stranded.size) {
+  console.error(
+    red(
+      "aborted: this move would edit the moved files (RFC rule 15: move ≠ edit).",
+    ),
+  );
+  for (const [dest, rewrites] of stranded) {
+    console.error(`\n  ${relative(webRoot, oldPathOf(dest))}`);
+    for (const r of rewrites) console.error(`    ${r}`);
+  }
+  console.error(
+    "\nThose point at something left behind. Move it too, or do this one by hand.",
+  );
+  process.exit(1);
+}
+// --- report ------------------------------------------------------------------
+const importerFiles = [...touched].sort();
+console.log(
+  `${importerFiles.length} importer${importerFiles.length === 1 ? "" : "s"} to rewrite`,
+);
+for (const f of importerFiles) {
+  console.log(
+    dryRun ? `  ${relative(webRoot, f)}` : dim(`  ${relative(webRoot, f)}`),
+  );
+  if (!dryRun) continue;
+  const was = moduleSpecifiers(f, ts.sys.readFile(f) ?? "").specifiers;
+  for (const [i, spec] of moduleSpecifiers(
+    f,
+    currentText(f) ?? "",
+  ).specifiers.entries())
+    if (was[i] !== spec)
+      console.log(`    ${red(was[i] ?? "")} → ${green(spec)}`);
+}
+if (followed.size) {
+  const n = [...followed.values()].reduce((a, r) => a + r.length, 0);
+  console.log(
+    `${followed.size} moved file${followed.size === 1 ? "" : "s"} respelling ${n} alias self-reference${n === 1 ? "" : "s"} into the subtree ${dim("(they encode the old path)")}`,
+  );
+  if (dryRun)
+    for (const [dest, rewrites] of followed) {
+      console.log(`  ${relative(webRoot, oldPathOf(dest))}`);
+      for (const r of rewrites) console.log(dim(`    ${r}`));
+    }
+}
+
+/** @type {(cmd: string, cmdArgs: string[]) => string} */
+const git = (cmd, cmdArgs) =>
+  execFileSync("git", [cmd, ...cmdArgs], { cwd: webRoot, encoding: "utf8" });
+
+if (dryRun) {
+  console.log();
+  console.log(dim("dry run — nothing written. Drop --dry-run to apply."));
+  process.exit(0);
+}
+
+// --- apply -------------------------------------------------------------------
+for (const m of pending) {
+  const destParent = abs(m.to).slice(0, abs(m.to).lastIndexOf("/"));
+  mkdirSync(destParent, { recursive: true });
+  try {
+    git("mv", [m.from, m.to]);
+  } catch {
+    // untracked source: git mv refuses, a plain rename + add is equivalent
+    renameSync(abs(m.from), abs(m.to));
+    git("add", ["--", m.to]);
+  }
+}
+const rewritten = [...importerFiles, ...followed.keys()];
+for (const f of rewritten) writeFileSync(f, currentText(f) ?? "", "utf8");
+
+if (rewritten.length) {
+  const rels = rewritten.map((f) => relative(webRoot, f));
+  // a specifier gets longer or shorter, so prettier may want to re-wrap the line
+  execFileSync(
+    "pnpm",
+    ["exec", "prettier", "--write", "--log-level", "warn", ...rels],
+    { cwd: webRoot, stdio: "inherit" },
+  );
+  git("add", ["--", ...rels]);
+}
+console.log();
+console.log(
+  `${green("moved")} ${pending.length} path${pending.length === 1 ? "" : "s"} → ${toDir}, rewrote ${importerFiles.length} importer${importerFiles.length === 1 ? "" : "s"}`,
+);
+
+// --- the two blind spots + the way back ---------------------------------------
+/** @type {Map<string, string[]>} original parent dir -> moved basenames */
+const revert = new Map();
+for (const m of pending) {
+  const parent = m.from.slice(0, m.from.lastIndexOf("/"));
+  revert.set(parent, [...(revert.get(parent) ?? []), m.to]);
+}
+console.log();
+console.log(
+  dim(
+    "string-referenced modules (worker URLs, route strings) are invisible to the compiler:",
+  ),
+);
+for (const m of pending)
+  console.log(dim(`  git grep -n "${m.from.replace(/^src\//, "")}"`));
+console.log();
+console.log(dim("revert:"));
+for (const [parent, tos] of revert)
+  console.log(dim(`  pnpm structure:move ${tos.join(" ")} ${parent}`));
+
+// --- verify ------------------------------------------------------------------
+if (!verify) process.exit(0);
+console.log();
+console.log(bold("tsc --noEmit"));
+try {
+  execFileSync("pnpm", ["run", "typecheck"], {
+    cwd: webRoot,
+    stdio: "inherit",
+  });
+} catch {
+  console.error(
+    red(
+      "\ntypecheck failed — the move is on disk; revert with the command above.",
+    ),
+  );
+  process.exit(1);
+}
+console.log(bold("\nstructure:stats --diff"));
+execFileSync("node", ["scripts/structure/stats.mjs", "--diff"], {
+  cwd: webRoot,
+  stdio: "inherit",
+});

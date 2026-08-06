@@ -1,4 +1,17 @@
-# structure:stats — the project-structure RFC dashboard
+# structure:\* — the project-structure RFC panel
+
+`structure:stats` says what is wrong and ranks what to fix next;
+`structure:move` does the mechanical half of the fix. The loop they exist for is
+many small, boring PRs, each visibly dropping the count:
+
+1. `pnpm structure:stats --next --scope <area>` → take item #1.
+2. Mechanical part via `pnpm structure:move`; judgment part (splits, renames,
+   authoring an `index.ts`) by hand.
+3. Re-run stats. The PR body is the item headline plus the before/after counts
+   from `--diff` ("rule 6: 104 → 63"). One item per PR; no baseline
+   regeneration unless it is the point of the PR.
+
+# structure:stats — the RFC dashboard
 
 Counts violations of the [web project-structure RFC](https://linear.app/clickhouse/document/langfuse-web-project-code-structure-rfc-ecbc304915d6)
 (meta LFE-14748) per rule, so migration progress is one visible number.
@@ -27,6 +40,50 @@ greedy pass picks the highest-leverage item, consumes its violations, and
 rescores. Leverage = violations cleared × rule weight (`RULE_WEIGHTS` in
 `next.mjs` — runtime hazards outrank naming nits). The intended loop:
 `--next --scope <area>` → fix item 1 as its own PR → re-run.
+
+## structure:move — a move with the imports carried along
+
+```sh
+pnpm structure:move <from...> <to-dir>       # files and/or folders, batched
+pnpm structure:move --dry-run src/hooks/useFoo.ts src/features/bar/hooks
+```
+
+Flags: `--dry-run` (print the plan and every rewrite, change nothing),
+`--no-siblings`, `--no-verify` (skip the closing `tsc` + `--diff`), `--no-color`.
+
+The rewrites come from TypeScript's own
+`LanguageService.getEditsForFileRename` over `web/tsconfig.json` — the exact
+primitive VS Code's "move file" uses — so `@/src/...` aliases, extension-less
+specifiers, index resolution and literal dynamic `import()` are the compiler's
+problem, not ours. Booting the service costs ~5–15s and every move after that
+is instant, which is why the CLI is batch-shaped.
+
+- **Batch moves need a live layout.** The host is mutable: each rename bumps the
+  affected script versions and the project version, so move #2 computes its
+  edits against the tree move #1 produced. Freeze those versions and the second
+  move's spans are offsets into stale text — it shreds any importer that both
+  moves touch, silently. That is the whole reason this is a script and not a
+  `for` loop around a fresh program.
+- **Colocated siblings come along.** `X.tsx` brings `X.clienttest.tsx`,
+  `X.stories.tsx`, `X.fixtures.ts` (and `.servertest`/`.test`/`.spec`/`.module`)
+  from the same directory, unless `--no-siblings`. `__tests__/X*` does not —
+  move it explicitly.
+- **Move ≠ edit (rule 15).** Rewrites land in importers. A moved file may only
+  change where an alias self-reference (`@/src/<old path>/sibling`) has to
+  follow the subtree it is part of; those are listed separately. A rewrite that
+  would point a moved file at something left behind aborts the whole batch —
+  move that sibling too, or do the move by hand.
+- **History is preserved**: `git mv`, so `log --follow` and `blame -C` keep
+  working. Importer rewrites go through prettier (a longer specifier can push a
+  line past the print width) and are staged.
+- **Nothing is destructive.** No `reset`, no `stash`, no `checkout --`. Failures
+  print the way back — which is the inverse `structure:move`, not a reset.
+- **Idempotent**: everything already at the destination is a no-op, exit 0.
+- **Blind spot, documented not solved**: modules referenced by string (worker
+  URLs, route strings) are invisible to the compiler. Each run prints a
+  `git grep` for the old path.
+
+Renames and splits are not part of the surface (follow-up LFE-14806).
 
 ## Rule → mechanism
 

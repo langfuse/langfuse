@@ -220,6 +220,9 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
 - Structure-RFC violation counts: `pnpm --filter web run structure:stats`
+- Move files/folders with every importer rewritten:
+  `pnpm --filter web run structure:move <from...> <to-dir>` — never hand-edit
+  import specifiers for a move, and never `mv` a source file without it
   (see `web/scripts/structure/README.md`)
 
 ## Playbooks
