@@ -269,6 +269,12 @@ export type InAppAgentWindowExecutionUi =
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
+  /**
+   * Whether leaving a running conversation is possible at all. False on the
+   * foreground path, whose run cannot outlive the request, so navigating away
+   * mid-turn would abandon it — the controls stay disabled there.
+   */
+  canLeaveRunningConversation: boolean;
   disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   executionUi: InAppAgentWindowExecutionUi;
@@ -370,6 +376,7 @@ function InAppAgentGenericError({
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
+    canLeaveRunningConversation,
     conversations,
     disablePendingToolApprovalActions = false,
     error,
@@ -405,6 +412,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isMobile = useIsMobile();
   const isRateLimited = isInAppAgentRateLimited(error);
   const isComposerDisabled = isConversationInteractionDisabled;
+  // Foreground runs die with the request, so the drawer stays pinned to the
+  // conversation until the turn finishes.
+  const isPinnedToTurn =
+    isAssistantTurnInProgress && !canLeaveRunningConversation;
   const isSubmitDisabled =
     isComposerDisabled || isRateLimited || isAssistantTurnInProgress;
   const backgroundNotice =
@@ -563,9 +574,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6 shrink-0"
                 onClick={onNewConversation}
-                disabled={
-                  isConversationInteractionDisabled || isAssistantTurnInProgress
-                }
+                // A background turn no longer blocks starting another
+                // conversation: the run is durable, so leaving does not abandon
+                // it. A foreground turn still does.
+                disabled={isConversationInteractionDisabled || isPinnedToTurn}
                 aria-label="Start new conversation"
               >
                 <Plus className="size-3" />
@@ -592,8 +604,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     size="icon"
                     className="size-6 shrink-0"
                     disabled={
-                      isConversationInteractionDisabled ||
-                      isAssistantTurnInProgress
+                      isConversationInteractionDisabled || isPinnedToTurn
                     }
                     aria-label="Conversation history"
                   >

@@ -191,6 +191,8 @@ export function ControlledInAppAgentWindow(
       quickActionResetKey={quickActionResetKey}
       screenContextDescription={screenContextDescription}
       conversations={conversations}
+      // Only the background driver produces runs that survive leaving them.
+      canLeaveRunningConversation={execution.type === "background"}
       hasMoreConversations={hasMoreConversations}
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
