@@ -98,6 +98,35 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   `history/2026-W31-partial-0731.json` (2026-07-31). Filed `missing_tool`
   (Actions API) + `missing_data` (DB connectivity) both runs.
 
+## 2026-08-06 (run 14, later same day as run 13) — third consecutive fully-blocked run
+
+- **Both hard blockers persist, unchanged from runs 12/13.** `actions_list`
+  (`list_workflow_runs`, `event: merge_group`, `status: completed`) failed on
+  the first call with the identical secrecy-policy filter text
+  ("not authorized to access private-scoped data"). `node -e
+  "require('dns').lookup('host.docker.internal',...)"` again returned
+  `EAI_AGAIN` despite `/tmp/gh-aw/db-stack-ready` existing. `npx --version`
+  and `.env` both fine, confirming (again) the constraint is DB reachability
+  and Actions-API authorization specifically, not general sandbox breakage.
+  `search_pull_requests` confirmed working, ledger reconfirmed empty
+  (`total_count: 0` for `label:ci-performance is:pr`).
+- **This is now 3 blocked runs in a row (08-03, 08-06 run 13, 08-06 run 14)
+  and 2 on the same calendar day** — strong evidence this is a standing
+  infra/guard-policy misconfiguration, not transient flakiness. A human
+  should check the DIFC/guard-policy config for `resource:actions_list`
+  directly (run 11's "self-fixed" belief was wrong — see 08-03/08-06 above)
+  and separately check why the dev-stack DNS entry for
+  `host.docker.internal` isn't resolving despite the ready-marker.
+  **Recommend a human investigate before the next scheduled run**, since no
+  further autonomous run can make progress on either the timing analysis or
+  the standing `score-comparison-analytics.servertest.ts` sandbox
+  verification until at least one of the two blockers clears.
+- No new `history/*.json` written this run (nothing to compute). Last real
+  numbers remain `history/2026-W31-partial-0731.json` (2026-07-31), now 6
+  days stale relative to this run's trailing-7-day window
+  (2026-07-31..2026-08-06). Filed `missing_tool` (Actions API) +
+  `missing_data` (DB connectivity) + `noop` (full report) this run.
+
 ## Tooling notes (for future runs)
 
 - `list_workflow_runs` caps at ~30 runs/page, no `created` filter — filter
