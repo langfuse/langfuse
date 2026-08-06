@@ -762,6 +762,9 @@ export const sessionRouter = createTRPCRouter({
         totalCost: sessionMetrics
           ? Number(sessionMetrics.session_total_cost)
           : 0,
+        inputUsage: Number(sessionMetrics.session_input_usage),
+        outputUsage: Number(sessionMetrics.session_output_usage),
+        totalTokens: Number(sessionMetrics.session_total_usage),
         minTimestamp: parseClickhouseUTCDateTimeFormat(
           sessionMetrics.min_timestamp,
         ),
