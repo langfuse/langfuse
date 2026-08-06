@@ -50,7 +50,10 @@ import {
 import styles from "./InAppAgentMessage.module.css";
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
 import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
-import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/components/utils/utils";
+import {
+  getInAppAgentToolDisplayName,
+  type InAppAgentToolCallContent,
+} from "@/src/features/in-app-agent/components/utils/utils";
 
 export type InAppAgentMessageRole = "assistant" | "user";
 
@@ -718,11 +721,12 @@ function ToolCallDisclosure({
   isCompact: boolean;
 }) {
   const status = tool.status;
+  const displayName = getInAppAgentToolDisplayName(tool.name);
 
   return (
     <details className="group/tool min-w-0">
       <summary
-        aria-label={`${tool.name}: ${status}`}
+        aria-label={`${displayName}: ${status}`}
         className={cn(
           "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
           isCompact && "px-0.5",
@@ -735,9 +739,9 @@ function ToolCallDisclosure({
             status === "failed" && "text-destructive",
             status === "denied" && "text-dark-yellow",
           )}
-          title={tool.name}
+          title={displayName}
         >
-          {tool.name}
+          {displayName}
         </span>
       </summary>
       <div className={cn("mt-1.5 mb-1 ml-3 px-3", isCompact && "px-2.5")}>
