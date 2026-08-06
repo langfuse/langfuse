@@ -8,7 +8,7 @@ import { Sparkles } from "lucide-react";
 import { type ReactNode } from "react";
 
 import { DocsPageHeader, DocsSection } from "./docsChrome";
-import { type Family, NEUTRAL, STEP_NAMES, STONE } from "./Palette";
+import { type Family, NEUTRAL, RED, STEP_NAMES, STONE } from "./Palette";
 
 /** Primitive reference: family step (or white), with its resolvable value. */
 type PrimitiveRef = { label: string; raw: string };
@@ -168,6 +168,39 @@ function MappingSection({
   );
 }
 
+const STATUS: SemanticToken[] = [
+  {
+    token: "--danger-fill",
+    purpose: "Destructive solid: danger buttons",
+    light: ref(RED, "600"),
+    dark: ref(RED, "600"),
+  },
+  {
+    token: "--danger-fill-border",
+    purpose: "Border on the danger solid",
+    light: ref(RED, "700"),
+    dark: ref(RED, "700"),
+  },
+  {
+    token: "--on-danger",
+    purpose: "Ink on the danger solid",
+    light: WHITE,
+    dark: WHITE,
+  },
+  {
+    token: "--danger-text",
+    purpose: "Danger text and icons",
+    light: ref(RED, "700"),
+    dark: ref(RED, "400"),
+  },
+  {
+    token: "--danger-border",
+    purpose: "Danger hairline: secondary danger buttons",
+    light: ref(RED, "300"),
+    dark: ref(RED, "800"),
+  },
+];
+
 const ICON_SIZES = [
   {
     token: "--icon-size-md",
@@ -176,6 +209,54 @@ const ICON_SIZES = [
     purpose: "Default icon size: buttons, inline icons",
   },
 ];
+
+const SHADOWS = [
+  {
+    token: "--ds-button-shadow",
+    purpose: "Soft double shadow on primary and secondary buttons",
+    value: "0 4px 8px oklch(0 0 0 / 0.05), 0 4px 4px oklch(0 0 0 / 0.03)",
+  },
+];
+
+function ShadowSection() {
+  return (
+    <DocsSection title="Shadow" blurb="Elevation shadows.">
+      <div className="flex flex-col">
+        <div className={`${MAPPING_GRID} border-b pb-1.5`}>
+          {["Token", "Usage", "Value", "Sample"].map((label) => (
+            <span
+              key={label}
+              className="text-muted-foreground font-mono text-[10px] tracking-[0.05em] uppercase"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+        {SHADOWS.map((entry) => (
+          <div key={entry.token} className={`${MAPPING_GRID} border-b py-2`}>
+            <code className="text-foreground font-mono text-[11px]">
+              {entry.token}
+            </code>
+            <span className="text-muted-foreground text-sm">
+              {entry.purpose}
+            </span>
+            <code
+              className="text-muted-foreground truncate font-mono text-[11px]"
+              title={entry.value}
+            >
+              {entry.value}
+            </code>
+            <span
+              aria-hidden
+              className="h-8 w-16 rounded-[2px] border border-[var(--border-default)] bg-[var(--bg-elevation-1)]"
+              style={{ boxShadow: `var(${entry.token})` }}
+            />
+          </div>
+        ))}
+      </div>
+    </DocsSection>
+  );
+}
 
 function IconSizeSection() {
   return (
@@ -224,6 +305,21 @@ export function SemanticTokens() {
         <DocsPageHeader
           eyebrow="Design tokens · semantic"
           title="Semantic tokens"
+          lede={
+            <span className="flex flex-col gap-1">
+              <span>
+                1. Components consume semantic tokens only, never primitives.
+              </span>
+              <span>
+                2. Every token carries a light and a dark value. Themes flip
+                inside the token, so components never use dark: color overrides.
+              </span>
+              <span>
+                3. Primitives live on the Palette page; this page is the map
+                from role to primitive, per mode.
+              </span>
+            </span>
+          }
         />
         <MappingSection
           title="Background / Fill / From / Via / To"
@@ -240,6 +336,12 @@ export function SemanticTokens() {
           blurb="Text tiers, brightest last."
           tokens={TEXT}
         />
+        <MappingSection
+          title="Status"
+          blurb="Destructive intent."
+          tokens={STATUS}
+        />
+        <ShadowSection />
         <IconSizeSection />
       </div>
     </div>

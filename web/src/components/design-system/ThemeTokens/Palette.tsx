@@ -154,7 +154,7 @@ const SKY: Family = {
   ],
 };
 
-const RED: Family = {
+export const RED: Family = {
   name: "red",
   role: "error",
   steps: [

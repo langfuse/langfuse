@@ -42,19 +42,19 @@ const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
     default:
       "border border-[var(--text-secondary)] bg-[var(--text-primary)] text-[var(--bg-elevation-1)] shadow-[var(--ds-button-shadow)]",
     danger:
-      "border border-red-700 bg-red-600 text-white shadow-[var(--ds-button-shadow)]",
+      "border border-[var(--danger-fill-border)] bg-[var(--danger-fill)] text-[var(--on-danger)] shadow-[var(--ds-button-shadow)]",
   },
   secondary: {
     default:
       "border border-[var(--border-default)] bg-[var(--bg-elevation-1)] text-[var(--text-secondary)] shadow-[var(--ds-button-shadow)]",
     danger:
-      "border border-red-300 bg-[var(--bg-elevation-1)] text-red-700 shadow-[var(--ds-button-shadow)] dark:border-red-800 dark:text-red-400",
+      "border border-[var(--danger-border)] bg-[var(--bg-elevation-1)] text-[var(--danger-text)] shadow-[var(--ds-button-shadow)]",
   },
   borderless: {
     default:
       "border border-transparent bg-transparent text-[var(--text-secondary)]",
     danger:
-      "border border-transparent bg-transparent text-red-700 dark:text-red-400",
+      "border border-transparent bg-transparent text-[var(--danger-text)]",
   },
 };
 
@@ -64,16 +64,16 @@ export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
   primary: {
     default:
       "bg --text-primary · text --bg-elevation-1 · border --text-secondary",
-    danger: "bg red-600 · text white · border red-700",
+    danger: "bg --danger-fill · text --on-danger · border --danger-fill-border",
   },
   secondary: {
     default:
       "bg --bg-elevation-1 · text --text-secondary · border --border-default",
-    danger: "bg --bg-elevation-1 · text red-700/400 · border red-300/800",
+    danger: "bg --bg-elevation-1 · text --danger-text · border --danger-border",
   },
   borderless: {
     default: "text --text-secondary",
-    danger: "text red-700/400",
+    danger: "text --danger-text",
   },
 };
 

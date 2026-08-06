@@ -706,6 +706,13 @@
   --text-secondary: oklch(37.1% 0 0); /* neutral-700 */
   --text-tertiary: oklch(55.6% 0 0); /* neutral-500 */
   --text-contrast: oklch(14.5% 0 0); /* neutral-950 */
+  /* Status: danger (destructive intent). Same solid in both modes; the
+     text/border accents flip in .dark below. */
+  --danger-fill: oklch(57.7% 0.245 27.325); /* red-600 */
+  --danger-fill-border: oklch(50.5% 0.213 27.518); /* red-700 */
+  --on-danger: oklch(100% 0 0); /* white */
+  --danger-text: oklch(50.5% 0.213 27.518); /* red-700 */
+  --danger-border: oklch(80.8% 0.114 19.571); /* red-300 */
   /* Icon sizing. */
   --icon-size-md: 0.75rem; /* 12px */
   /* Soft double shadow from the langfuse.com button. */
@@ -723,4 +730,6 @@
   --text-secondary: oklch(86.9% 0.005 56.366); /* stone-300 */
   --text-tertiary: oklch(55.3% 0.013 58.071); /* stone-500 */
   --text-contrast: oklch(98.5% 0.001 106.423); /* stone-50 */
+  --danger-text: oklch(70.4% 0.191 22.216); /* red-400 */
+  --danger-border: oklch(44.4% 0.177 26.899); /* red-800 */
 }
