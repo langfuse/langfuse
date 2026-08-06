@@ -12,8 +12,8 @@ import {
   REVEAL_MARGIN_PX,
   SCALE_WIDTH,
   PREDEFINED_STEP_SIZES,
-} from "./timeline-calculations";
-import { type TreeNode } from "../../fns/types";
+} from "./timelineCalculations";
+import { type TreeNode } from "@/src/features/traces/fns/types";
 
 // Minimal TreeNode factory for origin/duration tests (only the fields the
 // helpers read). `opts` lets a test set endTime / latency / children.

@@ -29,7 +29,7 @@ import {
 import {
   calculateTraceDuration,
   findEarliestStartTime,
-} from "@/src/features/traces/components/TraceTimeline/timeline-calculations";
+} from "@/src/features/traces/fns/timelineCalculations";
 import { useViewPreferences } from "./ViewPreferencesContext";
 import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
 

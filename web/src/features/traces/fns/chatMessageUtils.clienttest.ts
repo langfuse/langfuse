@@ -1,4 +1,4 @@
-import { type ChatMlMessage } from "./chat-message-utils";
+import { type ChatMlMessage } from "./chatMessageUtils";
 import {
   getMessageTitle,
   hasRenderableContent,
@@ -10,7 +10,7 @@ import {
   shouldRenderMessage,
   shouldRenderMessageForContentMode,
   parseToolCallsFromMessage,
-} from "./chat-message-utils";
+} from "./chatMessageUtils";
 
 // Helper to create test messages - only includes fields that are explicitly passed
 // This is important because hasAdditionalData checks Object.keys()

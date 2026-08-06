@@ -48,7 +48,7 @@ import {
   REVEAL_LEFT_FRACTION,
   REVEAL_MARGIN_PX,
   SCALE_WIDTH,
-} from "./timeline-calculations";
+} from "../../fns/timelineCalculations";
 import { TimelineScale } from "./TimelineScale";
 import { TimelineChartRowShell, TimelineGutterRowShell } from "./TimelineRows";
 import {

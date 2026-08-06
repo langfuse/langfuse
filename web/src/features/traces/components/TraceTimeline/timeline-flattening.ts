@@ -9,7 +9,7 @@ import {
   calculateTimelineOffset,
   calculateTimelineWidth,
   SCALE_WIDTH,
-} from "./timeline-calculations";
+} from "../../fns/timelineCalculations";
 
 /**
  * Flattens tree into list for timeline virtualized rendering.

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import {
   type CommentRange,
   type CommentedPathsByField,
-} from "@/src/features/traces/components/AdvancedJsonViewer/utils/commentRanges";
+} from "@/src/features/traces";
 
 interface CommentWithPosition {
   content: string;

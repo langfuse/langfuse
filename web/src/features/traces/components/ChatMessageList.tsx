@@ -5,14 +5,17 @@ import {
   filterAlreadyRenderedMedia,
   getRenderedInlineMediaIds,
 } from "@/src/components/ui/markdown-media.utils";
-import { ChatMessage, type ViewMode } from "./ChatMessage";
-import { SectionMedia } from "./SectionMedia";
+import {
+  ChatMessage,
+  type ViewMode,
+} from "@/src/features/traces/components/IOPreview/components/ChatMessage";
+import { SectionMedia } from "@/src/features/traces/components/IOPreview/components/SectionMedia";
 import {
   type ChatMlMessage,
   shouldRenderMessageForContentMode,
-} from "./chat-message-utils";
+} from "@/src/features/traces/fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { type IOPreviewContentMode } from "../IOPreview";
+import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
 
 const COLLAPSE_THRESHOLD = 3;
 
