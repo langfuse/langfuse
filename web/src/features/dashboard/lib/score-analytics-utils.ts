@@ -71,7 +71,7 @@ export function createHistogramData(
   );
 
   const chartData = numericScoreValues.reduce((acc, value) => {
-    const shiftedValue = round(value) - min;
+    const shiftedValue = value - min;
     const binIndex = Math.min(Math.floor(shiftedValue / binSize), bins - 1);
     acc[binIndex].count++;
     return acc;
