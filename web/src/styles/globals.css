@@ -729,7 +729,7 @@
   --text-secondary: oklch(70.9% 0.01 56.259); /* stone-400 */
   --text-tertiary: oklch(55.3% 0.013 58.071); /* stone-500 */
   --text-contrast: oklch(98.5% 0.001 106.423); /* stone-50 */
-  --status-error: oklch(70.4% 0.191 22.216); /* red-400 */
+  --status-error: oklch(80.8% 0.114 19.571); /* red-300 */
   --bg-inverse: oklch(97% 0.001 106.424); /* stone-100 */
   --bg-inverse-hover: oklch(70.9% 0.01 56.259); /* stone-400 */
   --text-on-inverse: oklch(21.6% 0.006 56.043); /* stone-900 */
