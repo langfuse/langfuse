@@ -470,7 +470,7 @@ jobs:
           if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -613,14 +613,14 @@ jobs:
       - name: run tests
         working-directory: web
         # The server tests are I/O-bound (Postgres/ClickHouse/HTTP roundtrips),
-        # but keeping one worker per runner vCPU avoids oversubscribing the
+        # but still need one runner vCPU per worker to avoid oversubscribing the
         # local databases when several DB-heavy files run concurrently. Worker
         # isolation is configured per project in vitest.config.mts. The
         # CPU-bound client (jsdom) tests measured slower when merged into this
         # invocation, so they keep their own step below.
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-unit --maxWorkers=4
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-unit --maxWorkers=8
       - name: run test-client
         if: matrix.deploy-mode == ''
         working-directory: web
