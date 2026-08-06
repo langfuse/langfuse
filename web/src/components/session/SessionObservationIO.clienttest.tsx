@@ -26,7 +26,9 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
 }));
 
-vi.mock("@/src/features/traces/components/IOPreview/IOPreview", () => ({
+// The component imports IOPreview through the traces feature surface, so the
+// mock has to intercept the surface — mocking the module behind it does nothing.
+vi.mock("@/src/features/traces", () => ({
   IOPreview: () => <div data-testid="io-preview" />,
 }));
 
