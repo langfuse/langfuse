@@ -657,6 +657,8 @@ jobs:
         run: pnpm install
       - name: Load default env
         run: cp .env.dev.example .env
+      - name: Generate database clients
+        run: pnpm run db:generate
       - name: run test-client
         working-directory: web
         run: pnpm run test-client
