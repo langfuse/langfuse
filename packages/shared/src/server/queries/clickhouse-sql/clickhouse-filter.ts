@@ -13,6 +13,7 @@ import {
   isFtsTextField,
   isFtsTextTarget,
 } from "./fts";
+import { toJsonUnicodeEscaped } from "./json-unicode-escape";
 
 export type ClickhouseOperator =
   | (typeof filterOperators)[keyof typeof filterOperators][number]
@@ -82,6 +83,18 @@ export class StringFilter implements Filter {
       }
     }
 
+    // input/output can hold JSON written by an `ensure_ascii=True` serializer,
+    // where non-ASCII text is stored as literal `\uXXXX` escapes. Substring
+    // filters on the raw value would never match those rows, so also match the
+    // escaped form — same recovery the free-text search path applies (see
+    // json-unicode-escape.ts, issues #11538 / #15072). ASCII values escape to
+    // themselves and keep the single-variant query.
+    const escapedValue = isFtsTextField(this.field)
+      ? toJsonUnicodeEscaped(this.value)
+      : this.value;
+    const escapedVarName = `${varName}Escaped`;
+    const hasEscapedVariant = escapedValue !== this.value;
+
     let query: string;
     switch (this.operator) {
       case "=":
@@ -95,16 +108,24 @@ export class StringFilter implements Filter {
         }
         break;
       case "contains":
-        query = `position(${fieldWithPrefix}, {${varName}: String}) > 0`;
+        query = hasEscapedVariant
+          ? `(position(${fieldWithPrefix}, {${varName}: String}) > 0 OR position(${fieldWithPrefix}, {${escapedVarName}: String}) > 0)`
+          : `position(${fieldWithPrefix}, {${varName}: String}) > 0`;
         break;
       case "does not contain":
-        query = `position(${fieldWithPrefix}, {${varName}: String}) = 0`;
+        query = hasEscapedVariant
+          ? `(position(${fieldWithPrefix}, {${varName}: String}) = 0 AND position(${fieldWithPrefix}, {${escapedVarName}: String}) = 0)`
+          : `position(${fieldWithPrefix}, {${varName}: String}) = 0`;
         break;
       case "starts with":
-        query = `startsWith(${fieldWithPrefix}, {${varName}: String})`;
+        query = hasEscapedVariant
+          ? `(startsWith(${fieldWithPrefix}, {${varName}: String}) OR startsWith(${fieldWithPrefix}, {${escapedVarName}: String}))`
+          : `startsWith(${fieldWithPrefix}, {${varName}: String})`;
         break;
       case "ends with":
-        query = `endsWith(${fieldWithPrefix}, {${varName}: String})`;
+        query = hasEscapedVariant
+          ? `(endsWith(${fieldWithPrefix}, {${varName}: String}) OR endsWith(${fieldWithPrefix}, {${escapedVarName}: String}))`
+          : `endsWith(${fieldWithPrefix}, {${varName}: String})`;
         break;
       case FTS_MATCH_OPERATOR:
         assertValidFtsMatchFilter({
@@ -130,9 +151,19 @@ export class StringFilter implements Filter {
       query = `(${fieldWithPrefix} != '' AND ${query})`;
     }
 
+    const usesEscapedParam =
+      hasEscapedVariant &&
+      (this.operator === "contains" ||
+        this.operator === "does not contain" ||
+        this.operator === "starts with" ||
+        this.operator === "ends with");
+
     return {
       query: query,
-      params: { [varName]: this.value },
+      params: {
+        [varName]: this.value,
+        ...(usesEscapedParam ? { [escapedVarName]: escapedValue } : {}),
+      },
     };
   }
 }
