@@ -358,3 +358,62 @@ describe("InAppAgentWindow focus", () => {
     ).toHaveFocus();
   });
 });
+
+describe("InAppAgentWindow scrolling", () => {
+  it("detaches auto-follow and uses the Latest control to reattach", () => {
+    const messages = [
+      {
+        id: "user-1",
+        role: "user" as const,
+        content: { type: "text" as const, text: "Investigate latency" },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant" as const,
+        content: { type: "text" as const, text: "First finding" },
+      },
+    ];
+    const { container, rerender } = render(windowElement({ messages }));
+    const viewport =
+      container.querySelector<HTMLDivElement>(".overflow-y-auto");
+    if (!viewport) {
+      throw new Error("Expected the assistant message viewport");
+    }
+
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, value: 800, writable: true },
+    });
+    fireEvent.scroll(viewport);
+    viewport.scrollTop = 500;
+    fireEvent.scroll(viewport);
+
+    expect(
+      screen.getByRole("button", { name: "Scroll to latest message" }),
+    ).toBeInTheDocument();
+    vi.mocked(Element.prototype.scrollTo).mockClear();
+
+    rerender(
+      windowElement({
+        messages: messages.concat({
+          id: "assistant-2",
+          role: "assistant",
+          content: { type: "text", text: "Streamed finding" },
+        }),
+      }),
+    );
+    expect(Element.prototype.scrollTo).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Scroll to latest message" }),
+    );
+    expect(Element.prototype.scrollTo).toHaveBeenCalledWith({
+      top: 1_000,
+      behavior: "smooth",
+    });
+    expect(
+      screen.queryByRole("button", { name: "Scroll to latest message" }),
+    ).not.toBeInTheDocument();
+  });
+});

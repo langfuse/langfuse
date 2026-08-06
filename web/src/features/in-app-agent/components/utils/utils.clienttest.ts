@@ -471,6 +471,34 @@ describe("getDrawerMessages", () => {
     expect(mappedMessages).toHaveLength(2);
   });
 
+  it("forwards text timestamps and streaming state to the message renderer", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "Partial answer",
+          isLoading: true,
+          timestamp: 1_723_111_753_000,
+        },
+      ] satisfies InAppAiAgentMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "assistant-1",
+        timestamp: 1_723_111_753_000,
+        content: {
+          type: "text",
+          text: "Partial answer",
+          isStreaming: true,
+        },
+      },
+    ]);
+  });
+
   it("collapses consecutive reasoning messages into one thought block", () => {
     const mappedMessages = getDrawerMessages({
       error: null,
