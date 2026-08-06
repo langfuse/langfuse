@@ -13,11 +13,11 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({
-  args: { label: "Documentation", onClick: fn() },
+  args: { label: "Start free", onClick: fn() },
 });
 
-export const Primary = meta.story({
-  args: { label: "Start free", type: "primary", onClick: fn() },
+export const Secondary = meta.story({
+  args: { label: "Documentation", type: "secondary", onClick: fn() },
 });
 
 export const Borderless = meta.story({
@@ -31,6 +31,7 @@ export const Danger = meta.story({
 export const WithIcon = meta.story({
   args: {
     label: "Onboard with AI",
+    type: "secondary",
     icon: "text-and-icon",
     Icon: Sparkles,
     onClick: fn(),
@@ -40,6 +41,7 @@ export const WithIcon = meta.story({
 export const IconOnly = meta.story({
   args: {
     label: "Onboard with AI",
+    type: "secondary",
     icon: "icon-only",
     Icon: Sparkles,
     onClick: fn(),
@@ -50,7 +52,7 @@ export const Disabled = meta.story({
   args: { label: "Start free", state: "disabled" },
 });
 
-const TYPES = ["primary", "default", "borderless"] as const;
+const TYPES = ["primary", "secondary", "borderless"] as const;
 const STATUSES = ["default", "danger"] as const;
 const STATES = ["default", "hovered", "focused", "disabled"] as const;
 
