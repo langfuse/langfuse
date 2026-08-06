@@ -1,7 +1,5 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { formatIntervalSeconds } from "@/src/utils/dates";
-import Decimal from "decimal.js";
 import { type ObservationLevelType, ObservationLevel } from "@langfuse/shared";
 
 export function nestObservations(
@@ -86,67 +84,4 @@ function getObservationLevels(minLevel: ObservationLevelType | undefined) {
   const minLevelIndex = ascendingLevels.indexOf(minLevel);
 
   return ascendingLevels.slice(minLevelIndex);
-}
-
-export const heatMapTextColor = (p: {
-  min?: Decimal | number;
-  max: Decimal | number;
-  value: Decimal | number;
-}) => {
-  const { min, max, value } = p;
-  const minDecimal = min ? new Decimal(min) : new Decimal(0);
-  const maxDecimal = new Decimal(max);
-  const valueDecimal = new Decimal(value);
-
-  const cutOffs: [number, string][] = [
-    [0.75, "text-dark-red"], // 75%
-    [0.5, "text-dark-yellow"], // 50%
-  ];
-  const standardizedValueOnStartEndScale = valueDecimal
-    .sub(minDecimal)
-    .div(maxDecimal.sub(minDecimal));
-  const ratio = standardizedValueOnStartEndScale.toNumber();
-
-  // pick based on ratio if threshold is exceeded
-  for (const [threshold, color] of cutOffs) {
-    if (ratio >= threshold) {
-      return color;
-    }
-  }
-  return "";
-};
-
-/**
- * Decides whether a node's subtree wall-clock duration should be shown as a
- * distinct badge alongside its own-span duration (LFE-10475), and returns that
- * duration (ms) when it should.
- *
- * Async children can outlive their parent span, so a parent's own
- * (endTime − startTime) can understate the real elapsed time of its subtree.
- * The subtree always contains the own span, so it can only be ≥ own. We surface
- * the badge on any difference that is visible at the rendered precision — i.e.
- * when the subtree would display a different value than the own span. This shows
- * every difference the user can actually see (down to the formatter's 0.01s
- * resolution) while never rendering two identical-looking numbers. Users who
- * don't want durations at all can hide them via the "show duration" toggle.
- *
- * A missing own-span duration is treated as 0 so that nodes without a recorded
- * end still surface a meaningful subtree duration.
- *
- * @param ownDurationMs - the node's own span duration (endTime − startTime), ms
- * @param subtreeWallClockDurationMs - max(end) − min(start) across the subtree, ms
- */
-export function getSubtreeDurationOverflowMs(
-  ownDurationMs: number | undefined | null,
-  subtreeWallClockDurationMs: number | undefined | null,
-): number | null {
-  if (subtreeWallClockDurationMs == null) return null;
-  const own = ownDurationMs ?? 0;
-  if (subtreeWallClockDurationMs <= own) return null;
-  if (
-    formatIntervalSeconds(subtreeWallClockDurationMs / 1000) ===
-    formatIntervalSeconds(own / 1000)
-  )
-    return null;
-  return subtreeWallClockDurationMs;
 }

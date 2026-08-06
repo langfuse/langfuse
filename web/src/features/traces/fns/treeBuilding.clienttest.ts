@@ -10,7 +10,7 @@ import {
   removeHiddenNodes,
   getObservationLevels,
 } from "./treeBuilding";
-import { getSubtreeDurationOverflowMs } from "./helpers";
+import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
 import { type TreeNode } from "../types/treeNode";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";

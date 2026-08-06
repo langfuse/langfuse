@@ -8,7 +8,7 @@ vi.mock("@langfuse/shared", () => ({
   },
 }));
 
-import { nestObservations } from "@/src/features/traces/fns/helpers";
+import { nestObservations } from "@/src/features/traces/fns/nestObservations";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 
 describe("nestObservations", () => {

@@ -25,10 +25,8 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import {
-  heatMapTextColor,
-  getSubtreeDurationOverflowMs,
-} from "@/src/features/traces/fns/helpers";
+import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
+import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import type Decimal from "decimal.js";
