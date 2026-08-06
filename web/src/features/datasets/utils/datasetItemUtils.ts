@@ -1,5 +1,5 @@
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import type { Prisma } from "@langfuse/shared";
+import { deepParseJson, type Prisma } from "@langfuse/shared";
 
 /**
  * Converts a dataset item field value to a formatted JSON string.
@@ -9,7 +9,11 @@ export const stringifyDatasetItemData = (data: unknown): string => {
   if (!data) return "";
 
   try {
-    return JSON.stringify(data, null, 2);
+    // Expand nested JSON strings (#14751); clone since deepParseJson mutates.
+    const parsed = deepParseJson(
+      typeof data === "object" ? structuredClone(data) : data,
+    );
+    return JSON.stringify(parsed, null, 2);
   } catch {
     showErrorToast(
       "Failed to stringify data",
