@@ -50,7 +50,7 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useParsedObservation } from "@/src/hooks/useParsedObservation";
+import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
 
