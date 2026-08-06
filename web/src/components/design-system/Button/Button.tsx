@@ -46,7 +46,8 @@ const CONTROL_BASE =
 const CONTROL_STYLES: Record<ButtonType, string> = {
   primary: "bg-inverse text-on-inverse shadow-1 border border-transparent",
   secondary: "border-default bg-elevation-1 text-primary shadow-1 border",
-  borderless: "text-secondary border border-transparent bg-transparent",
+  borderless:
+    "text-secondary underline underline-offset-2 border border-transparent bg-transparent",
   danger: "border-default bg-elevation-1 text-status-error shadow-1 border",
 };
 
