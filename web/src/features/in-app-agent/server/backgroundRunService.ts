@@ -23,6 +23,7 @@ import {
   type AgUiRunAgentInput,
 } from "@langfuse/shared/in-app-agent";
 import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import { getInAppAgentRegistryToolName } from "@langfuse/shared/in-app-agent/server/tools";
 import {
   ensureOwnedConversation,
   getConversationEvents,
@@ -339,6 +340,7 @@ export async function decideBackgroundApproval(params: {
   runId: string;
   toolCallId: string;
   approved: boolean;
+  approvalScope?: "once" | "conversation";
   userId: string;
   model: string | undefined;
 }) {
@@ -375,6 +377,16 @@ export async function decideBackgroundApproval(params: {
     throw new LangfuseNotFoundError("Approval request not found");
   }
 
+  // Resolved from the persisted interrupt, never from client input: the browser
+  // sends an id and a scope, and the tool it grants is whatever the agent
+  // actually asked to run.
+  const grantedToolName =
+    params.approvalScope === "conversation" && params.approved
+      ? getInAppAgentRegistryToolName(
+          parseInAppAgentInterruptEvent(approvalRequest.event)?.toolName,
+        )
+      : undefined;
+
   const continuationRun = await decideToolApproval({
     prisma: params.prisma,
     projectId: params.projectId,
@@ -383,6 +395,7 @@ export async function decideBackgroundApproval(params: {
     continuationRunId: createInAppAgentRunId(),
     toolCallId: params.toolCallId,
     approved: params.approved,
+    grantedToolName,
     decidedByUserId: params.userId,
     model: params.model,
   });

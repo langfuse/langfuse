@@ -37,7 +37,9 @@ import {
   heartbeatClaimedRun,
   IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
   isInAppAgentConversationWriteLocked,
-  isMcpToolName,
+  createInAppAgentToolPolicy,
+  getInAppAgentMcpAllowedToolNames,
+  getInAppAgentRegistryToolName,
   maybeInferAndPersistConversationTitle,
   parseInAppAgentInterruptEvent,
   shouldFlushPersistedEvent,
@@ -277,13 +279,29 @@ export async function executeInAppAgentRun(params: {
     isApprovedContinuation =
       request.kind === "approvalDecision" && request.approved;
     const approvedRegistryToolName = isApprovedContinuation
-      ? getRegistryToolName(approvalRequest?.toolName)
+      ? getInAppAgentRegistryToolName(approvalRequest?.toolName)
       : undefined;
-    const runOverride = approvedRegistryToolName
-      ? await createInAppAgentMcpRunOverride({
-          toolName: approvedRegistryToolName,
-        })
-      : undefined;
+
+    const userAccess: InAppAgentUserAccess = {
+      projectRole: access.projectRole,
+      isAdmin: access.isAdmin,
+    };
+
+    // Rebuilt every run rather than trusted from enqueue time, so a grant the
+    // owner's role no longer covers silently drops out.
+    const toolPolicy = createInAppAgentToolPolicy({
+      userAccess,
+      additionalAutoApproved: conversation.approvedToolNames,
+    });
+
+    const allowedToolNames = getInAppAgentMcpAllowedToolNames(
+      toolPolicy,
+      approvedRegistryToolName,
+    );
+    const runOverride =
+      allowedToolNames.length > 0
+        ? await createInAppAgentMcpRunOverride({ toolNames: allowedToolNames })
+        : undefined;
 
     // ---- Sandbox (session created/resumed lazily per tool call). ----
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
@@ -376,11 +394,6 @@ export async function executeInAppAgentRun(params: {
       });
 
     let interruptRequest: InAppAgentToolApprovalRequest | undefined;
-
-    const userAccess: InAppAgentUserAccess = {
-      projectRole: access.projectRole,
-      isAdmin: access.isAdmin,
-    };
 
     const stream = await createAgUiStream({
       input: agentInput,
@@ -511,7 +524,7 @@ export async function executeInAppAgentRun(params: {
           url: getLangfuseMcpUrl(),
           publicKey: mcpApiKey.publicKey,
           secretKey: mcpApiKey.secretKey,
-          userAccess,
+          toolPolicy,
           runOverride,
         },
         redirectAction: {
@@ -640,16 +653,6 @@ function findPersistedApprovalRequest(
   }
 
   return undefined;
-}
-
-function getRegistryToolName(toolName: string | undefined) {
-  if (!toolName?.startsWith("langfuse_")) {
-    return undefined;
-  }
-
-  const registryToolName = toolName.slice("langfuse_".length);
-
-  return isMcpToolName(registryToolName) ? registryToolName : undefined;
 }
 
 function getLangfuseMcpUrl(): string {

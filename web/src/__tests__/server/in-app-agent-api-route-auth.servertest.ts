@@ -1,6 +1,9 @@
 import { EventType } from "@ag-ui/core";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { filterInAppAgentAvailableLangfuseMcpTools } from "@langfuse/shared/in-app-agent/server/tools";
+import {
+  createInAppAgentToolPolicy,
+  filterInAppAgentAvailableLangfuseMcpTools,
+} from "@langfuse/shared/in-app-agent/server/tools";
 import { storePendingToolApproval } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 import type {
   AgUiEvent,
@@ -177,10 +180,9 @@ describe("in-app agent public API route auth", () => {
     expect(
       filterInAppAgentAvailableLangfuseMcpTools({
         tools,
-        userAccess: {
-          projectRole: "MEMBER",
-          isAdmin: false,
-        },
+        policy: createInAppAgentToolPolicy({
+          userAccess: { projectRole: "MEMBER", isAdmin: false },
+        }),
       }),
     ).toEqual({
       listDatasets: { id: "listDatasets" },
@@ -190,10 +192,9 @@ describe("in-app agent public API route auth", () => {
     expect(
       filterInAppAgentAvailableLangfuseMcpTools({
         tools,
-        userAccess: {
-          projectRole: "OWNER",
-          isAdmin: false,
-        },
+        policy: createInAppAgentToolPolicy({
+          userAccess: { projectRole: "OWNER", isAdmin: false },
+        }),
       }),
     ).toEqual(tools);
   });
@@ -315,7 +316,7 @@ describe("in-app agent public API route auth", () => {
       expect(
         JSON.parse(createStreamCall.options.langfuseMcp.runOverride),
       ).toEqual({
-        toolName: "upsertDataset",
+        toolNames: ["upsertDataset"],
       });
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;

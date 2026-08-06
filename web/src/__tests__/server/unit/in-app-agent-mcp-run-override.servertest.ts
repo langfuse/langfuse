@@ -6,24 +6,24 @@ import {
 describe("in-app agent MCP run override", () => {
   it("serializes the override as plain JSON", async () => {
     const token = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset"],
     });
 
     expect(JSON.parse(token)).toEqual({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset"],
     });
   });
 
   it("accepts a matching plain JSON override", async () => {
     const token = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset"],
     });
 
     expect(InAppAgentMcpRunOverrideSchema.safeParse(JSON.parse(token))).toEqual(
       {
         success: true,
         data: {
-          toolName: "upsertDataset",
+          toolNames: ["upsertDataset"],
         },
       },
     );
@@ -36,7 +36,7 @@ describe("in-app agent MCP run override", () => {
 
     expect(
       InAppAgentMcpRunOverrideSchema.safeParse({
-        toolName: "notAMcpTool",
+        toolNames: ["notAMcpTool"],
       }).success,
     ).toBe(false);
 

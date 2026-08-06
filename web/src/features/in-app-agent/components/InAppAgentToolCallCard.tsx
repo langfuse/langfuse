@@ -15,12 +15,19 @@ export function InAppAgentToolCallCard({
   isCompact = false,
   isDisabled = false,
   onApproveToolCall,
+  onAlwaysAllowToolCall,
   onRejectToolCall,
 }: {
   tool: InAppAgentToolCallContent;
   isCompact?: boolean;
   isDisabled?: boolean;
   onApproveToolCall?: (approvalId: string) => Promise<void>;
+  /**
+   * Approves this call and stops prompting for the same tool for the rest of
+   * the conversation. Omitted where conversation grants do not apply, which
+   * hides the action rather than disabling it.
+   */
+  onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall?: (approvalId: string) => Promise<void>;
 }) {
   const approval = tool.approval;
@@ -78,6 +85,23 @@ export function InAppAgentToolCallCard({
                 )}
                 Confirm
               </Button>
+              {onAlwaysAllowToolCall ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  title={`Always allow ${tool.name} for this conversation`}
+                  disabled={isDisabled || isApprovalSubmitting}
+                  onClick={() => {
+                    if (isApprovalPending) {
+                      onAlwaysAllowToolCall(approval.id).catch(() => undefined);
+                    }
+                  }}
+                >
+                  Always allow
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 size="sm"

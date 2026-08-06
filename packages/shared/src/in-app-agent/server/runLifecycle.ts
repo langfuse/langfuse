@@ -9,6 +9,7 @@ import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
 import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
+import type { InAppAgentLangfuseMcpToolName } from "./tools";
 import {
   InAppAgentRunRequestSchema,
   type InAppAgentRunRequest,
@@ -204,6 +205,12 @@ export async function decideToolApproval(params: {
   toolCallId: string;
   approved: boolean;
   decidedByUserId: string;
+  /**
+   * Set to grant `grantedToolName` for the rest of the conversation. The name
+   * is resolved from the persisted interrupt event by the caller, never from
+   * client input.
+   */
+  grantedToolName?: InAppAgentLangfuseMcpToolName;
   model?: string;
 }): Promise<InAppAgentRun> {
   const outcome = await params.prisma.$transaction(async (tx) => {
@@ -268,6 +275,32 @@ export async function decideToolApproval(params: {
       parentRun.request,
     );
 
+    // Same transaction as the CAS above, so a grant can only be recorded for a
+    // decision that actually landed.
+    if (params.grantedToolName) {
+      const conversation = await tx.inAppAgentConversation.findUnique({
+        where: {
+          id_projectId: {
+            id: params.conversationId,
+            projectId: params.projectId,
+          },
+        },
+        select: { approvedToolNames: true },
+      });
+
+      if (!conversation?.approvedToolNames.includes(params.grantedToolName)) {
+        await tx.inAppAgentConversation.update({
+          where: {
+            id_projectId: {
+              id: params.conversationId,
+              projectId: params.projectId,
+            },
+          },
+          data: { approvedToolNames: { push: params.grantedToolName } },
+        });
+      }
+    }
+
     await appendConversationEventInTransaction({
       tx,
       projectId: params.projectId,
@@ -277,6 +310,7 @@ export async function decideToolApproval(params: {
         toolCallId: params.toolCallId,
         approved: params.approved,
         decidedByUserId: params.decidedByUserId,
+        ...(params.grantedToolName ? { scope: "conversation" as const } : {}),
       }),
     });
 
