@@ -10,8 +10,12 @@ export function DialogController<T>({
   dialog: (close: () => void, value: T | null) => ReactNode;
 }) {
   const [value, setValue] = useState<T | null>(null);
-  const open = useCallback((nextValue: T) => setValue(nextValue), []);
-  const close = useCallback(() => setValue(null), []);
+  const open = useCallback((nextValue: T) => {
+    setValue(nextValue);
+  }, []);
+  const close = useCallback(() => {
+    setValue(null);
+  }, []);
 
   return (
     <>
