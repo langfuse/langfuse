@@ -55,6 +55,54 @@ const BG_ELEVATION: SemanticToken[] = [
   },
 ];
 
+const BORDER: SemanticToken[] = [
+  {
+    token: "--border-default",
+    purpose: "Default hairline across the app",
+    light: ref(NEUTRAL, "200"),
+    dark: ref(STONE, "800"),
+  },
+  {
+    token: "--border-faint",
+    purpose: "Side nav, side panels, dashboard widgets, cards",
+    light: ref(NEUTRAL, "100"),
+    dark: ref(STONE, "900"),
+  },
+  {
+    token: "--border-contrast",
+    purpose: "Assertive lines: inputs, outline buttons",
+    light: ref(NEUTRAL, "400"),
+    dark: ref(STONE, "600"),
+  },
+];
+
+const TEXT: SemanticToken[] = [
+  {
+    token: "--text-primary",
+    purpose: "Most of the text on the screen",
+    light: ref(NEUTRAL, "900"),
+    dark: ref(STONE, "100"),
+  },
+  {
+    token: "--text-secondary",
+    purpose: "Description, tags, metadata etc.",
+    light: ref(NEUTRAL, "700"),
+    dark: ref(STONE, "300"),
+  },
+  {
+    token: "--text-tertiary",
+    purpose: "Disabled, muted",
+    light: ref(NEUTRAL, "500"),
+    dark: ref(STONE, "500"),
+  },
+  {
+    token: "--text-contrast",
+    purpose: "Titles or things that need to call out attention (use rarely)",
+    light: ref(NEUTRAL, "950"),
+    dark: ref(STONE, "50"),
+  },
+];
+
 function RefCell({ reference }: { reference: PrimitiveRef }) {
   return (
     <div
@@ -130,6 +178,16 @@ export function SemanticTokens() {
           title="Background / Fill / From / Via / To"
           blurb="Surface elevation, outermost first."
           tokens={BG_ELEVATION}
+        />
+        <MappingSection
+          title="Border / Divide / Outline / Stroke"
+          blurb="Lines and strokes."
+          tokens={BORDER}
+        />
+        <MappingSection
+          title="Text / Placeholder"
+          blurb="Text tiers, brightest last."
+          tokens={TEXT}
         />
       </div>
     </div>
