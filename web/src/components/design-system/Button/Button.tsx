@@ -40,15 +40,17 @@ const CONTROL_BASE =
 const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
   primary: {
     default: "border-inverse bg-inverse text-on-inverse shadow-1 border",
-    danger: "border-danger-fill bg-danger-fill text-on-inverse shadow-1 border",
+    danger:
+      "border-status-error-fill bg-status-error-fill text-on-inverse shadow-1 border",
   },
   secondary: {
     default: "border-default bg-elevation-1 text-secondary shadow-1 border",
-    danger: "border-danger bg-elevation-1 text-danger shadow-1 border",
+    danger:
+      "border-status-error bg-elevation-1 text-status-error shadow-1 border",
   },
   borderless: {
     default: "text-secondary border border-transparent bg-transparent",
-    danger: "text-danger border border-transparent bg-transparent",
+    danger: "text-status-error border border-transparent bg-transparent",
   },
 };
 
@@ -57,15 +59,15 @@ const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
 export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
   primary: {
     default: "bg-inverse · text-on-inverse · border-inverse",
-    danger: "bg-danger-fill · text-on-inverse · border-danger-fill",
+    danger: "bg-status-error-fill · text-on-inverse · border-status-error-fill",
   },
   secondary: {
     default: "bg-elevation-1 · text-secondary · border-default",
-    danger: "bg-elevation-1 · text-danger · border-danger",
+    danger: "bg-elevation-1 · text-status-error · border-status-error",
   },
   borderless: {
     default: "text-secondary",
-    danger: "text-danger",
+    danger: "text-status-error",
   },
 };
 
