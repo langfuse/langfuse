@@ -636,9 +636,9 @@ export const getDatabaseReadStreamPaginated = async ({
                 lt: cutoffCreatedAt,
               },
             },
-            orderBy: {
-              createdAt: "desc",
-            },
+            // Order by createdAt plus the unique id so offset-based pagination
+            // is stable even when audit logs share a creation timestamp.
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
             skip: offset,
             take: pageSize,
           });
