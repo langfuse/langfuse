@@ -77,6 +77,9 @@ function markdownRawPlugin() {
   };
 }
 
+const sharedSourcePath = (path: string) =>
+  join(import.meta.dirname, "../packages/shared/src", path);
+
 // Shared's built dist is CJS, whose require() calls bypass Vitest's module
 // graph. Tests that mock the in-app-agent runtime or mutate shared's env need
 // one source module identity; applying these aliases globally makes every
@@ -85,24 +88,15 @@ const sharedSourceResolve = {
   alias: [
     {
       find: /^@langfuse\/shared\/in-app-agent\/server\/(.+)$/,
-      replacement: join(
-        import.meta.dirname,
-        "../packages/shared/src/in-app-agent/server/$1",
-      ),
+      replacement: sharedSourcePath("in-app-agent/server/$1"),
     },
     {
       find: /^@langfuse\/shared\/in-app-agent\/server$/,
-      replacement: join(
-        import.meta.dirname,
-        "../packages/shared/src/in-app-agent/server/index.ts",
-      ),
+      replacement: sharedSourcePath("in-app-agent/server/index.ts"),
     },
     {
       find: /^@langfuse\/shared\/in-app-agent$/,
-      replacement: join(
-        import.meta.dirname,
-        "../packages/shared/src/in-app-agent/index.ts",
-      ),
+      replacement: sharedSourcePath("in-app-agent/index.ts"),
     },
     // The runtime source reaches the rest of shared via relative imports
     // (../../../server etc.), so shared's other entry points must resolve
@@ -111,46 +105,31 @@ const sharedSourceResolve = {
     // server") missing the runtime's imports).
     {
       find: /^@langfuse\/shared\/src\/(.+)$/,
-      replacement: join(import.meta.dirname, "../packages/shared/src/$1"),
+      replacement: sharedSourcePath("$1"),
     },
     {
       find: /^@langfuse\/shared\/encryption$/,
-      replacement: join(
-        import.meta.dirname,
-        "../packages/shared/src/encryption/index.ts",
-      ),
+      replacement: sharedSourcePath("encryption/index.ts"),
     },
     {
       find: /^@langfuse\/shared\/query$/,
-      replacement: join(
-        import.meta.dirname,
-        "../packages/shared/src/features/query/index.ts",
-      ),
+      replacement: sharedSourcePath("features/query/index.ts"),
     },
     {
       find: /^@langfuse\/shared\/query\/server$/,
-      replacement: join(
-        import.meta.dirname,
-        "../packages/shared/src/features/query/server/index.ts",
-      ),
+      replacement: sharedSourcePath("features/query/server/index.ts"),
     },
     {
       find: /^@langfuse\/shared\/monitors$/,
-      replacement: join(
-        import.meta.dirname,
-        "../packages/shared/src/features/monitors/index.ts",
-      ),
+      replacement: sharedSourcePath("features/monitors/index.ts"),
     },
     {
       find: /^@langfuse\/shared\/monitors\/server$/,
-      replacement: join(
-        import.meta.dirname,
-        "../packages/shared/src/features/monitors/server.ts",
-      ),
+      replacement: sharedSourcePath("features/monitors/server.ts"),
     },
     {
       find: /^@langfuse\/shared$/,
-      replacement: join(import.meta.dirname, "../packages/shared/src/index.ts"),
+      replacement: sharedSourcePath("index.ts"),
     },
   ],
   // Runtime source resolves these through shared's node_modules symlinks.
@@ -165,6 +144,35 @@ const sharedSourceResolve = {
     "langfuse",
   ],
 };
+
+function serverProject(
+  name: string,
+  include: string[],
+  options: {
+    database?: boolean;
+    env?: Record<string, string>;
+    exclude?: string[];
+    isolate?: boolean;
+    resolve?: typeof sharedSourceResolve;
+  } = {},
+) {
+  return {
+    extends: true as const,
+    ...(options.resolve ? { resolve: options.resolve } : {}),
+    test: {
+      name,
+      include,
+      exclude: [...sharedExclude, ...(options.exclude ?? [])],
+      ...(options.isolate === undefined ? {} : { isolate: options.isolate }),
+      ...(options.env ? { env: options.env } : {}),
+      environment: "node" as const,
+      setupFiles: ["./src/__tests__/after-teardown.ts"],
+      ...(options.database
+        ? { globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"] }
+        : {}),
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [markdownRawPlugin(), tsconfigPaths(), react()],
@@ -228,66 +236,29 @@ export default defineConfig({
           setupFiles: ["@testing-library/jest-dom/vitest"],
         },
       },
-      {
-        extends: true,
-        test: {
-          name: "server",
-          include: sharedContextServerTestFiles,
-          exclude: sharedExclude,
-          isolate: false,
-          // Workers are reused across files, so the per-file teardown must
-          // not disconnect shared singletons (redis, ClickHouse) that later
-          // files in the same worker still use. See after-teardown.ts.
-          env: { VITEST_SHARED_CONTEXT: "1" },
-          environment: "node",
-          setupFiles: ["./src/__tests__/after-teardown.ts"],
-          globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: "server-isolated",
-          include: isolatedServerTestFiles,
-          exclude: sharedExclude,
-          environment: "node",
-          setupFiles: ["./src/__tests__/after-teardown.ts"],
-          globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
-        },
-      },
-      {
-        extends: true,
+      serverProject("server", sharedContextServerTestFiles, {
+        database: true,
+        isolate: false,
+        // Workers are reused across files, so the per-file teardown must not
+        // disconnect shared singletons (redis, ClickHouse) that later files
+        // in the same worker still use. See after-teardown.ts.
+        env: { VITEST_SHARED_CONTEXT: "1" },
+      }),
+      serverProject("server-isolated", isolatedServerTestFiles, {
+        database: true,
+      }),
+      serverProject("server-shared-source", sharedSourceIntegrationTestFiles, {
+        database: true,
         resolve: sharedSourceResolve,
-        test: {
-          name: "server-shared-source",
-          include: sharedSourceIntegrationTestFiles,
-          exclude: sharedExclude,
-          environment: "node",
-          setupFiles: ["./src/__tests__/after-teardown.ts"],
-          globalSetup: ["./src/__tests__/vitest-test-db-setup.ts"],
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: "server-unit",
-          include: ["src/__tests__/server/unit/**/*.servertest.{ts,tsx}"],
-          exclude: [...sharedExclude, ...sharedSourceUnitTestFiles],
-          environment: "node",
-          setupFiles: ["./src/__tests__/after-teardown.ts"],
-        },
-      },
-      {
-        extends: true,
+      }),
+      serverProject(
+        "server-unit",
+        ["src/__tests__/server/unit/**/*.servertest.{ts,tsx}"],
+        { exclude: sharedSourceUnitTestFiles },
+      ),
+      serverProject("server-shared-source-unit", sharedSourceUnitTestFiles, {
         resolve: sharedSourceResolve,
-        test: {
-          name: "server-shared-source-unit",
-          include: sharedSourceUnitTestFiles,
-          exclude: sharedExclude,
-          environment: "node",
-          setupFiles: ["./src/__tests__/after-teardown.ts"],
-        },
-      },
+      }),
       {
         extends: true,
         plugins: [
