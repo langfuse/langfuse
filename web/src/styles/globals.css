@@ -709,12 +709,11 @@
   /* Inverse surface: the ink-solid fill (primary buttons). */
   --bg-inverse: oklch(20.5% 0 0); /* neutral-900 */
   --text-on-inverse: oklch(97% 0 0); /* neutral-100 */
-  --border-inverse: oklch(37.1% 0 0); /* neutral-700 */
   /* Status: danger (destructive intent). Same solid in both modes; the
      text/border accents flip in .dark below. */
-  --status-error-fill: oklch(57.7% 0.245 27.325); /* red-600 */
+  --status-error-fill: oklch(50.5% 0.213 27.518); /* red-700 */
   --status-error-text: oklch(50.5% 0.213 27.518); /* red-700 */
-  --status-error-border: oklch(80.8% 0.114 19.571); /* red-300 */
+  --status-error-border: oklch(88.5% 0.062 18.334); /* red-200 */
   /* Icon sizing. */
   --icon-size-md: 0.75rem; /* 12px */
   /* Soft double shadow from the langfuse.com button. */
@@ -733,9 +732,8 @@
   --text-contrast: oklch(98.5% 0.001 106.423); /* stone-50 */
   --bg-inverse: oklch(97% 0.001 106.424); /* stone-100 */
   --text-on-inverse: oklch(21.6% 0.006 56.043); /* stone-900 */
-  --border-inverse: oklch(86.9% 0.005 56.366); /* stone-300 */
   --status-error-text: oklch(70.4% 0.191 22.216); /* red-400 */
-  --status-error-border: oklch(44.4% 0.177 26.899); /* red-800 */
+  --status-error-border: oklch(39.6% 0.141 25.723); /* red-900 */
 }
 
 /* Scoped utilities for the design-system-test semantic tokens. Tailwind v4
@@ -753,7 +751,6 @@
 
   --border-color-default: var(--border-default);
   --border-color-faint: var(--border-faint);
-  --border-color-inverse: var(--border-inverse);
   --border-color-status-error: var(--status-error-border);
   --border-color-status-error-fill: var(--status-error-fill);
 

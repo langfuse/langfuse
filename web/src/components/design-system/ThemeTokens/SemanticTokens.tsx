@@ -82,12 +82,6 @@ const BORDER: SemanticToken[] = [
     light: ref(NEUTRAL, "400"),
     dark: ref(STONE, "600"),
   },
-  {
-    token: "--border-inverse",
-    purpose: "Border on the inverse fill",
-    light: ref(NEUTRAL, "700"),
-    dark: ref(STONE, "300"),
-  },
 ];
 
 const TEXT: SemanticToken[] = [
@@ -190,8 +184,8 @@ const STATUS: SemanticToken[] = [
   {
     token: "--status-error-fill",
     purpose: "Destructive solid and its border: danger buttons",
-    light: ref(RED, "600"),
-    dark: ref(RED, "600"),
+    light: ref(RED, "700"),
+    dark: ref(RED, "700"),
   },
   {
     token: "--status-error-text",
@@ -201,9 +195,9 @@ const STATUS: SemanticToken[] = [
   },
   {
     token: "--status-error-border",
-    purpose: "Danger hairline: secondary danger buttons",
-    light: ref(RED, "300"),
-    dark: ref(RED, "800"),
+    purpose: "Danger hairline: bordered danger buttons",
+    light: ref(RED, "200"),
+    dark: ref(RED, "900"),
   },
 ];
 

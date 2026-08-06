@@ -39,7 +39,7 @@ const CONTROL_BASE =
 
 const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
   primary: {
-    default: "border-inverse bg-inverse text-on-inverse shadow-1 border",
+    default: "bg-inverse text-on-inverse shadow-1 border border-transparent",
     danger:
       "border-status-error-fill bg-status-error-fill text-on-inverse shadow-1 border",
   },
@@ -58,7 +58,7 @@ const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
  * variant matrix. Keep in sync with CONTROL_STYLES above. */
 export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
   primary: {
-    default: "bg-inverse · text-on-inverse · border-inverse",
+    default: "bg-inverse · text-on-inverse",
     danger: "bg-status-error-fill · text-on-inverse · border-status-error-fill",
   },
   default: {
