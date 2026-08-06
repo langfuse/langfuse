@@ -9,6 +9,7 @@ import {
   Copy,
   BookOpenText,
   Loader2,
+  MoreHorizontal,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
@@ -38,7 +39,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -70,6 +70,7 @@ export type InAppAgentMessageContent =
       type: "text";
       text: string;
       feedback?: InAppAgentMessageFeedback;
+      isStreaming?: boolean;
       redirectAction?: InAppAgentRedirectActionContent;
       sources?: InAppAgentMessageSource[];
     }
@@ -153,6 +154,7 @@ export type InAppAgentMessageProps = {
   content: InAppAgentMessageContent;
   isCompact?: boolean;
   isFeedbackDisabled?: boolean;
+  timestamp?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -164,6 +166,7 @@ export function InAppAgentMessage({
   content,
   isCompact = false,
   isFeedbackDisabled = false,
+  timestamp,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
   if (content.type === "redirectAction") {
@@ -184,13 +187,15 @@ export function InAppAgentMessage({
     return <InAppAgentReasoningBlock content={content} isCompact={isCompact} />;
   }
 
-  if (content.type === "text" && role === "assistant") {
+  if (content.type === "text") {
     return (
-      <AssistantMessageWithFeedback
+      <TextMessageWithActions
+        role={role}
         content={content}
         isCompact={isCompact}
         isFeedbackDisabled={isFeedbackDisabled}
         onSubmitFeedback={onSubmitFeedback}
+        timestamp={timestamp}
       />
     );
   }
@@ -215,13 +220,14 @@ const MessageCard = forwardRef<
     <div
       ref={ref}
       className={cn(
-        "max-w-full overflow-hidden wrap-break-word shadow-xs",
-        isCompact
-          ? "rounded-xl px-2.5 py-1 text-[0.775rem]"
-          : "rounded-2xl px-3 py-1.5 text-sm",
+        "max-w-full overflow-hidden wrap-break-word",
+        isCompact ? "text-[0.775rem]" : "text-sm",
         isUser
-          ? "bg-primary text-primary-foreground"
-          : "bg-card text-foreground border-border border",
+          ? cn(
+              "bg-muted text-foreground rounded-2xl",
+              isCompact ? "px-2.5 py-1" : "px-3 py-1.5",
+            )
+          : "text-foreground",
       )}
     >
       {content.type === "loading" ? (
@@ -243,62 +249,166 @@ const MessageCard = forwardRef<
   );
 });
 
-function AssistantMessageWithFeedback({
+function TextMessageWithActions({
+  role,
   content,
   isCompact,
   isFeedbackDisabled,
   onSubmitFeedback,
+  timestamp,
 }: {
+  role: InAppAgentMessageRole;
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
+  timestamp?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
   }) => Promise<void>;
 }) {
-  const [messageCardRef, messageCardSize] = useElementSize<HTMLDivElement>();
+  const messageCardRef = useRef<HTMLDivElement>(null);
+  const { copy, copyRich, isCopied } = useCopyToClipboard({
+    successDuration: 1_500,
+  });
   const sources = content.sources ?? [];
   const hasSources = sources.length > 0;
-  const hasActions = Boolean(onSubmitFeedback || hasSources);
+  const isAssistant = role === "assistant";
+  const isSettled = !content.isStreaming;
+  const canSubmitFeedback = isAssistant && isSettled && onSubmitFeedback;
+  const hasActions = isSettled;
+  const formattedTimestamp = timestamp
+    ? formatMessageTimestamp(timestamp)
+    : null;
+
+  const handleCopy = () => {
+    if (!isAssistant) {
+      copy(content.text).catch(() => undefined);
+      return;
+    }
+
+    const renderedContent = messageCardRef.current?.querySelector(
+      "[data-in-app-agent-message-content]",
+    );
+    const htmlContainer = renderedContent?.cloneNode(true) as
+      | HTMLElement
+      | undefined;
+    htmlContainer
+      ?.querySelectorAll("[data-in-app-agent-code-copy-button]")
+      .forEach((node) => {
+        node.remove();
+      });
+    copyRich({
+      text: content.text,
+      html: htmlContainer?.innerHTML ?? content.text,
+    }).catch(() => undefined);
+  };
+
+  const actions = (
+    <>
+      <button
+        type="button"
+        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-md p-1 outline-none focus-visible:ring-2"
+        aria-label={isCopied ? "Message copied" : "Copy message"}
+        title={isCopied ? "Copied" : "Copy message"}
+        onClick={handleCopy}
+      >
+        {isCopied ? (
+          <Check className={cn(isCompact ? "size-3" : "size-3.5")} />
+        ) : (
+          <Copy className={cn(isCompact ? "size-3" : "size-3.5")} />
+        )}
+      </button>
+      {canSubmitFeedback ? (
+        <MessageFeedbackControls
+          feedback={content.feedback}
+          isCompact={isCompact}
+          isFeedbackDisabled={isFeedbackDisabled}
+          onSubmitFeedback={canSubmitFeedback}
+        />
+      ) : null}
+      {isAssistant && hasSources ? (
+        <SourcesPopover sources={sources} isCompact={isCompact} />
+      ) : null}
+      {formattedTimestamp ? (
+        <time
+          dateTime={formattedTimestamp.iso}
+          title={formattedTimestamp.full}
+          aria-label={`Sent ${formattedTimestamp.full}`}
+          suppressHydrationWarning
+          className="text-muted-foreground ml-1 text-[0.6875rem]"
+        >
+          {formattedTimestamp.short}
+        </time>
+      ) : null}
+    </>
+  );
 
   return (
-    <div className="flex max-w-full flex-col items-start">
+    <div
+      className={cn(
+        "group/message flex max-w-full flex-col",
+        role === "user" ? "items-end" : "items-start",
+      )}
+    >
       <MessageCard
         ref={messageCardRef}
-        role="assistant"
+        role={role}
         content={content}
         isCompact={isCompact}
       />
       {hasActions ? (
         <div
-          style={
-            messageCardSize?.width
-              ? { width: messageCardSize.width, maxWidth: "100%" }
-              : undefined
-          }
           className={cn(
-            "flex max-w-full min-w-50 flex-col items-start overflow-hidden",
-            isCompact ? "mt-1.5" : "mt-2",
+            "flex min-h-6 max-w-full items-center",
+            isCompact ? "mt-0.5" : "mt-1",
           )}
         >
-          <div className="flex w-full min-w-0 items-center gap-1">
-            {onSubmitFeedback ? (
-              <MessageFeedbackControls
-                feedback={content.feedback}
-                isCompact={isCompact}
-                isFeedbackDisabled={isFeedbackDisabled}
-                onSubmitFeedback={onSubmitFeedback}
-              />
-            ) : null}
-            {hasSources ? (
-              <SourcesPopover sources={sources} isCompact={isCompact} />
-            ) : null}
+          <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within/message:opacity-100 group-hover/message:opacity-100 [@media(hover:none)]:hidden">
+            {actions}
           </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label="Message actions"
+                className="text-muted-foreground hover:text-foreground hidden rounded-md p-1 [@media(hover:none)]:inline-flex"
+              >
+                <MoreHorizontal
+                  className={cn(isCompact ? "size-3" : "size-3.5")}
+                />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" side="top" className="w-auto p-1.5">
+              <div className="flex items-center gap-0.5">{actions}</div>
+            </PopoverContent>
+          </Popover>
         </div>
       ) : null}
     </div>
   );
+}
+
+function formatMessageTimestamp(timestamp: number) {
+  const date = new Date(timestamp);
+  const today = new Date();
+  const isToday =
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate();
+
+  return {
+    iso: date.toISOString(),
+    short: new Intl.DateTimeFormat(undefined, {
+      ...(isToday ? {} : { year: "numeric", month: "short", day: "numeric" }),
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date),
+    full: new Intl.DateTimeFormat(undefined, {
+      dateStyle: "full",
+      timeStyle: "medium",
+    }).format(date),
+  };
 }
 
 function InAppAgentReasoningBlock({
@@ -790,6 +900,7 @@ function MessageText({
   if (role === "user") {
     return (
       <p
+        data-in-app-agent-message-content
         className={cn(
           "whitespace-pre-wrap",
           isCompact ? "leading-4" : "leading-4.5",
@@ -802,6 +913,7 @@ function MessageText({
 
   return (
     <div
+      data-in-app-agent-message-content
       data-compact={isCompact}
       onCopy={(event) => {
         const browserSelection =
