@@ -8,24 +8,28 @@ export const getDemoProjectConfig = () => {
   return orgId && projectId ? { orgId, projectId } : null;
 };
 
-export const ensureDemoProjectAccess = async ({
-  userId,
-}: {
-  userId: string;
-}) => {
+export const getConfiguredDemoProject = async () => {
   const demoProjectConfig = getDemoProjectConfig();
-  if (!demoProjectConfig) return false;
+  if (!demoProjectConfig) return null;
 
-  const demoProject = await prisma.project.findUnique({
+  return await prisma.project.findUnique({
     where: {
       orgId: demoProjectConfig.orgId,
       id: demoProjectConfig.projectId,
     },
     select: {
+      id: true,
       orgId: true,
     },
   });
+};
 
+export const ensureDemoProjectAccess = async ({
+  userId,
+}: {
+  userId: string;
+}) => {
+  const demoProject = await getConfiguredDemoProject();
   if (!demoProject) return false;
 
   await prisma.organizationMembership.upsert({

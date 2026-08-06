@@ -49,11 +49,14 @@ describe("demo redirect page", () => {
     mockEnv.env.NEXT_PUBLIC_DEMO_ORG_ID = "demo-org";
     mockEnv.env.NEXT_PUBLIC_DEMO_PROJECT_ID = "demo-project";
     mockEnv.env.NEXT_PUBLIC_SIGN_UP_DISABLED = "false";
-    prismaMock.project.findUnique.mockResolvedValue({ orgId: "demo-org" });
+    prismaMock.project.findUnique.mockResolvedValue({
+      id: "demo-project",
+      orgId: "demo-org",
+    });
     prismaMock.organizationMembership.upsert.mockResolvedValue({});
   });
 
-  it("ensures demo access before redirecting authenticated users to the configured regional demo project", async () => {
+  it("redirects authenticated users to the configured regional demo project without changing memberships", async () => {
     getServerAuthSessionMock.mockResolvedValue({ user: { id: "user-1" } });
 
     await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
@@ -68,20 +71,11 @@ describe("demo redirect page", () => {
         id: "demo-project",
       },
       select: {
+        id: true,
         orgId: true,
       },
     });
-    expect(prismaMock.organizationMembership.upsert).toHaveBeenCalledWith({
-      where: {
-        orgId_userId: { orgId: "demo-org", userId: "user-1" },
-      },
-      update: {},
-      create: {
-        userId: "user-1",
-        orgId: "demo-org",
-        role: "VIEWER",
-      },
-    });
+    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("redirects unauthenticated users to sign up with the demo target", async () => {
@@ -93,7 +87,7 @@ describe("demo redirect page", () => {
         permanent: false,
       },
     });
-    expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.project.findUnique).toHaveBeenCalled();
     expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 

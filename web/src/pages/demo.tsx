@@ -1,10 +1,7 @@
 import { type GetServerSideProps, type GetServerSidePropsResult } from "next";
 
 import { env } from "@/src/env.mjs";
-import {
-  ensureDemoProjectAccess,
-  getDemoProjectConfig,
-} from "@/src/features/auth/lib/demoProjectAccess";
+import { getConfiguredDemoProject } from "@/src/features/auth/lib/demoProjectAccess";
 import { getServerAuthSession } from "@/src/server/auth";
 
 const DemoRedirectPage = () => null;
@@ -12,26 +9,18 @@ const DemoRedirectPage = () => null;
 export default DemoRedirectPage;
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const demoProjectConfig = getDemoProjectConfig();
+  const demoProject = await getConfiguredDemoProject();
 
-  if (!demoProjectConfig) {
+  if (!demoProject) {
     return redirect("/");
   }
 
   const demoProjectPath = `/project/${encodeURIComponent(
-    demoProjectConfig.projectId,
+    demoProject.id,
   )}/traces`;
   const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
 
   if (session?.user) {
-    const hasDemoAccess = await ensureDemoProjectAccess({
-      userId: session.user.id,
-    });
-
-    if (!hasDemoAccess) {
-      return redirect("/");
-    }
-
     return redirect(demoProjectPath);
   }
 
