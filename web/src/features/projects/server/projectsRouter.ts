@@ -314,6 +314,23 @@ export const projectsRouter = createTRPCRouter({
         ctx.prisma,
         redis,
       ).invalidateCachedProjectApiKeys(input.projectId);
+
+      // A transfer is a delete for the source org and a create for the
+      // destination one. CHB's registry is keyed by (organizationId,
+      // projectId), so emitting only one side leaves the source org billed for
+      // usage it no longer owns, or the destination org unmetered. Each emit
+      // no-ops unless that org is CHB-billed, so a Stripe-to-Stripe transfer
+      // sends nothing.
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_DELETED",
+        orgId: ctx.session.orgId,
+        projectId: input.projectId,
+      });
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_CREATED",
+        orgId: input.targetOrgId,
+        projectId: input.projectId,
+      });
     }),
 
   environmentFilterOptions: protectedProjectProcedure
