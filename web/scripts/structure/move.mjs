@@ -119,6 +119,9 @@ const parentDir = (p) =>
   p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
 /** @type {(p: string) => string} */
 const baseName = (p) => p.slice(p.lastIndexOf("/") + 1);
+/** Same trap as parentDir: an extension-less name must keep all of itself */
+/** @type {(p: string) => string} */
+const stemOf = (p) => (p.includes(".") ? p.slice(0, p.lastIndexOf(".")) : p);
 /** Web-relative join: a "" dir must not produce a leading slash, which git reads as absolute */
 /** @type {(...parts: string[]) => string} */
 const join = (...parts) => parts.filter(Boolean).join("/");
@@ -179,10 +182,10 @@ for (const from of fromArgs) {
   if (!withSiblings || isDirOnDisk(from) || !existsSync(abs(from))) continue;
   const dir = parentDir(from);
   const base = baseName(from);
-  const stem = base.slice(0, base.lastIndexOf("."));
+  const stem = stemOf(base);
   // a rename carries its siblings' stems along: Foo.clienttest.tsx -> Bar.clienttest.tsx
   const newBase = baseName(to);
-  const newStem = newBase.slice(0, newBase.lastIndexOf("."));
+  const newStem = stemOf(newBase);
   /** @type {(entry: string) => string} */
   const renamed = (entry) => newStem + entry.slice(stem.length);
   for (const entry of readdirSync(abs(dir)))
@@ -271,7 +274,7 @@ console.log(
   bold(renameTo ? `structure:move → ${renameTo}` : `structure:move → ${toDir}`),
 );
 for (const m of pending) {
-  const destDir = m.to.slice(0, m.to.lastIndexOf("/"));
+  const destDir = parentDir(m.to);
   const note = !m.sibling
     ? ""
     : dim(`  (sibling${destDir === toDir ? "" : ` → ${destDir}/`})`);
@@ -740,7 +743,7 @@ const HIT_LIMIT = 30;
 /** @type {string[]} */
 const dangling = [];
 for (const m of pending) {
-  const needle = m.isDir ? m.from : m.from.slice(0, m.from.lastIndexOf("."));
+  const needle = m.isDir ? m.from : stemOf(m.from);
   try {
     const out = execFileSync(
       "git",
