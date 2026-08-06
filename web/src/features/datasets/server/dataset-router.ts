@@ -2174,11 +2174,34 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
+      // A project member with datasets:CUD can repoint url to a host they
+      // control. Stored headers must never carry over to a new host, or a
+      // secret configured for one destination would be decrypted and sent
+      // to a different one on the next trigger. Same fix as the LLM
+      // connection secret reuse issue, applied here to remote experiment
+      // headers.
+      const isDestinationOriginChanged = ((): boolean => {
+        if (!dataset.remoteExperimentUrl) return false;
+        try {
+          return (
+            new URL(input.url).origin !==
+            new URL(dataset.remoteExperimentUrl).origin
+          );
+        } catch {
+          // If the previously stored URL can no longer be parsed, treat the
+          // destination as changed rather than forward a secret to an
+          // origin that was never verified.
+          return true;
+        }
+      })();
+
       const { requestHeaders, displayHeaders } = processRemoteExperimentHeaders(
         input.requestHeaders,
-        parseStoredRemoteExperimentHeaders(
-          dataset.remoteExperimentRequestHeaders,
-        ),
+        isDestinationOriginChanged
+          ? {}
+          : parseStoredRemoteExperimentHeaders(
+              dataset.remoteExperimentRequestHeaders,
+            ),
       );
 
       const signingSecret =
