@@ -186,35 +186,35 @@ function formatScreenContextNotice(
   description: InAppAgentScreenContextDescription,
 ) {
   if (description.type === "page") {
-    return "Current page included";
+    return "Current page in context";
   }
 
   if (description.type === "observation") {
-    return "Current observation included";
+    return "Current observation in context";
   }
 
   if (description.type === "trace") {
-    return "Current trace included";
+    return "Current trace in context";
   }
 
   if (description.type === "prompt") {
-    return "Current prompt included";
+    return "Current prompt in context";
   }
 
   if (description.type === "session") {
-    return "Current session included";
+    return "Current session in context";
   }
 
   if (description.type === "dataset") {
-    return "Current dataset included";
+    return "Current dataset in context";
   }
 
   if (description.type === "datasetItem") {
-    return "Current dataset item included";
+    return "Current dataset item in context";
   }
 
   if (description.type === "experimentRun") {
-    return "Current experiment run included";
+    return "Current experiment run in context";
   }
 
   if (
@@ -232,9 +232,7 @@ function formatScreenContextNotice(
       "datasets-list": "dataset",
     }[description.type];
 
-    return description.hasAppliedFilters
-      ? `Current ${listLabel} view and filters included`
-      : `Current ${listLabel} view included`;
+    return `Current ${listLabel} view in context`;
   }
 
   return assertUnreachable(description);
@@ -1162,7 +1160,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         >
           <form
             className={cn(
-              "border-input bg-background focus-within:ring-ring relative flex w-full cursor-text flex-col rounded-xl border shadow-xs focus-within:ring-2",
+              "border-input bg-background focus-within:ring-primary-accent relative flex w-full cursor-text flex-col rounded-xl border shadow-xs focus-within:ring-2",
               isExpanded && "mx-auto max-w-3xl",
             )}
             onClick={() => {

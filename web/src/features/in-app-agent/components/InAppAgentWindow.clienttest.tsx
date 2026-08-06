@@ -484,6 +484,7 @@ describe("InAppAgentWindow message actions", () => {
     const workingTrigger = screen.getByRole("button", { name: "Working…" });
     expect(workingTrigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("I will inspect the slow traces.")).toBeVisible();
+    expect(screen.getByText("Current trace view in context")).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Copy message" }),
     ).not.toBeInTheDocument();
