@@ -657,8 +657,11 @@ jobs:
         run: pnpm install
       - name: Load default env
         run: cp .env.dev.example .env
-      - name: Generate database clients
-        run: pnpm run db:generate
+      - name: Build client test dependencies
+        # Client tests import workspace packages directly. Build only web's
+        # dependencies (not the Next.js app) so cold caches have package entry
+        # points without paying for an unnecessary production web build.
+        run: pnpm turbo run build --filter=web^...
       - name: run test-client
         working-directory: web
         run: pnpm run test-client
