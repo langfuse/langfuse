@@ -99,9 +99,8 @@ const HOVER_FILTER: {
     },
     danger: {
       hover:
-        "hover:border-status-error-fill-hover hover:bg-status-error-fill-hover hover:text-on-inverse",
-      forced:
-        "border-status-error-fill-hover bg-status-error-fill-hover text-on-inverse",
+        "hover:border-status-error-fill hover:bg-status-error-fill hover:text-on-inverse",
+      forced: "border-status-error-fill bg-status-error-fill text-on-inverse",
     },
   },
   borderless: {

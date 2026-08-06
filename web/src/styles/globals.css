@@ -711,8 +711,7 @@
   --text-on-inverse: oklch(97% 0 0); /* neutral-100 */
   /* Status: danger (destructive intent). Same solid in both modes; the
      text/border accents flip in .dark below. */
-  --status-error-fill: oklch(50.5% 0.213 27.518); /* red-700 */
-  --status-error-fill-hover: oklch(44.4% 0.177 26.899); /* red-800 */
+  --status-error-fill: oklch(44.4% 0.177 26.899); /* red-800 */
   --status-error-text: oklch(50.5% 0.213 27.518); /* red-700 */
   /* Icon sizing. */
   --icon-size-md: 0.75rem; /* 12px */
@@ -730,6 +729,7 @@
   --text-secondary: oklch(70.9% 0.01 56.259); /* stone-400 */
   --text-tertiary: oklch(55.3% 0.013 58.071); /* stone-500 */
   --text-contrast: oklch(98.5% 0.001 106.423); /* stone-50 */
+  --status-error-fill: oklch(70.4% 0.191 22.216); /* red-400 */
   --bg-inverse: oklch(97% 0.001 106.424); /* stone-100 */
   --text-on-inverse: oklch(21.6% 0.006 56.043); /* stone-900 */
   --status-error-text: oklch(70.4% 0.191 22.216); /* red-400 */
@@ -747,12 +747,10 @@
   --background-color-elevation-4: var(--bg-elevation-4);
   --background-color-inverse: var(--bg-inverse);
   --background-color-status-error-fill: var(--status-error-fill);
-  --background-color-status-error-fill-hover: var(--status-error-fill-hover);
 
   --border-color-default: var(--border-default);
   --border-color-faint: var(--border-faint);
   --border-color-status-error-fill: var(--status-error-fill);
-  --border-color-status-error-fill-hover: var(--status-error-fill-hover);
 
   --text-color-primary: var(--text-primary);
   --text-color-secondary: var(--text-secondary);

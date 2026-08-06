@@ -183,15 +183,9 @@ function MappingSection({
 const STATUS: SemanticToken[] = [
   {
     token: "--status-error-fill",
-    purpose: "Destructive solid and its border: danger buttons",
-    light: ref(RED, "700"),
-    dark: ref(RED, "700"),
-  },
-  {
-    token: "--status-error-fill-hover",
-    purpose: "Hovered destructive solid",
+    purpose: "Destructive fill: hovered danger buttons",
     light: ref(RED, "800"),
-    dark: ref(RED, "800"),
+    dark: ref(RED, "400"),
   },
   {
     token: "--status-error-text",
