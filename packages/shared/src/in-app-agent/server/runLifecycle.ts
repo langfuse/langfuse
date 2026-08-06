@@ -312,6 +312,31 @@ export type CancelRunResult = {
 };
 
 /** Cancel idle states immediately; signal RUNNING workers cooperatively. */
+/**
+ * How a run ends when the user cancels it, or `null` when only the worker can
+ * end it. QUEUED and AWAITING_APPROVAL are ours to close: nothing is executing.
+ * RUNNING is cooperative — the worker sees `cancelRequestedAt` and stops.
+ */
+export function getImmediateCancellation(
+  status: InAppAgentRunStatus,
+): { errorCode: InAppAgentRunErrorCode; errorMessage: string } | null {
+  if (status === InAppAgentRunStatus.QUEUED) {
+    return {
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
+      errorMessage: "Cancelled before a worker picked the run up",
+    };
+  }
+
+  if (status === InAppAgentRunStatus.AWAITING_APPROVAL) {
+    return {
+      errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
+      errorMessage: "Approval cancelled",
+    };
+  }
+
+  return null;
+}
+
 export async function requestRunCancellation(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -336,18 +361,7 @@ export async function requestRunCancellation(params: {
     }
     const runStatus = parsedStatus.data;
 
-    const immediateCancel =
-      runStatus === InAppAgentRunStatus.QUEUED
-        ? {
-            errorCode: InAppAgentRunErrorCode.CANCELLED,
-            errorMessage: "Cancelled before a worker picked the run up",
-          }
-        : runStatus === InAppAgentRunStatus.AWAITING_APPROVAL
-          ? {
-              errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
-              errorMessage: "Approval cancelled",
-            }
-          : null;
+    const immediateCancel = getImmediateCancellation(runStatus);
 
     if (immediateCancel) {
       const { count } = await tx.inAppAgentRun.updateMany({

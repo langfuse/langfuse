@@ -5,6 +5,7 @@ import {
   BaseError,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  InAppAgentRunStatusSchema,
   LangfuseNotFoundError,
   type Plan,
 } from "@langfuse/shared";
@@ -23,11 +24,13 @@ import {
   type AgUiRunAgentInput,
 } from "@langfuse/shared/in-app-agent";
 import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import { IN_APP_AGENT_UNSETTLED_RUN_STATUSES } from "@langfuse/shared/in-app-agent";
 import {
   ensureOwnedConversation,
   getConversationEvents,
   getOwnedConversationOrThrow,
   isInAppAgentConversationWriteLocked,
+  lockConversation,
   maybeInferAndPersistConversationTitle,
   serializeConversation,
   type PersistedConversationEvent,
@@ -35,6 +38,7 @@ import {
 import {
   cleanupTerminalRunMcpApiKeys,
   createQueuedRun,
+  getImmediateCancellation,
   decideToolApproval,
   reconcileConversationRuns,
   requestRunCancellation,
@@ -258,6 +262,105 @@ export async function startBackgroundRun(params: {
   });
 
   return { runId: run.id };
+}
+
+/**
+ * Soft-delete a conversation, stopping whatever it was still doing.
+ *
+ * Deleting is an unambiguous statement of intent, so it cancels rather than
+ * refuses. Blocking the delete until the user goes and stops the run first is
+ * busywork, and for a run parked on an approval it asks them to answer a
+ * question about a conversation they have just said they do not want.
+ *
+ * Cancellation and the delete share one transaction under the same row lock
+ * `createQueuedRun` takes, so a run admitted concurrently is cancelled too
+ * rather than orphaned in a conversation nobody can open — which would hold a
+ * worker and a capacity slot until its deadlines expired.
+ *
+ * QUEUED and AWAITING_APPROVAL end here; RUNNING is cooperative, so the worker
+ * sees `cancelRequestedAt` and winds down shortly after this returns. Exactly
+ * what pressing Stop does.
+ */
+export async function deleteBackgroundConversation(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  userId: string;
+}) {
+  await getOwnedConversationOrThrow({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    userId: params.userId,
+  });
+
+  const cancelledRunIds = await params.prisma.$transaction(async (tx) => {
+    await lockConversation(tx, params.projectId, params.conversationId);
+
+    const unsettledRuns = await tx.inAppAgentRun.findMany({
+      where: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        // Not `finishedAt: null`: a parked approval sets it, and an approval
+        // waiting on this user is the clearest case for cancelling.
+        status: { in: [...IN_APP_AGENT_UNSETTLED_RUN_STATUSES] },
+      },
+      select: { id: true, status: true },
+    });
+
+    const cancelledImmediately: string[] = [];
+
+    for (const run of unsettledRuns) {
+      const parsedStatus = InAppAgentRunStatusSchema.safeParse(run.status);
+      if (!parsedStatus.success) {
+        continue;
+      }
+
+      const immediateCancel = getImmediateCancellation(parsedStatus.data);
+
+      await tx.inAppAgentRun.updateMany({
+        where: {
+          id: run.id,
+          projectId: params.projectId,
+          status: parsedStatus.data,
+        },
+        data: immediateCancel
+          ? {
+              status: InAppAgentRunStatus.CANCELLED,
+              finishedAt: new Date(),
+              cancelRequestedAt: new Date(),
+              ...immediateCancel,
+            }
+          : { cancelRequestedAt: new Date() },
+      });
+
+      if (immediateCancel) {
+        cancelledImmediately.push(run.id);
+      }
+    }
+
+    await tx.inAppAgentConversation.update({
+      where: {
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
+      },
+      data: {
+        providerSessionId: null,
+        deletedAt: new Date(),
+      },
+    });
+
+    return cancelledImmediately;
+  });
+
+  // After commit: a queued job whose run is already CANCELLED would fail its
+  // claim CAS anyway, but leaving it to be picked up and discarded wastes a
+  // worker slot.
+  await Promise.all(cancelledRunIds.map(removeInAppAgentRunJob));
+
+  return { success: true };
 }
 
 export async function cancelBackgroundRun(params: {
