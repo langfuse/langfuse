@@ -535,9 +535,9 @@ describe("in-app agent background runs", () => {
     await expect(
       prisma.inAppAgentConversation.findFirstOrThrow({
         where: { id: onceConversation.id, projectId },
-        select: { approvedToolNames: true },
+        select: { alwaysAllowedTools: true },
       }),
-    ).resolves.toEqual({ approvedToolNames: [] });
+    ).resolves.toEqual({ alwaysAllowedTools: [] });
 
     const grantRunId = await parkRunForApproval({
       projectId,
@@ -560,9 +560,9 @@ describe("in-app agent background runs", () => {
     await expect(
       prisma.inAppAgentConversation.findFirstOrThrow({
         where: { id: grantConversation.id, projectId },
-        select: { approvedToolNames: true },
+        select: { alwaysAllowedTools: true },
       }),
-    ).resolves.toEqual({ approvedToolNames: ["createTextPrompt"] });
+    ).resolves.toEqual({ alwaysAllowedTools: ["langfuse_createTextPrompt"] });
 
     const decisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
       where: {

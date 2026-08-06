@@ -291,7 +291,7 @@ export async function executeInAppAgentRun(params: {
     // owner's role no longer covers silently drops out.
     const toolPolicy = createInAppAgentToolPolicy({
       userAccess,
-      additionalAutoApproved: conversation.approvedToolNames,
+      additionalAutoApproved: conversation.alwaysAllowedTools,
     });
 
     const allowedToolNames = getInAppAgentMcpAllowedToolNames(

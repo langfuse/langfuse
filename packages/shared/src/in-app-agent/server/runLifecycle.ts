@@ -9,7 +9,7 @@ import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
 import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
-import type { InAppAgentLangfuseMcpToolName } from "./tools";
+import type { InAppAgentPrefixedLangfuseMcpToolName } from "./tools";
 import {
   InAppAgentRunRequestSchema,
   type InAppAgentRunRequest,
@@ -206,11 +206,11 @@ export async function decideToolApproval(params: {
   approved: boolean;
   decidedByUserId: string;
   /**
-   * Set to grant `grantedToolName` for the rest of the conversation. The name
-   * is resolved from the persisted interrupt event by the caller, never from
-   * client input.
+   * Set to stop gating `alwaysAllowToolName` for the rest of the conversation.
+   * Prefixed, so the stored row names the MCP surface it authorized. Resolved
+   * from the persisted interrupt event by the caller, never from client input.
    */
-  grantedToolName?: InAppAgentLangfuseMcpToolName;
+  alwaysAllowToolName?: InAppAgentPrefixedLangfuseMcpToolName;
   model?: string;
 }): Promise<InAppAgentRun> {
   const outcome = await params.prisma.$transaction(async (tx) => {
@@ -277,7 +277,7 @@ export async function decideToolApproval(params: {
 
     // Same transaction as the CAS above, so a grant can only be recorded for a
     // decision that actually landed.
-    if (params.grantedToolName) {
+    if (params.alwaysAllowToolName) {
       const conversation = await tx.inAppAgentConversation.findUnique({
         where: {
           id_projectId: {
@@ -285,10 +285,12 @@ export async function decideToolApproval(params: {
             projectId: params.projectId,
           },
         },
-        select: { approvedToolNames: true },
+        select: { alwaysAllowedTools: true },
       });
 
-      if (!conversation?.approvedToolNames.includes(params.grantedToolName)) {
+      if (
+        !conversation?.alwaysAllowedTools.includes(params.alwaysAllowToolName)
+      ) {
         await tx.inAppAgentConversation.update({
           where: {
             id_projectId: {
@@ -296,7 +298,7 @@ export async function decideToolApproval(params: {
               projectId: params.projectId,
             },
           },
-          data: { approvedToolNames: { push: params.grantedToolName } },
+          data: { alwaysAllowedTools: { push: params.alwaysAllowToolName } },
         });
       }
     }
@@ -310,7 +312,9 @@ export async function decideToolApproval(params: {
         toolCallId: params.toolCallId,
         approved: params.approved,
         decidedByUserId: params.decidedByUserId,
-        ...(params.grantedToolName ? { scope: "conversation" as const } : {}),
+        ...(params.alwaysAllowToolName
+          ? { scope: "conversation" as const }
+          : {}),
       }),
     });
 
