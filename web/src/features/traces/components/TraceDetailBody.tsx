@@ -1,19 +1,10 @@
-import { Trace } from "@/src/features/traces/Trace";
+import { Trace } from "@/src/features/traces/components/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type useTraceDetailData } from "@/src/features/traces/useTraceDetailData";
+import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
 >;
-
-/** Detail-view title (`name: id`, or just the id), shared by the peek + page. */
-export function traceDetailTitle(
-  trace: { name?: string | null; id: string } | undefined,
-  fallback?: string,
-): string | undefined {
-  if (!trace) return fallback;
-  return trace.name ? `${trace.name}: ${trace.id}` : trace.id;
-}
 
 /**
  * The trace detail body (`<Trace>`), shared by the peek and the standalone

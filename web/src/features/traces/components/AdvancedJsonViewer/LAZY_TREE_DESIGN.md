@@ -52,12 +52,12 @@ raw UTF-8 bytes ──▶ ByteJsonIndexEngine ──▶ AsyncJsonSource ──�
 ## Key design constraint (from prod experience)
 
 The prior viewers taught us that **the Worker itself is a cost**: always parsing
-in a Worker made *fast trace-flipping on small JSON* noticeably slower. So "use
+in a Worker made _fast trace-flipping on small JSON_ noticeably slower. So "use
 the byte engine" and "use a Worker" are **independent** decisions. Because
 `load()` is O(1) and each container is scanned once only on expand, the
 **main-thread** byte-engine path has near-zero upfront cost and handles the common
 large case (a base64 image = one giant string leaf, never materialized) with **no
-Worker**. The Worker is reserved for genuinely-huge *structured* payloads (rare),
+Worker**. The Worker is reserved for genuinely-huge _structured_ payloads (rare),
 chosen at the `buildModel` seam by a size threshold. Virtualization also breaks
 browser Ctrl+F, so the viewer owns an in-viewer find.
 

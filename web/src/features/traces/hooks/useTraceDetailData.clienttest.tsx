@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useTraceDetailData } from "@/src/features/traces/useTraceDetailData";
+import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 
 // Created via vi.hoisted so they exist before the hoisted vi.mock factories run.
 const {

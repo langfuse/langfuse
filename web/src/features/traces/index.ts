@@ -8,8 +8,12 @@
 // a full-stack feature needs a second, server-side surface, which the RFC does
 // not have a rule for yet.
 
-export { Trace } from "@/src/features/traces/Trace";
+export { Trace } from "@/src/features/traces/components/Trace";
 export { TracePage } from "@/src/features/traces/TracePage";
+export { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
+export { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
+export { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
+export { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 
 export { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 export { CopyIdsPopover } from "@/src/features/traces/components/CopyIdsPopover";
