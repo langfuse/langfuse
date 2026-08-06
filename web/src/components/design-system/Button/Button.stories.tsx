@@ -23,8 +23,8 @@ export const Borderless = meta.story({
   args: { label: "Learn more", importance: "borderless", onClick: fn() },
 });
 
-export const Warning = meta.story({
-  args: { label: "Delete project", status: "warning", onClick: fn() },
+export const Danger = meta.story({
+  args: { label: "Delete project", importance: "danger", onClick: fn() },
 });
 
 export const WithIcon = meta.story({
@@ -50,37 +50,30 @@ export const Disabled = meta.story({
   args: { label: "Start free", state: "disabled" },
 });
 
-const IMPORTANCES = ["primary", "secondary", "borderless"] as const;
-const STATUSES = ["default", "error", "warning", "success", "info"] as const;
+const IMPORTANCES = ["primary", "secondary", "borderless", "danger"] as const;
 const STATES = ["default", "hovered", "focused", "disabled"] as const;
 const ICONS = ["text-only", "text-and-icon", "icon-only"] as const;
 
 export const VariantMatrix = meta.story({
   render: () => (
     <div className="flex flex-col gap-6">
-      {STATUSES.map((status) => (
-        <div key={status} className="flex flex-col gap-2">
-          <span className="text-muted-foreground font-mono text-[10px] uppercase">
-            {status}
-          </span>
-          {STATES.map((state) => (
-            <div key={state} className="flex items-center gap-4">
-              <span className="text-muted-foreground w-16 font-mono text-[10px]">
-                {state}
-              </span>
-              {IMPORTANCES.map((importance) => (
-                <Button
-                  key={importance}
-                  label={importance}
-                  importance={importance}
-                  status={status}
-                  state={state}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-      ))}
+      <div className="flex flex-col gap-2">
+        {STATES.map((state) => (
+          <div key={state} className="flex items-center gap-4">
+            <span className="text-muted-foreground w-16 font-mono text-[10px]">
+              {state}
+            </span>
+            {IMPORTANCES.map((importance) => (
+              <Button
+                key={importance}
+                label={importance}
+                importance={importance}
+                state={state}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
       <div className="flex flex-col gap-2">
         <span className="text-muted-foreground font-mono text-[10px] uppercase">
           icon modes
