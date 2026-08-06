@@ -33,7 +33,7 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
@@ -659,9 +659,7 @@ export function CreateLLMApiKeyForm({
         form.reset();
         onSuccess();
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportNonTrpcError(error, "llm-api-keys"));
   }
 
   return (

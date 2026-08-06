@@ -47,7 +47,10 @@ import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
-import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
+import {
+  ENTERPRISE_SSO_REQUIRED_MESSAGE,
+  MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
+} from "@/src/features/auth/constants";
 import { z } from "zod";
 import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
 import {
@@ -1037,9 +1040,15 @@ export async function getAuthOptions(signupAttribution?: {
               isMultiTenantSsoProvider &&
               ssoDomain.toLowerCase() !== userDomain.toLowerCase()
             ) {
-              throw new Error(
-                `This domain is not associated with this SSO provider.`,
+              // warn: the ONLY server-side signal for this rejection — the
+              // client render of the resulting /auth/error page is classified
+              // as expected and not captured (expectedAuthErrors.ts), and
+              // next-auth does not log signIn-callback throws itself.
+              logger.warn(
+                "Multi-tenant SSO provider used with a non-matching email domain",
+                { email, attemptedProvider: account.provider },
               );
+              throw new Error(MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE);
             }
           }
 

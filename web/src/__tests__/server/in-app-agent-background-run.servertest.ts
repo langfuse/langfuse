@@ -23,6 +23,7 @@ import {
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
 } from "@langfuse/shared/in-app-agent";
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { env } from "@/src/env.mjs";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -74,6 +75,10 @@ vi.mock("@/src/server/auth", () => ({
 describe("in-app agent background runs", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalMaxActiveRunsPerUser =
+    sharedEnv.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER;
+  const originalMaxActiveRunsPerOrg =
+    sharedEnv.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
@@ -89,6 +94,10 @@ describe("in-app agent background runs", () => {
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
+      originalMaxActiveRunsPerUser;
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG =
+      originalMaxActiveRunsPerOrg;
   });
 
   const createCaller = async (
@@ -212,6 +221,25 @@ describe("in-app agent background runs", () => {
     return runId;
   };
 
+  /** An unfinished run holding a capacity slot, without going through submit. */
+  const createActiveRun = async (params: {
+    projectId: string;
+    conversationId: string;
+    userId: string;
+    createdAt?: Date;
+  }) =>
+    prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        triggeredByUserId: params.userId,
+        status: InAppAgentRunStatus.QUEUED,
+        request: { kind: "userMessage", context: [] },
+        ...(params.createdAt ? { createdAt: params.createdAt } : {}),
+      },
+    });
+
   it("commits a queued run with its user message and enqueues it by run id", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -292,6 +320,167 @@ describe("in-app agent background runs", () => {
         where: { projectId, conversationId: conversation.id },
       }),
     ).toBe(1);
+  });
+
+  it("rejects a submit that exceeds the organization's active-run ceiling", async () => {
+    const { caller, orgId, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    // The slot is held by a different project of the same organization: the
+    // ceiling is organization-wide, so scoping the count to the submitting
+    // project would silently let an organization occupy a whole region.
+    const otherProject = await prisma.project.create({
+      data: { orgId, name: `other-project-${randomUUID()}` },
+    });
+    const otherConversation = await createConversation({
+      projectId: otherProject.id,
+      userId,
+    });
+    await createActiveRun({
+      projectId: otherProject.id,
+      conversationId: otherConversation.id,
+      userId,
+    });
+
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG = 1;
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "one too many",
+      }),
+    ).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+
+    // Rejected at admission: nothing committed, nothing queued.
+    expect(await prisma.inAppAgentRun.count({ where: { projectId } })).toBe(0);
+    expect(await prisma.inAppAgentEvent.count({ where: { projectId } })).toBe(
+      0,
+    );
+    expect(enqueuedJobs).toEqual([]);
+  });
+
+  it("stops counting an active run that outlived its reconciliation deadline", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const abandonedConversation = await createConversation({
+      projectId,
+      userId,
+    });
+
+    // Conversation-scoped reconciliation only fires when that conversation is
+    // read, so a leaked QUEUED row would otherwise hold a slot forever.
+    await createActiveRun({
+      projectId,
+      conversationId: abandonedConversation.id,
+      userId,
+      createdAt: new Date(
+        Date.now() -
+          sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+          sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS -
+          60_000,
+      ),
+    });
+
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+
+    const { runId } = await caller.startRun({
+      projectId,
+      conversationId: conversation.id,
+      message: "the abandoned run must not block me",
+    });
+
+    expect(
+      await prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: runId, projectId },
+      }),
+    ).toMatchObject({ status: InAppAgentRunStatus.QUEUED });
+  });
+
+  it("keeps counting an overdue run whose worker is still heartbeating", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const hungConversation = await createConversation({ projectId, userId });
+
+    // Nothing enforces the maximum duration in-process, so a hung tool call
+    // heartbeats past it and holds a real worker slot. Age alone must not free
+    // its slot in the accounting, or the ceiling leaks while hung runs pile up.
+    const overdue = new Date(
+      Date.now() -
+        sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+        sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS -
+        60_000,
+    );
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: hungConversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        request: { kind: "userMessage", context: [] },
+        createdAt: overdue,
+        claimedAt: overdue,
+        heartbeatAt: new Date(),
+      },
+    });
+
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "the hung run still owns a worker",
+      }),
+    ).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+  });
+
+  it("admits a replacement turn when the conversation's own run lost its worker", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    // Claimed recently enough to sit inside the capacity cutoff, but its
+    // heartbeat is dead: reconciliation will fail it, so the ceiling must not
+    // reject the replacement before that happens (a worker task rotating on
+    // deploy leaves exactly this row).
+    const abandonedRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        request: { kind: "userMessage", context: [] },
+        createdAt: new Date(Date.now() - 5 * 60_000),
+        claimedAt: new Date(Date.now() - 5 * 60_000),
+        heartbeatAt: new Date(
+          Date.now() - sharedEnv.LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS * 3,
+        ),
+      },
+    });
+
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+
+    const { runId } = await caller.startRun({
+      projectId,
+      conversationId: conversation.id,
+      message: "my run died, let me retry",
+    });
+
+    expect(
+      await prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: abandonedRun.id, projectId },
+      }),
+    ).toMatchObject({
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.WORKER_LOST,
+    });
+    expect(
+      await prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: runId, projectId },
+      }),
+    ).toMatchObject({ status: InAppAgentRunStatus.QUEUED });
   });
 
   it("supersedes a pending approval when a new message is submitted", async () => {

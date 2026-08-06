@@ -534,6 +534,18 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(24 * 60 * 60_000),
+  // Flat safety ceilings on concurrent non-terminal runs. Per region, so a
+  // small region (JP, staging) can be tightened below its execution capacity.
+  LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5),
+  LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20),
   LANGFUSE_IN_APP_AGENT_WATCH_TAIL_POLL_MS: z.coerce
     .number()
     .int()
@@ -544,11 +556,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(15_000),
-  LANGFUSE_IN_APP_AGENT_WATCH_RECONCILE_INTERVAL_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5_000),
   LANGFUSE_IN_APP_AGENT_WATCH_MAX_CONNECTION_MS: z.coerce
     .number()
     .int()

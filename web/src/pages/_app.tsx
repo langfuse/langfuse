@@ -13,7 +13,7 @@ import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuPr
 
 import { api } from "@/src/utils/api";
 
-import NextAdapterPages from "next-query-params/pages";
+import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWithReadyGuard";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
@@ -145,7 +145,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   return (
     <QueryParamProvider
-      adapter={NextAdapterPages}
+      adapter={NextAdapterPagesWithReadyGuard}
       options={{ enableBatching: true }}
     >
       <TooltipProvider>

@@ -3,7 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -154,7 +154,7 @@ function DeleteAccountButton() {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       await signOut();
     } catch (error) {
-      console.error(error);
+      reportNonTrpcError(error, "account");
       showErrorToast(
         "Failed to Delete Account",
         error instanceof Error ? error.message : "An unexpected error occurred",

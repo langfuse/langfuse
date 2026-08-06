@@ -64,6 +64,8 @@ import {
   getDescendantIds,
 } from "@/src/features/traces/fns/trace-aggregation";
 import TagList from "@/src/features/tag/components/TagList";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useSession } from "next-auth/react";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -257,6 +259,11 @@ export function ObservationDetailView({
     observationId: observation.id,
   });
 
+  const session = useSession();
+  const hasCommentsReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "comments:read",
+  });
   const observationComments = api.comments.getByObjectId.useQuery(
     {
       projectId,
@@ -265,6 +272,7 @@ export function ObservationDetailView({
     },
     {
       refetchOnMount: false,
+      enabled: hasCommentsReadAccess && session.status === "authenticated",
     },
   );
 

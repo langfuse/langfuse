@@ -28,12 +28,12 @@ import {
   createAgUiStream,
   createInAppAgentMcpRunOverride,
   createInAppAgentSandbox,
+  createSandboxToolCallFileAccumulator,
   finishClaimedRun,
   flushPendingRunEvents,
   getConversationEvents,
   getConversationMessagesForReplay,
   getInAppAgentPromptClient,
-  getSandboxToolCallFiles,
   heartbeatClaimedRun,
   IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
   isInAppAgentConversationWriteLocked,
@@ -298,14 +298,15 @@ export async function executeInAppAgentRun(params: {
       );
     }
 
+    const sandboxToolCallFiles =
+      createSandboxToolCallFileAccumulator(conversationEvents);
     const sandboxState = sandboxProvider
       ? await createInAppAgentSandbox({
           conversationId: conversation.id,
           projectId,
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
-          getToolCallFiles: async () =>
-            getSandboxToolCallFiles(conversationEvents),
+          getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),
           saveState: async (state) => {
             await prisma.inAppAgentConversation.update({
               where: { id_projectId: { id: conversation.id, projectId } },
@@ -417,6 +418,11 @@ export async function executeInAppAgentRun(params: {
           }
 
           pendingPersistedEvents.push(persistedEvent);
+          sandboxToolCallFiles.processEvent({
+            event: persistedEvent,
+            runId,
+            createdAt: new Date(),
+          });
 
           if (!shouldFlushPersistedEvent(persistedEvent)) {
             return;
@@ -424,6 +430,7 @@ export async function executeInAppAgentRun(params: {
 
           return flushPersistedRunEvents();
         },
+        onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
         onComplete: async () => {
           await flushPersistedRunEvents(
             interruptRequest
