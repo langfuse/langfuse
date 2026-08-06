@@ -78,8 +78,8 @@ export const BUTTON_TOKENS: {
   },
 };
 
-/** Hover treatment per slot: mostly a brightness filter; the danger
- * secondary swaps to the red fill (GitHub-style). `forced` mirrors the
+/** Hover = a brightness filter. Ink and paper fills need opposite
+ * directions per theme, hence per-slot values; `forced` mirrors the
  * hover: classes for the spec-only state="hovered". */
 const HOVER_FILTER: {
   primary: { default: { hover: string; forced: string } };
@@ -98,10 +98,8 @@ const HOVER_FILTER: {
       forced: "brightness-[0.96] dark:brightness-[1.9]",
     },
     danger: {
-      hover:
-        "hover:border-status-error-fill-hover hover:bg-status-error-fill-hover hover:text-on-inverse",
-      forced:
-        "border-status-error-fill-hover bg-status-error-fill-hover text-on-inverse",
+      hover: "hover:brightness-[0.96] dark:hover:brightness-[1.9]",
+      forced: "brightness-[0.96] dark:brightness-[1.9]",
     },
   },
   borderless: {
