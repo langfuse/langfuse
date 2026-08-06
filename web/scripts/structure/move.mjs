@@ -162,7 +162,7 @@ if (!renameTo && !isDirOnDisk(toDir) && existsSync(abs(toDir))) {
 // not in the surface (README): move the contents instead.
 if (renameTo && isDirOnDisk(/** @type {string} */ (fromArgs[0]))) {
   console.error(
-    `${red("directory rename:")} ${fromArgs[0]} is a directory — move its contents into ${toDir} instead`,
+    `${red("directory rename:")} ${fromArgs[0]} is a directory, and ${renameTo} names a file — move the directory's contents to their new home instead`,
   );
   process.exit(1);
 }
