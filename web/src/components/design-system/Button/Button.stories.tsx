@@ -3,7 +3,7 @@ import { Fragment } from "react";
 import { fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Button, BUTTON_TOKENS, type ButtonProps } from "./Button";
+import { Button, BUTTON_TOKENS } from "./Button";
 
 const meta = preview.meta({
   component: Button,
@@ -25,7 +25,16 @@ export const Borderless = meta.story({
 });
 
 export const Danger = meta.story({
-  args: { label: "Delete project", status: "danger", onClick: fn() },
+  args: { label: "Delete project", type: "danger", onClick: fn() },
+});
+
+export const FullWidth = meta.story({
+  args: { label: "Continue", fullWidth: true, onClick: fn() },
+  render: (args) => (
+    <div className="w-80">
+      <Button {...args} />
+    </div>
+  ),
 });
 
 export const WithIcon = meta.story({
@@ -52,82 +61,59 @@ export const Disabled = meta.story({
   args: { label: "Start free", state: "disabled" },
 });
 
-const TYPES = ["primary", "secondary", "borderless"] as const;
-const typesFor = (status: (typeof STATUSES)[number]) =>
-  status === "danger" ? (["secondary", "borderless"] as const) : TYPES;
-const STATUSES = ["default", "danger"] as const;
+const TYPES = ["primary", "secondary", "borderless", "danger"] as const;
 const STATES = ["default", "hovered", "focused", "disabled"] as const;
 
 export const VariantMatrix = meta.story({
   render: () => (
-    <div className="flex flex-col gap-8">
-      {STATUSES.map((status) => (
-        <div key={status} className="flex flex-col gap-2">
-          <span className="text-muted-foreground font-mono text-[10px] uppercase">
-            {status}
-          </span>
-          <div
-            className={
-              status === "danger"
-                ? "grid grid-cols-[56px_repeat(2,auto)] items-center gap-x-6 gap-y-2"
-                : "grid grid-cols-[56px_repeat(3,auto)] items-center gap-x-6 gap-y-2"
-            }
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-[56px_repeat(4,auto)] items-center gap-x-6 gap-y-2">
+        <span />
+        {TYPES.map((type) => (
+          <span
+            key={type}
+            className="text-muted-foreground font-mono text-[9px]"
           >
-            <span />
-            {typesFor(status).map((type) => (
-              <span
-                key={type}
-                className="text-muted-foreground font-mono text-[9px]"
-              >
-                {type}
-              </span>
+            {type}
+          </span>
+        ))}
+        {STATES.map((state) => (
+          <Fragment key={state}>
+            <span className="text-muted-foreground font-mono text-[10px]">
+              {state}
+            </span>
+            {TYPES.map((type) => (
+              <div key={type} className="flex items-center gap-1.5">
+                <Button label="Button" type={type} state={state} />
+                <Button
+                  label="Button"
+                  type={type}
+                  state={state}
+                  icon="text-and-icon"
+                  Icon={Sparkles}
+                />
+                <Button
+                  label="Button"
+                  type={type}
+                  state={state}
+                  icon="icon-only"
+                  Icon={Sparkles}
+                />
+              </div>
             ))}
-            {STATES.map((state) => (
-              <Fragment key={state}>
-                <span className="text-muted-foreground font-mono text-[10px]">
-                  {state}
-                </span>
-                {typesFor(status).map((type) => (
-                  <div key={type} className="flex items-center gap-1.5">
-                    <Button
-                      {...({ type, status } as ButtonProps)}
-                      label="Button"
-                      state={state}
-                    />
-                    <Button
-                      {...({ type, status } as ButtonProps)}
-                      label="Button"
-                      state={state}
-                      icon="text-and-icon"
-                      Icon={Sparkles}
-                    />
-                    <Button
-                      {...({ type, status } as ButtonProps)}
-                      label="Button"
-                      state={state}
-                      icon="icon-only"
-                      Icon={Sparkles}
-                    />
-                  </div>
-                ))}
-              </Fragment>
-            ))}
-          </div>
-          <div className="flex flex-col gap-0.5 pt-1">
-            {typesFor(status).map((type) => (
-              <span
-                key={type}
-                className="text-muted-foreground font-mono text-[9px]"
-              >
-                {type} —{" "}
-                {type === "primary"
-                  ? BUTTON_TOKENS.primary.default
-                  : BUTTON_TOKENS[type][status]}
-              </span>
-            ))}
-          </div>
-        </div>
-      ))}
+          </Fragment>
+        ))}
+      </div>
+      <div className="flex flex-col gap-0.5 pt-1">
+        {TYPES.map((type) => (
+          <span
+            key={type}
+            className="text-muted-foreground font-mono text-[9px]"
+          >
+            {type} — {BUTTON_TOKENS[type]}
+          </span>
+        ))}
+      </div>
     </div>
   ),
 });
