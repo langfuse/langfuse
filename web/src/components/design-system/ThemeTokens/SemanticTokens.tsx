@@ -299,21 +299,6 @@ export function SemanticTokens() {
         <DocsPageHeader
           eyebrow="Design tokens · semantic"
           title="Semantic tokens"
-          lede={
-            <span className="flex flex-col gap-1">
-              <span>
-                1. Components consume semantic tokens only, never primitives.
-              </span>
-              <span>
-                2. Every token carries a light and a dark value. Themes flip
-                inside the token, so components never use dark: color overrides.
-              </span>
-              <span>
-                3. Primitives live on the Palette page; this page is the map
-                from role to primitive, per mode.
-              </span>
-            </span>
-          }
         />
         <MappingSection
           title="Background / Fill / From / Via / To"
