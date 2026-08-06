@@ -25,6 +25,7 @@ const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
   z.object({
     isLoading: z.boolean().optional(),
     feedbackMessageId: z.string().optional(),
+    timestamp: z.number().optional(),
   }),
 );
 
@@ -330,6 +331,7 @@ export function getDrawerMessages({
 
       mappedMessages.push({
         id: message.id,
+        timestamp: message.timestamp,
         role,
         content: {
           type: "reasoning",
@@ -462,6 +464,7 @@ export function getDrawerMessages({
 
       mappedMessages.push({
         id: message.id,
+        timestamp: message.timestamp,
         ...(message.role === "assistant" && message.runId
           ? { runId: message.runId }
           : {}),
@@ -472,6 +475,9 @@ export function getDrawerMessages({
         content: {
           type: "text",
           text,
+          ...(message.role === "assistant" && message.isLoading
+            ? { isStreaming: true }
+            : {}),
           ...(sources.length > 0 ? { sources } : {}),
           ...(message.role === "assistant" && message.feedback
             ? { feedback: message.feedback }
