@@ -16,6 +16,7 @@ import {
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
+import { reconcileConversationRuns } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { getInAppAgentInstrumentationTraceId } from "@langfuse/shared/in-app-agent";
 import {
   AgUiRunAgentInputSchema,
@@ -247,20 +248,29 @@ export default async function handler(request: Request) {
       return rateLimitResponse;
     }
 
-    // Also applied here so the ceiling cannot be bypassed by submitting through
-    // the foreground path, exactly as the shared rate-limit scope is.
-    await assertInAppAgentRunCapacity({
-      prisma,
-      orgId: rateLimitScope.orgId,
-      plan: rateLimitScope.plan,
-      userId,
-    });
-
     const conversation = await ensureOwnedConversation({
       prisma,
       projectId,
       conversationId,
       userId: userId,
+    });
+
+    // Reconcile, then count, in the order `startBackgroundRun` uses: this turn
+    // is allowed to replace a run of its own conversation that `createRun`
+    // would stale-close below, so counting that row would reject the
+    // replacement with a ceiling error instead. The ceiling is applied on this
+    // route at all so it cannot be bypassed by submitting through the
+    // foreground path, exactly as the shared rate-limit scope cannot be.
+    await reconcileConversationRuns({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+    });
+    await assertInAppAgentRunCapacity({
+      prisma,
+      orgId: rateLimitScope.orgId,
+      plan: rateLimitScope.plan,
+      userId,
     });
     const conversationEvents = await getConversationEvents({
       prisma,
