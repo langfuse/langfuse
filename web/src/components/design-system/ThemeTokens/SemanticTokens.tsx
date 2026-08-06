@@ -80,7 +80,7 @@ const BORDER: SemanticToken[] = [
     token: "--border-default",
     purpose: "Default hairline across the app",
     light: ref(NEUTRAL, "200"),
-    dark: ref(STONE, "800"),
+    dark: ref(STONE, "700"),
   },
   {
     token: "--border-contrast",

@@ -723,7 +723,7 @@
   --bg-elevation-2: oklch(21.6% 0.006 56.043); /* stone-900 */
   --bg-elevation-3: oklch(26.8% 0.007 34.298); /* stone-800 */
   --bg-elevation-4: oklch(37.4% 0.01 67.558); /* stone-700 */
-  --border-default: oklch(26.8% 0.007 34.298); /* stone-800 */
+  --border-default: oklch(37.4% 0.01 67.558); /* stone-700 */
   --border-faint: oklch(21.6% 0.006 56.043); /* stone-900 */
   --text-primary: oklch(86.9% 0.005 56.366); /* stone-300 */
   --text-secondary: oklch(70.9% 0.01 56.259); /* stone-400 */
