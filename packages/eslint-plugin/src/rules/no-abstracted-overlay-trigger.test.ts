@@ -195,8 +195,8 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
   invalid: [
     {
       code: `
-        import {
-          Dialog,
+            import {
+              Dialog,
           DialogContent,
           DialogTrigger,
         } from "@/src/components/ui/dialog";
@@ -276,13 +276,34 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
             </div>
           );
         }
-      `,
+          `,
       errors: [{ messageId: "abstractedTrigger" }],
     },
     {
       code: `
-        import {
-          Dialog,
+            import {
+              Dialog,
+              DialogContent,
+              DialogTrigger,
+            } from "@/src/components/ui/dialog";
+
+            export function DeleteButton({ visible }) {
+              const overlay = (
+                <Dialog>
+                  <DialogTrigger />
+                  <DialogContent />
+                </Dialog>
+              );
+              if (visible) return overlay;
+              return null;
+            }
+          `,
+      errors: [{ messageId: "abstractedTrigger" }],
+    },
+    {
+      code: `
+            import {
+              Dialog,
           DialogContent,
           DialogTrigger,
         } from "@/src/components/ui/dialog";

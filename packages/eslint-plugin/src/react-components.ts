@@ -487,7 +487,9 @@ export function createComponentReturnExpressionVisitors(
       }
       visitReturnExpressionsInStatement(statement, {
         onReturnExpression(expression) {
-          returnExpressions.push(expression);
+          returnExpressions.push(
+            resolveDirectVariable(expression, initializers),
+          );
         },
       });
     }
