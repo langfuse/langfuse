@@ -12,7 +12,7 @@ import { cn } from "@/src/utils/tailwind";
  * states (hover, focus-visible, disabled) always apply natively too.
  */
 
-type ButtonType = "primary" | "secondary" | "borderless";
+type ButtonType = "primary" | "default" | "borderless";
 type Status = "default" | "danger";
 type ForcedState = "default" | "focused" | "hovered" | "disabled";
 
@@ -43,7 +43,7 @@ const CONTROL_STYLES: Record<ButtonType, Record<Status, string>> = {
     danger:
       "border-status-error-fill bg-status-error-fill text-on-inverse shadow-1 border",
   },
-  secondary: {
+  default: {
     default: "border-default bg-elevation-1 text-secondary shadow-1 border",
     danger:
       "border-status-error bg-elevation-1 text-status-error shadow-1 border",
@@ -61,7 +61,7 @@ export const BUTTON_TOKENS: Record<ButtonType, Record<Status, string>> = {
     default: "bg-inverse · text-on-inverse · border-inverse",
     danger: "bg-status-error-fill · text-on-inverse · border-status-error-fill",
   },
-  secondary: {
+  default: {
     default: "bg-elevation-1 · text-secondary · border-default",
     danger: "bg-elevation-1 · text-status-error · border-status-error",
   },
@@ -85,7 +85,7 @@ const HOVER_FILTER: Record<
     },
     danger: { hover: "hover:brightness-90", forced: "brightness-90" },
   },
-  secondary: {
+  default: {
     default: {
       hover: "hover:brightness-[0.96] dark:hover:brightness-[1.9]",
       forced: "brightness-[0.96] dark:brightness-[1.9]",
@@ -121,7 +121,7 @@ const ICON_LAYOUT: Record<"text-only" | "text-and-icon" | "icon-only", string> =
 export function Button(props: ButtonProps) {
   const {
     label,
-    type = "primary",
+    type = "default",
     status = "default",
     state = "default",
     onClick,
