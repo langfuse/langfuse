@@ -64,7 +64,7 @@ import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/features/traces/components/_shared/BreakdownToolTip";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -79,6 +79,11 @@ import {
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import {
+  demoteViewOnUserFilterEdit,
+  type ExplicitFilterStateChange,
+  type ViewDemotionControllers,
+} from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -161,6 +166,7 @@ export type EventsTableRow = {
   name?: string;
   environment?: string;
   version?: string;
+  release?: string;
   level?: ObservationLevelType;
   statusMessage?: string;
 
@@ -496,13 +502,32 @@ export default function ObservationsEventsTable({
     projectId,
   });
 
+  // Late-bound view controllers for the demotion callback below: the filter
+  // hook (and its onExplicitFilterStateChange) is created before
+  // useTableViewManager runs, so reach the controllers through a ref (same
+  // pattern as queryFilterRef).
+  const viewControllersRef = useRef<ViewDemotionControllers | null>(null);
+
+  const onAppRootExplicitFilterStateChange =
+    appRootDefault.onExplicitFilterStateChange;
+
+  // Composes the app-root default policy with the view demotion on user-origin
+  // filter edits (LFE-14699).
+  const onExplicitFilterStateChange = useCallback(
+    (change: ExplicitFilterStateChange) => {
+      onAppRootExplicitFilterStateChange(change);
+      demoteViewOnUserFilterEdit(change, viewControllersRef.current);
+    },
+    [onAppRootExplicitFilterStateChange],
+  );
+
   // Route-state half of the sidebar filters, ahead of the facet-options query
   // so the same state that scopes the rows can refine the counts (LFE-14489).
   const filterStateOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
       defaultExplicitFilterState: appRootDefault.defaultExplicitFilterState,
-      onExplicitFilterStateChange: appRootDefault.onExplicitFilterStateChange,
+      onExplicitFilterStateChange,
     };
 
     if (peekContext) {
@@ -530,7 +555,7 @@ export default function ObservationsEventsTable({
     peekContext,
     projectId,
     appRootDefault.defaultExplicitFilterState,
-    appRootDefault.onExplicitFilterStateChange,
+    onExplicitFilterStateChange,
   ]);
 
   const filterCore = useSidebarFilterStateCore(
@@ -950,11 +975,10 @@ export default function ObservationsEventsTable({
   }, [observations.rows, selectedRows]);
 
   const handleDeleteTraces = async ({ projectId }: { projectId: string }) => {
-    // Select-all deletes are dispatched even if a background refetch drained
-    // the visible-page selection to [] while the dialog was open: the server
-    // requires at least one traceId regardless, so such a dispatch fails
-    // loudly (as in the v3 traces table) — an empty selection while
-    // select-all is armed signals a consistency issue, not a no-op.
+    // Select-all deletes are dispatched even if paging or a background
+    // refetch drained the visible-page selection to []: the batch path
+    // deletes by query server-side and ignores traceIds. Only an id-based
+    // delete with nothing resolvable is a no-op.
     if (!selectAll && selectedTraceIds.length === 0) return;
 
     await traceDeleteMutation.mutateAsync({
@@ -1017,10 +1041,9 @@ export default function ObservationsEventsTable({
             type: BatchActionType.Delete,
             label: "Delete Traces",
             description: `${itemCountDisplay} ${selectedItemCount === 1 ? "item is" : "items are"} selected, spanning ${traceCountDisplay} unique ${selectedUniqueTraceCount === 1 ? "trace" : "traces"}. A trace is always deleted as a whole — if at least one of its observations is selected, all of its observations are deleted with it. This action cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.`,
-            // Select-all is not gated on the visible-page selection; if that
-            // selection drained to empty, dispatch fails loudly with the
-            // server's min-1 traceIds rejection (as in the v3 traces table).
-            // Page selection needs concrete trace IDs.
+            // Select-all is not gated on the visible-page selection: the
+            // batch path deletes by query and ignores traceIds. Page
+            // selection needs concrete trace IDs.
             disabled: selectAll
               ? hasCommentFilter
               : selectedTraceIds.length === 0,
@@ -1673,6 +1696,19 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
     },
     {
+      accessorKey: "release",
+      id: "release",
+      header: getEventsColumnName("release"),
+      size: 100,
+      headerTooltip: {
+        description: "Track changes to your application via the release tag.",
+        href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
+      },
+      enableHiding: true,
+      enableSorting,
+      defaultHidden: true,
+    },
+    {
       accessorKey: "userId",
       id: "userId",
       header: getEventsColumnName("userId"),
@@ -1741,6 +1777,7 @@ export default function ObservationsEventsTable({
     disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
   });
+  viewControllersRef.current = viewControllers;
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (hideControls) return undefined;
@@ -1773,6 +1810,7 @@ export default function ObservationsEventsTable({
               },
               name: observation.name ?? undefined,
               version: observation.version ?? "",
+              release: observation.release ?? "",
               providedModelName: observation.model ?? "",
               modelId: observation.internalModelId ?? undefined,
               level: observation.level,
@@ -1943,10 +1981,10 @@ export default function ObservationsEventsTable({
                 tableStatePolicy.disableSavedViews ? undefined : (
                   <CategoryPresetChips
                     projectId={projectId}
-                    activeViewId={
-                      viewControllers.appliedViewId ??
-                      viewControllers.selectedViewId
-                    }
+                    // URL viewId only — the sessionStorage appliedViewId can
+                    // go stale under explicit URL state and light the wrong
+                    // chip (see demoteViewOnUserFilterEdit).
+                    activeViewId={viewControllers.selectedViewId}
                     onApplyView={viewControllers.handleSetViewId}
                     applyViewState={viewControllers.applyViewState}
                     onPreviewView={previewViewInSearchBar}
@@ -2151,10 +2189,10 @@ export default function ObservationsEventsTable({
                   <div className="flex flex-wrap items-center gap-2">
                     <CategoryPresetChips
                       projectId={projectId}
-                      activeViewId={
-                        viewControllers.appliedViewId ??
-                        viewControllers.selectedViewId
-                      }
+                      // URL viewId only — the sessionStorage appliedViewId
+                      // can go stale under explicit URL state and light the
+                      // wrong chip (see demoteViewOnUserFilterEdit).
+                      activeViewId={viewControllers.selectedViewId}
                       onApplyView={viewControllers.handleSetViewId}
                       applyViewState={viewControllers.applyViewState}
                       onPreviewView={previewViewInSearchBar}

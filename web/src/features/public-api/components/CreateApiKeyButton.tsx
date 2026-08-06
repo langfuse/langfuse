@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -68,9 +68,7 @@ export function CreateApiKeyButton(props: {
           });
           capture(`${props.scope}_settings:api_key_create`);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     } else {
       mutCreateOrgApiKey
         .mutateAsync({
@@ -84,9 +82,7 @@ export function CreateApiKeyButton(props: {
           });
           capture(`${props.scope}_settings:api_key_create`);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
   };
 

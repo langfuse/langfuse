@@ -85,7 +85,7 @@ export function AppLayout(props: PropsWithChildren) {
     // For publishable paths (shared traces/sessions), render minimal layout without sidebar
     // This allows authenticated users to view shared content without seeing project navigation
     if (isPublishable) {
-      return <MinimalLayout>{props.children}</MinimalLayout>;
+      return <MinimalLayout fullBleed>{props.children}</MinimalLayout>;
     }
 
     // For non-publishable paths, show error page. This is an EXPECTED state (an
@@ -114,7 +114,7 @@ export function AppLayout(props: PropsWithChildren) {
   // Publishable paths (traces, sessions) when unauthenticated
   // Render minimal layout without navigation/sidebar
   if (isPublishable && session.status === "unauthenticated") {
-    return <MinimalLayout>{props.children}</MinimalLayout>;
+    return <MinimalLayout fullBleed>{props.children}</MinimalLayout>;
   }
 
   // Render minimal layout (onboarding, public routes)

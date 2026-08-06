@@ -102,7 +102,7 @@ export const viewDeclaration = z.object({
     .object({
       // The column used to match root entities between outer query and subquery (e.g., "trace_id").
       column: z.string(),
-      // SQL condition identifying root events (e.g., "parent_span_id = ''").
+      // Fully qualified, self-contained SQL condition identifying root events.
       condition: z.string(),
     })
     .optional(),

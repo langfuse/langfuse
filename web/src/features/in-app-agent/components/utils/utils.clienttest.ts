@@ -6,7 +6,6 @@ import {
   isInAppAgentRateLimited,
   type InAppAiAgentMessage,
 } from "./utils";
-
 describe("getInAppAgentError", () => {
   const now = new Date("2026-07-08T20:00:54.997Z").getTime();
   const rateLimitError = {

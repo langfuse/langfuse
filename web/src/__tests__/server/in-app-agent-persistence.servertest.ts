@@ -28,11 +28,20 @@ import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
 } from "@langfuse/shared/in-app-agent";
-import { type AgUiEvent } from "@langfuse/shared/in-app-agent";
+import {
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
+  type AgUiEvent,
+} from "@langfuse/shared/in-app-agent";
+import {
+  deserializeInAppAgentDisplayState,
+  projectInAppAgentMessagesForDisplay,
+} from "@/src/features/in-app-agent/lib/display";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
   createRun,
   ensureOwnedConversation,
+  getConversationEvents,
   finishRun,
   getConversationMessagesForReplay,
   maybeInferAndPersistConversationTitle,
@@ -1000,6 +1009,142 @@ describe("in-app agent persistence", () => {
     ).resolves.toEqual(expectedReplayMessages);
   });
 
+  it("preserves reasoning order when hydrating an assistant message that continues afterward", async () => {
+    const { projectId, userId, caller } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events: [
+        {
+          type: EventType.RUN_STARTED,
+          threadId: conversation.id,
+          runId: run.id,
+          input: {
+            threadId: conversation.id,
+            runId: run.id,
+            state: null,
+            messages: [
+              {
+                id: "interleaved-user",
+                role: "user",
+                content: "Investigate this",
+              },
+            ],
+            tools: [],
+            context: [],
+            forwardedProps: {},
+          },
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: "interleaved-assistant",
+          role: "assistant",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "interleaved-assistant",
+          delta: "Initial answer.",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_START,
+          messageId: "interleaved-reasoning",
+          role: "reasoning",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_CONTENT,
+          messageId: "interleaved-reasoning",
+          delta: "A later thought.",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: "interleaved-reasoning",
+        },
+      ],
+    });
+
+    // Persist the continuation separately, as it would arrive after the
+    // snapshot prefix containing the interleaved reasoning message.
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events: [
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "interleaved-assistant",
+          delta: " Final answer.",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: "interleaved-assistant",
+        },
+      ],
+    });
+
+    // The wire carries canonical messages: the assistant message keeps its full
+    // content so a resumed run can append to it. Interleaved ordering travels
+    // separately, in the display state.
+    const snapshot = await caller.getConversation({
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    expect(snapshot.messages).toMatchObject([
+      {
+        id: "interleaved-user",
+        role: "user",
+        content: "Investigate this",
+      },
+      {
+        id: "interleaved-assistant",
+        role: "assistant",
+        content: "Initial answer. Final answer.",
+      },
+      {
+        id: "interleaved-reasoning",
+        role: "reasoning",
+        content: "A later thought.",
+      },
+    ]);
+    expect(
+      projectInAppAgentMessagesForDisplay(
+        snapshot.messages,
+        deserializeInAppAgentDisplayState(snapshot.displayState),
+      ),
+    ).toMatchObject([
+      {
+        id: "interleaved-user",
+        role: "user",
+        content: "Investigate this",
+      },
+      {
+        id: "interleaved-assistant",
+        role: "assistant",
+        content: "Initial answer.",
+      },
+      {
+        id: "interleaved-reasoning",
+        role: "reasoning",
+        content: "A later thought.",
+      },
+      {
+        id: "display-text-interleaved-assistant-1",
+        role: "assistant",
+        content: " Final answer.",
+      },
+    ]);
+  });
+
   it("stores only compact events and skips raw adapter payloads", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -1317,6 +1462,84 @@ describe("in-app agent persistence", () => {
     ]);
   });
 
+  it("redacts silent MCP output from replayed conversation history", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "user-1",
+      content: "search observations silently",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "tool-call-1",
+      toolCallName: "langfuse_listObservations",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "tool-call-1",
+      delta: JSON.stringify({ silent: true, traceId: "trace-1" }),
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "tool-call-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "tool-call-1",
+      content: JSON.stringify({
+        type: "silent-mcp-output",
+        output: { data: [{ id: "observation-1" }] },
+      }),
+      role: "tool",
+    });
+
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toContainEqual({
+      id: "tool-result-1",
+      role: "tool",
+      content: "Output saved to /workspace/tool_calls",
+      toolCallId: "tool-call-1",
+    });
+
+    const persistedEvents = await getConversationEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+    });
+    expect(persistedEvents).toContainEqual(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: EventType.TOOL_CALL_ARGS,
+          delta: JSON.stringify({ silent: true, traceId: "trace-1" }),
+        }),
+      }),
+    );
+  });
+
   it("drops assistant tool calls without results from loaded conversation history", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -1398,7 +1621,24 @@ describe("in-app agent persistence", () => {
       conversationId: conversation.id,
     });
 
-    expect(detail.messages).toEqual([
+    // The snapshot stays canonical and keeps the unpaired call: a run resuming
+    // from here still needs it present for its result to attach to, and a
+    // pending approval renders against it.
+    expect(
+      detail.messages.flatMap((message) =>
+        message.role === "assistant" ? (message.toolCalls ?? []) : [],
+      ),
+    ).toMatchObject([
+      { id: "paired-tool-call" },
+      { id: "unapproved-tool-call" },
+    ]);
+
+    // Settled transcripts prune it at render time instead.
+    expect(
+      dropEmptyAssistantMessages(
+        dropUnpairedAssistantToolCalls(detail.messages),
+      ),
+    ).toEqual([
       { id: "user-1", role: "user", content: "search" },
       {
         id: "assistant-1",

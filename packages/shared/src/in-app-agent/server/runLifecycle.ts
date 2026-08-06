@@ -9,7 +9,10 @@ import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
 import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
-import type { InAppAgentRunRequest } from "../../features/inAppAgent/types";
+import {
+  InAppAgentRunRequestSchema,
+  type InAppAgentRunRequest,
+} from "../../features/inAppAgent/types";
 import {
   ACTIVE_RUN_CONFLICT_MESSAGE,
   FOREGROUND_RUN_STALE_AFTER_MS,
@@ -212,7 +215,7 @@ export async function decideToolApproval(params: {
         projectId: params.projectId,
         conversationId: params.conversationId,
       },
-      select: { status: true, finishedAt: true },
+      select: { status: true, finishedAt: true, request: true },
     });
 
     if (
@@ -261,6 +264,10 @@ export async function decideToolApproval(params: {
       );
     }
 
+    const parentRequest = InAppAgentRunRequestSchema.safeParse(
+      parentRun.request,
+    );
+
     await appendConversationEventInTransaction({
       tx,
       projectId: params.projectId,
@@ -286,6 +293,7 @@ export async function decideToolApproval(params: {
           parentRunId: params.parentRunId,
           toolCallId: params.toolCallId,
           approved: params.approved,
+          context: parentRequest.success ? parentRequest.data.context : [],
         },
       }),
     };

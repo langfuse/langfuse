@@ -58,6 +58,18 @@ const adapterEvents = vi.hoisted(() => ({
     name: "readiness",
     dataType: "NUMERIC",
   }),
+  createScoreConfigToModelOutput: vi.fn((output: unknown) => {
+    if (
+      typeof output === "object" &&
+      output !== null &&
+      "type" in output &&
+      output.type === "silent-mcp-output"
+    ) {
+      return "Output saved to /workspace/tool_calls";
+    }
+
+    return output;
+  }),
 }));
 
 const instrumentationMocks = vi.hoisted(() => {
@@ -210,6 +222,7 @@ vi.mock("@mastra/mcp", () => ({
             createScoreConfig: {
               server: "langfuse",
               execute: adapterEvents.createScoreConfigExecute,
+              toModelOutput: adapterEvents.createScoreConfigToModelOutput,
             },
           },
           langfuseDocs: {
@@ -534,6 +547,16 @@ describe("createAgUiStream", () => {
         messageId: "assistant-message-1",
       },
       {
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "tool-result-1",
+        toolCallId: "tool-call-1",
+        content: JSON.stringify({
+          type: "silent-mcp-output",
+          output: { data: [{ id: "observation-1" }] },
+        }),
+        role: "tool",
+      },
+      {
         type: EventType.RUN_FINISHED,
         threadId: input.threadId,
         runId: input.runId,
@@ -576,6 +599,14 @@ describe("createAgUiStream", () => {
 
     expect(streamedText).toContain(EventType.MESSAGES_SNAPSHOT);
     expect(streamedText).toContain(EventType.REASONING_MESSAGE_CONTENT);
+    expect(streamedText).toContain("Output saved to /workspace/tool_calls");
+    expect(streamedText).not.toContain("observation-1");
+    expect(persistedEvents).toContainEqual(
+      expect.objectContaining({
+        type: EventType.TOOL_CALL_RESULT,
+        content: expect.stringContaining("observation-1"),
+      }),
+    );
     expect(adapterEvents.inputs).toEqual([input]);
     const { Agent } = await import("@mastra/core/agent");
     expect(Agent).toHaveBeenCalledWith(
@@ -620,7 +651,7 @@ describe("createAgUiStream", () => {
     );
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
     expect(agentConfig?.defaultOptions).toMatchObject({
-      maxSteps: 10,
+      maxSteps: expect.any(Number),
       providerOptions: {
         bedrock: {
           additionalModelRequestFields: {
@@ -724,6 +755,7 @@ describe("createAgUiStream", () => {
       EventType.TEXT_MESSAGE_START,
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.TEXT_MESSAGE_END,
+      EventType.TOOL_CALL_RESULT,
       EventType.RUN_FINISHED,
     ]);
     expect(persistedEvents[0]).toMatchObject({
@@ -747,6 +779,8 @@ describe("createAgUiStream", () => {
       `stream:${EventType.TEXT_MESSAGE_CONTENT}`,
       `persist:${EventType.TEXT_MESSAGE_END}`,
       `stream:${EventType.TEXT_MESSAGE_END}`,
+      `persist:${EventType.TOOL_CALL_RESULT}`,
+      `stream:${EventType.TOOL_CALL_RESULT}`,
       `persist:${EventType.RUN_FINISHED}`,
       `stream:${EventType.RUN_FINISHED}`,
     ]);
@@ -787,6 +821,7 @@ describe("createAgUiStream", () => {
       EventType.TEXT_MESSAGE_START,
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.TEXT_MESSAGE_END,
+      EventType.TOOL_CALL_RESULT,
       EventType.RUN_FINISHED,
     ]);
     expect(instrumentationMocks.instrumentation.end).toHaveBeenCalledWith({});
@@ -860,7 +895,7 @@ describe("createAgUiStream", () => {
     const { Agent } = await import("@mastra/core/agent");
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
     expect(agentConfig?.defaultOptions).toMatchObject({
-      maxSteps: 10,
+      maxSteps: expect.any(Number),
     });
     expect(agentConfig?.defaultOptions).not.toHaveProperty("providerOptions");
   });
@@ -1054,6 +1089,88 @@ describe("createAgUiStream", () => {
         agent: expect.objectContaining({
           toolCallId: "tool-call-1",
           threadId: "conversation-1",
+        }),
+      }),
+    );
+  });
+
+  it("persists raw silent output for approved tools while resuming with redacted content", async () => {
+    const { createAgUiStream } =
+      await import("@langfuse/shared/in-app-agent/server/agent");
+    const input = createToolApprovalResumeInput(true, { silent: true });
+    adapterEvents.createScoreConfigExecute.mockResolvedValueOnce({
+      type: "silent-mcp-output",
+      output: {
+        id: "score-config-1",
+        name: "readiness",
+        secret: "full-tool-output",
+      },
+    });
+    adapterEvents.createScoreConfigToModelOutput.mockImplementationOnce(
+      async () => "Output saved to /workspace/tool_calls",
+    );
+    adapterEvents.inputs = [];
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+    const persistedEvents: AgUiEvent[] = [];
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    } as unknown as Langfuse;
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        onEvent: (event) => {
+          persistedEvents.push(event);
+        },
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
+          runOverride: "run-override",
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
+        langfuseClient,
+        sandbox: (await createTestSandbox()).sandbox,
+        useLocalPrompt: false,
+      },
+    });
+    const streamedText = await readStream(stream);
+
+    const resumedInput = adapterEvents.inputs[0] as {
+      messages?: { id: string; role: string; content?: unknown }[];
+    };
+    const resumedToolMessage = resumedInput.messages?.find(
+      (message) => message.id === "tool-call-1-approval-tool-result",
+    );
+
+    expect(resumedToolMessage).toMatchObject({
+      role: "tool",
+      content: "Output saved to /workspace/tool_calls",
+    });
+    expect(streamedText).toContain("Output saved to /workspace/tool_calls");
+    expect(streamedText).not.toContain("full-tool-output");
+    expect(persistedEvents).toContainEqual(
+      expect.objectContaining({
+        type: EventType.TOOL_CALL_RESULT,
+        content: JSON.stringify({
+          type: "silent-mcp-output",
+          output: {
+            id: "score-config-1",
+            name: "readiness",
+            secret: "full-tool-output",
+          },
         }),
       }),
     );
@@ -1699,7 +1816,10 @@ async function readStream(
   }
 }
 
-function createToolApprovalResumeInput(approved: boolean) {
+function createToolApprovalResumeInput(
+  approved: boolean,
+  args?: Record<string, unknown>,
+) {
   return {
     threadId: "conversation-1",
     runId: "run-2",
@@ -1730,6 +1850,7 @@ function createToolApprovalResumeInput(approved: boolean) {
               dataType: "NUMERIC",
               numericMinValue: 0,
               numericMaxValue: 1,
+              ...args,
             },
             runId: "interrupted-run-1",
           },

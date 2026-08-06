@@ -30,11 +30,20 @@ import {
   type AgUiEvent,
   type AgUiMessage,
 } from "../schema";
+import {
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
+} from "../messages";
 import { assertConversationAccess } from "./access";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
-import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./tools";
+import {
+  type CompletedInAppAgentMcpToolCall,
+  getPublicInAppAgentMcpToolResultContent,
+  getSandboxInAppAgentMcpToolResultContent,
+  IN_APP_AGENT_SANDBOX_TOOL_NAMES,
+} from "./tools";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.
@@ -387,7 +396,7 @@ export async function appendRunEvents(params: {
 }
 
 export async function getConversationEvents(params: {
-  prisma: PrismaClient;
+  prisma: PrismaClient | Prisma.TransactionClient;
   projectId: string;
   conversationId: string;
 }): Promise<PersistedConversationEvent[]> {
@@ -413,11 +422,8 @@ export async function getConversationEvents(params: {
   }));
 }
 
-/**
- * Returns `tool_calls` file payloads reconstructed from prior non-sandbox tool
- * calls so each sandbox session can mount the same context.
- */
-export function getSandboxToolCallFiles(
+/** Builds sandbox `tool_calls` files from persisted and live MCP calls. */
+export function createSandboxToolCallFileAccumulator(
   events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
 ) {
   const drafts = new Map<
@@ -429,14 +435,43 @@ export function getSandboxToolCallFiles(
     }
   >();
   const files: Array<{ path: string; content: string }> = [];
+  const completedToolCallIds = new Set<string>();
 
-  for (const { event, createdAt } of events) {
+  const processToolCall = (toolCall: CompletedInAppAgentMcpToolCall) => {
+    if (completedToolCallIds.has(toolCall.toolCallId)) {
+      return;
+    }
+
+    const draft = drafts.get(toolCall.toolCallId);
+    drafts.delete(toolCall.toolCallId);
+    completedToolCallIds.add(toolCall.toolCallId);
+    files.push({
+      path: `tool_calls/${formatSandboxToolCallTimestamp(draft?.createdAt ?? toolCall.createdAt)}_${draft?.toolName ?? toolCall.toolName}_${toolCall.toolCallId}.json`,
+      content: JSON.stringify(
+        {
+          request: draft
+            ? parseSandboxToolCallValue(draft.request)
+            : toolCall.request,
+          response: toolCall.response,
+          error: toolCall.error,
+        },
+        null,
+        2,
+      ),
+    });
+  };
+
+  const processEvent = ({
+    event,
+    createdAt,
+  }: Omit<PersistedConversationEvent, "sequenceNumber">) => {
     if (event.type === EventType.TOOL_CALL_START) {
       const toolCallId = getString(event, "toolCallId");
       const toolName = getString(event, "toolCallName");
 
       if (
         toolCallId &&
+        !completedToolCallIds.has(toolCallId) &&
         toolName &&
         !IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName)
       ) {
@@ -446,7 +481,7 @@ export function getSandboxToolCallFiles(
           request: "",
         });
       }
-      continue;
+      return;
     }
 
     if (event.type === EventType.TOOL_CALL_ARGS) {
@@ -456,36 +491,54 @@ export function getSandboxToolCallFiles(
       if (draft) {
         draft.request += getString(event, "delta") ?? "";
       }
-      continue;
+      return;
     }
 
     if (event.type !== EventType.TOOL_CALL_RESULT) {
-      continue;
+      return;
     }
 
     const toolCallId = getString(event, "toolCallId");
     const draft = toolCallId ? drafts.get(toolCallId) : undefined;
 
-    if (!toolCallId || !draft) {
-      continue;
+    if (!toolCallId || completedToolCallIds.has(toolCallId) || !draft) {
+      return;
     }
 
     drafts.delete(toolCallId);
+    completedToolCallIds.add(toolCallId);
     files.push({
       path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
-          response: parseSandboxToolCallValue(getString(event, "content")),
+          response: parseSandboxToolCallValue(
+            getString(event, "content"),
+            getSandboxInAppAgentMcpToolResultContent,
+          ),
           error: getString(event, "error") ?? null,
         },
         null,
         2,
       ),
     });
+  };
+
+  for (const event of events) {
+    processEvent(event);
   }
 
-  return files;
+  return {
+    processEvent,
+    processToolCall,
+    getFiles: () => files,
+  };
+}
+
+export function getSandboxToolCallFiles(
+  events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
+) {
+  return createSandboxToolCallFileAccumulator(events).getFiles();
 }
 
 export async function getConversationMessages(params: {
@@ -510,7 +563,9 @@ export function getConversationMessagesForDisplayFromEvents(
   events: readonly PersistedConversationEvent[],
 ) {
   const messages = getMessagesFromPersistedEvents(events);
-  return dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages));
+  return redactSilentToolMessages(
+    dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages)),
+  );
 }
 
 export async function getConversationMessagesForReplay(params: {
@@ -690,7 +745,7 @@ function getMessagesFromPersistedEvents(
     accumulator.processEvent(event, runId);
   }
 
-  return accumulator.getMessages();
+  return redactSilentToolMessages(accumulator.getMessages());
 }
 
 function sanitizeConversationMessagesForReplay(
@@ -708,6 +763,25 @@ function sanitizeConversationMessagesForReplay(
   return stripAssistantRunIds(
     dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
   );
+}
+
+export function redactSilentToolMessages(messages: readonly AgUiMessage[]) {
+  let changed = false;
+  const sanitizedMessages = messages.map((message): AgUiMessage => {
+    if (message.role !== "tool") {
+      return message;
+    }
+
+    const content = getPublicInAppAgentMcpToolResultContent(message.content);
+    if (content === message.content) {
+      return message;
+    }
+
+    changed = true;
+    return { ...message, content };
+  });
+
+  return changed ? sanitizedMessages : messages;
 }
 
 export function shouldFlushPersistedEvent(event: AgUiEvent) {
@@ -1120,6 +1194,12 @@ export function createConversationMessageAccumulator(
       if (draft) {
         draft.content += delta;
         draft.runId ??= runId;
+        return upsertMessage({
+          id: draft.id,
+          role: "assistant",
+          content: draft.content,
+          ...(draft.runId ? { runId: draft.runId } : {}),
+        });
       }
       return false;
     }
@@ -1447,41 +1527,6 @@ function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
   });
 }
 
-function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {
-  const toolResultIds = new Set(
-    messages.flatMap((message) =>
-      message.role === "tool" ? [message.toolCallId] : [],
-    ),
-  );
-  let changed = false;
-
-  const sanitizedMessages = messages.map((message): AgUiMessage => {
-    if (message.role !== "assistant" || !message.toolCalls?.length) {
-      return message;
-    }
-
-    const pairedToolCalls = message.toolCalls.filter((toolCall) =>
-      toolResultIds.has(toolCall.id),
-    );
-
-    if (pairedToolCalls.length === message.toolCalls.length) {
-      return message;
-    }
-
-    changed = true;
-
-    if (pairedToolCalls.length === 0) {
-      const sanitizedMessage = { ...message };
-      delete sanitizedMessage.toolCalls;
-      return sanitizedMessage;
-    }
-
-    return { ...message, toolCalls: pairedToolCalls };
-  });
-
-  return changed ? sanitizedMessages : messages;
-}
-
 function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
   let changed = false;
   const sanitizedMessages = messages.filter((message) => {
@@ -1490,26 +1535,6 @@ function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
 
     changed = changed || !keep;
     return keep;
-  });
-
-  return changed ? sanitizedMessages : messages;
-}
-
-function dropEmptyAssistantMessages(messages: readonly AgUiMessage[]) {
-  let changed = false;
-  const sanitizedMessages = messages.filter((message) => {
-    if (message.role !== "assistant") {
-      return true;
-    }
-
-    const hasContent =
-      typeof message.content === "string" && message.content.length > 0;
-    const hasToolCalls =
-      message.toolCalls !== undefined && message.toolCalls.length > 0;
-    const keepMessage = hasContent || hasToolCalls;
-
-    changed = changed || !keepMessage;
-    return keepMessage;
   });
 
   return changed ? sanitizedMessages : messages;
@@ -1579,9 +1604,20 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
   ) as T;
 }
 
-function parseSandboxToolCallValue(value: string | undefined) {
+function parseSandboxToolCallValue(
+  value: string | undefined,
+  transform?: (value: string) => unknown,
+) {
   if (!value) {
     return null;
+  }
+
+  if (transform) {
+    try {
+      return transform(value);
+    } catch {
+      return value;
+    }
   }
 
   const parsed = safeJsonParse(value);

@@ -6,8 +6,9 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   LangfuseNotFoundError,
+  type Plan,
 } from "@langfuse/shared";
-import type { PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   InAppAgentRunQueue,
   logger,
@@ -25,7 +26,6 @@ import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/ser
 import {
   ensureOwnedConversation,
   getConversationEvents,
-  getConversationMessagesForDisplayFromEvents,
   getOwnedConversationOrThrow,
   isInAppAgentConversationWriteLocked,
   maybeInferAndPersistConversationTitle,
@@ -40,7 +40,10 @@ import {
   requestRunCancellation,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 
+import { serializeInAppAgentDisplayState } from "@/src/features/in-app-agent/lib/display";
+import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
+import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
 
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
@@ -76,27 +79,33 @@ export async function getBackgroundConversationSnapshot(params: {
     },
   });
 
-  const [events, runs] = await Promise.all([
-    getConversationEvents({
-      prisma: params.prisma,
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-    }),
-    params.prisma.inAppAgentRun.findMany({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-      },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        status: true,
-        errorCode: true,
-        cancelRequestedAt: true,
-      },
-    }),
-  ]);
-  const messages = getConversationMessagesForDisplayFromEvents(events);
+  // The worker commits terminal status and its final events atomically. Keep
+  // both reads on one version so the cursor cannot describe an older prefix.
+  const [events, runs] = await params.prisma.$transaction(
+    (tx) =>
+      Promise.all([
+        getConversationEvents({
+          prisma: tx,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+        }),
+        tx.inAppAgentRun.findMany({
+          where: {
+            projectId: params.projectId,
+            conversationId: params.conversationId,
+          },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            status: true,
+            errorCode: true,
+            cancelRequestedAt: true,
+          },
+        }),
+      ]),
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
+  const { messages, displayState } = getConversationSnapshotFromEvents(events);
 
   const latestRun = runs.at(-1) ?? null;
 
@@ -108,6 +117,7 @@ export async function getBackgroundConversationSnapshot(params: {
       }),
     }),
     messages,
+    displayState: serializeInAppAgentDisplayState(displayState),
     eventCursor: events.reduce(
       (max, event) => Math.max(max, event.sequenceNumber),
       -1,
@@ -140,6 +150,8 @@ export async function getBackgroundConversationSnapshot(params: {
 export async function startBackgroundRun(params: {
   prisma: PrismaClient;
   projectId: string;
+  orgId: string;
+  plan: Plan;
   conversationId: string;
   userId: string;
   message: string;
@@ -154,6 +166,24 @@ export async function startBackgroundRun(params: {
     conversationId: params.conversationId,
     userId: params.userId,
   });
+
+  // Reconcile before counting capacity: this turn is allowed to replace a run
+  // of its own conversation that already lost its worker or timed out, which
+  // `createQueuedRun` does under the lock further down. Counting that row would
+  // reject the replacement with a ceiling error instead. Ownership is verified
+  // above first, because reconciliation writes.
+  await reconcileConversationRuns({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: conversation.id,
+  });
+  await assertInAppAgentRunCapacity({
+    prisma: params.prisma,
+    orgId: params.orgId,
+    plan: params.plan,
+    userId: params.userId,
+  });
+
   const events = await getConversationEvents({
     prisma: params.prisma,
     projectId: params.projectId,

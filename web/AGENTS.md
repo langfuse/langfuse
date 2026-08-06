@@ -221,6 +221,8 @@ The human-facing version of that capture contract is
 - E2E tests: `pnpm --filter web run test:e2e`
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
+- Structure-RFC violation counts: `pnpm --filter web run structure:stats`
+  (see `web/scripts/structure/README.md`)
 
 ## Playbooks
 

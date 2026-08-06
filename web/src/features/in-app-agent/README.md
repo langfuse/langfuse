@@ -1,14 +1,30 @@
 # In-App Agent
 
-The in-app agent is Langfuse's project-scoped foreground assistant inside the authenticated product UI.
+The in-app agent is Langfuse's project-scoped assistant inside the authenticated
+product UI. Foreground execution remains the production default; an opt-in
+background path executes the same conversation through a worker-owned run.
+
+`ARCHITECTURE.md` covers why the feature is shaped this way: the one-log /
+three-derivations contract, where code lives and why, the target state after
+foreground is removed, and the rules that keep the two execution paths apart.
+Read it before changing how messages are represented or where logic lives.
 
 ## Core Model
 
-AG-UI is the durable contract for live streaming, persistence, replay, and rendering.
+AG-UI events are the durable transcript vocabulary. Langfuse-owned protocols
+coordinate persistence, watching, run lifecycle, approvals, and display
+projection around those events.
 
 The browser owns interaction state and submits intent. The server owns authorization, run/message IDs, request sanitization, MCP credentials, runtime configuration, tool access, persistence, and replay.
 
-Runs are foreground-only. A conversation can have one active run; stale unfinished runs are closed before a new run starts.
+A conversation can have one active run. The browser uses one execution mode for
+a turn:
+
+- **Foreground (default):** `HttpAgent` owns the live request. The run cannot
+  outlive the browser session.
+- **Background (local opt-in):** the browser starts a durable run, hydrates one
+  persisted transcript/cursor snapshot, and observes its tail. Closing the
+  drawer detaches observation without cancelling the server run.
 
 ## Major Files
 
@@ -17,7 +33,12 @@ Runs are foreground-only. A conversation can have one active run; stale unfinish
 - `server/agent.ts`: Mastra/Bedrock/MCP runtime setup, custom tool wiring, human-in-the-loop approval gates, AG-UI event normalization, and cleanup.
 - `server/human-in-the-loop.ts`: interrupt parsing helpers, pending tool approval persistence, and resume approval validation/consumption.
 - `server/tools.ts`: custom agent tools with strict schemas and scoped, user-visible behavior.
-- `server/persistence.ts`: conversations, runs, events, replay, active-run locking, and stale-run recovery.
+- `server/persistence.ts`: conversations, runs, events, canonical accumulation, replay, active-run locking, and stale-run recovery. Knows nothing about rendering.
+- `lib/display.ts`: display-state recording, the render-time projection, and its
+  wire serialization. Web-only; used by the browser and by the web server when
+  it builds a conversation snapshot.
+- `server/conversationSnapshot.ts`: rebuilds canonical messages and display state
+  from one read of the persisted event log.
 - `server/router.ts`: non-streaming tRPC routes for conversation lists, replay, and feedback.
 - `server/instrumentation.ts`: optional Langfuse tracing for agent runs, prompts, events, and errors.
 - `server/sandbox/config.ts`: sandbox provider selection and runtime configuration.
@@ -25,7 +46,15 @@ Runs are foreground-only. A conversation can have one active run; stale unfinish
 - `server/sandbox/providers/*`: provider adapters for local Docker and Lambda MicroVM sandboxes.
 - `server/sandbox/types.ts`: runtime-neutral sandbox interface used by tools/agent.
 - `constants.ts`: stable names shared across prompts, tools, persistence, and rendering.
-- `components/*`: client controller and prop-driven render components.
+- `components/InAppAiAgentProvider.tsx`: mode selection, foreground transport,
+  query integration, and the React bridge to the background session.
+- `components/ControlledInAppAgentWindow.tsx` and
+  `components/InAppAgentWindow.tsx`: prop-driven rendering and the explicit
+  foreground/background execution controls.
+- `lib/backgroundAgentClient.ts`: durable run start/watch AG-UI adapter.
+- `lib/backgroundExecutionSession.ts`: background transcript, cursor, run,
+  approval, attachment, cancel, and decision owner.
+- `lib/backgroundExecutionFlag.ts`: local, default-off background opt-in.
 
 Outside this feature folder, `packages/in-app-agent-sandbox-runtime/src/*` provides the shared sandbox runtime and contract types used by both the local Docker provider and the Lambda MicroVM image.
 
@@ -39,6 +68,13 @@ flowchart TB
   Window --> Message["InAppAgentMessage.tsx\nmessage rendering"]
 
   Provider -->|AG-UI HttpAgent + SSE| Handler["server/handler.ts\nserver route for agent runs"]
+  Provider -->|useSyncExternalStore| Session["backgroundExecutionSession.ts\nbackground state + actions"]
+  Session --> BackgroundClient["backgroundAgentClient.ts\nstart + watch adapter"]
+  Display["lib/display.ts\ndisplay state + projection"] -.-> Provider
+  Display -.-> Session
+  Display -.-> Snapshot["server/conversationSnapshot.ts\ncanonical + display state"]
+  Router --> Snapshot
+  BackgroundClient -->|start/watch| Router
   Provider -->|tRPC| Router["server/router.ts\ntRPC routes (non-streaming)"]
 
   Schema["schema.ts\nshared AG-UI contract"] -.-> Provider
@@ -60,7 +96,9 @@ flowchart TB
   Router --> Persistence
 ```
 
-## Run Lifecycle
+## Run Lifecycles
+
+### Foreground
 
 1. Browser sends the latest message, conversation state, and screen context through `HttpAgent`.
 2. `server/handler.ts` validates the request and creates a server-owned run.
@@ -73,6 +111,65 @@ flowchart TB
 9. `server/instrumentation.ts` records prompt metadata, stream events, completion, aborts, and errors.
 10. `server/persistence.ts` stores compacted events and reconstructs replay messages.
 11. `InAppAiAgentProvider.tsx` renders live AG-UI state and hydrates selected conversations through `server/router.ts`.
+
+### Background
+
+1. The provider selects the background client only when the local opt-in is
+   enabled and starts the durable run through `startRun`.
+2. `BackgroundExecutionSessionController` installs the persisted canonical
+   messages, the display state, and the cursor before attaching the watch
+   stream. The seed is never projected or pruned; see `ARCHITECTURE.md`.
+3. The session snapshot is the sole owner of background messages, approvals,
+   current run, cancellation, and attachment state. React subscribes with
+   `useSyncExternalStore`; it does not mirror those facts into component state.
+4. Approval and cancellation promises represent the durable mutation. A later
+   hydration/watch failure is attachment state and cannot undo an accepted
+   command or resurrect an approval.
+5. Closing the drawer calls `detach()`, which stops browser observation only.
+   Reopening hydrates and resumes from the persisted cursor.
+
+## Client State Ownership
+
+- React Query owns conversation-list and persisted conversation query state.
+- The foreground provider state owns the live `HttpAgent` transcript,
+  approvals, and request lifecycle.
+- `BackgroundExecutionSessionController` owns the equivalent background facts;
+  persisted query data only seeds the coherent bootstrap view consumed by the
+  same external-store hook before a controller exists. Rendering never unions
+  query state with a live session snapshot.
+- `InAppAgentWindow` receives one discriminated execution-UI value, so
+  foreground copy cannot be combined with background Stop state.
+- Display pacing remains in `useSmoothStreamingMessages`; canonical AG-UI
+  messages are never rewritten for animation.
+- Messages and their display state always come from the same source. The
+  provider selects both together, so a live transcript can never be folded
+  against persisted display state or the reverse.
+
+The provider is still a large integration controller. Do not add another
+background state mirror or a generic long-lived foreground/background adapter;
+the foreground branch is scheduled for deletion after background rollout.
+
+## Consumers And Stability Boundaries
+
+`InAppAgentWindowHost` and the drawer shell mount the provider-backed controlled
+window. Presentational components must remain context-free and consume explicit
+props.
+
+Streaming publications and background session snapshots are high-frequency.
+Keep their subscription boundary narrow, derive status/notice values during
+render, and preserve stable message references between session publications.
+
+Stop intentionally emits no new analytics event during the internal rollout:
+the existing run lifecycle is sufficient to diagnose correctness, and there is
+no product decision that a separate click event would answer yet.
+
+## Rollout And Migration
+
+Background execution is default-off while the remaining project work is
+completed and canaried. Conversation switching, detached invalidations,
+capacity controls, retry, and conversation-list run statuses are separate
+project issues. After background execution is stable, the foreground transport
+and its state can be removed rather than preserved as a permanent abstraction.
 
 ## Sandbox Runtime
 
@@ -137,3 +234,7 @@ Sandbox tools are separate from MCP authorization. When a sandbox provider is en
 - Keep persisted schemas backward-compatible unless there is an explicit migration.
 - Keep sandbox conversation state backward-compatible unless there is an explicit migration or cleanup plan.
 - Keep presentational components prop-driven; connect tRPC, streaming, and persistence at provider/router/handler boundaries.
+- Before changing client state ownership or adding effects, read the
+  frontend-large-feature architecture and refactor-react-effects skills.
+- Protect both the default foreground contract and the background session
+  contract with behavior tests at their public seams.

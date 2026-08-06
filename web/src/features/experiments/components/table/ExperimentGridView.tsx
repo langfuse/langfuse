@@ -211,7 +211,6 @@ export const ExperimentGridView = ({
             isLoading={isLoading}
             data={row.original.input ?? null}
             singleLine={singleLine}
-            enableExpandOnHover
           />
         ),
       },
@@ -226,7 +225,6 @@ export const ExperimentGridView = ({
             data={row.original.expectedOutput ?? null}
             singleLine={singleLine}
             className="bg-accent-light-green"
-            enableExpandOnHover
           />
         ),
       },
