@@ -64,8 +64,8 @@ const BG_ELEVATION: SemanticToken[] = [
   {
     token: "--bg-inverse-hover",
     purpose: "Hovered ink-solid fill",
-    light: ref(NEUTRAL, "700"),
-    dark: ref(STONE, "300"),
+    light: ref(NEUTRAL, "600"),
+    dark: ref(STONE, "400"),
   },
 ];
 

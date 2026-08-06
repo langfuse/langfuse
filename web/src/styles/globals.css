@@ -708,7 +708,7 @@
   --text-contrast: oklch(14.5% 0 0); /* neutral-950 */
   /* Inverse surface: the ink-solid fill (primary buttons). */
   --bg-inverse: oklch(20.5% 0 0); /* neutral-900 */
-  --bg-inverse-hover: oklch(37.1% 0 0); /* neutral-700 */
+  --bg-inverse-hover: oklch(43.9% 0 0); /* neutral-600 */
   --text-on-inverse: oklch(97% 0 0); /* neutral-100 */
   /* Status: danger (destructive intent). Same solid in both modes; the
      text/border accents flip in .dark below. */
@@ -731,7 +731,7 @@
   --text-contrast: oklch(98.5% 0.001 106.423); /* stone-50 */
   --status-error: oklch(70.4% 0.191 22.216); /* red-400 */
   --bg-inverse: oklch(97% 0.001 106.424); /* stone-100 */
-  --bg-inverse-hover: oklch(86.9% 0.005 56.366); /* stone-300 */
+  --bg-inverse-hover: oklch(70.9% 0.01 56.259); /* stone-400 */
   --text-on-inverse: oklch(21.6% 0.006 56.043); /* stone-900 */
 }
 
