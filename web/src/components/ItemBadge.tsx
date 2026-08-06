@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import type React from "react";
 import { Badge } from "@/src/components/ui/badge";
 import {

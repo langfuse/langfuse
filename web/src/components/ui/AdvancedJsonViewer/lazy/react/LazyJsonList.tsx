@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * LazyJsonList — the virtualized body of the lazy JSON viewer. It positions row
  * shells and keeps the store's loaded window in sync with the visible range; it

@@ -1,12 +1,9 @@
 ---
 name: seed-test-data
 description: |
-  Seed local Langfuse test data with one command: large/branching observation
-  trees (v3 and v4 events), long sessions, bulk traces for list performance.
-  Use whenever a task needs ClickHouse/Postgres test data — e.g. "seed a
-  complex trace", "make a tough session", "fill the trace list", "test v4
-  events UI", or when debugging trace/session/list rendering or performance.
-  Never write ad-hoc seed scripts or raw ClickHouse inserts.
+  Seed reproducible local Langfuse data in ClickHouse and Postgres. Use for
+  complex traces, long sessions, v3/v4 events, bulk list data, or frontend
+  rendering and performance tests; never use ad hoc scripts or raw inserts.
 ---
 
 # Seed Test Data
@@ -41,6 +38,7 @@ this.
 | A super tough session (v3 legacy session view)                                          | `pnpm run seed -- long-session --traces 300 --observations-per-trace 8`                                                                                                                                                              |
 | Diverse v4 session shapes (chat / coding-agent / mixed) for the session-detail view     | `pnpm run seed -- session-shapes --shape all` (the `agent` shape has I/O on AGENT/TOOL with no GENERATION — pre-LFE-10520 the "first generation" default rendered empty cards for it; the current "All observations with I/O" default renders it correctly; v4 on by default) |
 | Many traces for list/filter performance                                                 | `pnpm run seed -- many-traces --count 100000 --days 14`                                                                                                                                                                              |
+| Long-window v4 traffic with cost/latency/token OUTLIERS (outlier chart strip, LFE-14451) | `pnpm run seed -- outlier-traffic --days 90` (diurnal base load + deterministic spikes + hour-long ×8-latency incidents; root AGENT + GENERATION carrying cost + TOOL per trace; v4 on by default)                                   |
 | Scores with spaces in the name (filter/grammar testing)                                 | `pnpm run seed -- scored-traces --traces 24 --v4`                                                                                                                                                                                    |
 | Lots of scores on every node (dense score badges, tree-row overflow testing)            | add `--scores-per-node 12` to `trace-tree` (N distinct scores per observation; try `--depth 2 --breadth 44` for many tall sibling rows)                                                                                              |
 | Varied human-annotation queues (annotate UI / keyboard testing)                         | `pnpm run seed -- annotation-queue --core-items 12` (creates a "core types" queue covering every score-field render path + an "edge cases" queue with archived/stale/partial scores and observation/session/deleted/completed items) |

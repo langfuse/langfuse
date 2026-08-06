@@ -16,6 +16,7 @@ pnpm run seed -- support-agent --v4 --id-prefix <hex>  # demo-grade handcrafted 
 pnpm run seed -- long-session --traces 300 --observations-per-trace 8
 pnpm run seed -- session-shapes --shape all        # chat / coding-agent / mixed v4 sessions
 pnpm run seed -- many-traces --count 100000 --days 14
+pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 ```
 

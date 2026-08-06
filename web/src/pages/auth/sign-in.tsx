@@ -25,10 +25,10 @@ import {
   SiWordpress,
 } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import Head from "next/head";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
@@ -38,7 +38,8 @@ import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
-import { captureException } from "@sentry/nextjs";
+import { reportError } from "@/src/utils/reportError";
+import { isExpectedSignInError } from "@/src/features/auth/lib/expectedAuthErrors";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -46,6 +47,14 @@ import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderB
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { Spinner } from "@/src/components/layouts/spinner";
+
+// The shared, intentionally-public demo identity created by the seed script
+// (packages/shared/scripts/seeder/seed-postgres.ts) and posted in every
+// preview PR comment (.github/workflows/preview-build.yml). Only used when
+// NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN is baked into the build.
+const PREVIEW_DEMO_USER_EMAIL = "demo@langfuse.com";
+const PREVIEW_DEMO_USER_PASSWORD = "password";
 
 const credentialAuthForm = z.object({
   email: z.email(),
@@ -183,6 +192,30 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
       ).endsWith(".hf.space"),
     },
   };
+};
+
+// A client-side navigation whose props fetch fails (e.g. deploy skew) can
+// mount the page with empty props despite the PageProps contract — fall back
+// to "no providers" instead of crashing on `authProviders.sso`.
+// Also used in src/pages/auth/sign-up.tsx
+export const FALLBACK_AUTH_PROVIDERS: PageProps["authProviders"] = {
+  credentials: false,
+  google: false,
+  github: false,
+  githubEnterprise: false,
+  gitlab: false,
+  okta: false,
+  authentik: false,
+  onelogin: false,
+  azureAd: false,
+  auth0: false,
+  clickhouseCloud: false,
+  cognito: false,
+  keycloak: false,
+  workos: false,
+  wordpress: false,
+  custom: false,
+  sso: false,
 };
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
@@ -536,7 +569,7 @@ const signInErrors = [
 ];
 
 export default function SignIn({
-  authProviders,
+  authProviders = FALLBACK_AUTH_PROVIDERS,
   signUpDisabled,
   runningOnHuggingFaceSpaces,
 }: PageProps) {
@@ -560,15 +593,20 @@ export default function SignIn({
       nextAuthError);
 
   useEffect(() => {
-    // log unexpected sign in errors to Sentry
-    // An error is unexpected if it's not in our mapped errors and has no IdP error_description
-    if (
-      nextAuthError &&
-      !nextAuthErrorDescription &&
-      !signInErrors.find((e) => e.code === nextAuthError)
-    ) {
-      captureException(new Error(`Sign in error: ${nextAuthError}`));
-    }
+    if (!nextAuthError) return;
+    // Expected = user-caused or provider-transient outcomes the form already
+    // renders: mapped codes, allowlisted codes (expectedAuthErrors.ts), and
+    // IdP-described errors. They breadcrumb instead of capturing; anything
+    // else (unknown codes, misconfig codes) is a real Sentry error.
+    const expected =
+      Boolean(nextAuthErrorDescription) ||
+      signInErrors.some((e) => e.code === nextAuthError) ||
+      isExpectedSignInError(nextAuthError);
+    reportError(new Error(`Sign in error: ${nextAuthError}`), {
+      area: "auth.signIn",
+      expected,
+      extra: { code: nextAuthError },
+    });
   }, [nextAuthError, nextAuthErrorDescription]);
 
   const [credentialsFormError, setCredentialsFormError] = useState<
@@ -629,14 +667,23 @@ export default function SignIn({
         redirect: false,
       });
       if (result === undefined) {
+        // next-auth's signIn() returns undefined when its providers fetch
+        // failed (network drop, or the auth API unreachable/5xx — a transport
+        // or server state the server owns, not an app failure here). It then
+        // navigates to the error page itself; when the server is up, that
+        // lands on /auth/error?error=undefined, which still captures.
         setCredentialsFormError("An unexpected error occurred.");
-        captureException(new Error("Sign in result is undefined"));
+        reportError(new Error("Sign in result is undefined"), {
+          area: "auth.signIn.credentials",
+          expected: true,
+        });
       } else if (!result.ok) {
         if (!result.error) {
-          captureException(
+          reportError(
             new Error(
               `Sign in result error is falsy, result: ${JSON.stringify(result)}`,
             ),
+            { area: "auth.signIn.credentials" },
           );
         }
         setCredentialsFormError(
@@ -648,6 +695,60 @@ export default function SignIn({
       setCredentialsFormError("An unexpected error occurred.");
     }
   }
+
+  // Auto sign-in for disposable preview deployments: the flag is baked only
+  // into preview images (.github/workflows/preview-build.yml) whose seeded
+  // demo login is shared and public anyway. `?autoSignIn=false` opts out,
+  // e.g. to exercise the regular auth flows on a preview. NextAuth error
+  // redirects land on this page, so an error in the query keeps the form
+  // visible instead of silently signing in over it.
+  const autoSignInParam = router.query.autoSignIn;
+  const autoSignInOptedOut = Array.isArray(autoSignInParam)
+    ? autoSignInParam.includes("false")
+    : autoSignInParam === "false";
+  const previewAutoSignInEnabled =
+    env.NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN === "true" &&
+    authProviders.credentials &&
+    !autoSignInOptedOut &&
+    !nextAuthError;
+  const [previewAutoSignInPending, setPreviewAutoSignInPending] = useState(
+    previewAutoSignInEnabled,
+  );
+  const previewAutoSignInAttempted = useRef(false);
+  const sessionStatus = useSession().status;
+  useEffect(() => {
+    if (
+      !previewAutoSignInEnabled ||
+      previewAutoSignInAttempted.current ||
+      sessionStatus === "loading"
+    )
+      return;
+    previewAutoSignInAttempted.current = true;
+    if (sessionStatus === "authenticated") {
+      // already signed in — useAuthGuard navigates away from this page
+      return;
+    }
+    // re-arm in case the flag flipped enabled after mount (query-only nav)
+    setPreviewAutoSignInPending(true);
+    signIn("credentials", {
+      email: PREVIEW_DEMO_USER_EMAIL,
+      password: PREVIEW_DEMO_USER_PASSWORD,
+      callbackUrl: targetPath ?? "/",
+      redirect: false,
+    })
+      .then((result) => {
+        if (result?.ok) return; // session updates and useAuthGuard navigates
+        setPreviewAutoSignInPending(false);
+        setCredentialsFormError(
+          result?.error ?? "Automatic preview sign-in failed.",
+        );
+      })
+      .catch((error) => {
+        captureUnknownError("auth.signIn.previewAutoSignIn", error);
+        setPreviewAutoSignInPending(false);
+        setCredentialsFormError("Automatic preview sign-in failed.");
+      });
+  }, [previewAutoSignInEnabled, sessionStatus, targetPath]);
 
   /**
    * First-step handler ("Continue" button).
@@ -723,6 +824,17 @@ export default function SignIn({
     } finally {
       setContinueLoading(false);
     }
+  }
+
+  if (previewAutoSignInEnabled && previewAutoSignInPending) {
+    return (
+      <>
+        <Head>
+          <title>Sign in | Langfuse</title>
+        </Head>
+        <Spinner message={`Signing in as ${PREVIEW_DEMO_USER_EMAIL}`} />
+      </>
+    );
   }
 
   return (

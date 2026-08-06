@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   ForbiddenError,
   ObservationLevel,
+  type ObservationLevelType,
   ObservationType,
   ObservationTypeDomain,
 } from "../../";
@@ -21,6 +22,8 @@ import {
   UsageDetails,
   normalizeToolsForObservation,
   normalizeToolMetadataForObservation,
+  normalizeEnvironment,
+  DEFAULT_TRACE_ENVIRONMENT,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -29,6 +32,35 @@ import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+
+// Foreign level vocabularies observed from OTel senders (OTel severity
+// names, python logging, loguru, console) mapped onto the Langfuse enum.
+//  The classic ingestion API keeps its strict enum; only the
+// OTel adapter translates. Unknown values return undefined so the caller's
+// status-derived fallback applies instead of masking it with DEFAULT.
+const OBSERVATION_LEVEL_ALIASES: Record<string, ObservationLevelType> = {
+  DEBUG: ObservationLevel.DEBUG,
+  TRACE: ObservationLevel.DEBUG,
+  VERBOSE: ObservationLevel.DEBUG,
+  DEFAULT: ObservationLevel.DEFAULT,
+  INFO: ObservationLevel.DEFAULT,
+  LOG: ObservationLevel.DEFAULT,
+  NOTICE: ObservationLevel.DEFAULT,
+  OK: ObservationLevel.DEFAULT,
+  SUCCESS: ObservationLevel.DEFAULT,
+  WARNING: ObservationLevel.WARNING,
+  WARN: ObservationLevel.WARNING,
+  ERROR: ObservationLevel.ERROR,
+  FATAL: ObservationLevel.ERROR,
+  CRITICAL: ObservationLevel.ERROR,
+};
+
+function parseObservationLevel(
+  value: unknown,
+): ObservationLevelType | undefined {
+  if (typeof value !== "string") return undefined;
+  return OBSERVATION_LEVEL_ALIASES[value.trim().toUpperCase()];
+}
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -457,9 +489,11 @@ export class OtelIngestionProcessor {
                   endTimeISO,
 
                   level:
-                    spanAttributes[
-                      LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
-                    ] ??
+                    parseObservationLevel(
+                      spanAttributes[
+                        LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
+                      ],
+                    ) ??
                     (span.status?.code === 2
                       ? ObservationLevel.ERROR
                       : scopeSpan?.scope?.name === "livekit-agents" &&
@@ -1092,7 +1126,9 @@ export class OtelIngestionProcessor {
       ),
       metadata: normalizedToolMetadata.metadata,
       level:
-        attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
+        parseObservationLevel(
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
+        ) ??
         (span.status?.code === 2
           ? ObservationLevel.ERROR
           : scopeSpan?.scope?.name === "livekit-agents" &&
@@ -2108,14 +2144,18 @@ export class OtelIngestionProcessor {
 
     for (const key of environmentAttributeKeys) {
       if (attributes[key]) {
-        return attributes[key] as string;
+        return normalizeEnvironment(attributes[key], {
+          isLangfuseInternal: this.isLangfuseInternal,
+        });
       }
       if (resourceAttributes[key]) {
-        return resourceAttributes[key] as string;
+        return normalizeEnvironment(resourceAttributes[key], {
+          isLangfuseInternal: this.isLangfuseInternal,
+        });
       }
     }
 
-    return "default";
+    return DEFAULT_TRACE_ENVIRONMENT;
   }
 
   private extractName(

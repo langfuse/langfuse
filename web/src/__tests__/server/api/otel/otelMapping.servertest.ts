@@ -3928,6 +3928,100 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    it("normalizes environment on the direct events write path (LFE-14403)", () => {
+      const buildSpan = (environment: string) =>
+        ({
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "langfuse.environment",
+                      value: { stringValue: environment },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }) as unknown as ResourceSpan;
+
+      // Public processors apply the public ingestion-schema rules; previously
+      // the raw attribute was written to events_full ("PROD" in events_core
+      // vs "prod" in the legacy tables).
+      expect(
+        createTestOtelProcessor().processToEvent([buildSpan("PROD")])[0]
+          .environment,
+      ).toBe("prod");
+
+      // The reserved namespace cannot be entered via repeated "langfuse"
+      // prefixes surviving a single-pass strip.
+      expect(
+        createTestOtelProcessor().processToEvent([
+          buildSpan("langfuselangfuse-prompt-experiment"),
+        ])[0].environment,
+      ).toBe("prompt-experiment");
+
+      // Internal processors keep the "langfuse-*" namespace so internal
+      // traces stay excluded from user views and the eval-recursion guard.
+      expect(
+        createTestOtelProcessor({ isLangfuseInternal: true }).processToEvent([
+          buildSpan("langfuse-prompt-experiment"),
+        ])[0].environment,
+      ).toBe("langfuse-prompt-experiment");
+    });
+
+    it("normalizes foreign observation-level vocabularies at the OTel seam (LFE-14547)", async () => {
+      const buildSpan = (level: string, status: Record<string, any> = {}) =>
+        ({
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "langfuse.observation.level",
+                      value: { stringValue: level },
+                    },
+                  ],
+                  status,
+                },
+              ],
+            },
+          ],
+        }) as unknown as ResourceSpan;
+
+      const eventLevel = (level: string, status?: Record<string, any>) =>
+        createTestOtelProcessor().processToEvent([buildSpan(level, status)])[0]
+          .level;
+
+      // OTel severity names, python logging, and loguru vocabularies map onto
+      // the Langfuse enum instead of landing raw in events_full.
+      expect(eventLevel("warning")).toBe("WARNING");
+      expect(eventLevel("INFO")).toBe("DEFAULT");
+      expect(eventLevel("FATAL")).toBe("ERROR");
+
+      // Unknown values defer to the status-derived fallback rather than
+      // masking it with DEFAULT.
+      expect(eventLevel("[REDACTED]", { code: 2 })).toBe("ERROR");
+      expect(eventLevel("[REDACTED]")).toBe("DEFAULT");
+
+      // The legacy observation body gets the same canonical value, so the
+      // ingestion-schema enum parse passes and the observation is no longer
+      // dropped from the legacy tables.
+      const ingestionEvents = await convertOtelSpanToIngestionEvent(
+        buildSpan("warning"),
+        new Set(),
+      );
+      const observation = ingestionEvents.find(
+        (e) => e.type !== "trace-create",
+      );
+      expect(observation?.body.level).toBe("WARNING");
+    });
+
     describe("prompt linking gated to GENERATION observations", () => {
       const buildResourceSpan = (attributes: Record<string, any>[]) =>
         ({

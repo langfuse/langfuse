@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import TagCommandItem from "@/src/features/tag/components/TagCommandItem";
 import TagCreateItem from "@/src/features/tag/components/TagCreateItem";
 import { TagInput } from "@/src/features/tag/components/TagInput";

@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { Copy } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -82,9 +82,7 @@ const DuplicatePromptForm: React.FC<{
         onFormSuccess();
         form.reset();
       })
-      .catch((error: Error) => {
-        console.error(error);
-      });
+      .catch((error) => reportNonTrpcError(error, "prompts"));
   }
 
   const allPrompts = api.prompts.filterOptions.useQuery(

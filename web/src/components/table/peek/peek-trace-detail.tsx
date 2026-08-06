@@ -4,13 +4,14 @@ import { useRef } from "react";
 import {
   TraceDetailBody,
   traceDetailTitle,
-} from "@/src/components/trace/TraceDetailBody";
+} from "@/src/features/traces/TraceDetailBody";
 import {
   TablePeekView,
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
-import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
+import { TraceDetailActions } from "@/src/features/traces/TraceDetailActions";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { buildTraceDetailPath } from "@/src/utils/navigation";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -48,6 +49,11 @@ export const TablePeekViewTraceDetail = (
         projectId: trace.data.projectId,
         bookmarked: trace.data.bookmarked,
         isPublic: trace.data.public,
+        shareUrl: buildTraceDetailPath({
+          projectId: trace.data.projectId,
+          traceId: trace.data.id,
+          timestamp,
+        }),
         name: trace.data.name,
         timestamp,
         onAfterDelete: (deletedTraceId: string) => {

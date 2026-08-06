@@ -12,7 +12,8 @@ const mocks = vi.hoisted(() => ({
       | "latest"
       | "legacy"
       | "otel_realtime"
-      | "otel_header_required",
+      | "otel_header_required"
+      | "no_data",
     sdkUsageSeries: [],
     upgradeRequiredCount: 0,
     delayedOtelIngestionCount: 0,
@@ -61,12 +62,9 @@ vi.mock("@/src/features/v4-migration/V4MigrationPanelProvider", () => ({
   useV4MigrationPanel: () => ({ openForProject: mocks.openForProject }),
 }));
 
-vi.mock(
-  "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider",
-  () => ({
-    useInAppAiAgent: () => ({ setOpen: vi.fn() }),
-  }),
-);
+vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
+  useInAppAiAgent: () => ({ setOpen: vi.fn() }),
+}));
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   useCopyMigrationPrompt: () => vi.fn(),
@@ -88,6 +86,7 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
         {
           sdk: mocks.sdk,
           evals: { status: "loaded", count: 0 },
+          experiments: { status: "loaded", result: "not_required" },
           apis: { status: "loaded", count: 0 },
           exports: { status: "loaded", count: 0 },
         },
@@ -129,7 +128,7 @@ describe("V4MigrationStatusPage", () => {
   it("shows migration readiness to project members", () => {
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("Migrated")).toBeInTheDocument();
     expect(screen.getByText("of 1 projects migrated")).toBeInTheDocument();
   });
 
@@ -207,8 +206,22 @@ describe("V4MigrationStatusPage", () => {
 
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("Migrated")).toBeInTheDocument();
     expect(screen.getByText("OTel real-time")).toBeInTheDocument();
     expect(screen.queryByText("Latest")).not.toBeInTheDocument();
+  });
+
+  it("shows no detected data while considering the project migrated", () => {
+    mocks.sdk = {
+      status: "no_data",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("Migrated")).toBeInTheDocument();
+    expect(screen.getByText("No data detected")).toBeInTheDocument();
   });
 });

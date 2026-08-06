@@ -51,7 +51,7 @@ const NAME_BY_KIND: Record<string, string[]> = {
   RETRIEVER: ["docs-retriever", "kb-retriever"],
   EMBEDDING: ["query-embedding", "chunk-embedding"],
   TOOL: ["search-products", "fetch-invoice", "issue-refund", "http-request"],
-  GENERATION: ["gpt-4o-completion", "claude-completion", "draft-answer"],
+  GENERATION: ["gpt-5.4-completion", "claude-haiku-completion", "draft-answer"],
   EVALUATOR: ["relevance-evaluator", "toxicity-evaluator"],
   GUARDRAIL: ["pii-guardrail", "jailbreak-guardrail"],
   SPAN: ["preprocess", "postprocess", "parse-response"],
@@ -428,7 +428,7 @@ const run = async (
           "flue.tool.call_id": `call_${node.index}`,
         }),
       },
-      provided_model_name: isGeneration ? "gpt-4o" : null,
+      provided_model_name: isGeneration ? "gpt-5.4" : null,
       internal_model_id: null,
       model_parameters: isGeneration
         ? JSON.stringify({ temperature: 0.2, max_tokens: 1024 })

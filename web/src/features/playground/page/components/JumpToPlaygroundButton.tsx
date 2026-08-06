@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Terminal, ChevronDown } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";

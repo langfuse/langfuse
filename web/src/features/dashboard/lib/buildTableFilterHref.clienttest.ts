@@ -2,19 +2,23 @@ import {
   type FilterState,
   observationsTableCols,
   tracesTableCols,
+  decodeFiltersGeneric,
+  MAX_URL_FILTER_QUERY_LENGTH,
 } from "@langfuse/shared";
 import {
   buildTableFilterHref,
   buildViewAsTableHint,
 } from "./buildTableFilterHref";
-import {
-  decodeFiltersGeneric,
-  MAX_URL_FILTER_QUERY_LENGTH,
-} from "@/src/features/filters/lib/filter-query-encoding";
 
 const DATE_RANGE = {
   from: new Date("2026-07-01T00:00:00.000Z"),
   to: new Date("2026-07-02T00:00:00.000Z"),
+};
+const ROOT_FILTER = {
+  column: "isRootObservation",
+  type: "boolean" as const,
+  operator: "=" as const,
+  value: true,
 };
 
 // Parse the ?filter= value the way the destination table does: the URL layer
@@ -114,6 +118,27 @@ describe("buildTableFilterHref", () => {
     expect(decoded.map((f) => f.column)).toEqual(["userId"]);
     expect(notApplicable.get("sessionId")).toMatch(/session/i);
   });
+
+  it.each([
+    ["v4", [ROOT_FILTER], false],
+    ["v3", [], true],
+  ] as const)(
+    "%s observations drill-down handles semantic roots",
+    (version, expectedFilters, expectsHint) => {
+      const result = buildTableFilterHref(
+        "proj-1",
+        "observations",
+        [ROOT_FILTER],
+        DATE_RANGE,
+        version,
+      );
+
+      expect(decodeHrefFilters(result.href)).toEqual(expectedFilters);
+      expect(buildViewAsTableHint(result)?.title ?? null).toEqual(
+        expectsHint ? expect.stringMatching(/v4/i) : null,
+      );
+    },
+  );
 
   it('drops a dashboard-global "Version" filter on an observations widget (parity with the widget query, which maps it to the dropped traceVersion)', () => {
     // The "stored" mapping variant the widget query uses resolves the legacy

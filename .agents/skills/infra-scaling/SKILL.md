@@ -1,6 +1,6 @@
 ---
 name: infra-scaling
-description: Tune Langfuse infrastructure autoscaling safely across web, web-iso, and web-ingestion. Use when Codex needs to review or change Terraform scale settings, RPM targets, scale-up/scale-down boundaries, min/max task counts, cost/performance tradeoffs, dashboard scaling markers, Datadog event-loop metrics, trace/span evidence, GitHub pull requests, or Linear follow-up tickets for `web`, `web-iso`, or `web-ingestion` containers in the langfuse/infrastructure repository.
+description: Tune and review Langfuse autoscaling for web, web-iso, and web-ingestion. Use for Terraform scale settings, RPM targets, scaling bounds, task counts, cost/performance tradeoffs, or Datadog evidence in the infrastructure repo.
 ---
 
 # Langfuse Infra Scaling

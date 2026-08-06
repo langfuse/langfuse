@@ -8,6 +8,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { Settings2, Check } from "lucide-react";
+import { type IoRenderMode } from "@/src/components/table/data-table-io-render-mode-switch";
 
 type ExperimentDisplaySettingsProps = {
   layout: "grid" | "list";
@@ -16,6 +17,8 @@ type ExperimentDisplaySettingsProps = {
   onItemVisibilityChange: (visibility: "baseline-only" | "all") => void;
   hasComparisons: boolean;
   hasBaseline: boolean;
+  ioRenderMode: IoRenderMode;
+  onIoRenderModeChange: (mode: IoRenderMode) => void;
 };
 
 export function ExperimentDisplaySettings({
@@ -25,6 +28,8 @@ export function ExperimentDisplaySettings({
   onItemVisibilityChange,
   hasComparisons,
   hasBaseline,
+  ioRenderMode,
+  onIoRenderModeChange,
 }: ExperimentDisplaySettingsProps) {
   const isItemVisibilityDisabled = !hasComparisons || !hasBaseline;
 
@@ -71,6 +76,20 @@ export function ExperimentDisplaySettings({
           {itemVisibility === "all" && <Check className="mr-2 h-4 w-4" />}
           {itemVisibility !== "all" && <span className="mr-2 h-4 w-4" />}
           Show all items
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuLabel>Format</DropdownMenuLabel>
+        <DropdownMenuItem onClick={() => onIoRenderModeChange("json")}>
+          {ioRenderMode === "json" && <Check className="mr-2 h-4 w-4" />}
+          {ioRenderMode !== "json" && <span className="mr-2 h-4 w-4" />}
+          JSON
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onIoRenderModeChange("text")}>
+          {ioRenderMode === "text" && <Check className="mr-2 h-4 w-4" />}
+          {ioRenderMode !== "text" && <span className="mr-2 h-4 w-4" />}
+          Formatted
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,5 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
+import { type ProjectScope } from "@langfuse/shared";
 import {
   BellRing,
   Database,
@@ -27,8 +27,8 @@ import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
 import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
-import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
+import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -222,19 +222,19 @@ export const ROUTES: Route[] = [
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "Preview (fast)",
-    pathname: "",
-    section: RouteSection.Secondary,
-    featureFlag: "v4BetaToggleVisible",
-    menuNode: <V4SidebarToggle />,
-  },
-  {
     title: "Update",
     pathname: "",
     section: RouteSection.Secondary,
     featureFlag: "v4UpgradeUi",
     show: ({ projectId }) => projectId !== undefined,
     menuNode: <V4MigrationNavItem />,
+  },
+  {
+    title: "V4 Preview",
+    pathname: "",
+    section: RouteSection.Secondary,
+    featureFlag: "v4BetaToggleVisible",
+    menuNode: <V4SidebarToggle />,
   },
   {
     title: "Settings",

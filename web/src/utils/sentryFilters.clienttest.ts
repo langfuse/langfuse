@@ -3,7 +3,9 @@ import { type ErrorEvent } from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
   isNoisyHttpClientPollEvent,
+  isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
+  isStaleChunkParseErrorEvent,
 } from "@/src/utils/sentryFilters";
 
 /**
@@ -351,6 +353,112 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("D. drops known-benign non-Error promise rejections (exact value denylist)", () => {
+    // Real shape (LANGFUSE-5T9/5TA): SDK-synthesized `UnhandledRejection` type,
+    // `onunhandledrejection` mechanism, NO stack — grouping falls back to the
+    // stringified value, so every new value minted a new fingerprint.
+    const nonErrorRejectionEvent = (rejectionValue: string): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "UnhandledRejection",
+              value: `Non-Error promise rejection captured with value: ${rejectionValue}`,
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the wallet/extension shim rejection (LANGFUSE-5T9)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent("Not implemented on this platform"),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the empty `Promise.reject(undefined)` rejection (LANGFUSE-5TA)", () => {
+      expect(isDenylistedNoiseEvent(nonErrorRejectionEvent("undefined"))).toBe(
+        true,
+      );
+    });
+
+    it("drops the Outlook SafeLinks scanner artifact (LANGFUSE-11Z, variable tail)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent(
+            "Object Not Found Matching Id:2, MethodName:update, ParamCount:4",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("E. drops environmental storage-access SecurityError (console-captured only)", () => {
+    // Real shape (LANGFUSE-5TC/5TD/5TE/5TF): our useLocalStorage catch logs the
+    // DOMException via console.error → captureConsoleIntegration re-captures it
+    // as an exception event (mechanism `auto.core.capture_console`) carrying
+    // the browser-generated message.
+    const consoleCapturedStorageDenial = (value: string): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "SecurityError",
+              value,
+              mechanism: { type: "auto.core.capture_console", handled: true },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the localStorage access denial (LANGFUSE-5TC/5TD/5TE/5TF)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          consoleCapturedStorageDenial(
+            "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the sessionStorage variant of the same browser artifact", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          consoleCapturedStorageDenial(
+            "Failed to read the 'sessionStorage' property from 'Window': Access is denied for this document.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("KEEPS an UNCAUGHT storage SecurityError (page crash via global onerror)", () => {
+      // A bare storage read during render that crashes the page arrives via the
+      // global handler, not capture_console — that is a real diagnostic and
+      // must survive.
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SecurityError",
+              value:
+                "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+  });
+
   describe("A. transport failures also drop when they arrive as message events", () => {
     it("drops a message-event 'Failed to fetch'", () => {
       expect(isDenylistedNoiseEvent(messageEvent("Failed to fetch"))).toBe(
@@ -524,6 +632,90 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(false);
     });
 
+    it("keeps a non-Error rejection with an UNKNOWN value (could be app code)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "UnhandledRejection",
+              value:
+                "Non-Error promise rejection captured with value: Something went wrong loading traces",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the object-shaped rejection variant (has carried real failures)", () => {
+      // LANGFUSE-1BB: `code, message, stack` payloads — a serialized error.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Object captured as promise rejection with keys: code, message, stack",
+            "UnhandledRejection",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a real unhandled rejection carrying an Error object", () => {
+      // A rejected real Error keeps its own type — never `UnhandledRejection`.
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onunhandledrejection",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a benign-looking rejection value with extra text (exact match only)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Non-Error promise rejection captured with value: undefined is not a function",
+            "UnhandledRejection",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a real SecurityError from app-adjacent logic (cross-origin frame access)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            'Blocked a frame with origin "https://cloud.langfuse.com" from accessing a cross-origin frame.',
+            "SecurityError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps the storage-denial message when the type is NOT SecurityError", () => {
+      // Proves the type guard: an app error merely quoting the message survives.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Failed to read the 'localStorage' property from 'Window': Access is denied for this document.",
+            "Error",
+          ),
+        ),
+      ).toBe(false);
+    });
+
     it("keeps an event with no exception values", () => {
       expect(
         isDenylistedNoiseEvent({ message: "some message" } as ErrorEvent),
@@ -601,6 +793,407 @@ describe("isReactDevtoolsInternalEvent", () => {
 
     it("keeps an event with no exception/message/logentry text", () => {
       expect(isReactDevtoolsInternalEvent({} as ErrorEvent)).toBe(false);
+    });
+  });
+});
+
+/**
+ * Build the exact WIRE shape the SDK hands `beforeSend` for a chunk PARSE
+ * failure (LANGFUSE-5WH/5WG/5WD/5S7): global `onerror` mechanism,
+ * `SyntaxError`, and a single frame at the chunk URL whose function is the
+ * SDK's UNKNOWN_FUNCTION placeholder `"?"` (server-side normalization later
+ * strips that — the shape stored events show). Pass `fn: null` to build the
+ * normalized shape with the `function` key genuinely absent (an explicit
+ * `undefined` would be swallowed by the default parameter).
+ */
+function chunkParseErrorEvent(
+  value: string,
+  filename = "app:///_next/static/chunks/0_w4b6l3mpyep.js",
+  fn: string | null = "?",
+): ErrorEvent {
+  return {
+    exception: {
+      values: [
+        {
+          type: "SyntaxError",
+          value,
+          mechanism: {
+            type: "auto.browser.global_handlers.onerror",
+            handled: false,
+          },
+          stacktrace: {
+            frames: [fn === null ? { filename } : { filename, function: fn }],
+          },
+        },
+      ],
+    },
+  } as ErrorEvent;
+}
+
+describe("isStaleChunkParseErrorEvent", () => {
+  describe("matches stale/truncated chunk parse failures (grouped, not dropped)", () => {
+    it.each([
+      ["Unexpected end of input"], // Chrome, LANGFUSE-5WH
+      ['"" literal not terminated before end of script'], // Firefox, LANGFUSE-5WG
+      ["missing } after property list"], // Firefox, LANGFUSE-5WD
+      ["Invalid or unexpected token"], // Chrome, LANGFUSE-5S7
+      ["expected expression, got end of script"], // Firefox, LANGFUSE-5WN
+    ])("matches the real parse message %j", (value) => {
+      expect(isStaleChunkParseErrorEvent(chunkParseErrorEvent(value))).toBe(
+        true,
+      );
+    });
+
+    it("matches regardless of the (per-deploy hashed) chunk filename", () => {
+      expect(
+        isStaleChunkParseErrorEvent(
+          chunkParseErrorEvent(
+            "Unexpected end of input",
+            "app:///_next/static/chunks/3g9a8ojcqetek.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("matches the normalized stored shape too (function key absent instead of '?')", () => {
+      const event = chunkParseErrorEvent(
+        "Unexpected end of input",
+        "app:///_next/static/chunks/3g9a8ojcqetek.js",
+        null,
+      );
+      // Guard the fixture itself: the frame must NOT carry a function key.
+      expect(
+        event.exception?.values?.[0]?.stacktrace?.frames?.[0],
+      ).not.toHaveProperty("function");
+      expect(isStaleChunkParseErrorEvent(event)).toBe(true);
+    });
+
+    it("is grouped by beforeSend, NOT dropped by the denylist", () => {
+      expect(
+        isDenylistedNoiseEvent(chunkParseErrorEvent("Unexpected end of input")),
+      ).toBe(false);
+    });
+  });
+
+  describe("NEVER matches a user-authored or app-code SyntaxError", () => {
+    it("keeps the evals editor's user-code SyntaxError (LANGFUSE-5W3 shape)", () => {
+      // Real shape: console.error capture with app + vendor formatter frames.
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "Unexpected token (1:38)",
+              mechanism: { type: "auto.core.capture_console", handled: true },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "web/src/features/evals/components/code-eval-template-form-body.tsx",
+                    function: "P",
+                  },
+                  {
+                    filename:
+                      "node_modules/.pnpm/prettier@3.8.3/node_modules/prettier/standalone.mjs",
+                    function: "Jn",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isStaleChunkParseErrorEvent(event)).toBe(false);
+    });
+
+    it("keeps the evals editor's user-code lint error (LANGFUSE-5W2 shape, type Error)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Expected class, function definition or async function definition after decorator at byte range 477..481",
+              mechanism: { type: "auto.core.capture_console", handled: true },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "web/src/features/evals/utils/code-eval-template-validation.ts",
+                    function: "aa",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isStaleChunkParseErrorEvent(event)).toBe(false);
+    });
+
+    it("keeps a runtime SyntaxError thrown by app code (JSON.parse — multi-frame)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "Unexpected end of JSON input",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "app:///_next/static/chunks/0r47ep231kqhy.js",
+                    function: "loadSavedFilters",
+                  },
+                  {
+                    filename: "app:///_next/static/chunks/0r47ep231kqhy.js",
+                    function: "JSON.parse",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isStaleChunkParseErrorEvent(event)).toBe(false);
+    });
+
+    it("keeps a single-frame SyntaxError with a NAMED function (runtime throw)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "Unexpected end of JSON input",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "app:///_next/static/chunks/0r47ep231kqhy.js",
+                    function: "parseStoredView",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isStaleChunkParseErrorEvent(event)).toBe(false);
+    });
+
+    it("keeps a parse error in a non-chunk script", () => {
+      expect(
+        isStaleChunkParseErrorEvent(
+          chunkParseErrorEvent(
+            "Unexpected end of input",
+            "app:///some-other-script.js",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a SyntaxError with no stacktrace and a non-SyntaxError parse-like event", () => {
+      expect(
+        isStaleChunkParseErrorEvent(
+          exceptionEvent("Unexpected end of input", "SyntaxError"),
+        ),
+      ).toBe(false);
+      expect(
+        isStaleChunkParseErrorEvent(
+          chunkParseErrorEvent("Unexpected end of input"),
+        ),
+      ).toBe(true); // sanity: same builder matches when shape is complete
+    });
+  });
+});
+
+/** Frame helper for recorder-stack fixtures. */
+function frame(filename: string, fn?: string) {
+  return { filename, function: fn };
+}
+
+describe("isPosthogRecorderInternalEvent", () => {
+  // Wire shape: the recorder loads with a version query that survives into
+  // frame filenames handed to beforeSend (stored events show it on abs_path).
+  const RECORDER = "app:///static/posthog-recorder.js?v=1.390.2";
+
+  describe("drops errors thrown wholly inside the PostHog session recorder", () => {
+    it("drops the rrweb mutation-processing SyntaxError (LANGFUSE-5VX shape)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "Invalid or unexpected token",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(RECORDER, "Ut.processMutations"),
+                  frame(RECORDER, "Ut.emit"),
+                  frame(RECORDER, "Ws.onRRwebEmit"),
+                  frame("<anonymous>", "Array.forEach"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the same shape without the version query (normalized stored filename)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "Invalid or unexpected token",
+              stacktrace: {
+                frames: [
+                  frame(
+                    "app:///static/posthog-recorder.js",
+                    "Ut.processMutations",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the addEventListener-wrapped variant with a source-mapped Sentry SDK frame (LANGFUSE-5VY stored shape)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "Invalid or unexpected token",
+              mechanism: {
+                type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(
+                    "node_modules/.pnpm/@sentry+browser@10.64.0/node_modules/@sentry/browser/src/helpers.ts",
+                    "r",
+                  ),
+                  frame(RECORDER, "l"),
+                  frame(RECORDER, "Se"),
+                  frame(RECORDER, "Ws.Hd"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(true);
+    });
+  });
+
+  describe("KEEPS any error that touches app code", () => {
+    it("keeps a stack that mixes recorder frames with an app chunk frame", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              stacktrace: {
+                frames: [
+                  frame(RECORDER, "Ws.onRRwebEmit"),
+                  frame(
+                    "app:///_next/static/chunks/0r47ep231kqhy.js",
+                    "onMutation",
+                  ),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps the wrapped-listener variant when the SDK wrapper is bundled into an app chunk (prod wire shape — deliberate coverage gap)", () => {
+      // In a prod bundle the Sentry wrap() frame is an app-chunk filename;
+      // allowing chunk frames could mask real app listener errors, so this
+      // shape stays kept even though it is recorder noise (LANGFUSE-5VY).
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "SyntaxError",
+              value: "Invalid or unexpected token",
+              stacktrace: {
+                frames: [
+                  frame("app:///_next/static/chunks/2-jdgbtsa7jx3.js", "r"),
+                  frame(RECORDER, "l"),
+                  frame(RECORDER, "Ws.Hd"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-only stack (no recorder frame at all)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "boom",
+              stacktrace: {
+                frames: [
+                  frame("app:///_next/static/chunks/0r47ep231kqhy.js", "fn"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps an all-opaque stack (<anonymous>/[native code] only — no recorder attribution)", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "boom",
+              stacktrace: {
+                frames: [
+                  frame("<anonymous>", "Array.forEach"),
+                  frame("[native code]"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps events with no stacktrace", () => {
+      expect(
+        isPosthogRecorderInternalEvent(exceptionEvent("boom", "TypeError")),
+      ).toBe(false);
+      expect(isPosthogRecorderInternalEvent(messageEvent("boom"))).toBe(false);
     });
   });
 });

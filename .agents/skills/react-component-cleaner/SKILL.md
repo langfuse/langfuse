@@ -9,7 +9,7 @@ Avoid making any additional edits besides the ones instructed in this skill. If 
 
 Before starting to do any changes, audit the component you were instructed to fix by reading the [react-component-guidelines](../react-component-guidelines/SKILL.md) skill. Do not audit the callsites of the component, these will be looked at later in the skill.
 
-This skill references a `sweepy` cli tool. This can be found under https://github.com/bezbac/sweepy. Install version `v0.1.0`, pinned to commit `e58b55c0fb94364c12798ed16e632a5931b4eaa1`: https://github.com/bezbac/sweepy/tree/e58b55c0fb94364c12798ed16e632a5931b4eaa1. Follow only that pinned commit's instructions to install it. Do this in a safe manner and comply with other security guidelines of the repository. If you are unsure about any of the instructions, ask the user for confirmation.
+This skill references a `sweepy` cli tool. This can be found under https://github.com/bezbac/sweepy. Unless already available, install version `v0.1.0`, pinned to commit `e58b55c0fb94364c12798ed16e632a5931b4eaa1`: https://github.com/bezbac/sweepy/tree/e58b55c0fb94364c12798ed16e632a5931b4eaa1. Follow only that pinned commit's instructions to install it. Do this in a safe manner and comply with other security guidelines of the repository. If you are unsure about any of the instructions, ask the user for confirmation.
 
 Now, you are ready to start cleaning up the component. Copy the contents of the [component cleanup todolist](./references/component-cleanup-todolist.md) verbatim into a TODO file (Use `cp` no manual edit) and follow the instructions in order, adding ✅ to the items you have completed. Do not commit the todo file, it is only for your reference.
 

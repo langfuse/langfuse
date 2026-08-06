@@ -1,8 +1,8 @@
 import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
-} from "@/src/features/filters/lib/filter-query-encoding";
-import type { FilterState } from "@langfuse/shared";
+  type FilterState,
+} from "@langfuse/shared";
 
 // Wrapper functions for tests
 const encodeFilters = (filters: FilterState) => encodeFiltersGeneric(filters);

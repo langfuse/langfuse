@@ -25,7 +25,7 @@ export interface Filter {
   operator: ClickhouseOperator;
   field: string;
 }
-type ClickhouseFilter = {
+export type ClickhouseFilter = {
   query: string;
   params: { [x: string]: any } | {};
 };

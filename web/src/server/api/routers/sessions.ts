@@ -53,7 +53,10 @@ import {
 } from "@langfuse/shared/src/server";
 import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  toDomainArrayWithStringifiedMetadata,
+  toDomainWithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 const SessionCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -966,7 +969,7 @@ export const sessionRouter = createTRPCRouter({
         };
       });
 
-      return observations;
+      return toDomainArrayWithStringifiedMetadata(observations);
     }),
   /**
    * Full raw I/O for one observation, for the session card's download
@@ -1001,7 +1004,7 @@ export const sessionRouter = createTRPCRouter({
         });
       }
 
-      return observation;
+      return toDomainWithStringifiedMetadata(observation);
     }),
   bookmark: protectedProjectProcedure
     .input(

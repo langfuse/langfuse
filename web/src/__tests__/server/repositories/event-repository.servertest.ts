@@ -30,6 +30,7 @@ import { env } from "@/src/env.mjs";
 import {
   type EventsTableFilterState,
   type FilterCondition,
+  type TimeFilter,
 } from "@langfuse/shared";
 import waitForExpect from "wait-for-expect";
 
@@ -1035,6 +1036,117 @@ describe("Clickhouse Events Repository Test", () => {
           { value: "ERROR" },
           { value: "WARNING" },
         ]);
+      });
+    });
+
+    it("returns the approximate total observation count only when requested, filter-aware and flagged when partial", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now();
+      const alphaName = "approx-count-alpha";
+      const betaName = "approx-count-beta";
+      const nameFilter: FilterCondition = {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: [alphaName],
+      };
+      const startTimeFilter: TimeFilter[] = [
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: new Date(now - 60_000),
+        },
+      ];
+
+      // Two distinct observations named alpha, one named beta => 3 distinct span_ids.
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: alphaName,
+          level: "WARNING",
+          start_time: now * 1000,
+          event_ts: now * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: alphaName,
+          level: "ERROR",
+          start_time: (now + 1) * 1000,
+          event_ts: (now + 1) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: betaName,
+          level: "DEFAULT",
+          start_time: (now + 2) * 1000,
+          event_ts: (now + 2) * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        // Eager/bulk request: count present and equal to the distinct observations.
+        const eager = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["name", "level"],
+          includeApproxCount: true,
+        });
+        expect(eager.approxTotalCount).toBe(3);
+        expect(eager.approxTotalCountIsPartial).toBe(false);
+
+        // Lazy per-column request never asks for the count, so the keys stay absent.
+        const lazy = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["level"],
+        });
+        expect(lazy).not.toHaveProperty("approxTotalCount");
+        expect(lazy).not.toHaveProperty("approxTotalCountIsPartial");
+
+        // Filter-aware: an applied native (name) filter narrows the count to alpha.
+        const filtered = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["name", "level"],
+          filter: [nameFilter],
+          includeApproxCount: true,
+        });
+        expect(filtered.approxTotalCount).toBe(2);
+        expect(filtered.approxTotalCountIsPartial).toBe(false);
+
+        // A non-participating (input) filter is dropped from the facet scan, so the
+        // count over-counts vs the visible rows (still 2, ignoring input) and is
+        // flagged partial.
+        const partial = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["name", "level"],
+          filter: [
+            nameFilter,
+            {
+              type: "string",
+              column: "input",
+              operator: "contains",
+              value: "expensive",
+            },
+          ],
+          includeApproxCount: true,
+        });
+        expect(partial.approxTotalCount).toBe(2);
+        expect(partial.approxTotalCountIsPartial).toBe(true);
       });
     });
 

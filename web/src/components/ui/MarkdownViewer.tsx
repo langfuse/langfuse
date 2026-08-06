@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import {
   type FC,
@@ -337,8 +338,12 @@ function MarkdownRenderer({
 
               return <ul className="list-inside list-disc">{children}</ul>;
             },
-            ol({ children }) {
-              return <ol className="list-inside list-decimal">{children}</ol>;
+            ol({ children, start }) {
+              return (
+                <ol start={start} className="list-inside list-decimal">
+                  {children}
+                </ol>
+              );
             },
             li({ children }) {
               return (
@@ -674,7 +679,7 @@ export function MarkdownView({
           <div className="text-muted-foreground mx-3 border-t px-2 py-1 text-xs">
             Media
           </div>
-          <div className="mx-3 flex flex-wrap gap-2 pt-1 pb-4">
+          <div className="mx-3 flex flex-wrap gap-2 px-2 pt-1 pb-4">
             {remainingMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}

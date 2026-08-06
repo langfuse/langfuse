@@ -557,6 +557,14 @@ model Dataset {
   remoteExperimentUrl     String?       @map("remote_experiment_url")
   remoteExperimentPayload Json?         @map("remote_experiment_payload")
   remoteExperimentEnabled Boolean       @default(true) @map("remote_experiment_enabled")
+  // Signing secret and custom request headers for the remote experiment trigger.
+  // SecretKey and secret header values are encrypted at rest; the client omits
+  // remoteExperimentSecretKey and remoteExperimentRequestHeaders globally
+  // (see db.ts) so only the delivery path can select them explicitly.
+  remoteExperimentSecretKey        String? @map("remote_experiment_secret_key")
+  remoteExperimentDisplaySecretKey String? @map("remote_experiment_display_secret_key")
+  remoteExperimentRequestHeaders   Json?   @map("remote_experiment_request_headers")
+  remoteExperimentDisplayHeaders   Json?   @map("remote_experiment_display_headers")
   inputSchema             Json?         @map("input_schema") @db.Json
   expectedOutputSchema    Json?         @map("expected_output_schema") @db.Json
   project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1250,6 +1258,13 @@ model Media {
   @@map("media")
 }
 
+enum MediaAssociationOrigin {
+  UNKNOWN
+  CLIENT_UPLOAD
+  INGESTION_MEDIA_EXTRACTION
+  INGESTION_FIELD_OVERFLOW
+}
+
 model TraceMedia {
   id        String   @id @default(cuid())
   projectId String   @map("project_id")
@@ -1258,6 +1273,7 @@ model TraceMedia {
   mediaId   String   @map("media_id")
   traceId   String   @map("trace_id")
   field     String   @map("field")
+  origin    MediaAssociationOrigin @default(UNKNOWN)
 
   @@unique([projectId, traceId, mediaId, field])
   @@index([projectId, mediaId])
@@ -1273,6 +1289,7 @@ model ObservationMedia {
   traceId       String   @map("trace_id")
   observationId String   @map("observation_id")
   field         String   @map("field")
+  origin        MediaAssociationOrigin @default(UNKNOWN)
 
   @@unique([projectId, traceId, observationId, mediaId, field])
   @@index([projectId, mediaId])

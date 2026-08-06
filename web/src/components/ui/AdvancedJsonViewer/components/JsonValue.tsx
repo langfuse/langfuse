@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * JsonValue - Renders a JSON value with type-based styling
  *
@@ -18,7 +19,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
-import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 
 export function JsonValue({
   value,
@@ -115,7 +116,7 @@ export function JsonValue({
     // text highlighter found no search/comment overlays to preserve.
     const mediaDescriptor = classifyMediaValue(str);
     if (mediaDescriptor && segments.every((segment) => segment.type === null)) {
-      return <JsonMediaTag descriptor={mediaDescriptor} />;
+      return <MediaReferenceTag descriptor={mediaDescriptor} />;
     }
 
     return (

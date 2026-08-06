@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";

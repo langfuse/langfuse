@@ -3,7 +3,7 @@ import { z as zodSchema } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
-  protectedGetTraceProcedure,
+  protectedGetEventsTraceProcedure,
 } from "@/src/server/api/trpc";
 import {
   type OrderByState,
@@ -64,6 +64,10 @@ const GetEventFilterOptionsInput = zodSchema.object({
   columns: zodSchema
     .array(zodSchema.enum(EVENT_FILTER_OPTIONS_COLUMNS))
     .optional(),
+  // When true, the response also carries the approximate total observation
+  // count ("Total ≈ X") — uniq(span_id) over the same bulk facet scan, matching
+  // `filter`. Sent only on the eager bulk request.
+  includeApproxCount: zodSchema.boolean().optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -86,7 +90,7 @@ export const BatchIOInput = zodSchema.object({
   maxStartTime: zodSchema.date(),
   truncated: zodSchema.boolean().optional(), // Defaults to true for performance
   includeToolCalls: zodSchema.boolean().optional(), // Defaults to false; tool-call arrays can be large
-  // Opts into trace-level auth (public traces) in protectedGetTraceProcedure
+  // Opts into trace-level auth (public traces) in protectedGetEventsTraceProcedure
   traceId: zodSchema.string().optional(),
 });
 
@@ -184,11 +188,12 @@ export const eventsRouter = createTRPCRouter({
                 ? !input.hasParentObservation
                 : undefined), // backward compat for legacy hasParentObservation filterOption
             columns: input.columns,
+            includeApproxCount: input.includeApproxCount,
           });
         },
       );
     }),
-  batchIO: protectedGetTraceProcedure
+  batchIO: protectedGetEventsTraceProcedure
     .input(BatchIOInput)
     .query(async ({ input }) => {
       return instrumentAsync(
@@ -243,7 +248,7 @@ export const eventsRouter = createTRPCRouter({
    * Fetch scores and corrections for a trace.
    * Used by the v4 trace detail view where trace data comes from events table.
    */
-  scoresForTrace: protectedGetTraceProcedure
+  scoresForTrace: protectedGetEventsTraceProcedure
     .input(
       zodSchema.object({
         projectId: zodSchema.string(),
@@ -273,7 +278,7 @@ export const eventsRouter = createTRPCRouter({
    * Returns up to MAX_OBSERVATIONS_PER_TRACE observations.
    * Sets cutoffObservationsAfterMaxCount=true if trace exceeds the cap.
    */
-  byTraceId: protectedGetTraceProcedure
+  byTraceId: protectedGetEventsTraceProcedure
     .input(
       zodSchema.object({
         projectId: zodSchema.string(),
@@ -310,7 +315,7 @@ export const eventsRouter = createTRPCRouter({
    * Used by v4 events-based trace detail view for graph visualization.
    * Returns same shape as traces.getAgentGraphData for frontend compatibility.
    */
-  getAgentGraphData: protectedGetTraceProcedure
+  getAgentGraphData: protectedGetEventsTraceProcedure
     .input(
       zodSchema.object({
         projectId: zodSchema.string(),

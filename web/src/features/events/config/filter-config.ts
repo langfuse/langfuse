@@ -98,6 +98,11 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
+      column: "ingestionApiKey",
+      label: getEventsColumnName("ingestionApiKey"),
+    },
+    {
+      type: "categorical" as const,
       column: "type",
       label: getEventsColumnName("type"),
       help: {
@@ -163,6 +168,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "version",
       label: getEventsColumnName("version"),
+    },
+    {
+      type: "categorical" as const,
+      column: "release",
+      label: getEventsColumnName("release"),
     },
     {
       type: "string" as const,
