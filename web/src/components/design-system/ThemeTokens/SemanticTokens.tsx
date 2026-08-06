@@ -86,12 +86,6 @@ const BORDER: SemanticToken[] = [
 
 const TEXT: SemanticToken[] = [
   {
-    token: "--text-on-inverse",
-    purpose: "Ink on the inverse fill",
-    light: ref(NEUTRAL, "100"),
-    dark: ref(STONE, "900"),
-  },
-  {
     token: "--text-primary",
     purpose: "Most of the text on the screen",
     light: ref(NEUTRAL, "800"),
@@ -114,6 +108,12 @@ const TEXT: SemanticToken[] = [
     purpose: "Titles or things that need to call out attention (use rarely)",
     light: ref(NEUTRAL, "950"),
     dark: ref(STONE, "50"),
+  },
+  {
+    token: "--text-on-inverse",
+    purpose: "Ink on the inverse fill",
+    light: ref(NEUTRAL, "100"),
+    dark: ref(STONE, "900"),
   },
 ];
 
