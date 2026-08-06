@@ -198,6 +198,10 @@ for (const from of fromArgs) {
         );
 }
 
+/** @type {(m: Move) => boolean} */
+const isCaseOnly = (m) =>
+  m.from !== m.to && m.from.toLowerCase() === m.to.toLowerCase();
+
 /** @type {(msg: string) => never} */
 function bail(msg) {
   console.error(msg);
@@ -239,7 +243,9 @@ for (const m of plan.values()) {
     }
     continue;
   }
-  if (existsSync(abs(m.to))) {
+  // a case-only rename looks like an existing destination on a
+  // case-insensitive filesystem, but it is exactly the naming sweep's job
+  if (existsSync(abs(m.to)) && !isCaseOnly(m)) {
     console.error(
       `${red("destination exists:")} ${m.to} (source ${m.from} is still there too)`,
     );
@@ -247,6 +253,8 @@ for (const m of plan.values()) {
   }
   pending.push(m);
 }
+
+const hasCaseOnly = pending.some(isCaseOnly);
 
 if (!pending.length) {
   console.log(
@@ -339,7 +347,9 @@ const lsHost = {
   getCurrentDirectory: () => webRoot,
   getCompilationSettings: () => parsed.options,
   getDefaultLibFileName: (o) => ts.getDefaultLibFilePath(o),
-  useCaseSensitiveFileNames: () => ts.sys.useCaseSensitiveFileNames,
+  // a case-only rename is only a rename under case-sensitive comparison
+  useCaseSensitiveFileNames: () =>
+    hasCaseOnly || ts.sys.useCaseSensitiveFileNames,
   fileExists: (f) => {
     const p = norm(f);
     if (removed.has(p)) return false;
@@ -661,12 +671,12 @@ try {
   for (const m of pending) {
     mkdirSync(abs(parentDir(m.to)), { recursive: true });
     try {
-      git("mv", [m.from, m.to]);
+      git("mv", isCaseOnly(m) ? ["-f", m.from, m.to] : [m.from, m.to]);
     } catch (err) {
       // git mv also refuses an untracked source; a plain rename is equivalent
       // there, but only ever onto a destination that does not exist — rename(2)
       // would overwrite one silently.
-      if (existsSync(abs(m.to))) throw err;
+      if (existsSync(abs(m.to)) && !isCaseOnly(m)) throw err;
       renameSync(abs(m.from), abs(m.to));
       git("add", ["--", m.to]);
     }

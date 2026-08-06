@@ -56,6 +56,14 @@ Renaming the _export_ inside the file is a content edit and stays manual, so a
 naming fix is two steps: the rename here, the symbol by hand. Directory renames
 are not in the surface; move the contents instead.
 
+Case-only renames (`BreakdownToolTip.tsx` → `BreakdownTooltip.tsx`) work, and
+they are the whole naming sweep's bread and butter. They need two special
+moves: macOS reports the destination as already existing, so the conflict check
+lets a case-only pair through and `git mv -f` performs it; and TypeScript would
+see no rename at all under a case-insensitive host, so a batch containing one
+forces case-sensitive comparison — otherwise every importer keeps the old
+spelling and only breaks on Linux CI.
+
 Flags: `--dry-run` (print the plan and every rewrite, change nothing),
 `--no-siblings`, `--no-verify` (skip the closing `tsc` + `--diff`), `--no-color`.
 
