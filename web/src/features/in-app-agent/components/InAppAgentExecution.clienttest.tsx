@@ -12,7 +12,11 @@ import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
-import { InAppAiAgentProvider, useInAppAiAgent } from "./InAppAiAgentProvider";
+import {
+  InAppAiAgentProvider,
+  useCanUseInAppAgent,
+  useInAppAiAgent,
+} from "./InAppAiAgentProvider";
 import styles from "./InAppAgentWindow.module.css";
 
 const providerMocks = vi.hoisted(() => {
@@ -22,6 +26,7 @@ const providerMocks = vi.hoisted(() => {
 
   return {
     backgroundExecutionEnabled: false,
+    organization: { aiFeaturesEnabled: true },
     capture: vi.fn(),
     startRun,
     cancelRun,
@@ -106,8 +111,12 @@ vi.mock("@/src/features/entitlements/hooks", () => ({
 
 vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
-    organization: { aiFeaturesEnabled: true },
+    organization: providerMocks.organization,
   }),
+}));
+
+vi.mock("@/src/features/organizations/hooks", () => ({
+  useLangfuseCloudRegion: () => ({ isLangfuseCloud: true }),
 }));
 
 vi.mock("@/src/features/in-app-agent/lib/executionMode", () => ({
@@ -212,8 +221,30 @@ describe("in-app agent execution", () => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
     providerMocks.backgroundExecutionEnabled = false;
+    providerMocks.organization.aiFeaturesEnabled = true;
     providerMocks.conversationQuery.data = undefined;
     window.sessionStorage.clear();
+  });
+
+  it("does not report the assistant as available when AI features are disabled", () => {
+    providerMocks.organization.aiFeaturesEnabled = false;
+
+    function AvailabilityProbe() {
+      const canUseAgent = useCanUseInAppAgent();
+      return (
+        <span data-testid="assistant-availability">{String(canUseAgent)}</span>
+      );
+    }
+
+    render(
+      <InAppAiAgentProvider>
+        <AvailabilityProbe />
+      </InAppAiAgentProvider>,
+    );
+
+    expect(screen.getByTestId("assistant-availability")).toHaveTextContent(
+      "false",
+    );
   });
 
   it("keeps foreground submission and approval working when background execution is disabled", async () => {
