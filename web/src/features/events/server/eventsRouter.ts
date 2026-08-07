@@ -377,6 +377,7 @@ export const eventsRouter = createTRPCRouter({
                   startTime: data.start_time,
                   endTime: data.end_time || undefined,
                   observationType: data.type,
+                  checkpointNs: data.checkpoint_ns || null,
                 };
               } else if (hasAgentData) {
                 return {
@@ -388,6 +389,7 @@ export const eventsRouter = createTRPCRouter({
                   startTime: data.start_time,
                   endTime: data.end_time || undefined,
                   observationType: data.type,
+                  checkpointNs: data.checkpoint_ns || null,
                 };
               }
 
