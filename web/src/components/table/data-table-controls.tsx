@@ -22,6 +22,12 @@ import {
   getFacetSummaryValue,
   rankFacetOptions,
 } from "@/src/features/filters/lib/facet-display";
+import {
+  advanceFacetOrder,
+  orderFacets,
+  promoteFacet,
+  EMPTY_FACET_ORDER,
+} from "@/src/features/filters/lib/facet-order";
 import { useMediaQuery } from "react-responsive";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
@@ -216,19 +222,34 @@ export function DataTableControls({
   const [revealedColumns, setRevealedColumns] = useState<string[]>([]);
 
   // Selected filters on top: a facet is PROMOTED when it carries an active
-  // filter OR the user explicitly added it via "Add filter" — the explicit
-  // add is a promotion in itself, so typing a first value (facet becomes
-  // active) or clearing it again (inactive) never moves the facet around
-  // while someone is working in it. Config order is preserved within each
-  // group, the sort updates immediately, and both display modes share the
-  // exact same order. When an interaction does move a facet (activation by
-  // direct click), the follow-scroll effect below keeps it in view.
+  // filter OR the user explicitly added it via "Add filter". The order is
+  // SETTLED, not live (LFE-14843): the promoted set that drives it is
+  // recomputed at deliberate boundaries — mount, permalink hydration, a saved
+  // view, Clear all, an AI or search-bar apply — and held still while someone
+  // works the sidebar, so a facet activated by direct click never teleports
+  // out from under the cursor. Membership stays live: `showOnlyActive` and the
+  // active counts read isPromoted, only the ORDER is frozen.
   const revealedSet = new Set(revealedColumns);
   const isPromoted = (filter: UIFilter) =>
     filter.isActive || revealedSet.has(filter.column);
-  const orderedFilters = [...queryFilter.filters].sort(
-    (a, b) => Number(isPromoted(b)) - Number(isPromoted(a)),
+  const livePromotedColumns = queryFilter.filters
+    .filter(isPromoted)
+    .map((filter) => filter.column);
+  // Bumped by any interaction inside the facet list (below); the pure reducer
+  // attributes the next promotion change to it instead of re-settling.
+  const facetInteractionRef = useRef(0);
+  const facetOrderRef = useRef(EMPTY_FACET_ORDER);
+  const facetOrder = advanceFacetOrder(
+    facetOrderRef.current,
+    livePromotedColumns,
+    facetInteractionRef.current,
   );
+  facetOrderRef.current = facetOrder;
+  const noteFacetInteraction = () => {
+    facetInteractionRef.current += 1;
+  };
+
+  const orderedFilters = orderFacets(queryFilter.filters, facetOrder);
   const displayedFilters = showOnlyActive
     ? orderedFilters.filter(isPromoted)
     : orderedFilters;
@@ -251,12 +272,13 @@ export function DataTableControls({
     : [];
 
   // Follow-scroll + recency: DOM scrolling is the external system here, so an
-  // effect is the right integration boundary. When exactly one facet changed
-  // activity (the user's own interaction — bulk changes like Clear all, AI
-  // apply, or a restored view skip the scroll), the re-sort has already moved
-  // it by the time this runs; scroll the list to its new position.
+  // effect is the right integration boundary. A single facet's activity change
+  // that DID move it (a re-settle, e.g. one filter applied from the search bar
+  // — the user's own sidebar edits no longer reorder anything) has moved it by
+  // the time this runs; scroll the list to its new position. Bulk changes
+  // (Clear all, AI apply, a restored view) skip the scroll.
   const scrollRootRef = useRef<HTMLDivElement>(null);
-  // Last focused element inside the list: re-sorting moves DOM nodes, and a
+  // Last focused element inside the list: a re-settle moves DOM nodes, and a
   // reinserted node loses focus even when React merely reorders it — typing
   // the first character into a facet's input must not kick the caret out.
   const lastFocusedRef = useRef<HTMLElement | null>(null);
@@ -309,6 +331,10 @@ export function DataTableControls({
     if (!queryFilter.expanded.includes(column)) {
       queryFilter.onExpandedChange([...queryFilter.expanded, column]);
     }
+    // Deliberate promotion: the added facet joins the top block without
+    // re-settling the facets around it.
+    noteFacetInteraction();
+    facetOrderRef.current = promoteFacet(facetOrderRef.current, column);
     // The added facet lands at its config-order slot within the promoted
     // group — bring it into view once the re-render has painted.
     requestAnimationFrame(() => {
@@ -363,7 +389,11 @@ export function DataTableControls({
     [queryFilter, capture, tableName],
   );
 
-  const promotedFacetCount = displayedFilters.filter(isPromoted).length;
+  // Separator position: the SETTLED promoted block, not the live one — a facet
+  // activated mid-session keeps its place below the line until the next settle.
+  const promotedFacetCount = displayedFilters.filter((filter) =>
+    facetOrder.promoted.has(filter.column),
+  ).length;
 
   const renderFacet = (filter: UIFilter) => {
     // A column the current surface can't honour blocks the facet whether or
@@ -570,6 +600,13 @@ export function DataTableControls({
         layout === "inline" ? "w-full" : "w-0 min-w-full",
         "pt-1 pb-10",
       )}
+      // Any interaction in the list marks the filter change it causes as the
+      // user's own edit, so the order holds still (LFE-14843). Capture phase,
+      // and on this node rather than the scroll root: React events propagate
+      // through portals by the React tree, so a facet's portalled dropdown
+      // (metadata keys, score names) counts too.
+      onPointerDownCapture={noteFacetInteraction}
+      onKeyDownCapture={noteFacetInteraction}
     >
       <Accordion
         type="multiple"
