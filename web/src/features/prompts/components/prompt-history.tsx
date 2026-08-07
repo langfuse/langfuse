@@ -8,8 +8,11 @@ import {
 } from "@/src/features/prompts/components/timeline";
 import { Badge } from "@/src/components/ui/badge";
 import { CommandItem } from "@/src/components/ui/command";
+import { Button } from "@/src/components/ui/button";
+import { DialogTrigger } from "@/src/components/ui/dialog";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
+import { FileDiffIcon } from "lucide-react";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
@@ -21,7 +24,6 @@ const PromptHistoryTraceNode = (props: {
   commentCounts?: Map<string, number>;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [isPromptDiffOpen, setIsPromptDiffOpen] = useState(false);
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const { prompt } = props;
 
@@ -151,20 +153,35 @@ const PromptHistoryTraceNode = (props: {
               </div>
             </div>
             <div className="flex flex-row justify-end space-x-1">
-              {(isHovered ||
-                props.currentPromptVersion === prompt.version ||
-                isPromptDiffOpen) &&
-                (props.currentPrompt &&
-                props.currentPromptVersion !== prompt.version ? (
-                  <PromptVersionDiffDialog
-                    isOpen={isPromptDiffOpen}
-                    setIsOpen={(open) => {
-                      setIsPromptDiffOpen(open);
-                    }}
-                    leftPrompt={prompt}
-                    rightPrompt={props.currentPrompt}
-                  />
-                ) : null)}
+              {props.currentPrompt &&
+              props.currentPromptVersion !== prompt.version ? (
+                <PromptVersionDiffDialog
+                  leftPrompt={prompt}
+                  rightPrompt={props.currentPrompt}
+                >
+                  {({ isOpen, openDialog }) =>
+                    isHovered ||
+                    props.currentPromptVersion === prompt.version ||
+                    isOpen ? (
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          type="button"
+                          size="icon"
+                          className="h-7 w-7 px-0"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openDialog();
+                          }}
+                          title="Compare with selected prompt"
+                        >
+                          <FileDiffIcon className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                    ) : null
+                  }
+                </PromptVersionDiffDialog>
+              ) : null}
             </div>
           </div>
         </div>
