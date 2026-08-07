@@ -264,7 +264,8 @@ export function ScoreOutputSection({
                   setEditingChoiceIndex(null);
                 }}
                 onDone={() => setEditingChoiceIndex(null)}
-                trigger={
+              >
+                <PopoverTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
@@ -282,8 +283,8 @@ export function ScoreOutputSection({
                       <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                     )}
                   </Button>
-                }
-              />
+                </PopoverTrigger>
+              </CategoryEditorPopover>
             ))}
             {!readOnly ? (
               <CategoryEditorPopover
@@ -300,7 +301,8 @@ export function ScoreOutputSection({
                 }}
                 open={addCategoryOpen}
                 onOpenChange={handleAddCategoryOpenChange}
-                trigger={
+              >
+                <PopoverTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
@@ -309,8 +311,8 @@ export function ScoreOutputSection({
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
-                }
-              />
+                </PopoverTrigger>
+              </CategoryEditorPopover>
             ) : null}
           </>
         )}

@@ -8,14 +8,13 @@ import {
   Popover,
   PopoverClose,
   PopoverContent,
-  PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { type ScoreOutputChoice } from "@/src/features/evals/v2/scoreOutputTypes";
 import { cn } from "@/src/utils/tailwind";
 
 /** Edits one categorical score option inside a controlled popover. */
 export function CategoryEditorPopover({
-  trigger,
+  children,
   title,
   idSuffix,
   choice,
@@ -25,7 +24,7 @@ export function CategoryEditorPopover({
   onDelete,
   onDone,
 }: {
-  trigger: ReactNode;
+  children: ReactNode;
   title: string;
   idSuffix: string;
   choice: ScoreOutputChoice;
@@ -37,7 +36,7 @@ export function CategoryEditorPopover({
 }) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      {children}
       <PopoverContent align="start" className="w-80">
         <div className="flex flex-col gap-4">
           <div>

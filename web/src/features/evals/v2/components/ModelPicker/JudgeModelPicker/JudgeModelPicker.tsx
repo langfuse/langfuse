@@ -5,6 +5,7 @@ import {
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
+import { type ReactNode } from "react";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -17,47 +18,94 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/src/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { Popover, PopoverContent } from "@/src/components/ui/popover";
 import { selectTriggerClassName } from "@/src/components/ui/select";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { cn } from "@/src/utils/tailwind";
 
 export type JudgeModelMode = "default" | "custom";
 
+export function JudgeModelPickerTrigger({
+  mode,
+  defaultModel,
+  selectedModel,
+  disabled,
+}: {
+  mode: JudgeModelMode;
+  defaultModel?: JudgeModel | null;
+  selectedModel: JudgeModel | null;
+  disabled: boolean;
+}) {
+  const customSelectionLabel = selectedModel
+    ? `${selectedModel.provider} / ${selectedModel.model}`
+    : "Select a model...";
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      disabled={disabled}
+      className={cn(
+        selectTriggerClassName,
+        "w-fit max-w-full min-w-0",
+        mode === "custom" && "rounded-r-none",
+      )}
+    >
+      {mode === "default" ? (
+        defaultModel ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <span
+              className="truncate"
+              title={`${defaultModel.provider} / ${defaultModel.model}`}
+            >
+              {defaultModel.provider} / {defaultModel.model}
+            </span>
+            <Badge variant="secondary" size="sm" className="shrink-0">
+              Project default
+            </Badge>
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5">
+            <TriangleAlert className="text-dark-yellow h-3.5 w-3.5 shrink-0" />
+            <span className="text-muted-foreground">Select a model...</span>
+          </span>
+        )
+      ) : (
+        <span className="truncate" title={customSelectionLabel}>
+          {customSelectionLabel}
+        </span>
+      )}
+      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+    </Button>
+  );
+}
+
 /** A controlled model selection menu for LLM-as-a-judge evaluators. */
 export function JudgeModelPicker({
+  children,
   open,
   onOpenChange,
   mode,
   defaultModel,
   providerGroups,
   selectedModel,
-  disabled,
   onModeChange,
   onSelectCustom,
   onConfigureProviders,
   onConfigureDefault,
 }: {
+  children: ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: JudgeModelMode;
   defaultModel?: JudgeModel | null;
   providerGroups: Array<[string, string[]]>;
   selectedModel: JudgeModel | null;
-  disabled: boolean;
   onModeChange: (mode: JudgeModelMode) => void;
   onSelectCustom: (model: JudgeModel) => void;
   onConfigureProviders: () => void;
   onConfigureDefault: () => void;
 }) {
-  const customSelectionLabel = selectedModel
-    ? `${selectedModel.provider} / ${selectedModel.model}`
-    : "Select a model...";
-
   // Command selections do not close this controlled popover automatically.
   // Close it before the callback can navigate or open another surface.
   const selectAndClose = (action: () => void) => {
@@ -67,44 +115,7 @@ export function JudgeModelPicker({
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          className={cn(
-            selectTriggerClassName,
-            "w-fit max-w-full min-w-0",
-            mode === "custom" && "rounded-r-none",
-          )}
-        >
-          {mode === "default" ? (
-            defaultModel ? (
-              <span className="flex min-w-0 items-center gap-2">
-                <span
-                  className="truncate"
-                  title={`${defaultModel.provider} / ${defaultModel.model}`}
-                >
-                  {defaultModel.provider} / {defaultModel.model}
-                </span>
-                <Badge variant="secondary" size="sm" className="shrink-0">
-                  Project default
-                </Badge>
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5">
-                <TriangleAlert className="text-dark-yellow h-3.5 w-3.5 shrink-0" />
-                <span className="text-muted-foreground">Select a model...</span>
-              </span>
-            )
-          ) : (
-            <span className="truncate" title={customSelectionLabel}>
-              {customSelectionLabel}
-            </span>
-          )}
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
+      {children}
       <PopoverContent className="w-96 p-0" align="start">
         <Command>
           <CommandInput placeholder="Find a model..." />

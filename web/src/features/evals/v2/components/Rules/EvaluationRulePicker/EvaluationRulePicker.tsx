@@ -9,11 +9,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/src/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { Popover, PopoverContent } from "@/src/components/ui/popover";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 type EvaluationRule = {
@@ -22,7 +18,7 @@ type EvaluationRule = {
 };
 
 export function EvaluationRulePicker<Rule extends EvaluationRule>({
-  trigger,
+  children,
   open,
   defaultOpen = false,
   disabledRules,
@@ -33,7 +29,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
   onSelectAvailableRule,
   onCreateRule,
 }: {
-  trigger: (open: boolean) => ReactNode;
+  children: (open: boolean) => ReactNode;
   open?: boolean;
   defaultOpen?: boolean;
   disabledRules: Array<{ rule: Rule; reason: string }>;
@@ -59,7 +55,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
 
   return (
     <Popover open={resolvedOpen} onOpenChange={changeOpen}>
-      <PopoverTrigger asChild>{trigger(resolvedOpen)}</PopoverTrigger>
+      {children(resolvedOpen)}
       <PopoverContent align={align} className="w-96 p-0">
         <Command>
           <CommandInput placeholder="Find a rule..." />

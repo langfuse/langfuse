@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import { fn } from "storybook/test";
 
 import preview from "../../../../../../../../../../../../.storybook/preview";
@@ -8,7 +9,11 @@ const meta = preview.meta({ component: CategoryEditorPopover });
 
 export const Edit = meta.story({
   args: {
-    trigger: <Button variant="outline">Correct</Button>,
+    children: (
+      <PopoverTrigger asChild>
+        <Button variant="outline">Correct</Button>
+      </PopoverTrigger>
+    ),
     title: "Edit category",
     idSuffix: "correct",
     choice: { label: "Correct", value: "1" },
@@ -22,7 +27,11 @@ export const Edit = meta.story({
 
 export const Add = meta.story({
   args: {
-    trigger: <Button variant="outline">Add category</Button>,
+    children: (
+      <PopoverTrigger asChild>
+        <Button variant="outline">Add category</Button>
+      </PopoverTrigger>
+    ),
     title: "Add category",
     idSuffix: "new",
     choice: { label: "", value: "2" },

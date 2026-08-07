@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
+import { Button } from "@/src/components/ui/button";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "./JudgeModelPicker";
 
 const baseProps = {
@@ -8,7 +10,6 @@ const baseProps = {
   defaultModel: null,
   providerGroups: [],
   selectedModel: null,
-  disabled: false,
   onModeChange: vi.fn(),
   onSelectCustom: vi.fn(),
 };
@@ -39,7 +40,11 @@ describe("JudgeModelPicker", () => {
         onOpenChange={onOpenChange}
         onConfigureProviders={onConfigureProviders}
         onConfigureDefault={onConfigureDefault}
-      />,
+      >
+        <PopoverTrigger asChild>
+          <Button type="button">Select model</Button>
+        </PopoverTrigger>
+      </JudgeModelPicker>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: buttonName }));
