@@ -765,14 +765,15 @@ const run = async (
     );
   }
 
-  const shapesToSeed: Shape[] =
+  let shapesToSeed: Shape[] =
     shapeParam === "all" ? [...SHAPES] : [shapeParam as Shape];
 
   const rng = new Rng(ctx.seed);
 
   // Uploaded up front: the reference strings must be embedded in the payloads
   // the builders produce, and a media shape with unresolvable assets would
-  // silently look like the bug it exists to disprove.
+  // silently look like the bug it exists to disprove. Only the media shape
+  // needs storage — the others must still seed without it.
   let mediaFixtures:
     | { image: SeedMediaFixture; audio: SeedMediaFixture }
     | undefined;
@@ -781,13 +782,20 @@ const run = async (
       ensureSeedMediaUploaded(ctx.projectId, "image"),
       ensureSeedMediaUploaded(ctx.projectId, "audio"),
     ]);
-    if (!image || !audio) {
+
+    if (image && audio) {
+      mediaFixtures = { image, audio };
+    } else if (shapeParam === "media") {
       throw new SeedError(
         "could not seed media assets for the media shape",
         "check LANGFUSE_S3_MEDIA_UPLOAD_BUCKET and that MinIO is running (pnpm run seed -- doctor)",
       );
+    } else {
+      ctx.log(
+        "skipping the media shape: media assets could not be uploaded (check LANGFUSE_S3_MEDIA_UPLOAD_BUCKET / MinIO)",
+      );
+      shapesToSeed = shapesToSeed.filter((shape) => shape !== "media");
     }
-    mediaFixtures = { image, audio };
   }
 
   if (ctx.dryRun) {

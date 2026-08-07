@@ -35,6 +35,19 @@ export function hasAdditionalData(message: ChatMlMessage): boolean {
 }
 
 /**
+ * The message without its unset keys — the transform above materializes all ten
+ * whether or not they were sent, and a table of the raw object renders one
+ * `undefined` row each.
+ */
+export function withoutUnsetFields(
+  message: ChatMlMessage,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(message).filter(([, value]) => value !== undefined),
+  );
+}
+
+/**
  * Check if message has passthrough JSON data.
  */
 export function hasPassthroughJson(message: ChatMlMessage): boolean {

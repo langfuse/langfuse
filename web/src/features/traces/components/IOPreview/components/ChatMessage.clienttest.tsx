@@ -371,4 +371,34 @@ describe("ChatMessage media content parts", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  // Same materialized keys, but this shape has one real field so it still
+  // renders through the whole-message fallback table.
+  it("omits unset ChatML keys from the fallback table", () => {
+    const parsed = ChatMlArraySchema.parse([
+      { role: "user", name: "Agent", content: "" },
+    ]);
+    renderChatMessage(parsed[0] as ChatMlMessage);
+
+    expect(screen.queryByText("undefined")).not.toBeInTheDocument();
+    expect(screen.queryByText("tool_call_id")).not.toBeInTheDocument();
+  });
+
+  // The media strip dedupes against what rendered inline, so a collapsed
+  // system prompt must not swallow its attachments.
+  it("keeps media parts visible while a long system prompt is collapsed", () => {
+    renderChatMessage({
+      role: "system",
+      content: [
+        { type: "text", text: longSystemPrompt },
+        { type: "image_url", image_url: { url: referenceString } },
+      ],
+    } as unknown as ChatMlMessage);
+
+    expect(expandButton()).toBeInTheDocument();
+    expect(screen.getByTestId("langfuse-media")).toHaveAttribute(
+      "data-media-ref",
+      referenceString,
+    );
+  });
 });
