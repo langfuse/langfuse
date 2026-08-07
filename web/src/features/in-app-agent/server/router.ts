@@ -37,6 +37,7 @@ import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
+  deleteBackgroundConversation,
   getBackgroundConversationSnapshot,
   startBackgroundRun,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
@@ -283,27 +284,12 @@ export const inAppAgentRouter = createTRPCRouter({
         user: ctx.session.user,
       });
 
-      await getOwnedConversationOrThrow({
+      return deleteBackgroundConversation({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
       });
-
-      await ctx.prisma.inAppAgentConversation.update({
-        where: {
-          id_projectId: {
-            id: input.conversationId,
-            projectId: input.projectId,
-          },
-        },
-        data: {
-          providerSessionId: null,
-          deletedAt: new Date(),
-        },
-      });
-
-      return { success: true };
     }),
 
   renameConversation: protectedProjectProcedureWithoutTracing

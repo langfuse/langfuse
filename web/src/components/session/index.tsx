@@ -26,6 +26,7 @@ import {
   CopyIcon,
   Download,
   ExternalLinkIcon,
+  MoreVertical,
 } from "lucide-react";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -85,6 +86,9 @@ import { SessionDetailStoreProvider } from "@/src/components/session/SessionDeta
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
 import { ModernSession } from "@/src/components/session/ModernSession";
+import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
+import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
+import { ModernSessionHeaderActionsController } from "@/src/components/session/ModernSessionHeaderActionsController";
 import { ModernSessionFilterControls } from "@/src/components/session/ModernSessionFilterControls";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useIsMobile } from "@/src/hooks/use-mobile";
@@ -101,10 +105,12 @@ import {
   type LegacySessionTrace,
 } from "@/src/components/session/sessionDetailPageTypes";
 import { getSessionFilterOptionsStartTimeFilters } from "@/src/components/session/sessionFilterOptions";
+import {
+  INITIAL_SESSION_USERS_DISPLAY_COUNT,
+  SESSION_USERS_PER_PAGE,
+} from "@/src/components/session/sessionUsers";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
-const INITIAL_USERS_DISPLAY_COUNT = 3;
-const USERS_PER_PAGE_IN_POPOVER = 50;
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.
 const SESSION_VIRTUALIZER_OVERSCAN = 5;
 
@@ -119,8 +125,8 @@ export function SessionUsers({
 
   if (!users) return null;
 
-  const initialUsers = users?.slice(0, INITIAL_USERS_DISPLAY_COUNT);
-  const remainingUsers = users?.slice(INITIAL_USERS_DISPLAY_COUNT);
+  const initialUsers = users?.slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT);
+  const remainingUsers = users?.slice(INITIAL_SESSION_USERS_DISPLAY_COUNT);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -157,8 +163,8 @@ export function SessionUsers({
               <div className="flex flex-col gap-2 p-2">
                 {remainingUsers
                   .slice(
-                    page * USERS_PER_PAGE_IN_POPOVER,
-                    (page + 1) * USERS_PER_PAGE_IN_POPOVER,
+                    page * SESSION_USERS_PER_PAGE,
+                    (page + 1) * SESSION_USERS_PER_PAGE,
                   )
                   .map((userId: string) => {
                     const userBadgeText = `User ID: ${userId}`;
@@ -182,7 +188,7 @@ export function SessionUsers({
                   })}
               </div>
             </ScrollArea>
-            {remainingUsers.length > USERS_PER_PAGE_IN_POPOVER && (
+            {remainingUsers.length > SESSION_USERS_PER_PAGE && (
               <div className="flex items-center justify-between border-t p-2 pt-4">
                 <Button
                   variant="outline"
@@ -194,15 +200,14 @@ export function SessionUsers({
                 </Button>
                 <span className="text-muted-foreground text-sm">
                   Page {page + 1} of{" "}
-                  {Math.ceil(remainingUsers.length / USERS_PER_PAGE_IN_POPOVER)}
+                  {Math.ceil(remainingUsers.length / SESSION_USERS_PER_PAGE)}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={
-                    (page + 1) * USERS_PER_PAGE_IN_POPOVER >=
-                    remainingUsers.length
+                    (page + 1) * SESSION_USERS_PER_PAGE >= remainingUsers.length
                   }
                 >
                   Next
@@ -290,6 +295,7 @@ const SessionScores = ({
     </div>
   );
 };
+
 const CopySessionIdButton: React.FC<{
   sessionId: string;
   /** "menu" renders a full-width labeled row for the mobile ⋯ overflow;
@@ -895,24 +901,6 @@ const LoadedSessionEventsPage: React.FC<{
     sessionDetailStore.getState().actions.setShowSystemPrompt(isEnabled);
   };
 
-  const displayOptions = [
-    {
-      label: "corrections",
-      checked: showCorrections,
-      onCheckedChange: setShowCorrectionsForSession,
-    },
-    {
-      label: "tool calls",
-      checked: showInlineToolCalls,
-      onCheckedChange: setInlineToolCallsForSession,
-    },
-    {
-      label: "system prompt",
-      checked: showSystemPrompt,
-      onCheckedChange: setShowSystemPromptForSession,
-    },
-  ];
-
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId,
@@ -1391,7 +1379,7 @@ const LoadedSessionEventsPage: React.FC<{
               href: `/project/${projectId}/sessions`,
             },
           ],
-          actionButtonsLeft: (
+          actionButtonsLeft: !isModernSessionEnabled ? (
             <div className="flex items-center gap-0">
               <StarSessionToggle
                 key="star"
@@ -1409,7 +1397,7 @@ const LoadedSessionEventsPage: React.FC<{
               />
               <CopySessionIdButton key="copy-id" sessionId={sessionId} />
             </div>
-          ),
+          ) : undefined,
           actionButtonsRight: (
             <>
               <WebCalloutButton
@@ -1418,66 +1406,6 @@ const LoadedSessionEventsPage: React.FC<{
                 observationId={null}
                 sessionId={sessionId}
               />
-              {isModernSessionEnabled ? (
-                <>
-                  <div className="hidden items-center gap-3 pr-2 min-[1900px]:flex">
-                    <span className="text-muted-foreground text-xs">Show:</span>
-                    {displayOptions.map(
-                      ({ label, checked, onCheckedChange }) => (
-                        <label
-                          key={label}
-                          className="flex items-center gap-1.5"
-                        >
-                          <Switch
-                            checked={checked}
-                            onCheckedChange={onCheckedChange}
-                            size="sm"
-                          />
-                          <span className="text-muted-foreground text-xs">
-                            {label}
-                          </span>
-                        </label>
-                      ),
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 pr-2 min-[1900px]:hidden">
-                    <span className="text-muted-foreground text-xs">Show:</span>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 px-2"
-                        >
-                          Options
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align="end" className="w-52 p-2">
-                        <div className="flex flex-col gap-1">
-                          {displayOptions.map(
-                            ({ label, checked, onCheckedChange }) => (
-                              <label
-                                key={label}
-                                className="hover:bg-muted flex items-center justify-between gap-4 rounded-md px-2 py-1.5"
-                              >
-                                <span className="text-sm capitalize">
-                                  {label}
-                                </span>
-                                <Switch
-                                  checked={checked}
-                                  onCheckedChange={onCheckedChange}
-                                  size="sm"
-                                />
-                              </label>
-                            ),
-                          )}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </>
-              ) : null}
               {!router.query.peek && (
                 <DetailPageNav
                   key="nav"
@@ -1528,7 +1456,30 @@ const LoadedSessionEventsPage: React.FC<{
                     Show corrections
                   </span>
                 </label>
-              ) : null}
+              ) : (
+                <ModernSessionHeaderActionsController
+                  projectId={projectId}
+                  sessionId={sessionId}
+                  bookmarked={session.bookmarked}
+                  isPublic={session.public}
+                  showCorrections={showCorrections}
+                  showInlineToolCalls={showInlineToolCalls}
+                  showSystemPrompt={showSystemPrompt}
+                  onShowCorrectionsChange={setShowCorrectionsForSession}
+                  onShowInlineToolCallsChange={setInlineToolCallsForSession}
+                  onShowSystemPromptChange={setShowSystemPromptForSession}
+                >
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="Session actions"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </ModernSessionHeaderActionsController>
+              )}
             </>
           ),
           // Mobile compact header: the same session actions as full-width
@@ -1585,21 +1536,7 @@ const LoadedSessionEventsPage: React.FC<{
                 sessionId={sessionId}
                 layout="menu"
               />
-              {isModernSessionEnabled ? (
-                displayOptions.map(({ label, checked, onCheckedChange }) => (
-                  <label
-                    key={label}
-                    className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5"
-                  >
-                    <span className="text-sm capitalize">{label}</span>
-                    <Switch
-                      checked={checked}
-                      onCheckedChange={onCheckedChange}
-                      size="sm"
-                    />
-                  </label>
-                ))
-              ) : (
+              {!isModernSessionEnabled ? (
                 <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
                   <span className="text-sm">Show corrections</span>
                   <Switch
@@ -1608,7 +1545,7 @@ const LoadedSessionEventsPage: React.FC<{
                     size="sm"
                   />
                 </label>
-              )}
+              ) : null}
             </>
           ),
         }}
@@ -1620,7 +1557,25 @@ const LoadedSessionEventsPage: React.FC<{
               : "flex h-full flex-col overflow-auto"
           }
         >
-          {hasSessionControls ? (
+          {isModernSessionEnabled ? (
+            <ModernSessionHeader
+              projectId={projectId}
+              countTraces={session.countTraces}
+              traces={
+                isTracesSuccess
+                  ? { state: "loaded", data: traces ?? [] }
+                  : { state: "loading" }
+              }
+              tokensIn={session.inputUsage}
+              tokensOut={session.outputUsage}
+              totalTokens={session.totalTokens}
+              totalCost={session.totalCost ?? 0}
+              environment={session.environment ?? null}
+              users={session.users ?? []}
+              scores={session.scores}
+            />
+          ) : null}
+          {!isModernSessionEnabled && hasSessionControls ? (
             <SessionControlsBar
               isMobile={isMobile && !isModernSessionEnabled}
               desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
