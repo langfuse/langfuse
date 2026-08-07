@@ -382,7 +382,9 @@ export function EventsOutlierStrip({
   // needs the width, so painting before the first measurement would flash a
   // skeleton sized for nothing.
   return (
-    <div ref={wrapperRef} className="shrink-0 border-b">
+    // Ruled top and bottom (LFE-14829): the strip reads as its own band
+    // instead of floating between the toolbar and the table header.
+    <div ref={wrapperRef} className="shrink-0 border-y">
       {size === undefined ? null : (
         <div className="relative px-2 pt-1 pb-1">
           {!canApplyFilters ? (
