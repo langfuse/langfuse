@@ -15,6 +15,7 @@ const DiscoveryDocSchema = z.object({
   token_endpoint: z.string(),
   jwks_uri: z.string(),
   issuer: z.string(),
+  userinfo_endpoint: z.string().optional(),
 });
 
 /** validateSsoConfig checks at save time that the IdP's OIDC discovery doc is reachable, well formed, and reports the configured issuer. */
@@ -141,15 +142,21 @@ function parseDiscoveryDoc(body: unknown): DiscoveryDoc {
 /** validateUrls checks the endpoints NextAuth fetches server-side at sign-in don't target internal addresses. */
 async function validateUrls(doc: DiscoveryDoc): Promise<void> {
   const whitelist = discoveryWhitelistFromEnv();
-  for (const key of ["token_endpoint", "jwks_uri"] as const) {
+  for (const key of [
+    "token_endpoint",
+    "jwks_uri",
+    "userinfo_endpoint",
+  ] as const) {
+    const url = doc[key];
+    if (!url) continue;
     try {
-      await validateWebhookURL(doc[key], whitelist, {
+      await validateWebhookURL(url, whitelist, {
         allowedPorts: "any",
       });
     } catch {
       throw new TRPCError({
         code: "PRECONDITION_FAILED",
-        message: `${key} "${doc[key]}" must be reachable from the public internet.`,
+        message: `${key} "${url}" must be reachable from the public internet.`,
       });
     }
   }

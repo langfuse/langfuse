@@ -777,6 +777,29 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     expect(row).toBeNull();
   });
 
+  it("rejects when the discovery doc points userinfo_endpoint at an internal address", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-userinfo-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    fetchMock.mockResolvedValueOnce(
+      discoveryResponse({
+        issuer: "https://example.com",
+        authorization_endpoint: "https://example.com/authorize",
+        token_endpoint: "https://example.com/oauth/token",
+        jwks_uri: "https://example.com/.well-known/jwks.json",
+        userinfo_endpoint:
+          "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+      }),
+    );
+
+    await expect(
+      caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+    expect(row).toBeNull();
+  });
+
   it("rejects when the returned issuer does not match the configured one", async () => {
     const { org, caller } = await prepare();
     const domain = `discovery-mismatch-${uuidv4().slice(0, 8)}.com`;
