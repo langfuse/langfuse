@@ -111,6 +111,43 @@ describe("langgraph subgraph graph parsing (#8078)", () => {
         "writer/agent",
       ]);
     });
+
+    it("path-qualifies nested __start__/__end__ instead of promoting them to root", () => {
+      const data = [
+        obs({
+          id: "root-start",
+          node: "__start__",
+          step: 0,
+          checkpointNs: "",
+        }),
+        obs({
+          id: "nested-start",
+          node: "__start__",
+          step: 0,
+          checkpointNs: "research_team:aaa",
+        }),
+        obs({
+          id: "nested-end",
+          node: "__end__",
+          step: 3,
+          checkpointNs: "research_team:aaa|__end__:bbb",
+        }),
+        obs({
+          id: "search",
+          node: "search",
+          step: 1,
+          checkpointNs: "research_team:aaa|search:ccc",
+        }),
+      ];
+
+      const qualified = qualifyLanggraphNodes(data);
+      expect(qualified.map((o) => o.node)).toEqual([
+        "__start__",
+        "research_team/__start__",
+        "research_team/__end__",
+        "research_team/search",
+      ]);
+    });
   });
 
   describe("transform + buildGraphFromStepData", () => {
@@ -221,6 +258,117 @@ describe("langgraph subgraph graph parsing (#8078)", () => {
           .sort(),
       ).toEqual(["executor", "planner"]);
       expect(edges.has("planner->executor")).toBe(true);
+    });
+
+    it("drops nested __start__/__end__ so they do not corrupt root step edges", () => {
+      const data = [
+        obs({
+          id: "host",
+          name: "research_team",
+          node: "research_team",
+          step: 1,
+          checkpointNs: "research_team:aaa",
+        }),
+        obs({
+          id: "nested-start",
+          name: "__start__",
+          node: "__start__",
+          step: 0,
+          // Same local step as a parent-scope node would collide if promoted.
+          checkpointNs: "research_team:aaa",
+        }),
+        obs({
+          id: "search",
+          name: "search",
+          node: "search",
+          step: 1,
+          checkpointNs: "research_team:aaa|search:bbb",
+        }),
+        obs({
+          id: "nested-end",
+          name: "__end__",
+          node: "__end__",
+          step: 2,
+          checkpointNs: "research_team:aaa|__end__:ccc",
+        }),
+        obs({
+          id: "summarize",
+          name: "summarize",
+          node: "summarize",
+          step: 2,
+          checkpointNs: "summarize:ddd",
+        }),
+      ];
+
+      const normalized = transformLanggraphToGeneralized(data);
+      expect(
+        normalized.filter(
+          (o) =>
+            o.node === "__start__" ||
+            o.node === "__end__" ||
+            o.node?.endsWith("/__start__") ||
+            o.node?.endsWith("/__end__"),
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ node: LANGFUSE_START_NODE_NAME }),
+          expect.objectContaining({ node: LANGFUSE_END_NODE_NAME }),
+        ]),
+      );
+      // Nested anchors must not survive as path-qualified nodes either.
+      expect(
+        normalized.some(
+          (o) => o.node?.endsWith("/__start__") || o.node?.endsWith("/__end__"),
+        ),
+      ).toBe(false);
+
+      const { graph } = buildGraphFromStepData(normalized);
+      const edges = edgeSet(graph.edges);
+      expect(edges.has("research_team/search->summarize")).toBe(true);
+      // Nested end at local step 2 must not sit beside summarize in the root map.
+      expect(
+        graph.nodes.some(
+          (n) => n.id.endsWith("/__start__") || n.id.endsWith("/__end__"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps flat step edges for node names that contain slashes", () => {
+      // A LangGraph node can be named "router/tool" without being a subgraph.
+      // Slash-in-name must not trigger the scoped builder.
+      const data = [
+        obs({
+          id: "router",
+          name: "router/tool",
+          node: "router/tool",
+          step: 1,
+          checkpointNs: "router/tool:aaa",
+        }),
+        obs({
+          id: "writer",
+          name: "writer",
+          node: "writer",
+          step: 2,
+          checkpointNs: "writer:bbb",
+        }),
+      ];
+
+      expect(hasNestedLanggraphSubgraphs(data)).toBe(false);
+
+      const normalized = transformLanggraphToGeneralized(data);
+      const { graph } = buildGraphFromStepData(normalized);
+      const edges = edgeSet(graph.edges);
+
+      expect(
+        graph.nodes
+          .map((n) => n.id)
+          .filter((id) => !id.startsWith("__"))
+          .sort(),
+      ).toEqual(["router/tool", "writer"]);
+      expect(edges.has("router/tool->writer")).toBe(true);
+      // Scoped builder would orphan these onto synthetic anchors instead.
+      expect(edges.has(`${LANGFUSE_START_NODE_NAME}->router/tool`)).toBe(true);
+      expect(edges.has(`writer->${LANGFUSE_END_NODE_NAME}`)).toBe(true);
     });
   });
 });

@@ -132,9 +132,13 @@ export function transformLanggraphToGeneralized(
 }
 
 /**
- * Build the aggregated graph. When observations carry path-qualified subgraph
- * node ids, edges are generated per graph scope (so subgraph step counters
- * don't collide with the parent) and stitched through host wrappers.
+ * Build the aggregated graph. When observations come from nested LangGraph
+ * subgraphs (checkpoint_ns contains `|`), edges are generated per graph scope
+ * (so subgraph step counters don't collide with the parent) and stitched
+ * through host wrappers.
+ *
+ * Detection must use checkpoint nesting — not `/` in node names — because a
+ * flat LangGraph node can legitimately be named e.g. `router/tool`.
  */
 export function buildGraphFromStepData(
   data: AgentGraphDataResponse[],
@@ -146,11 +150,7 @@ export function buildGraphFromStepData(
     };
   }
 
-  const hasSubgraphs = data.some(
-    (obs) => typeof obs.node === "string" && obs.node.includes("/"),
-  );
-
-  if (hasSubgraphs) {
+  if (hasNestedLanggraphSubgraphs(data)) {
     return buildGraphWithSubgraphScopes(data);
   }
 

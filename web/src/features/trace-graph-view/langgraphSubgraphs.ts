@@ -65,25 +65,60 @@ export type QualifiedLanggraphObs = AgentGraphDataResponse & {
 };
 
 /**
+ * A system `__start__`/`__end__` is nested when its checkpoint path places it
+ * under another graph node (not at the root). Bare root anchors keep an empty
+ * or self-named path and must stay unqualified so they remain the diagram's
+ * global anchors.
+ */
+function isNestedSystemAnchor(
+  node: string,
+  path: string[],
+  checkpointNs: string | null | undefined,
+): boolean {
+  if (!SYSTEM_NODE_NAMES.has(node)) return false;
+  if (typeof checkpointNs === "string" && checkpointNs.includes("|")) {
+    return true;
+  }
+  // e.g. checkpoint_ns "research_team:uuid" with langgraph_node "__start__"
+  return path.length > 0 && path[path.length - 1] !== node;
+}
+
+/**
  * Qualify LangGraph node ids with their checkpoint path so nodes inside
  * different subgraphs stay distinct even when they share `langgraph_node`
  * names (e.g. two agents both named "agent").
  *
- * System start/end nodes are left unchanged.
+ * Root system start/end nodes are left unchanged. Nested subgraph anchors are
+ * path-qualified so downstream filtering can drop them instead of promoting
+ * them into the root step map.
  */
 export function qualifyLanggraphNodes(
   data: AgentGraphDataResponse[],
 ): QualifiedLanggraphObs[] {
   return data.map((obs) => {
-    if (!obs.node || SYSTEM_NODE_NAMES.has(obs.node)) {
+    if (!obs.node) {
       return {
         ...obs,
-        path: obs.node ? [obs.node] : [],
+        path: [],
         scope: "",
       };
     }
 
     const path = parseLanggraphCheckpointPath(obs.checkpointNs);
+
+    // Root anchors only — nested __start__/__end__ must be qualified (and later
+    // dropped) so their local steps are not mixed into the parent graph.
+    if (
+      SYSTEM_NODE_NAMES.has(obs.node) &&
+      !isNestedSystemAnchor(obs.node, path, obs.checkpointNs)
+    ) {
+      return {
+        ...obs,
+        path: [obs.node],
+        scope: "",
+      };
+    }
+
     // Prefer the checkpoint path when present; fall back to the bare node name.
     // Paths from LangGraph usually end with the current `langgraph_node`.
     const effectivePath =
