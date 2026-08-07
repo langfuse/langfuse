@@ -10,6 +10,8 @@ const mockEvalTemplateFindFirst = vi.fn();
 const mockEvalTemplateFindMany = vi.fn();
 const mockJobConfigurationFindMany = vi.fn();
 const mockJobConfigurationUpdate = vi.fn();
+const mockJobConfigurationDelete = vi.fn();
+const mockJobExecutionDeleteMany = vi.fn();
 
 vi.mock(
   "../../../features/evals/server/unstable-public-api/validation",
@@ -117,6 +119,7 @@ import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import {
   createPublicEvaluationRule,
+  deletePublicEvaluationRule,
   updatePublicEvaluationRule,
 } from "@/src/features/evals/server/unstable-public-api/evaluation-rule-service";
 import { CodeEvalJobConfigError } from "@/src/features/evals/server/codeEvalJobConfigValidation";
@@ -271,8 +274,36 @@ describe("unstable public eval services", () => {
         jobConfiguration: {
           findMany: mockJobConfigurationFindMany,
           update: mockJobConfigurationUpdate,
+          delete: mockJobConfigurationDelete,
+        },
+        jobExecution: {
+          deleteMany: mockJobExecutionDeleteMany,
         },
       }),
+    );
+  });
+
+  it("deletes evaluation-rule executions in the same transaction as the rule", async () => {
+    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
+      createEvaluationRuleRecord(),
+    );
+
+    await deletePublicEvaluationRule({
+      projectId: "project_123",
+      evaluationRuleId: "ceval_123",
+    });
+
+    expect(mockJobExecutionDeleteMany).toHaveBeenCalledWith({
+      where: {
+        projectId: "project_123",
+        jobConfigurationId: "ceval_123",
+      },
+    });
+    expect(mockJobConfigurationDelete).toHaveBeenCalledWith({
+      where: { id: "ceval_123", projectId: "project_123" },
+    });
+    expect(mockJobExecutionDeleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mockJobConfigurationDelete.mock.invocationCallOrder[0]!,
     );
   });
 

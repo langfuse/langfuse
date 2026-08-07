@@ -117,3 +117,20 @@ export async function deleteEvalTemplatesByIds({
     where: { projectId, id: { in: evalTemplateIds } },
   });
 }
+
+export async function deleteJobConfigurationWithExecutions({
+  tx,
+  projectId,
+  jobConfigurationId,
+}: {
+  tx: Prisma.TransactionClient;
+  projectId: string;
+  jobConfigurationId: string;
+}) {
+  await tx.jobExecution.deleteMany({
+    where: { projectId, jobConfigurationId },
+  });
+  await tx.jobConfiguration.delete({
+    where: { id: jobConfigurationId, projectId },
+  });
+}
