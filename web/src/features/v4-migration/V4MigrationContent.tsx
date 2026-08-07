@@ -411,7 +411,10 @@ export function V4MigrationHeaderContent({
           titleRowClassName,
         )}
       >
-        <p className="min-w-0 text-lg font-bold">
+        <p
+          className="min-w-0 flex-1 truncate text-lg font-bold"
+          title={projectName ? `Migrate ${projectName} to v4` : "Migrate to v4"}
+        >
           {projectName ? <>Migrate {projectName} to v4</> : "Migrate to v4"}
         </p>
         <Link
