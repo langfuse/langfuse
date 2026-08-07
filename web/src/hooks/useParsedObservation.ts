@@ -89,6 +89,18 @@ function getOrCreateWorker(): Worker | null {
 
       workerInstance.onerror = (event) => {
         reportParserWorkerError("useParsedObservation", event);
+        if (workerInstance) {
+          try {
+            workerInstance.terminate();
+          } catch {
+            // ignore
+          }
+          workerInstance = null;
+        }
+        pendingCallbacks.forEach((cb) => {
+          cb({ id: "", error: "Worker script failed to load" });
+        });
+        pendingCallbacks.clear();
       };
     } catch (error) {
       console.error("[useParsedObservation] Failed to create worker:", error);
@@ -172,12 +184,29 @@ async function parseObservationData(
   return new Promise<ParsedData>((resolve, reject) => {
     const parseId = `${Date.now()}-${Math.random()}`;
 
+    const timeoutId = setTimeout(() => {
+      if (pendingCallbacks.has(parseId)) {
+        pendingCallbacks.delete(parseId);
+        console.warn(
+          "[useParsedObservation] Worker parse timed out, falling back to sync parse",
+        );
+        syncParseObservationData(input, output, metadata)
+          .then(resolve)
+          .catch(reject);
+      }
+    }, 5000);
+
     pendingCallbacks.set(parseId, (result) => {
+      clearTimeout(timeoutId);
       pendingCallbacks.delete(parseId);
 
       if (result.error) {
-        console.error(`[useParsedObservation] Parse error: ${result.error}`);
-        reject(new Error(result.error));
+        console.warn(
+          `[useParsedObservation] Parse worker error, falling back to sync parse: ${result.error}`,
+        );
+        syncParseObservationData(input, output, metadata)
+          .then(resolve)
+          .catch(reject);
         return;
       }
 

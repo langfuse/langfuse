@@ -76,6 +76,18 @@ function getOrCreateWorker(): Worker | null {
 
       workerInstance.onerror = (event) => {
         reportParserWorkerError("useParsedTrace", event);
+        if (workerInstance) {
+          try {
+            workerInstance.terminate();
+          } catch {
+            // ignore
+          }
+          workerInstance = null;
+        }
+        pendingCallbacks.forEach((cb) => {
+          cb({ id: "", error: "Worker script failed to load" });
+        });
+        pendingCallbacks.clear();
       };
     } catch (error) {
       console.error("[useParsedTrace] Failed to create worker:", error);
@@ -157,12 +169,25 @@ async function parseTraceData(
   return new Promise<ParsedData>((resolve, reject) => {
     const parseId = `${Date.now()}-${Math.random()}`;
 
+    const timeoutId = setTimeout(() => {
+      if (pendingCallbacks.has(parseId)) {
+        pendingCallbacks.delete(parseId);
+        console.warn(
+          "[useParsedTrace] Worker parse timed out, falling back to sync parse",
+        );
+        syncParseTraceData(input, output, metadata).then(resolve).catch(reject);
+      }
+    }, 5000);
+
     pendingCallbacks.set(parseId, (result) => {
+      clearTimeout(timeoutId);
       pendingCallbacks.delete(parseId);
 
       if (result.error) {
-        console.error(`[useParsedTrace] Parse error: ${result.error}`);
-        reject(new Error(result.error));
+        console.warn(
+          `[useParsedTrace] Parse worker error, falling back to sync parse: ${result.error}`,
+        );
+        syncParseTraceData(input, output, metadata).then(resolve).catch(reject);
         return;
       }
 
