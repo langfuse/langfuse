@@ -91,7 +91,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -132,9 +132,9 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
-    # The selector resolves package scope before dependency setup or builds.
-    # !cancelled() lets this condition evaluate when pre-job is skipped on
-    # pull-request and merge-group events.
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -198,9 +198,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # The selector resolves package scope before dependency setup or builds.
-    # !cancelled() lets this condition evaluate when pre-job is skipped on
-    # pull-request and merge-group events.
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -232,9 +232,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # The selector resolves package scope before dependency setup or builds.
-    # !cancelled() lets this condition evaluate when pre-job is skipped on
-    # pull-request and merge-group events.
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -293,9 +293,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # The selector resolves package scope before dependency setup or builds.
-    # !cancelled() lets this condition evaluate when pre-job is skipped on
-    # pull-request and merge-group events.
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       NODE_ENV: test
@@ -384,16 +384,16 @@ jobs:
     needs:
       - pre-job
       - select-vitest-suites
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
     if: ${{ !cancelled() && needs.select-vitest-suites.outputs.shared == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -434,9 +434,9 @@ jobs:
     needs:
       - pre-job
       - select-vitest-suites
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
     if: ${{ !cancelled() && (needs.select-vitest-suites.outputs.web == 'true' || needs.select-vitest-suites.outputs.worker == 'true') && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       COMPONENT: ${{ matrix.component }}
@@ -520,9 +520,9 @@ jobs:
     needs:
       - pre-job
       - select-vitest-suites
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
     if: ${{ !cancelled() && needs.select-vitest-suites.outputs.web == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
@@ -535,7 +535,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
           persist-credentials: false
       - name: Install golang-migrate for Clickhouse migrations in background
         # Only needed by the "Migrate DB" step, so let the dependency setup
@@ -700,7 +700,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -742,9 +742,9 @@ jobs:
     needs:
       - pre-job
       - select-vitest-suites
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
     if: ${{ !cancelled() && needs.select-vitest-suites.outputs.worker == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
@@ -757,7 +757,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
