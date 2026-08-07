@@ -79,12 +79,14 @@ function windowElement(
 ) {
   const props: InAppAgentWindowProps = {
     conversations: [],
+    canLeaveRunningConversation: false,
     error: null,
     executionUi: { type: "foreground" },
     hasMoreConversations: false,
     isAssistantTurnInProgress: false,
     isExpanded: false,
     isConversationInteractionDisabled: false,
+    isSelectedConversationHydrating: false,
     isLoadingMoreConversations: false,
     messages: [],
     onApproveToolCall: vi.fn(),
@@ -178,6 +180,26 @@ describe("InAppAgentWindow quick actions", () => {
     expect(capture).toHaveBeenCalledTimes(1);
   });
 
+  it("does not offer quick actions while a conversation is still loading", () => {
+    // Switching conversations empties the transcript before the next one
+    // arrives. Showing the welcome screen there flashes the wrong thing and
+    // invites a click that would start a turn in the conversation being left.
+    render(
+      windowElement({
+        messages: [],
+        selectedConversationId: "conversation-1",
+        isSelectedConversationHydrating: true,
+      }),
+    );
+
+    expect(
+      screen.queryByText("Welcome to the Langfuse Assistant"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Create a prompt/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows focused actions on the initial tab and coarse actions elsewhere", () => {
     render(
       windowElement({
@@ -268,10 +290,18 @@ describe("ControlledInAppAgentWindow composer", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("keeps navigation disabled while an approval is pending", () => {
+  it("blocks another turn here but still lets you leave, on the background path", () => {
+    // A parked approval owns this conversation's composer, not the whole
+    // assistant: a background run is durable, so leaving does not abandon it.
     controlledAgent.value.isRunning = false;
     controlledAgent.value.pendingToolApprovals = [{ id: "approval-1" }];
     controlledAgent.value.submit = vi.fn();
+    controlledAgent.value.execution = {
+      type: "background",
+      run: null,
+      isCancelling: false,
+      cancel: vi.fn(),
+    };
 
     render(
       <TooltipProvider>
@@ -288,6 +318,32 @@ describe("ControlledInAppAgentWindow composer", () => {
       screen.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Conversation history" }),
+    ).toBeEnabled();
+  });
+
+  it("keeps you pinned to the conversation while a foreground turn runs", () => {
+    // A foreground run dies with its request, so navigating away would abandon
+    // it. Enabling these controls made them look clickable and do nothing.
+    controlledAgent.value.isRunning = true;
+    controlledAgent.value.pendingToolApprovals = [];
+    controlledAgent.value.execution = { type: "foreground" };
+
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
     expect(
       screen.getByRole("button", { name: "Start new conversation" }),
     ).toBeDisabled();

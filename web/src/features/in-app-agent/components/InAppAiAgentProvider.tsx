@@ -334,7 +334,17 @@ function InAppAiAgentProviderInner({
   >([]);
   const [isForegroundRunning, setIsForegroundRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  /**
+   * Which conversation has a turn being submitted, not whether one is.
+   *
+   * Keyed because submitting into a *new* conversation resets the agent for the
+   * old one, and an unkeyed release would drop the lock the submit had just
+   * taken. Everything user-facing derives from whether this names the
+   * conversation currently on screen.
+   */
+  const [submittingConversationId, setSubmittingConversationId] = useState<
+    string | null
+  >(null);
   const [loadingEventIds, setLoadingEventIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -349,7 +359,7 @@ function InAppAiAgentProviderInner({
   const backgroundExecutionEnabled =
     useInAppAgentBackgroundExecutionEnabled(projectId);
   const intentionalAbortRef = useRef(false);
-  const submitInFlightRef = useRef(false);
+  const submitInFlightRef = useRef<string | null>(null);
   const runInFlightRef = useRef(false);
   const subscriptionRef = useRef<ReturnType<AbstractAgent["subscribe"]> | null>(
     null,
@@ -369,7 +379,25 @@ function InAppAiAgentProviderInner({
       conversationId: _selectedConversationId ?? "",
     },
     {
-      enabled: open && Boolean(_selectedConversationId) && !isSubmitting,
+      /**
+       * The submit lock suppresses this refetch only on the foreground path,
+       * where the in-flight turn lives in memory and a snapshot would flash the
+       * transcript backwards to before the user's message.
+       *
+       * A background submit commits its user message before the run starts, so
+       * the snapshot is already correct and the suppression would instead be
+       * harmful: the lock is held for the whole run, so returning to a
+       * still-running conversation would find this query disabled, no session
+       * (leaving disposed it) and therefore nothing to render at all.
+       *
+       * Keyed against the raw id because `selectedConversationId` is derived
+       * from this very query's error state.
+       */
+      enabled:
+        open &&
+        Boolean(_selectedConversationId) &&
+        (backgroundExecutionEnabled ||
+          submittingConversationId !== _selectedConversationId),
     },
   );
   const deleteConversationMutation =
@@ -384,6 +412,10 @@ function InAppAiAgentProviderInner({
   const selectedConversationId = isSelectedConversationNotFound
     ? null
     : _selectedConversationId;
+  // A submit into another conversation must not make this one look busy.
+  const isSubmitting =
+    submittingConversationId !== null &&
+    submittingConversationId === selectedConversationId;
 
   const conversations = useMemo(
     () =>
@@ -959,9 +991,21 @@ function InAppAiAgentProviderInner({
     ],
   );
 
-  const releaseSubmitLock = useCallback(() => {
-    submitInFlightRef.current = false;
-    setIsSubmitting(false);
+  /**
+   * Release the submit lock, but only if it still belongs to the conversation
+   * the caller is finishing. A later submit into another conversation owns the
+   * lock by then and must keep it.
+   */
+  const releaseSubmitLock = useCallback((conversationId: string | null) => {
+    if (
+      conversationId !== null &&
+      submitInFlightRef.current !== conversationId
+    ) {
+      return;
+    }
+
+    submitInFlightRef.current = null;
+    setSubmittingConversationId(null);
   }, []);
 
   const getOrCreateAgent = useCallback(
@@ -1102,7 +1146,7 @@ function InAppAiAgentProviderInner({
               projectId,
               conversationId,
             });
-            releaseSubmitLock();
+            releaseSubmitLock(conversationId);
             activeRunIdRef.current = null;
             intentionalAbortRef.current = false;
           },
@@ -1211,7 +1255,7 @@ function InAppAiAgentProviderInner({
             projectId,
             conversationId,
           });
-          releaseSubmitLock();
+          releaseSubmitLock(conversationId);
           activeRunIdRef.current = null;
           intentionalAbortRef.current = false;
           runInFlightRef.current = false;
@@ -1231,7 +1275,14 @@ function InAppAiAgentProviderInner({
 
   const selectConversation = useCallback(
     (conversationId: string | null) => {
-      if (isRunning || conversationId === _selectedConversationId) {
+      if (conversationId === _selectedConversationId) {
+        return;
+      }
+
+      // Leaving a running conversation is allowed: `resetAgent` only detaches
+      // this browser's observation, and the run itself is durable server-side.
+      // Foreground runs cannot outlive the request, so they still hold on.
+      if (isRunning && !backgroundExecutionEnabled) {
         return;
       }
 
@@ -1242,7 +1293,13 @@ function InAppAiAgentProviderInner({
       setForegroundMessages([]);
       setSelectedConversationId(conversationId);
     },
-    [_selectedConversationId, isRunning, resetAgent, setSelectedConversationId],
+    [
+      _selectedConversationId,
+      backgroundExecutionEnabled,
+      isRunning,
+      resetAgent,
+      setSelectedConversationId,
+    ],
   );
 
   const deleteConversation = useCallback(
@@ -1302,43 +1359,49 @@ function InAppAiAgentProviderInner({
 
   const submit = useCallback(
     async (content: string, options?: InAppAgentSubmitOptions) => {
+      // Resolve the target conversation before guarding on it. `isRunning`,
+      // hydration and the write lock all describe the *selected* conversation,
+      // so testing them against a brand-new conversation would refuse a turn
+      // the user is entitled to start while something else is still running.
+      const isNewConversation =
+        options?.newConversation === true || !selectedConversationId;
+      const conversationId = isNewConversation
+        ? createInAppAgentConversationId()
+        : selectedConversationId;
+
       if (
         !content ||
-        isRunning ||
+        !conversationId ||
         isInAppAgentRateLimited(error) ||
-        (options?.newConversation !== true &&
-          isSelectedConversationHydrating) ||
-        submitInFlightRef.current ||
-        runInFlightRef.current
+        runInFlightRef.current ||
+        // A turn already going into this same conversation is the only
+        // submit-side conflict; one per conversation remains the rule.
+        submitInFlightRef.current === conversationId
       ) {
         return false;
       }
 
-      submitInFlightRef.current = true;
-      setIsSubmitting(true);
+      if (
+        !isNewConversation &&
+        (isRunning || isSelectedConversationHydrating)
+      ) {
+        return false;
+      }
+
+      if (!isNewConversation && selectedConversationIsWriteLocked) {
+        setError({
+          type: "generic",
+          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+        });
+        return false;
+      }
+
+      submitInFlightRef.current = conversationId;
+      setSubmittingConversationId(conversationId);
       setError(null);
 
       let startedRun = false;
       try {
-        const isNewConversation =
-          options?.newConversation === true || !selectedConversationId;
-
-        if (!isNewConversation && selectedConversationIsWriteLocked) {
-          setError({
-            type: "generic",
-            message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-          });
-          return false;
-        }
-
-        const conversationId = isNewConversation
-          ? createInAppAgentConversationId()
-          : selectedConversationId;
-
-        if (!conversationId) {
-          return false;
-        }
-
         if (isNewConversation) {
           setSelectedConversationId(conversationId);
         }
@@ -1433,7 +1496,7 @@ function InAppAiAgentProviderInner({
         return false;
       } finally {
         if (!startedRun) {
-          releaseSubmitLock();
+          releaseSubmitLock(conversationId);
         }
       }
     },
@@ -1577,7 +1640,7 @@ function InAppAiAgentProviderInner({
 
         if (backgroundExecutionEnabled) {
           backgroundSessionRef.current?.detach();
-          releaseSubmitLock();
+          releaseSubmitLock(selectedConversationId);
         }
       }
 
