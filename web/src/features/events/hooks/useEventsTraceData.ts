@@ -132,7 +132,34 @@ export function useEventsTraceData(
 
   // Step 5: Transform and merge data
   const transformed = useMemo(() => {
-    if (!observations?.length) return null;
+    if (!observations) return null; // query still in-flight
+    if (observations.length === 0) {
+      // Query completed but the trace has no observations. Return a minimal shell
+      // so callers don't confuse "no data" with "still loading".
+      const now = new Date();
+      return {
+        id: traceId,
+        name: null,
+        timestamp: now,
+        environment: "",
+        tags: [],
+        bookmarked: false,
+        public: false,
+        release: null,
+        version: null,
+        metadata: null,
+        createdAt: now,
+        updatedAt: now,
+        sessionId: null,
+        userId: null,
+        projectId,
+        input: null,
+        output: null,
+        observations: [] as AdaptedTraceData["observations"],
+        scores: [] as WithStringifiedMetadata<ScoreDomain>[],
+        corrections: [] as ScoreDomain[],
+      };
+    }
 
     // Validate and partition scores
     const validatedScores = filterAndValidateDbScoreList({
