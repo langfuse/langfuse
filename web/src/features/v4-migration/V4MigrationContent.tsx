@@ -59,6 +59,7 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
+import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -171,6 +172,40 @@ function ExternalLink({
   );
 }
 
+// Evidence deep-link filter for one SDK usage series: always the exact public
+// key, plus the ingestion SDK name/version when the series carries exact
+// values — so two SDK versions on the same key link to distinct result sets.
+// "unknown" is the attribution fallback bucket, not an exact value, so those
+// dimensions fall back to key-only. The delayed-OTel `source` dimension is
+// deliberately not linked either: it is a prefix match, not an exact one.
+function buildSdkUsageEvidenceFilter(usage: V4MigrationSdkUsageSeries): string {
+  const filters: FilterState = [
+    {
+      column: "ingestionApiKey",
+      type: "stringOptions",
+      operator: "any of",
+      value: [usage.publicKey],
+    },
+  ];
+  if (usage.sdkName !== "unknown") {
+    filters.push({
+      column: "ingestionSdkName",
+      type: "stringOptions",
+      operator: "any of",
+      value: [usage.sdkName],
+    });
+  }
+  if (usage.sdkVersion !== "unknown") {
+    filters.push({
+      column: "ingestionSdkVersion",
+      type: "stringOptions",
+      operator: "any of",
+      value: [usage.sdkVersion],
+    });
+  }
+  return encodeFiltersGeneric(filters);
+}
+
 function SdkUsageSeriesRows({
   series,
   needsAction,
@@ -222,16 +257,16 @@ function SdkUsageSeriesRows({
             {/* Metadata line, indented under the label (emoji + gap). */}
             <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
               {/* Deep link to the exact evidence: the events table filtered by
-                  this public key over the same lookback window the detection
-                  used. Only the key is a supported, exact filter dimension;
-                  SDK version and OTel source stay plain text. */}
+                  this public key (plus SDK name/version when attributed) over
+                  the same lookback window the detection used; see
+                  buildSdkUsageEvidenceFilter. */}
               {projectId && usage.publicKey ? (
                 <Link
                   // The events page's `filter` param carries the semicolon
                   // filter encoding (column;type;key;operator;value), not the
                   // search-bar grammar; the bar re-derives its text from it.
                   href={`/project/${projectId}/observations?filter=${encodeURIComponent(
-                    `ingestionApiKey;stringOptions;;any of;${usage.publicKey}`,
+                    buildSdkUsageEvidenceFilter(usage),
                   )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`}
                   onClick={onNavigate}
                   className="underline"

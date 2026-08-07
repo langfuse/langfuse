@@ -227,6 +227,38 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.query).not.toContain("FINAL");
   });
 
+  it.each([
+    // The SDK attribution columns default to the 'unknown' placeholder
+    // (clickhouse migration 0042), so their facets must exclude it;
+    // events_core.source has no such placeholder (plain '' default).
+    ["ingestionSdkName", "e.ingestion_sdk_name", true],
+    ["ingestionSdkVersion", "e.ingestion_sdk_version", true],
+    ["ingestionSource", "e.source", false],
+  ] as const)(
+    "builds %s filter options from ingestion attribution",
+    (column, expression, excludesUnknownPlaceholder) => {
+      const built = buildEventsFilterOptionColumnQuery({
+        projectId: "test-project",
+        filter: [],
+        column,
+        limit: 10,
+      });
+
+      expect(built).not.toBeNull();
+      if (!built) throw new Error("expected query");
+
+      expect(built.query).toContain(`'${column}' AS column`);
+      expect(built.query).toContain(`toString(${expression}) AS value`);
+      expect(built.query).toContain(`length(${expression}) > 0`);
+      if (excludesUnknownPlaceholder) {
+        expect(built.query).toContain(`${expression} != 'unknown'`);
+      } else {
+        expect(built.query).not.toContain("!= 'unknown'");
+      }
+      expect(built.query).not.toContain("FINAL");
+    },
+  );
+
   it("maps API key filters to the ingestion attribution column", () => {
     const [filter] = createFilterFromFilterState(
       [
@@ -247,6 +279,34 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(applied.query).toContain('e."ingestion_api_key" IN');
     expect(Object.values(applied.params)).toContainEqual(["pk-lf-test"]);
   });
+
+  it.each([
+    ["ingestionSdkName", 'e."ingestion_sdk_name" IN', "python"],
+    ["ingestionSdkVersion", 'e."ingestion_sdk_version" IN', "4.7.1"],
+    ["ingestionSource", 'e."source" IN', "otel"],
+  ] as const)(
+    "maps %s filters to the ingestion attribution column",
+    (column, expectedClause, value) => {
+      const [filter] = createFilterFromFilterState(
+        [
+          {
+            column,
+            type: "stringOptions",
+            operator: "any of",
+            value: [value],
+          },
+        ],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
+
+      expect(filter).toBeDefined();
+      if (!filter) throw new Error("expected filter");
+      const applied = filter.apply();
+      expect(applied.query).toContain(expectedClause);
+      expect(Object.values(applied.params)).toContainEqual([value]);
+    },
+  );
 
   it("maps release filters to the observation release column", () => {
     const [filter] = createFilterFromFilterState(
