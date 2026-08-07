@@ -192,4 +192,26 @@ describe("IOTableCell media chip rendering", () => {
 
     expect(container.textContent).toContain("truncated");
   });
+
+  it("multi-line: scrollable content is not clipped by an inner overflow-hidden", () => {
+    // Regression for #15631: the JSONView content div used to carry
+    // `overflow-hidden`, which clipped text that overflowed the fixed table
+    // row height (h-24) before the scrollable `io-message-content` wrapper
+    // could scroll it — long cell text became unreachable. The scroll container
+    // must remain the outermost overflow so `overflow-y-auto` can take effect.
+    const { container } = renderCell({
+      data: "y".repeat(2000),
+      singleLine: false,
+    });
+
+    const scrollContainer = container.querySelector(
+      ".io-message-content.overflow-y-auto",
+    );
+    expect(scrollContainer).not.toBeNull();
+
+    // The JSONView body div must not force `overflow-hidden` on top of the
+    // scroll container (this was the regression from #14489).
+    const contentDiv = scrollContainer?.querySelector(".flex-1");
+    expect(contentDiv?.classList.contains("overflow-hidden")).toBe(false);
+  });
 });
