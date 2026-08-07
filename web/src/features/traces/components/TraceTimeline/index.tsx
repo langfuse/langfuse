@@ -58,6 +58,7 @@ import {
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
 import { type TreeNode } from "../../fns/types";
+import { traceLevelScoreOwnerIds } from "../../fns/node-scores";
 import { cn } from "@/src/utils/tailwind";
 
 // Width of the left name gutter. Resizable; these bound it. Kept slim so the
@@ -462,25 +463,37 @@ export function TraceTimeline() {
   const parentTotalDuration = traceDuration * 1000;
 
   // Score lookup: one pass over the scores instead of an O(scores) filter per
-  // row per render. Two maps preserve the exact TRACE-vs-observation keying:
-  // trace rows show every score of the trace, observation rows only their own.
+  // row per render. Two maps preserve the TRACE-vs-observation keying: trace
+  // rows show every score of the trace, observation rows their own plus — for
+  // the top-level span of a TRACE-less v4 tree — the trace-level ones.
   const { scoresByObservationId, scoresByTraceId } = useMemo(() => {
     const byObservation = new Map<string, typeof scores>();
     const byTrace = new Map<string, typeof scores>();
+    // Without a TRACE row (v4) the top-level span owns trace-level scores.
+    const traceLevelOwnerIds = traceLevelScoreOwnerIds(roots);
+    const pushTo = (
+      map: Map<string, typeof scores>,
+      key: string,
+      score: (typeof scores)[number],
+    ) => {
+      const arr = map.get(key);
+      if (arr) arr.push(score);
+      else map.set(key, [score]);
+    };
     for (const score of scores) {
       if (score.observationId) {
-        const arr = byObservation.get(score.observationId);
-        if (arr) arr.push(score);
-        else byObservation.set(score.observationId, [score]);
+        pushTo(byObservation, score.observationId, score);
+      } else {
+        for (const ownerId of traceLevelOwnerIds) {
+          pushTo(byObservation, ownerId, score);
+        }
       }
       if (score.traceId) {
-        const arr = byTrace.get(score.traceId);
-        if (arr) arr.push(score);
-        else byTrace.set(score.traceId, [score]);
+        pushTo(byTrace, score.traceId, score);
       }
     }
     return { scoresByObservationId: byObservation, scoresByTraceId: byTrace };
-  }, [scores]);
+  }, [scores, roots]);
 
   const totalSize = rowVirtualizer.getTotalSize();
   const virtualItems = rowVirtualizer.getVirtualItems();
