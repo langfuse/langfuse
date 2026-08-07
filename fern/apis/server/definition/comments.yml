@@ -44,6 +44,23 @@ service:
           type: string
           docs: The unique langfuse identifier of a comment
       response: commons.Comment
+
+    patch:
+      docs: Update a comment's content. Only the content field is mutable; other comment fields (objectId, objectType, authorUserId) cannot be changed via PATCH.
+      method: PATCH
+      path: /comments/{commentId}
+      path-parameters:
+        commentId:
+          type: string
+          docs: The unique langfuse identifier of a comment
+      request:
+        name: PatchCommentRequest
+        body:
+          properties:
+            content:
+              type: string
+              docs: New content for the comment. Same 1-5000 character limit as the create endpoint.
+      response: commons.Comment
 types:
   CreateCommentRequest:
     properties:
