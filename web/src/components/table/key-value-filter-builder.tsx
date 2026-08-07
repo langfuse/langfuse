@@ -128,12 +128,16 @@ function SuggestingInput({
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const ranked = useMemo(
-    () => rankFacetOptions(suggestions, value).slice(0, MAX_SUGGESTIONS),
+    // Never offer what is already typed: each keystroke commits the row, so the
+    // in-progress key comes back around as an "observed" key of its own.
+    () =>
+      rankFacetOptions(
+        suggestions.filter((s) => s !== value),
+        value,
+      ).slice(0, MAX_SUGGESTIONS),
     [suggestions, value],
   );
-  // Nothing left to offer once the input already IS the only match.
-  const exhausted = ranked.length === 1 && ranked[0] === value;
-  const open = focused && !dismissed && ranked.length > 0 && !exhausted;
+  const open = focused && !dismissed && ranked.length > 0;
   const active = open && activeIndex >= 0 ? ranked[activeIndex] : undefined;
 
   const accept = (suggestion: string) => {
@@ -155,11 +159,10 @@ function SuggestingInput({
         setDismissed(false);
         return;
       }
+      // Cycle through [-1 (nothing active), 0 … n-1] in both directions.
       const step = event.key === "ArrowDown" ? 1 : -1;
-      setActiveIndex(
-        (current) =>
-          ((current + step + ranked.length + 1) % (ranked.length + 1)) - 1,
-      );
+      const slots = ranked.length + 1;
+      setActiveIndex((current) => ((current + 1 + step + slots) % slots) - 1);
       return;
     }
     if (event.key === "Enter" && active !== undefined) {
@@ -488,7 +491,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   <SuggestingInput
                     value={filter.key}
                     onChange={(key) => handleFilterChange(index, { key })}
-                    suggestions={suggestKeys ? mergedKeyOptions : []}
+                    suggestions={suggestKeys ? (keyOptions ?? []) : []}
                     details={keyDetails}
                     placeholder={keyPlaceholder}
                   />
