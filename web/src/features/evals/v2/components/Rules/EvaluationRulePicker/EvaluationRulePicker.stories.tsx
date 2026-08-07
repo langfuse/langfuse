@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import { fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../../../.storybook/preview";
@@ -12,8 +13,10 @@ const rules = [
 
 export const WithRules = meta.story({
   args: {
-    trigger: (open) => (
-      <Button type="button">{open ? "Close" : "Attach to rule"}</Button>
+    children: (open) => (
+      <PopoverTrigger asChild>
+        <Button type="button">{open ? "Close" : "Attach to rule"}</Button>
+      </PopoverTrigger>
     ),
     disabledRules: [
       {
@@ -29,7 +32,11 @@ export const WithRules = meta.story({
 
 export const Loading = meta.story({
   args: {
-    trigger: () => <Button type="button">Attach to rule</Button>,
+    children: () => (
+      <PopoverTrigger asChild>
+        <Button type="button">Attach to rule</Button>
+      </PopoverTrigger>
+    ),
     disabledRules: [],
     availableRules: [],
     defaultOpen: true,
@@ -41,7 +48,11 @@ export const Loading = meta.story({
 
 export const NoAvailableRules = meta.story({
   args: {
-    trigger: () => <Button type="button">Attach to rule</Button>,
+    children: () => (
+      <PopoverTrigger asChild>
+        <Button type="button">Attach to rule</Button>
+      </PopoverTrigger>
+    ),
     disabledRules: [],
     availableRules: [],
     defaultOpen: true,
@@ -53,7 +64,11 @@ export const NoAvailableRules = meta.story({
 export const NoMatches = meta.story({
   name: "(Test) Filters to No Matches",
   args: {
-    trigger: () => <Button type="button">Attach to rule</Button>,
+    children: () => (
+      <PopoverTrigger asChild>
+        <Button type="button">Attach to rule</Button>
+      </PopoverTrigger>
+    ),
     disabledRules: [],
     availableRules: rules,
     onSelectAvailableRule: fn(),

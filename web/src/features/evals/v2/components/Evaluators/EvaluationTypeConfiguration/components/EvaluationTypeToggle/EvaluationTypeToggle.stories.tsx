@@ -6,7 +6,11 @@ import preview from "../../../../../../../../../.storybook/preview";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { EvaluationTypeToggle } from "./EvaluationTypeToggle";
-import { JudgeModelPicker } from "@/src/features/evals/v2/components/ModelPicker/JudgeModelPicker/JudgeModelPicker";
+import { PopoverTrigger } from "@/src/components/ui/popover";
+import {
+  JudgeModelPicker,
+  JudgeModelPickerTrigger,
+} from "@/src/features/evals/v2/components/ModelPicker/JudgeModelPicker/JudgeModelPicker";
 
 const meta = preview.meta({ component: EvaluationTypeToggle });
 
@@ -76,7 +80,6 @@ export const WithJudgeModel = meta.story({
                 ["Anthropic", ["claude-sonnet-4"]],
               ]}
               selectedModel={selectedModel}
-              disabled={false}
               onModeChange={setJudgeModelMode}
               onSelectCustom={(model) => {
                 setSelectedModel(model);
@@ -84,7 +87,19 @@ export const WithJudgeModel = meta.story({
               }}
               onConfigureProviders={fn()}
               onConfigureDefault={fn()}
-            />
+            >
+              <PopoverTrigger asChild>
+                <JudgeModelPickerTrigger
+                  mode={judgeModelMode}
+                  defaultModel={{
+                    provider: "OpenAI",
+                    model: "gpt-4.1-mini",
+                  }}
+                  selectedModel={selectedModel}
+                  disabled={false}
+                />
+              </PopoverTrigger>
+            </JudgeModelPicker>
           </>
         ) : null}
       </div>

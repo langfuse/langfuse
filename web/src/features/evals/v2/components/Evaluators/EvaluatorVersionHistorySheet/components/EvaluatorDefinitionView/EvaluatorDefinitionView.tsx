@@ -8,9 +8,13 @@ import {
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { Badge } from "@/src/components/ui/badge";
 import { Label } from "@/src/components/ui/label";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import { EvaluatorCodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/Code/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
 import { EvaluationTypeConfiguration } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/EvaluationTypeConfiguration";
-import { JudgeModelPicker } from "@/src/features/evals/v2/components/ModelPicker/JudgeModelPicker/JudgeModelPicker";
+import {
+  JudgeModelPicker,
+  JudgeModelPickerTrigger,
+} from "@/src/features/evals/v2/components/ModelPicker/JudgeModelPicker/JudgeModelPicker";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
 import { ScoreOutputConfiguration } from "@/src/features/evals/v2/components/Evaluators/Judges/ScoreOutputConfiguration/ScoreOutputConfiguration";
 import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
@@ -116,12 +120,20 @@ function LlmEvaluatorDefinitionView({
           defaultModel={definition.defaultModel}
           providerGroups={[]}
           selectedModel={definition.selectedModel}
-          disabled
           onModeChange={noop}
           onSelectCustom={noop}
           onConfigureProviders={noop}
           onConfigureDefault={noop}
-        />
+        >
+          <PopoverTrigger asChild>
+            <JudgeModelPickerTrigger
+              mode={definition.selectedModel ? "custom" : "default"}
+              defaultModel={definition.defaultModel}
+              selectedModel={definition.selectedModel}
+              disabled
+            />
+          </PopoverTrigger>
+        </JudgeModelPicker>
       </EvaluationTypeConfiguration>
       <section className="flex min-w-0 flex-col gap-2">
         <Label>Prompt</Label>
