@@ -57,6 +57,26 @@ const MODE_OPTIONS: StripMode[] = ["count", "cost", "latency"];
 const modeLabel = (mode: StripMode): string =>
   OUTLIER_STRIP_METRICS[mode].shortLabel;
 
+type DropdownMenuControl = Parameters<
+  React.ComponentProps<typeof DropdownMenuController>["children"]
+>[0];
+
+const ModeDropdownTrigger = ({
+  mode,
+  Trigger,
+}: {
+  mode: StripMode;
+  Trigger: DropdownMenuControl["Trigger"];
+}) => (
+  <Trigger
+    aria-label={`Chart mode: ${modeLabel(mode)}`}
+    className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[13px] leading-none font-bold"
+  >
+    {modeLabel(mode)}
+    <ChevronDown className="h-2.5 w-2.5" />
+  </Trigger>
+);
+
 /**
  * Prevent Radix's close-refocus ONLY after a pointer-driven selection — the
  * programmatic refocus renders as a keyboard-style outline on the trigger.
@@ -379,13 +399,7 @@ export function EventsOutlierStrip({
                   onChange={handleModeChange}
                 >
                   {({ Trigger }) => (
-                    <Trigger
-                      aria-label={`Chart mode: ${modeLabel(mode)}`}
-                      className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[13px] leading-none font-bold"
-                    >
-                      {modeLabel(mode)}
-                      <ChevronDown className="h-2.5 w-2.5" />
-                    </Trigger>
+                    <ModeDropdownTrigger mode={mode} Trigger={Trigger} />
                   )}
                 </ModeDropdownController>
               </div>
@@ -423,13 +437,7 @@ export function EventsOutlierStrip({
                   onChange={handleModeChange}
                 >
                   {({ Trigger }) => (
-                    <Trigger
-                      aria-label={`Chart mode: ${modeLabel(mode)}`}
-                      className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[13px] leading-none font-bold"
-                    >
-                      {modeLabel(mode)}
-                      <ChevronDown className="h-2.5 w-2.5" />
-                    </Trigger>
+                    <ModeDropdownTrigger mode={mode} Trigger={Trigger} />
                   )}
                 </ModeDropdownController>
                 {/* The bar's aggregate must be legible where there is a
