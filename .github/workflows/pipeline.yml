@@ -80,6 +80,29 @@ jobs:
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
 
+  select-vitest-suites:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      full: ${{ steps.select.outputs.full }}
+      shared: ${{ steps.select.outputs.shared }}
+      web: ${{ steps.select.outputs.web }}
+      worker: ${{ steps.select.outputs.worker }}
+      docker-matrix: ${{ steps.select.outputs.docker-matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Test selection policy
+        run: node --no-warnings --experimental-strip-types --test scripts/vitest/shared-package-vcs-provider.test.ts
+      - name: Select Vitest suites
+        id: select
+        run: node --no-warnings --experimental-strip-types scripts/vitest/print-test-scopes.ts "$VITEST_CHANGED_SINCE"
+
   llm-connections-filter:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
@@ -109,9 +132,9 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -175,9 +198,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -209,9 +232,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -270,9 +293,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       NODE_ENV: test
@@ -360,10 +383,11 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - select-vitest-suites
     # pre-job only runs on push events; everywhere else it resolves as skipped
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    if: ${{ !cancelled() && needs.select-vitest-suites.outputs.shared == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       NODE_ENV: test
     steps:
@@ -395,8 +419,6 @@ jobs:
           cp .env.dev.example .env
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
-      - name: test affected-test selection policy
-        run: node --no-warnings --experimental-strip-types --test scripts/vitest/shared-package-vcs-provider.test.ts
       - name: run shared tests
         run: |
           changed_args=()
@@ -411,24 +433,16 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs:
       - pre-job
+      - select-vitest-suites
     # pre-job only runs on push events; everywhere else it resolves as skipped
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    if: ${{ !cancelled() && (needs.select-vitest-suites.outputs.web == 'true' || needs.select-vitest-suites.outputs.worker == 'true') && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       DOCKER_COMPOSE_FILE: docker-compose.build.yml
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - component: web
-            service: langfuse-web
-            runner: blacksmith-8vcpu-ubuntu-2404
-            health_url: http://localhost:3000/api/public/health
-          - component: worker
-            service: langfuse-worker
-            runner: blacksmith-4vcpu-ubuntu-2404
-            health_url: http://localhost:3030/api/health
+      matrix: ${{ fromJSON(needs.select-vitest-suites.outputs.docker-matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -502,10 +516,11 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
+      - select-vitest-suites
     # pre-job only runs on push events; everywhere else it resolves as skipped
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    if: ${{ !cancelled() && needs.select-vitest-suites.outputs.web == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
       NODE_ENV: test
@@ -677,7 +692,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - select-vitest-suites
+    if: ${{ !cancelled() && needs.select-vitest-suites.outputs.web == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -722,10 +738,11 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - select-vitest-suites
     # pre-job only runs on push events; everywhere else it resolves as skipped
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    if: ${{ !cancelled() && needs.select-vitest-suites.outputs.worker == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
       NODE_ENV: test
@@ -1147,6 +1164,7 @@ jobs:
         e2e-tests,
         test-docker-build,
         e2e-server-tests,
+        select-vitest-suites,
       ]
     if: always()
     permissions:

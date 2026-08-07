@@ -14,7 +14,48 @@ import {
   addForceFullRunTrigger,
   addSharedPackageBuildOutputs,
   createSharedPackageVcsProvider,
+  selectTestScopes,
 } from "./shared-package-vcs-provider.ts";
+
+test("selects package test jobs before their builds", () => {
+  const repositoryRoot = "/repo";
+  const file = (path: string) => join(repositoryRoot, path);
+
+  assert.deepEqual(selectTestScopes([], repositoryRoot, false), {
+    full: true,
+    shared: true,
+    web: true,
+    worker: true,
+  });
+  assert.deepEqual(
+    selectTestScopes([file(".vitest-force-full-run")], repositoryRoot),
+    { full: true, shared: true, web: true, worker: true },
+  );
+  assert.deepEqual(
+    selectTestScopes([file("packages/shared/src/index.ts")], repositoryRoot),
+    { full: false, shared: true, web: true, worker: true },
+  );
+  assert.deepEqual(
+    selectTestScopes([file("web/src/example.ts")], repositoryRoot),
+    { full: false, shared: false, web: true, worker: false },
+  );
+  assert.deepEqual(
+    selectTestScopes([file("ee/src/example.ts")], repositoryRoot),
+    { full: false, shared: false, web: true, worker: false },
+  );
+  assert.deepEqual(
+    selectTestScopes([file("worker/src/example.ts")], repositoryRoot),
+    { full: false, shared: false, web: false, worker: true },
+  );
+  assert.deepEqual(
+    selectTestScopes([file("docs/example.md")], repositoryRoot),
+    { full: false, shared: false, web: false, worker: false },
+  );
+  assert.deepEqual(
+    selectTestScopes([file("unknown/input.txt")], repositoryRoot),
+    { full: true, shared: true, web: true, worker: true },
+  );
+});
 
 test("forces full runs for global test inputs", () => {
   const repositoryRoot = "/repo";

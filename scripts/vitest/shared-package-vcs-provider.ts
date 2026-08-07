@@ -34,6 +34,60 @@ export const FORCE_RERUN_TRIGGERS = [
 ];
 export const FORCE_FULL_RUN_TRIGGER = "**/.vitest-force-full-run";
 
+export type TestScopes = {
+  full: boolean;
+  shared: boolean;
+  web: boolean;
+  worker: boolean;
+};
+
+const ALL_TEST_SCOPES: TestScopes = {
+  full: true,
+  shared: true,
+  web: true,
+  worker: true,
+};
+
+export function selectTestScopes(
+  changedFiles: string[],
+  repositoryRoot: string,
+  hasChangedBase = true,
+): TestScopes {
+  if (
+    !hasChangedBase ||
+    changedFiles.includes(join(repositoryRoot, ".vitest-force-full-run"))
+  ) {
+    return ALL_TEST_SCOPES;
+  }
+
+  const scopes: TestScopes = {
+    full: false,
+    shared: false,
+    web: false,
+    worker: false,
+  };
+
+  for (const file of changedFiles) {
+    const path = relative(repositoryRoot, file).replaceAll("\\", "/");
+
+    if (path.startsWith("packages/shared/")) {
+      scopes.shared = true;
+      scopes.web = true;
+      scopes.worker = true;
+    } else if (path.startsWith("web/") || path.startsWith("ee/")) {
+      scopes.web = true;
+    } else if (path.startsWith("worker/")) {
+      scopes.worker = true;
+    } else if (path.startsWith("docs/") || path.endsWith(".md")) {
+      continue;
+    } else {
+      return ALL_TEST_SCOPES;
+    }
+  }
+
+  return scopes;
+}
+
 async function runGit(root: string, args: string[]) {
   const { stdout } = await execFileAsync("git", ["-C", root, ...args], {
     encoding: "utf8",
