@@ -1,27 +1,27 @@
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { type ReactNode, useState } from "react";
-import {
-  PopoverController,
-  type PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { useState } from "react";
+import type * as React from "react";
+import { PopoverController } from "@/src/components/ui/popover";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { toast } from "sonner";
+
+type RetryBackgroundMigrationProps = {
+  backgroundMigrationName: string;
+  isRetryable: boolean;
+  children: (
+    control: Parameters<
+      React.ComponentProps<typeof PopoverController>["children"]
+    >[0] & { disabled: boolean },
+  ) => React.ReactNode;
+};
 
 export function RetryBackgroundMigration({
   backgroundMigrationName,
   isRetryable,
   children,
-}: {
-  backgroundMigrationName: string;
-  isRetryable: boolean;
-  children: (control: {
-    disabled: boolean;
-    isOpen: boolean;
-    Trigger: typeof PopoverTrigger;
-  }) => ReactNode;
-}) {
+}: RetryBackgroundMigrationProps) {
   const utils = api.useUtils();
   const [adminApiKey, setAdminApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);

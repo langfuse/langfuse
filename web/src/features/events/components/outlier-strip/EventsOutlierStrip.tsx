@@ -1,4 +1,5 @@
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -7,7 +8,6 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import {
   DropdownMenuController,
   DropdownMenuItem,
-  type DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { toChartFilters } from "@/src/features/chart-view/lib/chartFilterCompatibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -85,10 +85,7 @@ const AggDropdownController = ({
   options,
   onChange,
 }: {
-  children: (control: {
-    isOpen: boolean;
-    Trigger: typeof DropdownMenuTrigger;
-  }) => ReactNode;
+  children: React.ComponentProps<typeof DropdownMenuController>["children"];
   options: readonly OutlierStripAggKey[];
   onChange: (agg: OutlierStripAggKey) => void;
 }) => {
@@ -124,10 +121,7 @@ const ModeDropdownController = ({
   options,
   onChange,
 }: {
-  children: (control: {
-    isOpen: boolean;
-    Trigger: typeof DropdownMenuTrigger;
-  }) => ReactNode;
+  children: React.ComponentProps<typeof DropdownMenuController>["children"];
   options: StripMode[];
   onChange: (mode: StripMode) => void;
 }) => {

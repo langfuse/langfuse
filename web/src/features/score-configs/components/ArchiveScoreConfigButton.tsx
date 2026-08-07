@@ -1,13 +1,22 @@
 import { Button } from "@/src/components/ui/button";
-import {
-  PopoverController,
-  type PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { type ReactNode } from "react";
+import { PopoverController } from "@/src/components/ui/popover";
+import type * as React from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
+
+type ArchiveScoreConfigPopoverControllerProps = {
+  children: (
+    control: Parameters<
+      React.ComponentProps<typeof PopoverController>["children"]
+    >[0] & { disabled: { reason: string } | undefined },
+  ) => React.ReactNode;
+  configId: string;
+  projectId: string;
+  isArchived: boolean;
+  name: string;
+};
 
 export const ArchiveScoreConfigPopoverController = ({
   children,
@@ -15,17 +24,7 @@ export const ArchiveScoreConfigPopoverController = ({
   projectId,
   isArchived,
   name,
-}: {
-  children: (control: {
-    disabled: { reason: string } | undefined;
-    isOpen: boolean;
-    Trigger: typeof PopoverTrigger;
-  }) => ReactNode;
-  configId: string;
-  projectId: string;
-  isArchived: boolean;
-  name: string;
-}) => {
+}: ArchiveScoreConfigPopoverControllerProps) => {
   const capture = usePostHogClientCapture();
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
     useEmptyScoreConfigs();
