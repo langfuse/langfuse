@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => {
     completeMutateAsyncMock: vi.fn(),
     routerMock: {
       replace: vi.fn(),
+      query: {} as Record<string, unknown>,
     },
     statusSetDataMock: vi.fn(),
     statusUseQueryMock: vi.fn(),
@@ -62,6 +63,7 @@ describe("OnboardingSurvey", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.routerMock.query = {};
 
     onboardingStatus = { completed: false };
     mocks.statusUseQueryMock.mockImplementation(() => ({

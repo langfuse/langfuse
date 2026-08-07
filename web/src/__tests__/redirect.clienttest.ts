@@ -181,6 +181,10 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath("/my-app/project/123")).toBe(
         "/my-app/project/123",
       );
+      expect(getSafeRedirectPath("/my-app?tab=overview")).toBe(
+        "/my-app?tab=overview",
+      );
+      expect(getSafeRedirectPath("/my-app#section")).toBe("/my-app#section");
       expect(getSafeRedirectPath("/my-app/dashboard?tab=overview")).toBe(
         "/my-app/dashboard?tab=overview",
       );
@@ -193,6 +197,15 @@ describe("getSafeRedirectPath", () => {
       // Path contains basePath but doesn't start with it - should still prepend
       expect(getSafeRedirectPath("/some/my-app/path")).toBe(
         "/my-app/some/my-app/path",
+      );
+    });
+
+    it("should prepend basePath to sibling path segments with the same prefix", () => {
+      expect(getSafeRedirectPath("/my-app-config/settings")).toBe(
+        "/my-app/my-app-config/settings",
+      );
+      expect(getSafeRedirectPath("/my-application/settings")).toBe(
+        "/my-app/my-application/settings",
       );
     });
   });
@@ -364,6 +377,7 @@ describe("stripBasePath", () => {
       expect(stripBasePath("/apps/dashboard#section")).toBe(
         "/dashboard#section",
       );
+      expect(stripBasePath("/apps?foo=bar#top")).toBe("/?foo=bar#top");
       expect(stripBasePath("/apps/?foo=bar#top")).toBe("/?foo=bar#top");
     });
 
@@ -386,14 +400,25 @@ describe("stripBasePath", () => {
 
     it("does NOT strip Unicode bidi-formatting characters outside the C0 range", () => {
       // U+202E (RTL-override) is intentionally out of scope for this fix;
-      // it lives at 0x202E, beyond the 0x00-0x1F / 0x7F regex scope. The
-      // result still has a leading "/" so it survives the path-vs-leading-
-      // slash guard; downstream code decides whether to display it.
-      expect(stripBasePath("/apps\u202E/dashboard")).toBe("/\u202E/dashboard");
+      // it lives at 0x202E, beyond the 0x00-0x1F / 0x7F regex scope. It is
+      // also not a path segment boundary, so the basePath should not be
+      // stripped.
+      expect(stripBasePath("/apps\u202E/dashboard")).toBe(
+        "/apps\u202E/dashboard",
+      );
     });
 
     it("leaves paths without basePath untouched", () => {
       expect(stripBasePath("/no-base")).toBe("/no-base");
+    });
+
+    it("does not strip sibling path segments with the same prefix", () => {
+      expect(stripBasePath("/apps-config/settings")).toBe(
+        "/apps-config/settings",
+      );
+      expect(stripBasePath("/application/settings")).toBe(
+        "/application/settings",
+      );
     });
   });
 });

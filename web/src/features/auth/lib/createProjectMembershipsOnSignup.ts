@@ -8,6 +8,7 @@ import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
+import { getConfiguredDemoProject } from "@/src/features/auth/lib/demoProjectAccess";
 import { projectRoleAccessRights } from "@langfuse/shared";
 
 export async function createProjectMembershipsOnSignup(
@@ -31,29 +32,21 @@ export async function createProjectMembershipsOnSignup(
       select: { id: true },
     }));
 
-    // Langfuse Cloud: provide view-only access to the demo project, none access to the demo org
-    const demoProject =
-      env.NEXT_PUBLIC_DEMO_ORG_ID && env.NEXT_PUBLIC_DEMO_PROJECT_ID
-        ? ((await prisma.project.findUnique({
-            where: {
-              orgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
-              id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
-            },
-          })) ?? undefined)
-        : undefined;
-    if (demoProject !== undefined) {
+    const demoProject = await getConfiguredDemoProject();
+    if (demoProject) {
       await prisma.organizationMembership.upsert({
         where: {
           orgId_userId: { orgId: demoProject.orgId, userId: user.id },
         },
-        update: {}, // No-op: preserve existing role
+        update: {},
         create: {
-          userId: user.id,
           orgId: demoProject.orgId,
+          userId: user.id,
           role: Role.VIEWER,
         },
       });
     }
+    const hasDemoAccess = Boolean(demoProject);
 
     // self-hosted: LANGFUSE_DEFAULT_ORG_ID (supports comma-separated list of org IDs)
     const defaultOrgIds = env.LANGFUSE_DEFAULT_ORG_ID ?? [];
@@ -293,7 +286,7 @@ export async function createProjectMembershipsOnSignup(
           event: "cloud_signup_complete",
           properties: {
             cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-            hasDemoAccess: demoProject !== undefined,
+            hasDemoAccess,
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
             // Google Ads click id for ad conversion attribution

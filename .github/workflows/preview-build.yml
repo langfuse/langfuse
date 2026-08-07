@@ -173,7 +173,15 @@ jobs:
             # Auto sign-in with the shared seeded demo identity — previews are
             # disposable, synthetic-data-only environments with an intentionally
             # public login, so visitors should not have to type it.
-            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV --build-arg NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN=true
+            # The preview seeder always creates this synthetic org/project. Bake
+            # it into the web image so /demo can be tested end-to-end on PR
+            # previews without depending on production regional demo IDs.
+            extra_build_args: >-
+              --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true
+              --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV
+              --build-arg NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN=true
+              --build-arg NEXT_PUBLIC_DEMO_ORG_ID=seed-org-id
+              --build-arg NEXT_PUBLIC_DEMO_PROJECT_ID=7a88fb47-b4e2-43b8-a06c-a5ce950dc53a
           - target: worker
             image: ${{ needs.meta.outputs.worker_image }}
             dockerfile: worker/Dockerfile
