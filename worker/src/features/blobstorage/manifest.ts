@@ -35,9 +35,15 @@ export type BlobExportManifest = {
   files: BlobExportManifestFile[];
 };
 
-/** Shared with table file names so a run's files and manifest sort together. */
+/**
+ * Shared with table file names so a run's files and manifest sort together.
+ * Keeps millisecond precision so consecutive chunks whose maxTimestamps fall
+ * into the same wall-clock second (e.g. a caught-up full-interval chunk
+ * immediately followed by a remainder chunk) never resolve to the same
+ * object key and silently overwrite each other.
+ */
 export const formatBlobExportTimestamp = (date: Date): string =>
-  date.toISOString().replace(/:/g, "-").substring(0, 19);
+  date.toISOString().replace(/[:.]/g, "-").substring(0, 23);
 
 /** `{prefix}{projectId}/manifests/{maxTimestamp}.json` — prefix-filterable per run. */
 export const buildBlobExportManifestKey = (params: {
