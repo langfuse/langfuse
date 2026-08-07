@@ -137,6 +137,25 @@ export async function handleCommentMentionNotification(
       return truncated.replace(/@\[([^\]]+)\]\(user:[^)]+\)/g, "@$1");
     })();
 
+    // Batch-fetch notification preferences for all mentioned users (default: enabled)
+    // If a preference exists and is disabled, skip
+    // If user/project was deleted, the preference won't exist (cascade delete)
+    // Preferences are a point-in-time snapshot for this job: opt-outs made while
+    // the send loop is running are not observed. That window already exists
+    // between comment creation and job processing (queue latency), and reading
+    // per-recipient would reintroduce the N+1 this batch removes.
+    const preferences = await prisma.notificationPreference.findMany({
+      where: {
+        projectId,
+        channel: "EMAIL",
+        type: "COMMENT_MENTION",
+        userId: { in: mentionedUserIds },
+      },
+    });
+    const disabledUserIds = new Set(
+      preferences.filter((p) => !p.enabled).map((p) => p.userId),
+    );
+
     // Process each mentioned user
     for (const userId of mentionedUserIds) {
       try {
@@ -155,21 +174,7 @@ export async function handleCommentMentionNotification(
           continue;
         }
 
-        // Check notification preference (default: enabled)
-        // If preference exists and is disabled, skip
-        // If user/project was deleted, the preference won't exist (cascade delete)
-        const preference = await prisma.notificationPreference.findUnique({
-          where: {
-            userId_projectId_channel_type: {
-              userId,
-              projectId,
-              channel: "EMAIL",
-              type: "COMMENT_MENTION",
-            },
-          },
-        });
-
-        if (preference && !preference.enabled) {
+        if (disabledUserIds.has(userId)) {
           logger.info(
             `User ${userId} has disabled email notifications for comment mentions in project ${projectId}. Skipping.`,
           );
