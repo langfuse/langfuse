@@ -418,8 +418,39 @@ export function useScoreAnalyticsQuery(
           nBins,
         });
       }
-      // Fallback: Calculate bounds from statistics when heatmap is empty
-      // This handles the case when matchedCount = 0 (no paired observations)
+      // Preferred fallback: use the real data bounds returned by the backend.
+      // These are computed across all filtered scores (not just matched pairs),
+      // so they are available even when matchedCount = 0 and the heatmap is
+      // empty. Using them keeps the histogram x-axis aligned with the actual
+      // bins (which are also computed from these bounds) and within the real
+      // data range, instead of overshooting via the mean ± std estimate below.
+      else if (
+        apiData.bounds &&
+        apiData.bounds.globalMin !== null &&
+        apiData.bounds.globalMax !== null
+      ) {
+        const globalMin = apiData.bounds.globalMin;
+        const globalMax = apiData.bounds.globalMax;
+        // Individual score may have no numeric data of its own; fall back to the
+        // global range so labels stay defined and consistent.
+        binLabelsIndividual1 = generateBinLabels({
+          min: apiData.bounds.min1 ?? globalMin,
+          max: apiData.bounds.max1 ?? globalMax,
+          nBins,
+        });
+        binLabelsIndividual2 = generateBinLabels({
+          min: apiData.bounds.min2 ?? globalMin,
+          max: apiData.bounds.max2 ?? globalMax,
+          nBins,
+        });
+        binLabelsGlobal = generateBinLabels({
+          min: globalMin,
+          max: globalMax,
+          nBins,
+        });
+      }
+      // Last-resort fallback: estimate bounds from statistics when neither the
+      // heatmap nor the data bounds are available (e.g. no numeric data at all).
       else if (
         apiData.statistics &&
         apiData.statistics.mean1 !== null &&
