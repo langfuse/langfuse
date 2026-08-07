@@ -10,7 +10,7 @@ name: Warm CI caches
 # (contradicting their documented 7-day LRU eviction), so most branch runs
 # find nothing and pay a cold pnpm install plus a cold turbo build (~+2min on
 # the tests-web critical path). This workflow re-saves the pnpm store and the
-# mode-scoped turbo caches from main every few hours so branch runs keep
+# task-scoped Turbo caches from main every few hours so branch runs keep
 # hitting them. Once Blacksmith retention is back to days, drop the schedule
 # to daily or delete the workflow — it is purely compensatory.
 on:
@@ -44,7 +44,7 @@ jobs:
       # Mirror the consuming test jobs so Turbo task hashes match.
       NODE_ENV: test
     strategy:
-      # One mode failing must not cancel the other warmers — a partially
+      # One profile failing must not cancel the other warmer — a partially
       # warmed pool still helps.
       fail-fast: false
       matrix:
