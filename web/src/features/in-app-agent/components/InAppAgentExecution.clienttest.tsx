@@ -32,6 +32,7 @@ const providerMocks = vi.hoisted(() => {
       decideToolApproval: { mutateAsync: decideToolApproval },
     },
     getConversation: vi.fn(),
+    activityQuery: { data: undefined, refetch: vi.fn() },
     listQuery: {
       data: { pages: [{ conversations: [] }] },
       error: null,
@@ -125,6 +126,8 @@ vi.mock("@/src/utils/api", () => ({
     inAppAgent: {
       listConversations: {
         useInfiniteQuery: () => providerMocks.listQuery,
+        // The activity sidecar caller: same procedure, `limit: 1`.
+        useQuery: () => providerMocks.activityQuery,
       },
       getConversation: {
         useQuery: () => providerMocks.conversationQuery,

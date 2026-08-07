@@ -11,7 +11,10 @@ import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
   value: {
-    conversations: [],
+    conversations: [] as Array<{ id: string; title: string | null }>,
+    activityByConversationId: new Map<string, { state: string }>(),
+    attentionCount: 0,
+    markActivityDelivered: vi.fn(),
     error: null,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
@@ -79,6 +82,7 @@ function windowElement(
 ) {
   const props: InAppAgentWindowProps = {
     conversations: [],
+    activityByConversationId: new Map(),
     canLeaveRunningConversation: false,
     error: null,
     executionUi: { type: "foreground" },
