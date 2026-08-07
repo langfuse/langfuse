@@ -23,21 +23,21 @@ const REQUIRED_DISCOVERY_FIELDS = [
   "issuer",
 ] as const;
 
-// Returns the issuer URL to hit `.well-known/openid-configuration` against, or
-// null when the provider doesn't speak OIDC discovery (the GitHub family is
-// OAuth2-only — we have no way to validate at save time, the misconfiguration
-// surfaces on first sign-in attempt).
-function discoveryIssuerFor(payload: SsoProviderSchema): string | null {
+/** getDiscoveryIssuer returns the issuer the discovery doc should report, or null when the provider has no OIDC discovery (GitHub family is OAuth2-only — misconfiguration surfaces at first sign-in). */
+function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
   switch (payload.authProvider) {
     case "github":
     case "github-enterprise":
       return null;
     case "google":
       return "https://accounts.google.com";
-    case "azure-ad":
-      return payload.authConfig
-        ? `https://login.microsoftonline.com/${payload.authConfig.tenantId}/v2.0`
-        : null;
+    case "azure-ad": {
+      if (!payload.authConfig) return null;
+      const tenant = AZURE_AD_MULTI_TENANT.has(payload.authConfig.tenantId)
+        ? AZURE_AD_TENANT_PLACEHOLDER
+        : payload.authConfig.tenantId;
+      return `https://login.microsoftonline.com/${tenant}/v2.0`;
+    }
     case "gitlab":
       return payload.authConfig?.issuer ?? "https://gitlab.com";
     case "auth0":
@@ -56,30 +56,18 @@ function discoveryIssuerFor(payload: SsoProviderSchema): string | null {
 
 const stripTrailingSlash = (url: string) => url.replace(/\/$/, "");
 
-// Microsoft's documented multi-tenant tenantId values. Discovery for these
-// returns `issuer` with the literal `{tenantid}` placeholder string instead
-// of the configured tenantId — the actual tenant is bound at token-issuance
-// time per user's home tenant. NextAuth's AzureADProvider handles this at
-// sign-in, so save-time we compare against the placeholder rather than the
-// configured value to avoid blocking legitimate multi-tenant configurations.
+// Microsoft's documented multi-tenant tenantId values; discovery for these
+// reports the literal `{tenantid}` placeholder — the tenant is bound at sign-in.
 const AZURE_AD_MULTI_TENANT = new Set(["common", "organizations", "consumers"]);
 const AZURE_AD_TENANT_PLACEHOLDER = "{tenantid}";
 
-function expectedReturnedIssuer(
-  payload: SsoProviderSchema,
-  trimmedIssuer: string,
-): string {
-  if (
-    payload.authProvider === "azure-ad" &&
-    payload.authConfig &&
-    AZURE_AD_MULTI_TENANT.has(payload.authConfig.tenantId)
-  ) {
-    return trimmedIssuer.replace(
-      `/${payload.authConfig.tenantId}/`,
-      `/${AZURE_AD_TENANT_PLACEHOLDER}/`,
-    );
-  }
-  return trimmedIssuer;
+/** getDiscoveryUrl builds the discovery-document URL for issuer, substituting tenantId for the Azure placeholder. */
+function getDiscoveryUrl(issuer: string, tenantId?: string): string {
+  const trimmed = stripTrailingSlash(issuer);
+  const resolved = tenantId
+    ? trimmed.replace(AZURE_AD_TENANT_PLACEHOLDER, tenantId)
+    : trimmed;
+  return `${resolved}/.well-known/openid-configuration`;
 }
 
 // Pre-flight check that the IdP's OIDC discovery document is reachable, well
@@ -90,100 +78,105 @@ function expectedReturnedIssuer(
 export async function validateSsoConfig(
   payload: SsoProviderSchema,
 ): Promise<void> {
-  const issuer = discoveryIssuerFor(payload);
+  const issuer = getDiscoveryIssuer(payload);
   if (!issuer) return;
 
-  const trimmedIssuer = stripTrailingSlash(issuer);
-  const discoveryUrl = `${trimmedIssuer}/.well-known/openid-configuration`;
+  const tenantId =
+    payload.authProvider === "azure-ad"
+      ? payload.authConfig?.tenantId
+      : undefined;
+  const discoveryUrl = getDiscoveryUrl(issuer, tenantId);
 
-  const result = await fetchDiscoveryDoc(discoveryUrl);
-  if (!result.success) throw result.error;
-  const { doc } = result;
-
-  const missing = REQUIRED_DISCOVERY_FIELDS.filter(
-    (k) => typeof doc[k] !== "string",
-  );
-  if (missing.length > 0) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `OIDC discovery at ${discoveryUrl} is missing required field(s): ${missing.join(", ")}.`,
-    });
-  }
-
-  // Per OIDC Discovery §3, the discovery doc's `issuer` must match the URL we
-  // used to fetch it. Trim trailing slashes on both sides — Auth0 and friends
-  // typically serve the issuer with a trailing `/` even if users don't enter it.
-  // Azure AD multi-tenant endpoints return `{tenantid}` as a literal
-  // placeholder; map our expected issuer to the same shape before comparing.
-  const returnedIssuer = stripTrailingSlash(doc.issuer as string);
-  const expectedIssuer = expectedReturnedIssuer(payload, trimmedIssuer);
-  if (returnedIssuer !== expectedIssuer) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `OIDC discovery at ${discoveryUrl} reported issuer "${doc.issuer as string}" but we expected "${expectedIssuer}". Check the issuer URL matches exactly.`,
-    });
+  try {
+    const resp = await fetchWithSsrfDefense(discoveryUrl);
+    const doc = await parseJson<DiscoveryDoc>(resp);
+    validateDiscoveryFields(doc);
+    validateDiscoveryIssuer(doc, issuer);
+  } catch (error) {
+    if (error instanceof TRPCError)
+      throw prefixError(`OIDC discovery at ${discoveryUrl}: `, error);
+    throw error;
   }
 }
 
-/** fetchDiscoveryDoc fetches and parses the OIDC discovery document at discoveryUrl. */
-async function fetchDiscoveryDoc(
-  discoveryUrl: string,
-): Promise<
-  { success: false; error: TRPCError } | { success: true; doc: DiscoveryDoc }
-> {
-  let resp: Response;
+/** fetchWithSsrfDefense fetches url with internal-address blocking and the operator whitelist applied. */
+async function fetchWithSsrfDefense(url: string): Promise<Response> {
   try {
     const whitelist = discoveryWhitelistFromEnv();
-    // SSRF defense: an admin can configure any issuer host, so reject internal
-    // destinations and embedded credentials up front, then fetch with
-    // connect-time IP validation. Per OIDC Discovery §4 the doc is served
-    // directly at the issuer URL, so `maxRedirects: 0` costs nothing.
-    // Any port: NextAuth's sign-in fetch has no port restriction, so
-    // rejecting one here would be a save-time false positive.
-    await validateWebhookURL(discoveryUrl, whitelist, { allowedPorts: "any" });
+    // any port: NextAuth's sign-in fetch has no port restriction
+    await validateWebhookURL(url, whitelist, { allowedPorts: "any" });
     const result = await fetchWithSecureRedirects(
-      discoveryUrl,
+      url,
       { signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS) },
       {
-        maxRedirects: 0,
+        maxRedirects: 0, // OIDC Discovery §4: doc is served directly at the issuer URL
         redirectValidation: {
           validateUrl: validateWebhookURL,
           whitelist,
         },
       },
     );
-    resp = result.response;
+    return result.response;
   } catch {
-    return {
-      success: false,
-      error: new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message: `Could not reach ${discoveryUrl}. Verify the issuer URL is correct and reachable from the public internet.`,
-      }),
-    };
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message:
+        "could not reach the URL. Verify the issuer URL is correct and reachable from the public internet.",
+    });
   }
+}
 
-  if (!resp.ok) {
-    return {
-      success: false,
-      error: new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message: `OIDC discovery at ${discoveryUrl} returned ${resp.status}. Verify the issuer URL is correct.`,
-      }),
-    };
+/** parseJson parses a 2xx response body as JSON, throwing on non-2xx status or invalid JSON. */
+async function parseJson<T = unknown>(response: Response): Promise<T> {
+  if (!response.ok) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `returned ${response.status}. Verify the issuer URL is correct.`,
+    });
   }
-
   try {
-    return { success: true, doc: (await resp.json()) as DiscoveryDoc };
+    return (await response.json()) as T;
   } catch {
-    return {
-      success: false,
-      error: new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message: `OIDC discovery at ${discoveryUrl} did not return valid JSON.`,
-      }),
-    };
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "did not return valid JSON.",
+    });
   }
+}
+
+/** validateDiscoveryFields checks the doc has the required OIDC discovery fields. */
+function validateDiscoveryFields(doc: DiscoveryDoc): void {
+  const missing = REQUIRED_DISCOVERY_FIELDS.filter(
+    (k) => typeof doc[k] !== "string",
+  );
+  if (missing.length > 0) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `missing required field(s): ${missing.join(", ")}.`,
+    });
+  }
+}
+
+/** validateDiscoveryIssuer checks the doc reports the configured issuer. */
+function validateDiscoveryIssuer(doc: DiscoveryDoc, issuer: string): void {
+  // OIDC Discovery §3: the doc's issuer must match the URL it was fetched from.
+  // Trailing slashes trimmed on both sides — Auth0 and friends serve one.
+  const expectedIssuer = stripTrailingSlash(issuer);
+  const returnedIssuer = stripTrailingSlash(doc.issuer as string);
+  if (returnedIssuer !== expectedIssuer) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `reported issuer "${doc.issuer as string}" but we expected "${expectedIssuer}". Check the issuer URL matches exactly.`,
+    });
+  }
+}
+
+/** prefixError returns a copy of error with prefix prepended to its message. */
+function prefixError(prefix: string, error: TRPCError): TRPCError {
+  return new TRPCError({
+    code: error.code,
+    message: `${prefix}${error.message}`,
+  });
 }
 
 /** discoveryWhitelistFromEnv builds the operator-configured exemptions to the internal-address blocklist. */
