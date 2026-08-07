@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { useMemo, useCallback, useState } from "react";
+import { useMemo, useCallback, useRef, useState } from "react";
 import {
   Check,
   Github,
@@ -67,7 +67,12 @@ export const MonitorAutomationsPanel = ({
     },
   );
 
-  /** selectCreatedAutomation ticks a just-created automation. The panel keys on trigger ids, so resolve the automation id against the refreshed cache instead of a render-time closure. */
+  // The user can keep toggling rows while the refetch below is in flight, so the
+  // write must not be based on a render-time snapshot of the selection.
+  const latestTriggerIds = useRef(triggerIds);
+  latestTriggerIds.current = triggerIds;
+
+  /** selectCreatedAutomation ticks a just-created automation, resolving its trigger id (the panel's key) from the refreshed list. */
   const selectCreatedAutomation = useCallback(
     async (automationId: string) => {
       const automations = await utils.automations.getAutomations.fetch({
@@ -76,10 +81,11 @@ export const MonitorAutomationsPanel = ({
       });
       const triggerId = automations?.find((a) => a.id === automationId)?.trigger
         .id;
-      if (!triggerId || triggerIds.includes(triggerId)) return;
-      onTriggerIdsChange([...triggerIds, triggerId]);
+      const selected = latestTriggerIds.current;
+      if (!triggerId || selected.includes(triggerId)) return;
+      onTriggerIdsChange([...selected, triggerId]);
     },
-    [utils, projectId, triggerIds, onTriggerIdsChange],
+    [utils, projectId, onTriggerIdsChange],
   );
 
   const automations = data ?? [];

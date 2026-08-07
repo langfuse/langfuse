@@ -16,6 +16,9 @@ const createdRow = {
 /** automations stands in for the server list; a save flips it the way invalidation would. */
 let automations: (typeof existingRow)[] = [];
 
+/** gateFetch defers the post-create list read so a test can interleave user input. */
+let gateFetch: Promise<unknown> | undefined;
+
 vi.mock("@/src/utils/api", () => ({
   api: {
     automations: {
@@ -25,7 +28,12 @@ vi.mock("@/src/utils/api", () => ({
     },
     useUtils: () => ({
       automations: {
-        getAutomations: { fetch: vi.fn(async () => automations) },
+        getAutomations: {
+          fetch: vi.fn(async () => {
+            await gateFetch;
+            return automations;
+          }),
+        },
       },
     }),
   },
@@ -57,6 +65,10 @@ const openCreateDialog = async (item: RegExp) => {
 };
 
 describe("MonitorAutomationsPanel automation creation", () => {
+  beforeEach(() => {
+    gateFetch = undefined;
+  });
+
   it("creates in place and selects the new trigger, never linking away from the monitor form", async () => {
     automations = [existingRow];
     stubSave = (onSuccess) => {
@@ -109,6 +121,38 @@ describe("MonitorAutomationsPanel automation creation", () => {
     fireEvent.click(screen.getByRole("button", { name: /saved the secret/i }));
     await waitFor(() =>
       expect(onTriggerIdsChange).toHaveBeenCalledWith(["trig-2"]),
+    );
+  });
+
+  it("keeps a selection made while the post-create list read is still in flight", async () => {
+    automations = [existingRow];
+    stubSave = (onSuccess) => {
+      automations = [existingRow, createdRow];
+      onSuccess("auto-2");
+    };
+    let releaseFetch = () => {};
+    gateFetch = new Promise<void>((resolve) => {
+      releaseFetch = resolve;
+    });
+    const onTriggerIdsChange = vi.fn();
+    const panel = (triggerIds: string[]) => (
+      <MonitorAutomationsPanel
+        projectId="p1"
+        triggerIds={triggerIds}
+        onTriggerIdsChange={onTriggerIdsChange}
+      />
+    );
+    const { rerender } = render(panel([]));
+
+    await openCreateDialog(/new automation/i);
+    fireEvent.click(await screen.findByRole("button", { name: /stub save/i }));
+
+    // The user ticks another automation before the read resolves.
+    rerender(panel(["trig-1"]));
+    releaseFetch();
+
+    await waitFor(() =>
+      expect(onTriggerIdsChange).toHaveBeenCalledWith(["trig-1", "trig-2"]),
     );
   });
 });
