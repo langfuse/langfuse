@@ -7,7 +7,7 @@ import {
   mergePathType,
   observedMetadataOptions,
   type StoredKeyInfo,
-} from "./metadata-paths";
+} from "./metadataPaths";
 
 describe("collectMetadataPathTypes", () => {
   it("records top-level keys with observed value types", () => {

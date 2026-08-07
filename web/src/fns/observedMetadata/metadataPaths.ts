@@ -4,7 +4,7 @@
 // of observed keys is built OPPORTUNISTICALLY from rows the user has already
 // loaded: each fetch samples the visible rows, records their TOP-LEVEL
 // metadata keys with the observed JSON value type, and unions the result into
-// the persisted per-project store (store/observedMetadataStore.ts). Accepted
+// the persisted per-project store (stores/observedMetadataStore.ts). Accepted
 // caveat: metadata the user has never loaded is never suggested.
 //
 // Top-level keys ONLY — deliberately not flattened into nested dot-paths.

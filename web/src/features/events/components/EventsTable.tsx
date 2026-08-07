@@ -146,7 +146,7 @@ import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTable
 import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
-} from "@/src/features/search-bar/hooks/useObservedMetadata";
+} from "@/src/hooks/useObservedMetadata";
 
 export type EventsTableRow = {
   // Identity fields
