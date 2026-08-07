@@ -18,6 +18,15 @@
       "cache": true,
       "outputLogs": "errors-only"
     },
+    // The Docker smoke image only needs a runnable standalone bundle. Full
+    // builds elsewhere in CI retain static generation and prerender coverage.
+    "build:docker-smoke": {
+      "dependsOn": ["db:generate", "^build"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "cache": true,
+      "outputLogs": "errors-only"
+    },
     "start": {
       "dependsOn": ["^start"]
     },
