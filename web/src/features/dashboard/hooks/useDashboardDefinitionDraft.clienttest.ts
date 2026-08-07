@@ -58,4 +58,33 @@ describe("useDashboardDefinitionDraft", () => {
 
     expect(result.current.definition).toBe(savedDefinition);
   });
+
+  it("rejects an older save after a newer draft has completed", () => {
+    const initialDefinition = definition("initial");
+    const olderDraft = definition("older-local-edit");
+    const newerDraft = definition("newer-local-edit");
+    const savedDefinition = definition("saved-newer-edit");
+    const { result, rerender } = renderHook(
+      ({ serverDefinition }) => useDashboardDefinitionDraft(serverDefinition),
+      { initialProps: { serverDefinition: initialDefinition } },
+    );
+
+    act(() => result.current.applyDraft(olderDraft));
+    act(() => result.current.applyDraft(newerDraft));
+
+    let acceptedNewerSave: boolean | undefined;
+    act(() => {
+      acceptedNewerSave = result.current.clearDraftIfSaved(newerDraft);
+    });
+    rerender({ serverDefinition: savedDefinition });
+
+    let acceptedOlderSave: boolean | undefined;
+    act(() => {
+      acceptedOlderSave = result.current.clearDraftIfSaved(olderDraft);
+    });
+
+    expect(acceptedNewerSave).toBe(true);
+    expect(acceptedOlderSave).toBe(false);
+    expect(result.current.definition).toBe(savedDefinition);
+  });
 });

@@ -197,6 +197,8 @@ export default function DashboardDetail() {
     api.dashboard.updateDashboardDefinition.useMutation({
       // Saves are silent; the header shows a spinner while in flight.
       onSuccess: (updatedDashboard, variables) => {
+        if (!clearDraftIfSaved(variables.definition)) return;
+
         utils.dashboard.getDashboard.setData(
           {
             projectId: variables.projectId,
@@ -204,7 +206,6 @@ export default function DashboardDetail() {
           },
           updatedDashboard,
         );
-        clearDraftIfSaved(variables.definition);
       },
       onError: (error) => {
         showErrorToast("Error updating dashboard", error.message);
