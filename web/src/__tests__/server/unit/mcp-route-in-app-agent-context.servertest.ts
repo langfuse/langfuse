@@ -47,20 +47,31 @@ describe("MCP route in-app-agent context", () => {
     });
   });
 
-  it("returns a single-tool override for valid override headers", async () => {
+  it("returns the tool allowlist for valid override headers", async () => {
     const overrideHeader = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset", "createDashboardWidget"],
     });
     const req = createRequest(overrideHeader);
 
     expect(
       InAppAgentMcpRunOverrideSchema.parse(JSON.parse(overrideHeader)),
     ).toEqual({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset", "createDashboardWidget"],
     });
     expect(getInAppAgentContext(req, true)).toEqual({
-      permissions: "single-tool-override",
-      allowedToolName: "upsertDataset",
+      permissions: "tool-allowlist",
+      allowedToolNames: ["upsertDataset", "createDashboardWidget"],
+    });
+  });
+
+  // A continuation enqueued before allowlists shipped can still be executed by
+  // a worker that mints the single-tool header.
+  it("still resolves the pre-allowlist single-tool header", () => {
+    const req = createRequest('{"toolName":"upsertDataset"}');
+
+    expect(getInAppAgentContext(req, true)).toEqual({
+      permissions: "tool-allowlist",
+      allowedToolNames: ["upsertDataset"],
     });
   });
 });

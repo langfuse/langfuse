@@ -201,11 +201,11 @@ describe("MCP public API tools", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("resolves only the overridden mutating tool for in-app agent keys", async () => {
+  it("resolves allowlisted mutating tools plus reads for in-app agent keys", async () => {
     const context = mockServerContext({
       inAppAgent: {
-        permissions: "single-tool-override",
-        allowedToolName: "upsertDataset",
+        permissions: "tool-allowlist",
+        allowedToolNames: ["upsertDataset"],
       },
     });
 
@@ -215,16 +215,18 @@ describe("MCP public API tools", () => {
     await expect(
       toolRegistry.getEnabledTool("createModel", context),
     ).resolves.toBeUndefined();
+    // An allowlist is held for a whole run, not torn down after one call, so
+    // the agent has to keep its read access alongside it.
     await expect(
       toolRegistry.getEnabledTool("listDatasets", context),
-    ).resolves.toBeUndefined();
+    ).resolves.toBeTruthy();
   });
 
   it("resolves the dashboard widget creation override for in-app agent keys", async () => {
     const context = mockServerContext({
       inAppAgent: {
-        permissions: "single-tool-override",
-        allowedToolName: "createDashboardWidget",
+        permissions: "tool-allowlist",
+        allowedToolNames: ["createDashboardWidget"],
       },
     });
 

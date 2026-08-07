@@ -226,6 +226,7 @@ type InAppAiAgentContextType = {
     options?: InAppAgentSubmitOptions,
   ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
+  alwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
     messageId: string;
@@ -1082,6 +1083,7 @@ function InAppAiAgentProviderInner({
               runId: input.runId,
               toolCallId: input.toolCallId,
               approved: input.approved,
+              approvalScope: input.approvalScope,
             }),
           onHydratedSnapshot: ({ messages }) => {
             performToolSideEffectsForCompletedToolCalls({
@@ -1662,6 +1664,7 @@ function InAppAiAgentProviderInner({
     async (params: {
       approval: InAppAgentPendingToolApproval;
       approved: boolean;
+      approvalScope: "once" | "conversation";
       conversationId: string;
     }) => {
       const runId =
@@ -1690,6 +1693,7 @@ function InAppAiAgentProviderInner({
           runId,
           toolCallId: params.approval.approvalRequest.toolCallId,
           approved: params.approved,
+          approvalScope: params.approvalScope,
         });
         return true;
       } catch (error) {
@@ -1701,7 +1705,11 @@ function InAppAiAgentProviderInner({
   );
 
   const resumeToolApproval = useCallback(
-    async (approvalId: string, approved: boolean) => {
+    async (
+      approvalId: string,
+      approved: boolean,
+      approvalScope: "once" | "conversation" = "once",
+    ) => {
       if (selectedConversationIsWriteLocked) {
         setError({
           type: "generic",
@@ -1728,12 +1736,14 @@ function InAppAiAgentProviderInner({
         const decisionAccepted = await decideBackgroundToolApproval({
           approval,
           approved,
+          approvalScope,
           conversationId: selectedConversationId,
         });
         if (decisionAccepted) {
           capture("in_app_agent:tool_approval_decided", {
             isApproved: approved,
             toolName: approval.approvalRequest.toolName,
+            approvalScope,
           });
         }
         return;
@@ -1742,6 +1752,7 @@ function InAppAiAgentProviderInner({
       capture("in_app_agent:tool_approval_decided", {
         isApproved: approved,
         toolName: approval.approvalRequest.toolName,
+        approvalScope,
       });
 
       const agent = agentRef.current;
@@ -1857,6 +1868,16 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
+  // Conversation grants exist only on the background execution path.
+  const alwaysAllowToolCall = useMemo(
+    () =>
+      backgroundExecutionEnabled
+        ? (approvalId: string) =>
+            resumeToolApproval(approvalId, true, "conversation")
+        : undefined,
+    [backgroundExecutionEnabled, resumeToolApproval],
+  );
+
   const rejectToolCall = useCallback(
     (approvalId: string) => resumeToolApproval(approvalId, false),
     [resumeToolApproval],
@@ -1891,11 +1912,13 @@ function InAppAiAgentProviderInner({
       deleteConversation,
       submit,
       approveToolCall,
+      alwaysAllowToolCall,
       rejectToolCall,
       submitFeedback,
     }),
     [
       approveToolCall,
+      alwaysAllowToolCall,
       isExpanded,
       conversations,
       effectiveError,

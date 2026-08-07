@@ -21,6 +21,8 @@ export type ApprovalDecision = {
   runId: string;
   toolCallId: string;
   approved: boolean;
+  /** "conversation" approves this call and stops prompting for the tool. */
+  approvalScope?: "once" | "conversation";
 };
 
 export type BackgroundExecutionRunView = {

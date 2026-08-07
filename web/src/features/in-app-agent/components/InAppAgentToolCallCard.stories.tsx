@@ -64,6 +64,33 @@ export const ApprovalRequired = meta.story({
   },
 });
 
+const conversationGrantArgs = {
+  isCompact: true,
+  tool: {
+    type: "tool",
+    name: "langfuse_createDashboardWidget",
+    status: "running",
+    args: JSON.stringify(
+      { dashboardId: "dash-1", name: "p95 latency" },
+      null,
+      2,
+    ),
+    approval: {
+      id: "approval-1",
+      status: "pending",
+    },
+  },
+} as const;
+
+export const ApprovalWithConversationGrant = meta.story({
+  args: {
+    ...conversationGrantArgs,
+    onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
+    onRejectToolCall: fn(),
+  },
+});
+
 export const ApprovalSubmitting = meta.story({
   args: {
     isCompact: true,
@@ -120,5 +147,32 @@ export const ApprovalDisabled = meta.story({
       canvas.getByRole("button", { name: "Confirm" }),
     ).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
+  },
+});
+
+export const AlwaysAllowsForConversation = meta.story({
+  name: "(Test) Always allows for conversation",
+  args: {
+    ...conversationGrantArgs,
+    onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(() => new Promise<void>(() => undefined)),
+    onRejectToolCall: fn(),
+  },
+  play: async ({ args, canvasElement, userEvent }) => {
+    const canvas = within(canvasElement);
+    const confirm = canvas.getByRole("button", { name: "Confirm" });
+    const alwaysAllow = canvas.getByRole("button", { name: "Always allow" });
+    const reject = canvas.getByRole("button", { name: "Reject" });
+
+    await userEvent.click(alwaysAllow);
+
+    await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledOnce();
+    await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledWith("approval-1");
+    await expect(args.onApproveToolCall).not.toHaveBeenCalled();
+    await expect(args.onRejectToolCall).not.toHaveBeenCalled();
+    await expect(alwaysAllow).toHaveAttribute("aria-busy", "true");
+    await expect(confirm).toBeDisabled();
+    await expect(alwaysAllow).toBeDisabled();
+    await expect(reject).toBeDisabled();
   },
 });
