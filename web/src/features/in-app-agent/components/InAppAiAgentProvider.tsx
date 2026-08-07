@@ -109,7 +109,8 @@ const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
 export type InAppAgentEntryPoint =
   | "top_nav"
   | "keyboard_shortcut"
-  | "dashboard_widget";
+  | "dashboard_widget"
+  | "detail_header";
 
 const getConversationAgentState = (
   projectId: string,

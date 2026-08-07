@@ -9,6 +9,8 @@ import {
 } from "@/src/features/traces/TraceDetailBody";
 import { TraceDetailActions } from "@/src/features/traces/TraceDetailActions";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { ControlledInAppAgentDetailLauncher } from "@/src/features/in-app-agent/components/ControlledInAppAgentDetailLauncher";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { useRouter } from "next/router";
 import { useRef } from "react";
@@ -22,6 +24,7 @@ export const TablePeekViewObservationDetail = (
   },
 ) => {
   const router = useRouter();
+  const canUseAssistant = useCanUseInAppAgent();
 
   const { projectId } = props;
   const peekObservationId = router.query.peek as string | undefined;
@@ -74,6 +77,9 @@ export const TablePeekViewObservationDetail = (
     <TablePeekView
       {...props}
       title={traceDetailTitle(trace.data, traceId)}
+      assistant={
+        canUseAssistant ? <ControlledInAppAgentDetailLauncher /> : undefined
+      }
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }

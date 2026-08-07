@@ -16,10 +16,8 @@ import {
   Lightbulb,
   ListChecks,
   ListTree,
-  MessageSquareText,
   Radar,
   ScanSearch,
-  ScrollText,
   Sparkles,
   SquarePercent,
   TrendingDown,
@@ -196,55 +194,31 @@ export const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
   trace: [
     {
       id: "analyze-this-trace",
-      label: "Analyze this trace",
-      description: "Run structured error analysis on this trace",
+      label: "Analyze goal, intent & sentiment",
+      description: "User goal, sentiment, and path sanity",
       icon: ScanSearch,
       prompt:
-        "Run a structured error analysis on this trace: review its observations and generations, identify failure modes, explain what went wrong, and recommend what to fix first.",
+        "For this trace, infer (1) goal / intent — what the user or system was trying to do, (2) sentiment — whether the interaction looks successful, frustrated, or ambiguous, (3) trajectory — whether the path and tool/step sequence look sane, and (4) failures or errors if present. Summarize findings and recommend what to fix or inspect next.",
     },
     {
-      id: "summarize-this-trace",
-      label: "Summarize this trace",
-      description: "Get a plain-language recap of this execution",
-      icon: ScrollText,
+      id: "find-similar-traces",
+      label: "Find similar traces",
+      description: "Search for related executions from this seed",
+      icon: GitCompareArrows,
       prompt:
-        "Summarize this trace, including its execution sequence, generations, tool calls, errors, scores, and outcome.",
+        "Help me find traces similar to this one. Propose useful similarity dimensions (trace name and execution path, errors, or outcome), then search or filter from this trace as the seed and summarize what you find.",
     },
     {
       id: "break-down-this-trace-cost",
-      label: "Break down this trace's cost",
+      label: "Break down this trace's cost & latency",
       description: "See where latency and tokens add up",
       icon: Coins,
       prompt:
         "Break down this trace's latency, token usage, and cost across its generation observations, and identify the largest drivers.",
     },
   ],
-  observation: [
-    {
-      id: "analyze-this-observation",
-      label: "Analyze this observation",
-      description: "Inspect this observation for issues",
-      icon: ScanSearch,
-      prompt:
-        "Analyze this observation, including its input, output, errors, scores, and linked prompt version, and explain what went wrong or could be improved.",
-    },
-    {
-      id: "explain-this-generation",
-      label: "Explain this observation",
-      description: "Understand what this observation did",
-      icon: MessageSquareText,
-      prompt:
-        "Explain what this observation did, how it fits into the surrounding trace, and whether its output looks correct.",
-    },
-    {
-      id: "optimize-this-generation-cost",
-      label: "Optimize this observation's cost",
-      description: "Reduce tokens and latency for this step",
-      icon: Coins,
-      prompt:
-        "Review this observation's token usage, latency, and model choice, then suggest concrete ways to reduce cost or latency without hurting quality.",
-    },
-  ],
+  // Observation views (selected span in a trace, or observation peek) reuse
+  // the trace set via getInAppAgentFocusedQuickActions() — no separate chips.
   session: [
     {
       id: "summarize-this-session",
@@ -393,6 +367,12 @@ export function getInAppAgentQuickActions(
 export function getInAppAgentFocusedQuickActions(
   screenContextType: string,
 ): readonly InAppAgentQuickAction[] | undefined {
+  // Observations are always viewed inside a parent trace; keep the same
+  // focused chips for root-trace and selected-observation contexts.
+  if (screenContextType === "observation") {
+    return IN_APP_AGENT_FOCUSED_QUICK_ACTIONS.trace;
+  }
+
   if (!(screenContextType in IN_APP_AGENT_FOCUSED_QUICK_ACTIONS)) {
     return undefined;
   }
