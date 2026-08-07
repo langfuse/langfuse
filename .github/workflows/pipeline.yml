@@ -439,7 +439,10 @@ jobs:
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (needs.select-vitest-suites.outputs.web == 'true' || needs.select-vitest-suites.outputs.worker == 'true') && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
+      COMPONENT: ${{ matrix.component }}
       DOCKER_COMPOSE_FILE: docker-compose.build.yml
+      HEALTH_URL: ${{ matrix.health_url }}
+      SERVICE: ${{ matrix.service }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.select-vitest-suites.outputs.docker-matrix) }}
@@ -465,7 +468,7 @@ jobs:
         # Type-checking runs in the lint job; release builds retain it.
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
-          if [ "${{ matrix.component }}" = "web" ]; then
+          if [ "$COMPONENT" = "web" ]; then
             docker buildx bake -f /tmp/bake.json \
               --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true" \
               langfuse-web
@@ -476,11 +479,11 @@ jobs:
         run: |
           timeout 300 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' || true
           cat /tmp/deps-up.log
-          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 "${{ matrix.service }}"
+          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 "$SERVICE"
       - name: Check service health
         run: |
           curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
-            "${{ matrix.health_url }}"
+            "$HEALTH_URL"
       - name: Capture docker diagnostics on failure
         if: failure()
         run: |
