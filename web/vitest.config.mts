@@ -8,6 +8,10 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { VitestCiReporter } from "../scripts/vitest/ci-reporter";
+import {
+  createSharedPackageVcsProvider,
+  FORCE_FULL_RUN_TRIGGER,
+} from "../scripts/vitest/shared-package-vcs-provider";
 
 expand(config({ path: "../.env.test" }));
 expand(config({ path: "../.env" }));
@@ -192,6 +196,10 @@ export default defineConfig({
     ],
   },
   test: {
+    forceRerunTriggers: [FORCE_FULL_RUN_TRIGGER],
+    experimental: {
+      vcsProvider: createSharedPackageVcsProvider(),
+    },
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]
       : ["default"],

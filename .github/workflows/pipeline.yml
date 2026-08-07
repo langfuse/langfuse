@@ -39,6 +39,11 @@ env:
   # restore CI caches.
   CI_CACHE_ALLOWED: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
+  # Pull requests and merge groups test only files related to their immutable
+  # event base. Pushes remain full runs; duplicate main pushes are skipped by
+  # pre-job when the same tree already passed the merge queue.
+  VITEST_CHANGED_SINCE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'merge_group' && github.event.merge_group.base_sha || '' }}
+
 jobs:
   # Skips runs whose git tree was already tested in a prior successful run of
   # this workflow (replaces fkirc/skip-duplicate-actions). This fires almost
@@ -74,6 +79,29 @@ jobs:
           else
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
+
+  select-vitest-suites:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      full: ${{ steps.select.outputs.full }}
+      shared: ${{ steps.select.outputs.shared }}
+      web: ${{ steps.select.outputs.web }}
+      worker: ${{ steps.select.outputs.worker }}
+      docker-matrix: ${{ steps.select.outputs.docker-matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Test selection policy
+        run: node --no-warnings --experimental-strip-types --test scripts/vitest/shared-package-vcs-provider.test.ts
+      - name: Select Vitest suites
+        id: select
+        run: node --no-warnings --experimental-strip-types scripts/vitest/print-test-scopes.ts "$VITEST_CHANGED_SINCE"
 
   llm-connections-filter:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -355,15 +383,17 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - select-vitest-suites
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
+    if: ${{ !cancelled() && needs.select-vitest-suites.outputs.shared == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       NODE_ENV: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -390,7 +420,12 @@ jobs:
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
       - name: run shared tests
-        run: pnpm --filter @langfuse/shared run test
+        run: |
+          changed_args=()
+          if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
+            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+          fi
+          pnpm --filter @langfuse/shared run test "${changed_args[@]}" --passWithNoTests
 
   test-docker-build:
     name: test-docker-build (${{ matrix.component }})
@@ -398,24 +433,19 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - select-vitest-suites
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
+    if: ${{ !cancelled() && (needs.select-vitest-suites.outputs.web == 'true' || needs.select-vitest-suites.outputs.worker == 'true') && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
+      COMPONENT: ${{ matrix.component }}
       DOCKER_COMPOSE_FILE: docker-compose.build.yml
+      HEALTH_URL: ${{ matrix.health_url }}
+      SERVICE: ${{ matrix.service }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - component: web
-            service: langfuse-web
-            runner: blacksmith-8vcpu-ubuntu-2404
-            health_url: http://localhost:3000/api/public/health
-          - component: worker
-            service: langfuse-worker
-            runner: blacksmith-4vcpu-ubuntu-2404
-            health_url: http://localhost:3030/api/health
+      matrix: ${{ fromJSON(needs.select-vitest-suites.outputs.docker-matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -438,7 +468,7 @@ jobs:
         # Type-checking runs in the lint job; release builds retain it.
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
-          if [ "${{ matrix.component }}" = "web" ]; then
+          if [ "$COMPONENT" = "web" ]; then
             docker buildx bake -f /tmp/bake.json \
               --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true" \
               langfuse-web
@@ -449,11 +479,11 @@ jobs:
         run: |
           timeout 300 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' || true
           cat /tmp/deps-up.log
-          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 "${{ matrix.service }}"
+          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 "$SERVICE"
       - name: Check service health
         run: |
           curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
-            "${{ matrix.health_url }}"
+            "$HEALTH_URL"
       - name: Capture docker diagnostics on failure
         if: failure()
         run: |
@@ -489,10 +519,11 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - select-vitest-suites
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
+    if: ${{ !cancelled() && needs.select-vitest-suites.outputs.web == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
       NODE_ENV: test
@@ -504,6 +535,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
           persist-credentials: false
       - name: Install golang-migrate for Clickhouse migrations in background
         # Only needed by the "Migrate DB" step, so let the dependency setup
@@ -646,7 +678,12 @@ jobs:
         # invocation, so they run in their own parallel job below.
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8
+        run: |
+          changed_args=()
+          if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
+            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+          fi
+          npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8 "${changed_args[@]}" --passWithNoTests
       - name: Prune stale turbo cache entries
         if: env.CI_CACHE_ALLOWED == 'true'
         # Each run saves the restored archive plus new entries, so the cache
@@ -658,10 +695,12 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - select-vitest-suites
+    if: ${{ !cancelled() && needs.select-vitest-suites.outputs.web == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -690,17 +729,23 @@ jobs:
         run: pnpm turbo run build --filter=web^...
       - name: run test-client
         working-directory: web
-        run: pnpm run test-client
+        run: |
+          changed_args=()
+          if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
+            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+          fi
+          pnpm run test-client "${changed_args[@]}" --passWithNoTests
 
   tests-worker:
     timeout-minutes: 20
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - select-vitest-suites
+    # The selector resolves package scope before dependency setup or builds.
+    # !cancelled() lets this condition evaluate when pre-job is skipped on
+    # pull-request and merge-group events.
+    if: ${{ !cancelled() && needs.select-vitest-suites.outputs.worker == 'true' && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
       NODE_ENV: test
@@ -712,6 +757,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '1' }}
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -788,7 +834,12 @@ jobs:
       - name: Build
         run: pnpm --filter=worker... run build
       - name: run tests
-        run: pnpm --filter=worker run test:exclude-llm-connections
+        run: |
+          changed_args=()
+          if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
+            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+          fi
+          pnpm --filter=worker run test:exclude-llm-connections "${changed_args[@]}" --passWithNoTests
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
   test-worker-llm-connections:
@@ -1116,6 +1167,7 @@ jobs:
         e2e-tests,
         test-docker-build,
         e2e-server-tests,
+        select-vitest-suites,
       ]
     if: always()
     permissions:
