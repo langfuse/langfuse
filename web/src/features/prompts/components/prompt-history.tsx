@@ -1,7 +1,7 @@
 import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
 import { useState, useRef, useEffect } from "react";
-import { PromptVersionDiffDialog } from "./PromptVersionDiffDialog";
+import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialog";
 import {
   Timeline,
   TimelineItem,
@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/src/components/ui/badge";
 import { CommandItem } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
-import { DialogTrigger } from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/ui/dialog";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { FileDiffIcon } from "lucide-react";
@@ -155,15 +155,22 @@ const PromptHistoryTraceNode = (props: {
             <div className="flex flex-row justify-end space-x-1">
               {props.currentPrompt &&
               props.currentPromptVersion !== prompt.version ? (
-                <PromptVersionDiffDialog
-                  leftPrompt={prompt}
-                  rightPrompt={props.currentPrompt}
+                <DialogController
+                  size="xl"
+                  closeOnInteractionOutside
+                  renderContent={({ closeDialog }) => (
+                    <PromptVersionDiffDialogContent
+                      leftPrompt={prompt}
+                      rightPrompt={props.currentPrompt!}
+                      closeDialog={closeDialog}
+                    />
+                  )}
                 >
-                  {({ isOpen, openDialog }) =>
+                  {({ isOpen, Trigger }) =>
                     isHovered ||
                     props.currentPromptVersion === prompt.version ||
                     isOpen ? (
-                      <DialogTrigger asChild>
+                      <Trigger asChild>
                         <Button
                           variant="outline"
                           type="button"
@@ -171,16 +178,15 @@ const PromptHistoryTraceNode = (props: {
                           className="h-7 w-7 px-0"
                           onClick={(event) => {
                             event.stopPropagation();
-                            openDialog();
                           }}
                           title="Compare with selected prompt"
                         >
                           <FileDiffIcon className="h-4 w-4" />
                         </Button>
-                      </DialogTrigger>
+                      </Trigger>
                     ) : null
                   }
-                </PromptVersionDiffDialog>
+                </DialogController>
               ) : null}
             </div>
           </div>
