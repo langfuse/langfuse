@@ -1,4 +1,4 @@
-import { Trace } from "@/src/components/trace/Trace";
+import { Trace } from "@/src/features/traces/Trace";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,

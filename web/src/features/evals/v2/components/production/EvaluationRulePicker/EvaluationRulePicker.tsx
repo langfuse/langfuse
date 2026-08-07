@@ -21,6 +21,22 @@ type EvaluationRule = {
   name: string;
 };
 
+function EvaluationRulePickerController({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      {children}
+    </Popover>
+  );
+}
+
 export function EvaluationRulePicker<Rule extends EvaluationRule>({
   trigger,
   open,
@@ -58,7 +74,10 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
   };
 
   return (
-    <Popover open={resolvedOpen} onOpenChange={changeOpen}>
+    <EvaluationRulePickerController
+      open={resolvedOpen}
+      onOpenChange={changeOpen}
+    >
       <PopoverTrigger asChild>{trigger(resolvedOpen)}</PopoverTrigger>
       <PopoverContent align={align} className="w-96 p-0">
         <Command>
@@ -118,6 +137,6 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
           </CommandList>
         </Command>
       </PopoverContent>
-    </Popover>
+    </EvaluationRulePickerController>
   );
 }

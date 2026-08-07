@@ -5,7 +5,7 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
   TraceDetailBody,
   traceDetailTitle,
-} from "@/src/components/trace/TraceDetailBody";
+} from "@/src/features/traces/TraceDetailBody";
 import { Button } from "@/src/components/ui/button";
 import {
   Command,

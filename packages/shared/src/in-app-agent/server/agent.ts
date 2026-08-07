@@ -23,9 +23,12 @@ import {
   createSandboxTools,
   createRedirectActionTool,
   filterInAppAgentAvailableLangfuseMcpTools,
+  type CompletedInAppAgentMcpToolCall,
   type InAppAgentUserAccess,
+  withOptionalSilentMcpOutput,
   withInAppAgentToolApproval,
 } from "./tools";
+import { toPublicEvent } from "./watch";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "../../features/filters/internalEnvironments";
@@ -123,7 +126,7 @@ function formatSandboxContext(sandbox?: InAppAgentSandbox): string {
 <sandbox_filesystem>
 When working in the sandbox filesystem, assume this layout:
 - "/workspace" is the current working directory for normal file operations and shell commands.
-- "/workspace/tool_calls" contains all past tool calls and their outputs. Treat this directory as read-only. Any changes to it will be discarded before the next tool call.
+- "/workspace/tool_calls" contains all past tool calls and their outputs, including full results requested with the silent argument. Treat this directory as read-only; any changes to it will be discarded before the next tool call.
 </sandbox_filesystem>
 `;
 }
@@ -153,6 +156,7 @@ export function getBedrockReasoningProviderOptions(modelId: string) {
 
 type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
+  onMcpToolCallCompleted?: (toolCall: CompletedInAppAgentMcpToolCall) => void;
   onApprovedToolCallExecuted?: () => void | Promise<void>;
   onComplete?: () => void | Promise<void>;
   onAbort?: () => void | Promise<void>;
@@ -348,7 +352,9 @@ export async function createAgUiStream(params: {
             }
 
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify(agUiEvent)}\n\n`),
+              encoder.encode(
+                `data: ${JSON.stringify(toPublicEvent(agUiEvent))}\n\n`,
+              ),
             );
           })
           .catch((error: unknown) => {
@@ -490,6 +496,7 @@ export async function createAgUiStream(params: {
               params.options.onApprovedToolCallExecuted,
           });
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
+          currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
 
           if (
             forwardedProps?.command?.resume?.approved === true &&
@@ -533,6 +540,7 @@ export async function createAgUiStream(params: {
 
             cleanupAdapter = currentAdapter.cleanup;
             interruptAdapter = currentAdapter.interrupt;
+            currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
           }
 
           subscription = currentAdapter.adapter.run(runInput.input).subscribe({
@@ -704,7 +712,7 @@ export async function createAgUiStream(params: {
 
 type ExecutableInAppAgentTool = {
   execute?: (inputData: unknown, context: unknown) => Promise<unknown>;
-  toModelOutput?: (output: unknown) => unknown;
+  toModelOutput?: (output: unknown) => unknown | PromiseLike<unknown>;
 };
 
 async function createMastraAdapter(params: {
@@ -775,14 +783,22 @@ async function createMastraAdapter(params: {
     // discovery, then prefix tool names for constructor-based tools so the
     // model sees the same names that later appear in AG-UI tool-call events.
     const tools = withInAppAgentToolApproval({
-      ...prefixToolsetTools(
-        "langfuse",
-        filterInAppAgentAvailableLangfuseMcpTools({
-          tools: toolsets.langfuse,
-          userAccess: params.options.langfuseMcp.userAccess,
-        }),
-      ),
-      ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+      ...withOptionalSilentMcpOutput({
+        tools: prefixToolsetTools(
+          "langfuse",
+          filterInAppAgentAvailableLangfuseMcpTools({
+            tools: toolsets.langfuse,
+            userAccess: params.options.langfuseMcp.userAccess,
+          }),
+        ),
+        sandbox: params.options.sandbox,
+        onToolCallCompleted: params.options.onMcpToolCallCompleted,
+      }),
+      ...withOptionalSilentMcpOutput({
+        tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+        sandbox: params.options.sandbox,
+        onToolCallCompleted: params.options.onMcpToolCallCompleted,
+      }),
       [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
         projectId: params.options.redirectAction.projectId,
         isV4Enabled: params.options.redirectAction.isV4Enabled,
@@ -797,10 +813,17 @@ async function createMastraAdapter(params: {
       params.options.awsBedrock.modelId,
     );
 
+    // @ag-ui/mastra currently forwards only assistant, user, and tool
+    // messages. Keep approval outcomes as developer messages in the AG-UI
+    // transcript, while mirroring them through Mastra's model-facing
+    // instruction channel so the model receives the same higher-priority
+    // guidance on resumed runs.
+    let developerGuidance: string | undefined;
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
-      instructions: params.instructions,
+      instructions: () =>
+        [params.instructions, developerGuidance].filter(Boolean).join("\n\n"),
       model: bedrock(
         params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
       ),
@@ -830,6 +853,9 @@ async function createMastraAdapter(params: {
 
     return {
       adapter,
+      setDeveloperGuidance: (guidance: string | undefined) => {
+        developerGuidance = guidance;
+      },
       executeToolCall: async (
         approvalRequest: InAppAgentToolApprovalRequest,
       ) => {
@@ -859,7 +885,12 @@ async function createMastraAdapter(params: {
           },
         });
 
-        return tool.toModelOutput ? tool.toModelOutput(result) : result;
+        return {
+          result,
+          modelResult: tool.toModelOutput
+            ? await tool.toModelOutput(result)
+            : result,
+        };
       },
       interrupt: () => agent.abortRunStream(params.input.runId),
       cleanup: () => mcpClient.disconnect(),

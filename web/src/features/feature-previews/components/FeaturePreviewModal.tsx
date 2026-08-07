@@ -12,6 +12,7 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
+import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 
 import filterSearchBarDarkIllustration from "../assets/filter-search-bar-dark.svg";
 import filterSearchBarLightIllustration from "../assets/filter-search-bar-light.svg";
@@ -23,7 +24,7 @@ import modernSessionLightIllustration from "../assets/modern-session-light.svg";
  *  `searchBar` is retired and no longer renders a tile — see
  *  ControlledFeaturePreviewModal. It remains as rollback plumbing.
  *  TODO(remove ~2026-06-19): drop "searchBar" once GA is confirmed. */
-export type PreviewFlag = "modernSession" | "searchBar" | "v4UpgradeUi";
+export type PreviewFlag = FeaturePreviewFlag;
 
 type PreviewIllustration = {
   light: React.ComponentProps<typeof Image>["src"];

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 /* eslint @repo/no-style-props: "off" */
 import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";

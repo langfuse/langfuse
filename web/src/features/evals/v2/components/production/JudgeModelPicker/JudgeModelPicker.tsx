@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import {
   Check,
   ChevronDown,
@@ -27,6 +28,22 @@ import { cn } from "@/src/utils/tailwind";
 export type JudgeModelMode = "default" | "custom";
 
 type Model = { provider: string; model: string };
+
+function JudgeModelPopoverController({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      {children}
+    </Popover>
+  );
+}
 
 /** A controlled model selection menu for LLM-as-a-judge evaluators. */
 export function JudgeModelPicker({
@@ -66,7 +83,7 @@ export function JudgeModelPicker({
   };
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <JudgeModelPopoverController open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -211,6 +228,6 @@ export function JudgeModelPicker({
           </div>
         </Command>
       </PopoverContent>
-    </Popover>
+    </JudgeModelPopoverController>
   );
 }

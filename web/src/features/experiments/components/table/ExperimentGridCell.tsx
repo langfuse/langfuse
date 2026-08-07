@@ -484,7 +484,6 @@ export const ExperimentGridCell = ({
             data={data.output ?? null}
             className="bg-accent-light-green min-h-8"
             singleLine={singleLine}
-            enableExpandOnHover
           />
         ),
       },

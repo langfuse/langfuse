@@ -5,13 +5,13 @@ import {
   IOPreview,
   type IOPreviewContentMode,
   type ViewMode,
-} from "@/src/components/trace/components/IOPreview/IOPreview";
+} from "@/src/features/traces/components/IOPreview/IOPreview";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { downloadJsonFile } from "@/src/components/session/actions/downloadSessionAsJson";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { type ChatMLParserResult } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
+import { type ChatMLParserResult } from "@/src/features/traces/components/IOPreview/hooks/useChatMLParser";
 import { parseJsonIfString } from "@langfuse/shared";
 
 export type SessionTraceObservation =

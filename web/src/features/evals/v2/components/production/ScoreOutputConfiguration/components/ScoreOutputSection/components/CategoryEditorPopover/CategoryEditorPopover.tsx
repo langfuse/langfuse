@@ -13,6 +13,22 @@ import {
 import { type ScoreOutputChoice } from "@/src/features/evals/v2/scoreOutputTypes";
 import { cn } from "@/src/utils/tailwind";
 
+function CategoryEditorPopoverController({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      {children}
+    </Popover>
+  );
+}
+
 /** Edits one categorical score option inside a controlled popover. */
 export function CategoryEditorPopover({
   trigger,
@@ -36,7 +52,7 @@ export function CategoryEditorPopover({
   onDone: () => void;
 }) {
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <CategoryEditorPopoverController open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent align="start" className="w-80">
         <div className="flex flex-col gap-4">
@@ -98,6 +114,6 @@ export function CategoryEditorPopover({
           </div>
         </div>
       </PopoverContent>
-    </Popover>
+    </CategoryEditorPopoverController>
   );
 }

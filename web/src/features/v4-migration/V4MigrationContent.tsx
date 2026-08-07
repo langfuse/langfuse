@@ -46,7 +46,7 @@ import {
   V4_CODING_AGENT_PROMPT,
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -399,9 +399,7 @@ export function V4MigrationHeaderContent({
         });
         capture(`project_settings:api_key_create`);
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportNonTrpcError(error, "v4-migration"));
   };
 
   return (

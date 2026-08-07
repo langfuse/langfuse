@@ -11,6 +11,7 @@ import {
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
@@ -32,9 +33,11 @@ import {
   assertInAppAgentRateLimit,
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
+import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
+  deleteBackgroundConversation,
   getBackgroundConversationSnapshot,
   startBackgroundRun,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
@@ -87,6 +90,14 @@ const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
 const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
+  // Deployment config, not agent access, so no availability assert: an org
+  // without the entitlement should get an answer rather than an error.
+  getExecutionMode: protectedProjectProcedureWithoutTracing
+    .input(z.object({ projectId: z.string() }))
+    .query(() => ({
+      mode: sharedEnv.LANGFUSE_IN_APP_AGENT_EXECUTION_MODE,
+    })),
+
   listConversations: protectedProjectProcedure
     .input(
       z.object({
@@ -176,18 +187,21 @@ export const inAppAgentRouter = createTRPCRouter({
         user: ctx.session.user,
       });
 
-      await assertInAppAgentRateLimit(
-        getInAppAgentApiAccessScope(
-          ctx.session.user,
-          input.projectId,
-          projectAvailability,
-        ),
-        "in-app-agent-run",
+      const rateLimitScope = getInAppAgentApiAccessScope(
+        ctx.session.user,
+        input.projectId,
+        projectAvailability,
       );
 
+      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+
+      // The concurrency ceiling is enforced inside `startBackgroundRun`, which
+      // owns the conversation lookup it has to reconcile against first.
       return startBackgroundRun({
         prisma: ctx.prisma,
         projectId: input.projectId,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
         message: input.message,
@@ -232,14 +246,22 @@ export const inAppAgentRouter = createTRPCRouter({
         user: ctx.session.user,
       });
 
-      await assertInAppAgentRateLimit(
-        getInAppAgentApiAccessScope(
-          ctx.session.user,
-          input.projectId,
-          projectAvailability,
-        ),
-        "in-app-agent-run",
+      const rateLimitScope = getInAppAgentApiAccessScope(
+        ctx.session.user,
+        input.projectId,
+        projectAvailability,
       );
+
+      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+      // A continuation is a fresh run that occupies a worker slot, and parked
+      // approvals accumulate without holding one, so this path needs the
+      // ceiling for the same reason it already needs the daily bucket.
+      await assertInAppAgentRunCapacity({
+        prisma: ctx.prisma,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
+        userId: ctx.session.user.id,
+      });
 
       return decideBackgroundApproval({
         prisma: ctx.prisma,
@@ -262,27 +284,12 @@ export const inAppAgentRouter = createTRPCRouter({
         user: ctx.session.user,
       });
 
-      await getOwnedConversationOrThrow({
+      return deleteBackgroundConversation({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
       });
-
-      await ctx.prisma.inAppAgentConversation.update({
-        where: {
-          id_projectId: {
-            id: input.conversationId,
-            projectId: input.projectId,
-          },
-        },
-        data: {
-          providerSessionId: null,
-          deletedAt: new Date(),
-        },
-      });
-
-      return { success: true };
     }),
 
   renameConversation: protectedProjectProcedureWithoutTracing

@@ -3,7 +3,10 @@ import {
   type ObservationEvalConfig,
   type ObservationEvalSchedulerDeps,
 } from "./types";
-import { shouldSampleObservation } from "./shouldSampleObservation";
+import {
+  getDeterministicSamplingValue,
+  shouldSampleEvaluation,
+} from "../deterministicSampling";
 import {
   InMemoryFilterService,
   LangfuseInternalTraceEnvironment,
@@ -90,6 +93,8 @@ export async function scheduleObservationEvals(
     return;
   }
 
+  const samplingValue = getDeterministicSamplingValue(observation.span_id);
+
   // Resolve every matching evaluator-rule pair before uploading the input.
   // Separate executions preserve which shared rule caused each run.
   const matchingConfigRules = configs.flatMap((config) => {
@@ -109,7 +114,8 @@ export async function scheduleObservationEvals(
       if ("enabled" in rule && !rule.enabled) return [];
       if (!evaluateFilter(observation, rule)) return [];
       if (
-        !shouldSampleObservation({
+        !shouldSampleEvaluation({
+          samplingValue,
           samplingRate: rule.sampling.toNumber(),
         })
       ) {

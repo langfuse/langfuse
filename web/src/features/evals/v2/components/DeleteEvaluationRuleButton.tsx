@@ -20,7 +20,7 @@ export function DeleteEvaluationRuleButton({
   size,
   disabled,
   iconOnly = false,
-  className,
+  fullWidth = false,
 }: {
   projectId: string;
   evaluationRule: {
@@ -33,7 +33,7 @@ export function DeleteEvaluationRuleButton({
   size?: ButtonProps["size"];
   disabled?: boolean;
   iconOnly?: boolean;
-  className?: string;
+  fullWidth?: boolean;
 }) {
   const utils = api.useUtils();
   const [open, setOpen] = useState(false);
@@ -69,7 +69,7 @@ export function DeleteEvaluationRuleButton({
       variant={variant}
       size={size ?? (iconOnly ? "icon-xs" : undefined)}
       disabled={disabled}
-      className={className}
+      className={fullWidth ? "w-full justify-start font-normal" : undefined}
       aria-label={iconOnly ? "Delete rule" : undefined}
       onClick={() => setOpen(true)}
     >

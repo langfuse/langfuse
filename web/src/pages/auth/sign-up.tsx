@@ -21,6 +21,7 @@ import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/Langfu
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import {
+  FALLBACK_AUTH_PROVIDERS,
   SSOButtons,
   useHuggingFaceRedirect,
   type PageProps,
@@ -52,7 +53,7 @@ const signupVerifyFormSchema = z.object({
 type SignupPhase = "form" | "otp";
 
 export default function SignUp({
-  authProviders,
+  authProviders = FALLBACK_AUTH_PROVIDERS,
   runningOnHuggingFaceSpaces,
   emailVerificationRequired,
 }: PageProps) {

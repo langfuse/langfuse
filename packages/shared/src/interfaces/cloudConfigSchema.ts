@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CloudConfigRateLimit } from "./rate-limits";
-import { cloudConfigPlans } from "../features/entitlements/plans";
+import { chbPlanCodes, cloudConfigPlans } from "../features/entitlements/plans";
 
 export const CloudConfigSchema = z.object({
   plan: z.enum(cloudConfigPlans).optional(),
@@ -21,6 +21,49 @@ export const CloudConfigSchema = z.object({
       isLegacySubscription:
         data?.activeProductId != null && data?.activeUsageProductId == null,
     }))
+    .nullish(),
+
+  // ClickHouse Billing (CHB) state. Written only by the CHB webhook handler,
+  // except organizationId which checkout-session creation persists. Invariant:
+  // an org carries either `stripe` billing state or `clickhouse` state, never
+  // both — provider routing (getBillingProvider) and the worker jobs'
+  // Stripe-customer-id selection depend on it.
+  clickhouse: z
+    .object({
+      // ClickHouse Organization ID. Required and uuid-validated: parseDbOrg
+      // nulls the whole cloudConfig on parse failure, so strictness here is
+      // only safe because both writers (checkout response, webhook handler)
+      // validate the uuid before persisting. Change the stored schema first,
+      // writers second, if the id format ever loosens.
+      organizationId: z.uuid(),
+      bundleId: z.string().nullish(),
+      // Validated against the shared plan-code enum so downstream resolution is
+      // an exhaustive lookup. `.catch(null)` contains the damage if a code ever
+      // drifts (CHB renames a tier, or ships one before we deploy support for
+      // it): parseDbOrg nulls the *entire* cloudConfig on a parse failure, which
+      // would also discard the org's plan override, rate-limit overrides and
+      // stripe.customerId — and an org without a Stripe customer id drops out of
+      // the usage-metering job's selection and silently stops being billed.
+      // Unknown codes are rejected at the webhook so they are never stored.
+      planCode: z.enum(chbPlanCodes).nullish().catch(null),
+      paymentStatus: z.string().nullish(), // "active" | "failed" | ...
+      nextPaymentDate: z.string().nullish(),
+      // Stripe customer behind the CHB bundle (payment.provider.customerId on
+      // bundle.* events). Support tooling only — routing, plan resolution, and
+      // the worker jobs never read it.
+      stripeCustomerId: z.string().nullish(),
+      // Snapshot of a pending scheduled change (downgrade/cancel) for the UI.
+      scheduled: z
+        .object({
+          type: z.string(), // "upgrade" | "downgrade" | "cancel"
+          when: z.string(), // "immediate" | "billing_cycle_end" | ISO date
+          planCode: z.string().nullish(),
+          startDate: z.string().nullish(),
+        })
+        .nullish(),
+      // Monotonic guard against out-of-order webhook delivery.
+      lastEventCreatedAt: z.string().nullish(),
+    })
     .nullish(),
 
   // custom rate limits for an organization

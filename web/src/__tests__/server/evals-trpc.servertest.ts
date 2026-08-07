@@ -420,8 +420,20 @@ describe("evalsV2.activateEvaluator", () => {
     expect(unchanged.evalTemplate?.prompt).toBe("Original prompt");
   });
 
-  it("updates a evaluation rule including its name", async () => {
+  it("updates an evaluation rule and its legacy evaluator fallback", async () => {
     const { project, caller } = await prepare();
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        scoreName: `rule-edit-evaluator-${project.id}`,
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 1,
+        delay: 30_000,
+      },
+    });
     const rule = await prisma.evalRunScope.create({
       data: {
         projectId: project.id,
@@ -429,6 +441,9 @@ describe("evalsV2.activateEvaluator", () => {
         targetObject: EvalTargetObject.EVENT,
         filter: [],
         sampling: 1,
+        evaluatorAssignments: {
+          create: { jobConfigurationId: evaluator.id },
+        },
       },
     });
 
@@ -455,6 +470,77 @@ describe("evalsV2.activateEvaluator", () => {
       expect.objectContaining({ column: "environment", value: ["production"] }),
     ]);
     expect(updated.sampling.toNumber()).toBe(0.25);
+
+    const updatedEvaluator = await prisma.jobConfiguration.findUniqueOrThrow({
+      where: { id: evaluator.id },
+    });
+    expect(updatedEvaluator.filter).toEqual(updated.filter);
+    expect(updatedEvaluator.sampling.toNumber()).toBe(0.25);
+  });
+
+  it("rejects invalid evaluator definitions before creating a rule", async () => {
+    const { project, caller } = await prepare();
+    const ruleName = `invalid-definition-rule-${project.id}`;
+
+    await expect(
+      caller.evalsV2.createEvaluator({
+        projectId: project.id,
+        scoreName: "missing-prompt",
+        evaluatorType: "LLM_AS_JUDGE",
+        prompt: null,
+        mapping: [],
+        rule: {
+          mode: "new",
+          name: ruleName,
+          targetObject: EvalTargetObject.EVENT,
+          filter: [],
+          sampling: 1,
+          delay: 30_000,
+        },
+      }),
+    ).rejects.toThrow("LLM-as-a-judge evaluators need a prompt");
+
+    await expect(
+      prisma.evalRunScope.findFirst({
+        where: { projectId: project.id, name: ruleName },
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("rejects unsupported evaluator rule filters without persisting them", async () => {
+    const { project, caller } = await prepare();
+    const ruleName = `invalid-filter-rule-${project.id}`;
+
+    await expect(
+      caller.evalsV2.createEvaluator({
+        projectId: project.id,
+        scoreName: "invalid-filter",
+        evaluatorType: "LLM_AS_JUDGE",
+        prompt: "Return a score for {{input}}",
+        mapping: [],
+        rule: {
+          mode: "new",
+          name: ruleName,
+          targetObject: EvalTargetObject.EVENT,
+          filter: [
+            {
+              column: "unsupportedColumn",
+              type: "string",
+              operator: "contains",
+              value: "value",
+            },
+          ],
+          sampling: 1,
+          delay: 30_000,
+        },
+      }),
+    ).rejects.toThrow("is not supported");
+
+    await expect(
+      prisma.evalRunScope.findFirst({
+        where: { projectId: project.id, name: ruleName },
+      }),
+    ).resolves.toBeNull();
   });
 
   it("deletes a evaluation rule and inactivates evaluators left without a rule", async () => {

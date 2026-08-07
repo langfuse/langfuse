@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { CircleFadingArrowUp } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -15,7 +16,7 @@ import {
 } from "@/src/components/ui/popover";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   PRODUCTION_LABEL,
   PromptLabelSchema,
@@ -111,7 +112,7 @@ export function SetPromptVersionLabels({
       capture("prompt_detail:apply_labels", { labels: selectedLabels });
       setIsOpen(false);
     } catch (err) {
-      console.error(err);
+      reportNonTrpcError(err, "prompts");
     }
   };
 

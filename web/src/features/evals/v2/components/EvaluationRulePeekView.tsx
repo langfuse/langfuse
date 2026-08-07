@@ -7,7 +7,7 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
   TraceDetailBody,
   traceDetailTitle,
-} from "@/src/components/trace/TraceDetailBody";
+} from "@/src/features/traces/TraceDetailBody";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DeleteEvaluationRuleButton } from "@/src/features/evals/v2/components/DeleteEvaluationRuleButton";
@@ -84,7 +84,7 @@ export function TablePeekViewEvaluationRuleDetail({
             evaluatorCount: evaluationRule.data.evaluators.length,
           }}
           size="sm"
-          className="w-full justify-start font-normal"
+          fullWidth
           onDeleted={peekProps.closePeek}
         />
       </div>

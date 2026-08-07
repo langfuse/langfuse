@@ -48,7 +48,7 @@ import {
   type InAppAgentDisplayState,
 } from "@/src/features/in-app-agent/lib/display";
 import { InAppAgentBackgroundClient } from "@/src/features/in-app-agent/lib/backgroundAgentClient";
-import { useInAppAgentBackgroundExecutionEnabled } from "@/src/features/in-app-agent/lib/backgroundExecutionFlag";
+import { useInAppAgentBackgroundExecutionEnabled } from "@/src/features/in-app-agent/lib/executionMode";
 import {
   BackgroundExecutionSessionController,
   isCancellableBackgroundRun,
@@ -84,8 +84,8 @@ import {
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
 import {
-  performToolSideEffects,
-  shouldPerformToolSideEffects,
+  getCompletedToolCalls,
+  performToolSideEffectsForCompletedToolCalls,
 } from "@/src/features/in-app-agent/components/utils/side-effects";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
@@ -345,7 +345,9 @@ function InAppAiAgentProviderInner({
     useState<BackgroundExecutionSession | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
   const toolCallNamesRef = useRef(new Map<string, string>());
-  const backgroundExecutionEnabled = useInAppAgentBackgroundExecutionEnabled();
+  const handledToolCallIdsRef = useRef(new Set<string>());
+  const backgroundExecutionEnabled =
+    useInAppAgentBackgroundExecutionEnabled(projectId);
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const runInFlightRef = useRef(false);
@@ -739,6 +741,7 @@ function InAppAiAgentProviderInner({
     agentRef.current = null;
     activeRunIdRef.current = null;
     toolCallNamesRef.current.clear();
+    handledToolCallIdsRef.current.clear();
     setDisplayState(createInAppAgentDisplayState());
     foregroundPendingToolApprovalsRef.current = [];
     setForegroundPendingToolApprovals([]);
@@ -864,17 +867,20 @@ function InAppAiAgentProviderInner({
           }
         },
         onToolCallResultEvent: ({ event }) => {
-          const toolName = toolCallNamesRef.current.get(event.toolCallId);
-          toolCallNamesRef.current.delete(event.toolCallId);
-          if (toolName && shouldPerformToolSideEffects(event.error)) {
-            performToolSideEffects({ toolName, utils }).catch(
-              (error: unknown) => {
-                console.error(
-                  "Failed to invalidate tRPC routes after in-app agent tool call",
-                  { error, toolName },
-                );
-              },
-            );
+          const toolCallId = String(event.toolCallId);
+          const toolName = toolCallNamesRef.current.get(toolCallId);
+          toolCallNamesRef.current.delete(toolCallId);
+          if (toolName) {
+            performToolSideEffectsForCompletedToolCalls({
+              toolCalls: [{ toolCallId, toolName, toolError: event.error }],
+              handledToolCallIds: handledToolCallIdsRef.current,
+              utils,
+            }).catch((error: unknown) => {
+              console.error(
+                "Failed to invalidate tRPC routes after in-app agent tool call",
+                { error, toolName },
+              );
+            });
           }
         },
         onRunErrorEvent: ({ event }) => {
@@ -1077,6 +1083,18 @@ function InAppAiAgentProviderInner({
               toolCallId: input.toolCallId,
               approved: input.approved,
             }),
+          onHydratedSnapshot: ({ messages }) => {
+            performToolSideEffectsForCompletedToolCalls({
+              toolCalls: getCompletedToolCalls(messages),
+              handledToolCallIds: handledToolCallIdsRef.current,
+              utils,
+            }).catch((error: unknown) => {
+              console.error(
+                "Failed to replay tRPC invalidations after hydrated in-app agent tool calls",
+                error,
+              );
+            });
+          },
           onSettled: () => {
             clearLoadingEvents();
             utils.inAppAgent.listConversations.invalidate({ projectId });
@@ -1106,8 +1124,7 @@ function InAppAiAgentProviderInner({
       releaseSubmitLock,
       resetAgent,
       startRunMutation,
-      utils.inAppAgent.getConversation,
-      utils.inAppAgent.listConversations,
+      utils,
     ],
   );
 
@@ -1373,7 +1390,13 @@ function InAppAiAgentProviderInner({
         if (isNewConversation) {
           capture("in_app_agent:new_chat_started", { entryPoint });
         }
-        capture("in_app_agent:new_chat_turn", { entryPoint });
+        capture("in_app_agent:new_chat_turn", {
+          entryPoint,
+          // Compares the two paths and confirms a rollback took effect.
+          executionMode: backgroundExecutionEnabled
+            ? "background"
+            : "foreground",
+        });
         startedRun = true;
         if (backgroundExecutionEnabled) {
           const backgroundSession = backgroundSessionRef.current;
@@ -1668,8 +1691,10 @@ function InAppAiAgentProviderInner({
           toolCallId: params.approval.approvalRequest.toolCallId,
           approved: params.approved,
         });
+        return true;
       } catch (error) {
         setError(getInAppAgentError(error));
+        return false;
       }
     },
     [conversationQuery.data, ensureSubscription, getOrCreateAgent],
@@ -1700,13 +1725,24 @@ function InAppAiAgentProviderInner({
       }
 
       if (backgroundExecutionEnabled) {
-        await decideBackgroundToolApproval({
+        const decisionAccepted = await decideBackgroundToolApproval({
           approval,
           approved,
           conversationId: selectedConversationId,
         });
+        if (decisionAccepted) {
+          capture("in_app_agent:tool_approval_decided", {
+            isApproved: approved,
+            toolName: approval.approvalRequest.toolName,
+          });
+        }
         return;
       }
+
+      capture("in_app_agent:tool_approval_decided", {
+        isApproved: approved,
+        toolName: approval.approvalRequest.toolName,
+      });
 
       const agent = agentRef.current;
       if (!agent || agent.threadId !== selectedConversationId) {
@@ -1785,6 +1821,7 @@ function InAppAiAgentProviderInner({
     },
     [
       backgroundExecutionEnabled,
+      capture,
       decideBackgroundToolApproval,
       effectivePendingToolApprovals,
       ensureSubscription,

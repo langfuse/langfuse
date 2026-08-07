@@ -90,7 +90,7 @@ export function JudgeModelSection({
             modelParams={modelParams}
             updateModelParamValue={updateModelParamValue}
             setModelParamEnabled={setModelParamEnabled}
-            className="-ml-px h-8 w-8 rounded-l-none"
+            joined
           />
         ) : null}
       </div>

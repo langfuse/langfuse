@@ -4,9 +4,11 @@ import { EyeOff, FlaskConical, ListTree, Sparkles, Wrench } from "lucide-react";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import { useObservedMetadataPaths } from "@/src/features/search-bar/hooks/useObservedMetadata";
-import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useObservedMetadataPaths } from "@/src/hooks/useObservedMetadata";
+import {
+  toObservedOptions,
+  withMetadataPathOptions,
+} from "@/src/features/search-bar/lib/observed-options";
 import { type EvaluationRuleObject } from "@/src/features/evals/v2/lib/evaluationRuleObject";
 import {
   type FilterState,

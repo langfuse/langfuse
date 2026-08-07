@@ -26,7 +26,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
 }));
 
-vi.mock("@/src/components/trace/components/IOPreview/IOPreview", () => ({
+vi.mock("@/src/features/traces/components/IOPreview/IOPreview", () => ({
   IOPreview: () => <div data-testid="io-preview" />,
 }));
 

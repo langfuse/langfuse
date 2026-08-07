@@ -92,42 +92,67 @@ const EvaluationRuleInputSchema = z.discriminatedUnion("mode", [
   }),
 ]);
 
-const CreateEvaluatorSchema = z.object({
-  projectId: z.string(),
-  scoreName: z.string().min(1),
-  description: z.string().nullish(),
-  evaluatorType: z.enum(["LLM_AS_JUDGE", "CODE"]).default("LLM_AS_JUDGE"),
-  // Managed (Langfuse/partner) template this evaluator started from. Absent
-  // for create-from-scratch.
-  sourceTemplateId: z.string().nullish(),
-  prompt: z.string().nullish(),
-  sourceCode: z.string().nullish(),
-  sourceCodeLanguage: z.enum(["PYTHON", "TYPESCRIPT"]).nullish(),
-  provider: z.string().nullish(),
-  model: z.string().nullish(),
-  modelParams: z.record(z.string(), z.unknown()).nullish(),
-  outputDefinition: PersistedEvalOutputDefinitionSchema.nullish(),
-  mapping: z.union([
-    z.array(variableMapping),
-    z.array(observationVariableMapping),
-  ]),
-  rule: EvaluationRuleInputSchema,
-  // Keep evaluating new data as it arrives (timeScope NEW).
-  runContinuously: z.boolean().default(true),
-  // One-time backfill (timeScope EXISTING) over the rule's existing matches
-  // within [from, to], via an observation batch-evaluation action. maxCount
-  // caps how many observations the pass evaluates.
-  backfill: z
-    .object({
-      from: z.coerce.date(),
-      to: z.coerce.date(),
-      maxCount: z.number().int().positive().nullish(),
-    })
-    .nullish(),
-  status: z
-    .enum([JobConfigState.ACTIVE, JobConfigState.INACTIVE])
-    .default(JobConfigState.ACTIVE),
-});
+const CreateEvaluatorSchema = z
+  .object({
+    projectId: z.string(),
+    scoreName: z.string().min(1),
+    description: z.string().nullish(),
+    evaluatorType: z.enum(["LLM_AS_JUDGE", "CODE"]).default("LLM_AS_JUDGE"),
+    // Managed (Langfuse/partner) template this evaluator started from. Absent
+    // for create-from-scratch.
+    sourceTemplateId: z.string().nullish(),
+    prompt: z.string().nullish(),
+    sourceCode: z.string().nullish(),
+    sourceCodeLanguage: z.enum(["PYTHON", "TYPESCRIPT"]).nullish(),
+    provider: z.string().nullish(),
+    model: z.string().nullish(),
+    modelParams: z.record(z.string(), z.unknown()).nullish(),
+    outputDefinition: PersistedEvalOutputDefinitionSchema.nullish(),
+    mapping: z.union([
+      z.array(variableMapping),
+      z.array(observationVariableMapping),
+    ]),
+    rule: EvaluationRuleInputSchema,
+    // Keep evaluating new data as it arrives (timeScope NEW).
+    runContinuously: z.boolean().default(true),
+    // One-time backfill (timeScope EXISTING) over the rule's existing matches
+    // within [from, to], via an observation batch-evaluation action. maxCount
+    // caps how many observations the pass evaluates.
+    backfill: z
+      .object({
+        from: z.coerce.date(),
+        to: z.coerce.date(),
+        maxCount: z.number().int().positive().nullish(),
+      })
+      .nullish(),
+    status: z
+      .enum([JobConfigState.ACTIVE, JobConfigState.INACTIVE])
+      .default(JobConfigState.ACTIVE),
+  })
+  .superRefine((input, ctx) => {
+    if (input.evaluatorType === "CODE") {
+      if (!input.sourceCode) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["sourceCode"],
+          message: "Code evaluators need source code.",
+        });
+      }
+      if (!input.sourceCodeLanguage) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["sourceCodeLanguage"],
+          message: "Code evaluators need a source code language.",
+        });
+      }
+    } else if (!input.prompt) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["prompt"],
+        message: "LLM-as-a-judge evaluators need a prompt.",
+      });
+    }
+  });
 
 const TestRunSchema = z.object({
   projectId: z.string(),
@@ -593,8 +618,6 @@ export const evalsV2Router = createTRPCRouter({
       return { id: evaluator.id };
     }),
 
-  // Assignments read targeting from the rule, so one update applies to every
-  // attached evaluator without duplicating the filter onto every job row.
   updateRule: protectedProjectProcedure
     .input(
       z.object({
@@ -629,13 +652,24 @@ export const evalsV2Router = createTRPCRouter({
 
       try {
         await ctx.prisma.$transaction(async (tx) => {
+          const filter = input.filter ?? [];
           await tx.evalRunScope.update({
             where: { id: rule.id, projectId: input.projectId },
             data: {
               name: input.name,
-              filter: input.filter ?? [],
+              filter,
               sampling: input.sampling,
             },
+          });
+
+          // Keep the legacy job-level targeting fields synchronized for
+          // workers that do not read rule assignments during rolling deploys.
+          await tx.jobConfiguration.updateMany({
+            where: {
+              projectId: input.projectId,
+              runScopeAssignments: { some: { runScopeId: rule.id } },
+            },
+            data: { filter, sampling: input.sampling },
           });
 
           if (input.evaluatorMappings) {
@@ -954,19 +988,18 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: input.evaluatorId,
-        action: "update",
-      });
-
       const result = await activateEvaluator({
         prisma: ctx.prisma,
         projectId: input.projectId,
         createdByUserId: ctx.session.user.id,
         evaluatorId: input.evaluatorId,
         rule: input.rule,
+      });
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: input.evaluatorId,
+        action: "update",
       });
       await invalidateProjectEvalConfigCaches(input.projectId);
 
@@ -1014,53 +1047,22 @@ export const evalsV2Router = createTRPCRouter({
           delay: 30_000,
         };
       } else {
-        // Prototype: keep search-bar-produced filters as-is when they don't
-        // pass strict trace-column validation.
         const filterValidation = validateEvaluatorFiltersForTarget({
           targetObject: input.rule.targetObject,
           filter: input.rule.filter ?? [],
         });
-        const filter = filterValidation.isValid
-          ? (filterValidation.validatedFilters ?? [])
-          : (input.rule.filter ?? []);
         if (!filterValidation.isValid) {
-          logger.info(
-            "evalsV2.createEvaluator: storing filter without strict validation",
-            { issues: filterValidation.issues },
+          throw new InvalidRequestError(
+            filterValidation.issues.map((issue) => issue.message).join(" "),
           );
         }
 
         ruleValues = {
           targetObject: input.rule.targetObject,
-          filter,
+          filter: filterValidation.validatedFilters ?? [],
           sampling: input.rule.sampling,
           delay: input.rule.delay,
         };
-
-        try {
-          const rule = await ctx.prisma.evalRunScope.create({
-            data: {
-              projectId: input.projectId,
-              createdByUserId: ctx.session.user.id,
-              name: input.rule.name,
-              targetObject: input.rule.targetObject,
-              filter: filter,
-              sampling: input.rule.sampling,
-              delay: input.rule.delay,
-            },
-          });
-          ruleId = rule.id;
-        } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === "P2002"
-          ) {
-            throw new LangfuseConflictError(
-              `An evaluation rule named "${input.rule.name}" already exists — reuse it instead.`,
-            );
-          }
-          throw error;
-        }
       }
 
       // A rule-less draft can never run — force it inactive.
@@ -1113,6 +1115,35 @@ export const evalsV2Router = createTRPCRouter({
           throw new InvalidRequestError(
             `The backfill matches ${matchCount} observations — the maximum is ${env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT}. Narrow the window, set a max limit, or disable the backfill.`,
           );
+        }
+      }
+
+      // Persist a new rule only after all request validation and potentially
+      // expensive backfill guards have succeeded.
+      if (input.rule.mode === "new") {
+        try {
+          const rule = await ctx.prisma.evalRunScope.create({
+            data: {
+              projectId: input.projectId,
+              createdByUserId: ctx.session.user.id,
+              name: input.rule.name,
+              targetObject: input.rule.targetObject,
+              filter: ruleValues.filter,
+              sampling: input.rule.sampling,
+              delay: input.rule.delay,
+            },
+          });
+          ruleId = rule.id;
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002"
+          ) {
+            throw new LangfuseConflictError(
+              `An evaluation rule named "${input.rule.name}" already exists — reuse it instead.`,
+            );
+          }
+          throw error;
         }
       }
 

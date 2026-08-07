@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -60,6 +60,22 @@ export type ModelParamsContext = {
  * provider options, API key info). Extracted so embedded model pickers (e.g.
  * the evals v2 judge model select) can reuse it next to their own trigger.
  */
+function ModelParamsPopoverController({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      {children}
+    </Popover>
+  );
+}
+
 export function ModelParamsSettingsButton({
   modelParams,
   updateModelParamValue,
@@ -67,7 +83,7 @@ export function ModelParamsSettingsButton({
   formDisabled = false,
   align = "end",
   label,
-  className,
+  joined = false,
 }: {
   modelParams: UIModelParams;
   updateModelParamValue: ModelParamsContext["updateModelParamValue"];
@@ -76,7 +92,8 @@ export function ModelParamsSettingsButton({
   align?: "start" | "end";
   /** When set, renders a labeled button instead of the icon-only square. */
   label?: string;
-  className?: string;
+  /** Joins the settings trigger to the model picker immediately before it. */
+  joined?: boolean;
 }) {
   const projectId = useProjectIdFromURL();
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
@@ -88,12 +105,19 @@ export function ModelParamsSettingsButton({
   );
 
   return (
-    <Popover open={modelSettingsOpen} onOpenChange={setModelSettingsOpen}>
+    <ModelParamsPopoverController
+      open={modelSettingsOpen}
+      onOpenChange={setModelSettingsOpen}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           size={label ? "sm" : "icon"}
-          className={cn("relative", label ? "h-8" : "h-7 w-7", className)}
+          className={cn(
+            "relative",
+            label ? "h-8" : "h-7 w-7",
+            joined && "-ml-px h-8 w-8 rounded-l-none",
+          )}
           disabled={formDisabled}
           aria-label={label ? undefined : "Model parameters"}
           title={label ? undefined : "Model parameters"}
@@ -178,7 +202,7 @@ export function ModelParamsSettingsButton({
           {projectId && <LLMApiKeyComponent {...{ projectId, modelParams }} />}
         </div>
       </PopoverContent>
-    </Popover>
+    </ModelParamsPopoverController>
   );
 }
 
