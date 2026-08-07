@@ -28,6 +28,7 @@ import {
   type OpenAIOutputAudioType,
   isOpenAITextContentPart,
   isOpenAIImageContentPart,
+  isMediaReferencePart,
 } from "@langfuse/shared";
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
@@ -466,7 +467,9 @@ const parseOpenAIContentParts = (
 ): string => {
   return (content ?? [])
     .map((item) => {
-      if (item.type === "text") {
+      if (typeof item === "string") {
+        return item;
+      } else if (item.type === "text") {
         return item.text;
       } else if (item.type === "image_url") {
         return `![image](${item.image_url.url})`;
@@ -664,6 +667,11 @@ export function MarkdownView({
     content: NonNullable<z.input<typeof OpenAIContentParts>>[number],
     index: number,
   ) {
+    // A bare reference string is a whole part (LFE-9577).
+    if (isMediaReferencePart(content)) {
+      return <LangfuseMediaView key={index} mediaReferenceString={content} />;
+    }
+
     if (isOpenAITextContentPart(content)) {
       return (
         <MarkdownRenderer key={index} markdown={content.text} theme={theme} />
