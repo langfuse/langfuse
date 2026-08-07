@@ -5,10 +5,9 @@ import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
+  DropdownMenuController,
   DropdownMenuItem,
-  DropdownMenuTrigger,
+  type DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { toChartFilters } from "@/src/features/chart-view/lib/chartFilterCompatibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -86,32 +85,37 @@ const AggDropdownController = ({
   options,
   onChange,
 }: {
-  children: () => ReactNode;
+  children: (control: {
+    isOpen: boolean;
+    Trigger: typeof DropdownMenuTrigger;
+  }) => ReactNode;
   options: readonly OutlierStripAggKey[];
   onChange: (agg: OutlierStripAggKey) => void;
 }) => {
   const focusGuard = usePointerSelectionFocusGuard();
   return (
-    <DropdownMenu>
-      {children()}
-      <DropdownMenuContent
-        align="start"
-        onCloseAutoFocus={focusGuard.onCloseAutoFocus}
-      >
-        {options.map((agg) => (
-          <DropdownMenuItem
-            key={agg}
-            onClick={(event) => {
-              focusGuard.markPointerSelection(event);
-              onChange(agg);
-            }}
-            className="text-xs"
-          >
-            {agg}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DropdownMenuController
+      align="start"
+      onCloseAutoFocus={focusGuard.onCloseAutoFocus}
+      renderMenu={() => (
+        <>
+          {options.map((agg) => (
+            <DropdownMenuItem
+              key={agg}
+              onClick={(event) => {
+                focusGuard.markPointerSelection(event);
+                onChange(agg);
+              }}
+              className="text-xs"
+            >
+              {agg}
+            </DropdownMenuItem>
+          ))}
+        </>
+      )}
+    >
+      {children}
+    </DropdownMenuController>
   );
 };
 
@@ -120,32 +124,37 @@ const ModeDropdownController = ({
   options,
   onChange,
 }: {
-  children: () => ReactNode;
+  children: (control: {
+    isOpen: boolean;
+    Trigger: typeof DropdownMenuTrigger;
+  }) => ReactNode;
   options: StripMode[];
   onChange: (mode: StripMode) => void;
 }) => {
   const focusGuard = usePointerSelectionFocusGuard();
   return (
-    <DropdownMenu>
-      {children()}
-      <DropdownMenuContent
-        align="start"
-        onCloseAutoFocus={focusGuard.onCloseAutoFocus}
-      >
-        {options.map((mode) => (
-          <DropdownMenuItem
-            key={mode}
-            onClick={(event) => {
-              focusGuard.markPointerSelection(event);
-              onChange(mode);
-            }}
-            className="text-xs"
-          >
-            {modeLabel(mode)}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DropdownMenuController
+      align="start"
+      onCloseAutoFocus={focusGuard.onCloseAutoFocus}
+      renderMenu={() => (
+        <>
+          {options.map((mode) => (
+            <DropdownMenuItem
+              key={mode}
+              onClick={(event) => {
+                focusGuard.markPointerSelection(event);
+                onChange(mode);
+              }}
+              className="text-xs"
+            >
+              {modeLabel(mode)}
+            </DropdownMenuItem>
+          ))}
+        </>
+      )}
+    >
+      {children}
+    </DropdownMenuController>
   );
 };
 
@@ -375,14 +384,14 @@ export function EventsOutlierStrip({
                   options={MODE_OPTIONS}
                   onChange={handleModeChange}
                 >
-                  {() => (
-                    <DropdownMenuTrigger
+                  {({ Trigger }) => (
+                    <Trigger
                       aria-label={`Chart mode: ${modeLabel(mode)}`}
                       className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[13px] leading-none font-bold"
                     >
                       {modeLabel(mode)}
                       <ChevronDown className="h-2.5 w-2.5" />
-                    </DropdownMenuTrigger>
+                    </Trigger>
                   )}
                 </ModeDropdownController>
               </div>
@@ -419,14 +428,14 @@ export function EventsOutlierStrip({
                   options={MODE_OPTIONS}
                   onChange={handleModeChange}
                 >
-                  {() => (
-                    <DropdownMenuTrigger
+                  {({ Trigger }) => (
+                    <Trigger
                       aria-label={`Chart mode: ${modeLabel(mode)}`}
                       className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[13px] leading-none font-bold"
                     >
                       {modeLabel(mode)}
                       <ChevronDown className="h-2.5 w-2.5" />
-                    </DropdownMenuTrigger>
+                    </Trigger>
                   )}
                 </ModeDropdownController>
                 {/* The bar's aggregate must be legible where there is a
@@ -437,15 +446,15 @@ export function EventsOutlierStrip({
                     options={aggOptions}
                     onChange={(agg) => setAggregation(mode, agg)}
                   >
-                    {() => (
+                    {({ Trigger }) => (
                       <span className="flex items-baseline gap-1">
-                        <DropdownMenuTrigger
+                        <Trigger
                           aria-label={`${def.shortLabel} aggregation: ${aggregation}`}
                           className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-[13px] leading-none underline-offset-2 hover:underline"
                         >
                           {aggregation}
                           <ChevronDown className="h-2.5 w-2.5" />
-                        </DropdownMenuTrigger>
+                        </Trigger>
                       </span>
                     )}
                   </AggDropdownController>
