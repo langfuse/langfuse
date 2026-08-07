@@ -1,0 +1,34 @@
+services:
+  langfuse-web:
+    build:
+      dockerfile: ./web/Dockerfile_enterprise
+      # Value-less args are only forwarded when set in the environment, so the
+      # Dockerfile ARG defaults stay the single source of the image URIs.
+      args:
+        - WIZOS_NODE_BUILDER_IMAGE
+        - WIZOS_NODE_RUNTIME_IMAGE
+    # The shell-less enterprise image has no wget; probe with node instead.
+    # Compose merges healthcheck key-wise, so timings come from the base file.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/public/health').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+
+  langfuse-worker:
+    build:
+      dockerfile: ./worker/Dockerfile_enterprise
+      args:
+        - WIZOS_NODE_BUILDER_IMAGE
+        - WIZOS_NODE_RUNTIME_IMAGE
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3030/api/health').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]

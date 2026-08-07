@@ -1,0 +1,99 @@
+# WizOS build image has shell/npm; hardened runtime image has no shell/apk.
+ARG WIZOS_NODE_BUILDER_IMAGE=816069167615.dkr.ecr.eu-west-1.amazonaws.com/wizos-node:24
+ARG WIZOS_NODE_RUNTIME_IMAGE=816069167615.dkr.ecr.eu-west-1.amazonaws.com/wizos-node:24-hardened
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_BUILDER_IMAGE} AS build-base
+# Pin turbo to avoid nondeterministic prune output from future patch releases.
+RUN npm install turbo@2.9.18 --global
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN npm install pnpm@11.4.0 --global
+
+FROM --platform=${BUILDPLATFORM} ${WIZOS_NODE_BUILDER_IMAGE} AS dumb-init-builder
+ARG TARGETARCH
+ARG DUMB_INIT_VERSION=1.2.5
+RUN case "${TARGETARCH}" in \
+      amd64) dumb_init_arch=x86_64; dumb_init_sha256=e874b55f3279ca41415d290c512a7ba9d08f98041b28ae7c2acb19a545f1c4df ;; \
+      arm64) dumb_init_arch=aarch64; dumb_init_sha256=b7d648f97154a99c539b63c55979cd29f005f88430fb383007fe3458340b795e ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    dumb_init_file="dumb-init_${DUMB_INIT_VERSION}_${dumb_init_arch}" && \
+    wget -O "/tmp/${dumb_init_file}" "https://github.com/Yelp/dumb-init/releases/download/v${DUMB_INIT_VERSION}/${dumb_init_file}" && \
+    echo "${dumb_init_sha256}  /tmp/${dumb_init_file}" | sha256sum -c - && \
+    mv "/tmp/${dumb_init_file}" /usr/bin/dumb-init && \
+    chmod 755 /usr/bin/dumb-init
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
+
+WORKDIR /app
+
+COPY . .
+RUN turbo prune --scope=worker --docker
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS builder
+
+WORKDIR /app
+
+# First install the dependencies (as they change less often)
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=pruner /app/out/json/ .
+
+RUN pnpm install --frozen-lockfile
+
+# pass public variables in build step
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ARG NEXT_PUBLIC_DEMO_ORG_ID
+ARG NEXT_PUBLIC_DEMO_PROJECT_ID
+ARG NEXT_PUBLIC_POSTHOG_KEY
+ARG NEXT_PUBLIC_POSTHOG_HOST
+
+# Copy source code of isolated subworkspace
+COPY --from=pruner /app/out/full/ .
+
+RUN turbo run build --filter=worker...
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
+
+# previously we copied the --from=builder /app . (includes full node_modules etc)
+# we only need the prod + generated prisma client plus .prisma artifacts
+# @langfuse/shared still pulls in next-auth transitively, so keep the deploy output
+# intact here instead of pruning node_modules in Docker.
+# Keep legacy deploy until the worker Docker image is verified with pnpm's default deploy implementation.
+RUN pnpm --filter worker deploy --legacy --prod /prod/worker && \
+    builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
+    deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
+    builder_prisma_runtime_dir="$(dirname "$(dirname "$builder_prisma_client_dir")")/.prisma" && \
+    deployed_prisma_runtime_dir="$(dirname "$(dirname "$deployed_prisma_client_dir")")/.prisma" && \
+    rm -rf "$deployed_prisma_client_dir" "$deployed_prisma_runtime_dir" && \
+    cp -R "$builder_prisma_client_dir" "$deployed_prisma_client_dir" && \
+    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir"
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${WIZOS_NODE_RUNTIME_IMAGE} AS runner
+
+# The runtime image stays shell-less; dumb-init is invoked directly and the
+# entrypoint runs under node.
+COPY --from=dumb-init-builder /usr/bin/dumb-init /bin/dumb-init
+
+WORKDIR /app
+
+ARG NEXT_PUBLIC_BUILD_ID
+ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
+
+ENV NODE_ENV production
+ENV DOCKER_BUILD 0
+
+# Copy only production worker payload instead of full builder workspace (just /prod/worker not entire /app)
+COPY --from=prod-deps --chown=1001:1001 /prod/worker ./worker
+COPY --chown=1001:1001 ./worker/entrypoint.mjs ./worker/entrypoint.mjs
+
+USER 1001:1001
+
+EXPOSE 3030
+ENV PORT=3030
+
+# The hardened enterprise runtime has no /bin/sh; invoke the Node entrypoint directly.
+ENTRYPOINT ["/bin/dumb-init", "--", "node", "./worker/entrypoint.mjs"]
+
+# startup command
+CMD ["node", "worker/dist/index.js"]
