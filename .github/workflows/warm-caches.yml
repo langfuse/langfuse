@@ -15,10 +15,10 @@ name: Warm CI caches
 # to daily or delete the workflow — it is purely compensatory.
 on:
   schedule:
-    # Every 3 hours, offset from the top of the hour to dodge runner-pool
+    # Every 6 hours, offset from the top of the hour to dodge runner-pool
     # congestion. Frequency chosen to stay under the observed hours-scale
     # cache lifetime.
-    - cron: "23 */3 * * *"
+    - cron: "23 */6 * * *"
   workflow_dispatch:
 
 permissions:

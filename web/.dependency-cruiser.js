@@ -30,12 +30,19 @@ module.exports = {
     {
       name: "rfc08-features-via-index",
       comment:
-        "Rule 8: features import other features only through their index.ts.",
+        "Rule 8: features import other features only through a surface — " +
+        "`<feature>` from client code, `<feature>/server` from server code. " +
+        "A feature has two, because it is a full-stack slice: the root index " +
+        "must stay client-safe, so it can never re-export server/.",
       severity: "warn",
       from: { path: "^(src/(?:ee/)?features/[^/]+)/" },
       to: {
         path: "^src/(?:ee/)?features/[^/]+/",
-        pathNot: ["^$1/", "^src/(?:ee/)?features/[^/]+/index\\.tsx?$"],
+        pathNot: [
+          "^$1/",
+          "^src/(?:ee/)?features/[^/]+/index\\.tsx?$",
+          "^src/(?:ee/)?features/[^/]+/server/index\\.tsx?$",
+        ],
       },
     },
     {

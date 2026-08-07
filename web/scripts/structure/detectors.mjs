@@ -21,7 +21,18 @@ const KIND_DIRS = new Set([
   "stores",
   "fns",
   "server",
+  "constants",
+  "types",
 ]);
+const KINDS_LIST = [...KIND_DIRS].join("|");
+
+/** A feature's server-side public surface (RFC rule 9, amended). */
+const FEATURE_SERVER_INDEX =
+  /^src\/(?:ee\/)?features\/[^/]+\/server\/index\.tsx?$/;
+
+// `docs/` holds prose, not code, and is allowed at any level: it is where a
+// README goes so it is not loose in a code folder.
+const DOC_DIRS = new Set(["docs"]);
 
 /** @type {(p: string) => boolean} */
 export const isTestish = (p) =>
@@ -84,7 +95,8 @@ export function rule7(modules) {
   return out;
 }
 
-// Rule 8 — features import other features only through their index.ts.
+// Rule 8 — features import other features only through a surface: the root
+// index from client code, server/index.ts from server code (rule 9, amended).
 /** @param {Module[]} modules @returns {Violation[]} */
 export function rule8(modules) {
   const out = [];
@@ -96,6 +108,9 @@ export function rule8(modules) {
       if (!to || to === from) continue;
       if (dep.resolved === `${to}index.ts` || dep.resolved === `${to}index.tsx`)
         continue;
+      // the same exception .dependency-cruiser.js carries, so the census and
+      // CI agree on the server surface
+      if (FEATURE_SERVER_INDEX.test(dep.resolved)) continue;
       out.push(v(`${mod.source} -> ${dep.resolved}`, mod.source, dep.resolved));
     }
   }
@@ -434,7 +449,8 @@ export function rule4(files, exportsOf) {
       issues.push("dump file");
     if (values.length > 1)
       issues.push(
-        `${values.length} exports: ${values.map((e) => e.name).join(", ")}`,
+        `${values.length} exports: ${values.map((e) => e.name).join(", ")}` +
+          ` (one per file, or a module folder here)`,
       );
     if (issues.length) out.push(v(`${f}: ${issues.join("; ")}`, f));
   }
@@ -455,7 +471,19 @@ export function rule5(dirs) {
     const name = base(d);
     const parent = d.slice(0, -(name.length + 1));
     const parentName = base(parent);
-    if (name === "__tests__") continue;
+    if (name === "__tests__" || DOC_DIRS.has(name)) continue;
+    // A module folder inside fns/ groups one engine's modules (RFC rule 4). It
+    // may not grow kind folders of its own — that would make it a feature — so
+    // a reserved kind name here is not a module folder and stays in scope.
+    if (parentName === "fns" && !PASCAL.test(name) && !KIND_DIRS.has(name))
+      continue;
+    if (KIND_DIRS.has(parentName) && parentName !== "components") {
+      const grandparent = base(parent.slice(0, -(parentName.length + 1)));
+      if (grandparent === "fns") {
+        out.push(v(`${d}: kind folder inside a fns/ module folder`, d));
+        continue;
+      }
+    }
     if (KIND_DIRS.has(name)) {
       const featRootDir = /^src\/(?:ee\/)?features\/[^/]+$/.test(parent);
       if (!featRootDir && !PASCAL.test(parentName))
@@ -469,12 +497,7 @@ export function rule5(dirs) {
       if (parentName !== "components")
         out.push(v(`${d}: component folder outside components/`, d));
     } else {
-      out.push(
-        v(
-          `${d}: '${name}' is not a kind folder (components|hooks|contexts|stores|fns|server)`,
-          d,
-        ),
-      );
+      out.push(v(`${d}: '${name}' is not a kind folder (${KINDS_LIST})`, d));
     }
   }
   return out;
@@ -489,8 +512,13 @@ export function rule9(files, exportsOf) {
     /^src\/(?:ee\/)?(features|components|hooks|contexts|stores|fns|utils|constants|lib)\//;
   for (const f of files) {
     if (!/(^|\/)index\.[jt]sx?$/.test(f) || !SCOPE.test(f)) continue;
-    if (/(^|\/)server\//.test(f)) continue; // server/ internals: unspecified by the RFC
-    if (/^src\/(?:ee\/)?features\/[^/]+\/index\.tsx?$/.test(f)) {
+    // A feature has two surfaces: the root index (client-safe) and
+    // server/index.ts (server-side). Anything deeper in server/ is unspecified.
+    if (/(^|\/)server\//.test(f) && !FEATURE_SERVER_INDEX.test(f)) continue;
+    if (
+      /^src\/(?:ee\/)?features\/[^/]+\/index\.tsx?$/.test(f) ||
+      FEATURE_SERVER_INDEX.test(f)
+    ) {
       const ex = exportsOf(f);
       if (ex.some((e) => e.kind === "star")) out.push(v(`${f}: export *`, f));
       if (ex.some((e) => e.kind === "value"))
