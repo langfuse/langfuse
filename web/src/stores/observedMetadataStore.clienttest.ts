@@ -9,7 +9,7 @@ import {
   MAX_VALUES_PER_KEY,
   MAX_VALUES_PER_PROJECT,
   type StoredKeyInfo,
-} from "../lib/metadata-paths";
+} from "@/src/fns/observedMetadata/metadataPaths";
 
 const paths = (entries: Record<string, StoredKeyInfo>) =>
   new Map(Object.entries(entries));

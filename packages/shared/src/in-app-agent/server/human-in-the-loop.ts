@@ -24,6 +24,8 @@ const MANUAL_TOOL_APPROVAL_REJECTION_ERROR = JSON.stringify({
   message: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
 });
 
+type DeveloperGuidanceMessage = Extract<AgUiMessage, { role: "developer" }>;
+
 export const IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS = 60 * 60;
 
 const PendingToolApprovalSchema = z.object({
@@ -166,6 +168,7 @@ export function parseInAppAgentInterruptEvent(
 export type ManualToolApprovalRunInput = {
   input: AgUiRunAgentInput;
   syntheticEvents: AgUiEvent[];
+  developerGuidance?: string;
   toolCallApproval?: {
     toolCallId: string;
     status: "approved" | "rejected";
@@ -189,6 +192,7 @@ export async function createManualToolApprovalRunInput(params: {
   if (!approved) {
     const assistantMessage =
       createManualToolCallAssistantMessage(approvalRequest);
+    const guidanceMessage = createToolRejectionGuidanceMessage(approvalRequest);
     const toolMessage: AgUiMessage = {
       id: createManualToolResultMessageId(approvalRequest),
       role: "tool",
@@ -204,7 +208,7 @@ export async function createManualToolApprovalRunInput(params: {
           ...params.input.messages,
           assistantMessage,
           toolMessage,
-          createToolRejectionGuidanceMessage(approvalRequest),
+          guidanceMessage,
         ],
         forwardedProps: {},
       },
@@ -213,6 +217,7 @@ export async function createManualToolApprovalRunInput(params: {
         toolResultContent: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
         toolError: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
       }),
+      developerGuidance: guidanceMessage.content,
       toolCallApproval: {
         toolCallId: approvalRequest.toolCallId,
         status: "rejected",
@@ -230,6 +235,12 @@ export async function createManualToolApprovalRunInput(params: {
   const assistantMessage =
     createManualToolCallAssistantMessage(approvalRequest);
   const modelToolResultContent = serializeToolResultContent(modelToolResult);
+  // A successful tool call needs no guidance: the assistant tool call plus its
+  // tool result already carry the outcome. Only the error path needs to tell
+  // the model how to proceed.
+  const guidanceMessage = toolError
+    ? createToolExecutionErrorGuidanceMessage(approvalRequest, toolError)
+    : undefined;
   const toolMessage: AgUiMessage = {
     id: createManualToolResultMessageId(approvalRequest),
     role: "tool",
@@ -250,18 +261,12 @@ export async function createManualToolApprovalRunInput(params: {
         ...params.input.messages,
         assistantMessage,
         toolMessage,
-        ...(toolError
-          ? [
-              createToolExecutionErrorGuidanceMessage(
-                approvalRequest,
-                toolError,
-              ),
-            ]
-          : []),
+        ...(guidanceMessage ? [guidanceMessage] : []),
       ],
       forwardedProps: {},
     },
     syntheticEvents,
+    developerGuidance: guidanceMessage?.content,
     toolCallApproval: {
       toolCallId: approvalRequest.toolCallId,
       status: "approved",
@@ -271,7 +276,7 @@ export async function createManualToolApprovalRunInput(params: {
 
 function createToolRejectionGuidanceMessage(
   approvalRequest: InAppAgentToolApprovalRequest,
-): AgUiMessage {
+): DeveloperGuidanceMessage {
   return {
     id: `${approvalRequest.toolCallId}-approval-rejection-guidance`,
     role: "developer",
@@ -327,6 +332,7 @@ export function createManualToolCallAssistantMessage(
   return {
     id: createManualToolCallParentMessageId(approvalRequest),
     role: "assistant",
+    content: "",
     toolCalls: [
       {
         id: approvalRequest.toolCallId,
@@ -344,7 +350,7 @@ export function createManualToolCallAssistantMessage(
 function createToolExecutionErrorGuidanceMessage(
   approvalRequest: InAppAgentToolApprovalRequest,
   toolError: string,
-): AgUiMessage {
+): DeveloperGuidanceMessage {
   const args = serializeToolCallArgs(approvalRequest.args);
 
   return {

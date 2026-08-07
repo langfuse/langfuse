@@ -5,10 +5,9 @@ import {
   MAX_PATHS_PER_PROJECT,
   MAX_VALUES_PER_KEY,
   mergePathType,
-  withMetadataPathOptions,
+  observedMetadataOptions,
   type StoredKeyInfo,
-} from "./metadata-paths";
-import type { ObservedOptions } from "./observed-options";
+} from "./metadataPaths";
 
 describe("collectMetadataPathTypes", () => {
   it("records top-level keys with observed value types", () => {
@@ -163,21 +162,13 @@ describe("mergePathType", () => {
   });
 });
 
-describe("withMetadataPathOptions", () => {
-  const observed: ObservedOptions = { level: [{ value: "ERROR" }] };
-
-  it("keeps undefined observed undefined (loading semantics untouched)", () => {
-    expect(
-      withMetadataPathOptions(undefined, { a: { type: "string" } }),
-    ).toBeUndefined();
+describe("observedMetadataOptions", () => {
+  it("is empty without observed paths, so callers can skip the merge", () => {
+    expect(observedMetadataOptions(undefined)).toEqual({});
+    expect(observedMetadataOptions({})).toEqual({});
   });
 
-  it("returns the observed map unchanged without paths", () => {
-    expect(withMetadataPathOptions(observed, undefined)).toBe(observed);
-    expect(withMetadataPathOptions(observed, {})).toBe(observed);
-  });
-
-  it("merges sorted keys under `metadata`, omitting mixed/unknown types", () => {
+  it("offers sorted keys under `metadata`, omitting mixed/unknown types", () => {
     const paths: Record<string, StoredKeyInfo> = {
       "routing.queue": { type: "string" },
       hej: { type: "number" },
@@ -185,9 +176,7 @@ describe("withMetadataPathOptions", () => {
       both: { type: "mixed" },
       nullish: { type: "" },
     };
-    const out = withMetadataPathOptions(observed, paths);
-    expect(out?.level).toBe(observed.level);
-    expect(out?.metadata).toEqual([
+    expect(observedMetadataOptions(paths).metadata).toEqual([
       { value: "both" },
       { value: "hej", type: "number" },
       { value: "nullish" },
@@ -197,15 +186,11 @@ describe("withMetadataPathOptions", () => {
   });
 
   it("exposes per-key values under `metadata.<key>` for the value stage", () => {
-    const paths: Record<string, StoredKeyInfo> = {
+    const out = observedMetadataOptions({
       region: { type: "string", values: ["eu", "us"] },
       scope: { type: "object" },
-    };
-    const out = withMetadataPathOptions(observed, paths);
-    expect(out?.["metadata.region"]).toEqual([
-      { value: "eu" },
-      { value: "us" },
-    ]);
-    expect(out?.["metadata.scope"]).toBeUndefined();
+    });
+    expect(out["metadata.region"]).toEqual([{ value: "eu" }, { value: "us" }]);
+    expect(out["metadata.scope"]).toBeUndefined();
   });
 });
