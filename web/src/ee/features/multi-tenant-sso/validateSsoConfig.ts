@@ -23,7 +23,7 @@ const REQUIRED_DISCOVERY_FIELDS = [
   "issuer",
 ] as const;
 
-/** getDiscoveryIssuer returns the issuer the discovery doc should report, or null when the provider has no OIDC discovery (GitHub family is OAuth2-only — misconfiguration surfaces at first sign-in). */
+/** getDiscoveryIssuer returns the provider's configured issuer URL, or null when the provider has no OIDC discovery (GitHub family is OAuth2-only — misconfiguration surfaces at first sign-in). */
 function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
   switch (payload.authProvider) {
     case "github":
@@ -31,13 +31,10 @@ function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
       return null;
     case "google":
       return "https://accounts.google.com";
-    case "azure-ad": {
-      if (!payload.authConfig) return null;
-      const tenant = AZURE_AD_MULTI_TENANT.has(payload.authConfig.tenantId)
-        ? AZURE_AD_TENANT_PLACEHOLDER
-        : payload.authConfig.tenantId;
-      return `https://login.microsoftonline.com/${tenant}/v2.0`;
-    }
+    case "azure-ad":
+      return payload.authConfig
+        ? `https://login.microsoftonline.com/${payload.authConfig.tenantId}/v2.0`
+        : null;
     case "gitlab":
       return payload.authConfig?.issuer ?? "https://gitlab.com";
     case "auth0":
@@ -49,49 +46,30 @@ function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
     case "jumpcloud":
     case "custom":
       return payload.authConfig?.issuer ?? null;
-    default:
-      return null;
   }
 }
 
 const stripTrailingSlash = (url: string) => url.replace(/\/$/, "");
 
-// Microsoft's documented multi-tenant tenantId values; discovery for these
-// reports the literal `{tenantid}` placeholder — the tenant is bound at sign-in.
-const AZURE_AD_MULTI_TENANT = new Set(["common", "organizations", "consumers"]);
-const AZURE_AD_TENANT_PLACEHOLDER = "{tenantid}";
-
-/** getDiscoveryUrl builds the discovery-document URL for issuer, substituting tenantId for the Azure placeholder. */
-function getDiscoveryUrl(issuer: string, tenantId?: string): string {
-  const trimmed = stripTrailingSlash(issuer);
-  const resolved = tenantId
-    ? trimmed.replace(AZURE_AD_TENANT_PLACEHOLDER, tenantId)
-    : trimmed;
-  return `${resolved}/.well-known/openid-configuration`;
+/** getDiscoveryUrl builds the discovery-document URL for issuer. */
+function getDiscoveryUrl(issuer: string): string {
+  return `${stripTrailingSlash(issuer)}/.well-known/openid-configuration`;
 }
 
-// Pre-flight check that the IdP's OIDC discovery document is reachable, well
-// formed, and reports the issuer we configured. Catches gross misconfigurations
-// (wrong issuer URL, unreachable IdP, mistyped tenant id) at save time instead
-// of locking out users at first sign-in. OAuth-only providers (GitHub family)
-// skip silently since they have no `.well-known` endpoint.
+/** validateSsoConfig checks at save time that the IdP's OIDC discovery doc is reachable, well formed, and reports the configured issuer. */
 export async function validateSsoConfig(
   payload: SsoProviderSchema,
 ): Promise<void> {
   const issuer = getDiscoveryIssuer(payload);
   if (!issuer) return;
 
-  const tenantId =
-    payload.authProvider === "azure-ad"
-      ? payload.authConfig?.tenantId
-      : undefined;
-  const discoveryUrl = getDiscoveryUrl(issuer, tenantId);
+  const discoveryUrl = getDiscoveryUrl(issuer);
 
   try {
     const resp = await fetchWithSsrfDefense(discoveryUrl);
     const doc = await parseJson<DiscoveryDoc>(resp);
     validateDiscoveryFields(doc);
-    validateDiscoveryIssuer(doc, issuer);
+    validateDiscoveryIssuer(doc, payload, issuer);
   } catch (error) {
     if (error instanceof TRPCError)
       throw prefixError(`OIDC discovery at ${discoveryUrl}: `, error);
@@ -158,10 +136,26 @@ function validateDiscoveryFields(doc: DiscoveryDoc): void {
 }
 
 /** validateDiscoveryIssuer checks the doc reports the configured issuer. */
-function validateDiscoveryIssuer(doc: DiscoveryDoc, issuer: string): void {
+function validateDiscoveryIssuer(
+  doc: DiscoveryDoc,
+  payload: SsoProviderSchema,
+  issuer: string,
+): void {
+  // Azure multi-tenant endpoints report the literal `{tenantid}` placeholder
+  // as issuer — the tenant is bound at sign-in.
+  const azureMultiTenantIds = ["common", "organizations", "consumers"];
+  const expectedIssuer =
+    payload.authProvider === "azure-ad" &&
+    payload.authConfig &&
+    azureMultiTenantIds.includes(payload.authConfig.tenantId)
+      ? stripTrailingSlash(issuer).replace(
+          `/${payload.authConfig.tenantId}/`,
+          "/{tenantid}/",
+        )
+      : stripTrailingSlash(issuer);
+
   // OIDC Discovery §3: the doc's issuer must match the URL it was fetched from.
   // Trailing slashes trimmed on both sides — Auth0 and friends serve one.
-  const expectedIssuer = stripTrailingSlash(issuer);
   const returnedIssuer = stripTrailingSlash(doc.issuer as string);
   if (returnedIssuer !== expectedIssuer) {
     throw new TRPCError({
