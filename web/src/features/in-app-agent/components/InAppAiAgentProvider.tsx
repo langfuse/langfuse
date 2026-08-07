@@ -47,6 +47,12 @@ import {
   recordInAppAgentToolCallForDisplay,
   type InAppAgentDisplayState,
 } from "@/src/features/in-app-agent/lib/display";
+import { useInAppAgentActivity } from "@/src/features/in-app-agent/lib/useInAppAgentActivity";
+import type {
+  InAppAgentActivityByConversationId,
+  InAppAgentActivityRunSummary,
+} from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import { InAppAgentActivityNotifications } from "@/src/features/in-app-agent/components/InAppAgentActivityNotifications";
 import { InAppAgentBackgroundClient } from "@/src/features/in-app-agent/lib/backgroundAgentClient";
 import { useInAppAgentBackgroundExecutionEnabled } from "@/src/features/in-app-agent/lib/executionMode";
 import {
@@ -155,6 +161,9 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   conversations: [],
   hasMoreConversations: false,
   isLoadingMoreConversations: false,
+  activityByConversationId: new Map(),
+  attentionCount: 0,
+  markActivityDelivered: () => undefined,
   selectedConversationId: undefined,
   selectedConversationIsWriteLocked: false,
   loadMoreConversations: () => undefined,
@@ -215,6 +224,11 @@ type InAppAiAgentContextType = {
   conversations: InAppAiAgentConversation[];
   hasMoreConversations: boolean;
   isLoadingMoreConversations: boolean;
+  /** Conversations wanting attention, by id. Empty unless background is on. */
+  activityByConversationId: InAppAgentActivityByConversationId;
+  /** Conversations the user still owes a look, for the launcher badge. */
+  attentionCount: number;
+  markActivityDelivered: (conversationIds: readonly string[]) => void;
   selectedConversationId: string | undefined;
   selectedConversationIsWriteLocked: boolean;
   loadMoreConversations: () => void;
@@ -334,7 +348,17 @@ function InAppAiAgentProviderInner({
   >([]);
   const [isForegroundRunning, setIsForegroundRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  /**
+   * Which conversation has a turn being submitted, not whether one is.
+   *
+   * Keyed because submitting into a *new* conversation resets the agent for the
+   * old one, and an unkeyed release would drop the lock the submit had just
+   * taken. Everything user-facing derives from whether this names the
+   * conversation currently on screen.
+   */
+  const [submittingConversationId, setSubmittingConversationId] = useState<
+    string | null
+  >(null);
   const [loadingEventIds, setLoadingEventIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -349,7 +373,7 @@ function InAppAiAgentProviderInner({
   const backgroundExecutionEnabled =
     useInAppAgentBackgroundExecutionEnabled(projectId);
   const intentionalAbortRef = useRef(false);
-  const submitInFlightRef = useRef(false);
+  const submitInFlightRef = useRef<string | null>(null);
   const runInFlightRef = useRef(false);
   const subscriptionRef = useRef<ReturnType<AbstractAgent["subscribe"]> | null>(
     null,
@@ -369,7 +393,12 @@ function InAppAiAgentProviderInner({
       conversationId: _selectedConversationId ?? "",
     },
     {
-      enabled: open && Boolean(_selectedConversationId) && !isSubmitting,
+      // Keyed against the raw id because `selectedConversationId` is derived
+      // from this very query's error state.
+      enabled:
+        open &&
+        Boolean(_selectedConversationId) &&
+        submittingConversationId !== _selectedConversationId,
     },
   );
   const deleteConversationMutation =
@@ -384,6 +413,10 @@ function InAppAiAgentProviderInner({
   const selectedConversationId = isSelectedConversationNotFound
     ? null
     : _selectedConversationId;
+  // A submit into another conversation must not make this one look busy.
+  const isSubmitting =
+    submittingConversationId !== null &&
+    submittingConversationId === selectedConversationId;
 
   const conversations = useMemo(
     () =>
@@ -455,6 +488,55 @@ function InAppAiAgentProviderInner({
   const liveMessageVersion = backgroundExecutionEnabled
     ? backgroundExecutionView.liveMessageRevision
     : foregroundLiveMessageVersion;
+
+  /**
+   * The selected conversation's run is known first-hand from the attached
+   * session, so it is folded in directly rather than waited for from a poll
+   * this tab does not need to make.
+   */
+  const localActivityRuns = useMemo<InAppAgentActivityRunSummary[]>(() => {
+    if (!selectedConversationId || !currentBackgroundRun) {
+      return [];
+    }
+
+    return [
+      {
+        conversationId: selectedConversationId,
+        title:
+          conversations.find(
+            (conversation) => conversation.id === selectedConversationId,
+          )?.title ?? null,
+        runId: currentBackgroundRun.id,
+        status: currentBackgroundRun.status,
+        errorCode: currentBackgroundRun.errorCode,
+        cancelRequested: currentBackgroundRun.cancelRequested,
+      },
+    ];
+  }, [conversations, currentBackgroundRun, selectedConversationId]);
+
+  const backgroundAttachmentStatus = backgroundExecutionView.attachment.status;
+  const isCoveredByLiveSession = useCallback(
+    (conversationId: string) =>
+      open &&
+      conversationId === selectedConversationId &&
+      backgroundAttachmentStatus === "attached",
+    [backgroundAttachmentStatus, open, selectedConversationId],
+  );
+
+  const {
+    activityByConversationId,
+    attentionCount,
+    markConversationSeen,
+    markDelivered,
+  } = useInAppAgentActivity({
+    projectId,
+    enabled: backgroundExecutionEnabled,
+    localRuns: localActivityRuns,
+    // Only what the user can actually see counts as looked at; a selected
+    // conversation behind a closed window has not been read.
+    visibleConversationId: open ? selectedConversationId : null,
+    isCoveredByLiveSession,
+  });
 
   const effectivePendingToolApprovals = useMemo(() => {
     if (!backgroundExecutionEnabled) {
@@ -959,9 +1041,21 @@ function InAppAiAgentProviderInner({
     ],
   );
 
-  const releaseSubmitLock = useCallback(() => {
-    submitInFlightRef.current = false;
-    setIsSubmitting(false);
+  /**
+   * Release the submit lock, but only if it still belongs to the conversation
+   * the caller is finishing. A later submit into another conversation owns the
+   * lock by then and must keep it.
+   */
+  const releaseSubmitLock = useCallback((conversationId: string | null) => {
+    if (
+      conversationId !== null &&
+      submitInFlightRef.current !== conversationId
+    ) {
+      return;
+    }
+
+    submitInFlightRef.current = null;
+    setSubmittingConversationId(null);
   }, []);
 
   const getOrCreateAgent = useCallback(
@@ -1102,7 +1196,7 @@ function InAppAiAgentProviderInner({
               projectId,
               conversationId,
             });
-            releaseSubmitLock();
+            releaseSubmitLock(conversationId);
             activeRunIdRef.current = null;
             intentionalAbortRef.current = false;
           },
@@ -1211,7 +1305,7 @@ function InAppAiAgentProviderInner({
             projectId,
             conversationId,
           });
-          releaseSubmitLock();
+          releaseSubmitLock(conversationId);
           activeRunIdRef.current = null;
           intentionalAbortRef.current = false;
           runInFlightRef.current = false;
@@ -1231,7 +1325,14 @@ function InAppAiAgentProviderInner({
 
   const selectConversation = useCallback(
     (conversationId: string | null) => {
-      if (isRunning || conversationId === _selectedConversationId) {
+      if (conversationId === _selectedConversationId) {
+        return;
+      }
+
+      // Leaving a running conversation is allowed: `resetAgent` only detaches
+      // this browser's observation, and the run itself is durable server-side.
+      // Foreground runs cannot outlive the request, so they still hold on.
+      if (isRunning && !backgroundExecutionEnabled) {
         return;
       }
 
@@ -1241,16 +1342,24 @@ function InAppAiAgentProviderInner({
       resetAgent();
       setForegroundMessages([]);
       setSelectedConversationId(conversationId);
+
+      if (conversationId && open) {
+        markConversationSeen(conversationId);
+      }
     },
-    [_selectedConversationId, isRunning, resetAgent, setSelectedConversationId],
+    [
+      _selectedConversationId,
+      backgroundExecutionEnabled,
+      isRunning,
+      markConversationSeen,
+      open,
+      resetAgent,
+      setSelectedConversationId,
+    ],
   );
 
   const deleteConversation = useCallback(
     async (conversationId: string) => {
-      if (isRunning) {
-        return;
-      }
-
       try {
         await deleteConversationMutation.mutateAsync({
           projectId,
@@ -1289,7 +1398,6 @@ function InAppAiAgentProviderInner({
     },
     [
       deleteConversationMutation,
-      isRunning,
       projectId,
       resetAgent,
       selectedConversationId,
@@ -1302,43 +1410,49 @@ function InAppAiAgentProviderInner({
 
   const submit = useCallback(
     async (content: string, options?: InAppAgentSubmitOptions) => {
+      // Resolve the target conversation before guarding on it. `isRunning`,
+      // hydration and the write lock all describe the *selected* conversation,
+      // so testing them against a brand-new conversation would refuse a turn
+      // the user is entitled to start while something else is still running.
+      const isNewConversation =
+        options?.newConversation === true || !selectedConversationId;
+      const conversationId = isNewConversation
+        ? createInAppAgentConversationId()
+        : selectedConversationId;
+
       if (
         !content ||
-        isRunning ||
+        !conversationId ||
         isInAppAgentRateLimited(error) ||
-        (options?.newConversation !== true &&
-          isSelectedConversationHydrating) ||
-        submitInFlightRef.current ||
-        runInFlightRef.current
+        runInFlightRef.current ||
+        // A turn already going into this same conversation is the only
+        // submit-side conflict; one per conversation remains the rule.
+        submitInFlightRef.current === conversationId
       ) {
         return false;
       }
 
-      submitInFlightRef.current = true;
-      setIsSubmitting(true);
+      if (
+        !isNewConversation &&
+        (isRunning || isSelectedConversationHydrating)
+      ) {
+        return false;
+      }
+
+      if (!isNewConversation && selectedConversationIsWriteLocked) {
+        setError({
+          type: "generic",
+          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+        });
+        return false;
+      }
+
+      submitInFlightRef.current = conversationId;
+      setSubmittingConversationId(conversationId);
       setError(null);
 
       let startedRun = false;
       try {
-        const isNewConversation =
-          options?.newConversation === true || !selectedConversationId;
-
-        if (!isNewConversation && selectedConversationIsWriteLocked) {
-          setError({
-            type: "generic",
-            message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-          });
-          return false;
-        }
-
-        const conversationId = isNewConversation
-          ? createInAppAgentConversationId()
-          : selectedConversationId;
-
-        if (!conversationId) {
-          return false;
-        }
-
         if (isNewConversation) {
           setSelectedConversationId(conversationId);
         }
@@ -1388,7 +1502,15 @@ function InAppAiAgentProviderInner({
         }
         const entryPoint = options?.entryPoint ?? "chat";
         if (isNewConversation) {
-          capture("in_app_agent:new_chat_started", { entryPoint });
+          capture("in_app_agent:new_chat_started", {
+            entryPoint,
+            // Whether starting here means running two conversations at once.
+            hasOtherActiveRun: [...activityByConversationId.entries()].some(
+              ([otherId, activity]) =>
+                otherId !== conversationId &&
+                (activity.state === "running" || activity.state === "approval"),
+            ),
+          });
         }
         capture("in_app_agent:new_chat_turn", {
           entryPoint,
@@ -1433,11 +1555,12 @@ function InAppAiAgentProviderInner({
         return false;
       } finally {
         if (!startedRun) {
-          releaseSubmitLock();
+          releaseSubmitLock(conversationId);
         }
       }
     },
     [
+      activityByConversationId,
       backgroundExecutionEnabled,
       conversationQuery.data,
       capture,
@@ -1577,7 +1700,7 @@ function InAppAiAgentProviderInner({
 
         if (backgroundExecutionEnabled) {
           backgroundSessionRef.current?.detach();
-          releaseSubmitLock();
+          releaseSubmitLock(selectedConversationId);
         }
       }
 
@@ -1852,6 +1975,39 @@ function InAppAiAgentProviderInner({
     isCancellingRun,
   ]);
 
+  /** Only outcomes and questions surface as cards; a run in progress is not news. */
+  const activityNotifications = useMemo(
+    () =>
+      [...activityByConversationId.entries()].flatMap(
+        ([conversationId, { state, entry }]) =>
+          state === "running" || entry.toastDelivered
+            ? []
+            : [
+                {
+                  conversationId,
+                  runId: entry.runId,
+                  title: entry.title,
+                  state,
+                },
+              ],
+      ),
+    [activityByConversationId],
+  );
+
+  const openConversationFromActivity = useCallback(
+    (conversationId: string) => {
+      const state = activityByConversationId.get(conversationId)?.state;
+
+      capture("in_app_agent:activity_opened", {
+        source: "notification",
+        activityType: state ?? "unknown",
+      });
+      setAgentOpen(true);
+      selectConversation(conversationId);
+    },
+    [activityByConversationId, capture, selectConversation, setAgentOpen],
+  );
+
   const approveToolCall = useCallback(
     (approvalId: string) => resumeToolApproval(approvalId, true),
     [resumeToolApproval],
@@ -1883,6 +2039,9 @@ function InAppAiAgentProviderInner({
       conversations,
       hasMoreConversations,
       isLoadingMoreConversations,
+      activityByConversationId,
+      attentionCount,
+      markActivityDelivered: markDelivered,
       selectedConversationId: selectedConversationId ?? undefined,
       selectedConversationIsWriteLocked,
       loadMoreConversations,
@@ -1895,9 +2054,12 @@ function InAppAiAgentProviderInner({
       submitFeedback,
     }),
     [
+      activityByConversationId,
       approveToolCall,
+      attentionCount,
       isExpanded,
       conversations,
+      markDelivered,
       effectiveError,
       hasMoreConversations,
       isLoadingMoreConversations,
@@ -1927,6 +2089,13 @@ function InAppAiAgentProviderInner({
   return (
     <InAppAiAgentContext.Provider value={value}>
       {children}
+      {/* Rendered here, not from the window host, which unmounts when the
+          assistant is closed — exactly when a notification matters most. */}
+      <InAppAgentActivityNotifications
+        notifications={activityNotifications}
+        onDelivered={markDelivered}
+        onOpenConversation={openConversationFromActivity}
+      />
       <InAppAgentDisabledDialog
         open={enableDialogOpen}
         onOpenChange={setEnableDialogOpen}

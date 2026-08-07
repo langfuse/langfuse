@@ -32,6 +32,7 @@ const providerMocks = vi.hoisted(() => {
       decideToolApproval: { mutateAsync: decideToolApproval },
     },
     getConversation: vi.fn(),
+    activityQuery: { data: undefined, refetch: vi.fn() },
     listQuery: {
       data: { pages: [{ conversations: [] }] },
       error: null,
@@ -125,6 +126,8 @@ vi.mock("@/src/utils/api", () => ({
     inAppAgent: {
       listConversations: {
         useInfiniteQuery: () => providerMocks.listQuery,
+        // The activity sidecar caller: same procedure, `limit: 1`.
+        useQuery: () => providerMocks.activityQuery,
       },
       getConversation: {
         useQuery: () => providerMocks.conversationQuery,
@@ -945,5 +948,78 @@ describe("in-app agent execution", () => {
     await waitFor(() => {
       expect(providerMocks.startRun).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+describe("in-app agent concurrent conversations", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.sessionStorage.clear();
+    window.localStorage.clear();
+  });
+
+  it("starts a new conversation while another one is still running", async () => {
+    // The submit guard used to read `isRunning` before resolving the target
+    // conversation, so a running conversation refused a brand-new one --
+    // silently, by returning false. That is the whole feature failing closed.
+    providerMocks.backgroundExecutionEnabled = true;
+    providerMocks.conversationQuery.data = {
+      conversation: { id: "conversation-1", isWriteLocked: false },
+      messages: [],
+      eventCursor: 3,
+      latestRun: {
+        id: "run-1",
+        status: InAppAgentRunStatus.RUNNING,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [],
+    };
+    providerMocks.startRun.mockResolvedValue({ runId: "run-2" });
+    window.sessionStorage.setItem(
+      "langfuse:in-app-ai-agent-selected-conversation:project-1",
+      JSON.stringify("conversation-1"),
+    );
+
+    renderExecutionUi();
+
+    // Starting another conversation is reachable while the first one runs.
+    const newConversationButton = await screen.findByRole("button", {
+      name: "Start new conversation",
+    });
+    expect(newConversationButton).toBeEnabled();
+    fireEvent.click(newConversationButton);
+
+    const input = await screen.findByRole("textbox", {
+      name: "Message the assistant",
+    });
+    fireEvent.change(input, { target: { value: "Second question" } });
+    const form = input.closest("form");
+    if (!form) {
+      throw new Error("Expected the assistant composer to render a form");
+    }
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: "project-1",
+          message: "Second question",
+        }),
+      );
+    });
+    // The first conversation was left running, not cancelled.
+    expect(providerMocks.cancelRun).not.toHaveBeenCalled();
   });
 });

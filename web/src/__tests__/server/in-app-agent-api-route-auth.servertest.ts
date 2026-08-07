@@ -1882,3 +1882,204 @@ async function pendingToolApprovalExists(params: {
 
   return Boolean(pendingApproval);
 }
+
+describe("in-app agent activity", () => {
+  it("reports only the caller's runs and classifies a dead worker without writing", async () => {
+    const { getInAppAgentActivity } =
+      await import("@/src/features/in-app-agent/server/backgroundRunService");
+    const { project, userId } = await setupInAppAgentProjectSession();
+
+    const otherUser = await prisma.user.create({
+      data: {
+        id: `user-${randomUUID()}`,
+        email: `${randomUUID()}@example.com`,
+      },
+    });
+
+    const mineId = `conversation-${randomUUID()}`;
+    const theirsId = `conversation-${randomUUID()}`;
+    await prisma.inAppAgentConversation.createMany({
+      data: [
+        {
+          id: mineId,
+          projectId: project.id,
+          createdByUserId: userId,
+          title: "Mine",
+        },
+        {
+          id: theirsId,
+          projectId: project.id,
+          createdByUserId: otherUser.id,
+          title: "Theirs",
+        },
+      ],
+    });
+
+    // Claimed recently enough to be inside the run-duration budget, but the
+    // worker stopped signalling — worker loss, not a run that simply ran long.
+    const deadRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: `run-${randomUUID()}`,
+        projectId: project.id,
+        conversationId: mineId,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: new Date(Date.now() - 5 * 60_000),
+        heartbeatAt: new Date(Date.now() - 5 * 60_000),
+      },
+    });
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: `run-${randomUUID()}`,
+        projectId: project.id,
+        conversationId: theirsId,
+        triggeredByUserId: otherUser.id,
+        status: InAppAgentRunStatus.RUNNING,
+      },
+    });
+
+    const activity = await getInAppAgentActivity({
+      prisma,
+      projectId: project.id,
+      userId,
+      trackedRunIds: [],
+    });
+
+    expect(activity.map((run) => run.conversationId)).toEqual([mineId]);
+    expect(activity[0]).toMatchObject({
+      runId: deadRun.id,
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.WORKER_LOST,
+    });
+
+    // The verdict is rendered, never persisted: reconciliation stays the only
+    // authority that writes it.
+    const stored = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: deadRun.id, projectId: project.id },
+    });
+    expect(stored.status).toBe(InAppAgentRunStatus.RUNNING);
+    expect(stored.finishedAt).toBeNull();
+  });
+
+  it("adjudicates a tracked run that finished while the client was away", async () => {
+    const { getInAppAgentActivity } =
+      await import("@/src/features/in-app-agent/server/backgroundRunService");
+    const { project, userId } = await setupInAppAgentProjectSession();
+    const conversationId = `conversation-${randomUUID()}`;
+
+    await prisma.inAppAgentConversation.create({
+      data: {
+        id: conversationId,
+        projectId: project.id,
+        createdByUserId: userId,
+      },
+    });
+    const finishedRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: `run-${randomUUID()}`,
+        projectId: project.id,
+        conversationId,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.SUCCEEDED,
+        finishedAt: new Date(),
+      },
+    });
+
+    // Not in the attention set, so only the tracked-id lookup can find it.
+    expect(
+      await getInAppAgentActivity({
+        prisma,
+        projectId: project.id,
+        userId,
+        trackedRunIds: [],
+      }),
+    ).toEqual([]);
+
+    const activity = await getInAppAgentActivity({
+      prisma,
+      projectId: project.id,
+      userId,
+      trackedRunIds: [finishedRun.id],
+    });
+
+    expect(activity).toHaveLength(1);
+    expect(activity[0]).toMatchObject({
+      runId: finishedRun.id,
+      status: InAppAgentRunStatus.SUCCEEDED,
+    });
+  });
+});
+
+describe("in-app agent conversation deletion", () => {
+  it("cancels whatever the conversation was still doing instead of refusing", async () => {
+    const { deleteBackgroundConversation } =
+      await import("@/src/features/in-app-agent/server/backgroundRunService");
+    const { project, userId } = await setupInAppAgentProjectSession();
+
+    const runningId = `conversation-${randomUUID()}`;
+    const parkedId = `conversation-${randomUUID()}`;
+    await prisma.inAppAgentConversation.createMany({
+      data: [runningId, parkedId].map((id) => ({
+        id,
+        projectId: project.id,
+        createdByUserId: userId,
+      })),
+    });
+
+    const runningRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: `run-${randomUUID()}`,
+        projectId: project.id,
+        conversationId: runningId,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: new Date(),
+        heartbeatAt: new Date(),
+      },
+    });
+    // A parked approval sets `finishedAt`, so a `finishedAt: null` sweep would
+    // miss the one run actually waiting on this user.
+    const parkedRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: `run-${randomUUID()}`,
+        projectId: project.id,
+        conversationId: parkedId,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        finishedAt: new Date(),
+      },
+    });
+
+    for (const conversationId of [runningId, parkedId]) {
+      await deleteBackgroundConversation({
+        prisma,
+        projectId: project.id,
+        conversationId,
+        userId,
+      });
+
+      expect(
+        (
+          await prisma.inAppAgentConversation.findFirstOrThrow({
+            where: { id: conversationId, projectId: project.id },
+          })
+        ).deletedAt,
+      ).not.toBeNull();
+    }
+
+    // Nothing is executing behind a parked approval, so it ends here.
+    const parked = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: parkedRun.id, projectId: project.id },
+    });
+    expect(parked.status).toBe(InAppAgentRunStatus.CANCELLED);
+    expect(parked.errorCode).toBe(InAppAgentRunErrorCode.APPROVAL_CANCELLED);
+
+    // A claimed run is the worker's to end; it is signalled, not force-closed,
+    // so the run keeps its capacity slot until the worker actually stops.
+    const running = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: runningRun.id, projectId: project.id },
+    });
+    expect(running.status).toBe(InAppAgentRunStatus.RUNNING);
+    expect(running.cancelRequestedAt).not.toBeNull();
+  });
+});
