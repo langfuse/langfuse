@@ -158,15 +158,35 @@ const buildChatMessages = (turnIdx: number): string => {
  *                  the only surface, so it proves session/trace-detail parity.
  *  3 bare-refs     content is an ARRAY of bare reference strings, with no
  *                  `{type, …}` wrapper at all (LFE-9577).
+ *  4 collapsed-prompt  a system prompt long enough to collapse by default that
+ *                  also carries an image part. Collapsing hides long TEXT, so
+ *                  the attachment must still render — the strip dedupes it as
+ *                  "rendered inline", so a collapsed render that skipped it
+ *                  would hide the asset in both places.
  */
-type MediaVariant = "inline-image" | "multi-ref" | "linked-only" | "bare-refs";
+type MediaVariant =
+  | "inline-image"
+  | "multi-ref"
+  | "linked-only"
+  | "bare-refs"
+  | "collapsed-prompt";
 
 const MEDIA_VARIANTS: readonly MediaVariant[] = [
   "inline-image",
   "multi-ref",
   "linked-only",
   "bare-refs",
+  "collapsed-prompt",
 ];
+
+/** Comfortably past the ~250-char / 4-line default collapse threshold. */
+const LONG_SYSTEM_PROMPT = [
+  "You are an HVAC troubleshooting assistant for residential air-conditioning systems.",
+  "Always inspect any attached media before answering, and describe what you actually see.",
+  "Prefer the cheapest safe diagnostic first: condensate drain, then coil, then blower, then wiring.",
+  "Never instruct the homeowner to open an electrical panel; escalate to a technician instead.",
+  "Close every answer with one concrete next step the homeowner can take today.",
+].join("\n");
 
 type MediaFixtures = Record<"image" | "audio" | "pdf", SeedMediaFixture>;
 
@@ -190,6 +210,11 @@ const MEDIA_PROMPTS: Record<MediaVariant, { user: string; assistant: string }> =
       user: "Attaching the unit photo and the inspection report.",
       assistant:
         "Received both. The report confirms the drain pan was replaced last year, so the rust is recent — I'd check the condensate line first.",
+    },
+    "collapsed-prompt": {
+      user: "Photo of the coil as requested.",
+      assistant:
+        "Thanks — the coil looks iced at the inlet, which points at low airflow rather than a refrigerant leak. Next step: replace the filter and run the fan for an hour.",
     },
   };
 
@@ -512,28 +537,33 @@ const buildMediaTrace = (
   const prompt = MEDIA_PROMPTS[variant];
   const genId = `${traceId}-o1`;
 
+  const imagePart = {
+    type: "image_url",
+    image_url: { url: fixtures.image.referenceString },
+  };
+
   const userContent =
     variant === "bare-refs"
       ? [fixtures.image.referenceString, fixtures.pdf.referenceString]
-      : variant === "inline-image"
-        ? [
-            { type: "text", text: prompt.user },
-            {
-              type: "image_url",
-              image_url: { url: fixtures.image.referenceString },
-            },
-          ]
-        : [
-            { type: "text", text: prompt.user },
-            {
-              type: "image_url",
-              image_url: { url: fixtures.image.referenceString },
-            },
-            {
-              type: "input_audio",
-              input_audio: { data: fixtures.audio.referenceString },
-            },
-          ];
+      : variant === "collapsed-prompt"
+        ? prompt.user
+        : variant === "inline-image"
+          ? [{ type: "text", text: prompt.user }, imagePart]
+          : [
+              { type: "text", text: prompt.user },
+              imagePart,
+              {
+                type: "input_audio",
+                input_audio: { data: fixtures.audio.referenceString },
+              },
+            ];
+
+  // collapsed-prompt hangs the attachment off the long SYSTEM message, which is
+  // the message the UI collapses by default.
+  const systemContent =
+    variant === "collapsed-prompt"
+      ? [{ type: "text", text: LONG_SYSTEM_PROMPT }, imagePart]
+      : "You are an HVAC troubleshooting assistant. Inspect attached media before answering.";
 
   // linked-only stays deliberately non-ChatML: the chat renderer cannot inline
   // it, so only the media strip can surface the asset.
@@ -550,11 +580,7 @@ const buildMediaTrace = (
         })
       : JSON.stringify({
           messages: [
-            {
-              role: "system",
-              content:
-                "You are an HVAC troubleshooting assistant. Inspect attached media before answering.",
-            },
+            { role: "system", content: systemContent },
             { role: "user", content: userContent },
           ],
         });
