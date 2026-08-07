@@ -160,6 +160,12 @@ const run = async (
   // "lots of scores" shape from LFE-10591 that overflows fixed/virtualized tree
   // rows — many distinct score names wrap into several badge lines per node.
   const scoresPerNode = params["scores-per-node"] as number;
+  // Extra trace tags on top of the scenario's own. Default "" keeps the
+  // historic tag list, so unflagged output stays byte-identical.
+  const extraTags = (params["tags"] as string)
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
 
   if (!PAYLOAD_STYLES.includes(payloadStyle)) {
     throw new SeedError(
@@ -257,7 +263,7 @@ const run = async (
     session_id: null,
     release: "seed-1.0.0",
     version: "seed-v2",
-    tags: ["seed", "trace-tree", payloadStyle],
+    tags: ["seed", "trace-tree", payloadStyle, ...extraTags],
     public: false,
     bookmarked: false,
     metadata: {
@@ -730,6 +736,13 @@ export const traceTreeScenario: ScenarioDefinition = {
       default: 0,
       description:
         "attach N distinct scores to every observation (the LFE-10591 'lots of scores' shape; try 12), 0-100",
+    },
+    {
+      flag: "tags",
+      type: "string",
+      default: "",
+      description:
+        'comma-separated extra trace tags, e.g. "Zebra,apple,Ärger" — mixed case/accents exercise alphabetical tag filter ordering (LFE-14382)',
     },
   ],
   run,

@@ -37,6 +37,7 @@ import {
   type TimeFilter,
 } from "@langfuse/shared";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -329,7 +330,8 @@ export default function ScoresTable({
           value: u.value,
           count: u.count !== undefined ? Number(u.count) : undefined,
         })) ?? undefined,
-      tags: filterOptions.data?.tags?.map((t) => t.value) ?? undefined, // tags don't have counts
+      // tags don't have counts; they read A→Z
+      tags: sortOptionValues(filterOptions.data?.tags?.map((t) => t.value)),
       environment: environmentOptions,
     }),
     [filterOptions.data, environmentOptions],
