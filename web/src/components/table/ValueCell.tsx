@@ -489,29 +489,30 @@ export const ValueCell = memo(
         {/* Hover affordance: a one-click copy by default, or an actions menu
             (copy + filter shortcuts) in metadata views. */}
         {metadataActions ? (
-          <DropdownMenuController>
+          <DropdownMenuController
+            renderMenu={() => (
+              <ValueCellActionsMenuContent
+                row={row}
+                metadataActions={metadataActions}
+              />
+            )}
+          >
             {({ isOpen }) => (
-              <>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Value actions"
-                    title="Actions"
-                    className={cn(
-                      "bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100",
-                      isOpen && "opacity-100",
-                    )}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <EllipsisVertical className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <ValueCellActionsMenuContent
-                  row={row}
-                  metadataActions={metadataActions}
-                />
-              </>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Value actions"
+                  title="Actions"
+                  className={cn(
+                    "bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100",
+                    isOpen && "opacity-100",
+                  )}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <EllipsisVertical className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
             )}
           </DropdownMenuController>
         ) : (

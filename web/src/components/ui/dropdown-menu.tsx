@@ -22,14 +22,17 @@ const DropdownMenu = DropdownMenuPrimitive.Root;
 
 const DropdownMenuController = ({
   children,
+  renderMenu,
 }: {
   children: (control: { isOpen: boolean }) => React.ReactNode;
+  renderMenu: () => React.ReactNode;
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       {children({ isOpen })}
+      {renderMenu()}
     </DropdownMenu>
   );
 };
