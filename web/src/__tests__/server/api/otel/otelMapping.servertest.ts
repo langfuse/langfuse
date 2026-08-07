@@ -7518,6 +7518,203 @@ describe("OTel Resource Span Mapping", () => {
     });
   });
 
+  describe("Google ADK blob-derived cache usage", () => {
+    const createAdkSpan = ({
+      scopeName = "gcp.vertex.agent",
+      inputTokens = 1000,
+      llmResponse,
+      extraAttributes = [],
+    }: {
+      scopeName?: string;
+      inputTokens?: number;
+      llmResponse: string;
+      extraAttributes?: { key: string; value: Record<string, unknown> }[];
+    }) => ({
+      resource: {
+        attributes: [
+          {
+            key: "service.name",
+            value: { stringValue: "test-service" },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: {
+            name: scopeName,
+            version: "1.0.0",
+          },
+          spans: [
+            {
+              traceId: Buffer.from("abcdef1234567890abcdef1234567893", "hex"),
+              spanId: Buffer.from("1234567890abcde2", "hex"),
+              name: "call_llm",
+              kind: 1,
+              startTimeUnixNano: {
+                low: 1000000,
+                high: 406528574,
+                unsigned: true,
+              },
+              endTimeUnixNano: {
+                low: 2000000,
+                high: 406528574,
+                unsigned: true,
+              },
+              attributes: [
+                {
+                  key: "gen_ai.usage.input_tokens",
+                  value: {
+                    intValue: { low: inputTokens, high: 0, unsigned: false },
+                  },
+                },
+                {
+                  key: "gen_ai.usage.output_tokens",
+                  value: { intValue: { low: 200, high: 0, unsigned: false } },
+                },
+                {
+                  key: "gcp.vertex.agent.llm_response",
+                  value: { stringValue: llmResponse },
+                },
+                ...extraAttributes,
+              ],
+              status: {},
+            },
+          ],
+        },
+      ],
+    });
+
+    const adkLlmResponseBlob = JSON.stringify({
+      model_version: "gemini-2.5-flash",
+      content: {
+        parts: [{ text: "Hello! How can I help you today?" }],
+        role: "model",
+      },
+      partial: false,
+      finish_reason: "STOP",
+      usage_metadata: {
+        cached_content_token_count: 800,
+        candidates_token_count: 200,
+        prompt_token_count: 1000,
+        total_token_count: 1200,
+      },
+    });
+
+    it("should derive input_cached_tokens from the llm_response blob and subtract from input (ADK v1.x)", async () => {
+      const adkSpan = createAdkSpan({ llmResponse: adkLlmResponseBlob });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(200);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(800);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+
+      const inputBucketSum = Object.entries(
+        observationEvent?.body.usageDetails ?? {},
+      )
+        .filter(([key]) => key.startsWith("input"))
+        .reduce((sum, [, value]) => sum + (value ?? 0), 0);
+      expect(inputBucketSum).toBe(1000);
+
+      expect(
+        observationEvent?.body.usageDetails.cached_content_token_count,
+      ).toBeUndefined();
+    });
+
+    it("should not subtract twice when gen_ai.usage.cache_read.input_tokens is also present (ADK >= 2.3)", async () => {
+      const adkSpan = createAdkSpan({
+        llmResponse: adkLlmResponseBlob,
+        extraAttributes: [
+          {
+            key: "gen_ai.usage.cache_read.input_tokens",
+            value: { intValue: { low: 800, high: 0, unsigned: false } },
+          },
+        ],
+      });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(200);
+      expect(observationEvent?.body.usageDetails.input).not.toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(800);
+    });
+
+    it("should keep generic usage untouched when content capture is off and the blob is '{}'", async () => {
+      const adkSpan = createAdkSpan({ llmResponse: "{}" });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(1000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(
+        observationEvent?.body.usageDetails.input_cached_tokens,
+      ).toBeUndefined();
+    });
+
+    it("should keep generic usage untouched when the blob is malformed JSON", async () => {
+      const adkSpan = createAdkSpan({ llmResponse: "not-json{{{" });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(1000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(
+        observationEvent?.body.usageDetails.input_cached_tokens,
+      ).toBeUndefined();
+    });
+
+    it("should ignore the blob for spans from other instrumentation scopes", async () => {
+      const adkSpan = createAdkSpan({
+        scopeName: "some.other.scope",
+        llmResponse: adkLlmResponseBlob,
+      });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(1000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(
+        observationEvent?.body.usageDetails.input_cached_tokens,
+      ).toBeUndefined();
+    });
+
+    it("should clamp input to zero when the blob cache count exceeds input tokens", async () => {
+      const adkSpan = createAdkSpan({
+        inputTokens: 500,
+        llmResponse: adkLlmResponseBlob,
+      });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(800);
+    });
+  });
+
   describe("Vercel AI SDK Usage details", () => {
     it("should extract usage details from both provider metadata and 'ai.usage'", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
