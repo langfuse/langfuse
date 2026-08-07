@@ -13,7 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { useCopyMigrationPrompt } from "@/src/features/v4-migration/V4MigrationContent";
+import {
+  useCopyMigrationPrompt,
+  V4_MIGRATION_DEADLINE,
+} from "@/src/features/v4-migration/V4MigrationContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
@@ -491,8 +494,8 @@ function V4MigrationStatusPageContent() {
           Yes, eventually. The{" "}
           <FaqLink href={SDK_UPGRADE_URL}>old SDKs</FaqLink>, trace-level evals,
           and APIs are frozen and stop working{" "}
-          <span className="underline">soon</span>. They keep running until then,
-          but we&apos;re no longer fixing bugs in them.
+          <span className="underline">{V4_MIGRATION_DEADLINE}</span>. They keep
+          running until then, but we&apos;re no longer fixing bugs in them.
         </>
       ),
     },
@@ -517,8 +520,8 @@ function V4MigrationStatusPageContent() {
       q: "What if I do nothing?",
       a: (
         <>
-          <span className="underline">Soon</span>, old SDKs stop sending data,
-          and the{" "}
+          <span className="underline">{V4_MIGRATION_DEADLINE}</span>, old SDKs
+          stop sending data, and the{" "}
           <FaqLink href={API_REFERENCE_URL}>
             deprecated evals and endpoints
           </FaqLink>{" "}

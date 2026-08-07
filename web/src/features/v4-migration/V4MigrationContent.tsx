@@ -52,7 +52,7 @@ import { api, reportNonTrpcError } from "@/src/utils/api";
 // (side panel and modal) render these components — edit copy here only.
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
-const V4_MIGRATION_DEADLINE = "Oct 31";
+export const V4_MIGRATION_DEADLINE = "Oct 31";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
