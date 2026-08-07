@@ -1,10 +1,13 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
+  archiveScoreConfigForApi,
   getScoreConfig,
   updateScoreConfig,
 } from "@/src/features/public-api/server/score-configs-api-service";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
+  DeleteScoreConfigV1Query,
+  DeleteScoreConfigV1Response,
   GetScoreConfigQuery,
   GetScoreConfigResponse,
   PutScoreConfigBody as PatchScoreConfigBody,
@@ -36,5 +39,16 @@ export default withMiddlewares({
         body,
       });
     },
+  }),
+  DELETE: createAuthedProjectAPIRoute({
+    name: "Delete a Score Config",
+    querySchema: DeleteScoreConfigV1Query,
+    responseSchema: DeleteScoreConfigV1Response,
+    rateLimitResource: "score-delete",
+    fn: async ({ query, auth }) =>
+      await archiveScoreConfigForApi({
+        context: auth.scope,
+        configId: query.configId,
+      }),
   }),
 });
