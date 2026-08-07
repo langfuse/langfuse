@@ -44,6 +44,15 @@ function computeBinSize(
     : Math.min(Math.max(minBins, Math.floor(Math.sqrt(valueCount))), maxBins);
 }
 
+// Decimals needed so adjacent bin edges stay distinct in labels. Values are
+// binned on their raw magnitude (see below); rounding is display-only. Without
+// this, small ranges collapse edges to the same 2dp value and produce
+// degenerate labels like "[0.85, 0.85]".
+function labelPrecision(binSize: number): number {
+  if (!Number.isFinite(binSize) || binSize <= 0 || binSize >= 1) return 2;
+  return Math.min(10, Math.max(2, -Math.floor(Math.log10(binSize)) + 1));
+}
+
 export function createHistogramData(
   data: DatabaseRow[],
   minBins = 1,
@@ -53,8 +62,14 @@ export function createHistogramData(
   if (!Boolean(numericScoreValues.length))
     return { chartData: [], chartLabels: [] };
 
-  const min = round(Math.min(...numericScoreValues));
-  const range = round(Math.max(...numericScoreValues)) - min;
+  // Bin edges are derived from the RAW min/max, and values are assigned by their
+  // RAW magnitude. Previously both were rounded to 2 decimals before binning,
+  // which pushed values across boundaries (e.g. 0.857 counted in the "[0.86, 1]"
+  // bucket) and disagreed with a standard histogram. Rounding is now applied to
+  // the display labels only.
+  const min = Math.min(...numericScoreValues);
+  const max = Math.max(...numericScoreValues);
+  const range = max - min;
   const bins = computeBinSize(
     minBins,
     maxBins,
@@ -62,17 +77,19 @@ export function createHistogramData(
     numericScoreValues.length,
   );
   const binSize = range / bins || 1;
+  const precision = labelPrecision(binSize);
 
   const baseChartData = Array.from({ length: bins }).map(
     (_, index: number) => ({
       count: 0,
-      binLabel: `[${round(min + index * binSize)}, ${round(min + (index + 1) * binSize)}]`,
+      binLabel: `[${round(min + index * binSize, precision)}, ${round(min + (index + 1) * binSize, precision)}]`,
     }),
   );
 
   const chartData = numericScoreValues.reduce((acc, value) => {
-    const shiftedValue = round(value) - min;
-    const binIndex = Math.min(Math.floor(shiftedValue / binSize), bins - 1);
+    // The maximum value falls into the last (closed) bin, matching a standard
+    // equal-width histogram.
+    const binIndex = Math.min(Math.floor((value - min) / binSize), bins - 1);
     acc[binIndex].count++;
     return acc;
   }, baseChartData);
