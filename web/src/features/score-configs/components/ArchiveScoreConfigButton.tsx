@@ -8,9 +8,10 @@ import { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfig
 
 type ArchiveScoreConfigPopoverControllerProps = {
   children: (
-    control: Parameters<
-      React.ComponentProps<typeof PopoverController>["children"]
-    >[0] & { disabled: { reason: string } | undefined },
+    control: Omit<
+      Parameters<React.ComponentProps<typeof PopoverController>["children"]>[0],
+      "disabled"
+    > & { disabled: { reason: string } | undefined },
   ) => React.ReactNode;
   configId: string;
   projectId: string;
@@ -47,6 +48,7 @@ export const ArchiveScoreConfigPopoverController = ({
     <PopoverController
       align="center"
       contentClassName="max-w-[500px]"
+      disabled={disabled !== undefined}
       onOpenChange={(isOpen) => {
         if (isOpen && hasAccess) {
           capture("score_configs:archive_form_open");

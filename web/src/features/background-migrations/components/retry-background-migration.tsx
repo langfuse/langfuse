@@ -10,11 +10,7 @@ import { toast } from "sonner";
 type RetryBackgroundMigrationPopoverControllerProps = {
   backgroundMigrationName: string;
   isRetryable: boolean;
-  children: (
-    control: Parameters<
-      React.ComponentProps<typeof PopoverController>["children"]
-    >[0] & { disabled: boolean },
-  ) => React.ReactNode;
+  children: React.ComponentProps<typeof PopoverController>["children"];
 };
 
 export function RetryBackgroundMigrationPopoverController({
@@ -62,6 +58,7 @@ export function RetryBackgroundMigrationPopoverController({
     <PopoverController
       align="center"
       contentClassName="w-96"
+      disabled={!isRetryable}
       renderContent={({ closePopover }) => (
         <>
           <h2 className="mb-3 font-bold">Retry Background Migration</h2>
@@ -126,9 +123,7 @@ export function RetryBackgroundMigrationPopoverController({
         </>
       )}
     >
-      {({ isOpen, Trigger }) =>
-        children({ disabled: !isRetryable, isOpen, Trigger })
-      }
+      {children}
     </PopoverController>
   );
 }

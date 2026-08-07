@@ -54,10 +54,12 @@ PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 type PopoverControllerProps = {
   align: React.ComponentProps<typeof PopoverContent>["align"];
   children: (control: {
+    disabled: boolean;
     isOpen: boolean;
     Trigger: typeof PopoverTrigger;
   }) => React.ReactNode;
   contentClassName: string;
+  disabled: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   renderContent: (control: { closePopover: () => void }) => React.ReactNode;
 };
@@ -66,18 +68,21 @@ const PopoverController = ({
   align,
   children,
   contentClassName,
+  disabled,
   onOpenChange,
   renderContent,
 }: PopoverControllerProps) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const handleOpenChange = (nextIsOpen: boolean) => {
+    if (nextIsOpen && disabled) return;
+
     setIsOpen(nextIsOpen);
     onOpenChange?.(nextIsOpen);
   };
 
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
-      {children({ isOpen, Trigger: PopoverTrigger })}
+      {children({ disabled, isOpen, Trigger: PopoverTrigger })}
       <PopoverContent
         align={align}
         className={contentClassName}
