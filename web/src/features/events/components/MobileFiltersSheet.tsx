@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 "use client";
 
 import { type ReactNode } from "react";

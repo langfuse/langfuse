@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { type ReactNode, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";

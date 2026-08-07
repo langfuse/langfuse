@@ -5,7 +5,10 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
 import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
-import { type InAppAgentToolCallContent } from "@/src/features/in-app-agent/components/utils/utils";
+import {
+  getInAppAgentToolDisplayName,
+  type InAppAgentToolCallContent,
+} from "@/src/features/in-app-agent/components/utils/utils";
 
 export function InAppAgentToolCallCard({
   tool,
@@ -30,8 +33,9 @@ export function InAppAgentToolCallCard({
   const approval = tool.approval;
   const isApprovalPending = approval?.status === "pending";
   const isApprovalSubmitting = approval?.status === "submitting";
-  const approveLabel = `Approve ${tool.name}?`;
-  const usedLabel = `Used ${tool.name}`;
+  const displayName = getInAppAgentToolDisplayName(tool.name);
+  const approveLabel = `Approve ${displayName}?`;
+  const usedLabel = `Used ${displayName}`;
 
   return (
     <div

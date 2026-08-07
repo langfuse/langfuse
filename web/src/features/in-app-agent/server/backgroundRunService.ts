@@ -34,6 +34,7 @@ import {
   type PersistedConversationEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import {
+  cancelConversationRunsInTransaction,
   cleanupTerminalRunMcpApiKeys,
   createQueuedRun,
   decideToolApproval,
@@ -259,6 +260,49 @@ export async function startBackgroundRun(params: {
   });
 
   return { runId: run.id };
+}
+
+/** Soft-delete a conversation and cancel its unsettled runs atomically. */
+export async function deleteBackgroundConversation(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  userId: string;
+}) {
+  await getOwnedConversationOrThrow({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    userId: params.userId,
+  });
+
+  const cancelledRunIds = await params.prisma.$transaction(async (tx) => {
+    const cancelledImmediately = await cancelConversationRunsInTransaction({
+      tx,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+    });
+
+    await tx.inAppAgentConversation.update({
+      where: {
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
+      },
+      data: {
+        providerSessionId: null,
+        deletedAt: new Date(),
+      },
+    });
+
+    return cancelledImmediately;
+  });
+
+  // Avoid spending a worker slot on jobs whose runs are already cancelled.
+  await Promise.all(cancelledRunIds.map(removeInAppAgentRunJob));
+
+  return { success: true };
 }
 
 export async function cancelBackgroundRun(params: {

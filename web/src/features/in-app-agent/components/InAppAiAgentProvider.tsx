@@ -1694,8 +1694,10 @@ function InAppAiAgentProviderInner({
           approved: params.approved,
           approvalScope: params.approvalScope,
         });
+        return true;
       } catch (error) {
         setError(getInAppAgentError(error));
+        return false;
       }
     },
     [conversationQuery.data, ensureSubscription, getOrCreateAgent],
@@ -1730,14 +1732,25 @@ function InAppAiAgentProviderInner({
       }
 
       if (backgroundExecutionEnabled) {
-        await decideBackgroundToolApproval({
+        const decisionAccepted = await decideBackgroundToolApproval({
           approval,
           approved,
           approvalScope,
           conversationId: selectedConversationId,
         });
+        if (decisionAccepted) {
+          capture("in_app_agent:tool_approval_decided", {
+            isApproved: approved,
+            toolName: approval.approvalRequest.toolName,
+          });
+        }
         return;
       }
+
+      capture("in_app_agent:tool_approval_decided", {
+        isApproved: approved,
+        toolName: approval.approvalRequest.toolName,
+      });
 
       const agent = agentRef.current;
       if (!agent || agent.threadId !== selectedConversationId) {
@@ -1816,6 +1829,7 @@ function InAppAiAgentProviderInner({
     },
     [
       backgroundExecutionEnabled,
+      capture,
       decideBackgroundToolApproval,
       effectivePendingToolApprovals,
       ensureSubscription,
