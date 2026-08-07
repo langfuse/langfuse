@@ -159,8 +159,9 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Web ESLint uses four workers; cap package-level parallelism so lint
-        # tasks do not oversubscribe this eight-vCPU runner.
+        # Turbo runs up to three packages at once. The largest overlap is web's
+        # four ESLint workers plus two packages with two workers each, matching
+        # this runner's eight vCPUs.
         run: pnpm turbo run lint --concurrency=3
       - name: typecheck
         run: pnpm run typecheck
