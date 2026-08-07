@@ -1,7 +1,16 @@
-import { type SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
 import { TRPCError } from "@trpc/server";
 
+import {
+  fetchWithSecureRedirects,
+  validateWebhookURL,
+} from "@langfuse/shared/src/server";
+import { type SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
+
 const DISCOVERY_TIMEOUT_MS = 5000;
+
+// DB-backed multi-tenant SSO is Cloud-only, so no operator-configured
+// destination needs to be exempted from the internal-address blocklist.
+const discoveryWhitelist = { hosts: [], ips: [], ip_ranges: [] };
 
 type DiscoveryDoc = {
   authorization_endpoint?: unknown;
@@ -92,18 +101,23 @@ export async function validateSsoConfig(
 
   let resp: Response;
   try {
-    // SSRF defense: refuse to follow redirects. An admin can configure any
-    // issuer host, and a malicious one could 302 us at internal endpoints
-    // (cloud metadata services, kube API, localhost). Per OIDC Discovery §4
-    // the discovery doc is served directly at the issuer URL with no
-    // redirects, so legitimate IdPs (Auth0, Okta, Google, Azure AD,
-    // JumpCloud, etc.) all return 200 directly. `redirect: "error"` makes
-    // fetch throw on any 3xx, which we catch as the same "Could not reach"
-    // error the admin sees for any other connection failure.
-    resp = await fetch(discoveryUrl, {
-      signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),
-      redirect: "error",
-    });
+    // SSRF defense: an admin can configure any issuer host, so reject internal
+    // destinations, non-80/443 ports, and embedded credentials up front, then
+    // fetch with connect-time IP validation. Per OIDC Discovery §4 the doc is
+    // served directly at the issuer URL, so `maxRedirects: 0` costs nothing.
+    await validateWebhookURL(discoveryUrl, discoveryWhitelist);
+    const result = await fetchWithSecureRedirects(
+      discoveryUrl,
+      { signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS) },
+      {
+        maxRedirects: 0,
+        redirectValidation: {
+          validateUrl: validateWebhookURL,
+          whitelist: discoveryWhitelist,
+        },
+      },
+    );
+    resp = result.response;
   } catch {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
