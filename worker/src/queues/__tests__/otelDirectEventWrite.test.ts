@@ -1,11 +1,234 @@
 import { describe, it, expect } from "vitest";
 import {
+  batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
   checkSdkVersionRequirements,
   getSdkInfoFromResourceSpans,
+  isLangfuseSdkTraffic,
+  isOrgPastOtelDirectWriteCutoff,
+  resolveOtelWritePath,
   shouldProcessLegacyOtelMedia,
   type SdkInfo,
 } from "../otelIngestionQueue";
+
+describe("isOrgPastOtelDirectWriteCutoff", () => {
+  const cutoff = "2026-08-06";
+  const inScope = {
+    orgCreatedAt: new Date("2026-08-07T09:00:00.000Z"),
+    cutoff,
+  };
+
+  it("includes organizations created after the cutoff", () => {
+    expect(isOrgPastOtelDirectWriteCutoff(inScope)).toBe(true);
+  });
+
+  it("includes organizations created exactly at midnight UTC on the cutoff date", () => {
+    expect(
+      isOrgPastOtelDirectWriteCutoff({
+        ...inScope,
+        orgCreatedAt: new Date("2026-08-06T00:00:00.000Z"),
+      }),
+    ).toBe(true);
+  });
+
+  it("excludes organizations created just before the cutoff date", () => {
+    expect(
+      isOrgPastOtelDirectWriteCutoff({
+        ...inScope,
+        orgCreatedAt: new Date("2026-08-05T23:59:59.999Z"),
+      }),
+    ).toBe(false);
+  });
+
+  it("is disabled when the cutoff is unset", () => {
+    expect(
+      isOrgPastOtelDirectWriteCutoff({ ...inScope, cutoff: undefined }),
+    ).toBe(false);
+  });
+
+  // An unresolvable organization must not read as "created at epoch" (in scope
+  // for no cutoff) nor as "created now" (in scope for every cutoff).
+  it.each([
+    { orgCreatedAt: null, label: "null" },
+    { orgCreatedAt: undefined, label: "undefined" },
+    { orgCreatedAt: new Date("nonsense"), label: "an invalid Date" },
+  ])(
+    "keeps the pre-cutoff behaviour when the org date is $label",
+    ({ orgCreatedAt }) => {
+      expect(isOrgPastOtelDirectWriteCutoff({ ...inScope, orgCreatedAt })).toBe(
+        false,
+      );
+    },
+  );
+});
+
+describe("isLangfuseSdkTraffic", () => {
+  it.each([
+    { params: { sdkName: "python" }, expected: true, label: "sdk-name header" },
+    {
+      params: { sdkName: "javascript" },
+      expected: true,
+      label: "javascript sdk-name header",
+    },
+    {
+      params: { scopeName: "langfuse-sdk" },
+      expected: true,
+      label: "langfuse instrumentation scope",
+    },
+    {
+      params: { scopeName: "LangFuse-SDK" },
+      expected: true,
+      label: "scope match is case-insensitive",
+    },
+    // The header is normalized to this sentinel when absent, so it must not
+    // read as a Langfuse SDK — that would exclude all plain OTel traffic.
+    {
+      params: { sdkName: "unknown" },
+      expected: false,
+      label: "unknown sdk-name sentinel",
+    },
+    {
+      params: { sdkName: "unknown", scopeName: "openlit" },
+      expected: false,
+      label: "third-party scope with no sdk-name",
+    },
+    { params: {}, expected: false, label: "no signal at all" },
+    {
+      params: { scopeName: null },
+      expected: false,
+      label: "null scope name",
+    },
+  ])("$label → $expected", ({ params, expected }) => {
+    expect(isLangfuseSdkTraffic(params)).toBe(expected);
+  });
+});
+
+describe("batchContainsLangfuseScope", () => {
+  const scoped = (...names: string[]) => ({
+    scopeSpans: names.map((name) => ({ scope: { name }, spans: [] })),
+  });
+
+  it("finds a Langfuse scope that is not the batch's first scope", () => {
+    expect(
+      batchContainsLangfuseScope([scoped("openlit", "langfuse-sdk")]),
+    ).toBe(true);
+  });
+
+  it("finds a Langfuse scope on a later resource", () => {
+    expect(
+      batchContainsLangfuseScope([scoped("openlit"), scoped("langfuse-sdk")]),
+    ).toBe(true);
+  });
+
+  it("rejects batches with only third-party scopes", () => {
+    expect(
+      batchContainsLangfuseScope([scoped("openlit", "openinference")]),
+    ).toBe(false);
+  });
+
+  it.each([
+    { input: [], label: "an empty batch" },
+    { input: [{}], label: "a resource without scopeSpans" },
+    {
+      // Malformed OTLP reaches this code path; scanning must not throw.
+      input: [{ scopeSpans: {} } as never],
+      label: "a non-array scopeSpans shape",
+    },
+  ])("rejects $label", ({ input }) => {
+    expect(batchContainsLangfuseScope(input)).toBe(false);
+  });
+});
+
+describe("resolveOtelWritePath", () => {
+  const none = {
+    headerBasedDirectWrite: false,
+    envForcesDirect: false,
+    scopeBasedDirectWrite: false,
+    orgCutoffForcesDirect: false,
+    langfuseSdkTraffic: false,
+  };
+
+  it("falls back to the dual write when no signal qualifies", () => {
+    expect(resolveOtelWritePath(none)).toEqual({
+      useDirectEventWrite: false,
+      writePath: "dual",
+    });
+  });
+
+  it.each([
+    { signal: "headerBasedDirectWrite", writePath: "direct_header" },
+    { signal: "envForcesDirect", writePath: "direct_env" },
+    { signal: "scopeBasedDirectWrite", writePath: "direct_scope" },
+    { signal: "orgCutoffForcesDirect", writePath: "direct_org_cutoff" },
+  ] as const)("$signal alone routes to $writePath", ({ signal, writePath }) => {
+    expect(resolveOtelWritePath({ ...none, [signal]: true })).toEqual({
+      useDirectEventWrite: true,
+      writePath,
+    });
+  });
+
+  // The org cutoff must not absorb batches another signal already routed
+  // directly, otherwise the metric overstates what the rollout moved.
+  it.each([
+    { signal: "headerBasedDirectWrite", writePath: "direct_header" },
+    { signal: "envForcesDirect", writePath: "direct_env" },
+    { signal: "scopeBasedDirectWrite", writePath: "direct_scope" },
+  ] as const)(
+    "attributes to $writePath rather than the org cutoff when both apply",
+    ({ signal, writePath }) => {
+      expect(
+        resolveOtelWritePath({
+          ...none,
+          [signal]: true,
+          orgCutoffForcesDirect: true,
+        }),
+      ).toEqual({ useDirectEventWrite: true, writePath });
+    },
+  );
+
+  // An older Langfuse SDK keeps the dual write: its trace-level attributes
+  // surface on the synthetic root observation that only the dual path
+  // materializes, so flipping it would change data those users already read.
+  it("leaves Langfuse SDK traffic on the dual write despite the org cutoff", () => {
+    expect(
+      resolveOtelWritePath({
+        ...none,
+        orgCutoffForcesDirect: true,
+        langfuseSdkTraffic: true,
+      }),
+    ).toEqual({ useDirectEventWrite: false, writePath: "dual" });
+  });
+
+  it("applies the org cutoff to plain OTel traffic", () => {
+    expect(
+      resolveOtelWritePath({
+        ...none,
+        orgCutoffForcesDirect: true,
+        langfuseSdkTraffic: false,
+      }),
+    ).toEqual({ useDirectEventWrite: true, writePath: "direct_org_cutoff" });
+  });
+
+  // The exclusion is scoped to the cutoff rule — it must not hold back a batch
+  // that a header, the env override, or a recognized scope already qualified.
+  it.each([
+    { signal: "headerBasedDirectWrite", writePath: "direct_header" },
+    { signal: "envForcesDirect", writePath: "direct_env" },
+    { signal: "scopeBasedDirectWrite", writePath: "direct_scope" },
+  ] as const)(
+    "still routes $writePath for Langfuse SDK traffic",
+    ({ signal, writePath }) => {
+      expect(
+        resolveOtelWritePath({
+          ...none,
+          [signal]: true,
+          orgCutoffForcesDirect: true,
+          langfuseSdkTraffic: true,
+        }),
+      ).toEqual({ useDirectEventWrite: true, writePath });
+    },
+  );
+});
 
 describe("shouldProcessLegacyOtelMedia", () => {
   it("processes media whenever legacy tables are written", () => {
