@@ -1,0 +1,67 @@
+name: langfuse-clickhouse-multishard
+
+x-clickhouse: &clickhouse
+  image: clickhouse/clickhouse-server:25.12
+  depends_on:
+    keeper:
+      condition: service_healthy
+  environment:
+    CLICKHOUSE_USER: clickhouse
+    CLICKHOUSE_PASSWORD: clickhouse
+    CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+  volumes:
+    - ./config/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro
+  healthcheck:
+    test: ["CMD", "clickhouse-client", "--user", "clickhouse", "--password", "clickhouse", "--query", "SELECT 1"]
+    interval: 2s
+    timeout: 2s
+    retries: 60
+
+services:
+  keeper:
+    image: clickhouse/clickhouse-keeper:25.12
+    volumes:
+      - ./config/keeper.xml:/etc/clickhouse-keeper/keeper_config.xml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-keeper-client --host localhost --port 9181 -q ruok | grep -q imok"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+
+  ch-1a:
+    <<: *clickhouse
+    environment:
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      SHARD_ID: "01"
+      REPLICA_ID: ch-1a
+
+  ch-1b:
+    <<: *clickhouse
+    environment:
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      SHARD_ID: "01"
+      REPLICA_ID: ch-1b
+
+  ch-2a:
+    <<: *clickhouse
+    ports:
+      - "${CLICKHOUSE_MULTISHARD_NATIVE_PORT:-39900}:9000"
+    environment:
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      SHARD_ID: "02"
+      REPLICA_ID: ch-2a
+
+  ch-2b:
+    <<: *clickhouse
+    environment:
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      SHARD_ID: "02"
+      REPLICA_ID: ch-2b

@@ -22,6 +22,7 @@ export interface ClickHouseDdlConfig {
   database: string;
   clusterEnabled: boolean;
   clusterName?: string;
+  shardingEnabled?: boolean;
 }
 
 export interface CandidateSelection {
@@ -54,6 +55,26 @@ export const DELETED_MASK_CLEANER_WORK_QUERY = `
   ORDER BY total_rows DESC, table
   LIMIT 1 BY table
 `;
+
+export function buildDeletedMaskCleanerWorkQuery(
+  shardingEnabled: boolean,
+  clusterName: string,
+): string {
+  if (!shardingEnabled) return DELETED_MASK_CLEANER_WORK_QUERY;
+  assertClickHouseName(clusterName, "cluster");
+  return DELETED_MASK_CLEANER_WORK_QUERY.replace(
+    "table,\n    splitByString",
+    "replaceRegexpOne(table, '_local$', '') AS table,\n    splitByString",
+  )
+    .replace(
+      "FROM system.parts",
+      `FROM cluster(${quoteClickhouseString(clusterName)}, 'system.parts')`,
+    )
+    .replace(
+      "table IN ({tables: Array(String)})",
+      "endsWith(table, '_local') AND replaceRegexpOne(table, '_local$', '') IN ({tables: Array(String)})",
+    );
+}
 
 function assertClickHouseName(value: string, label: string): void {
   if (value.length === 0 || value.includes("\0")) {
@@ -150,11 +171,13 @@ export function normalizeMutationCounts(
 export function shouldUseDeletedMaskCleanerClusterMode({
   clusterEnabled,
   cleanerClusterModeEnabled,
+  shardingEnabled = false,
 }: {
   clusterEnabled: boolean;
   cleanerClusterModeEnabled: boolean;
+  shardingEnabled?: boolean;
 }): boolean {
-  return clusterEnabled && cleanerClusterModeEnabled;
+  return clusterEnabled && (cleanerClusterModeEnabled || shardingEnabled);
 }
 
 export function buildApplyDeletedMaskQuery(
@@ -163,7 +186,10 @@ export function buildApplyDeletedMaskQuery(
 ): string {
   const database = quoteClickhouseIdentifier(config.database, "database");
   assertTargetTable(candidate.table);
-  const table = quoteClickhouseIdentifier(candidate.table, "table");
+  const table = quoteClickhouseIdentifier(
+    config.shardingEnabled ? `${candidate.table}_local` : candidate.table,
+    "table",
+  );
   assertMonthPartition(candidate.partition_to_clean);
 
   const clusterClause = config.clusterEnabled
@@ -183,15 +209,19 @@ export function buildApplyDeletedMaskQuery(
 export function buildMutationCountQuery(
   useClusterAllReplicas: boolean,
   clusterName: string,
+  shardingEnabled = false,
 ): string {
+  const tableExpression = shardingEnabled
+    ? "replaceRegexpOne(table, '_local$', '')"
+    : "table";
   return `
     SELECT
       database,
-      table,
+      ${tableExpression} AS table,
       count() AS mutation_count
     FROM ${buildMutationSource(useClusterAllReplicas, clusterName)}
     WHERE database = {database: String}
-      AND table IN ({tables: Array(String)})
+      AND ${tableExpression} IN ({tables: Array(String)})
       AND is_done = 0
     GROUP BY database, table
   `;

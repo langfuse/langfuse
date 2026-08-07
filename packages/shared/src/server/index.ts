@@ -65,6 +65,12 @@ export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
+export * from "./clickhouse/cityHash64";
+export * from "./clickhouse/clusterTopology";
+export * from "./clickhouse/shardRouting";
+export * from "./clickhouse/shardingContract";
+export * from "./clickhouse/mutationRouting";
+export * from "./clickhouse/mutationRoutingEnv";
 export {
   getClickHouseCompatibilitySettings,
   initializeClickhouseCompatibility,

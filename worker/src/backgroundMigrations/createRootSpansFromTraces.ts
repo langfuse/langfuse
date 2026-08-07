@@ -112,7 +112,7 @@ export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfill
         -- observation, with experiment enrichment), so M1 skips them to keep
         -- ownership disjoint and avoid plain-vs-enriched root collisions. Relies
         -- on the same per-project co-location as the rest of the chain.
-        AND (t.project_id, t.id) NOT IN (
+        AND (t.project_id, t.id) GLOBAL NOT IN (
           SELECT project_id, trace_id FROM dataset_run_items_rmt
         )
       SETTINGS

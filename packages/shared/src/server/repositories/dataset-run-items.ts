@@ -25,6 +25,7 @@ import Decimal from "decimal.js";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreAggregate } from "../../features/scores";
+import { getClickhouseDeleteTarget } from "../clickhouse/mutationRoutingEnv";
 
 type DatasetItemIdsByTraceIdQuery = {
   projectId: string;
@@ -1101,7 +1102,7 @@ export const deleteDatasetRunItemsByProjectId = async (
   }
 
   const query = `
-    DELETE FROM dataset_run_items_rmt
+    DELETE FROM ${getClickhouseDeleteTarget("dataset_run_items_rmt")}
     WHERE project_id = {projectId: String};
   `;
   await commandClickhouse({
@@ -1124,7 +1125,7 @@ export const deleteDatasetRunItemsByDatasetId = async ({
   datasetId: string;
 }) => {
   const query = `
-  DELETE FROM dataset_run_items_rmt
+  DELETE FROM ${getClickhouseDeleteTarget("dataset_run_items_rmt")}
   WHERE project_id = {projectId: String}
   AND dataset_id = {datasetId: String}
 `;
@@ -1152,7 +1153,7 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
   datasetId: string;
 }) => {
   const query = `
-    DELETE FROM dataset_run_items_rmt
+    DELETE FROM ${getClickhouseDeleteTarget("dataset_run_items_rmt")}
     WHERE project_id = {projectId: String}
     AND dataset_id = {datasetId: String}
     AND dataset_run_id IN ({datasetRunIds: Array(String)})

@@ -50,23 +50,32 @@ if [ -z "${CLICKHOUSE_CLUSTER_NAME}" ]; then
     export CLICKHOUSE_CLUSTER_NAME="default"
 fi
 
-# Construct the database URL
-if [ "$CLICKHOUSE_CLUSTER_ENABLED" == "false" ] ; then
+# Select exactly one migration lineage. Sharded migrations are a fresh-cluster
+# baseline and intentionally never run after the clustered lineage.
+if [ "$CLICKHOUSE_SHARDING_ENABLED" = "true" ] && [ "$CLICKHOUSE_CLUSTER_ENABLED" = "false" ]; then
+  echo "Error: CLICKHOUSE_SHARDING_ENABLED requires CLICKHOUSE_CLUSTER_ENABLED=true."
+  exit 1
+fi
+
+if [ "$CLICKHOUSE_CLUSTER_ENABLED" = "false" ]; then
+  MIGRATION_DIRECTORY="unclustered"
   if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
       DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
   else
       DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-migrations-table-engine=MergeTree"
   fi
-
-  # Execute the up command
-  migrate -source file://clickhouse/migrations/unclustered -database "$DATABASE_URL" up
 else
-if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
+  if [ "$CLICKHOUSE_SHARDING_ENABLED" = "true" ]; then
+    MIGRATION_DIRECTORY="sharded"
+  else
+    MIGRATION_DIRECTORY="clustered"
+  fi
+  if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
       DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&secure=true&skip_verify=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
   else
       DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
   fi
-
-  # Execute the up command
-  migrate -source file://clickhouse/migrations/clustered -database "$DATABASE_URL" up
 fi
+
+echo "Applying ${MIGRATION_DIRECTORY} ClickHouse migrations."
+migrate -source "file://clickhouse/migrations/${MIGRATION_DIRECTORY}" -database "$DATABASE_URL" up
