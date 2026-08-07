@@ -22,6 +22,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # PR previews (own AWS account). Built from main, so a PR that changes the
+          # sandbox runtime needs a re-dispatch after merge to reach previews.
+          - environment: preview
           - environment: staging
           - environment: prod-eu
           - environment: prod-us
