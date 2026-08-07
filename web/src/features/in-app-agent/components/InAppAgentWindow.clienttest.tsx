@@ -335,6 +335,60 @@ describe("ControlledInAppAgentWindow stop", () => {
 });
 
 describe("InAppAgentWindow focus", () => {
+  it("places the caret at the end of an existing draft when mounted", () => {
+    render(windowElement({ draft: "Keep this draft" }));
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    }) as HTMLTextAreaElement;
+    const end = "Keep this draft".length;
+
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(end);
+    expect(input.selectionEnd).toBe(end);
+  });
+
+  it("keeps the composer focused with the caret at the end when resizing", () => {
+    const onExpandedChange = vi.fn();
+    const { rerender } = render(windowElement({ onExpandedChange }));
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    }) as HTMLTextAreaElement;
+    const expandButton = screen.getByRole("button", {
+      name: "Expand window",
+    });
+
+    fireEvent.change(input, { target: { value: "Keep this draft" } });
+    input.focus();
+    input.setSelectionRange(0, 0);
+    fireEvent.mouseDown(expandButton, { button: 0 });
+    expandButton.focus();
+    fireEvent.click(expandButton);
+
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(input.value.length);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    rerender(windowElement({ isExpanded: true, onExpandedChange }));
+
+    const collapseButton = screen.getByRole("button", {
+      name: "Collapse window",
+    });
+
+    input.focus();
+    input.setSelectionRange(0, 0);
+    fireEvent.mouseDown(collapseButton, { button: 0 });
+    collapseButton.focus();
+    fireEvent.click(collapseButton);
+
+    expect(onExpandedChange).toHaveBeenCalledWith(false);
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(input.value.length);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
   it("refocuses the composer when an active turn completes", () => {
     const { rerender } = render(
       <>
