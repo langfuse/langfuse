@@ -39,6 +39,11 @@ env:
   # restore CI caches.
   CI_CACHE_ALLOWED: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
+  # Pull requests and merge groups test only files related to their immutable
+  # event base. Pushes remain full runs; duplicate main pushes are skipped by
+  # pre-job when the same tree already passed the merge queue.
+  VITEST_CHANGED_SINCE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'merge_group' && github.event.merge_group.base_sha || '' }}
+
 jobs:
   # Skips runs whose git tree was already tested in a prior successful run of
   # this workflow (replaces fkirc/skip-duplicate-actions). This fires almost
@@ -364,6 +369,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -389,8 +395,15 @@ jobs:
           cp .env.dev.example .env
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
+      - name: test affected-test selection policy
+        run: node --no-warnings --experimental-strip-types --test scripts/vitest/shared-package-vcs-provider.test.ts
       - name: run shared tests
-        run: pnpm --filter @langfuse/shared run test
+        run: |
+          changed_args=()
+          if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
+            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+          fi
+          pnpm --filter @langfuse/shared run test "${changed_args[@]}" --passWithNoTests
 
   test-docker-build:
     name: test-docker-build (${{ matrix.component }})
@@ -504,6 +517,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Install golang-migrate for Clickhouse migrations in background
         # Only needed by the "Migrate DB" step, so let the dependency setup
@@ -646,7 +660,12 @@ jobs:
         # invocation, so they run in their own parallel job below.
         env:
           NODE_COMPILE_CACHE: /tmp/node-compile-cache
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8
+        run: |
+          changed_args=()
+          if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
+            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+          fi
+          npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-shared-source --project server-unit --project server-shared-source-unit --maxWorkers=8 "${changed_args[@]}" --passWithNoTests
       - name: Prune stale turbo cache entries
         if: env.CI_CACHE_ALLOWED == 'true'
         # Each run saves the restored archive plus new entries, so the cache
@@ -662,6 +681,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -690,7 +710,12 @@ jobs:
         run: pnpm turbo run build --filter=web^...
       - name: run test-client
         working-directory: web
-        run: pnpm run test-client
+        run: |
+          changed_args=()
+          if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
+            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+          fi
+          pnpm run test-client "${changed_args[@]}" --passWithNoTests
 
   tests-worker:
     timeout-minutes: 20
@@ -712,6 +737,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -788,7 +814,12 @@ jobs:
       - name: Build
         run: pnpm --filter=worker... run build
       - name: run tests
-        run: pnpm --filter=worker run test:exclude-llm-connections
+        run: |
+          changed_args=()
+          if [[ -n "$VITEST_CHANGED_SINCE" ]]; then
+            changed_args=(--changed "$VITEST_CHANGED_SINCE")
+          fi
+          pnpm --filter=worker run test:exclude-llm-connections "${changed_args[@]}" --passWithNoTests
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
   test-worker-llm-connections:
