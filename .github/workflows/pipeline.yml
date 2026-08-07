@@ -159,10 +159,9 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Force every benchmark to exercise a full cold lint.
+        # Web ESLint uses four workers; cap package-level parallelism so lint
+        # tasks do not oversubscribe this eight-vCPU runner.
         run: pnpm turbo run lint --concurrency=3
-        env:
-          TURBO_FORCE: "true"
       - name: typecheck
         run: pnpm run typecheck
 
