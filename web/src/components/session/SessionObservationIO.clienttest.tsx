@@ -9,7 +9,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const fullIOQuery = vi.fn();
 const downloadJsonFile = vi.fn();
 const capture = vi.fn();
-const mediaUseQuery = vi.fn(() => ({ data: undefined }));
+const mediaUseQuery = vi.fn(
+  (_args: Record<string, unknown>): { data: unknown } => ({ data: undefined }),
+);
 
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -18,7 +20,7 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: (
           input: Record<string, unknown>,
           options: Record<string, unknown>,
-        ) => mediaUseQuery({ ...input, ...options } as never),
+        ) => mediaUseQuery({ ...input, ...options }),
       },
     },
     useUtils: () => ({
@@ -177,9 +179,7 @@ describe("SessionObservationIO", () => {
   // LFE-14815: trace detail resolved observation media, the session view did
   // not, so a media-bearing message had no thumbnail here.
   it("forwards observation media to IOPreview, and only looks it up when referenced", () => {
-    mediaUseQuery.mockReturnValue({
-      data: [{ mediaId: "media-1" }],
-    } as never);
+    mediaUseQuery.mockReturnValue({ data: [{ mediaId: "media-1" }] });
     renderComponent({
       ...baseObservation,
       input: `{"content":"@@@langfuseMedia:type=image/png|id=media-1|source=base64_data_uri@@@"}`,
