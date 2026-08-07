@@ -58,7 +58,7 @@ jobs:
           - cache_scope: mode-redis-cluster
             deploy-mode: -redis-cluster
             env_profile: tests-web
-          - cache_scope: e2e-server
+          - cache_scope: server-e2e
             deploy-mode: ""
             env_profile: e2e-server
     steps:
