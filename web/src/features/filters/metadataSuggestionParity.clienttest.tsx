@@ -104,13 +104,31 @@ describe("metadata suggestions in the filter sidebar", () => {
     fireEvent.click(screen.getByText("Add filter"));
     const key = screen.getByPlaceholderText("Key");
     fireEvent.focus(key);
-    fireEvent.change(key, { target: { value: "region" } });
+    fireEvent.change(key, { target: { value: "regio" } });
 
     expect(
       screen
         .getAllByRole("option")
         .map((option) => option.textContent?.trim() ?? ""),
     ).toEqual(["region", "regional", "user.region"]);
+  });
+
+  it("never offers what is already typed, and picks with the keyboard", () => {
+    render(<MetadataFacetHarness />);
+    fireEvent.click(screen.getByText("Add filter"));
+
+    const key = screen.getByPlaceholderText("Key");
+    fireEvent.focus(key);
+    // Typing commits the row, so the draft key returns as an "observed" key —
+    // it must not become a suggestion for the input it came from.
+    fireEvent.change(key, { target: { value: "sc" } });
+    expect(
+      screen.getAllByRole("option").map((o) => o.textContent?.trim() ?? ""),
+    ).not.toContain("sc");
+
+    fireEvent.keyDown(key, { key: "ArrowDown" });
+    fireEvent.keyDown(key, { key: "Enter" });
+    expect(key).toHaveValue("scope");
   });
 
   it("still accepts a key and value the observed map has never seen", () => {
