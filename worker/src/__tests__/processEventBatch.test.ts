@@ -147,4 +147,89 @@ describe("processEventBatch", () => {
       ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
     });
   });
+
+  it("drops public ingestion for reserved internal environments but returns success", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+
+    const timestamp = "2024-10-12T12:13:14.123Z";
+    const result = await processEventBatch(
+      [
+        {
+          id: "broadcast-event-id",
+          timestamp,
+          type: eventTypes.TRACE_CREATE,
+          body: {
+            id: "judge-trace-id",
+            timestamp,
+            name: "judge",
+            environment: "llm-as-a-judge",
+          },
+        },
+      ],
+      authCheck,
+      {
+        delay: 0,
+        attribution: {
+          ingestionApiKey: "pk-lf-public",
+          ingestionSdkName: "openrouter",
+          ingestionSdkVersion: "1.0.0",
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      successes: [{ id: "broadcast-event-id", status: 201 }],
+      errors: [],
+    });
+    expect(queueAddMock).not.toHaveBeenCalled();
+    expect(uploadJsonMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps internal SDK ingestion for reserved environments", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+
+    const timestamp = "2024-10-12T12:13:14.123Z";
+    const result = await processEventBatch(
+      [
+        {
+          id: "internal-event-id",
+          timestamp,
+          type: eventTypes.TRACE_CREATE,
+          body: {
+            id: "internal-judge-trace-id",
+            timestamp,
+            name: "judge",
+            environment: "langfuse-llm-as-a-judge",
+          },
+        },
+      ],
+      authCheck,
+      {
+        delay: 0,
+        isLangfuseInternal: true,
+        attribution: {
+          ingestionApiKey: "pk-lf-public",
+          ingestionSdkName: "langfuse-internal-ai-sdk",
+          ingestionSdkVersion: "1.0.0",
+        },
+      },
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(queueAddMock).toHaveBeenCalledTimes(1);
+  });
 });
