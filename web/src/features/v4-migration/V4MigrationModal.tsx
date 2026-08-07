@@ -5,7 +5,6 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { Separator } from "@/src/components/ui/separator";
 import {
   V4MigrationHeaderContent,
   V4MigrationDetailsContent,
@@ -65,8 +64,8 @@ function V4MigrationModalContent({
             // Clear the dialog's floating fallback close button (top-right).
             titleRowClassName="pr-6"
           />
-          <Separator className="my-6" />
-          <div className="flex flex-col gap-6">
+          {/* Details opens with its own separator above Action items. */}
+          <div className="mt-6 flex flex-col gap-6">
             <V4MigrationDetailsContent
               onNavigate={() => setOpen(false)}
               projectId={project.id}

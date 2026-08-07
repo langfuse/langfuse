@@ -544,6 +544,11 @@ function V4MigrationStatusPageContent() {
   const actionNeededProjects = readiness.filter(
     (state) => state === "action-needed",
   ).length;
+  // Projects whose checks failed are neither clean nor counted as needing
+  // action; surface them instead of silently finalizing the count.
+  const unavailableProjects = readiness.filter(
+    (state) => state === "unavailable",
+  ).length;
   const isChecking =
     session.status === "loading" ||
     readiness.some((state) => state === "checking");
@@ -577,6 +582,8 @@ function V4MigrationStatusPageContent() {
                   <span className="text-muted-foreground text-sm">
                     of {totalProjects} projects{" "}
                     {actionNeededProjects === 1 ? "needs" : "need"} action
+                    {unavailableProjects > 0 &&
+                      ` · ${unavailableProjects} could not be checked`}
                   </span>
                 </>
               )}

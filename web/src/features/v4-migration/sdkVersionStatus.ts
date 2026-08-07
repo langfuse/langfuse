@@ -120,6 +120,16 @@ export const isOtelExporterSeries = (
 // only while it contains at least one series needing action, but a rendered
 // section lists every series detected on its ingestion path.
 
+export const isActionableSdkSeries = (
+  series: V4MigrationSdkUsageSeries,
+): boolean =>
+  (series.v4MigrationStatus === "upgrade_required" &&
+    !series.upgradeCompleted) ||
+  // A recognized SDK with an unparseable version still needs the user's
+  // attention; without it the section would hide while the project-level
+  // status keeps reporting action needed.
+  series.v4MigrationStatus === "unknown";
+
 export type V4MigrationSdkSectionState = {
   /** "latest" and "no_data" mean no offenders; the section hides itself.
    * Unrecognized SDKs are not mixed in here: they belong to the custom
@@ -127,7 +137,9 @@ export type V4MigrationSdkSectionState = {
   status: "checking" | "error" | "legacy" | "latest" | "no_data";
   /** All detected recognized-SDK series, offenders sorted first. */
   series: V4MigrationSdkUsageSeries[];
-  upgradeRequiredCount: number;
+  /** Series needing action: pending upgrades plus unrecognized versions.
+   * Drives both the section badge and the body copy so they always agree. */
+  actionableCount: number;
 };
 
 export const getSdkSectionState = (
@@ -136,6 +148,7 @@ export const getSdkSectionState = (
   const series = sdk.sdkUsageSeries.filter(
     (usage) => usage.canonicalSdkName !== null,
   );
+  const actionableCount = series.filter(isActionableSdkSeries).length;
 
   return {
     status:
@@ -143,11 +156,11 @@ export const getSdkSectionState = (
         ? sdk.status
         : series.length === 0
           ? "no_data"
-          : sdk.upgradeRequiredCount > 0
+          : actionableCount > 0
             ? "legacy"
             : "latest",
     series,
-    upgradeRequiredCount: sdk.upgradeRequiredCount,
+    actionableCount,
   };
 };
 

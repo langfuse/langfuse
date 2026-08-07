@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import {
@@ -29,6 +29,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { cn } from "@/src/utils/tailwind";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   formatSdkUpgradeRequirement,
   formatSdkVersion,
@@ -271,17 +272,11 @@ export function V4MigrationSdkSection({
 
   const isTransient =
     section.status === "checking" || section.status === "error";
-  const actionableCount = section.series.filter(
-    (usage) =>
-      (usage.v4MigrationStatus === "upgrade_required" &&
-        !usage.upgradeCompleted) ||
-      usage.v4MigrationStatus === "unknown",
-  ).length;
 
   return (
     <Section
       title="Update SDK"
-      count={isTransient ? undefined : actionableCount}
+      count={isTransient ? undefined : section.actionableCount}
       meta={
         section.status === "checking"
           ? "Checking…"
@@ -298,8 +293,8 @@ export function V4MigrationSdkSection({
           "We could not check the latest traces for this project. Try again later."
         ) : (
           <>
-            {section.upgradeRequiredCount} detected SDK{" "}
-            {section.upgradeRequiredCount === 1
+            {section.actionableCount} detected SDK{" "}
+            {section.actionableCount === 1
               ? "configuration needs"
               : "configurations need"}{" "}
             an update. See{" "}
@@ -825,6 +820,15 @@ export function V4MigrationAgentUpgradeSection({
   };
 
   const [envCopied, setEnvCopied] = useState(false);
+  const envCopiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The timeout is an external system: clear it so a panel closed right
+  // after copying cannot fire a state update on an unmounted component.
+  useEffect(
+    () => () => {
+      if (envCopiedTimeout.current) clearTimeout(envCopiedTimeout.current);
+    },
+    [],
+  );
 
   const handleCreateKeys = () => {
     // Guards double-clicks and re-creation once keys exist for this project.
@@ -941,9 +945,17 @@ export function V4MigrationAgentUpgradeSection({
                   variant="ghost"
                   size="icon"
                   onClick={async () => {
-                    await navigator.clipboard.writeText(envBlock);
+                    // Falls back to a hidden textarea on non-secure contexts
+                    // (plain-HTTP self-hosted) where navigator.clipboard is
+                    // unavailable.
+                    await copyTextToClipboard(envBlock);
                     setEnvCopied(true);
-                    setTimeout(() => setEnvCopied(false), 2000);
+                    if (envCopiedTimeout.current)
+                      clearTimeout(envCopiedTimeout.current);
+                    envCopiedTimeout.current = setTimeout(
+                      () => setEnvCopied(false),
+                      2000,
+                    );
                   }}
                   aria-label={envCopied ? "Copied" : "Copy keys"}
                   title={envCopied ? "Copied" : "Copy keys"}

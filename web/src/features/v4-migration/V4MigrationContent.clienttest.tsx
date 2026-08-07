@@ -428,6 +428,32 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
   });
 
+  it("keeps Update SDK visible for a recognized SDK with an unparseable version", () => {
+    mocks.migrationData.sdk = {
+      status: "unknown",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({
+          sdkVersion: "not-a-version",
+          v4MigrationStatus: "unknown",
+        }),
+      ],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("Update SDK")).toBeInTheDocument();
+    // Badge and sentence share the same count.
+    expect(
+      within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 detected SDK configuration needs an update/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("· version not recognized")).toBeInTheDocument();
+  });
+
   it("shows ingestion-API traffic without an SDK header as Upgrade Instrumentation", () => {
     mocks.migrationData.sdk = {
       status: "unknown",
