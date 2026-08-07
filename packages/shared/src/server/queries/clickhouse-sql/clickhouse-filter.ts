@@ -553,6 +553,7 @@ export class NumberObjectFilter implements Filter {
   public value: number;
   public operator: (typeof filterOperators)["numberObject"][number] | "!=";
   public tablePrefix?: string;
+  public clickhouseTypeOverwrite?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -561,6 +562,7 @@ export class NumberObjectFilter implements Filter {
     key: string;
     value: number;
     tablePrefix?: string;
+    clickhouseTypeOverwrite?: string;
   }) {
     this.clickhouseTable = opts.clickhouseTable;
     this.field = opts.field;
@@ -568,14 +570,16 @@ export class NumberObjectFilter implements Filter {
     this.operator = opts.operator;
     this.tablePrefix = opts.tablePrefix;
     this.key = opts.key;
+    this.clickhouseTypeOverwrite = opts.clickhouseTypeOverwrite;
   }
 
   apply(): ClickhouseFilter {
     const varKeyName = `numberObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
     const varValueName = `numberObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    const type = this.clickhouseTypeOverwrite ?? "Decimal64(12)";
     return {
-      query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal64(12)})), ${column})) = 0`,
+      query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: ${type}})), ${column})) = 0`,
       params: { [varKeyName]: this.key, [varValueName]: this.value },
     };
   }
