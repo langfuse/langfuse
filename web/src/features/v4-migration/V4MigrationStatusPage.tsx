@@ -541,7 +541,9 @@ function V4MigrationStatusPageContent() {
       return status ? [getProjectMigrationReadiness(status)] : [];
     }),
   );
-  const readyProjects = readiness.filter((state) => state === "ready").length;
+  const actionNeededProjects = readiness.filter(
+    (state) => state === "action-needed",
+  ).length;
   const isChecking =
     session.status === "loading" ||
     readiness.some((state) => state === "checking");
@@ -570,10 +572,11 @@ function V4MigrationStatusPageContent() {
               ) : (
                 <>
                   <span className="text-2xl leading-none font-bold tracking-tight">
-                    {readyProjects}
+                    {actionNeededProjects}
                   </span>
                   <span className="text-muted-foreground text-sm">
-                    of {totalProjects} projects migrated
+                    of {totalProjects} projects{" "}
+                    {actionNeededProjects === 1 ? "needs" : "need"} action
                   </span>
                 </>
               )}

@@ -62,7 +62,6 @@ function V4MigrationModalContent({
           <V4MigrationHeaderContent
             projectName={project.name}
             projectId={project.id}
-            onNavigate={() => setOpen(false)}
             // Clear the dialog's floating fallback close button (top-right).
             titleRowClassName="pr-6"
           />

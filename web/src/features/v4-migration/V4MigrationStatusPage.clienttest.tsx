@@ -130,7 +130,7 @@ describe("V4MigrationStatusPage", () => {
     render(<V4MigrationStatusPage />);
 
     expect(screen.getByText("Migrated")).toBeInTheDocument();
-    expect(screen.getByText("of 1 projects migrated")).toBeInTheDocument();
+    expect(screen.getByText("of 1 projects need action")).toBeInTheDocument();
   });
 
   it("links projects to traces and opens the migration panel", () => {

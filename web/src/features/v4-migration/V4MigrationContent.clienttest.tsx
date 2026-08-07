@@ -8,6 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  V4MigrationAgentUpgradeSection,
   V4MigrationDetailsContent,
   V4MigrationHeaderContent,
 } from "./V4MigrationContent";
@@ -15,7 +16,34 @@ import {
   type MigrationActionState,
   type MigrationCountState,
 } from "./migrationData";
-import { type V4MigrationSdkState } from "./sdkVersionStatus";
+import {
+  type V4MigrationSdkState,
+  type V4MigrationSdkUsageSeries,
+} from "./sdkVersionStatus";
+
+const makeSdkUsageSeries = (
+  overrides: Partial<V4MigrationSdkUsageSeries>,
+): V4MigrationSdkUsageSeries => ({
+  sdkName: "python",
+  sdkVersion: "4.7.1",
+  canonicalSdkName: "python",
+  publicKey: "pk-lf-1234567890abcdef",
+  count: 10,
+  firstSeen: "2026-07-20T10:00:00Z",
+  lastSeen: "2026-07-23T10:00:00Z",
+  hasDelayedOtelEvents: null,
+  attributionStatus: "attributed",
+  v4MigrationStatus: "compatible",
+  upgradeCompleted: false,
+  ...overrides,
+});
+
+const cleanSdkState = (): V4MigrationSdkState => ({
+  status: "latest",
+  sdkUsageSeries: [],
+  upgradeRequiredCount: 0,
+  delayedOtelIngestionCount: 0,
+});
 
 const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
@@ -150,7 +178,7 @@ describe("V4MigrationDetailsContent", () => {
     };
     mocks.migrationData.experimentInstrumentationUpgradePath = null;
     mocks.canToggleV4 = true;
-    mocks.migrationData.sdk.status = "latest";
+    mocks.migrationData.sdk = cleanSdkState();
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
     mocks.migrationData.apiUsage = [
@@ -170,8 +198,8 @@ describe("V4MigrationDetailsContent", () => {
   it("uses deprecated terminology and links to the migration guides", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    expect(screen.getByText("Deprecated APIs")).toBeInTheDocument();
-    expect(screen.getByText("Deprecated Integrations")).toBeInTheDocument();
+    expect(screen.getByText("Migrate APIs")).toBeInTheDocument();
+    expect(screen.getByText("Migrate Integrations")).toBeInTheDocument();
     expect(screen.queryByText("Legacy APIs")).not.toBeInTheDocument();
     expect(screen.queryByText("Legacy Integrations")).not.toBeInTheDocument();
 
@@ -209,7 +237,7 @@ describe("V4MigrationDetailsContent", () => {
     }
   });
 
-  it("uses deprecated terminology in the empty states", () => {
+  it("collapses clean sections into one up-to-date summary", () => {
     mocks.migrationData.apis = { status: "loaded", count: 0 };
     mocks.migrationData.exports = { status: "loaded", count: 0 };
     mocks.migrationData.apiUsage = [];
@@ -218,17 +246,28 @@ describe("V4MigrationDetailsContent", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     expect(
-      screen.getByText(/No deprecated public API usage detected/),
+      screen.getByText(
+        "Evals, experiments, APIs and integrations are up to date.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Repoint Evals")).not.toBeInTheDocument();
+    expect(screen.queryByText("Experiments")).not.toBeInTheDocument();
+    expect(screen.queryByText("Migrate APIs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Migrate Integrations")).not.toBeInTheDocument();
+  });
+
+  it("keeps affected sections while summarizing the clean ones", () => {
+    // Default mock: apis count 1, exports count 3; evals and experiments clean.
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("Migrate APIs")).toBeInTheDocument();
+    expect(screen.getByText("Migrate Integrations")).toBeInTheDocument();
+    expect(
+      screen.getByText("Evals and experiments are up to date."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("No deprecated integration exports detected."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("No deprecated evals detected."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("No experiment instrumentation updates required."),
-    ).toBeInTheDocument();
+      screen.queryByText("Repoint Evals", { exact: true }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the experiment instrumentation upgrade requirement", () => {
@@ -254,7 +293,6 @@ describe("V4MigrationDetailsContent", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     fireEvent.click(screen.getByRole("button", { name: /Experiments/ }));
-    expect(screen.getByText("Needs review")).toBeInTheDocument();
     expect(
       screen.getByText(/supports the experiment runner/),
     ).toBeInTheDocument();
@@ -275,33 +313,188 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows no detected ingestion data without asking for SDK review", () => {
+  it("hides the tracing sections when no ingestion data was detected", () => {
     mocks.migrationData.sdk.status = "no_data";
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    expect(screen.getByText("No data detected")).toBeInTheDocument();
+    expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
     expect(
-      screen.getByText(/No ingestion data was detected in the last 14 days/),
-    ).toBeInTheDocument();
+      screen.queryByText("Update OTel Instrumentation"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Needs review")).not.toBeInTheDocument();
+  });
+
+  it("hides the tracing sections when everything detected is up to date", () => {
+    mocks.migrationData.sdk = {
+      ...cleanSdkState(),
+      sdkUsageSeries: [
+        makeSdkUsageSeries({}),
+        makeSdkUsageSeries({
+          sdkName: "otelcol",
+          sdkVersion: "0.98.0",
+          canonicalSdkName: null,
+          v4MigrationStatus: "unknown",
+          hasDelayedOtelEvents: false,
+        }),
+      ],
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Update OTel Instrumentation"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lists every detected SDK series when one needs an upgrade", () => {
+    mocks.migrationData.sdk = {
+      status: "legacy",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({
+          sdkVersion: "2.60.3",
+          v4MigrationStatus: "upgrade_required",
+        }),
+        makeSdkUsageSeries({ publicKey: "pk-lf-fedcba0987654321" }),
+      ],
+      upgradeRequiredCount: 1,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("Update SDK")).toBeInTheDocument();
+    expect(
+      within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
+    expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
+    expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
+    // The public key deep-links to the exact evidence: the events table
+    // filtered by this key over the detection lookback window.
+    expect(
+      screen.getByRole("link", { name: "pk-lf-123…abcdef" }),
+    ).toHaveAttribute(
+      "href",
+      `/project/project-1/observations?filter=${encodeURIComponent(
+        "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef",
+      )}&dateRange=14d`,
+    );
+    expect(
+      screen.queryByText("Update OTel Instrumentation"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows delayed OTel exporters and hides the clean SDK section", () => {
+    mocks.migrationData.sdk = {
+      status: "otel_header_required",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({}),
+        makeSdkUsageSeries({
+          sdkName: "openlit",
+          sdkVersion: "1.35.4",
+          canonicalSdkName: null,
+          v4MigrationStatus: "unknown",
+          hasDelayedOtelEvents: true,
+          publicKey: "pk-lf-aaaa000011112222",
+        }),
+        makeSdkUsageSeries({
+          sdkName: "otelcol",
+          sdkVersion: "0.98.0",
+          canonicalSdkName: null,
+          v4MigrationStatus: "unknown",
+          hasDelayedOtelEvents: false,
+          publicKey: "pk-lf-bbbb333344445555",
+        }),
+      ],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 1,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("Update OTel Instrumentation")).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByText("Update OTel Instrumentation").closest("button")!,
+      ).getByText("1"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/delayed ingestion path/)).toBeInTheDocument();
+    expect(screen.getByText("openlit 1.35.4")).toBeInTheDocument();
+    expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
+    expect(screen.getByText("· delayed")).toBeInTheDocument();
+    expect(screen.getByText("· real-time")).toBeInTheDocument();
+    expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
+  });
+
+  it("shows ingestion-API traffic without an SDK header as Upgrade Instrumentation", () => {
+    mocks.migrationData.sdk = {
+      status: "unknown",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          canonicalSdkName: null,
+          attributionStatus: "missing_name_and_version",
+          v4MigrationStatus: "unknown",
+        }),
+      ],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("Upgrade Instrumentation")).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByText("Upgrade Instrumentation").closest("button")!,
+      ).getByText("1"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Custom instrumentation")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Python or JS SDK" }),
+    ).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/sdk/overview",
+    );
+    expect(
+      screen.getByRole("link", { name: "OpenTelemetry endpoint" }),
+    ).toHaveAttribute(
+      "href",
+      "https://langfuse.com/integrations/native/opentelemetry",
+    );
+    expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Update OTel Instrumentation"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the agent upgrade group with the prompt CTA", () => {
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(
+      screen.getByText(/Paste prompt into Claude Code or other coding agents/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Copy prompt" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the preview-toggle section only when the session can toggle v4", () => {
     const { unmount } = render(
       <V4MigrationDetailsContent projectId="project-1" />,
     );
-    expect(screen.getByText("Want to review first?")).toBeInTheDocument();
     expect(
-      screen.getByText(/Use this toggle to compare both views/),
+      screen.getByText(/Compare traces while you upgrade/),
     ).toBeInTheDocument();
     unmount();
 
     mocks.canToggleV4 = false;
     render(<V4MigrationDetailsContent projectId="project-1" />);
-    expect(screen.queryByText("Want to review first?")).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/Use this toggle to compare both views/),
+      screen.queryByText(/Compare traces while you upgrade/),
     ).not.toBeInTheDocument();
   });
 
@@ -369,9 +562,7 @@ describe("V4MigrationHeaderContent", () => {
 
   it("claims the project needs migrating while checks report action needed", () => {
     render(<V4MigrationHeaderContent projectId="project-1" />);
-    expect(
-      screen.getByText(/This project still uses the previous setup/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Your setup is outdated/)).toBeInTheDocument();
   });
 
   it("drops the status claim once every check is clean", () => {
@@ -379,7 +570,7 @@ describe("V4MigrationHeaderContent", () => {
     mocks.migrationData.exports = { status: "loaded", count: 0 };
     render(<V4MigrationHeaderContent projectId="project-1" />);
     expect(
-      screen.queryByText(/This project still uses the previous setup/),
+      screen.queryByText(/Your setup is outdated/),
     ).not.toBeInTheDocument();
   });
 
@@ -387,79 +578,122 @@ describe("V4MigrationHeaderContent", () => {
     mocks.migrationData.apis = { status: "loading", count: 0 };
     render(<V4MigrationHeaderContent projectId="project-1" />);
     expect(
-      screen.queryByText(/This project still uses the previous setup/),
+      screen.queryByText(/Your setup is outdated/),
     ).not.toBeInTheDocument();
   });
 
   it("reserves a close-button gutter on the title row when the host asks", () => {
     // The modal host floats the dialog's fallback close button over the
-    // body's top-right corner; without the gutter it overlaps the
-    // right-aligned status link.
+    // body's top-right corner; without the gutter it overlaps the title.
     render(
       <V4MigrationHeaderContent
         projectId="project-1"
         titleRowClassName="pr-6"
       />,
     );
-    const link = screen.getByRole("link", { name: "View Org status" });
-    expect(link).toHaveAttribute("href", "/v4-migration");
-    expect(link.parentElement).toHaveClass("pr-6");
+    expect(screen.getByText("Migrate to v4").parentElement).toHaveClass("pr-6");
   });
 
-  it("creates project API keys when revealing the migration prompt", async () => {
-    render(<V4MigrationHeaderContent projectId="project-1" />);
+  it("links to the docs from the details footer", () => {
+    render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Update SDK with agents" }),
+    expect(screen.getByRole("link", { name: "Docs" })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/v4",
     );
+  });
+
+  it("does not create credentials when revealing or copying the prompt", () => {
+    render(<V4MigrationAgentUpgradeSection projectId="project-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
 
     expect(screen.getByText("coding-agent-prompt")).toBeInTheDocument();
+    expect(mocks.createProjectApiKey).not.toHaveBeenCalled();
+
+    // Second click copies; still no credentials. (jsdom has no clipboard.)
+    Object.assign(navigator, { clipboard: { writeText: vi.fn() } });
+    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
+    expect(mocks.createProjectApiKey).not.toHaveBeenCalled();
+  });
+
+  it("creates keys only on the explicit create action and shows an env block", async () => {
+    render(<V4MigrationAgentUpgradeSection projectId="project-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
+    const createButton = screen.getByRole("button", {
+      name: "Create API keys",
+    });
+
+    fireEvent.click(createButton);
     expect(mocks.createProjectApiKey).toHaveBeenCalledWith({
       projectId: "project-1",
       note: "v4-migration-key",
     });
+
     await waitFor(() =>
-      expect(screen.getByText("pk-lf-pr…ct-1")).toBeInTheDocument(),
+      expect(
+        screen.getByText(/LANGFUSE_PUBLIC_KEY=pk-lf-project-1/),
+      ).toBeInTheDocument(),
     );
+    expect(
+      screen.getByText(/LANGFUSE_SECRET_KEY=sk-lf-project-1/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/LANGFUSE_BASE_URL=/)).toBeInTheDocument();
+    // The secret must never leak into the agent prompt.
+    expect(screen.getByText("coding-agent-prompt").textContent).not.toContain(
+      "sk-lf-project-1",
+    );
+    // The create action is consumed; no accidental duplicates.
+    expect(
+      screen.queryByRole("button", { name: "Create API keys" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.createProjectApiKey).toHaveBeenCalledTimes(1);
   });
 
-  it("hides API key creation for users without access", () => {
+  it("keeps the prompt available but disables key creation without access", () => {
     mocks.hasApiKeyCreateAccess = false;
-    const { container } = render(
-      <V4MigrationHeaderContent projectId="project-1" />,
-    );
+    render(<V4MigrationAgentUpgradeSection projectId="project-1" />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Update SDK with agents" }),
-    );
-
+    const promptButton = screen.getByRole("button", { name: "Copy prompt" });
+    expect(promptButton).toBeEnabled();
+    fireEvent.click(promptButton);
     expect(screen.getByText("coding-agent-prompt")).toBeInTheDocument();
+
+    const createButton = screen.getByRole("button", {
+      name: "Create API keys",
+    });
+    expect(createButton).toBeDisabled();
+    fireEvent.click(createButton);
     expect(mocks.createProjectApiKey).not.toHaveBeenCalled();
-    expect(container.querySelector(".lucide-loader-circle")).toBeNull();
   });
 
-  it("refreshes generated keys when the project changes", async () => {
+  it("requires a fresh explicit creation when the project changes", async () => {
     const { rerender } = render(
-      <V4MigrationHeaderContent key="project-1" projectId="project-1" />,
+      <V4MigrationAgentUpgradeSection key="project-1" projectId="project-1" />,
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Update SDK with agents" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create API keys" }));
 
     await waitFor(() =>
-      expect(screen.getByText("pk-lf-pr…ct-1")).toBeInTheDocument(),
+      expect(
+        screen.getByText(/LANGFUSE_PUBLIC_KEY=pk-lf-project-1/),
+      ).toBeInTheDocument(),
     );
 
     rerender(
-      <V4MigrationHeaderContent key="project-2" projectId="project-2" />,
+      <V4MigrationAgentUpgradeSection key="project-2" projectId="project-2" />,
     );
 
-    expect(screen.queryByText("pk-lf-pr…ct-1")).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Update SDK with agents" }),
-    );
+    expect(
+      screen.queryByText(/LANGFUSE_PUBLIC_KEY=pk-lf-project-1/),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create API keys" }));
     await waitFor(() =>
-      expect(screen.getByText("pk-lf-pr…ct-2")).toBeInTheDocument(),
+      expect(
+        screen.getByText(/LANGFUSE_PUBLIC_KEY=pk-lf-project-2/),
+      ).toBeInTheDocument(),
     );
     expect(mocks.createProjectApiKey).toHaveBeenLastCalledWith({
       projectId: "project-2",
