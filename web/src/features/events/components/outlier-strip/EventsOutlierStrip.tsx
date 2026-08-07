@@ -57,25 +57,40 @@ const MODE_OPTIONS: StripMode[] = ["count", "cost", "latency"];
 const modeLabel = (mode: StripMode): string =>
   OUTLIER_STRIP_METRICS[mode].shortLabel;
 
-const ModeDropdownButton = forwardRef<
+type OutlierDropdownButtonVariant = "mode" | "aggregation";
+
+const outlierDropdownButtonClasses: Record<
+  OutlierDropdownButtonVariant,
+  string
+> = {
+  mode: "text-foreground hover:text-muted-foreground font-bold",
+  aggregation:
+    "text-muted-foreground hover:text-foreground underline-offset-2 hover:underline",
+};
+
+const OutlierDropdownButton = forwardRef<
   HTMLButtonElement,
-  { mode: StripMode } & Omit<
-    React.ComponentPropsWithoutRef<"button">,
-    "className"
-  >
->(({ mode, ...buttonProps }, ref) => (
+  {
+    ariaLabel: string;
+    label: string;
+    variant: OutlierDropdownButtonVariant;
+  } & Omit<React.ComponentPropsWithoutRef<"button">, "aria-label" | "className">
+>(({ ariaLabel, label, variant, ...buttonProps }, ref) => (
   <button
     {...buttonProps}
     ref={ref}
     type="button"
-    aria-label={`Chart mode: ${modeLabel(mode)}`}
-    className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[13px] leading-none font-bold"
+    aria-label={ariaLabel}
+    className={cn(
+      "flex items-center gap-0.5 text-[13px] leading-none",
+      outlierDropdownButtonClasses[variant],
+    )}
   >
-    {modeLabel(mode)}
+    {label}
     <ChevronDown className="h-2.5 w-2.5" />
   </button>
 ));
-ModeDropdownButton.displayName = "ModeDropdownButton";
+OutlierDropdownButton.displayName = "OutlierDropdownButton";
 
 /**
  * Prevent Radix's close-refocus ONLY after a pointer-driven selection — the
@@ -400,7 +415,11 @@ export function EventsOutlierStrip({
                 >
                   {({ Trigger }) => (
                     <Trigger asChild>
-                      <ModeDropdownButton mode={mode} />
+                      <OutlierDropdownButton
+                        ariaLabel={`Chart mode: ${modeLabel(mode)}`}
+                        label={modeLabel(mode)}
+                        variant="mode"
+                      />
                     </Trigger>
                   )}
                 </ModeDropdownController>
@@ -440,7 +459,11 @@ export function EventsOutlierStrip({
                 >
                   {({ Trigger }) => (
                     <Trigger asChild>
-                      <ModeDropdownButton mode={mode} />
+                      <OutlierDropdownButton
+                        ariaLabel={`Chart mode: ${modeLabel(mode)}`}
+                        label={modeLabel(mode)}
+                        variant="mode"
+                      />
                     </Trigger>
                   )}
                 </ModeDropdownController>
@@ -454,12 +477,12 @@ export function EventsOutlierStrip({
                   >
                     {({ Trigger }) => (
                       <span className="flex items-baseline gap-1">
-                        <Trigger
-                          aria-label={`${def.shortLabel} aggregation: ${aggregation}`}
-                          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-[13px] leading-none underline-offset-2 hover:underline"
-                        >
-                          {aggregation}
-                          <ChevronDown className="h-2.5 w-2.5" />
+                        <Trigger asChild>
+                          <OutlierDropdownButton
+                            ariaLabel={`${def.shortLabel} aggregation: ${aggregation}`}
+                            label={aggregation}
+                            variant="aggregation"
+                          />
                         </Trigger>
                       </span>
                     )}
