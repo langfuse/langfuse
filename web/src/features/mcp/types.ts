@@ -65,12 +65,7 @@ export interface ServerContext {
   inAppAgent?: InAppAgentContext;
 }
 
-/**
- * In-app-agent MCP access is explicit: `read` allows only tools annotated with `readOnlyHint`.
- * To allow mutating operations, `tool-allowlist` names the MCP registry tools the in-app agent may invoke —
- * the tool from a one-off approval, the tools approved for the whole conversation, or both.
- * Human approval is enforced earlier in the in-app agent runtime before any allowlist is minted.
- */
+/** In-app agent MCP access is read-only unless a prior approval mints a mutating-tool allowlist. */
 export type InAppAgentContext =
   | {
       permissions: "read";

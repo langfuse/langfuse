@@ -512,8 +512,6 @@ describe("in-app agent background runs", () => {
 
   it("grants a tool for the conversation only when the scope asks for it", async () => {
     const { caller, projectId, userId } = await createCaller();
-    // One conversation per decision: parkRunForApproval writes its interrupt at
-    // sequenceNumber 0, so two parks cannot share a conversation.
     const onceConversation = await createConversation({ projectId, userId });
     const grantConversation = await createConversation({ projectId, userId });
 
@@ -555,8 +553,7 @@ describe("in-app agent background runs", () => {
       approvalScope: "conversation",
     });
 
-    // The stored name comes from the persisted interrupt event, which names
-    // langfuse_createTextPrompt — the client only ever sent ids and a scope.
+    // The persisted interrupt determines the tool; the client sends only ids and scope.
     await expect(
       prisma.inAppAgentConversation.findFirstOrThrow({
         where: { id: grantConversation.id, projectId },

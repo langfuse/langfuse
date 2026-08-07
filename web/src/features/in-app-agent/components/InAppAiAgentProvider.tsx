@@ -1083,6 +1083,7 @@ function InAppAiAgentProviderInner({
               runId: input.runId,
               toolCallId: input.toolCallId,
               approved: input.approved,
+              approvalScope: input.approvalScope,
             }),
           onHydratedSnapshot: ({ messages }) => {
             performToolSideEffectsForCompletedToolCalls({
@@ -1742,6 +1743,7 @@ function InAppAiAgentProviderInner({
           capture("in_app_agent:tool_approval_decided", {
             isApproved: approved,
             toolName: approval.approvalRequest.toolName,
+            approvalScope,
           });
         }
         return;
@@ -1750,6 +1752,7 @@ function InAppAiAgentProviderInner({
       capture("in_app_agent:tool_approval_decided", {
         isApproved: approved,
         toolName: approval.approvalRequest.toolName,
+        approvalScope,
       });
 
       const agent = agentRef.current;
@@ -1865,8 +1868,7 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
-  // Conversation grants exist only on the background path; foreground is the
-  // rollback target and its approvals are single-use by construction.
+  // Conversation grants exist only on the background execution path.
   const alwaysAllowToolCall = useMemo(
     () =>
       backgroundExecutionEnabled

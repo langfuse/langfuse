@@ -377,9 +377,7 @@ export async function decideBackgroundApproval(params: {
     throw new LangfuseNotFoundError("Approval request not found");
   }
 
-  // Resolved from the persisted interrupt, never from client input: the browser
-  // sends an id and a scope, and the tool it grants is whatever the agent
-  // actually asked to run.
+  // Resolve the granted tool from the persisted interrupt, never client input.
   const alwaysAllowToolName =
     params.approvalScope === "conversation" && params.approved
       ? getInAppAgentPrefixedToolName(

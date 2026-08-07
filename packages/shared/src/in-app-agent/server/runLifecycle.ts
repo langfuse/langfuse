@@ -205,11 +205,7 @@ export async function decideToolApproval(params: {
   toolCallId: string;
   approved: boolean;
   decidedByUserId: string;
-  /**
-   * Set to stop gating `alwaysAllowToolName` for the rest of the conversation.
-   * Prefixed, so the stored row names the MCP surface it authorized. Resolved
-   * from the persisted interrupt event by the caller, never from client input.
-   */
+  /** Prefixed tool resolved from the persisted interrupt, never client input. */
   alwaysAllowToolName?: InAppAgentPrefixedLangfuseMcpToolName;
   model?: string;
 }): Promise<InAppAgentRun> {
@@ -275,8 +271,7 @@ export async function decideToolApproval(params: {
       parentRun.request,
     );
 
-    // Same transaction as the CAS above, so a grant can only be recorded for a
-    // decision that actually landed.
+    // Persist the grant in the same transaction as the exactly-once decision CAS.
     if (params.alwaysAllowToolName) {
       const conversation = await tx.inAppAgentConversation.findUnique({
         where: {

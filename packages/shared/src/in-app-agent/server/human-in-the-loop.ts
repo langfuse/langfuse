@@ -45,12 +45,7 @@ const InAppAgentLangfuseMcpToolNameSchema =
     { message: "Invalid MCP tool name" },
   );
 
-/**
- * The MCP override names every mutating tool the run may call. `toolName` is the
- * pre-allowlist single-tool shape: a continuation enqueued before this change
- * can still be executed by a worker that has it, so keep parsing it until no
- * such run can be in flight.
- */
+/** Accept the legacy single-tool shape while older continuations may still be queued. */
 export const InAppAgentMcpRunOverrideSchema = z
   .union([
     z.object({ toolNames: z.array(InAppAgentLangfuseMcpToolNameSchema) }),
