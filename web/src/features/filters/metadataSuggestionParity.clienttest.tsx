@@ -104,7 +104,7 @@ describe("metadata suggestions in the filter sidebar", () => {
     fireEvent.click(screen.getByText("Add filter"));
     const key = screen.getByPlaceholderText("Key");
     fireEvent.focus(key);
-    fireEvent.change(key, { target: { value: "regio" } });
+    fireEvent.change(key, { target: { value: "reg" } });
 
     expect(
       screen
