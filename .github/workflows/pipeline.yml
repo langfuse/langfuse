@@ -101,7 +101,7 @@ jobs:
               - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
-    runs-on: blacksmith-16vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -417,10 +417,17 @@ jobs:
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Start dependency containers in background
-        # Independent of the image build, so let the build overlap it. The
-        # healthcheck step below surfaces its output and re-validates health.
+        # Dependencies and the worker can start while the slower web image is
+        # still building. The healthcheck step below re-validates everything.
         run: |
           (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
+          (
+            set +e
+            worker_image="$(docker compose -f "$DOCKER_COMPOSE_FILE" config --images | awk '/langfuse-worker(:|$)/ { print; exit }')"
+            until docker image inspect "$worker_image" > /dev/null 2>&1; do sleep 1; done
+            docker compose -f "$DOCKER_COMPOSE_FILE" up -d --no-build langfuse-worker > /tmp/worker-up.log 2>&1
+            echo $? > /tmp/worker-up.exit
+          ) &
       - name: Build images
         # Type-checking runs in the lint job. Public browser source maps are a
         # release artifact and are covered by preview/release image builds; they
@@ -434,6 +441,7 @@ jobs:
         run: |
           timeout 300 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' || true
           cat /tmp/deps-up.log
+          if [ -f /tmp/worker-up.log ]; then cat /tmp/worker-up.log; fi
           docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180
       - name: Check worker health
         run: |
