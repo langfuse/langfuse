@@ -12,6 +12,11 @@ import {
   ScoreRecordInsertType,
   TraceRecordInsertType,
 } from "../../../src/server";
+import {
+  ensureSeedMediaUploaded,
+  linkSeedMediaToObservation,
+  type SeedMediaFixture,
+} from "../seed-media";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
@@ -39,14 +44,18 @@ import { countRows, sessionLink } from "./verify";
  *  - agent  a coding/agent session: I/O on the root AGENT + TOOL children,
  *           NO GENERATION — the shape the old default rendered empty.
  *  - mixed  alternating chat/agent turns.
+ *  - media  messages carrying `@@@langfuseMedia:…@@@` references (LFE-14815):
+ *           an inline image, several references in one message, and a
+ *           link-only payload the chat renderer cannot inline. Uploads its
+ *           assets and links them to the observation.
  *
  * Each shape is written as its own session (id `<prefix>-<shape>`) so a single
  * `--shape all` run hands back one session link per shape.
  */
 
-type Shape = "chat" | "agent" | "mixed";
+type Shape = "chat" | "agent" | "mixed" | "media";
 
-const SHAPES: readonly Shape[] = ["chat", "agent", "mixed"];
+const SHAPES: readonly Shape[] = ["chat", "agent", "mixed", "media"];
 
 const CHAT_TURNS: ReadonlyArray<{ user: string; assistant: string }> = [
   {
@@ -136,6 +145,43 @@ const buildChatMessages = (turnIdx: number): string => {
   }
   return JSON.stringify({ messages });
 };
+
+/**
+ * The three media-bearing message shapes behind LFE-14815 / LFE-13602:
+ *
+ *  0 inline-image  one `image_url` part holding a `@@@langfuseMedia:…@@@`
+ *                  reference — the customer's shape; the image must render
+ *                  inline, and NOT also in the "Media" strip (deduped).
+ *  1 multi-ref     two references in one message (image + audio).
+ *  2 linked-only   a non-ChatML payload the chat renderer cannot inline, with
+ *                  the media linked to the observation — the "Media" strip is
+ *                  the only surface, so it proves session/trace-detail parity.
+ */
+type MediaVariant = "inline-image" | "multi-ref" | "linked-only";
+
+const MEDIA_VARIANTS: readonly MediaVariant[] = [
+  "inline-image",
+  "multi-ref",
+  "linked-only",
+];
+
+const MEDIA_PROMPTS: Record<MediaVariant, { user: string; assistant: string }> =
+  {
+    "inline-image": {
+      user: "My AC has rust in it. I've attached an image of the air handler — what am I looking at?",
+      assistant:
+        "That rust is most likely from moisture sitting in the air handler — usually a condensate drain problem rather than the thermostat wiring. Want me to walk you through the quick checks?",
+    },
+    "multi-ref": {
+      user: "Here's a photo of the unit and a recording of the noise it makes on startup.",
+      assistant:
+        "Thanks — the photo shows surface rust below the coil, and the startup noise is consistent with a failing blower bearing. I'd book a technician for the blower.",
+    },
+    "linked-only": {
+      user: "Filing the attachment against the work order.",
+      assistant: "Attachment stored against work order #4821.",
+    },
+  };
 
 const microPrice = (tokens: number, rate: number) => tokens * rate;
 
@@ -434,16 +480,208 @@ const buildAgentTrace = (
   return { trace, observations };
 };
 
+/**
+ * Builds one media-bearing trace: a root AGENT plus a GENERATION whose input
+ * carries a Langfuse media reference. Also reports the observation/field pairs
+ * to link in `observation_media` so the "Media" strip resolves.
+ */
+const buildMediaTrace = (
+  ctx: ScenarioContext,
+  rng: Rng,
+  sessionId: string,
+  traceId: string,
+  turnIdx: number,
+  timestamp: number,
+  fixtures: { image: SeedMediaFixture; audio: SeedMediaFixture },
+): {
+  trace: TraceRecordInsertType;
+  observations: ObservationRecordInsertType[];
+  mediaLinks: { observationId: string; mediaId: string }[];
+} => {
+  const variant = MEDIA_VARIANTS[turnIdx % MEDIA_VARIANTS.length];
+  const prompt = MEDIA_PROMPTS[variant];
+  const genId = `${traceId}-o1`;
+
+  const userContent =
+    variant === "inline-image"
+      ? [
+          { type: "text", text: prompt.user },
+          {
+            type: "image_url",
+            image_url: { url: fixtures.image.referenceString },
+          },
+        ]
+      : [
+          { type: "text", text: prompt.user },
+          {
+            type: "image_url",
+            image_url: { url: fixtures.image.referenceString },
+          },
+          {
+            type: "input_audio",
+            input_audio: { data: fixtures.audio.referenceString },
+          },
+        ];
+
+  // linked-only stays deliberately non-ChatML: the chat renderer cannot inline
+  // it, so only the media strip can surface the asset.
+  const genInput =
+    variant === "linked-only"
+      ? JSON.stringify({
+          work_order: "4821",
+          note: prompt.user,
+          attachment: {
+            mediaId: fixtures.image.mediaId,
+            contentType: fixtures.image.contentType,
+            referenceString: fixtures.image.referenceString,
+          },
+        })
+      : JSON.stringify({
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are an HVAC troubleshooting assistant. Inspect attached media before answering.",
+            },
+            { role: "user", content: userContent },
+          ],
+        });
+
+  const mediaLinks = [
+    { observationId: genId, mediaId: fixtures.image.mediaId },
+  ];
+  if (variant === "multi-ref") {
+    mediaLinks.push({ observationId: genId, mediaId: fixtures.audio.mediaId });
+  }
+
+  const trace = createTrace({
+    id: traceId,
+    project_id: ctx.projectId,
+    environment: ctx.environment,
+    session_id: sessionId,
+    timestamp,
+    name: "hvac-troubleshooting-agent",
+    user_id: `user-${ctx.idPrefix}`,
+    release: "v2.0.0",
+    version: "v2.0.0",
+    tags: ["seed", "session-shapes", "media"],
+    public: false,
+    bookmarked: false,
+    metadata: {
+      scenario: "session-shapes",
+      shape: "media",
+      variant,
+      turn: String(turnIdx),
+    },
+    input: prompt.user,
+    output: prompt.assistant,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    event_ts: Date.now(),
+  });
+
+  const rootStart = timestamp + jitter(ctx.seed, turnIdx * 17, 60);
+  const genStart = rootStart + 40 + jitter(ctx.seed, turnIdx * 17 + 1, 80);
+  const genEnd = genStart + rng.int(900, 3200);
+  const usageInput = rng.int(400, 2200);
+  const usageOutput = rng.int(80, 600);
+  const inputCost = microPrice(usageInput, 2e-6);
+  const outputCost = microPrice(usageOutput, 6e-6);
+
+  const observations: ObservationRecordInsertType[] = [
+    createObservation({
+      id: `${traceId}-o0`,
+      trace_id: traceId,
+      project_id: ctx.projectId,
+      environment: ctx.environment,
+      type: "AGENT",
+      parent_observation_id: null,
+      name: "troubleshooting-agent",
+      start_time: rootStart,
+      end_time: genEnd + 20,
+      completion_start_time: null,
+      level: "DEFAULT",
+      status_message: null,
+      version: null,
+      input: null,
+      output: null,
+      metadata: { scenario: "session-shapes", shape: "media", variant },
+      provided_model_name: null,
+      internal_model_id: null,
+      model_parameters: "{}",
+      provided_usage_details: {},
+      usage_details: {},
+      provided_cost_details: {},
+      cost_details: {},
+      total_cost: null,
+      prompt_id: null,
+      prompt_name: null,
+      prompt_version: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      event_ts: Date.now(),
+    }),
+    createObservation({
+      id: genId,
+      trace_id: traceId,
+      project_id: ctx.projectId,
+      environment: ctx.environment,
+      type: "GENERATION",
+      parent_observation_id: `${traceId}-o0`,
+      name: "gpt-5.4-vision-completion",
+      start_time: genStart,
+      end_time: genEnd,
+      completion_start_time: genStart + rng.int(90, 320),
+      level: "DEFAULT",
+      status_message: null,
+      version: null,
+      input: genInput,
+      output: prompt.assistant,
+      metadata: { scenario: "session-shapes", shape: "media", variant },
+      provided_model_name: "gpt-5.4",
+      internal_model_id: null,
+      model_parameters: JSON.stringify({ temperature: 0.2 }),
+      provided_usage_details: {
+        input: usageInput,
+        output: usageOutput,
+        total: usageInput + usageOutput,
+      },
+      usage_details: {
+        input: usageInput,
+        output: usageOutput,
+        total: usageInput + usageOutput,
+      },
+      provided_cost_details: { input: inputCost, output: outputCost },
+      cost_details: {
+        input: inputCost,
+        output: outputCost,
+        total: inputCost + outputCost,
+      },
+      total_cost: inputCost + outputCost,
+      prompt_id: null,
+      prompt_name: null,
+      prompt_version: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      event_ts: Date.now(),
+    }),
+  ];
+
+  return { trace, observations, mediaLinks };
+};
+
 const buildSession = (
   ctx: ScenarioContext,
   rng: Rng,
   shape: Shape,
   turns: number,
+  mediaFixtures?: { image: SeedMediaFixture; audio: SeedMediaFixture },
 ): {
   sessionId: string;
   sessionStart: number;
   traces: TraceRecordInsertType[];
   observations: ObservationRecordInsertType[];
+  mediaLinks: { traceId: string; observationId: string; mediaId: string }[];
 } => {
   const sessionId = `${ctx.idPrefix}-${shape}`;
   // Anchor each session in a recent, distinct hour so UI time windows show
@@ -454,15 +692,44 @@ const buildSession = (
 
   const traces: TraceRecordInsertType[] = [];
   const observations: ObservationRecordInsertType[] = [];
+  const mediaLinks: {
+    traceId: string;
+    observationId: string;
+    mediaId: string;
+  }[] = [];
 
   for (let t = 0; t < turns; t++) {
     const traceId = `${ctx.idPrefix}-${shape}-t${t}`;
     const timestamp =
       sessionStart + Math.floor(t * stepMs) + jitter(ctx.seed, t, 400);
 
-    // mixed alternates chat/agent turns; chat/agent are uniform.
+    // mixed alternates chat/agent turns; chat/agent/media are uniform.
     const turnShape: Exclude<Shape, "mixed"> =
       shape === "mixed" ? (t % 2 === 0 ? "chat" : "agent") : shape;
+
+    if (turnShape === "media") {
+      if (!mediaFixtures) {
+        throw new SeedError(
+          "media shape requires seeded media fixtures",
+          "this is a bug in the scenario — fixtures are resolved before buildSession",
+        );
+      }
+      const built = buildMediaTrace(
+        ctx,
+        rng,
+        sessionId,
+        traceId,
+        t,
+        timestamp,
+        mediaFixtures,
+      );
+      traces.push(built.trace);
+      observations.push(...built.observations);
+      mediaLinks.push(
+        ...built.mediaLinks.map((link) => ({ ...link, traceId })),
+      );
+      continue;
+    }
 
     const built =
       turnShape === "chat"
@@ -473,7 +740,7 @@ const buildSession = (
     observations.push(...built.observations);
   }
 
-  return { sessionId, sessionStart, traces, observations };
+  return { sessionId, sessionStart, traces, observations, mediaLinks };
 };
 
 const run = async (
@@ -502,6 +769,26 @@ const run = async (
     shapeParam === "all" ? [...SHAPES] : [shapeParam as Shape];
 
   const rng = new Rng(ctx.seed);
+
+  // Uploaded up front: the reference strings must be embedded in the payloads
+  // the builders produce, and a media shape with unresolvable assets would
+  // silently look like the bug it exists to disprove.
+  let mediaFixtures:
+    | { image: SeedMediaFixture; audio: SeedMediaFixture }
+    | undefined;
+  if (shapesToSeed.includes("media") && !ctx.dryRun) {
+    const [image, audio] = await Promise.all([
+      ensureSeedMediaUploaded(ctx.projectId, "image"),
+      ensureSeedMediaUploaded(ctx.projectId, "audio"),
+    ]);
+    if (!image || !audio) {
+      throw new SeedError(
+        "could not seed media assets for the media shape",
+        "check LANGFUSE_S3_MEDIA_UPLOAD_BUCKET and that MinIO is running (pnpm run seed -- doctor)",
+      );
+    }
+    mediaFixtures = { image, audio };
+  }
 
   if (ctx.dryRun) {
     return {
@@ -533,12 +820,17 @@ const run = async (
   const links: string[] = [];
 
   for (const shape of shapesToSeed) {
-    const { sessionId, sessionStart, traces, observations } = buildSession(
-      ctx,
-      rng,
-      shape,
-      turns,
-    );
+    const { sessionId, sessionStart, traces, observations, mediaLinks } =
+      buildSession(ctx, rng, shape, turns, mediaFixtures);
+    for (const link of mediaLinks) {
+      await linkSeedMediaToObservation({
+        projectId: ctx.projectId,
+        traceId: link.traceId,
+        observationId: link.observationId,
+        mediaId: link.mediaId,
+        field: "input",
+      });
+    }
     sessionIds.push(sessionId);
     links.push(sessionLink(ctx, sessionId));
     allTraces.push(...traces);
@@ -665,14 +957,14 @@ const run = async (
 export const sessionShapesScenario: ScenarioDefinition = {
   name: "session-shapes",
   description:
-    "Diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION (the default 'first generation' preset yields empty cards — LFE-10520), and a MIXED session. Creates the Postgres trace_sessions rows.",
+    "Diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION (the default 'first generation' preset yields empty cards — LFE-10520), a MIXED session, and a MEDIA session whose messages carry @@@langfuseMedia:...@@@ references (inline image, multiple references in one message, and a link-only payload — LFE-14815). Creates the Postgres trace_sessions rows; the media shape uploads its assets to MinIO.",
   supportsV4: true,
   flags: [
     {
       flag: "shape",
       type: "string",
       default: "all",
-      description: "session shape: chat | agent | mixed | all",
+      description: "session shape: chat | agent | mixed | media | all",
     },
     {
       flag: "turns",

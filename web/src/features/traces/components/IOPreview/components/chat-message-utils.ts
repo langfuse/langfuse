@@ -22,12 +22,16 @@ export function hasRenderableContent(message: ChatMlMessage): boolean {
 
 /**
  * Check if message has additional data beyond role and content.
+ *
+ * Values, not keys: the ChatML transform materializes every schema key, so a
+ * key-presence check is true for even an empty message — which rendered as a
+ * table of `undefined` rows (LFE-14815).
  */
 export function hasAdditionalData(message: ChatMlMessage): boolean {
-  const messageKeys = Object.keys(message).filter(
-    (key) => key !== "role" && key !== "content",
+  return Object.entries(message).some(
+    ([key, value]) =>
+      key !== "role" && key !== "content" && value !== undefined,
   );
-  return messageKeys.length > 0;
 }
 
 /**

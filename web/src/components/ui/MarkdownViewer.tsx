@@ -462,7 +462,7 @@ function MarkdownRenderer({
   }
 }
 const parseOpenAIContentParts = (
-  content: z.infer<typeof OpenAIContentParts> | null,
+  content: z.input<typeof OpenAIContentParts> | null,
 ): string => {
   return (content ?? [])
     .map((item) => {
@@ -488,7 +488,9 @@ export function MarkdownView({
   afterHeader,
   isSystemPrompt,
 }: {
-  markdown: string | z.infer<typeof OpenAIContentSchema>;
+  /** The UNPARSED content shape — see `canRenderContentAsMarkdown`. Media
+      reference strings must still be strings when they reach the part guards. */
+  markdown: string | z.input<typeof OpenAIContentSchema>;
   title?: string;
   titleIcon?: React.ReactNode;
   audio?: OpenAIOutputAudioType;

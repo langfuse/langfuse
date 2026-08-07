@@ -40,7 +40,7 @@ export const getRenderedInlineMediaIds = ({
   markdown,
   audio,
 }: {
-  markdown: string | z.infer<typeof OpenAIContentSchema>;
+  markdown: string | z.input<typeof OpenAIContentSchema>;
   audio?: OpenAIOutputAudioType;
 }): Set<string> => {
   const mediaIds = new Set<string>();
