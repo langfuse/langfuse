@@ -123,79 +123,14 @@ Requirements
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
-### Codex Cloud Setup
+### Automatic dependency checks
 
-You can also attach this repository to an OpenAI Codex cloud environment. The
-cloud environment itself is configured in the Codex UI, while the repo-owned
-bootstrap is versioned in:
+Some development scripts (e.g. ClickHouse setup and migrations) rely on system-level CLI tools such as `clickhouse-client` and `golang-migrate`.
 
-- `scripts/codex/setup.sh`
-- `scripts/codex/maintenance.sh`
+To reduce setup friction and avoid late failures, Langfuse performs **early preflight checks** when running certain local development scripts. If a required dependency is missing, the process will exit early with a clear error message and installation guidance.
 
-Recommended Codex UI configuration:
+If you encounter an error related to missing system dependencies, please ensure all tools listed under **Requirements** are installed and available in your `$PATH`.
 
-1. Create a new cloud environment for this repository in the Codex UI.
-2. Choose a base environment with Node.js 24 support.
-3. Set the setup script to:
-
-   ```bash
-   bash scripts/codex/setup.sh
-   ```
-
-4. Set the maintenance script to:
-
-   ```bash
-   bash scripts/codex/maintenance.sh
-   ```
-
-5. Keep internet access disabled by default, or only allow the minimum domains
-   needed for your task.
-6. Add secrets and environment variables in the Codex UI instead of committing
-   them to the repository.
-
-Notes:
-
-- This Codex setup is intended for repository tasks such as code changes,
-  linting, typechecking, and targeted tests.
-- It does **not** start the full Langfuse stack. Local development still uses
-  Docker and `pnpm run dx` / `pnpm run dev`.
-- Running the full application inside Codex requires external services for
-  PostgreSQL, Redis, ClickHouse, and object storage, plus matching environment
-  variables in the Codex UI.
-
-### Shared Agent Setup
-
-This repository keeps the shared agent setup in source control so developers
-using different tools can work against the same instructions, bootstrap, and
-MCP server catalog.
-
-- Canonical shared docs:
-  - `.agents/AGENTS.md`
-- Root discovery symlinks:
-  - `AGENTS.md`
-  - `CLAUDE.md`
-- Shared agent setup overview: `.agents/README.md`
-- Shared skills: `.agents/skills/`
-- Shared tool/bootstrap/MCP config: `.agents/config.json`
-- Tool-specific MCP configs generated locally from that catalog and not committed:
-  - `.mcp.json`
-  - `.cursor/mcp.json`
-  - `.vscode/mcp.json`
-  - `.codex/config.toml`
-- Tool-specific runtime shims generated locally from the shared config and not committed:
-  - `.claude/settings.json`
-  - `.codex/environments/environment.toml`
-  - `.cursor/environment.json`
-- Tool-specific skill projections generated locally and not committed:
-  - `.claude/skills/*`
-- Shared bootstrap for agent environments: `bash scripts/codex/setup.sh`
-
-When you change the shared MCP setup:
-
-1. Edit `.agents/config.json`
-2. Run `pnpm run agents:sync`
-3. Run `pnpm run agents:check`
-4. Do not commit the generated MCP config files or runtime shims
 
 **Steps**
 
