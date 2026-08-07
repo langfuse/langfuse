@@ -80,6 +80,7 @@ const mocks = vi.hoisted(() => ({
     legacyIntegrations: ["PostHog", "Mixpanel", "Blob Storage"],
   },
   canToggleV4: true,
+  isBetaEnabled: true,
   hasApiKeyCreateAccess: true,
   createProjectApiKey: vi.fn(),
 }));
@@ -151,7 +152,10 @@ vi.mock("@/src/features/events/components/V4SidebarToggle", () => ({
 
 // The details content reads canToggleV4 to gate the toggle section's copy.
 vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => ({ canToggleV4: mocks.canToggleV4 }),
+  useV4Beta: () => ({
+    canToggleV4: mocks.canToggleV4,
+    isBetaEnabled: mocks.isBetaEnabled,
+  }),
 }));
 
 vi.mock("@/src/components/ui/collapsible", () => ({
@@ -178,6 +182,7 @@ describe("V4MigrationDetailsContent", () => {
     };
     mocks.migrationData.experimentInstrumentationUpgradePath = null;
     mocks.canToggleV4 = true;
+    mocks.isBetaEnabled = true;
     mocks.migrationData.sdk = cleanSdkState();
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
@@ -452,6 +457,28 @@ describe("V4MigrationDetailsContent", () => {
       screen.getByText(/1 detected SDK configuration needs an update/),
     ).toBeInTheDocument();
     expect(screen.getByText("· version not recognized")).toBeInTheDocument();
+  });
+
+  it("renders the public key as plain text when the v4 preview is off", () => {
+    mocks.isBetaEnabled = false;
+    mocks.migrationData.sdk = {
+      status: "legacy",
+      sdkUsageSeries: [
+        makeSdkUsageSeries({
+          sdkVersion: "2.60.3",
+          v4MigrationStatus: "upgrade_required",
+        }),
+      ],
+      upgradeRequiredCount: 1,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("pk-lf-123…abcdef")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "pk-lf-123…abcdef" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows ingestion-API traffic without an SDK header as Upgrade Instrumentation", () => {

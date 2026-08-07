@@ -28,6 +28,7 @@ import {
 } from "@/src/components/ui/collapsible";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { cn } from "@/src/utils/tailwind";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -862,6 +863,10 @@ export function V4MigrationAgentUpgradeSection({
       })
       .catch((error) => {
         console.error(error);
+        showErrorToast(
+          "Could not create API keys",
+          "Something went wrong. Please try again.",
+        );
       });
   };
 
@@ -1007,7 +1012,12 @@ export function V4MigrationDetailsContent({
     orgId: organization?.id,
     enabled: Boolean(projectId),
   });
-  const { canToggleV4 } = useV4Beta();
+  const { canToggleV4, isBetaEnabled } = useV4Beta();
+  // Evidence links target the v4 events table; with the v4 preview off the
+  // route renders the v3 observations table, which cannot express the
+  // ingestionApiKey filter — the link would open an unfiltered table. Keep
+  // the key as plain text there instead of a misleading link.
+  const evidenceProjectId = isBetaEnabled ? projectId : undefined;
 
   // Sections in a good state collapse into one summary sentence instead of
   // rendering their own (green) rows. Loading and error states keep the row.
@@ -1076,17 +1086,17 @@ export function V4MigrationDetailsContent({
         <div>
           <V4MigrationSdkSection
             sdk={migrationData.sdk}
-            projectId={projectId}
+            projectId={evidenceProjectId}
             onNavigate={onNavigate}
           />
           <V4MigrationOtelSection
             sdk={migrationData.sdk}
-            projectId={projectId}
+            projectId={evidenceProjectId}
             onNavigate={onNavigate}
           />
           <V4MigrationCustomInstrumentationSection
             sdk={migrationData.sdk}
-            projectId={projectId}
+            projectId={evidenceProjectId}
             onNavigate={onNavigate}
           />
 
