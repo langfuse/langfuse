@@ -203,19 +203,16 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                     <Edit className="mr-2 h-4 w-4" />
                     Edit
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild key="archive">
-                    <Trigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="flex w-full items-center justify-start"
-                        disabled={disabled !== undefined}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <Archive className="mr-2 h-4 w-4" />
-                        Archive
-                      </Button>
-                    </Trigger>
-                  </DropdownMenuItem>
+                  <Trigger asChild>
+                    <DropdownMenuItem
+                      key="archive"
+                      disabled={disabled !== undefined}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <Archive className="mr-2 h-4 w-4" />
+                      Archive
+                    </DropdownMenuItem>
+                  </Trigger>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
