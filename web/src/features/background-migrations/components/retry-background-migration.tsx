@@ -7,7 +7,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { toast } from "sonner";
 
-type RetryBackgroundMigrationProps = {
+type RetryBackgroundMigrationPopoverControllerProps = {
   backgroundMigrationName: string;
   isRetryable: boolean;
   children: (
@@ -17,11 +17,11 @@ type RetryBackgroundMigrationProps = {
   ) => React.ReactNode;
 };
 
-export function RetryBackgroundMigration({
+export function RetryBackgroundMigrationPopoverController({
   backgroundMigrationName,
   isRetryable,
   children,
-}: RetryBackgroundMigrationProps) {
+}: RetryBackgroundMigrationPopoverControllerProps) {
   const utils = api.useUtils();
   const [adminApiKey, setAdminApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);
