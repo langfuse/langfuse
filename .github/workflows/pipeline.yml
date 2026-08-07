@@ -583,7 +583,7 @@ jobs:
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Build
-        run: pnpm turbo run build:test --filter=web --filter=worker
+        run: pnpm turbo run build:test --filter=web --filter=worker --filter=@repo/in-app-agent-sandbox-runtime
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate
