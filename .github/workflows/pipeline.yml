@@ -101,7 +101,7 @@ jobs:
               - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -159,7 +159,7 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Benchmark four-worker ESLint on the original four-vCPU runner.
+        # Force every benchmark to exercise a full cold lint.
         run: pnpm turbo run lint --concurrency=3
         env:
           TURBO_FORCE: "true"
