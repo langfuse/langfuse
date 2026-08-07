@@ -12,7 +12,8 @@ const meta = preview.meta({
 /**
  * A payment we could not collect (Stripe `past_due`). Pins to the top of the
  * viewport, as in the app. Narrow the Storybook canvas: the sentence reflows as
- * a whole, keeping the bold title inline with the message.
+ * a whole, keeping the bold title inline with the message, and below `sm` the
+ * action drops to its own row so the message keeps the full width.
  */
 export const Default = meta.story({});
 
