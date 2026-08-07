@@ -127,10 +127,7 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
 
-# Production builds use the full build task. CI may select the compile-only
-# task when it separately validates type-checking and prerender generation.
-ARG WEB_BUILD_TASK=build
-RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run "$WEB_BUILD_TASK" --filter=web...
+RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner

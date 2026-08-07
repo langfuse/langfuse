@@ -8,7 +8,6 @@
   },
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
-    "build:docker-smoke": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build --experimental-build-mode compile",
     "build:check": "NEXT_DIST_DIR=.next-check INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
     "typecheck": "dotenv -e ../.env -- tsc -p tsconfig.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- next dev",
