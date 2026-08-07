@@ -547,6 +547,108 @@ describe("extractToolsFromObservation", () => {
       });
     });
 
+    it("extracts OTel GenAI tool_call parts from output messages", () => {
+      // gen_ai.output.messages format (Pydantic AI, Google ADK, etc.)
+      const output = [
+        {
+          role: "assistant",
+          parts: [
+            { type: "text", content: "Let me check the weather." },
+            {
+              type: "tool_call",
+              id: "call_ZuzwalMMtvv9BC6xlVe3fiBP",
+              name: "get_weather",
+              arguments: { location: "Boston" },
+            },
+          ],
+          finish_reason: "tool_call",
+        },
+      ];
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toHaveLength(1);
+      expect(toolArguments[0]).toEqual({
+        id: "call_ZuzwalMMtvv9BC6xlVe3fiBP",
+        name: "get_weather",
+        arguments: JSON.stringify({ location: "Boston" }),
+        type: "tool_call",
+      });
+    });
+
+    it("extracts OTel GenAI tool_call parts from a single message object", () => {
+      const output = {
+        role: "assistant",
+        parts: [
+          {
+            type: "tool_call",
+            id: "call_1",
+            name: "final_result",
+            arguments: { quality: "good" },
+          },
+        ],
+        finish_reason: "tool_call",
+      };
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toHaveLength(1);
+      expect(toolArguments[0]).toEqual({
+        id: "call_1",
+        name: "final_result",
+        arguments: JSON.stringify({ quality: "good" }),
+        type: "tool_call",
+      });
+    });
+
+    it("extracts OTel GenAI tool_call parts when output is a JSON string", () => {
+      // gen_ai.output.messages is ingested as a JSON string attribute
+      const output = JSON.stringify([
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool_call",
+              id: "call_2",
+              name: "search",
+              arguments: { query: "test" },
+            },
+          ],
+          finish_reason: "tool_call",
+        },
+      ]);
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toHaveLength(1);
+      expect(toolArguments[0]).toMatchObject({
+        id: "call_2",
+        name: "search",
+        arguments: JSON.stringify({ query: "test" }),
+        type: "tool_call",
+      });
+    });
+
+    it("does not treat OTel GenAI tool_call_response parts as tool calls", () => {
+      const output = [
+        {
+          role: "tool",
+          parts: [
+            {
+              type: "tool_call_response",
+              id: "call_1",
+              name: "get_weather",
+              response: { temperature: 20 },
+            },
+          ],
+        },
+      ];
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toHaveLength(0);
+    });
+
     it("extracts LangChain additional_kwargs tool_calls", () => {
       const output = {
         additional_kwargs: {
