@@ -13,14 +13,12 @@
       // NEXT_IGNORE_BUILD_ERRORS toggles the Next.js type check, so builds
       // with and without it must not share a cache entry — a cached
       // unchecked build would otherwise replay as a "type-checked" one.
-      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
+      "env": [
+        "NEXT_DISABLE_PRODUCTION_BROWSER_SOURCEMAPS",
+        "NEXT_IGNORE_BUILD_ERRORS"
+      ],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "cache": true,
-      "outputLogs": "errors-only"
-    },
-    "build:docker-smoke": {
-      "dependsOn": ["db:generate", "^build:docker-smoke"],
-      "cache": false,
       "outputLogs": "errors-only"
     },
     "start": {

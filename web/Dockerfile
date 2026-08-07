@@ -67,6 +67,8 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # this and still fail on TypeScript errors.
 ARG NEXT_IGNORE_BUILD_ERRORS
 ENV NEXT_IGNORE_BUILD_ERRORS=$NEXT_IGNORE_BUILD_ERRORS
+ARG NEXT_DISABLE_PRODUCTION_BROWSER_SOURCEMAPS
+ENV NEXT_DISABLE_PRODUCTION_BROWSER_SOURCEMAPS=$NEXT_DISABLE_PRODUCTION_BROWSER_SOURCEMAPS
 
 # pass public variables in build step
 ARG NEXT_PUBLIC_PLAIN_APP_ID
@@ -127,8 +129,7 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
 
-ARG TURBO_BUILD_TASK=build
-RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run "${TURBO_BUILD_TASK}" --filter=web...
+RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner

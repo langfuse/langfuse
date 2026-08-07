@@ -69,7 +69,8 @@ const nextConfig = {
   // not a fetchable URL, so Sentry cannot pull these public maps. Sentry
   // symbolication is handled separately by uploading maps with debug IDs (see
   // `sourcemaps` in withSentryConfig below).
-  productionBrowserSourceMaps: true,
+  productionBrowserSourceMaps:
+    process.env.NEXT_DISABLE_PRODUCTION_BROWSER_SOURCEMAPS !== "true",
   // Allow building to alternate directory for parallel build checks while dev server runs
   distDir: process.env.NEXT_DIST_DIR || ".next",
   typescript: {
@@ -322,6 +323,6 @@ const sentryConfig = withSentryConfig(nextConfig, {
       removeDebugLogging: true,
     },
   },
-  });
+});
 
 export default sentryConfig;
