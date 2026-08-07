@@ -26,7 +26,6 @@ import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useL
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 
 const PeekViewEvaluatorConfigDetail = ({
@@ -48,8 +47,6 @@ const PeekViewEvaluatorConfigDetail = ({
     evaluatorId: evalConfig?.id,
     evaluator: evalConfig,
   });
-  const canUseAgent = useCanUseInAppAgent();
-
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
   if (!evalConfig) {
@@ -121,7 +118,7 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
       </div>
 
-      {evaluatorRequiresMigration && evalConfig.evalTemplate && canUseAgent && (
+      {evaluatorRequiresMigration && evalConfig.evalTemplate && (
         <V4MigrationUpdateRequiredBadge />
       )}
 

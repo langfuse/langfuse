@@ -6,11 +6,11 @@ import {
   useProjectV4EvalData,
   useProjectV4SdkData,
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import {
-  useCanUseInAppAgent,
-  useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
+  useCanUseAgentForMigration,
+  useEvalUpgradeAssistantPlan,
+} from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 
 export function V4MigrationDelayBadge() {
@@ -67,7 +67,7 @@ function useEvalUpdateRequiredBadgeState() {
 export function V4MigrationUpdateRequiredBadge() {
   const openMigrationPanel = useOpenV4MigrationPanel();
   const capture = usePostHogClientCapture();
-  const canUseAgent = useCanUseInAppAgent();
+  const canUseAgent = useCanUseAgentForMigration();
   const { project, visible, enabled, organization } =
     useEvalUpdateRequiredBadgeState();
   const { setOpen: setAgentOpen, submit: submitAgentMessage } =

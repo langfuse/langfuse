@@ -2037,6 +2037,6 @@ export function useCanUseInAppAgent() {
     isAvailable &&
     hasInAppAgentEntitlement &&
     isLangfuseCloud &&
-    Boolean(organization?.aiFeaturesEnabled)
+    Boolean(organization)
   );
 }
