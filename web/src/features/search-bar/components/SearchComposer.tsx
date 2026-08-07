@@ -1486,7 +1486,7 @@ export function SearchComposer({
 
       {caretExplanation !== null && (
         <div id="search-bar-token-help" className="sr-only">
-          {`${caretExplanation.label}. ${caretExplanation.sentence}`}
+          {`${caretExplanation.subject} ${caretExplanation.predicate}`}
         </div>
       )}
 
@@ -1540,8 +1540,8 @@ export function SearchComposer({
                 errorTarget.message
               ) : (
                 <>
-                  <span className="font-bold">{explanation?.label}.</span>{" "}
-                  {explanation?.sentence}
+                  <span className="font-bold">{explanation?.subject}</span>{" "}
+                  {explanation?.predicate}
                   {explainDeactivatedReason !== null && (
                     <span className="text-muted-foreground block pt-0.5">
                       Not applied on this view: {explainDeactivatedReason}
