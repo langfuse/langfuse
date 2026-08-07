@@ -569,6 +569,18 @@ describe("/api/public/unstable evaluators API", () => {
       auth,
     );
 
+    const storedRule = await prisma.jobConfiguration.findUniqueOrThrow({
+      where: { id: created.body.id },
+      select: { projectId: true },
+    });
+    const execution = await prisma.jobExecution.create({
+      data: {
+        projectId: storedRule.projectId,
+        jobConfigurationId: created.body.id,
+        status: "PENDING",
+      },
+    });
+
     expect(fetched.body.evaluator).toEqual({
       id: managed.id,
       name: "Answer relevance",
@@ -585,6 +597,9 @@ describe("/api/public/unstable evaluators API", () => {
     );
 
     expect(deleted.body.message).toBe("Evaluation rule successfully deleted");
+    await expect(
+      prisma.jobExecution.findUnique({ where: { id: execution.id } }),
+    ).resolves.toBeNull();
   });
 
   it("returns method_not_allowed for evaluator patch", async () => {
