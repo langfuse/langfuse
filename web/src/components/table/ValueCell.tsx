@@ -8,7 +8,7 @@ import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 import {
-  DropdownMenu,
+  DropdownMenuController,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -214,12 +214,11 @@ function ValueCellActionsMenuController({
   row,
   metadataActions,
 }: {
-  children: (control: { open: boolean }) => ReactNode;
+  children: (control: { isOpen: boolean }) => ReactNode;
   row: Row<JsonTableRow>;
   metadataActions: MetadataFilterActions;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const { value, type, hasChildren, level } = row.original;
 
   const filterValue = String(value);
@@ -278,58 +277,62 @@ function ValueCellActionsMenuController({
   const excludeFilterText = `metadata.${metadataKey} ${excludeOperator} ${displayValue}`;
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      {children({ open })}
-      <DropdownMenuContent
-        align="end"
-        className="max-w-[320px]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <DropdownMenuItem className="text-xs" onSelect={handleCopyData}>
-          <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
-          {hasChildren ? "Copy structure" : "Copy value"}
-        </DropdownMenuItem>
-        <DropdownMenuItem className="text-xs" onSelect={handleCopyPath}>
-          <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
-          Copy path
-        </DropdownMenuItem>
-        {isScalarLeaf && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-xs"
-              onSelect={() => navigateWithFilter(includeOperator)}
-            >
-              <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span>Include in filter</span>
-                <span
-                  className="text-muted-foreground truncate font-mono"
-                  title={includeFilterText}
-                >
-                  {includeFilterText}
-                </span>
-              </span>
+    <DropdownMenuController>
+      {({ isOpen }) => (
+        <>
+          {children({ isOpen })}
+          <DropdownMenuContent
+            align="end"
+            className="max-w-[320px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DropdownMenuItem className="text-xs" onSelect={handleCopyData}>
+              <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+              {hasChildren ? "Copy structure" : "Copy value"}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-xs"
-              onSelect={() => navigateWithFilter(excludeOperator)}
-            >
-              <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span>Exclude from filter</span>
-                <span
-                  className="text-muted-foreground truncate font-mono"
-                  title={excludeFilterText}
-                >
-                  {excludeFilterText}
-                </span>
-              </span>
+            <DropdownMenuItem className="text-xs" onSelect={handleCopyPath}>
+              <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+              Copy path
             </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            {isScalarLeaf && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-xs"
+                  onSelect={() => navigateWithFilter(includeOperator)}
+                >
+                  <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
+                  <span className="flex min-w-0 flex-col">
+                    <span>Include in filter</span>
+                    <span
+                      className="text-muted-foreground truncate font-mono"
+                      title={includeFilterText}
+                    >
+                      {includeFilterText}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-xs"
+                  onSelect={() => navigateWithFilter(excludeOperator)}
+                >
+                  <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
+                  <span className="flex min-w-0 flex-col">
+                    <span>Exclude from filter</span>
+                    <span
+                      className="text-muted-foreground truncate font-mono"
+                      title={excludeFilterText}
+                    >
+                      {excludeFilterText}
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </>
+      )}
+    </DropdownMenuController>
   );
 }
 
@@ -499,7 +502,7 @@ export const ValueCell = memo(
             row={row}
             metadataActions={metadataActions}
           >
-            {({ open }) => (
+            {({ isOpen }) => (
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
@@ -508,7 +511,7 @@ export const ValueCell = memo(
                   title="Actions"
                   className={cn(
                     "bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100",
-                    open && "opacity-100",
+                    isOpen && "opacity-100",
                   )}
                   onClick={(event) => event.stopPropagation()}
                 >

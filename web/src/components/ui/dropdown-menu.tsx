@@ -20,6 +20,20 @@ import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
+const DropdownMenuController = ({
+  children,
+}: {
+  children: (control: { isOpen: boolean }) => React.ReactNode;
+}) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  return (
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      {children({ isOpen })}
+    </DropdownMenu>
+  );
+};
+
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group;
@@ -545,6 +559,7 @@ DropdownMenuShortcut.displayName = "DropdownMenuShortcut";
 
 export {
   DropdownMenu,
+  DropdownMenuController,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
