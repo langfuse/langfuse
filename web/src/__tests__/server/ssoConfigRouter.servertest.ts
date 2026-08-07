@@ -2,6 +2,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { Role } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
@@ -712,7 +713,6 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     ["cloud metadata literal", "https://169.254.169.254"],
     ["RFC1918 literal", "https://10.0.0.1"],
     ["localhost", "https://localhost"],
-    ["non-standard port", "https://example.com:8123"],
     ["embedded URL credentials", "https://user:pass@example.com"],
   ])("rejects an internal discovery target: %s", async (_label, issuer) => {
     const { org, caller } = await prepare();
@@ -886,6 +886,52 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
         },
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
+  it("saves an issuer on a non-standard port", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-port-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    mockDiscoveryOk("https://example.com:8443");
+
+    const payload = samplePayload(domain);
+    const result = await caller.ssoConfig.save({
+      orgId: org.id,
+      payload: {
+        ...payload,
+        authConfig: {
+          ...payload.authConfig,
+          issuer: "https://example.com:8443",
+        },
+      },
+    });
+    expect(result.domain).toBe(domain);
+  });
+
+  it("saves an internal issuer host when LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST allows it", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-whitelist-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    mockDiscoveryOk("https://idp.internal");
+
+    const original = sharedEnv.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST;
+    try {
+      sharedEnv.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST = ["idp.internal"];
+      const payload = samplePayload(domain);
+      const result = await caller.ssoConfig.save({
+        orgId: org.id,
+        payload: {
+          ...payload,
+          authConfig: {
+            ...payload.authConfig,
+            issuer: "https://idp.internal",
+          },
+        },
+      });
+      expect(result.domain).toBe(domain);
+    } finally {
+      sharedEnv.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST = original;
+    }
   });
 
   it("skips discovery for OAuth-only providers (github)", async () => {

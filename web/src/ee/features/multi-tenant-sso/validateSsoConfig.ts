@@ -4,13 +4,10 @@ import {
   fetchWithSecureRedirects,
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
+import { env } from "@langfuse/shared/src/env";
 import { type SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
 
 const DISCOVERY_TIMEOUT_MS = 5000;
-
-// DB-backed multi-tenant SSO is Cloud-only, so no operator-configured
-// destination needs to be exempted from the internal-address blocklist.
-const discoveryWhitelist = { hosts: [], ips: [], ip_ranges: [] };
 
 type DiscoveryDoc = {
   authorization_endpoint?: unknown;
@@ -99,48 +96,9 @@ export async function validateSsoConfig(
   const trimmedIssuer = stripTrailingSlash(issuer);
   const discoveryUrl = `${trimmedIssuer}/.well-known/openid-configuration`;
 
-  let resp: Response;
-  try {
-    // SSRF defense: an admin can configure any issuer host, so reject internal
-    // destinations, non-80/443 ports, and embedded credentials up front, then
-    // fetch with connect-time IP validation. Per OIDC Discovery §4 the doc is
-    // served directly at the issuer URL, so `maxRedirects: 0` costs nothing.
-    await validateWebhookURL(discoveryUrl, discoveryWhitelist);
-    const result = await fetchWithSecureRedirects(
-      discoveryUrl,
-      { signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS) },
-      {
-        maxRedirects: 0,
-        redirectValidation: {
-          validateUrl: validateWebhookURL,
-          whitelist: discoveryWhitelist,
-        },
-      },
-    );
-    resp = result.response;
-  } catch {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `Could not reach ${discoveryUrl}. Verify the issuer URL is correct and reachable from the public internet.`,
-    });
-  }
-
-  if (!resp.ok) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `OIDC discovery at ${discoveryUrl} returned ${resp.status}. Verify the issuer URL is correct.`,
-    });
-  }
-
-  let doc: DiscoveryDoc;
-  try {
-    doc = (await resp.json()) as DiscoveryDoc;
-  } catch {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `OIDC discovery at ${discoveryUrl} did not return valid JSON.`,
-    });
-  }
+  const result = await fetchDiscoveryDoc(discoveryUrl);
+  if (!result.success) throw result.error;
+  const { doc } = result;
 
   const missing = REQUIRED_DISCOVERY_FIELDS.filter(
     (k) => typeof doc[k] !== "string",
@@ -165,4 +123,74 @@ export async function validateSsoConfig(
       message: `OIDC discovery at ${discoveryUrl} reported issuer "${doc.issuer as string}" but we expected "${expectedIssuer}". Check the issuer URL matches exactly.`,
     });
   }
+}
+
+/** fetchDiscoveryDoc fetches and parses the OIDC discovery document at discoveryUrl. */
+async function fetchDiscoveryDoc(
+  discoveryUrl: string,
+): Promise<
+  { success: false; error: TRPCError } | { success: true; doc: DiscoveryDoc }
+> {
+  let resp: Response;
+  try {
+    const whitelist = discoveryWhitelistFromEnv();
+    // SSRF defense: an admin can configure any issuer host, so reject internal
+    // destinations and embedded credentials up front, then fetch with
+    // connect-time IP validation. Per OIDC Discovery §4 the doc is served
+    // directly at the issuer URL, so `maxRedirects: 0` costs nothing.
+    // Any port: NextAuth's sign-in fetch has no port restriction, so
+    // rejecting one here would be a save-time false positive.
+    await validateWebhookURL(discoveryUrl, whitelist, { allowedPorts: "any" });
+    const result = await fetchWithSecureRedirects(
+      discoveryUrl,
+      { signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS) },
+      {
+        maxRedirects: 0,
+        redirectValidation: {
+          validateUrl: validateWebhookURL,
+          whitelist,
+        },
+      },
+    );
+    resp = result.response;
+  } catch {
+    return {
+      success: false,
+      error: new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: `Could not reach ${discoveryUrl}. Verify the issuer URL is correct and reachable from the public internet.`,
+      }),
+    };
+  }
+
+  if (!resp.ok) {
+    return {
+      success: false,
+      error: new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: `OIDC discovery at ${discoveryUrl} returned ${resp.status}. Verify the issuer URL is correct.`,
+      }),
+    };
+  }
+
+  try {
+    return { success: true, doc: (await resp.json()) as DiscoveryDoc };
+  } catch {
+    return {
+      success: false,
+      error: new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: `OIDC discovery at ${discoveryUrl} did not return valid JSON.`,
+      }),
+    };
+  }
+}
+
+/** discoveryWhitelistFromEnv builds the operator-configured exemptions to the internal-address blocklist. */
+function discoveryWhitelistFromEnv() {
+  return {
+    hosts: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST || [],
+    ips: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS || [],
+    ip_ranges: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_IP_SEGMENTS || [],
+  };
 }
