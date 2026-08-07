@@ -8,7 +8,7 @@ function explain(query: string, index = 0): string | null {
   const explanation = segment === undefined ? null : explainSegment(segment);
   return explanation === null
     ? null
-    : `${explanation.subject} ${explanation.predicate}`;
+    : `${explanation.subject} ${explanation.predicate}`.trim();
 }
 
 describe("explainSegment", () => {
@@ -39,7 +39,10 @@ describe("explainSegment", () => {
     // Comparisons and booleans invert (INVERTED_COMPARISON / !value) instead of
     // hiding, so the copy must too.
     expect(explain("-latency:>2")).toBe("Latency is 2 seconds or less.");
-    expect(explain("-isRootObservation:true")).toBe("Root observation — no.");
+    expect(explain("isRootObservation:true")).toBe("Is root observation.");
+    expect(explain("-isRootObservation:true")).toBe("Is not root observation.");
+    expect(explain("isRootObservation:false")).toBe("Is not root observation.");
+    expect(explain("hasInput:false")).toBe("Has no input.");
     expect(explain("-name:*chat*")).toBe('Name does not contain "chat".');
     expect(explain("startTime:>2026-06-01")).toBe(
       "Start time is after 2026-06-01.",
@@ -75,10 +78,15 @@ describe("explainSegment", () => {
     expect(explain("(")).toBeNull();
   });
 
-  it("gives every registry field a label that works as a sentence subject", () => {
+  it("gives every registry field a usable label", () => {
     for (const field of FIELDS) {
-      // A camelCase id or a unit suffix reads as broken English as a subject.
+      // A camelCase id or a unit suffix reads as broken English in a sentence.
       expect(field.label, field.id).not.toMatch(/[a-z][A-Z]|[()$]/);
+      if (field.kind === "boolean") {
+        // Without this the false case silently falls back to the true phrase.
+        expect(field.negatedLabel, field.id).toBeDefined();
+        continue;
+      }
       // Only array fields get a plural verb ("Trace tags include"); everything
       // else is followed by "is", so a plural label would read "… tokens is".
       if (field.syncMode !== "arrayOption") {

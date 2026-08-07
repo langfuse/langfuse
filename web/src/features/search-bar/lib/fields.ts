@@ -30,8 +30,14 @@ export type FieldDef = {
   kind: FieldKind;
   syncMode: SyncMode;
   /** Human name, used as the subject of a token's explanation ("Total cost is
-   *  above $0.5") — the canonical id is camelCase and does not read as prose. */
+   *  above $0.5") — the canonical id is camelCase and does not read as prose.
+   *  On a `boolean` field this is the whole affirmative phrase instead ("Is
+   *  root observation"), since such a token is a yes/no statement, not a
+   *  subject with a value. */
   label: string;
+  /** Boolean fields only: the phrase for the false case ("Is not root
+   *  observation") — English negates these irregularly (is not / has no). */
+  negatedLabel?: string;
   description: string;
   /** Display unit for numeric suggestion labels (filter-config units). */
   unit?: string;
@@ -77,10 +83,10 @@ export const FIELDS: FieldDef[] = [
   { id: "version", aliases: [], kind: "text", syncMode: "exactOption", label: "Version", description: "Version tag", nullable: true },
   { id: "release", aliases: [], kind: "text", syncMode: "exactOption", label: "Release", description: "Release tag", nullable: true },
   { id: "traceTags", aliases: ["tracetags", "trace_tags", "tags", "tag"], kind: "text", syncMode: "arrayOption", label: "Trace tags", description: "Trace tags" },
-  { id: "isRootObservation", aliases: ["isrootobservation", "is_root_observation", "root"], kind: "boolean", syncMode: "textSearch", label: "Root observation", description: "Whether the observation is a trace root" },
-  { id: "hasParentObservation", aliases: ["hasparentobservation", "has_parent_observation"], kind: "boolean", syncMode: "textSearch", label: "Has a parent observation", description: "Whether the observation has a parent (inverse of root)" },
-  { id: "hasInput", aliases: ["hasinput", "has_input"], kind: "boolean", syncMode: "textSearch", label: "Has input", description: "Whether the observation has input" },
-  { id: "hasOutput", aliases: ["hasoutput", "has_output"], kind: "boolean", syncMode: "textSearch", label: "Has output", description: "Whether the observation has output" },
+  { id: "isRootObservation", aliases: ["isrootobservation", "is_root_observation", "root"], kind: "boolean", syncMode: "textSearch", label: "Is root observation", negatedLabel: "Is not root observation", description: "Whether the observation is a trace root" },
+  { id: "hasParentObservation", aliases: ["hasparentobservation", "has_parent_observation"], kind: "boolean", syncMode: "textSearch", label: "Has a parent observation", negatedLabel: "Has no parent observation", description: "Whether the observation has a parent (inverse of root)" },
+  { id: "hasInput", aliases: ["hasinput", "has_input"], kind: "boolean", syncMode: "textSearch", label: "Has input", negatedLabel: "Has no input", description: "Whether the observation has input" },
+  { id: "hasOutput", aliases: ["hasoutput", "has_output"], kind: "boolean", syncMode: "textSearch", label: "Has output", negatedLabel: "Has no output", description: "Whether the observation has output" },
   { id: "toolNames", aliases: ["toolnames", "tool_names"], kind: "text", syncMode: "arrayOption", label: "Available tools", description: "Available tool names", nullable: true },
   { id: "calledToolNames", aliases: ["calledtoolnames", "called_tool_names", "calledtools", "called_tools"], kind: "text", syncMode: "arrayOption", label: "Called tools", description: "Called tool names", nullable: true },
   { id: "toolDefinitions", aliases: ["tooldefinitions", "tool_definitions"], kind: "number", syncMode: "textSearch", label: "Available tool count", description: "Available tool count", nullable: true },

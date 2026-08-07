@@ -1486,7 +1486,7 @@ export function SearchComposer({
 
       {caretExplanation !== null && (
         <div id="search-bar-token-help" className="sr-only">
-          {`${caretExplanation.subject} ${caretExplanation.predicate}`}
+          {`${caretExplanation.subject} ${caretExplanation.predicate}`.trim()}
         </div>
       )}
 
@@ -1540,8 +1540,12 @@ export function SearchComposer({
                 errorTarget.message
               ) : (
                 <>
-                  <span className="font-bold">{explanation?.subject}</span>{" "}
-                  {explanation?.predicate}
+                  <span className="font-bold">{explanation?.subject}</span>
+                  {/* A boolean token's phrase IS the whole explanation — no
+                      predicate, so no dangling space before the period. */}
+                  {explanation?.predicate !== "" && (
+                    <> {explanation?.predicate}</>
+                  )}
                   {explainDeactivatedReason !== null && (
                     <span className="text-muted-foreground block pt-0.5">
                       Not applied on this view: {explainDeactivatedReason}

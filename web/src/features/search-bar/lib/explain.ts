@@ -19,7 +19,8 @@ import { resolveField, type FieldDef, type FieldRef } from "./fields";
 export type TokenExplanation = {
   /** Bold lead-in: the field this token filters on. */
   subject: string;
-  /** The rest of the sentence, ending in a period. */
+  /** The rest of the sentence, ending in a period. Empty when the subject is
+   *  the whole explanation (a boolean token states itself). */
   predicate: string;
 };
 
@@ -153,12 +154,6 @@ function predicateOf(ref: FieldRef, seg: FilterSegment): string {
 
   if (isComparison(op)) return comparisonPredicate(op, ref, values, negated);
 
-  if (ref.type === "field" && ref.field.kind === "boolean") {
-    const asked = (values[0] ?? "").trim().toLowerCase() === "true";
-    const effective = negated ? !asked : asked;
-    return effective ? "— yes" : "— no";
-  }
-
   switch (op) {
     case "exact":
       return negated
@@ -175,6 +170,14 @@ function predicateOf(ref: FieldRef, seg: FilterSegment): string {
     default:
       return defaultOpPredicate(ref, seg);
   }
+}
+
+/** A boolean token needs no value in the copy: "Is not root observation." */
+function explainBoolean(field: FieldDef, seg: FilterSegment): TokenExplanation {
+  const asked = (seg.values[0] ?? "").trim().toLowerCase() === "true";
+  const holds = seg.negated ? !asked : asked;
+  const phrase = holds ? field.label : (field.negatedLabel ?? field.label);
+  return { subject: `${phrase}.`, predicate: "" };
 }
 
 /** `has:` reads about its VALUE — the field that is (or isn't) set. */
@@ -207,6 +210,9 @@ export function explainSegment(seg: ComposerSegment): TokenExplanation | null {
       const ref = resolveField(seg.displayField);
       if (ref === null) return null;
       if (ref.type === "pseudo") return explainHas(seg);
+      if (ref.type === "field" && ref.field.kind === "boolean") {
+        return explainBoolean(ref.field, seg);
+      }
       return {
         subject: subjectOf(ref),
         predicate: `${predicateOf(ref, seg)}.`,
