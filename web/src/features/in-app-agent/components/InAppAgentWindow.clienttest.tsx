@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { ScanSearch } from "lucide-react";
 import { InAppAgentRunStatus } from "@langfuse/shared";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
@@ -356,5 +362,169 @@ describe("InAppAgentWindow focus", () => {
     expect(
       screen.getByRole("textbox", { name: "Message the assistant" }),
     ).toHaveFocus();
+  });
+});
+
+describe("InAppAgentWindow scrolling", () => {
+  it("detaches auto-follow and uses the Latest control to reattach", () => {
+    const messages = [
+      {
+        id: "user-1",
+        role: "user" as const,
+        content: { type: "text" as const, text: "Investigate latency" },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant" as const,
+        content: { type: "text" as const, text: "First finding" },
+      },
+    ];
+    const { container, rerender } = render(windowElement({ messages }));
+    const viewport =
+      container.querySelector<HTMLDivElement>(".overflow-y-auto");
+    if (!viewport) {
+      throw new Error("Expected the assistant message viewport");
+    }
+
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, value: 800, writable: true },
+    });
+    fireEvent.scroll(viewport);
+    viewport.scrollTop = 500;
+    fireEvent.scroll(viewport);
+
+    expect(
+      screen.getByRole("button", { name: "Scroll to latest message" }),
+    ).toBeInTheDocument();
+    vi.mocked(Element.prototype.scrollTo).mockClear();
+
+    rerender(
+      windowElement({
+        messages: messages.concat({
+          id: "assistant-2",
+          role: "assistant",
+          content: { type: "text", text: "Streamed finding" },
+        }),
+      }),
+    );
+    expect(Element.prototype.scrollTo).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Scroll to latest message" }),
+    );
+    expect(Element.prototype.scrollTo).toHaveBeenCalledWith({
+      top: 1_000,
+      behavior: "smooth",
+    });
+    expect(
+      screen.queryByRole("button", { name: "Scroll to latest message" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("InAppAgentWindow message actions", () => {
+  it("shows actions only for the final answer and copies that text block", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    vi.stubGlobal("ClipboardItem", undefined);
+
+    const activityMessages = [
+      {
+        id: "user-1",
+        role: "user" as const,
+        content: { type: "text" as const, text: "Investigate latency" },
+      },
+      {
+        id: "assistant-intro",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant" as const,
+        content: {
+          type: "text" as const,
+          text: "I will inspect the slow traces.",
+        },
+      },
+      {
+        id: "assistant-reasoning",
+        role: "assistant" as const,
+        content: {
+          type: "reasoning" as const,
+          text: "This private reasoning is not part of the answer.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-tool",
+        role: "assistant" as const,
+        content: { type: "toolGroup" as const, tools: [] },
+      },
+    ];
+    const finalAnswer = {
+      id: "assistant-conclusion",
+      runId: "run-1",
+      timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+      role: "assistant" as const,
+      content: {
+        type: "text" as const,
+        text: "The reranker is the bottleneck.",
+      },
+    };
+
+    const { rerender } = render(
+      windowElement({
+        isAssistantTurnInProgress: true,
+        messages: activityMessages,
+      }),
+    );
+
+    const workingTrigger = screen.getByRole("button", { name: "Working…" });
+    expect(workingTrigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("I will inspect the slow traces.")).toBeVisible();
+    expect(screen.getByText("Current trace view in context")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Copy message" }),
+    ).not.toBeInTheDocument();
+
+    rerender(windowElement({ messages: activityMessages.concat(finalAnswer) }));
+
+    const activityTrigger = screen.getByRole("button", {
+      name: "Worked for 51s",
+    });
+    expect(activityTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByText("I will inspect the slow traces."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("The reranker is the bottleneck.")).toBeVisible();
+
+    fireEvent.click(activityTrigger);
+    expect(activityTrigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("I will inspect the slow traces.")).toBeVisible();
+
+    const actionRows = screen.getAllByTestId("in-app-agent-message-actions");
+    expect(actionRows).toHaveLength(1);
+    expect(
+      screen.getAllByRole("button", { name: "Copy message" }),
+    ).toHaveLength(1);
+    expect(
+      within(actionRows[0]).getByRole("button", { name: "Good response" }),
+    ).toBeInTheDocument();
+    expect(
+      within(actionRows[0]).getByRole("button", { name: "Bad response" }),
+    ).toBeInTheDocument();
+    expect(actionRows[0].querySelector("time")).toHaveClass("opacity-0");
+
+    fireEvent.click(
+      within(actionRows[0]).getByRole("button", {
+        name: "Copy message",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("The reranker is the bottleneck.");
+    });
   });
 });

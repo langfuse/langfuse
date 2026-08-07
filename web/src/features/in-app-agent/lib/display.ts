@@ -25,6 +25,7 @@ export type InAppAgentDisplayState = {
   latestNewMessageId: string | null;
   nextOrder: number;
   seenMessageIds: ReadonlySet<string>;
+  messageTimestamps: Record<string, number>;
   textByMessageId: Record<
     string,
     {
@@ -34,6 +35,7 @@ export type InAppAgentDisplayState = {
         InAppAgentDisplayPlacement & {
           id: string;
           content: string;
+          timestamp?: number;
         }
       >;
     }
@@ -43,6 +45,7 @@ export type InAppAgentDisplayState = {
 
 type InAppAgentDisplayMessage = AgUiMessage & {
   feedbackMessageId?: string;
+  timestamp?: number;
 };
 
 const InAppAgentDisplayPlacementSchema = z.object({
@@ -68,6 +71,7 @@ export const SerializedInAppAgentDisplayStateSchema = z.object({
   latestNewMessageId: z.string().nullable(),
   nextOrder: z.number(),
   seenMessageIds: z.array(z.string()),
+  messageTimestamps: z.record(z.string(), z.number()).default({}),
   textByMessageId: z.record(
     z.string(),
     z.object({
@@ -77,6 +81,7 @@ export const SerializedInAppAgentDisplayStateSchema = z.object({
         InAppAgentDisplayPlacementSchema.extend({
           id: z.string(),
           content: z.string(),
+          timestamp: z.number().optional(),
         }),
       ),
     }),
@@ -118,6 +123,7 @@ export function createInAppAgentDisplayState(): InAppAgentDisplayState {
     latestNewMessageId: null,
     nextOrder: 0,
     seenMessageIds: new Set(),
+    messageTimestamps: {},
     textByMessageId: {},
     toolCallPlacements: {},
   };
@@ -126,8 +132,10 @@ export function createInAppAgentDisplayState(): InAppAgentDisplayState {
 export function recordInAppAgentMessagesForDisplay(
   state: InAppAgentDisplayState,
   messages: readonly AgUiMessage[],
+  observedAt = Date.now(),
 ): InAppAgentDisplayState {
   const seenMessageIds = new Set(state.seenMessageIds);
+  const messageTimestamps = { ...state.messageTimestamps };
   const textByMessageId = { ...state.textByMessageId };
   let latestNewMessageId = state.latestNewMessageId;
   let latestPlacement = state.latestPlacement;
@@ -140,6 +148,7 @@ export function recordInAppAgentMessagesForDisplay(
     }
 
     seenMessageIds.add(message.id);
+    messageTimestamps[message.id] = observedAt;
     latestNewMessageId = message.id;
     latestPlacement = null;
     nativeToolCallParentMessageId = null;
@@ -214,6 +223,7 @@ export function recordInAppAgentMessagesForDisplay(
       ...placement,
       id: `display-text-${message.id}-${textState.segments.length + 1}`,
       content: appendedContent,
+      timestamp: observedAt,
     };
     nextOrder += 1;
     latestPlacement = placement;
@@ -231,6 +241,7 @@ export function recordInAppAgentMessagesForDisplay(
     latestNewMessageId,
     nextOrder,
     seenMessageIds,
+    messageTimestamps,
     textByMessageId,
   };
 }
@@ -329,6 +340,7 @@ export function projectInAppAgentMessagesForDisplay(
         id: segment.id,
         role: "assistant",
         content: segment.content,
+        timestamp: segment.timestamp,
         ...(sourceMessage?.role === "assistant"
           ? {
               runId: sourceMessage.runId,
@@ -341,10 +353,11 @@ export function projectInAppAgentMessagesForDisplay(
   }
 
   return messages.flatMap<InAppAgentDisplayMessage>((message) => {
-    const projectedMessage =
+    const projectedMessage: InAppAgentDisplayMessage =
       message.role === "assistant"
         ? {
             ...message,
+            timestamp: state.messageTimestamps[message.id],
             content:
               state.textByMessageId[message.id]?.nativeContent ??
               message.content,
@@ -357,7 +370,10 @@ export function projectInAppAgentMessagesForDisplay(
               );
             }),
           }
-        : message;
+        : {
+            ...message,
+            timestamp: state.messageTimestamps[message.id],
+          };
     const placements = placementsByAnchor.get(message.id);
     if (!placements) {
       return [projectedMessage];

@@ -9,7 +9,9 @@ import {
 } from "react";
 import {
   ArrowRight,
+  ArrowDown,
   BotMessageSquare,
+  ChevronRight,
   History,
   Info,
   Maximize2,
@@ -36,7 +38,10 @@ import {
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { formatApproximateDuration } from "@/src/utils/dates";
+import {
+  formatApproximateDuration,
+  formatIntervalSeconds,
+} from "@/src/utils/dates";
 import {
   InAppAgentMessage,
   type InAppAgentMessageContent,
@@ -66,14 +71,17 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
-function scrollViewportToBottom(viewport: HTMLDivElement | null) {
+function scrollViewportToBottom(
+  viewport: HTMLDivElement | null,
+  behavior: ScrollBehavior = "auto",
+) {
   if (!viewport) {
     return;
   }
 
   viewport.scrollTo({
     top: viewport.scrollHeight,
-    behavior: "auto",
+    behavior,
   });
 }
 
@@ -178,35 +186,35 @@ function formatScreenContextNotice(
   description: InAppAgentScreenContextDescription,
 ) {
   if (description.type === "page") {
-    return "The assistant is aware of your current page.";
+    return "Current page in context";
   }
 
   if (description.type === "observation") {
-    return "The assistant is aware that you're viewing this observation.";
+    return "Current observation in context";
   }
 
   if (description.type === "trace") {
-    return "The assistant is aware that you're viewing this trace.";
+    return "Current trace in context";
   }
 
   if (description.type === "prompt") {
-    return "The assistant is aware that you're viewing this prompt.";
+    return "Current prompt in context";
   }
 
   if (description.type === "session") {
-    return "The assistant is aware that you're viewing this session.";
+    return "Current session in context";
   }
 
   if (description.type === "dataset") {
-    return "The assistant is aware that you're viewing this dataset.";
+    return "Current dataset in context";
   }
 
   if (description.type === "datasetItem") {
-    return "The assistant is aware that you're viewing this dataset item.";
+    return "Current dataset item in context";
   }
 
   if (description.type === "experimentRun") {
-    return "The assistant is aware that you're viewing this experiment run.";
+    return "Current experiment run in context";
   }
 
   if (
@@ -224,9 +232,7 @@ function formatScreenContextNotice(
       "datasets-list": "dataset",
     }[description.type];
 
-    return description.hasAppliedFilters
-      ? `The assistant is aware of this ${listLabel} view and its filters.`
-      : `The assistant is aware of this ${listLabel} view.`;
+    return `Current ${listLabel} view in context`;
   }
 
   return assertUnreachable(description);
@@ -236,9 +242,171 @@ export type InAppAgentWindowMessage = {
   id: string;
   feedbackMessageId?: string;
   runId?: string;
+  timestamp?: number;
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
 };
+
+type ConversationDisplayItem =
+  | {
+      type: "user";
+      message: InAppAgentWindowMessage;
+      hasPreviousMessage: boolean;
+    }
+  | {
+      type: "activity";
+      messages: InAppAgentWindowMessage[];
+      endTimestamp?: number;
+      followsUser: boolean;
+      isInProgress: boolean;
+    }
+  | {
+      type: "assistant";
+      message: InAppAgentWindowMessage;
+      followsUser: boolean;
+      isFinalAnswer: boolean;
+    };
+
+function buildConversationDisplayItems(
+  messages: InAppAgentWindowMessage[],
+  isAssistantTurnInProgress: boolean,
+): ConversationDisplayItem[] {
+  const items: ConversationDisplayItem[] = [];
+
+  for (let index = 0; index < messages.length; ) {
+    const message = messages[index];
+    if (!message) {
+      break;
+    }
+
+    if (message.role === "user") {
+      items.push({
+        type: "user",
+        message,
+        hasPreviousMessage: index > 0,
+      });
+      index++;
+      continue;
+    }
+
+    const turnStartIndex = index;
+    while (index < messages.length && messages[index]?.role === "assistant") {
+      index++;
+    }
+
+    const turnMessages = messages.slice(turnStartIndex, index);
+    const isInProgress = isAssistantTurnInProgress && index === messages.length;
+    let finalAnswerIndex = -1;
+    if (!isInProgress) {
+      for (
+        let turnIndex = turnMessages.length - 1;
+        turnIndex >= 0;
+        turnIndex--
+      ) {
+        if (turnMessages[turnIndex]?.content.type === "text") {
+          finalAnswerIndex = turnIndex;
+          break;
+        }
+      }
+    }
+
+    const activityMessages =
+      finalAnswerIndex === -1
+        ? turnMessages
+        : turnMessages.slice(0, finalAnswerIndex);
+    const followsUser = messages[turnStartIndex - 1]?.role === "user";
+
+    if (activityMessages.length > 0) {
+      items.push({
+        type: "activity",
+        messages: activityMessages,
+        endTimestamp:
+          finalAnswerIndex === -1
+            ? activityMessages.at(-1)?.timestamp
+            : turnMessages[finalAnswerIndex]?.timestamp,
+        followsUser,
+        isInProgress,
+      });
+    }
+
+    if (finalAnswerIndex !== -1) {
+      turnMessages
+        .slice(finalAnswerIndex)
+        .forEach((assistantMessage, offset) => {
+          items.push({
+            type: "assistant",
+            message: assistantMessage,
+            followsUser: activityMessages.length === 0 && followsUser,
+            isFinalAnswer: offset === 0,
+          });
+        });
+    }
+  }
+
+  return items;
+}
+
+function AssistantActivityGroup({
+  endTimestamp,
+  isCompact,
+  isInProgress,
+  messages,
+}: {
+  endTimestamp?: number;
+  isCompact: boolean;
+  isInProgress: boolean;
+  messages: InAppAgentWindowMessage[];
+}) {
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const isOpen = userToggled ?? isInProgress;
+  const startTimestamp = messages.find(
+    (message) => message.timestamp !== undefined,
+  )?.timestamp;
+  const durationSeconds =
+    startTimestamp !== undefined && endTimestamp !== undefined
+      ? Math.max(1, (endTimestamp - startTimestamp) / 1_000)
+      : null;
+  const label = isInProgress
+    ? "Working…"
+    : durationSeconds !== null
+      ? `Worked for ${formatIntervalSeconds(durationSeconds, 0)}`
+      : "Activity";
+
+  return (
+    <div className="max-w-full">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        className={cn(
+          "text-muted-foreground focus-visible:ring-ring flex w-full items-center gap-1 border-b py-1 text-left outline-none focus-visible:ring-2",
+          isCompact ? "text-[0.775rem]" : "text-sm",
+        )}
+        onClick={() => {
+          setUserToggled(!isOpen);
+        }}
+      >
+        <span>{label}</span>
+        <ChevronRight
+          aria-hidden="true"
+          className={cn("size-3.5 transition-transform", isOpen && "rotate-90")}
+        />
+      </button>
+      {isOpen ? (
+        <div className="flex flex-col gap-1 pt-2 pb-1">
+          {messages.map((message) => (
+            <InAppAgentMessage
+              key={message.id}
+              role={message.role}
+              content={message.content}
+              isCompact={isCompact}
+              showActions={false}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export type InAppAgentWindowConversation = {
   id: string;
@@ -422,6 +590,17 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isAssistantTurnInProgress,
   );
   const [input, setInput] = useState("");
+  const [scrollState, setScrollState] = useState({
+    conversationId: selectedConversationId,
+    isAtLatest: true,
+  });
+  const isAtLatest =
+    scrollState.conversationId === selectedConversationId
+      ? scrollState.isAtLatest
+      : true;
+  const setIsAtLatest = (isAtLatest: boolean) => {
+    setScrollState({ conversationId: selectedConversationId, isAtLatest });
+  };
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
   const hasUserMessage = messages.some((message) => message.role === "user");
@@ -453,6 +632,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       } satisfies InAppAgentWindowMessage;
     })
     .filter((message): message is InAppAgentWindowMessage => message !== null);
+  const displayItems = buildConversationDisplayItems(
+    visibleMessages,
+    isAssistantTurnInProgress,
+  );
 
   const submitInput = (content: string, options?: InAppAgentSubmitOptions) => {
     const trimmedContent = content.trim();
@@ -465,6 +648,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       .then((submitted) => {
         if (submitted) {
           isAutoScrollAttachedRef.current = true;
+          setIsAtLatest(true);
 
           setInput((currentInput) =>
             currentInput.trim() === trimmedContent ? "" : currentInput,
@@ -715,126 +899,173 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         </div>
       </header>
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div
-          ref={viewportRef}
-          className="min-h-0 flex-1 overflow-y-auto"
-          onScroll={(event) => {
-            const viewport = event.currentTarget;
-            const distanceFromBottom =
-              viewport.scrollHeight -
-              viewport.scrollTop -
-              viewport.clientHeight;
-            const isNearBottom = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
-            const scrolledUp =
-              viewport.scrollTop <
-              previousScrollTopRef.current - SCROLL_DIRECTION_TOLERANCE_PX;
-
-            if (scrolledUp && !isNearBottom) {
-              isAutoScrollAttachedRef.current = false;
-            } else if (isNearBottom) {
-              isAutoScrollAttachedRef.current = true;
-            }
-
-            previousScrollTopRef.current = viewport.scrollTop;
-          }}
-        >
+        <div className="relative min-h-0 flex-1">
           <div
-            className={cn(
-              "flex min-h-full w-full flex-col py-4",
-              isExpanded && "mx-auto max-w-3xl",
-              isExpanded ? "px-0" : "px-3",
-            )}
+            ref={viewportRef}
+            className="h-full overflow-y-auto"
+            onScroll={(event) => {
+              const viewport = event.currentTarget;
+              const distanceFromBottom =
+                viewport.scrollHeight -
+                viewport.scrollTop -
+                viewport.clientHeight;
+              const isNearBottom =
+                distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
+              const scrolledUp =
+                viewport.scrollTop <
+                previousScrollTopRef.current - SCROLL_DIRECTION_TOLERANCE_PX;
+
+              if (scrolledUp && !isNearBottom) {
+                isAutoScrollAttachedRef.current = false;
+              } else if (isNearBottom) {
+                isAutoScrollAttachedRef.current = true;
+              }
+
+              setIsAtLatest(isNearBottom);
+              previousScrollTopRef.current = viewport.scrollTop;
+            }}
           >
-            {messages.length === 0 ? (
-              <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
-                <div>
-                  <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
+            <div
+              className={cn(
+                "flex min-h-full w-full flex-col py-4",
+                isExpanded && "mx-auto max-w-3xl",
+                isExpanded ? "px-0" : "px-3",
+              )}
+            >
+              {messages.length === 0 ? (
+                <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
+                  <div>
+                    <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
+                  </div>
+                  <InAppAgentQuickActionPicker
+                    key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
+                    focusedActions={focusedQuickActions}
+                    initialContext={quickActionContext}
+                    isDisabled={isSubmitDisabled}
+                    onSelectAction={(action, context, position) => {
+                      capture("in_app_agent:quick_action_started", {
+                        quickActionKey: action.id,
+                        quickActionCategory: context,
+                        position,
+                      });
+                      submitInput(action.prompt, {
+                        quickAction: {
+                          key: action.id,
+                          category: context,
+                        },
+                      });
+                    }}
+                  />
                 </div>
-                <InAppAgentQuickActionPicker
-                  key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
-                  focusedActions={focusedQuickActions}
-                  initialContext={quickActionContext}
-                  isDisabled={isSubmitDisabled}
-                  onSelectAction={(action, context, position) => {
-                    capture("in_app_agent:quick_action_started", {
-                      quickActionKey: action.id,
-                      quickActionCategory: context,
-                      position,
-                    });
-                    submitInput(action.prompt, {
-                      quickAction: {
-                        key: action.id,
-                        category: context,
-                      },
-                    });
-                  }}
-                />
-              </div>
-            ) : null}
+              ) : null}
 
-            <ol className="flex w-full flex-col gap-3 pb-4">
-              {visibleMessages.map((message, index) => {
-                const hasFullWidthContent =
-                  message.content.type === "toolGroup" ||
-                  message.content.type === "redirectAction" ||
-                  message.content.type === "reasoning";
+              <ol className="flex w-full flex-col gap-1 pb-4">
+                {displayItems.map((item) => {
+                  if (item.type === "user") {
+                    return (
+                      <li
+                        key={item.message.id}
+                        className={cn(
+                          "ml-auto w-fit max-w-[92%]",
+                          item.hasPreviousMessage && "mt-3",
+                        )}
+                      >
+                        <InAppAgentMessage
+                          role={item.message.role}
+                          content={item.message.content}
+                          isCompact={!isExpanded}
+                          showActions={false}
+                        />
+                      </li>
+                    );
+                  }
 
-                const nextUserMessageIndex = visibleMessages.findIndex(
-                  (nextMessage, nextIndex) =>
-                    nextIndex > index && nextMessage.role === "user",
-                );
-                const nextTurnStartIndex =
-                  nextUserMessageIndex === -1
-                    ? visibleMessages.length
-                    : nextUserMessageIndex;
-                const isCurrentTurnInProgress =
-                  isAssistantTurnInProgress && nextUserMessageIndex === -1;
-                const isLastMessageOfTurn = visibleMessages
-                  .slice(index + 1, nextTurnStartIndex)
-                  .every((nextMessage) => nextMessage.role !== "assistant");
-                const feedbackRunId =
-                  message.role === "assistant" &&
-                  message.content.type === "text" &&
-                  !isCurrentTurnInProgress &&
-                  isLastMessageOfTurn
-                    ? message.runId
-                    : undefined;
+                  if (item.type === "activity") {
+                    return (
+                      <li
+                        key={`activity-${item.messages[0]?.id}`}
+                        className={cn(
+                          "w-full max-w-[92%]",
+                          item.followsUser && "mt-3",
+                        )}
+                      >
+                        <AssistantActivityGroup
+                          messages={item.messages}
+                          endTimestamp={item.endTimestamp}
+                          isCompact={!isExpanded}
+                          isInProgress={item.isInProgress}
+                        />
+                      </li>
+                    );
+                  }
 
-                return (
-                  <li
-                    key={message.id}
-                    className={cn(
-                      "max-w-[92%]",
-                      hasFullWidthContent ? "w-full" : "w-fit",
-                      message.role === "user" && "ml-auto",
-                    )}
-                  >
-                    <InAppAgentMessage
-                      role={message.role}
-                      content={message.content}
-                      isCompact={!isExpanded}
-                      isFeedbackDisabled={isConversationInteractionDisabled}
-                      onSubmitFeedback={
-                        feedbackRunId
-                          ? (params) =>
-                              onSubmitFeedback({
-                                messageId:
-                                  message.feedbackMessageId ?? message.id,
-                                runId: feedbackRunId,
-                                ...params,
-                              })
-                          : undefined
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ol>
+                  const message = item.message;
+                  const showActions = item.isFinalAnswer;
+                  const feedbackRunId =
+                    message.content.type === "text" && item.isFinalAnswer
+                      ? message.runId
+                      : undefined;
 
-            {error?.type === "generic" && (
-              <InAppAgentGenericError error={error} isExpanded={isExpanded} />
-            )}
+                  return (
+                    <li
+                      key={message.id}
+                      className={cn(
+                        "w-full max-w-[92%]",
+                        item.followsUser && "mt-3",
+                      )}
+                    >
+                      <InAppAgentMessage
+                        role={message.role}
+                        content={message.content}
+                        isCompact={!isExpanded}
+                        isFeedbackDisabled={isConversationInteractionDisabled}
+                        showActions={showActions}
+                        timestamp={message.timestamp}
+                        onSubmitFeedback={
+                          feedbackRunId
+                            ? (params) =>
+                                onSubmitFeedback({
+                                  messageId:
+                                    message.feedbackMessageId ?? message.id,
+                                  runId: feedbackRunId,
+                                  ...params,
+                                })
+                            : undefined
+                        }
+                      />
+                    </li>
+                  );
+                })}
+              </ol>
+
+              {error?.type === "generic" && (
+                <InAppAgentGenericError error={error} isExpanded={isExpanded} />
+              )}
+            </div>
           </div>
+          {!isAtLatest ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label="Scroll to latest message"
+              className="bg-background absolute bottom-3 left-1/2 z-10 h-8 -translate-x-1/2 rounded-full px-3 shadow-sm"
+              onClick={() => {
+                isAutoScrollAttachedRef.current = true;
+                setIsAtLatest(true);
+                const prefersReducedMotion =
+                  typeof window.matchMedia === "function" &&
+                  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                scrollViewportToBottom(
+                  viewportRef.current,
+                  prefersReducedMotion ? "auto" : "smooth",
+                );
+              }}
+            >
+              <ArrowDown className="size-3.5" />
+              Latest
+            </Button>
+          ) : null}
         </div>
         {pendingToolCalls.length > 0 ? (
           <div
@@ -864,36 +1095,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
-        <div
-          aria-hidden={isAssistantTurnInProgress}
-          className={cn(
-            "flex shrink-0 flex-col overflow-hidden transition-[max-height,opacity] duration-200 ease-out motion-reduce:transition-none",
-            isAssistantTurnInProgress
-              ? "max-h-0 opacity-0"
-              : "max-h-40 opacity-100",
-          )}
-        >
-          <div className="mb-2 px-2">
-            <div
-              className={cn(
-                "flex w-full flex-col gap-1.5",
-                isExpanded && "mx-auto max-w-3xl",
-              )}
-            >
-              <p
-                className={cn(
-                  "border-border bg-muted/60 text-foreground flex w-full items-center gap-1 rounded-lg border px-2 py-1",
-                  isExpanded ? "text-sm" : "text-xs",
-                )}
-              >
-                <Info aria-hidden="true" className="size-3 shrink-0" />
-                <span className="min-w-0 truncate" title={screenContextNotice}>
-                  {screenContextNotice}
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
         {backgroundNotice ? (
           <div className="shrink-0 px-2 pb-2">
             <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
@@ -959,9 +1160,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         >
           <form
             className={cn(
-              "relative flex w-full items-end gap-2 rounded-md",
-              isExpanded &&
-                "mx-auto max-w-3xl cursor-text flex-col border focus-within:ring focus-within:ring-blue-500 focus-within:ring-offset-0",
+              "border-input bg-background focus-within:ring-primary-accent relative flex w-full cursor-text flex-col rounded-xl border shadow-xs focus-within:ring-2",
+              isExpanded && "mx-auto max-w-3xl",
             )}
             onClick={() => {
               if (isExpanded) {
@@ -994,19 +1194,20 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               aria-label="Message the assistant"
               placeholder="Let me know what I can do for you..."
               rows={1}
-              className={cn(
-                "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
-                isExpanded
-                  ? "max-h-40 min-h-14 border-none ring-0"
-                  : "border-input max-h-40 min-h-8 px-3 py-1",
-              )}
+              className="placeholder:text-foreground-tertiary max-h-40 min-h-9 w-full resize-none overflow-y-auto border-none bg-transparent px-3 pt-2 text-sm leading-5 shadow-none ring-0 outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
-            {!isExpanded &&
-              (canStopRun ? (
+            <div className="flex min-h-9 w-full items-center justify-between gap-2 px-2 pb-1.5">
+              <p className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+                <Info aria-hidden="true" className="size-3 shrink-0" />
+                <span className="truncate" title={screenContextNotice}>
+                  {screenContextNotice}
+                </span>
+              </p>
+              {canStopRun ? (
                 <Button
                   type="button"
-                  size="icon"
-                  className="h-8 w-8 rounded-md border"
+                  size="icon-sm"
+                  className="shrink-0 rounded-full"
                   aria-label={isCancellingRun ? "Stopping run" : "Stop run"}
                   variant="outline"
                   disabled={isCancellingRun}
@@ -1019,48 +1220,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               ) : (
                 <Button
                   type="submit"
-                  size="icon"
-                  className="h-8 w-8 rounded-md border"
+                  size="icon-sm"
+                  className="shrink-0 rounded-full"
                   aria-label="Send message"
-                  variant="outline"
                   disabled={isSubmitDisabled || !input.trim()}
                 >
                   <SendHorizontal className="h-4 w-4" />
                 </Button>
-              ))}
-
-            {isExpanded && (
-              <div className="flex w-full justify-end p-1">
-                {canStopRun ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-8 w-fit rounded-md px-3"
-                    aria-label={isCancellingRun ? "Stopping run" : "Stop run"}
-                    disabled={isCancellingRun}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      executionStop?.onStop();
-                    }}
-                  >
-                    {isCancellingRun ? "Stopping" : "Stop"}
-                    <Square className="ml-2 h-3 w-3" />
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    className="h-8 w-fit rounded-md px-3"
-                    aria-label="Send message"
-                    disabled={isSubmitDisabled || !input.trim()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                  >
-                    Send <SendHorizontal className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </form>
         </div>
       </div>
