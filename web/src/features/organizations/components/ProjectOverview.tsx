@@ -53,7 +53,6 @@ const OrganizationProjectTiles = ({
     { orgId: org.id },
     { enabled: v4UpgradeUiEnabled },
   );
-  const { data: lastTraceTimes } = lastTraceQuery;
   const migrationStatusByProjectId = useAccountV4MigrationData({
     organizations: [
       {
@@ -106,7 +105,7 @@ const OrganizationProjectTiles = ({
                   <p className="text-muted-foreground text-xs">
                     {lastTraceQuery.isSuccess
                       ? (() => {
-                          const lastTraceAt = lastTraceTimes.find(
+                          const lastTraceAt = lastTraceQuery.data?.find(
                             (t) => t.projectId === project.id,
                           )?.lastTraceAt;
                           return lastTraceAt
