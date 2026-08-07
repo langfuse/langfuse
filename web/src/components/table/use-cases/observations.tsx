@@ -17,6 +17,7 @@ import {
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
+import { useFacetOptionsWithObservedMetadata } from "@/src/hooks/useObservedMetadata";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
@@ -529,9 +530,17 @@ export default function ObservationsTable({
     modelId,
   ]);
 
+  // Opt into the shared observed-metadata suggestions for the Metadata facet
+  // (LFE-11030). This table's rows fetch metadata per cell, so it reads the
+  // per-project map without contributing to it.
+  const facetOptions = useFacetOptionsWithObservedMetadata(
+    projectId,
+    newFilterOptions,
+  );
+
   const queryFilter = useSidebarFilterState(
     observationsFilterConfig,
-    newFilterOptions,
+    facetOptions,
     queryFilterOptions,
   );
 
