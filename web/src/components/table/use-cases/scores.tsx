@@ -190,6 +190,13 @@ export default function ScoresTable({
       ]
     : [];
 
+  // Scoped to a single trace (trace/observation detail): a time window can only
+  // hide that trace's own scores — the trace id already bounds the query — so the
+  // rows are unwindowed and the picker is not offered. The window still bounds the
+  // filter-option queries, which are project-wide either way.
+  const isTraceScoped = Boolean(traceId);
+  const rowDateRangeFilter: FilterState = isTraceScoped ? [] : dateRangeFilter;
+
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
       {
@@ -382,7 +389,7 @@ export default function ScoresTable({
   );
 
   const filterState = createFilterState(
-    queryFilter.effectiveFilterState.concat(dateRangeFilter),
+    queryFilter.effectiveFilterState.concat(rowDateRangeFilter),
     [
       ...(userId ? [{ key: "User ID", value: userId }] : []),
       ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
@@ -1000,8 +1007,12 @@ export default function ScoresTable({
           ]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
-          timeRange={showControlsInPageHeader ? undefined : timeRange}
-          setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+          timeRange={
+            showControlsInPageHeader || isTraceScoped ? undefined : timeRange
+          }
+          setTimeRange={
+            showControlsInPageHeader || isTraceScoped ? undefined : setTimeRange
+          }
           multiSelect={{
             selectAll,
             setSelectAll,
