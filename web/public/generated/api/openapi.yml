@@ -826,6 +826,17 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: content
+          in: query
+          description: >-
+            Filter comments by case-insensitive full-text search on comment
+            content (PostgreSQL plainto_tsquery). Empty strings are rejected.
+          required: false
+          schema:
+            type: string
+            nullable: true
+            minLength: 1
+            maxLength: 200
       responses:
         '200':
           description: ''

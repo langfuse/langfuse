@@ -47,6 +47,7 @@ export const GetCommentsV1Query = z
     objectType: z.enum(CommentObjectType).nullish(),
     objectId: z.string().nullish(),
     authorUserId: z.string().nullish(),
+    content: z.string().trim().min(1).max(200).optional(),
     ...publicApiPaginationZod,
   })
   .strict()

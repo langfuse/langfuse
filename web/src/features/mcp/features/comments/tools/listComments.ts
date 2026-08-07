@@ -14,6 +14,12 @@ const ListCommentsBaseSchema = z
     objectType: z.enum(CommentObjectType).optional(),
     objectId: z.string().optional(),
     authorUserId: z.string().optional(),
+    content: z
+      .string()
+      .optional()
+      .describe(
+        "Case-insensitive full-text search on comment content (max 200 characters).",
+      ),
     ...publicApiPaginationZod,
   })
   .strict();
@@ -21,7 +27,7 @@ const ListCommentsBaseSchema = z
 export const [listCommentsTool, handleListComments] = defineTool({
   name: "listComments",
   description:
-    "List comments in the current Langfuse project, optionally filtered by object or author.",
+    "List comments in the current Langfuse project, optionally filtered by object, author, or content full-text search.",
   baseSchema: ListCommentsBaseSchema,
   inputSchema: GetCommentsV1Query,
   handler: async (input, context) =>
