@@ -101,7 +101,7 @@ jobs:
               - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -159,7 +159,9 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        run: pnpm run lint
+        # web uses four ESLint workers while the other packages use two. Cap
+        # package concurrency so cold lint tasks fit the runner's CPU budget.
+        run: pnpm turbo run lint --concurrency=3
       - name: typecheck
         run: pnpm run typecheck
 
