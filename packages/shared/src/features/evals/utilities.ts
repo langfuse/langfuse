@@ -1,4 +1,5 @@
 import { JSONPath } from "jsonpath-plus";
+import { env } from "../../env";
 import { parseJsonPrioritised } from "../../utils/json";
 
 /**
@@ -63,7 +64,15 @@ function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
   const result = JSONPath({
     path: jsonSelector,
     json: selectedColumn as any, // JSONPath accepts unknown but types are strict
-    eval: false,
+    // Filter/script expressions (e.g. `$[?(@.role=='user')]`) require an
+    // evaluator. Default deployments keep these disabled (`eval: false`); when
+    // opted in, use jsonpath-plus' sandboxed `'safe'` engine (jsep-based, no
+    // eval()/Function) so untrusted expressions can select array elements by
+    // content without arbitrary code execution.
+    eval:
+      env.LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS === "true"
+        ? "safe"
+        : false,
   });
 
   if (!Array.isArray(result) || result.length === 0) {
