@@ -129,6 +129,7 @@ import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
   observedScoreNamesFromOptions,
   toObservedOptions,
+  withMetadataPathOptions,
 } from "@/src/features/search-bar/lib/observed-options";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
@@ -141,12 +142,11 @@ import {
   chartSearchFieldReason,
   CHART_SEARCH_QUERY_REASON,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
-import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
 import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
 import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
-} from "@/src/features/search-bar/hooks/useObservedMetadata";
+} from "@/src/hooks/useObservedMetadata";
 
 export type EventsTableRow = {
   // Identity fields

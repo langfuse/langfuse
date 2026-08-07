@@ -1,18 +1,18 @@
-// Bridge between the events table and the observed-metadata store: the
-// recorder samples the currently visible rows' metadata into the persisted
-// per-project key map (once per fetch — the rows identity only changes when
-// new data lands), and the reader selects that project's map for merging into
-// the bar's observed options (lib/metadata-paths.ts withMetadataPathOptions).
-// Split in two because EventsTable derives its observed options before the
-// table data hook runs, while the recorder needs the loaded rows.
+// Bridge between a table and the observed-metadata store: the recorder samples
+// the currently visible rows' metadata into the persisted per-project key map
+// (once per fetch — the rows identity only changes when new data lands), and
+// the reader selects that project's map for merging into a surface's option
+// map (fns/observedMetadata/metadataPaths.ts observedMetadataOptions). Split in
+// two because EventsTable derives its observed options before the table data
+// hook runs, while the recorder needs the loaded rows.
 
 import { useEffect } from "react";
 import {
   collectMetadataPathTypes,
   METADATA_SAMPLE_ROWS,
   type StoredKeyInfo,
-} from "../lib/metadata-paths";
-import { useObservedMetadataStore } from "../store/observedMetadataStore";
+} from "@/src/fns/observedMetadata/metadataPaths";
+import { useObservedMetadataStore } from "@/src/stores/observedMetadataStore";
 
 /**
  * The project's persisted metadata key→info map (type + sample values), or

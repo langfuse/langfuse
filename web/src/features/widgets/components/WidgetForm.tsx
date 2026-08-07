@@ -60,6 +60,7 @@ import {
   type DashboardDateRangeOptions,
 } from "@/src/utils/date-range-utils";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
@@ -502,10 +503,11 @@ export function WidgetForm({
     viewVersion === "v2"
       ? normalizeSingleValueOptions(eventsFilterOptions.data?.name)
       : normalizeSingleValueOptions(generationsFilterOptions.data?.name);
-  const tagsOptions =
+  const tagsOptions = sortOptionValues(
     viewVersion === "v2"
       ? eventsFilterOptions.data?.traceTags || []
-      : traceFilterOptions.data?.tags || [];
+      : traceFilterOptions.data?.tags || [],
+  );
   const modelOptions =
     viewVersion === "v2"
       ? eventsFilterOptions.data?.providedModelName || []

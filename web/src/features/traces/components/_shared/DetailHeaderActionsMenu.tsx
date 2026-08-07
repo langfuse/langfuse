@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useRouter } from "next/router";
 import { CheckIcon, CopyIcon, EllipsisVertical } from "lucide-react";
 import { useState } from "react";

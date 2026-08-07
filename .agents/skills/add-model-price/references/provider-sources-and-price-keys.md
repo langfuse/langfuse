@@ -229,6 +229,24 @@ Always fetch pricing from the provider's official docs before editing.
   alone. Do not add a second pricing entry for this SKU; it would create an unresolvable
   matchPattern collision with the existing entry. Leave as a documented, confirmed
   limitation rather than an open question in future audits.
+- **OpenAI base-model vs. fine-tuning-legacy price mixups (fixed August 7 2026)** — The
+  OpenAI pricing page lists some base model names in two different tables: the "Standard"
+  table (bare inference pricing, what a `matchPattern` with no `ft:` prefix should use) and
+  a separate "Fine-tuning" table, which shows a Training cost plus a **different, usually
+  higher** Input/Output inference rate for legacy fine-tuned variants of that same base
+  model. The pricing file's plain `davinci-002` and `babbage-002` entries (created January
+  2024, never updated) had been priced at the Fine-tuning table's rate ($12/$12 and
+  $1.60/$1.60 respectively) instead of the Standard table's base rate ($2.00/$2.00 and
+  $0.40/$0.40). Confirmed via three independent targeted fetches that explicitly asked the
+  page to distinguish the two tables. Corrected both entries to the Standard/base rate; the
+  separate `ft:davinci-002` / `ft:babbage-002` entries already correctly held the
+  fine-tuning rate and were left unchanged. When auditing any OpenAI base model that also
+  has a legacy fine-tuning tier (currently: `gpt-3.5-turbo`, `davinci-002`, `babbage-002`,
+  and the fine-tunable snapshots `gpt-4.1-2025-04-14`, `gpt-4.1-mini-2025-04-14`,
+  `gpt-4.1-nano-2025-04-14`, `gpt-4o-2024-08-06`, `gpt-4o-mini-2024-07-18`,
+  `o4-mini-2025-04-16`), explicitly confirm which table a fetched price came from before
+  applying it to the bare (non-`ft:`) entry — a summarizer can silently pick either table
+  when both rows share the same model name.
 
 Capture:
 

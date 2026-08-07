@@ -1,5 +1,6 @@
 import { default as noTailwindOverflowScroll } from "./rules/no-tailwind-overflow-scroll.js";
 import { default as noArbitraryColors } from "./rules/no-arbitrary-colors.js";
+import { default as noAbstractedOverlayTrigger } from "./rules/no-abstracted-overlay-trigger.js";
 import { default as noInSourceVitest } from "./rules/no-in-source-vitest.js";
 import { default as noMarginOnRootElements } from "./rules/no-margin-on-root-elements.js";
 import { default as noOverlayZindex } from "./rules/no-overlay-zindex.js";
@@ -11,6 +12,7 @@ import { default as noUnnecessaryCn } from "./rules/no-unnecessary-cn.js";
 
 const plugin = {
   rules: {
+    "no-abstracted-overlay-trigger": noAbstractedOverlayTrigger,
     "no-arbitrary-colors": noArbitraryColors,
     "no-in-source-vitest": noInSourceVitest,
     "no-margin-on-root-elements": noMarginOnRootElements,
