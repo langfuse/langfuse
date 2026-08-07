@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Loader2, Wrench } from "lucide-react";
+import { Check, Loader2, RotateCcw, Wrench, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
@@ -18,6 +18,7 @@ export function InAppAgentToolCallCard({
   onApproveToolCall,
   onAlwaysAllowToolCall,
   onRejectToolCall,
+  onRetryToolApprovals,
 }: {
   tool: InAppAgentToolCallContent;
   isCompact?: boolean;
@@ -26,6 +27,7 @@ export function InAppAgentToolCallCard({
   /** Omit this callback when conversation grants do not apply. */
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall?: (approvalId: string) => Promise<void>;
+  onRetryToolApprovals?: (approvalId: string) => Promise<void>;
 }) {
   const [activeDecision, setActiveDecision] = useState<
     "once" | "conversation" | "reject" | null
@@ -36,6 +38,11 @@ export function InAppAgentToolCallCard({
   const isDecisionSubmitting = isApprovalSubmitting || activeDecision !== null;
   const displayName = getInAppAgentToolDisplayName(tool.name);
   const approveLabel = `Approve ${displayName}?`;
+  const isRejected = approval?.decision?.approved === false;
+  const progressLabel =
+    approval?.position && approval.total && approval.total > 1
+      ? `${approval.position} of ${approval.total}`
+      : null;
   const usedLabel = `Used ${displayName}`;
 
   const decide = async (
@@ -71,8 +78,15 @@ export function InAppAgentToolCallCard({
               className="min-w-0 flex-1 truncate py-0.5"
               title={approveLabel}
             >
-              {approveLabel}
+              {isRejected
+                ? `Rejected ${displayName}`
+                : approval.decision?.approved
+                  ? `Approved ${displayName}`
+                  : approveLabel}
             </span>
+            {progressLabel ? (
+              <span className="text-muted-foreground">{progressLabel}</span>
+            ) : null}
           </div>
           <div className="mt-2 space-y-2">
             <InAppAgentToolPayload
@@ -80,67 +94,107 @@ export function InAppAgentToolCallCard({
               value={tool.args}
               variant="default"
             />
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline-success"
-                className="h-7"
-                disabled={
-                  isDisabled || isDecisionSubmitting || !onApproveToolCall
-                }
-                aria-busy={activeDecision === "once"}
-                onClick={() => {
-                  decide("once", onApproveToolCall).catch(() => undefined);
-                }}
-              >
-                {activeDecision === "once" ? (
-                  <Loader2 className="mr-1 size-3 animate-spin" />
+            {isRejected ? (
+              <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                <X className="text-destructive size-3.5" />
+                Rejected
+              </div>
+            ) : approval.decision?.approved ? (
+              <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                {isApprovalSubmitting ? (
+                  <Loader2 className="size-3.5 animate-spin" />
                 ) : (
-                  <Check className="mr-1 size-3" />
+                  <Check className="size-3.5" />
                 )}
-                Confirm
-              </Button>
-              {onAlwaysAllowToolCall ? (
+                {isApprovalSubmitting ? "Submitting" : "Waiting to submit"}
+              </div>
+            ) : approval.status === "queued" ? (
+              <p className="text-muted-foreground text-xs">
+                Review the earlier approval first.
+              </p>
+            ) : null}
+            {approval.status === "retry" && onRetryToolApprovals ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-destructive text-xs">
+                  Couldn&apos;t submit these decisions.
+                </span>
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   className="h-7"
-                  title={`Always allow ${tool.name} for this conversation`}
-                  disabled={isDisabled || isDecisionSubmitting}
-                  aria-busy={activeDecision === "conversation"}
                   onClick={() => {
-                    decide("conversation", onAlwaysAllowToolCall).catch(
-                      () => undefined,
-                    );
+                    onRetryToolApprovals(approval.id).catch(() => undefined);
                   }}
                 >
-                  {activeDecision === "conversation" ? (
+                  <RotateCcw className="mr-1 size-3" />
+                  Retry
+                </Button>
+              </div>
+            ) : null}
+            {isApprovalPending ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline-success"
+                  className="h-7"
+                  disabled={
+                    isDisabled || isDecisionSubmitting || !onApproveToolCall
+                  }
+                  aria-busy={activeDecision === "once"}
+                  onClick={() => {
+                    decide("once", onApproveToolCall).catch(() => undefined);
+                  }}
+                >
+                  {activeDecision === "once" ? (
+                    <Loader2 className="mr-1 size-3 animate-spin" />
+                  ) : (
+                    <Check className="mr-1 size-3" />
+                  )}
+                  Confirm
+                </Button>
+                {onAlwaysAllowToolCall ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    title={`Always allow ${tool.name} for this conversation`}
+                    disabled={isDisabled || isDecisionSubmitting}
+                    aria-busy={activeDecision === "conversation"}
+                    onClick={() => {
+                      decide("conversation", onAlwaysAllowToolCall).catch(
+                        () => undefined,
+                      );
+                    }}
+                  >
+                    {activeDecision === "conversation" ? (
+                      <Loader2 className="mr-1 size-3 animate-spin" />
+                    ) : null}
+                    Always allow
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  disabled={
+                    isDisabled || isDecisionSubmitting || !onRejectToolCall
+                  }
+                  aria-busy={activeDecision === "reject"}
+                  onClick={() => {
+                    decide("reject", onRejectToolCall).catch(() => undefined);
+                  }}
+                >
+                  {activeDecision === "reject" ? (
                     <Loader2 className="mr-1 size-3 animate-spin" />
                   ) : null}
-                  Always allow
+                  Reject
                 </Button>
-              ) : null}
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7"
-                disabled={
-                  isDisabled || isDecisionSubmitting || !onRejectToolCall
-                }
-                aria-busy={activeDecision === "reject"}
-                onClick={() => {
-                  decide("reject", onRejectToolCall).catch(() => undefined);
-                }}
-              >
-                {activeDecision === "reject" ? (
-                  <Loader2 className="mr-1 size-3 animate-spin" />
-                ) : null}
-                Reject
-              </Button>
-            </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : (

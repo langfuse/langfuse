@@ -17,6 +17,7 @@ import {
   deleteApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
+  AgUiRunFinishedOutcomeSchema,
   getInAppAgentInstrumentationTraceId,
   type AgUiEvent,
   type AgUiRunAgentInput,
@@ -38,10 +39,13 @@ import {
   IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
   isInAppAgentConversationWriteLocked,
   createInAppAgentToolPolicy,
+  getInAppAgentApprovalInterruptId,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
   maybeInferAndPersistConversationTitle,
   parseInAppAgentInterruptEvent,
+  parseInAppAgentStructuredInterrupt,
+  resolveInAppAgentLogicalTurnId,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
   type InAppAgentUserAccess,
@@ -98,6 +102,8 @@ export async function executeInAppAgentRun(params: {
   let mcpApiKeyCleanup: Promise<void> | undefined;
   let isApprovedContinuation = false;
   let approvedToolResultPersisted = false;
+  const approvedToolCallIds = new Set<string>();
+  const persistedApprovedToolCallIds = new Set<string>();
   // True once createAgUiStream returned: from here on, errors reaching the
   // outer catch are loop failures surfaced through the errored stream, not
   // initialization failures.
@@ -236,6 +242,13 @@ export async function executeInAppAgentRun(params: {
     }
 
     const request = parsedRequest.data;
+    const turnId = await resolveInAppAgentLogicalTurnId({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId,
+      request,
+    });
     const replayMessages = await getConversationMessagesForReplay({
       prisma,
       projectId,
@@ -245,10 +258,22 @@ export async function executeInAppAgentRun(params: {
       request.kind === "approvalDecision"
         ? findPersistedApprovalRequest(conversationEvents, request)
         : undefined;
+    const batchApprovalRequests =
+      request.kind === "approvalDecisionBatch"
+        ? findPersistedApprovalRequests(conversationEvents, request)
+        : undefined;
 
     if (request.kind === "approvalDecision" && !approvalRequest) {
       throw new InAppAgentRunInitError(
         "Approval request not found in conversation history",
+      );
+    }
+    if (
+      request.kind === "approvalDecisionBatch" &&
+      batchApprovalRequests?.length !== request.resume.length
+    ) {
+      throw new InAppAgentRunInitError(
+        "Approval requests not found in conversation history",
       );
     }
 
@@ -274,13 +299,30 @@ export async function executeInAppAgentRun(params: {
               },
             }
           : {},
+      ...(request.kind === "approvalDecisionBatch"
+        ? { resume: request.resume }
+        : {}),
     };
 
-    isApprovedContinuation =
-      request.kind === "approvalDecision" && request.approved;
-    const approvedRegistryToolName = isApprovedContinuation
-      ? getInAppAgentRegistryToolName(approvalRequest?.toolName)
-      : undefined;
+    const approvedRequests =
+      request.kind === "approvalDecisionBatch"
+        ? (batchApprovalRequests ?? []).filter((approval) =>
+            request.resume.some(
+              (entry) =>
+                entry.interruptId ===
+                  getInAppAgentApprovalInterruptId(approval) &&
+                entry.payload.approved,
+            ),
+          )
+        : request.kind === "approvalDecision" &&
+            request.approved &&
+            approvalRequest
+          ? [approvalRequest]
+          : [];
+    for (const approval of approvedRequests) {
+      approvedToolCallIds.add(approval.toolCallId);
+    }
+    isApprovedContinuation = approvedToolCallIds.size > 0;
 
     const userAccess: InAppAgentUserAccess = {
       projectRole: access.projectRole,
@@ -293,13 +335,24 @@ export async function executeInAppAgentRun(params: {
       additionalAutoApproved: conversation.alwaysAllowedTools,
     });
 
-    const allowedToolNames = getInAppAgentMcpAllowedToolNames(
-      toolPolicy,
-      approvedRegistryToolName,
+    const allowedToolNames = new Set(
+      getInAppAgentMcpAllowedToolNames(toolPolicy),
     );
+    for (const approval of approvedRequests) {
+      const registryToolName = getInAppAgentRegistryToolName(approval.toolName);
+      if (!registryToolName) continue;
+      for (const toolName of getInAppAgentMcpAllowedToolNames(
+        toolPolicy,
+        registryToolName,
+      )) {
+        allowedToolNames.add(toolName);
+      }
+    }
     const runOverride =
-      allowedToolNames.length > 0
-        ? await createInAppAgentMcpRunOverride({ toolNames: allowedToolNames })
+      allowedToolNames.size > 0
+        ? await createInAppAgentMcpRunOverride({
+            toolNames: [...allowedToolNames],
+          })
         : undefined;
 
     // ---- Sandbox (session created/resumed lazily per tool call). ----
@@ -392,12 +445,16 @@ export async function executeInAppAgentRun(params: {
         finish,
       });
 
-    let interruptRequest: InAppAgentToolApprovalRequest | undefined;
+    let interruptRequests: InAppAgentToolApprovalRequest[] = [];
+    let hasStructuredInterruptOutcome = false;
 
     const stream = await createAgUiStream({
       input: agentInput,
       signal: abortController.signal,
       options: {
+        ...(request.kind === "approvalDecisionBatch"
+          ? { approvalRequests: batchApprovalRequests }
+          : {}),
         onEvent: async (event) => {
           const parsedInterrupt = parseInAppAgentInterruptEvent(event);
 
@@ -406,7 +463,7 @@ export async function executeInAppAgentRun(params: {
             // interrupt event (no side table). toPersistableAgentEvent drops
             // CUSTOM events, so the row is pushed directly; the message
             // accumulators skip CUSTOM rows, so replay/display are unchanged.
-            interruptRequest = parsedInterrupt;
+            interruptRequests.push(parsedInterrupt);
             pendingPersistedEvents.push(event);
             return;
           }
@@ -417,6 +474,22 @@ export async function executeInAppAgentRun(params: {
             return;
           }
 
+          if (persistedEvent.type === "RUN_FINISHED") {
+            const outcome = AgUiRunFinishedOutcomeSchema.safeParse(
+              persistedEvent.outcome,
+            );
+            if (outcome.success && outcome.data.type === "interrupt") {
+              hasStructuredInterruptOutcome = true;
+              interruptRequests = outcome.data.interrupts.flatMap(
+                (interrupt) => {
+                  const approval =
+                    parseInAppAgentStructuredInterrupt(interrupt);
+                  return approval ? [approval] : [];
+                },
+              );
+            }
+          }
+
           // The flag flips only when the result event is queued for
           // persistence — deliberately NOT via onApprovedToolCallExecuted,
           // which fires at execution time, before the adapter
@@ -424,9 +497,12 @@ export async function executeInAppAgentRun(params: {
           // executed mutation unrecorded.
           if (
             persistedEvent.type === "TOOL_CALL_RESULT" &&
-            persistedEvent.toolCallId === approvalRequest?.toolCallId
+            typeof persistedEvent.toolCallId === "string" &&
+            approvedToolCallIds.has(persistedEvent.toolCallId)
           ) {
-            approvedToolResultPersisted = true;
+            persistedApprovedToolCallIds.add(persistedEvent.toolCallId);
+            approvedToolResultPersisted =
+              persistedApprovedToolCallIds.size === approvedToolCallIds.size;
           }
 
           pendingPersistedEvents.push(persistedEvent);
@@ -445,7 +521,7 @@ export async function executeInAppAgentRun(params: {
         onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
         onComplete: async () => {
           await flushPersistedRunEvents(
-            interruptRequest
+            hasStructuredInterruptOutcome || interruptRequests.length > 0
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }
               : { status: InAppAgentRunStatus.SUCCEEDED },
           );
@@ -537,6 +613,7 @@ export async function executeInAppAgentRun(params: {
           projectId,
           conversationId: conversation.id,
           runId,
+          turnId,
           user: {
             id: run.triggeredByUserId,
             email: access.email,
@@ -654,6 +731,43 @@ function findPersistedApprovalRequest(
   return undefined;
 }
 
+function findPersistedApprovalRequests(
+  events: readonly PersistedConversationEvent[],
+  request: Extract<InAppAgentRunRequest, { kind: "approvalDecisionBatch" }>,
+): InAppAgentToolApprovalRequest[] {
+  const approvalsByInterruptId = new Map<
+    string,
+    InAppAgentToolApprovalRequest
+  >();
+  for (const { event, runId } of events) {
+    if (runId !== request.interruptedRunId) continue;
+    const approval = parseInAppAgentInterruptEvent(event);
+    if (approval) {
+      approvalsByInterruptId.set(
+        getInAppAgentApprovalInterruptId(approval),
+        approval,
+      );
+    }
+    if (event.type === "RUN_FINISHED") {
+      const outcome = AgUiRunFinishedOutcomeSchema.safeParse(event.outcome);
+      if (outcome.success && outcome.data.type === "interrupt") {
+        for (const interrupt of outcome.data.interrupts) {
+          const structuredApproval =
+            parseInAppAgentStructuredInterrupt(interrupt);
+          if (structuredApproval) {
+            approvalsByInterruptId.set(interrupt.id, structuredApproval);
+          }
+        }
+      }
+    }
+  }
+
+  return request.resume.flatMap((entry) => {
+    const approval = approvalsByInterruptId.get(entry.interruptId);
+    return approval ? [approval] : [];
+  });
+}
+
 function getLangfuseMcpUrl(): string {
   if (!env.NEXTAUTH_URL) {
     throw new InAppAgentRunInitError(
@@ -676,6 +790,7 @@ function buildTracingConfig(params: {
   projectId: string;
   conversationId: string;
   runId: string;
+  turnId: string;
   user: {
     id: string;
     email: string | null;
@@ -691,7 +806,7 @@ function buildTracingConfig(params: {
     environment: "langfuse-in-app-agent",
     feature: "in-app-agent",
     projectId: params.projectId,
-    traceId: getInAppAgentInstrumentationTraceId(params.runId),
+    traceId: getInAppAgentInstrumentationTraceId(params.turnId),
     traceName: "agent-turn",
     userId: params.user.id,
     metadata: {
@@ -700,6 +815,7 @@ function buildTracingConfig(params: {
       langfuse_project_id: params.projectId,
       conversation_id: params.conversationId,
       run_id: params.runId,
+      turn_id: params.turnId,
       cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       execution_runtime: "worker",
     },
@@ -710,6 +826,7 @@ function buildTracingConfig(params: {
         targetProjectId: traceSinkParams.targetProjectId,
         environment: traceSinkParams.environment,
         runId: params.runId,
+        turnId: params.turnId,
         user: {
           id: params.user.id,
           email: params.user.email,

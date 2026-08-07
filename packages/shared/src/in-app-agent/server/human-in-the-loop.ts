@@ -11,8 +11,10 @@ import {
 import { safeJsonParse, stableJsonStringify } from "../../utils/json";
 import {
   type AgUiEvent,
+  type AgUiInterrupt,
   type AgUiMessage,
   type AgUiRunAgentInput,
+  type InAppAgentApprovalResumeEntry,
   type InAppAgentToolApprovalRequest,
   type ResumeForwardedProps,
 } from "../schema";
@@ -172,15 +174,164 @@ export function parseInAppAgentInterruptEvent(
     : undefined;
 }
 
+export function parseInAppAgentStructuredInterrupt(
+  interrupt: AgUiInterrupt,
+): InAppAgentToolApprovalRequest | undefined {
+  const parsedInterrupt = MastraSuspendEventSchema.safeParse(
+    isRecord(interrupt.metadata?.mastra)
+      ? { ...interrupt.metadata.mastra, toolCallId: interrupt.toolCallId }
+      : undefined,
+  );
+  if (!parsedInterrupt.success) return undefined;
+
+  const approvalRequest = {
+    ...parsedInterrupt.data,
+    type: "tool_approval_request" as const,
+  };
+  return interrupt.id === getInAppAgentApprovalInterruptId(approvalRequest) &&
+    (!interrupt.toolCallId ||
+      interrupt.toolCallId === approvalRequest.toolCallId)
+    ? approvalRequest
+    : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function getInAppAgentApprovalInterruptId(
+  approvalRequest: InAppAgentToolApprovalRequest,
+): string {
+  return `${approvalRequest.runId}::${approvalRequest.toolCallId}`;
+}
+
 export type ManualToolApprovalRunInput = {
   input: AgUiRunAgentInput;
   syntheticEvents: AgUiEvent[];
+  instrumentationEvents?: AgUiEvent[];
   developerGuidance?: string;
   toolCallApproval?: {
     toolCallId: string;
     status: "approved" | "rejected";
   };
+  toolCallApprovals?: Array<{
+    toolCallId: string;
+    status: "approved" | "rejected";
+  }>;
 };
+
+export async function createManualToolApprovalBatchRunInput(params: {
+  input: AgUiRunAgentInput;
+  approvalRequests: InAppAgentToolApprovalRequest[];
+  executeToolCall: (
+    approvalRequest: InAppAgentToolApprovalRequest,
+  ) => Promise<{ result: unknown; modelResult: unknown }>;
+  onApprovedToolCallExecuted?: () => void | Promise<void>;
+}): Promise<ManualToolApprovalRunInput> {
+  const resume = params.input.resume as
+    | InAppAgentApprovalResumeEntry[]
+    | undefined;
+  if (!resume) return { input: params.input, syntheticEvents: [] };
+
+  const approvalByInterruptId = new Map(
+    params.approvalRequests.map((approval) => [
+      getInAppAgentApprovalInterruptId(approval),
+      approval,
+    ]),
+  );
+  const toolMessages: AgUiMessage[] = [];
+  const syntheticEvents: AgUiEvent[] = [];
+  const instrumentationEvents: AgUiEvent[] = [];
+  const guidance: DeveloperGuidanceMessage[] = [];
+  const toolCallApprovals: NonNullable<
+    ManualToolApprovalRunInput["toolCallApprovals"]
+  > = [];
+
+  for (const entry of resume) {
+    const approvalRequest = approvalByInterruptId.get(entry.interruptId);
+    if (!approvalRequest) {
+      throw new InvalidRequestError("Invalid approval resume");
+    }
+
+    let toolResult: unknown;
+    let modelToolResult: unknown;
+    let toolError: string | undefined;
+    if (entry.payload.approved) {
+      const executed = await executeApprovedToolCall({
+        approvalRequest,
+        executeToolCall: params.executeToolCall,
+      });
+      toolResult = executed.toolResult;
+      modelToolResult = executed.modelToolResult;
+      toolError = executed.toolError;
+      await params.onApprovedToolCallExecuted?.();
+      if (toolError) {
+        guidance.push(
+          createToolExecutionErrorGuidanceMessage(approvalRequest, toolError),
+        );
+      }
+    } else {
+      toolResult = MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE;
+      modelToolResult = MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE;
+      toolError = MANUAL_TOOL_APPROVAL_REJECTION_ERROR;
+      guidance.push(createToolRejectionGuidanceMessage(approvalRequest));
+    }
+
+    const approvalEvents = createManualToolApprovalEvents({
+      approvalRequest,
+      toolResultContent: serializeToolResultContent(toolResult),
+      toolError,
+    });
+    syntheticEvents.push(approvalEvents.at(-1)!);
+    instrumentationEvents.push(...approvalEvents);
+    toolMessages.push({
+      id: createManualToolResultMessageId(approvalRequest),
+      role: "tool",
+      content: serializeToolResultContent(modelToolResult),
+      toolCallId: approvalRequest.toolCallId,
+      ...(toolError ? { error: toolError } : {}),
+    });
+    toolCallApprovals.push({
+      toolCallId: approvalRequest.toolCallId,
+      status: entry.payload.approved ? "approved" : "rejected",
+    });
+  }
+
+  const assistantMessage: AgUiMessage = {
+    id: `${params.approvalRequests[0]?.runId ?? params.input.runId}-approval-tool-calls`,
+    role: "assistant",
+    content: "",
+    toolCalls: params.approvalRequests.map((approvalRequest) => ({
+      id: approvalRequest.toolCallId,
+      type: "function" as const,
+      function: {
+        name: approvalRequest.toolName,
+        arguments: serializeToolCallArgs(approvalRequest.args),
+      },
+    })),
+  };
+  const developerGuidance = guidance
+    .map((message) => message.content)
+    .join("\n\n");
+
+  return {
+    input: {
+      ...params.input,
+      messages: [
+        ...params.input.messages,
+        assistantMessage,
+        ...toolMessages,
+        ...guidance,
+      ],
+      forwardedProps: {},
+      resume: undefined,
+    },
+    syntheticEvents,
+    instrumentationEvents,
+    ...(developerGuidance ? { developerGuidance } : {}),
+    toolCallApprovals,
+  };
+}
 
 export async function createManualToolApprovalRunInput(params: {
   input: AgUiRunAgentInput;

@@ -15,6 +15,7 @@ import {
 } from "../schema";
 import {
   createInAppAgentMcpRunOverride,
+  createManualToolApprovalBatchRunInput,
   createManualToolApprovalRunInput,
 } from "./human-in-the-loop";
 import type {
@@ -162,6 +163,7 @@ export function getBedrockReasoningProviderOptions(modelId: string) {
 
 type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
+  approvalRequests?: InAppAgentToolApprovalRequest[];
   onMcpToolCallCompleted?: (toolCall: CompletedInAppAgentMcpToolCall) => void;
   onApprovedToolCallExecuted?: () => void | Promise<void>;
   onComplete?: () => void | Promise<void>;
@@ -495,12 +497,21 @@ export async function createAgUiStream(params: {
           cleanupAdapter = currentAdapter.cleanup;
           interruptAdapter = currentAdapter.interrupt;
 
-          const runInput = await createManualToolApprovalRunInput({
-            input: params.input,
-            executeToolCall: currentAdapter.executeToolCall,
-            onApprovedToolCallExecuted:
-              params.options.onApprovedToolCallExecuted,
-          });
+          const runInput =
+            params.input.resume && params.options.approvalRequests
+              ? await createManualToolApprovalBatchRunInput({
+                  input: params.input,
+                  approvalRequests: params.options.approvalRequests,
+                  executeToolCall: currentAdapter.executeToolCall,
+                  onApprovedToolCallExecuted:
+                    params.options.onApprovedToolCallExecuted,
+                })
+              : await createManualToolApprovalRunInput({
+                  input: params.input,
+                  executeToolCall: currentAdapter.executeToolCall,
+                  onApprovedToolCallExecuted:
+                    params.options.onApprovedToolCallExecuted,
+                });
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
           currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
 
@@ -511,13 +522,21 @@ export async function createAgUiStream(params: {
                   forwardedProps.command.resume.approvalRequest?.toolName,
                 )
               : undefined;
+          const hasBatchOneOffApproval =
+            params.input.resume !== undefined &&
+            runInput.toolCallApprovals?.some(
+              (approval) => approval.status === "approved",
+            );
+
+          const shouldDropOneOffOverride = oneOffApprovedToolName
+            ? !params.options.langfuseMcp.toolPolicy.autoApproved.has(
+                oneOffApprovedToolName,
+              )
+            : hasBatchOneOffApproval;
 
           if (
-            oneOffApprovedToolName &&
-            params.options.langfuseMcp.runOverride &&
-            !params.options.langfuseMcp.toolPolicy.autoApproved.has(
-              oneOffApprovedToolName,
-            )
+            shouldDropOneOffOverride &&
+            params.options.langfuseMcp.runOverride
           ) {
             const standingAllowedToolNames = getInAppAgentMcpAllowedToolNames(
               params.options.langfuseMcp.toolPolicy,
@@ -601,10 +620,17 @@ export async function createAgUiStream(params: {
                   agUiEvent.type === EventType.RUN_STARTED &&
                   pendingSyntheticEvents.length > 0
                 ) {
-                  instrumentation?.recordToolCallApproval(
-                    runInput.toolCallApproval,
+                  const approvals =
+                    runInput.toolCallApprovals ??
+                    (runInput.toolCallApproval
+                      ? [runInput.toolCallApproval]
+                      : []);
+                  for (const approval of approvals) {
+                    instrumentation?.recordToolCallApproval(approval);
+                  }
+                  instrumentation?.recordEvents(
+                    runInput.instrumentationEvents ?? pendingSyntheticEvents,
                   );
-                  instrumentation?.recordEvents(pendingSyntheticEvents);
                   for (const syntheticEvent of pendingSyntheticEvents) {
                     enqueueEvent(syntheticEvent);
                   }
@@ -868,10 +894,7 @@ async function createMastraAdapter(params: {
     const adapter = new MastraAgent({
       agent,
       resourceId: params.input.threadId,
-      // The structured RUN_FINISHED interrupt outcome targets CopilotKit
-      // >= 1.61.2 clients; ours consumes the legacy on_interrupt CUSTOM
-      // events, so keep the pre-flag behavior.
-      emitInterruptOutcome: false,
+      emitInterruptOutcome: true,
     });
     patchMastraApprovalChunks(adapter);
 

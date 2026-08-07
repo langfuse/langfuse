@@ -286,6 +286,7 @@ export type InAppAgentWindowProps = {
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  onRetryToolApprovals?: (approvalId: string) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (
@@ -389,6 +390,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onApproveToolCall,
     onAlwaysAllowToolCall,
     onRejectToolCall,
+    onRetryToolApprovals,
     onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
@@ -862,6 +864,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   onApproveToolCall={onApproveToolCall}
                   onAlwaysAllowToolCall={onAlwaysAllowToolCall}
                   onRejectToolCall={onRejectToolCall}
+                  onRetryToolApprovals={onRetryToolApprovals}
                 />
               ))}
             </div>

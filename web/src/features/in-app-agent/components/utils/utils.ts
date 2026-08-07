@@ -39,7 +39,10 @@ export type InAppAgentToolCallContent = {
   error?: string;
   approval?: {
     id: string;
-    status: "pending" | "submitting";
+    status: InAppAgentPendingToolApproval["status"];
+    decision?: InAppAgentPendingToolApproval["decision"];
+    position?: number;
+    total?: number;
   };
 };
 
@@ -412,6 +415,9 @@ export function getDrawerMessages({
                         approval: {
                           id: pendingApproval.id,
                           status: pendingApproval.status,
+                          decision: pendingApproval.decision,
+                          position: pendingApproval.position,
+                          total: pendingApproval.total,
                         },
                       }
                     : {}),
@@ -521,6 +527,9 @@ export function getDrawerMessages({
             approval: {
               id: approval.id,
               status: approval.status,
+              decision: approval.decision,
+              position: approval.position,
+              total: approval.total,
             },
           },
         ],

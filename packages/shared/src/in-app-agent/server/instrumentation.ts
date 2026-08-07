@@ -6,6 +6,7 @@ import {
   getInAppAgentInstrumentationTraceId,
 } from "../constants";
 import type { AgUiEvent, AgUiMessage, AgUiRunAgentInput } from "../schema";
+import { AgUiRunFinishedOutcomeSchema } from "../schema";
 import { compactTextMessageChunks } from "./eventCompaction";
 import type { InAppAgentUserAccess } from "./tools";
 import { assertUnreachable } from "../../utils/typeChecks";
@@ -21,6 +22,7 @@ export type InAppAgentTracingConfig = {
     isAdmin: boolean;
   };
   runId: string;
+  turnId?: string;
   targetProjectId: string;
   prompt?: InAppAgentPromptMetadata;
 };
@@ -110,6 +112,7 @@ export function createInAppAgentInstrumentation({
       userProjectRole: tracing.user.projectRole,
       userIsAdmin: tracing.user.isAdmin,
       runId: tracing.runId,
+      turnId: tracing.turnId,
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
       prompt: tracing.prompt,
@@ -162,6 +165,7 @@ export class InAppAgentInstrumentation {
     userProjectRole?: InAppAgentUserAccess["projectRole"];
     userIsAdmin: boolean;
     runId: string;
+    turnId?: string;
     targetProjectId: string;
     environment: string;
     prompt?: InAppAgentPromptMetadata;
@@ -185,9 +189,10 @@ export class InAppAgentInstrumentation {
     this.prompt = params.prompt;
     this.model = params.model;
 
+    const turnId = params.turnId ?? params.runId;
     const traceSinkParams = {
       targetProjectId: params.targetProjectId,
-      traceId: getInAppAgentInstrumentationTraceId(params.runId),
+      traceId: getInAppAgentInstrumentationTraceId(turnId),
       traceName: IN_APP_AGENT_TURN_NAME,
       environment: params.environment,
       userId: params.userId,
@@ -200,11 +205,11 @@ export class InAppAgentInstrumentation {
     this.langfuse = handler.langfuse;
 
     this.trace = this.langfuse.trace({
-      id: getInAppAgentInstrumentationTraceId(params.runId),
+      id: getInAppAgentInstrumentationTraceId(turnId),
       name: IN_APP_AGENT_TURN_NAME,
       userId: params.userId,
       sessionId: params.input.threadId,
-      input: this.agentRunInput,
+      ...(turnId === params.input.runId ? { input: this.agentRunInput } : {}),
       metadata: this.metadata,
       tags: ["in-app-agent"],
     });
@@ -353,7 +358,6 @@ export class InAppAgentInstrumentation {
         : {}),
     });
     this.trace.update({
-      input: this.agentRunInput,
       output: this.getAgentRunOutput(),
       metadata: { ...this.metadata, error: message },
     });
@@ -361,7 +365,11 @@ export class InAppAgentInstrumentation {
     this.ended = true;
   }
 
-  end(params?: { aborted?: boolean; result?: unknown }) {
+  end(params?: {
+    aborted?: boolean;
+    result?: unknown;
+    interrupts?: unknown[];
+  }) {
     if (this.ended) {
       return;
     }
@@ -372,6 +380,7 @@ export class InAppAgentInstrumentation {
       ...this.metadata,
       ...(params?.aborted ? { aborted: true } : {}),
       ...(params?.result ? { result: params.result } : {}),
+      ...(params?.interrupts ? { interrupts: params.interrupts } : {}),
     };
     this.agentRun.update({
       name: IN_APP_AGENT_TURN_NAME,
@@ -389,11 +398,9 @@ export class InAppAgentInstrumentation {
           }
         : {}),
     });
-    this.trace.update({
-      input: this.agentRunInput,
-      output: this.getAgentRunOutput(),
-      metadata,
-    });
+    if (!params?.interrupts) {
+      this.trace.update({ output: this.getAgentRunOutput(), metadata });
+    }
     this.agentRun.end();
     this.ended = true;
   }
@@ -463,7 +470,13 @@ export class InAppAgentInstrumentation {
     }
 
     if (event.type === EventType.RUN_FINISHED) {
-      this.end({ result: event.result });
+      const outcome = AgUiRunFinishedOutcomeSchema.safeParse(event.outcome);
+      this.end({
+        result: event.result,
+        ...(outcome.success && outcome.data.type === "interrupt"
+          ? { interrupts: outcome.data.interrupts }
+          : {}),
+      });
       return;
     }
 

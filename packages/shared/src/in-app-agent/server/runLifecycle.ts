@@ -1,3 +1,5 @@
+import { EventType } from "@ag-ui/core";
+
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
@@ -8,8 +10,13 @@ import { Prisma } from "../../db";
 import type { InAppAgentRun, PrismaClient } from "../../db";
 import { logger } from "../../server";
 import { buildInAppAgentApprovalDecisionEvent } from "../backgroundWatch";
-import type { AgUiEvent } from "../schema";
+import type {
+  AgUiEvent,
+  AgUiResumeEntry,
+  InAppAgentApprovalResumeEntry,
+} from "../schema";
 import type { InAppAgentPrefixedLangfuseMcpToolName } from "./tools";
+import { stableJsonStringify } from "../../utils/json";
 import {
   InAppAgentRunRequestSchema,
   type InAppAgentRunRequest,
@@ -29,6 +36,41 @@ import {
 } from "./tunables";
 
 /** Postgres-owned CAS transitions shared by web and worker execution. */
+
+export async function resolveInAppAgentLogicalTurnId(params: {
+  prisma: PrismaClient | InAppAgentTx;
+  projectId: string;
+  conversationId: string;
+  runId: string;
+  request?: InAppAgentRunRequest;
+}): Promise<string> {
+  let runId = params.runId;
+  let request = params.request;
+  const visited = new Set<string>();
+
+  for (;;) {
+    if (visited.has(runId)) return params.runId;
+    visited.add(runId);
+    if (!request) {
+      const run = await params.prisma.inAppAgentRun.findFirst({
+        where: {
+          id: runId,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+        },
+        select: { request: true },
+      });
+      const parsedRequest = InAppAgentRunRequestSchema.safeParse(run?.request);
+      if (!parsedRequest.success) return runId;
+      request = parsedRequest.data;
+    }
+
+    if (request.kind === "userMessage") return request.turnId ?? runId;
+    if (request.kind === "approvalDecisionBatch") return request.turnId;
+    runId = request.parentRunId;
+    request = undefined;
+  }
+}
 
 export async function claimQueuedRun(params: {
   prisma: PrismaClient;
@@ -337,6 +379,271 @@ export async function decideToolApproval(params: {
   }
 
   return outcome.run;
+}
+
+/** Record a complete interrupt response and create exactly one continuation. */
+export async function decideToolApprovalBatch(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  interruptedRunId: string;
+  continuationRunId: string;
+  openInterruptIds: string[];
+  resume: InAppAgentApprovalResumeEntry[];
+  toolCallIdsByInterruptId: Record<string, string>;
+  alwaysAllowToolNamesByInterruptId: Partial<
+    Record<string, InAppAgentPrefixedLangfuseMcpToolName>
+  >;
+  decidedByUserId: string;
+  model?: string;
+}): Promise<{ run: InAppAgentRun; shouldEnqueue: boolean }> {
+  const resumeById = new Map(
+    params.resume.map((entry) => [entry.interruptId, entry] as const),
+  );
+  const openInterruptIds = new Set(params.openInterruptIds);
+  const hasExactInterruptSet =
+    resumeById.size === openInterruptIds.size &&
+    [...openInterruptIds].every((id) => resumeById.has(id)) &&
+    params.resume.every((entry) => openInterruptIds.has(entry.interruptId));
+
+  if (!hasExactInterruptSet) {
+    throw new LangfuseConflictError(
+      "Every pending approval must be decided before continuing.",
+    );
+  }
+
+  const resume = params.openInterruptIds.map((id) => resumeById.get(id)!);
+  const batchFingerprint = stableJsonStringify(resume);
+  const outcome = await params.prisma.$transaction(async (tx) => {
+    await lockConversation(tx, params.projectId, params.conversationId);
+
+    const parentRun = await tx.inAppAgentRun.findFirst({
+      where: {
+        id: params.interruptedRunId,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+      },
+      select: { status: true, finishedAt: true, request: true },
+    });
+
+    if (parentRun?.status !== InAppAgentRunStatus.AWAITING_APPROVAL) {
+      const existing = await tx.inAppAgentRun.findFirst({
+        where: {
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          AND: [
+            {
+              request: {
+                path: ["kind"],
+                equals: "approvalDecisionBatch",
+              },
+            },
+            {
+              request: {
+                path: ["interruptedRunId"],
+                equals: params.interruptedRunId,
+              },
+            },
+            {
+              request: {
+                path: ["batchFingerprint"],
+                equals: batchFingerprint,
+              },
+            },
+          ],
+        },
+      });
+
+      if (existing) {
+        if (
+          existing.status === InAppAgentRunStatus.FAILED &&
+          existing.errorCode === InAppAgentRunErrorCode.ENQUEUE_FAILED
+        ) {
+          const { count } = await tx.inAppAgentRun.updateMany({
+            where: {
+              id: existing.id,
+              projectId: params.projectId,
+              status: InAppAgentRunStatus.FAILED,
+              errorCode: InAppAgentRunErrorCode.ENQUEUE_FAILED,
+            },
+            data: {
+              status: InAppAgentRunStatus.QUEUED,
+              finishedAt: null,
+              errorCode: null,
+              errorMessage: null,
+            },
+          });
+          if (count !== 1) {
+            throw new LangfuseConflictError(
+              "This approval continuation could not be retried.",
+            );
+          }
+          return {
+            type: "continued" as const,
+            run: {
+              ...existing,
+              status: InAppAgentRunStatus.QUEUED,
+              finishedAt: null,
+              errorCode: null,
+              errorMessage: null,
+            },
+            shouldEnqueue: true,
+          };
+        }
+
+        return {
+          type: "continued" as const,
+          run: existing,
+          shouldEnqueue: existing.status === InAppAgentRunStatus.QUEUED,
+        };
+      }
+
+      throw new LangfuseConflictError(
+        "This approval is no longer pending. Reload the conversation.",
+      );
+    }
+
+    if (
+      parentRun.finishedAt &&
+      Date.now() - parentRun.finishedAt.getTime() > IN_APP_AGENT_APPROVAL_TTL_MS
+    ) {
+      await tx.inAppAgentRun.updateMany({
+        where: {
+          id: params.interruptedRunId,
+          projectId: params.projectId,
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        },
+        data: {
+          status: InAppAgentRunStatus.FAILED,
+          errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+          errorMessage: "The approval request expired",
+        },
+      });
+      return { type: "expired" as const };
+    }
+
+    const { count } = await tx.inAppAgentRun.updateMany({
+      where: {
+        id: params.interruptedRunId,
+        projectId: params.projectId,
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+      },
+      data: { status: InAppAgentRunStatus.SUCCEEDED },
+    });
+
+    if (count === 0) {
+      throw new LangfuseConflictError(
+        "This approval was already decided. Reload the conversation.",
+      );
+    }
+
+    const conversation = await tx.inAppAgentConversation.findUnique({
+      where: {
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
+      },
+      select: { alwaysAllowedTools: true },
+    });
+    const alwaysAllowedTools = new Set(conversation?.alwaysAllowedTools ?? []);
+
+    for (const entry of resume) {
+      const toolCallId = params.toolCallIdsByInterruptId[entry.interruptId];
+      if (!toolCallId) {
+        throw new LangfuseConflictError("Approval request not found.");
+      }
+
+      const alwaysAllowToolName =
+        params.alwaysAllowToolNamesByInterruptId[entry.interruptId];
+      if (alwaysAllowToolName) alwaysAllowedTools.add(alwaysAllowToolName);
+
+      await appendConversationEventInTransaction({
+        tx,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        runId: params.interruptedRunId,
+        event: buildInAppAgentApprovalDecisionEvent({
+          toolCallId,
+          approved: entry.payload.approved,
+          decidedByUserId: params.decidedByUserId,
+          ...(alwaysAllowToolName ? { scope: "conversation" as const } : {}),
+        }),
+      });
+    }
+
+    if (
+      alwaysAllowedTools.size !== (conversation?.alwaysAllowedTools.length ?? 0)
+    ) {
+      await tx.inAppAgentConversation.update({
+        where: {
+          id_projectId: {
+            id: params.conversationId,
+            projectId: params.projectId,
+          },
+        },
+        data: { alwaysAllowedTools: [...alwaysAllowedTools] },
+      });
+    }
+
+    const parentRequest = InAppAgentRunRequestSchema.safeParse(
+      parentRun.request,
+    );
+    const context = parentRequest.success ? parentRequest.data.context : [];
+    const turnId = await resolveInAppAgentLogicalTurnId({
+      prisma: tx,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.interruptedRunId,
+      ...(parentRequest.success ? { request: parentRequest.data } : {}),
+    });
+
+    const run = await createRunRow(tx, {
+      runId: params.continuationRunId,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      triggeredByUserId: params.decidedByUserId,
+      model: params.model,
+      request: {
+        kind: "approvalDecisionBatch",
+        interruptedRunId: params.interruptedRunId,
+        turnId,
+        batchFingerprint,
+        resume,
+        context,
+      },
+    });
+    const input = {
+      threadId: params.conversationId,
+      runId: params.continuationRunId,
+      state: {},
+      messages: [],
+      tools: [],
+      context,
+      forwardedProps: {},
+      resume: resume satisfies AgUiResumeEntry[],
+    };
+    await appendConversationEventInTransaction({
+      tx,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.continuationRunId,
+      event: {
+        type: EventType.RUN_STARTED,
+        threadId: params.conversationId,
+        runId: params.continuationRunId,
+        input,
+      },
+    });
+
+    return { type: "continued" as const, run, shouldEnqueue: true };
+  });
+
+  if (outcome.type === "expired") {
+    throw new LangfuseConflictError("The approval request expired.");
+  }
+
+  return { run: outcome.run, shouldEnqueue: outcome.shouldEnqueue };
 }
 
 export type CancelRunResult = {

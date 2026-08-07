@@ -1,8 +1,15 @@
+const inAppAgentQueue = vi.hoisted(() => ({
+  add: vi.fn().mockResolvedValue(undefined),
+  remove: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
     generateLLMText: vi.fn(),
+    upsertScore: vi.fn(),
+    InAppAgentRunQueue: { getInstance: () => inAppAgentQueue },
   };
 });
 
@@ -22,6 +29,7 @@ import type { Prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   generateLLMText,
+  upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
@@ -60,17 +68,21 @@ vi.mock("@/src/server/auth", () => ({
 }));
 
 const mockGenerateLLMText = vi.mocked(generateLLMText);
+const mockUpsertScore = vi.mocked(upsertScore);
 
 describe("in-app agent persistence", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    inAppAgentQueue.add.mockClear();
+    inAppAgentQueue.remove.mockClear();
   });
 
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     mockGenerateLLMText.mockReset();
+    mockUpsertScore.mockReset();
   });
 
   const createCaller = async (
@@ -666,13 +678,145 @@ describe("in-app agent persistence", () => {
     }
   });
 
-  it("requires feedback run ids to match persisted assistant messages", async () => {
+  it("recovers structured approvals and re-enqueues an identical queued retry", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
       projectId,
       conversationId: conversation.id,
       userId,
+    });
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: run.id, projectId } },
+      data: {
+        request: {
+          kind: "userMessage",
+          turnId: run.id,
+          context: [],
+        },
+      },
+    });
+    await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "approval-user",
+      content: "Create a dashboard widget",
+    });
+    const interruptId = `${run.id}::tool-call-1`;
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events: [
+        {
+          type: EventType.RUN_FINISHED,
+          threadId: conversation.id,
+          runId: run.id,
+          outcome: {
+            type: "interrupt",
+            interrupts: [
+              {
+                id: interruptId,
+                reason: "mastra:tool_suspend",
+                toolCallId: "tool-call-1",
+                metadata: {
+                  mastra: {
+                    type: "mastra_suspend",
+                    toolName: "langfuse_createDashboardWidget",
+                    args: { name: "Latency" },
+                    runId: run.id,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ],
+      finish: { status: InAppAgentRunStatus.AWAITING_APPROVAL },
+    });
+
+    await expect(
+      caller.getConversation({ projectId, conversationId: conversation.id }),
+    ).resolves.toMatchObject({
+      pendingToolApprovals: [
+        {
+          runId: run.id,
+          approvalRequest: {
+            toolCallId: "tool-call-1",
+            toolName: "langfuse_createDashboardWidget",
+          },
+        },
+      ],
+    });
+
+    const input = {
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      resume: [
+        {
+          interruptId,
+          status: "resolved" as const,
+          payload: { approved: true, approvalScope: "once" as const },
+        },
+      ],
+    };
+    const first = await caller.decideToolApproval(input);
+    const second = await caller.decideToolApproval(input);
+
+    expect(second).toEqual(first);
+    expect(inAppAgentQueue.remove).toHaveBeenCalledOnce();
+    expect(inAppAgentQueue.add).toHaveBeenCalledTimes(2);
+    expect(inAppAgentQueue.add.mock.calls.map((call) => call[2])).toEqual([
+      { jobId: first.runId },
+      { jobId: first.runId },
+    ]);
+  });
+
+  it("routes continuation feedback to the logical-turn trace", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const rootRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: rootRun.id, projectId } },
+      data: {
+        request: {
+          kind: "userMessage",
+          turnId: rootRun.id,
+          context: [],
+        },
+      },
+    });
+    await finishRun({ prisma, runId: rootRun.id, projectId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: run.id, projectId } },
+      data: {
+        request: {
+          kind: "approvalDecisionBatch",
+          interruptedRunId: rootRun.id,
+          turnId: rootRun.id,
+          batchFingerprint: "feedback-batch",
+          resume: [
+            {
+              interruptId: `${rootRun.id}::feedback-tool-call`,
+              status: "resolved",
+              payload: { approved: true, approvalScope: "once" },
+            },
+          ],
+          context: [],
+        },
+      },
     });
     const events = await startCompactRun({
       projectId,
@@ -703,16 +847,32 @@ describe("in-app agent persistence", () => {
       "Feedback can only be submitted for persisted assistant messages",
     );
 
-    await expect(
-      caller.submitFeedback({
-        projectId,
-        conversationId: conversation.id,
-        messageId: "feedback-assistant",
-        runId: run.id,
-        value: null,
-        comment: null,
+    const previousTelemetryProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+    try {
+      (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID = "telemetry-project";
+      await expect(
+        caller.submitFeedback({
+          projectId,
+          conversationId: conversation.id,
+          messageId: "feedback-assistant",
+          runId: run.id,
+          value: "thumbs_up",
+          comment: null,
+        }),
+      ).resolves.toEqual({
+        feedback: { value: "thumbs_up", comment: null },
+      });
+    } finally {
+      (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID = previousTelemetryProjectId;
+    }
+
+    expect(mockUpsertScore).toHaveBeenCalledOnce();
+    expect(mockUpsertScore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trace_id: `${rootRun.id}-trace`,
+        observation_id: run.id,
       }),
-    ).resolves.toEqual({ feedback: null });
+    );
   });
 
   it("does not reduce partial assistant content before the end event", async () => {

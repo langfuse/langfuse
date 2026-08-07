@@ -16,6 +16,7 @@ import {
   AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
+  InAppAgentApprovalResumeEntrySchema,
 } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "@langfuse/shared/in-app-agent";
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
@@ -29,6 +30,7 @@ import {
   getOwnedConversationOrThrow,
   serializeConversation,
 } from "@langfuse/shared/in-app-agent/server/persistence";
+import { resolveInAppAgentLogicalTurnId } from "@langfuse/shared/in-app-agent/server";
 import {
   assertInAppAgentRateLimit,
   getInAppAgentApiAccessScope,
@@ -37,6 +39,7 @@ import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
+  decideBackgroundApprovalBatch,
   deleteBackgroundConversation,
   getBackgroundConversationSnapshot,
   startBackgroundRun,
@@ -73,7 +76,7 @@ const CancelRunInput = ConversationIdInput.extend({
   runId: z.string(),
 });
 
-const DecideToolApprovalInput = ConversationIdInput.extend({
+const LegacyDecideToolApprovalInput = ConversationIdInput.extend({
   runId: z.string(),
   toolCallId: z.string(),
   approved: z.boolean(),
@@ -83,6 +86,14 @@ const DecideToolApprovalInput = ConversationIdInput.extend({
   message: "A rejection cannot grant a tool",
   path: ["approvalScope"],
 });
+
+const DecideToolApprovalInput = z.union([
+  LegacyDecideToolApprovalInput,
+  ConversationIdInput.extend({
+    runId: z.string(),
+    resume: z.array(InAppAgentApprovalResumeEntrySchema).min(1),
+  }),
+]);
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
   messageId: z.string(),
@@ -268,6 +279,18 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
+      if ("resume" in input) {
+        return decideBackgroundApprovalBatch({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          conversationId: input.conversationId,
+          runId: input.runId,
+          resume: input.resume,
+          userId: ctx.session.user.id,
+          model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+        });
+      }
+
       return decideBackgroundApproval({
         prisma: ctx.prisma,
         projectId: input.projectId,
@@ -383,12 +406,18 @@ export const inAppAgentRouter = createTRPCRouter({
       const scoreProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
       if (projectAvailability.aiTelemetryEnabled && scoreProjectId) {
+        const turnId = await resolveInAppAgentLogicalTurnId({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          conversationId: input.conversationId,
+          runId: input.runId,
+        });
         await upsertScore({
           id: scoreId,
           timestamp: convertDateToClickhouseDateTime(now),
           project_id: scoreProjectId,
           environment: IN_APP_AGENT_FEEDBACK_ENVIRONMENT,
-          trace_id: getInAppAgentInstrumentationTraceId(input.runId),
+          trace_id: getInAppAgentInstrumentationTraceId(turnId),
           observation_id: getInAppAgentInstrumentationObservationId(
             input.runId,
           ),

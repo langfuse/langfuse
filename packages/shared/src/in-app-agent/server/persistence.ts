@@ -26,6 +26,7 @@ import { truncate } from "../../utils/stringChecks";
 import { assertUnreachable } from "../../utils/typeChecks";
 import {
   AgUiMessageSchema,
+  AgUiRunFinishedOutcomeSchema,
   InAppAgentRedirectActionToolResultSchema,
   type AgUiEvent,
   type AgUiMessage,
@@ -1034,10 +1035,15 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
   }
 
   if (event.type === EventType.RUN_FINISHED) {
+    const outcome = AgUiRunFinishedOutcomeSchema.safeParse(
+      isRecord(event) ? event.outcome : undefined,
+    );
+
     return compactObject({
       type: event.type,
       threadId: getString(event, "threadId"),
       runId: getString(event, "runId"),
+      ...(outcome.success ? { outcome: outcome.data } : {}),
     });
   }
 
@@ -1482,8 +1488,21 @@ function mergeMessages(existing: AgUiMessage, next: AgUiMessage): AgUiMessage {
 }
 
 function compactPersistedEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
+  const compacted = compactEvents(
+    compactPersistedEventDeltas(events),
+  ) as AgUiEvent[];
+  const terminalEvents = compacted.filter(isRunTerminalEvent);
+
   return dropRedirectToolCallEvents(
-    compactEvents(compactPersistedEventDeltas(events)) as AgUiEvent[],
+    compacted
+      .filter((event) => !isRunTerminalEvent(event))
+      .concat(terminalEvents),
+  );
+}
+
+function isRunTerminalEvent(event: AgUiEvent) {
+  return (
+    event.type === EventType.RUN_FINISHED || event.type === EventType.RUN_ERROR
   );
 }
 

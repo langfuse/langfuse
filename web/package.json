@@ -32,8 +32,8 @@
     "sfdc:backfill": "dotenv -e ../.env -- tsx src/ee/features/sfdc-sync/scripts/backfillSfdcLeads.ts"
   },
   "dependencies": {
-    "@ag-ui/client": "^0.0.52",
-    "@ag-ui/core": "^0.0.52",
+    "@ag-ui/client": "0.0.57",
+    "@ag-ui/core": "0.0.57",
     "@ag-ui/mastra": "1.1.1",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@astral-sh/ruff-wasm-web": "0.15.13",

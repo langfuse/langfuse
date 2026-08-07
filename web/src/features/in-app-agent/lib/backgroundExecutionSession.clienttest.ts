@@ -422,7 +422,7 @@ describe("BackgroundExecutionSessionController", () => {
     });
   });
 
-  it("keeps an accepted approval resolved when attachment refresh fails", async () => {
+  it("keeps an accepted approval visible when attachment refresh fails", async () => {
     const refreshError = new Error("refresh failed");
     const session = new BackgroundExecutionSessionController({
       agent: createAgent(),
@@ -458,7 +458,9 @@ describe("BackgroundExecutionSessionController", () => {
     ).resolves.toBeUndefined();
 
     expect(session.getSnapshot()).toMatchObject({
-      pendingToolApprovals: [],
+      pendingToolApprovals: [
+        { status: "submitting", decision: { approved: true } },
+      ],
       attachment: {
         status: "error",
         error: refreshError,
@@ -510,8 +512,99 @@ describe("BackgroundExecutionSessionController", () => {
     rejectDecision(decisionError);
     await expect(result).rejects.toBe(decisionError);
     expect(session.getSnapshot().pendingToolApprovals).toMatchObject([
-      { status: "pending" },
+      { status: "retry", decision: { approved: true } },
     ]);
+  });
+
+  it("reviews a parallel approval batch locally and retries one complete submission", async () => {
+    const submissionError = new Error("submission failed");
+    const decideApproval = vi
+      .fn()
+      .mockRejectedValueOnce(submissionError)
+      .mockResolvedValueOnce(undefined);
+    const approvals = [
+      ["tool-call-1", "langfuse_createDashboard"],
+      ["tool-call-2", "langfuse_createDashboardWidget"],
+      ["tool-call-3", "langfuse_createDashboardWidget"],
+      ["tool-call-4", "langfuse_createDashboardWidget"],
+    ].map(([toolCallId, toolName]) => ({
+      runId: "run-1",
+      status: "pending" as const,
+      approvalRequest: {
+        type: "tool_approval_request" as const,
+        toolCallId,
+        toolName,
+        runId: "run-1",
+      },
+    }));
+    const session = new BackgroundExecutionSessionController({
+      agent: createAgent(),
+      hydrate: vi.fn().mockResolvedValue({
+        ...runningView,
+        currentRun: {
+          ...runningView.currentRun,
+          status: InAppAgentRunStatus.QUEUED,
+        },
+        pendingToolApprovals: [],
+      }),
+      cancelRun: vi.fn(),
+      decideApproval,
+      initialView: {
+        currentRun: {
+          ...runningView.currentRun,
+          status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        },
+        pendingToolApprovals: approvals,
+      },
+    });
+
+    await session.decide({
+      runId: "run-1",
+      toolCallId: "tool-call-1",
+      approved: false,
+    });
+    expect(decideApproval).not.toHaveBeenCalled();
+    expect(session.getSnapshot().pendingToolApprovals).toMatchObject([
+      { status: "reviewed", decision: { approved: false } },
+      { status: "pending", position: 2, total: 4 },
+      { status: "queued" },
+      { status: "queued" },
+    ]);
+
+    await expect(
+      session.decide({
+        runId: "run-1",
+        toolCallId: "tool-call-2",
+        approved: true,
+        approvalScope: "conversation",
+      }),
+    ).rejects.toBe(submissionError);
+    expect(decideApproval).toHaveBeenCalledOnce();
+    expect(decideApproval).toHaveBeenLastCalledWith({
+      runId: "run-1",
+      resume: [
+        {
+          interruptId: "run-1::tool-call-1",
+          status: "resolved",
+          payload: { approved: false, approvalScope: "once" },
+        },
+        ...["tool-call-2", "tool-call-3", "tool-call-4"].map((toolCallId) => ({
+          interruptId: `run-1::${toolCallId}`,
+          status: "resolved" as const,
+          payload: { approved: true, approvalScope: "conversation" as const },
+        })),
+      ],
+    });
+    expect(session.getSnapshot().pendingToolApprovals).toMatchObject([
+      { status: "reviewed", decision: { approved: false } },
+      { status: "reviewed", decision: { approved: true } },
+      { status: "reviewed", decision: { approved: true } },
+      { status: "retry", decision: { approved: true } },
+    ]);
+
+    await session.retryApprovalBatch();
+    expect(decideApproval).toHaveBeenCalledTimes(2);
+    expect(decideApproval.mock.calls[1]).toEqual(decideApproval.mock.calls[0]);
   });
 
   it("keeps run-start failures outside attachment state", async () => {
@@ -559,12 +652,18 @@ describe("BackgroundExecutionSessionController", () => {
 
   it("owns streamed messages and approval state", async () => {
     let subscriber: AgentSubscriber | undefined;
+    let statusListener:
+      | ((status: { runId: string; status: InAppAgentRunStatus }) => void)
+      | undefined;
     const unsubscribe = vi.fn();
     const agent = {
       ...createAgent(),
       subscribe: vi.fn((nextSubscriber: AgentSubscriber) => {
         subscriber = nextSubscriber;
         return { unsubscribe };
+      }),
+      setStatusListener: vi.fn((listener?: typeof statusListener) => {
+        statusListener = listener;
       }),
     };
     const session = new BackgroundExecutionSessionController({
@@ -596,7 +695,7 @@ describe("BackgroundExecutionSessionController", () => {
       pendingToolApprovals: [
         {
           runId: "run-1",
-          status: "pending",
+          status: "queued",
           approvalRequest: {
             type: "tool_approval_request",
             toolCallId: "tool-call-1",
@@ -604,6 +703,13 @@ describe("BackgroundExecutionSessionController", () => {
         },
       ],
     });
+    statusListener?.({
+      runId: "run-1",
+      status: InAppAgentRunStatus.AWAITING_APPROVAL,
+    });
+    expect(session.getSnapshot().pendingToolApprovals).toMatchObject([
+      { status: "pending" },
+    ]);
 
     await subscriber?.onToolCallResultEvent?.({
       event: { toolCallId: "tool-call-1" },
@@ -640,9 +746,32 @@ describe("BackgroundExecutionSessionController", () => {
       }),
       abortRun: vi.fn(),
     };
+    const parkedView = {
+      ...runningView,
+      currentRun: {
+        ...runningView.currentRun,
+        id: "parked-run",
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+      },
+      pendingToolApprovals: [
+        {
+          runId: "parked-run",
+          status: "pending" as const,
+          approvalRequest: {
+            type: "tool_approval_request" as const,
+            toolCallId: "tool-call-1",
+            toolName: "dangerousTool",
+            runId: "parked-run",
+          },
+        },
+      ],
+    };
     const session = new BackgroundExecutionSessionController({
       agent,
-      hydrate: vi.fn().mockResolvedValue(runningView),
+      hydrate: vi
+        .fn()
+        .mockResolvedValueOnce(parkedView)
+        .mockResolvedValueOnce(runningView),
       cancelRun: vi.fn(),
       decideApproval: vi.fn().mockResolvedValue(undefined),
     });
@@ -654,10 +783,7 @@ describe("BackgroundExecutionSessionController", () => {
       approved: true,
     });
 
-    expect(attachedSnapshots).toEqual([
-      { messages: [message], cursor: 7 },
-      { messages: [message], cursor: 7 },
-    ]);
+    expect(attachedSnapshots).toEqual([{ messages: [message], cursor: 7 }]);
     expect(agent.abortRun).toHaveBeenCalledOnce();
     expect(session.getSnapshot()).toMatchObject({
       messages: [message],
@@ -712,6 +838,18 @@ describe("BackgroundExecutionSessionController", () => {
             id: "create-run",
             status: InAppAgentRunStatus.AWAITING_APPROVAL,
           },
+          pendingToolApprovals: [
+            {
+              runId: "create-run",
+              status: "pending" as const,
+              approvalRequest: {
+                type: "tool_approval_request" as const,
+                toolCallId: "add-placement",
+                toolName: "langfuse_addDashboardPlacement",
+                runId: "create-run",
+              },
+            },
+          ],
         };
       }
 
@@ -748,8 +886,10 @@ describe("BackgroundExecutionSessionController", () => {
       agent,
       hydrate,
       cancelRun: vi.fn(),
-      decideApproval: vi.fn(async ({ toolCallId }) => {
-        phase = toolCallId === "create-widget" ? "creating" : "placing";
+      decideApproval: vi.fn(async ({ resume }) => {
+        phase = resume[0]?.interruptId.endsWith("create-widget")
+          ? "creating"
+          : "placing";
       }),
       initialView: {
         messages: messagesBeforeApproval,
@@ -758,6 +898,18 @@ describe("BackgroundExecutionSessionController", () => {
           id: "approval-run",
           status: InAppAgentRunStatus.AWAITING_APPROVAL,
         },
+        pendingToolApprovals: [
+          {
+            runId: "approval-run",
+            status: "pending",
+            approvalRequest: {
+              type: "tool_approval_request",
+              toolCallId: "create-widget",
+              toolName: "langfuse_createDashboardWidget",
+              runId: "approval-run",
+            },
+          },
+        ],
       },
     });
 

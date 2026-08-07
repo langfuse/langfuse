@@ -6,6 +6,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
+  type InAppAgentApprovalResumeEntry,
+  type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 
 vi.hoisted(() => {
@@ -31,6 +33,7 @@ type AgentScenario = (ctx: {
     runId: string;
     context: Array<{ description: string; value: string }>;
     forwardedProps: unknown;
+    resume?: InAppAgentApprovalResumeEntry[];
   };
   signal: AbortSignal;
   options: {
@@ -40,6 +43,7 @@ type AgentScenario = (ctx: {
     onAbort: () => Promise<void>;
     onError: (error: unknown) => Promise<void>;
     onFinish: () => Promise<void>;
+    approvalRequests?: InAppAgentToolApprovalRequest[];
   };
 }) => Promise<void>;
 
@@ -127,6 +131,20 @@ const interruptEvent = (parentRunId: string, toolCallId = "tc-1") => ({
     toolName: "langfuse_createTextPrompt",
     args: { name: "p" },
     runId: parentRunId,
+  },
+});
+
+const structuredInterrupt = (parentRunId: string, toolCallId: string) => ({
+  id: `${parentRunId}::${toolCallId}`,
+  reason: "mastra:tool_suspend",
+  toolCallId,
+  metadata: {
+    mastra: {
+      type: "mastra_suspend",
+      toolName: "langfuse_createTextPrompt",
+      args: { name: "p" },
+      runId: parentRunId,
+    },
   },
 });
 
@@ -232,6 +250,70 @@ async function seedApprovedContinuation(opts?: {
   return seeded;
 }
 
+async function seedBatchContinuation() {
+  const seeded = await seedBackgroundRun();
+  const { projectId, conversation, run, user } = seeded;
+  const parentRun = await prisma.inAppAgentRun.create({
+    data: {
+      id: createInAppAgentRunId(),
+      projectId,
+      conversationId: conversation.id,
+      triggeredByUserId: user.id,
+      status: "SUCCEEDED",
+      finishedAt: new Date(),
+      request: { kind: "userMessage", turnId: "turn-root", context: [] },
+    },
+  });
+  await prisma.inAppAgentEvent.create({
+    data: {
+      projectId,
+      conversationId: conversation.id,
+      runId: parentRun.id,
+      sequenceNumber: 1,
+      type: "RUN_FINISHED",
+      event: {
+        type: "RUN_FINISHED",
+        threadId: conversation.id,
+        runId: parentRun.id,
+        outcome: {
+          type: "interrupt",
+          interrupts: [
+            structuredInterrupt(parentRun.id, "tc-1"),
+            structuredInterrupt(parentRun.id, "tc-2"),
+          ],
+        },
+      } as never,
+    },
+  });
+  const resume = [
+    {
+      interruptId: `${parentRun.id}::tc-1`,
+      status: "resolved" as const,
+      payload: { approved: true, approvalScope: "once" as const },
+    },
+    {
+      interruptId: `${parentRun.id}::tc-2`,
+      status: "resolved" as const,
+      payload: { approved: false, approvalScope: "once" as const },
+    },
+  ];
+  await prisma.inAppAgentRun.update({
+    where: { id_projectId: { id: run.id, projectId } },
+    data: {
+      request: {
+        kind: "approvalDecisionBatch",
+        interruptedRunId: parentRun.id,
+        turnId: "turn-root",
+        batchFingerprint: "batch-1",
+        resume,
+        context: [],
+      },
+    },
+  });
+
+  return { ...seeded, parentRun, resume };
+}
+
 describe("executeInAppAgentRun", () => {
   it("passes persisted continuation context to the agent input", async () => {
     const context = [
@@ -323,12 +405,21 @@ describe("executeInAppAgentRun", () => {
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
   });
 
-  it("parks on an interrupt event: AWAITING_APPROVAL with the raw interrupt persisted", async () => {
+  it("parks with every parallel interrupt and its structured outcome persisted", async () => {
     const { projectId, conversation, run } = await seedBackgroundRun();
+    const interrupts = [
+      structuredInterrupt(run.id, "tc-1"),
+      structuredInterrupt(run.id, "tc-2"),
+    ];
 
     scenarioRef.current = async ({ options }) => {
       await options.onEvent(textChunk("Proposing a mutation"));
-      await options.onEvent(interruptEvent(run.id));
+      await options.onEvent({
+        type: "RUN_FINISHED",
+        threadId: conversation.id,
+        runId: run.id,
+        outcome: { type: "interrupt", interrupts },
+      });
       await options.onComplete();
       await options.onFinish();
     };
@@ -345,11 +436,70 @@ describe("executeInAppAgentRun", () => {
     const interruptRows = await prisma.inAppAgentEvent.findMany({
       where: { projectId, conversationId: conversation.id, type: "CUSTOM" },
     });
-    expect(interruptRows).toHaveLength(1);
+    expect(interruptRows).toHaveLength(0);
+
+    const runFinished = await prisma.inAppAgentEvent.findFirstOrThrow({
+      where: {
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        type: "RUN_FINISHED",
+      },
+    });
+    expect((runFinished.event as { outcome?: unknown }).outcome).toEqual({
+      type: "interrupt",
+      interrupts,
+    });
+  });
+
+  it("continues one mixed approval batch without duplicating its tool proposals", async () => {
+    const { projectId, conversation, run, resume } =
+      await seedBatchContinuation();
+    let agentRuns = 0;
+
+    scenarioRef.current = async ({ input, options }) => {
+      agentRuns += 1;
+      expect(input.resume).toEqual(resume);
+      expect(
+        options.approvalRequests?.map((approval) => approval.toolCallId),
+      ).toEqual(["tc-1", "tc-2"]);
+      await options.onEvent({
+        type: "TOOL_CALL_RESULT",
+        messageId: "tc-1-result",
+        toolCallId: "tc-1",
+        content: '{"ok":true}',
+      });
+      await options.onEvent({
+        type: "TOOL_CALL_RESULT",
+        messageId: "tc-2-result",
+        toolCallId: "tc-2",
+        content: "Tool call was not approved by the user.",
+        error: "Tool call was not approved by the user.",
+      });
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    expect(agentRuns).toBe(1);
+    expect((await getRun(projectId, run.id)).status).toBe("SUCCEEDED");
+    const events = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id, runId: run.id },
+      orderBy: { sequenceNumber: "asc" },
+    });
     expect(
-      (interruptRows[0].event as { value?: { toolCallId?: string } }).value
-        ?.toolCallId,
-    ).toBe("tc-1");
+      events
+        .filter((event) => event.type === "TOOL_CALL_RESULT")
+        .map((event) => (event.event as { toolCallId?: string }).toolCallId),
+    ).toEqual(["tc-1", "tc-2"]);
+    expect(
+      events.some((event) =>
+        ["TOOL_CALL_START", "TOOL_CALL_ARGS", "TOOL_CALL_END"].includes(
+          event.type,
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("finishes FAILED (agent_error) when the loop errors, keeping partial events", async () => {

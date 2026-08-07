@@ -83,6 +83,7 @@ export function ControlledInAppAgentWindow(
     approveToolCall,
     alwaysAllowToolCall,
     rejectToolCall,
+    retryToolApprovals,
     selectConversation,
     selectedConversationId,
     selectedConversationIsWriteLocked,
@@ -208,6 +209,7 @@ export function ControlledInAppAgentWindow(
       onApproveToolCall={approveToolCall}
       onAlwaysAllowToolCall={alwaysAllowToolCall}
       onRejectToolCall={rejectToolCall}
+      onRetryToolApprovals={retryToolApprovals}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}
     />

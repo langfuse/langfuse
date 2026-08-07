@@ -341,9 +341,16 @@ describe("in-app agent execution", () => {
         projectId: "project-1",
         conversationId: "conversation-1",
         runId: "run-1",
-        toolCallId: "tool-call-1",
-        approved: true,
-        approvalScope: "conversation",
+        resume: [
+          {
+            interruptId: "run-1::tool-call-1",
+            status: "resolved",
+            payload: {
+              approved: true,
+              approvalScope: "conversation",
+            },
+          },
+        ],
       });
       expect(providerMocks.capture).toHaveBeenCalledOnce();
       expect(providerMocks.capture).toHaveBeenCalledWith(

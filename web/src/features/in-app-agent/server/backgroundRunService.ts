@@ -19,10 +19,16 @@ import { deleteApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
+  AgUiRunFinishedOutcomeSchema,
   parseInAppAgentApprovalDecisionEvent,
   type AgUiRunAgentInput,
+  type InAppAgentApprovalResumeEntry,
 } from "@langfuse/shared/in-app-agent";
-import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import {
+  getInAppAgentApprovalInterruptId,
+  parseInAppAgentInterruptEvent,
+  parseInAppAgentStructuredInterrupt,
+} from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/tools";
 import {
   ensureOwnedConversation,
@@ -38,6 +44,7 @@ import {
   cleanupTerminalRunMcpApiKeys,
   createQueuedRun,
   decideToolApproval,
+  decideToolApprovalBatch,
   reconcileConversationRuns,
   requestRunCancellation,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
@@ -228,7 +235,7 @@ export async function startBackgroundRun(params: {
     conversationId: conversation.id,
     triggeredByUserId: params.userId,
     model: params.model,
-    request: { kind: "userMessage", context },
+    request: { kind: "userMessage", turnId: runId, context },
     runStartedEvent: {
       type: EventType.RUN_STARTED,
       threadId: conversation.id,
@@ -407,6 +414,92 @@ export async function decideBackgroundApproval(params: {
   return { runId: continuationRun.id };
 }
 
+export async function decideBackgroundApprovalBatch(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  runId: string;
+  resume: InAppAgentApprovalResumeEntry[];
+  userId: string;
+  model: string | undefined;
+}) {
+  const conversation = await getOwnedConversationOrThrow({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    userId: params.userId,
+  });
+  const events = await getConversationEvents({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+  });
+
+  if (isInAppAgentConversationWriteLocked({ conversation, events })) {
+    throw new BaseError(
+      "PreconditionFailedError",
+      412,
+      SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      true,
+    );
+  }
+
+  const { approvalByInterruptId, openInterruptIds } = getApprovalRequestsForRun(
+    events,
+    params.runId,
+  );
+  if (openInterruptIds.length === 0) {
+    throw new LangfuseNotFoundError("Approval request not found");
+  }
+  const alwaysAllowToolNamesByInterruptId = Object.fromEntries(
+    params.resume.flatMap((entry) => {
+      if (
+        !entry.payload.approved ||
+        entry.payload.approvalScope !== "conversation"
+      ) {
+        return [];
+      }
+      const approval = approvalByInterruptId.get(entry.interruptId);
+      const toolName = getInAppAgentPrefixedToolName(approval?.toolName);
+      return toolName ? [[entry.interruptId, toolName] as const] : [];
+    }),
+  );
+  const continuationRunId = createInAppAgentRunId();
+  const { run: continuationRun, shouldEnqueue } = await decideToolApprovalBatch(
+    {
+      prisma: params.prisma,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      interruptedRunId: params.runId,
+      continuationRunId,
+      openInterruptIds,
+      resume: params.resume,
+      toolCallIdsByInterruptId: Object.fromEntries(
+        [...approvalByInterruptId].map(([interruptId, approval]) => [
+          interruptId,
+          approval.toolCallId,
+        ]),
+      ),
+      alwaysAllowToolNamesByInterruptId,
+      decidedByUserId: params.userId,
+      model: params.model,
+    },
+  );
+
+  if (shouldEnqueue) {
+    if (continuationRun.id !== continuationRunId) {
+      await removeInAppAgentRunJob(continuationRun.id);
+    }
+    await enqueueInAppAgentRun({
+      prisma: params.prisma,
+      projectId: params.projectId,
+      runId: continuationRun.id,
+    });
+  }
+
+  return { runId: continuationRun.id };
+}
+
 function getPendingToolApprovals(
   events: readonly PersistedConversationEvent[],
   parkedRunIds: ReadonlySet<string>,
@@ -418,15 +511,68 @@ function getPendingToolApprovals(
     }),
   );
 
-  return events.flatMap((persisted) => {
-    const approvalRequest = parseInAppAgentInterruptEvent(persisted.event);
+  return [...parkedRunIds].flatMap((runId) => {
+    const { approvalByInterruptId, openInterruptIds } =
+      getApprovalRequestsForRun(events, runId);
 
-    return approvalRequest &&
-      parkedRunIds.has(persisted.runId) &&
-      !decidedToolCallIds.has(approvalRequest.toolCallId)
-      ? [{ runId: persisted.runId, approvalRequest }]
-      : [];
+    return openInterruptIds.flatMap((interruptId) => {
+      const approvalRequest = approvalByInterruptId.get(interruptId);
+      return approvalRequest &&
+        !decidedToolCallIds.has(approvalRequest.toolCallId)
+        ? [{ runId, approvalRequest }]
+        : [];
+    });
   });
+}
+
+function getApprovalRequestsForRun(
+  events: readonly PersistedConversationEvent[],
+  runId: string,
+) {
+  const approvalByInterruptId = new Map(
+    events.flatMap((persisted) => {
+      if (persisted.runId !== runId) {
+        return [];
+      }
+      const approvalRequest = parseInAppAgentInterruptEvent(persisted.event);
+      return approvalRequest
+        ? [
+            [
+              getInAppAgentApprovalInterruptId(approvalRequest),
+              approvalRequest,
+            ] as const,
+          ]
+        : [];
+    }),
+  );
+  const structuredInterrupts = events.flatMap((persisted) => {
+    if (
+      persisted.runId !== runId ||
+      persisted.event.type !== EventType.RUN_FINISHED
+    ) {
+      return [];
+    }
+    const outcome = AgUiRunFinishedOutcomeSchema.safeParse(
+      persisted.event.outcome,
+    );
+    return outcome.success && outcome.data.type === "interrupt"
+      ? [outcome.data.interrupts]
+      : [];
+  })[0];
+
+  for (const interrupt of structuredInterrupts ?? []) {
+    const approvalRequest = parseInAppAgentStructuredInterrupt(interrupt);
+    if (approvalRequest) {
+      approvalByInterruptId.set(interrupt.id, approvalRequest);
+    }
+  }
+
+  return {
+    approvalByInterruptId,
+    openInterruptIds: structuredInterrupts?.map(
+      (interrupt) => interrupt.id,
+    ) ?? [...approvalByInterruptId.keys()],
+  };
 }
 
 async function enqueueInAppAgentRun(params: {

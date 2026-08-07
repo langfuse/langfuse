@@ -7,11 +7,8 @@
 import type { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
-// @ag-ui/core@0.0.52 publishes Zod v3-shaped declarations, but this package
-// uses Zod v4, causing its exported z.infer-based types to resolve as unknown.
-// Duplicate the relevant schemas locally until
-// https://github.com/ag-ui-protocol/ag-ui/pull/1637 is merged, then remove
-// these definitions and use @ag-ui/core directly again.
+// AG-UI 0.0.57's Zod v3 declarations resolve as unknown under Zod v4.
+// Remove these local schemas after ag-ui-protocol/ag-ui#1637 ships.
 
 const AgUiBaseMessageSchema = z.object({
   id: z.string(),
@@ -199,6 +196,38 @@ export const AgUiContextSchema = z.object({
   value: z.string(),
 });
 
+export const AgUiInterruptSchema = z.object({
+  id: z.string(),
+  reason: z.string(),
+  message: z.string().optional(),
+  toolCallId: z.string().optional(),
+  responseSchema: z.record(z.string(), z.unknown()).optional(),
+  expiresAt: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type AgUiInterrupt = z.infer<typeof AgUiInterruptSchema>;
+
+export const AgUiResumeEntrySchema = z.object({
+  interruptId: z.string(),
+  status: z.enum(["resolved", "cancelled"]),
+  payload: z.unknown().optional(),
+});
+
+export type AgUiResumeEntry = z.infer<typeof AgUiResumeEntrySchema>;
+
+export const AgUiRunFinishedOutcomeSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("success") }),
+  z.object({
+    type: z.literal("interrupt"),
+    interrupts: z.array(AgUiInterruptSchema).min(1),
+  }),
+]);
+
+export type AgUiRunFinishedOutcome = z.infer<
+  typeof AgUiRunFinishedOutcomeSchema
+>;
+
 export const AgUiRunAgentInputSchema = z.object({
   threadId: z.string(),
   runId: z.string(),
@@ -208,6 +237,7 @@ export const AgUiRunAgentInputSchema = z.object({
   tools: z.array(AgUiToolSchema),
   context: z.array(AgUiContextSchema),
   forwardedProps: z.unknown().optional(),
+  resume: z.array(AgUiResumeEntrySchema).optional(),
 });
 
 export type AgUiRunAgentInput = z.infer<typeof AgUiRunAgentInputSchema>;
@@ -235,6 +265,30 @@ export const InAppAgentToolApprovalRequestSchema = z.object({
 
 export type InAppAgentToolApprovalRequest = z.infer<
   typeof InAppAgentToolApprovalRequestSchema
+>;
+
+export const InAppAgentApprovalPayloadSchema = z
+  .object({
+    approved: z.boolean(),
+    approvalScope: z.enum(["once", "conversation"]).default("once"),
+  })
+  .refine((payload) => payload.approved || payload.approvalScope === "once", {
+    message: "A rejection cannot grant a tool",
+    path: ["approvalScope"],
+  });
+
+export type InAppAgentApprovalPayload = z.infer<
+  typeof InAppAgentApprovalPayloadSchema
+>;
+
+export const InAppAgentApprovalResumeEntrySchema = z.object({
+  interruptId: z.string().min(1),
+  status: z.literal("resolved"),
+  payload: InAppAgentApprovalPayloadSchema,
+});
+
+export type InAppAgentApprovalResumeEntry = z.infer<
+  typeof InAppAgentApprovalResumeEntrySchema
 >;
 
 export const ResumeForwardedPropsSchema = z.object({

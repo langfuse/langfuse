@@ -1,5 +1,8 @@
 import z from "zod";
-import { AgUiContextSchema } from "../../in-app-agent/schema";
+import {
+  AgUiContextSchema,
+  InAppAgentApprovalResumeEntrySchema,
+} from "../../in-app-agent/schema";
 
 /**
  * Lifecycle states of an in-app agent run (`in_app_agent_runs.status`).
@@ -74,6 +77,7 @@ export enum InAppAgentRunErrorCode {
 export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("userMessage"),
+    turnId: z.string().optional(),
     /** Sanitized AG-UI context items (current page, resolved view filters). */
     context: z.array(AgUiContextSchema),
   }),
@@ -84,6 +88,14 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     toolCallId: z.string(),
     approved: z.boolean(),
     /** Inherited sanitized context; defaults for legacy continuation rows. */
+    context: z.array(AgUiContextSchema).default([]),
+  }),
+  z.object({
+    kind: z.literal("approvalDecisionBatch"),
+    interruptedRunId: z.string(),
+    turnId: z.string(),
+    batchFingerprint: z.string(),
+    resume: z.array(InAppAgentApprovalResumeEntrySchema).min(1),
     context: z.array(AgUiContextSchema).default([]),
   }),
 ]);

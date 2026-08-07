@@ -4,6 +4,7 @@ import { z } from "zod";
 import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
 import type {
   AgUiMessage,
+  InAppAgentApprovalResumeEntry,
   InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
 import { AgUiMessageSchema } from "@langfuse/shared/in-app-agent";
@@ -25,6 +26,11 @@ export type ApprovalDecision = {
   approvalScope?: "once" | "conversation";
 };
 
+export type ApprovalDecisionBatch = {
+  runId: string;
+  resume: InAppAgentApprovalResumeEntry[];
+};
+
 export type BackgroundExecutionRunView = {
   id: string;
   status: InAppAgentRunStatus;
@@ -35,7 +41,13 @@ export type BackgroundExecutionRunView = {
 export type BackgroundExecutionApprovalView = {
   runId: string;
   approvalRequest: InAppAgentToolApprovalRequest;
-  status: "pending" | "submitting";
+  status: "queued" | "pending" | "reviewed" | "submitting" | "retry";
+  decision?: {
+    approved: boolean;
+    approvalScope: "once" | "conversation";
+  };
+  position?: number;
+  total?: number;
 };
 
 export type BackgroundExecutionAttachment =
@@ -65,6 +77,7 @@ export type BackgroundExecutionSession = {
   run(input: AgentInput): Promise<void>;
   cancel(): Promise<void>;
   decide(input: ApprovalDecision): Promise<void>;
+  retryApprovalBatch(): Promise<void>;
   detach(): void;
   dispose(): void;
   getSnapshot(): BackgroundExecutionView;
@@ -110,7 +123,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
   private readonly hydrate: () => Promise<BackgroundExecutionHydration>;
   private readonly cancelRun: (runId: string) => Promise<unknown>;
   private readonly decideApproval: (
-    input: ApprovalDecision,
+    input: ApprovalDecisionBatch,
   ) => Promise<unknown>;
   private readonly onSettled?: () => void;
   private readonly onHydratedSnapshot?: (
@@ -122,12 +135,13 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
   private view: BackgroundExecutionView;
   private attachGeneration = 0;
   private isReplacingMessages = false;
+  private submittedApprovals: BackgroundExecutionApprovalView[] = [];
 
   constructor(config: {
     agent: BackgroundExecutionAgent;
     hydrate: () => Promise<BackgroundExecutionHydration>;
     cancelRun: (runId: string) => Promise<unknown>;
-    decideApproval: (input: ApprovalDecision) => Promise<unknown>;
+    decideApproval: (input: ApprovalDecisionBatch) => Promise<unknown>;
     subscriber?: BackgroundExecutionAgentSubscriber;
     onSettled?: () => void;
     /**
@@ -157,6 +171,10 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       attachment: { status: "detached" },
       ...config.initialView,
     };
+    this.view.pendingToolApprovals = normalizeApprovalQueue(
+      this.view.pendingToolApprovals,
+      isApprovalReviewReady(this.view.currentRun),
+    );
     this.agent.setStatusListener?.((status) => {
       const currentRun = {
         id: status.runId,
@@ -169,6 +187,10 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       this.setView({
         ...this.view,
         currentRun,
+        pendingToolApprovals: normalizeApprovalQueue(
+          this.view.pendingToolApprovals,
+          isApprovalReviewReady(currentRun),
+        ),
         attachment: hasSettled ? { status: "detached" } : this.view.attachment,
       });
       if (hasSettled) {
@@ -312,15 +334,105 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
   }
 
   async decide(input: ApprovalDecision): Promise<void> {
+    const approvalIndex = this.view.pendingToolApprovals.findIndex(
+      (approval) =>
+        approval.runId === input.runId &&
+        approval.approvalRequest.toolCallId === input.toolCallId &&
+        approval.status === "pending",
+    );
+    if (approvalIndex < 0) {
+      return;
+    }
+
+    const approvalScope = input.approved
+      ? (input.approvalScope ?? "once")
+      : "once";
+    const selectedToolIdentity = getApprovalToolIdentity(
+      this.view.pendingToolApprovals[approvalIndex].approvalRequest.toolName,
+    );
+    const approvals = normalizeApprovalQueue(
+      this.view.pendingToolApprovals.map((approval, index) => {
+        const isSelected = index === approvalIndex;
+        const isMatchingUnreviewed =
+          approvalScope === "conversation" &&
+          index > approvalIndex &&
+          !approval.decision &&
+          getApprovalToolIdentity(approval.approvalRequest.toolName) ===
+            selectedToolIdentity;
+
+        return isSelected || isMatchingUnreviewed
+          ? {
+              ...approval,
+              status: "reviewed" as const,
+              decision: { approved: input.approved, approvalScope },
+            }
+          : approval;
+      }),
+    );
+    this.setView({ ...this.view, pendingToolApprovals: approvals });
+
+    if (approvals.some((approval) => !approval.decision)) {
+      return;
+    }
+    await this.submitApprovalBatch(approvals);
+  }
+
+  async retryApprovalBatch(): Promise<void> {
+    const approvals = this.view.pendingToolApprovals;
+    if (
+      !approvals.some((approval) => approval.status === "retry") ||
+      approvals.some((approval) => !approval.decision)
+    ) {
+      return;
+    }
+
+    await this.submitApprovalBatch(approvals);
+  }
+
+  private async submitApprovalBatch(
+    approvals: BackgroundExecutionApprovalView[],
+  ): Promise<void> {
+    const runId = approvals[0]?.runId;
+    if (!runId || approvals.some((approval) => approval.runId !== runId)) {
+      throw new Error("Approval batch contains multiple interrupted runs");
+    }
+
     const attachmentGeneration = this.attachGeneration;
-    this.setApprovalStatus(input.toolCallId, "submitting");
+    const submitting = approvals.map((approval) => ({
+      ...approval,
+      status: "submitting" as const,
+    }));
+    this.setView({ ...this.view, pendingToolApprovals: submitting });
+
     try {
-      await this.decideApproval(input);
+      await this.decideApproval({
+        runId,
+        resume: submitting.map((approval) => {
+          if (!approval.decision) {
+            throw new Error("Approval batch contains an undecided call");
+          }
+          return {
+            interruptId: `${approval.runId}::${approval.approvalRequest.toolCallId}`,
+            status: "resolved" as const,
+            payload: approval.decision,
+          };
+        }),
+      });
     } catch (error) {
-      this.setApprovalStatus(input.toolCallId, "pending");
+      this.setView({
+        ...this.view,
+        pendingToolApprovals: submitting.map((approval, index) => ({
+          ...approval,
+          status:
+            index === submitting.length - 1
+              ? ("retry" as const)
+              : ("reviewed" as const),
+        })),
+      });
       throw error;
     }
-    this.resolveApproval(input.toolCallId);
+
+    this.submittedApprovals = submitting;
     await this.refreshAttachmentAfterCommand(attachmentGeneration);
   }
 
@@ -386,29 +498,24 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     );
     this.setView({
       ...this.view,
-      pendingToolApprovals: [...pendingToolApprovals, approval],
-    });
-  }
-
-  private resolveApproval(toolCallId: string): void {
-    this.setView({
-      ...this.view,
-      pendingToolApprovals: this.view.pendingToolApprovals.filter(
-        (pending) => pending.approvalRequest.toolCallId !== toolCallId,
+      pendingToolApprovals: normalizeApprovalQueue(
+        [...pendingToolApprovals, approval],
+        isApprovalReviewReady(this.view.currentRun),
       ),
     });
   }
 
-  private setApprovalStatus(
-    toolCallId: string,
-    status: BackgroundExecutionApprovalView["status"],
-  ): void {
+  private resolveApproval(toolCallId: string): void {
+    this.submittedApprovals = this.submittedApprovals.filter(
+      (approval) => approval.approvalRequest.toolCallId !== toolCallId,
+    );
     this.setView({
       ...this.view,
-      pendingToolApprovals: this.view.pendingToolApprovals.map((pending) =>
-        pending.approvalRequest.toolCallId === toolCallId
-          ? { ...pending, status }
-          : pending,
+      pendingToolApprovals: normalizeApprovalQueue(
+        this.view.pendingToolApprovals.filter(
+          (pending) => pending.approvalRequest.toolCallId !== toolCallId,
+        ),
+        isApprovalReviewReady(this.view.currentRun),
       ),
     });
   }
@@ -474,8 +581,35 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       this.isReplacingMessages = false;
     }
     this.agent.setCursor(hydrated.eventCursor);
+    const completedToolCallIds = new Set(
+      hydrated.messages.flatMap((message) =>
+        message.role === "tool" && message.toolCallId
+          ? [message.toolCallId]
+          : [],
+      ),
+    );
+    this.submittedApprovals = this.submittedApprovals.filter(
+      (approval) =>
+        !completedToolCallIds.has(approval.approvalRequest.toolCallId),
+    );
+    const submittedToolCallIds = new Set(
+      this.submittedApprovals.map(
+        (approval) => approval.approvalRequest.toolCallId,
+      ),
+    );
+    const pendingToolApprovals = normalizeApprovalQueue(
+      [
+        ...this.submittedApprovals,
+        ...hydrated.pendingToolApprovals.filter(
+          (approval) =>
+            !submittedToolCallIds.has(approval.approvalRequest.toolCallId),
+        ),
+      ],
+      isApprovalReviewReady(hydrated.currentRun),
+    );
     this.setView({
       ...hydrated,
+      pendingToolApprovals,
       liveMessageRevision: this.view.liveMessageRevision,
       cancelStatus: "idle",
       attachment: { status: "detached" },
@@ -526,6 +660,38 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       listener();
     });
   }
+}
+
+function normalizeApprovalQueue(
+  approvals: BackgroundExecutionApprovalView[],
+  canReview = true,
+): BackgroundExecutionApprovalView[] {
+  const nextPendingIndex = approvals.findIndex(
+    (approval) => !approval.decision,
+  );
+
+  return approvals.map((approval, index) => ({
+    ...approval,
+    position: index + 1,
+    total: approvals.length,
+    status: approval.decision
+      ? approval.status === "submitting" || approval.status === "retry"
+        ? approval.status
+        : "reviewed"
+      : canReview && index === nextPendingIndex
+        ? "pending"
+        : "queued",
+  }));
+}
+
+function isApprovalReviewReady(
+  run: BackgroundExecutionRunView | null,
+): boolean {
+  return run?.status === InAppAgentRunStatus.AWAITING_APPROVAL;
+}
+
+function getApprovalToolIdentity(toolName: string): string {
+  return toolName.replace(/^(?:docs_|langfuseDocs_|langfuse_)/, "");
 }
 
 const MastraSuspendEventSchema = z.object({

@@ -175,7 +175,13 @@ type InAppAiAgentFeedbackByConversationId = Record<
 export type InAppAgentPendingToolApproval = {
   id: string;
   approvalRequest: InAppAgentToolApprovalRequest;
-  status: "pending" | "submitting";
+  status: "queued" | "pending" | "reviewed" | "submitting" | "retry";
+  decision?: {
+    approved: boolean;
+    approvalScope: "once" | "conversation";
+  };
+  position?: number;
+  total?: number;
   // Present for approvals restored from persisted background events.
   runId?: string;
 };
@@ -228,6 +234,7 @@ type InAppAiAgentContextType = {
   approveToolCall: (approvalId: string) => Promise<void>;
   alwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
+  retryToolApprovals?: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
     messageId: string;
     runId: string;
@@ -463,11 +470,21 @@ function InAppAiAgentProviderInner({
     }
 
     return backgroundExecutionView.pendingToolApprovals.map(
-      ({ runId, approvalRequest, status }): InAppAgentPendingToolApproval => ({
+      ({
+        runId,
+        approvalRequest,
+        status,
+        decision,
+        position,
+        total,
+      }): InAppAgentPendingToolApproval => ({
         id: approvalRequest.toolCallId,
         approvalRequest,
         status,
         runId,
+        decision,
+        position,
+        total,
       }),
     );
   }, [
@@ -1041,6 +1058,15 @@ function InAppAiAgentProviderInner({
             ),
             eventCursor: initialCursor,
             currentRun: initialRun,
+            pendingToolApprovals:
+              conversationQuery.data?.conversation.id === conversationId
+                ? conversationQuery.data.pendingToolApprovals.map(
+                    (approval) => ({
+                      ...approval,
+                      status: "pending" as const,
+                    }),
+                  )
+                : [],
           },
           hydrate: async () => {
             const snapshot = await utils.inAppAgent.getConversation.fetch({
@@ -1081,9 +1107,7 @@ function InAppAiAgentProviderInner({
               projectId,
               conversationId,
               runId: input.runId,
-              toolCallId: input.toolCallId,
-              approved: input.approved,
-              approvalScope: input.approvalScope,
+              resume: input.resume,
             }),
           onHydratedSnapshot: ({ messages }) => {
             performToolSideEffectsForCompletedToolCalls({
@@ -1733,19 +1757,17 @@ function InAppAiAgentProviderInner({
       }
 
       if (backgroundExecutionEnabled) {
-        const decisionAccepted = await decideBackgroundToolApproval({
+        capture("in_app_agent:tool_approval_decided", {
+          isApproved: approved,
+          toolName: approval.approvalRequest.toolName,
+          approvalScope,
+        });
+        await decideBackgroundToolApproval({
           approval,
           approved,
           approvalScope,
           conversationId: selectedConversationId,
         });
-        if (decisionAccepted) {
-          capture("in_app_agent:tool_approval_decided", {
-            isApproved: approved,
-            toolName: approval.approvalRequest.toolName,
-            approvalScope,
-          });
-        }
         return;
       }
 
@@ -1883,6 +1905,27 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
+  const retryToolApprovals = useMemo(
+    () =>
+      backgroundExecutionEnabled
+        ? async (approvalId: string) => {
+            const approval = effectivePendingToolApprovals.find(
+              (candidate) => candidate.id === approvalId,
+            );
+            if (approval?.status !== "retry") {
+              return;
+            }
+
+            try {
+              await backgroundSessionRef.current?.retryApprovalBatch();
+            } catch (error) {
+              setError(getInAppAgentError(error));
+            }
+          }
+        : undefined,
+    [backgroundExecutionEnabled, effectivePendingToolApprovals],
+  );
+
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
       isAvailable: true,
@@ -1914,6 +1957,7 @@ function InAppAiAgentProviderInner({
       approveToolCall,
       alwaysAllowToolCall,
       rejectToolCall,
+      retryToolApprovals,
       submitFeedback,
     }),
     [
@@ -1938,6 +1982,7 @@ function InAppAiAgentProviderInner({
       execution,
       effectivePendingToolApprovals,
       rejectToolCall,
+      retryToolApprovals,
       setAgentOpen,
       invalidateConversations,
       selectConversation,
