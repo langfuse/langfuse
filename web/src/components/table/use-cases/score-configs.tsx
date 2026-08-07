@@ -17,7 +17,7 @@ import {
   isCategoricalDataType,
   isNumericDataType,
 } from "@/src/features/scores/lib/helpers";
-import { Edit, MoreVertical } from "lucide-react";
+import { Archive, Edit, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
@@ -28,7 +28,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { ArchiveScoreConfigButton } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
+import { ArchiveScoreConfigPopoverController } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
 import { UpsertScoreConfigDialog } from "@/src/features/score-configs/components/UpsertScoreConfigDialog";
 
 type ScoreConfigTableRow = {
@@ -181,31 +181,42 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         const { id: configId, isArchived, name } = row.original;
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                key={configId}
-                aria-label="edit"
-                onClick={() => setEditConfigId(configId)}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild key="archive">
-                <ArchiveScoreConfigButton
-                  configId={configId}
-                  projectId={projectId}
-                  isArchived={isArchived}
-                  name={name}
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ArchiveScoreConfigPopoverController
+            configId={configId}
+            projectId={projectId}
+            isArchived={isArchived}
+            name={name}
+          >
+            {({ disabled, Trigger }) => (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    key={configId}
+                    aria-label="edit"
+                    onClick={() => setEditConfigId(configId)}
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
+                  </DropdownMenuItem>
+                  <Trigger asChild>
+                    <DropdownMenuItem
+                      key="archive"
+                      disabled={disabled !== undefined}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <Archive className="mr-2 h-4 w-4" />
+                      Archive
+                    </DropdownMenuItem>
+                  </Trigger>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </ArchiveScoreConfigPopoverController>
         );
       },
     },
