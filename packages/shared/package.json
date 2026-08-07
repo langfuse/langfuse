@@ -82,6 +82,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:docker-smoke": "tsc --noCheck",
     "build:check": "tsc",
     "typecheck": "dotenv -e ../../.env -- tsc --noEmit --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "tsc --watch",

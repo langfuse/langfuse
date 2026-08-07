@@ -127,7 +127,8 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
 
-RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
+ARG TURBO_BUILD_TASK=build
+RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run "${TURBO_BUILD_TASK}" --filter=web...
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner

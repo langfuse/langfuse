@@ -54,7 +54,8 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
-RUN turbo run build --filter=worker...
+ARG TURBO_BUILD_TASK=build
+RUN turbo run "${TURBO_BUILD_TASK}" --filter=worker...
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 

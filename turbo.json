@@ -18,6 +18,11 @@
       "cache": true,
       "outputLogs": "errors-only"
     },
+    "build:docker-smoke": {
+      "dependsOn": ["db:generate", "^build:docker-smoke"],
+      "cache": false,
+      "outputLogs": "errors-only"
+    },
     "start": {
       "dependsOn": ["^start"]
     },
