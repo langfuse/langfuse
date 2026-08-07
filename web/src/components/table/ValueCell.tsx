@@ -9,10 +9,8 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenuController,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -275,11 +273,7 @@ function ValueCellActionsMenuContent({
   const excludeFilterText = `metadata.${metadataKey} ${excludeOperator} ${displayValue}`;
 
   return (
-    <DropdownMenuContent
-      align="end"
-      className="max-w-[320px]"
-      onClick={(e) => e.stopPropagation()}
-    >
+    <>
       <DropdownMenuItem className="text-xs" onSelect={handleCopyData}>
         <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
         {hasChildren ? "Copy structure" : "Copy value"}
@@ -323,7 +317,7 @@ function ValueCellActionsMenuContent({
           </DropdownMenuItem>
         </>
       )}
-    </DropdownMenuContent>
+    </>
   );
 }
 
@@ -490,14 +484,20 @@ export const ValueCell = memo(
             (copy + filter shortcuts) in metadata views. */}
         {metadataActions ? (
           <DropdownMenuController
-            renderMenu={() => (
-              <ValueCellActionsMenuContent
-                row={row}
-                metadataActions={metadataActions}
-              />
+            renderMenu={({ DropdownMenuContent }) => (
+              <DropdownMenuContent
+                align="end"
+                className="max-w-[320px]"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <ValueCellActionsMenuContent
+                  row={row}
+                  metadataActions={metadataActions}
+                />
+              </DropdownMenuContent>
             )}
           >
-            {({ isOpen }) => (
+            {({ isOpen, DropdownMenuTrigger }) => (
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"

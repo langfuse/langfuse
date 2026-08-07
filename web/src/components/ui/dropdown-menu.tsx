@@ -20,23 +20,6 @@ import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
-const DropdownMenuController = ({
-  children,
-  renderMenu,
-}: {
-  children: (control: { isOpen: boolean }) => React.ReactNode;
-  renderMenu: () => React.ReactNode;
-}) => {
-  const [isOpen, setIsOpen] = React.useState(false);
-
-  return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      {children({ isOpen })}
-      {renderMenu()}
-    </DropdownMenu>
-  );
-};
-
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group;
@@ -268,6 +251,32 @@ const DropdownMenuContent = React.forwardRef<
   },
 );
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
+
+/**
+ * Owns dropdown open state while callers retain trigger and menu presentation.
+ * Use the supplied primitives in each render prop to preserve Radix behavior.
+ */
+const DropdownMenuController = ({
+  children,
+  renderMenu,
+}: {
+  children: (control: {
+    isOpen: boolean;
+    DropdownMenuTrigger: typeof DropdownMenuTrigger;
+  }) => React.ReactNode;
+  renderMenu: (control: {
+    DropdownMenuContent: typeof DropdownMenuContent;
+  }) => React.ReactNode;
+}) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  return (
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      {children({ isOpen, DropdownMenuTrigger })}
+      {renderMenu({ DropdownMenuContent })}
+    </DropdownMenu>
+  );
+};
 
 /**
  * Prefer `DropdownMenuItemWithSecondaryAction` for items that do not require JSX content.
