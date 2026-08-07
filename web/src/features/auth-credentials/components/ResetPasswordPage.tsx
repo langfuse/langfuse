@@ -26,11 +26,12 @@ import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+import { emailSchema } from "@/src/features/auth/lib/emailSchema";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 const resetPasswordSchema = z
   .object({
-    email: z.email(),
+    email: emailSchema,
     password: passwordSchema,
     confirmPassword: passwordSchema,
   })
@@ -169,6 +170,7 @@ export function ResetPasswordPage({
                       <FormControl>
                         <div className="relative">
                           <Input
+                            type="email"
                             placeholder="jsdoe@example.com"
                             disabled={session.status === "authenticated"}
                             allowPasswordManager

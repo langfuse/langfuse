@@ -1,4 +1,5 @@
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { normalizeEmail } from "@/src/features/auth/lib/emailSchema";
 import { prisma } from "@langfuse/shared/src/db";
 import { compare, hash } from "bcryptjs";
 
@@ -23,11 +24,15 @@ export async function createUserEmailPassword(
   if (!isValidPassword(password))
     throw new Error("Password needs to be at least 8 characters long.");
 
+  // Normalize once so the duplicate check and the write agree, and so a stray
+  // trailing space never gets persisted as part of the address (#15780).
+  const normalizedEmail = normalizeEmail(email);
+
   const hashedPassword = await hashPassword(password);
   // check that no user exists with this email
   const user = await prisma.user.findUnique({
     where: {
-      email: email.toLowerCase(),
+      email: normalizedEmail,
     },
   });
   if (user !== null) {
@@ -40,7 +45,7 @@ export async function createUserEmailPassword(
 
   const newUser = await prisma.user.create({
     data: {
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       password: hashedPassword,
       name,
     },
