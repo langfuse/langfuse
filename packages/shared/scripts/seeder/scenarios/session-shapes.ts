@@ -38,15 +38,18 @@ import { countRows, sessionLink } from "./verify";
  *           renders as a chat.
  *  - agent  a coding/agent session: I/O on the root AGENT + TOOL children,
  *           NO GENERATION — the shape the old default rendered empty.
+ *  - tools  OpenAI ChatML generations with available tool definitions,
+ *           assistant tool calls, tool-result messages, and matching TOOL
+ *           observations.
  *  - mixed  alternating chat/agent turns.
  *
  * Each shape is written as its own session (id `<prefix>-<shape>`) so a single
  * `--shape all` run hands back one session link per shape.
  */
 
-type Shape = "chat" | "agent" | "mixed";
+type Shape = "chat" | "agent" | "tools" | "mixed";
 
-const SHAPES: readonly Shape[] = ["chat", "agent", "mixed"];
+const SHAPES: readonly Shape[] = ["chat", "agent", "tools", "mixed"];
 
 const CHAT_TURNS: ReadonlyArray<{ user: string; assistant: string }> = [
   {
@@ -118,6 +121,55 @@ const CODING_TASKS: ReadonlyArray<{
       "Added a `--dry-run` flag: when present, the export script logs the file count it would write and exits before touching disk. Verified it prints the plan and writes nothing.",
   },
 ];
+
+const TOOL_DEFINITIONS = [
+  {
+    type: "function",
+    function: {
+      name: "lookup_order",
+      description: "Look up the current status and details of an order.",
+      parameters: {
+        type: "object",
+        properties: {
+          order_id: { type: "string", description: "The order identifier." },
+        },
+        required: ["order_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "issue_refund",
+      description: "Issue a refund for a damaged or missing order.",
+      parameters: {
+        type: "object",
+        properties: {
+          order_id: { type: "string" },
+          reason: { type: "string" },
+        },
+        required: ["order_id", "reason"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_shipping_address",
+      description: "Update the saved shipping address for future orders.",
+      parameters: {
+        type: "object",
+        properties: {
+          address: { type: "string" },
+        },
+        required: ["address"],
+        additionalProperties: false,
+      },
+    },
+  },
+] as const;
 
 const buildChatMessages = (turnIdx: number): string => {
   const messages: Array<{ role: string; content: string }> = [
@@ -434,6 +486,269 @@ const buildAgentTrace = (
   return { trace, observations };
 };
 
+/**
+ * Builds an OpenAI ChatML tool loop. Each generation receives the available
+ * tool definitions, emits or consumes canonical ChatML tool messages, and has
+ * a matching TOOL observation in the trace tree.
+ */
+const buildToolsTrace = (
+  ctx: ScenarioContext,
+  rng: Rng,
+  sessionId: string,
+  traceId: string,
+  turnIdx: number,
+  timestamp: number,
+): {
+  trace: TraceRecordInsertType;
+  observations: ObservationRecordInsertType[];
+} => {
+  const orderId = String(4821 + turnIdx);
+  const userMessage = `Order #${orderId} arrived damaged. Please check it and issue a refund.`;
+  const finalAnswer = `Order #${orderId} was damaged in transit. Refund RF-${orderId} has been issued to the original payment method.`;
+  const lookupCallId = `call-${traceId}-lookup`;
+  const refundCallId = `call-${traceId}-refund`;
+  const lookupArgs = { order_id: orderId };
+  const lookupResult = {
+    order_id: orderId,
+    status: "delivered",
+    damage_reported: true,
+    amount: 89.5,
+    currency: "USD",
+  };
+  const refundArgs = {
+    order_id: orderId,
+    reason: "damaged_in_transit",
+  };
+  const refundResult = {
+    refund_id: `RF-${orderId}`,
+    status: "succeeded",
+    amount: 89.5,
+    currency: "USD",
+  };
+  const systemMessage = {
+    role: "system",
+    content:
+      "You are a support agent. Verify the order before issuing a refund.",
+  };
+  const user = { role: "user", content: userMessage };
+  const lookupAssistant = {
+    role: "assistant",
+    content: null,
+    tool_calls: [
+      {
+        id: lookupCallId,
+        type: "function",
+        function: {
+          name: "lookup_order",
+          arguments: JSON.stringify(lookupArgs),
+        },
+      },
+    ],
+  };
+  const lookupToolResult = {
+    role: "tool",
+    name: "lookup_order",
+    tool_call_id: lookupCallId,
+    content: JSON.stringify(lookupResult),
+  };
+  const refundAssistant = {
+    role: "assistant",
+    content: null,
+    tool_calls: [
+      {
+        id: refundCallId,
+        type: "function",
+        function: {
+          name: "issue_refund",
+          arguments: JSON.stringify(refundArgs),
+        },
+      },
+    ],
+  };
+  const refundToolResult = {
+    role: "tool",
+    name: "issue_refund",
+    tool_call_id: refundCallId,
+    content: JSON.stringify(refundResult),
+  };
+
+  const trace = createTrace({
+    id: traceId,
+    project_id: ctx.projectId,
+    environment: ctx.environment,
+    session_id: sessionId,
+    timestamp,
+    name: "support-tool-loop",
+    user_id: `user-${ctx.idPrefix}`,
+    release: "v2.0.0",
+    version: "v2.0.0",
+    tags: ["seed", "session-shapes", "tools", "chatml"],
+    public: false,
+    bookmarked: false,
+    metadata: {
+      scenario: "session-shapes",
+      shape: "tools",
+      turn: String(turnIdx),
+    },
+    input: userMessage,
+    output: finalAnswer,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    event_ts: Date.now(),
+  });
+
+  const base = timestamp + jitter(ctx.seed, turnIdx * 17, 60);
+  const starts = Array.from(
+    { length: 6 },
+    (_, slot) => base + slot * 500 + jitter(ctx.seed, turnIdx * 17 + slot, 80),
+  );
+  const generationInput = (messages: unknown[]) =>
+    JSON.stringify({ messages, tools: TOOL_DEFINITIONS });
+  const generationOutput = (message: unknown) => JSON.stringify(message);
+  const createToolLoopObservation = ({
+    slot,
+    type,
+    name,
+    input,
+    output,
+    toolCallId,
+  }: {
+    slot: number;
+    type: "AGENT" | "GENERATION" | "TOOL";
+    name: string;
+    input: string | null;
+    output: string | null;
+    toolCallId?: string;
+  }) => {
+    const isGeneration = type === "GENERATION";
+    const inputTokens = isGeneration ? 240 + slot * 80 : 0;
+    const outputTokens = isGeneration ? 45 + slot * 10 : 0;
+    const totalCost = isGeneration
+      ? microPrice(inputTokens, 2e-6) + microPrice(outputTokens, 6e-6)
+      : null;
+
+    return createObservation({
+      id: `${traceId}-o${slot}`,
+      trace_id: traceId,
+      project_id: ctx.projectId,
+      environment: ctx.environment,
+      type,
+      parent_observation_id: slot === 0 ? null : `${traceId}-o0`,
+      name,
+      start_time: starts[slot],
+      end_time:
+        slot === 0
+          ? starts[starts.length - 1] + 500
+          : starts[slot] + rng.int(80, 420),
+      completion_start_time: isGeneration ? starts[slot] + 60 : null,
+      level: "DEFAULT",
+      status_message: null,
+      version: null,
+      input,
+      output,
+      metadata: {
+        scenario: "session-shapes",
+        shape: "tools",
+        ...(toolCallId ? { tool_call_id: toolCallId } : {}),
+      },
+      provided_model_name: isGeneration ? "gpt-4o" : null,
+      internal_model_id: null,
+      model_parameters: isGeneration
+        ? JSON.stringify({ temperature: 0.2 })
+        : "{}",
+      provided_usage_details: isGeneration
+        ? {
+            input: inputTokens,
+            output: outputTokens,
+            total: inputTokens + outputTokens,
+          }
+        : {},
+      usage_details: isGeneration
+        ? {
+            input: inputTokens,
+            output: outputTokens,
+            total: inputTokens + outputTokens,
+          }
+        : {},
+      provided_cost_details: isGeneration
+        ? {
+            input: microPrice(inputTokens, 2e-6),
+            output: microPrice(outputTokens, 6e-6),
+          }
+        : {},
+      cost_details: totalCost === null ? {} : { total: totalCost },
+      total_cost: totalCost,
+      prompt_id: null,
+      prompt_name: null,
+      prompt_version: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      event_ts: Date.now(),
+    });
+  };
+
+  const observations = [
+    createToolLoopObservation({
+      slot: 0,
+      type: "AGENT",
+      name: "support-tool-loop",
+      input: null,
+      output: null,
+    }),
+    createToolLoopObservation({
+      slot: 1,
+      type: "GENERATION",
+      name: "select-lookup-tool",
+      input: generationInput([systemMessage, user]),
+      output: generationOutput(lookupAssistant),
+    }),
+    createToolLoopObservation({
+      slot: 2,
+      type: "TOOL",
+      name: "lookup_order",
+      input: JSON.stringify(lookupArgs),
+      output: JSON.stringify(lookupResult),
+      toolCallId: lookupCallId,
+    }),
+    createToolLoopObservation({
+      slot: 3,
+      type: "GENERATION",
+      name: "select-refund-tool",
+      input: generationInput([
+        systemMessage,
+        user,
+        lookupAssistant,
+        lookupToolResult,
+      ]),
+      output: generationOutput(refundAssistant),
+    }),
+    createToolLoopObservation({
+      slot: 4,
+      type: "TOOL",
+      name: "issue_refund",
+      input: JSON.stringify(refundArgs),
+      output: JSON.stringify(refundResult),
+      toolCallId: refundCallId,
+    }),
+    createToolLoopObservation({
+      slot: 5,
+      type: "GENERATION",
+      name: "compose-refund-answer",
+      input: generationInput([
+        systemMessage,
+        user,
+        lookupAssistant,
+        lookupToolResult,
+        refundAssistant,
+        refundToolResult,
+      ]),
+      output: generationOutput({ role: "assistant", content: finalAnswer }),
+    }),
+  ];
+
+  return { trace, observations };
+};
+
 const buildSession = (
   ctx: ScenarioContext,
   rng: Rng,
@@ -447,7 +762,7 @@ const buildSession = (
 } => {
   const sessionId = `${ctx.idPrefix}-${shape}`;
   // Anchor each session in a recent, distinct hour so UI time windows show
-  // them and the three sessions don't overlap their timestamps.
+  // them and the shape sessions don't overlap their timestamps.
   const shapeOffsetMin = (SHAPES.indexOf(shape) + 1) * 90;
   const sessionStart = utcDayStartMs() - shapeOffsetMin * 60 * 1000;
   const stepMs = (45 * 60 * 1000) / Math.max(turns, 1);
@@ -467,7 +782,9 @@ const buildSession = (
     const built =
       turnShape === "chat"
         ? buildChatTrace(ctx, rng, sessionId, traceId, t, timestamp)
-        : buildAgentTrace(ctx, rng, sessionId, traceId, t, timestamp);
+        : turnShape === "tools"
+          ? buildToolsTrace(ctx, rng, sessionId, traceId, t, timestamp)
+          : buildAgentTrace(ctx, rng, sessionId, traceId, t, timestamp);
 
     traces.push(built.trace);
     observations.push(...built.observations);
@@ -665,14 +982,14 @@ const run = async (
 export const sessionShapesScenario: ScenarioDefinition = {
   name: "session-shapes",
   description:
-    "Diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION (the default 'first generation' preset yields empty cards — LFE-10520), and a MIXED session. Creates the Postgres trace_sessions rows.",
+    "Diverse v4 session shapes for the session-detail view: CHAT, coding AGENT/TOOL without GENERATION, OpenAI ChatML generations with available/called tools plus matching TOOL observations, and MIXED. Creates the Postgres trace_sessions rows.",
   supportsV4: true,
   flags: [
     {
       flag: "shape",
       type: "string",
       default: "all",
-      description: "session shape: chat | agent | mixed | all",
+      description: "session shape: chat | agent | tools | mixed | all",
     },
     {
       flag: "turns",
