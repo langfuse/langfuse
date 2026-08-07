@@ -612,74 +612,22 @@ export function MarkdownView({
             </>
           )
         ) : (
-          // content parts (multi-modal); collapsed = preview of the joined text
+          // content parts (multi-modal); collapsing hides long TEXT only —
+          // attachments are not text, so media parts render either way. That
+          // also keeps the shared media strip's dedup honest: it assumes any
+          // inline-renderable media did render (LFE-14815).
           <>
             {isCollapsed ? (
-              <MarkdownRenderer markdown={truncatedContent} theme={theme} />
+              <>
+                <MarkdownRenderer markdown={truncatedContent} theme={theme} />
+                {(markdown ?? []).map((content, index) =>
+                  isOpenAITextContentPart(content)
+                    ? null
+                    : renderContentPart(content, index),
+                )}
+              </>
             ) : (
-              (markdown ?? []).map((content, index) => {
-                // A bare reference string is a whole part (LFE-9577).
-                if (isMediaReferencePart(content)) {
-                  return (
-                    <LangfuseMediaView
-                      key={index}
-                      mediaReferenceString={content}
-                    />
-                  );
-                }
-
-                if (isOpenAITextContentPart(content)) {
-                  return (
-                    <MarkdownRenderer
-                      key={index}
-                      markdown={content.text}
-                      theme={theme}
-                    />
-                  );
-                }
-
-                if (isOpenAIImageContentPart(content)) {
-                  const imageUrl = content.image_url.url;
-                  const safeImageUrl =
-                    typeof imageUrl === "string" &&
-                    OpenAIUrlImageUrl.safeParse(imageUrl).success
-                      ? getSafeImageUrl(imageUrl)
-                      : null;
-
-                  return safeImageUrl ? (
-                    <div key={index}>
-                      <ResizableImage src={safeImageUrl} />
-                    </div>
-                  ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
-                    <LangfuseMediaView
-                      key={index}
-                      mediaReferenceString={imageUrl}
-                    />
-                  ) : (
-                    <div
-                      key={index}
-                      className="grid grid-cols-[auto_1fr] items-center gap-2"
-                    >
-                      <span title="<Base64 data URI>" className="h-4 w-4">
-                        <ImageOff className="h-4 w-4" />
-                      </span>
-                      <span
-                        className="truncate text-sm"
-                        title={imageUrl.toString()}
-                      >
-                        {imageUrl.toString()}
-                      </span>
-                    </div>
-                  );
-                }
-
-                return content.type === "input_audio" ? (
-                  <LangfuseMediaView
-                    key={index}
-                    mediaReferenceString={content.input_audio.data}
-                  />
-                ) : null;
-              })
+              (markdown ?? []).map(renderContentPart)
             )}
             {collapseToggle}
           </>
@@ -714,4 +662,56 @@ export function MarkdownView({
       )}
     </div>
   );
+
+  function renderContentPart(
+    content: NonNullable<z.input<typeof OpenAIContentParts>>[number],
+    index: number,
+  ) {
+    // A bare reference string is a whole part (LFE-9577).
+    if (isMediaReferencePart(content)) {
+      return <LangfuseMediaView key={index} mediaReferenceString={content} />;
+    }
+
+    if (isOpenAITextContentPart(content)) {
+      return (
+        <MarkdownRenderer key={index} markdown={content.text} theme={theme} />
+      );
+    }
+
+    if (isOpenAIImageContentPart(content)) {
+      const imageUrl = content.image_url.url;
+      const safeImageUrl =
+        typeof imageUrl === "string" &&
+        OpenAIUrlImageUrl.safeParse(imageUrl).success
+          ? getSafeImageUrl(imageUrl)
+          : null;
+
+      return safeImageUrl ? (
+        <div key={index}>
+          <ResizableImage src={safeImageUrl} />
+        </div>
+      ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
+        <LangfuseMediaView key={index} mediaReferenceString={imageUrl} />
+      ) : (
+        <div
+          key={index}
+          className="grid grid-cols-[auto_1fr] items-center gap-2"
+        >
+          <span title="<Base64 data URI>" className="h-4 w-4">
+            <ImageOff className="h-4 w-4" />
+          </span>
+          <span className="truncate text-sm" title={imageUrl.toString()}>
+            {imageUrl.toString()}
+          </span>
+        </div>
+      );
+    }
+
+    return content.type === "input_audio" ? (
+      <LangfuseMediaView
+        key={index}
+        mediaReferenceString={content.input_audio.data}
+      />
+    ) : null;
+  }
 }
