@@ -4727,6 +4727,83 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
+    it("should ignore out-of-range OTEL message indices without dropping valid messages", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.prompt.0.content",
+                    value: { stringValue: "valid message" },
+                  },
+                  {
+                    key: "gen_ai.prompt.10001.content",
+                    value: { stringValue: "unsafe message" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toEqual([{ content: "valid message" }]);
+    });
+
+    it("should ignore out-of-range nested OTEL indices", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "llm.input_messages.0.message.10001.content",
+                    value: { stringValue: "unsafe content" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.role",
+                    value: { stringValue: "user" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+      const input = observation?.body.input as Array<{
+        message: Record<string, unknown>;
+      }>;
+
+      expect(input).toHaveLength(1);
+      expect(Array.isArray(input[0].message)).toBe(false);
+      expect(input[0].message).toEqual({ role: "user" });
+    });
+
     // GenAI semantic conventions v1.37+ record prompts/completions on a
     // gen_ai.client.inference.operation.details span event (e.g. Hindsight)
     it("should extract input/output from gen_ai.client.inference.operation.details span event", async () => {

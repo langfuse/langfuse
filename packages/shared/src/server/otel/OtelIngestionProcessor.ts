@@ -197,6 +197,9 @@ export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
 
+  // Limits sparse JSON expansion to roughly 50 KB per reconstructed array.
+  private static readonly MAX_OTEL_ARRAY_INDEX = 10_000;
+
   private static readonly METADATA_DROP_WARN_CAP = 10;
 
   private seenTraces: Set<string> = new Set();
@@ -1480,7 +1483,25 @@ export class OtelIngestionProcessor {
       return input[prefix];
     }
 
-    const keys = Object.keys(input).map((key) => key.replace(`${prefix}.`, ""));
+    const isSafeArrayIndex = (segment: string): boolean => {
+      const index = Number(segment);
+      return (
+        /^\d+$/.test(segment) &&
+        Number.isSafeInteger(index) &&
+        index <= OtelIngestionProcessor.MAX_OTEL_ARRAY_INDEX
+      );
+    };
+
+    // Drop unsafe numeric segments before constructing nested arrays.
+    const keys = Object.keys(input)
+      .map((key) => key.replace(`${prefix}.`, ""))
+      .filter((key) =>
+        key
+          .split(".")
+          .every(
+            (segment) => !/^\d+$/.test(segment) || isSafeArrayIndex(segment),
+          ),
+      );
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
     // Blocklist to prevent prototype pollution via crafted OTel attribute keys
@@ -1508,7 +1529,11 @@ export class OtelIngestionProcessor {
       const result: any[] = [];
       for (const key of keys) {
         const pathParts = key.split(".");
-        const index = parseInt(pathParts[0], 10);
+        const indexSegment = pathParts[0];
+        const index = Number(indexSegment);
+        if (!isSafeArrayIndex(indexSegment)) {
+          continue;
+        }
         if (!result[index]) {
           result[index] = Object.create(null);
         }
