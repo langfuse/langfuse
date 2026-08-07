@@ -257,23 +257,30 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
  * Use the supplied primitives in each render prop to preserve Radix behavior.
  */
 const DropdownMenuController = ({
+  align,
   children,
   renderMenu,
 }: {
+  align: React.ComponentProps<typeof DropdownMenuContent>["align"];
   children: (control: {
     isOpen: boolean;
-    DropdownMenuTrigger: typeof DropdownMenuTrigger;
+    Trigger: typeof DropdownMenuTrigger;
   }) => React.ReactNode;
   renderMenu: (control: {
-    DropdownMenuContent: typeof DropdownMenuContent;
+    Content: React.ComponentType<
+      React.ComponentPropsWithoutRef<typeof DropdownMenuContent>
+    >;
   }) => React.ReactNode;
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const Content = (
+    props: React.ComponentPropsWithoutRef<typeof DropdownMenuContent>,
+  ) => <DropdownMenuContent {...props} align={align} />;
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      {children({ isOpen, DropdownMenuTrigger })}
-      {renderMenu({ DropdownMenuContent })}
+      {children({ isOpen, Trigger: DropdownMenuTrigger })}
+      {renderMenu({ Content })}
     </DropdownMenu>
   );
 };

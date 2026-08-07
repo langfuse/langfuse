@@ -484,9 +484,9 @@ export const ValueCell = memo(
             (copy + filter shortcuts) in metadata views. */}
         {metadataActions ? (
           <DropdownMenuController
-            renderMenu={({ DropdownMenuContent }) => (
-              <DropdownMenuContent
-                align="end"
+            align="end"
+            renderMenu={({ Content }) => (
+              <Content
                 className="max-w-[320px]"
                 onClick={(event) => event.stopPropagation()}
               >
@@ -494,11 +494,11 @@ export const ValueCell = memo(
                   row={row}
                   metadataActions={metadataActions}
                 />
-              </DropdownMenuContent>
+              </Content>
             )}
           >
-            {({ isOpen, DropdownMenuTrigger }) => (
-              <DropdownMenuTrigger asChild>
+            {({ isOpen, Trigger }) => (
+              <Trigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -512,7 +512,7 @@ export const ValueCell = memo(
                 >
                   <EllipsisVertical className="h-3 w-3" />
                 </Button>
-              </DropdownMenuTrigger>
+              </Trigger>
             )}
           </DropdownMenuController>
         ) : (
