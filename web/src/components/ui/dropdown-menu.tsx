@@ -252,6 +252,26 @@ const DropdownMenuContent = React.forwardRef<
 );
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
+type DropdownMenuControllerContentProps = Omit<
+  React.ComponentPropsWithoutRef<typeof DropdownMenuContent>,
+  "align"
+>;
+
+const DropdownMenuControllerAlignContext =
+  React.createContext<
+    React.ComponentProps<typeof DropdownMenuContent>["align"]
+  >(undefined);
+
+const DropdownMenuControllerContent = React.forwardRef<
+  React.ComponentRef<typeof DropdownMenuContent>,
+  DropdownMenuControllerContentProps
+>((props, ref) => {
+  const align = React.useContext(DropdownMenuControllerAlignContext);
+
+  return <DropdownMenuContent {...props} ref={ref} align={align} />;
+});
+DropdownMenuControllerContent.displayName = "DropdownMenuControllerContent";
+
 /**
  * Owns dropdown open state while callers retain trigger and menu presentation.
  * Use the supplied primitives in each render prop to preserve Radix behavior.
@@ -267,21 +287,18 @@ const DropdownMenuController = ({
     Trigger: typeof DropdownMenuTrigger;
   }) => React.ReactNode;
   renderMenu: (control: {
-    Content: React.ComponentType<
-      React.ComponentPropsWithoutRef<typeof DropdownMenuContent>
-    >;
+    Content: typeof DropdownMenuControllerContent;
   }) => React.ReactNode;
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
-  const Content = (
-    props: React.ComponentPropsWithoutRef<typeof DropdownMenuContent>,
-  ) => <DropdownMenuContent {...props} align={align} />;
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      {children({ isOpen, Trigger: DropdownMenuTrigger })}
-      {renderMenu({ Content })}
-    </DropdownMenu>
+    <DropdownMenuControllerAlignContext.Provider value={align}>
+      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+        {children({ isOpen, Trigger: DropdownMenuTrigger })}
+        {renderMenu({ Content: DropdownMenuControllerContent })}
+      </DropdownMenu>
+    </DropdownMenuControllerAlignContext.Provider>
   );
 };
 
