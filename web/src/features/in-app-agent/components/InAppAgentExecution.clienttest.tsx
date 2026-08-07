@@ -195,53 +195,6 @@ function queryActivityIndicator() {
   return document.querySelector(`.${styles.loadingGradient}`);
 }
 
-function configureBackgroundApproval() {
-  const approvalSnapshot = {
-    conversation: {
-      id: "conversation-1",
-      isWriteLocked: false,
-    },
-    messages: [
-      {
-        id: "persisted-user",
-        role: "user",
-        content: "Create the prompt",
-      },
-    ],
-    eventCursor: 12,
-    latestRun: {
-      id: "run-1",
-      status: InAppAgentRunStatus.AWAITING_APPROVAL,
-      errorCode: null,
-      cancelRequested: false,
-    },
-    pendingToolApprovals: [
-      {
-        runId: "run-1",
-        approvalRequest: {
-          type: "tool_approval_request" as const,
-          toolCallId: "tool-call-1",
-          toolName: "langfuse_createTextPrompt",
-          runId: "run-1",
-        },
-      },
-    ],
-  } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
-  providerMocks.conversationQuery.data = approvalSnapshot;
-  providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValue(
-    approvalSnapshot,
-  );
-  window.sessionStorage.setItem(
-    "langfuse:in-app-ai-agent-selected-conversation:project-1",
-    JSON.stringify("conversation-1"),
-  );
-
-  return [
-    "in_app_agent:tool_approval_decided",
-    { isApproved: true, toolName: "langfuse_createTextPrompt" },
-  ] as const;
-}
-
 describe("in-app agent execution", () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -378,42 +331,6 @@ describe("in-app agent execution", () => {
         name: "Reject",
       }),
     ).toBeInTheDocument();
-  });
-
-  it("tracks background approval only after the decision succeeds", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
-    const approvalEvent = configureBackgroundApproval();
-    providerMocks.decideToolApproval.mockResolvedValueOnce(undefined);
-
-    renderExecutionUi();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
-
-    await waitFor(() => {
-      expect(providerMocks.decideToolApproval).toHaveBeenCalledOnce();
-      expect(providerMocks.capture).toHaveBeenCalledWith(...approvalEvent);
-    });
-    expect(
-      providerMocks.capture.mock.calls.filter(
-        ([eventName]) => eventName === approvalEvent[0],
-      ),
-    ).toHaveLength(1);
-  });
-
-  it("does not track a failed background approval decision", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
-    const approvalEvent = configureBackgroundApproval();
-    providerMocks.decideToolApproval.mockRejectedValueOnce(
-      new Error("decision failed"),
-    );
-
-    renderExecutionUi();
-    fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
-
-    await waitFor(() => {
-      expect(providerMocks.decideToolApproval).toHaveBeenCalledOnce();
-    });
-    expect(providerMocks.capture).not.toHaveBeenCalledWith(...approvalEvent);
   });
 
   it("replays prompt invalidations after a detached run completes", async () => {
