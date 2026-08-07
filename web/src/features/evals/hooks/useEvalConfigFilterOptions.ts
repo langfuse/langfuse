@@ -1,3 +1,4 @@
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { api } from "@/src/utils/api";
 import {
   type ExperimentEvalOptions,
@@ -77,9 +78,11 @@ export function useEvalConfigFilterOptions({
           scores_avg: traceFilterOptionsResponse.data.scores_avg,
           score_categories: traceFilterOptionsResponse.data.score_categories,
           score_booleans: traceFilterOptionsResponse.data.score_booleans,
-          traceTags: traceFilterOptionsResponse.data.tags?.map((t) => ({
-            value: t.value,
-          })),
+          traceTags: sortOptionValues(
+            traceFilterOptionsResponse.data.tags?.map((t) => ({
+              value: t.value,
+            })),
+          ),
         }
       : {};
 
@@ -123,9 +126,11 @@ export function useEvalConfigFilterOptions({
       environment: environmentFilterOptionsResponse.data?.map((e) => ({
         value: e.environment,
       })),
-      tags: traceFilterOptionsResponse.data?.tags?.map((t) => ({
-        value: t.value,
-      })),
+      tags: sortOptionValues(
+        traceFilterOptionsResponse.data?.tags?.map((t) => ({
+          value: t.value,
+        })),
+      ),
       traceName: traceFilterOptionsResponse.data?.name?.map((n) => ({
         value: n.value,
       })),
