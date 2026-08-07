@@ -645,6 +645,13 @@ export const AutomationForm = ({
   const isProjectNotification =
     watchedEventSource === TriggerEventSource.ProjectNotification;
 
+  // A monitor-sourced trigger has nothing to configure, so with the source
+  // locked (e.g. created from the monitor form) the card is pure noise.
+  const hideTriggerCard =
+    isProjectNotification ||
+    (Boolean(lockedEventSource) &&
+      watchedEventSource === TriggerEventSource.Monitor);
+
   /** handleEventSourceChange resets eventAction + filter to defaults appropriate for the picked source. */
   const handleEventSourceChange = (value: TriggerEventSource) => {
     form.setValue("eventSource", value);
@@ -704,8 +711,7 @@ export const AutomationForm = ({
           </div>
         )}
 
-        {/* Project-notification triggers are match-all, so there is nothing to configure. */}
-        {!isProjectNotification && (
+        {!hideTriggerCard && (
           <Card>
             <CardHeader>
               <CardTitle>Trigger</CardTitle>
