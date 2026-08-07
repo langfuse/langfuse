@@ -702,7 +702,7 @@
   --bg-elevation-4: oklch(92.2% 0 0); /* neutral-200 */
   --border-default: oklch(92.2% 0 0); /* neutral-200 */
   --border-faint: oklch(97% 0 0); /* neutral-100 */
-  --text-primary: oklch(37.1% 0 0); /* neutral-700 */
+  --text-primary: oklch(55.6% 0 0); /* neutral-500 */
   --text-secondary: oklch(43.9% 0 0); /* neutral-600 */
   --text-tertiary: oklch(55.6% 0 0); /* neutral-500 */
   --text-contrast: oklch(14.5% 0 0); /* neutral-950 */
