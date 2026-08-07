@@ -3779,6 +3779,62 @@ describe("Clickhouse Events Repository Test", () => {
       expect(withToolCalls[0]?.toolCalls).toEqual([storedToolCall]);
       expect(withToolCalls[0]?.toolCallNames).toEqual(["get_weather"]);
     });
+
+    it("should serve ioCharLimit chars of I/O and metadata on an untruncated read", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+      const charLimit = 1_000;
+      const longInput = "i".repeat(3 * charLimit);
+      const longOutput = "o".repeat(3 * charLimit);
+      const longMetadataValue = "m".repeat(3 * charLimit);
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-io-char-limit",
+          input: longInput,
+          output: longOutput,
+          metadata_names: ["long"],
+          metadata_values: [longMetadataValue],
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const baseParams = {
+        projectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      // The default read serves events_core, whose I/O is stored pre-truncated
+      // well below what a taller table row can display (LFE-14586).
+      const truncated = await getObservationsBatchIOFromEventsTable(baseParams);
+      expect(truncated[0]?.input?.length).toBeLessThan(charLimit);
+
+      const capped = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        truncated: false,
+        ioCharLimit: charLimit,
+      });
+      expect(capped[0]?.input).toBe("i".repeat(charLimit));
+      expect(capped[0]?.output).toBe("o".repeat(charLimit));
+      expect(capped[0]?.metadata?.long).toBe("m".repeat(charLimit));
+
+      // Without a limit an untruncated read still returns everything.
+      const full = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        truncated: false,
+      });
+      expect(full[0]?.input).toBe(longInput);
+      expect(full[0]?.metadata?.long).toBe(longMetadataValue);
+    });
   });
 
   maybe("getLatestSdkVersionInfoFromEvents", () => {
