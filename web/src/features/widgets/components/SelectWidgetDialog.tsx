@@ -138,7 +138,7 @@ export function SelectWidgetDialog({
   // Suggestions obey the same view allowlist the widget editor uses for new
   // definitions, so v4 users are never offered a v3 trace-based widget.
   // Legacy trace widgets stay listed and editable under /widgets. (LFE-14444)
-  const { isBetaEnabled } = useV4Beta();
+  const { isBetaEnabled, isInitializing } = useV4Beta();
   const suggestedVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
   const allProjectWidgets = widgets.data?.widgets ?? [];
   const projectWidgets = allProjectWidgets.filter((widget) =>
@@ -146,6 +146,12 @@ export function SelectWidgetDialog({
   );
   const hiddenWidgetCount = allProjectWidgets.length - projectWidgets.length;
   const suggestedPresetIds = getSuggestedHomePresetIds(suggestedVersion);
+  // Replaces the generic empty state when it hid every widget, so the two can
+  // never contradict each other.
+  const hiddenWidgetsNote =
+    hiddenWidgetCount > 0
+      ? `${hiddenWidgetCount} trace-based widget${hiddenWidgetCount === 1 ? "" : "s"} hidden — the Traces view is not available for new charts. Manage them under Widgets.`
+      : null;
 
   const selectWidget = (widget: WidgetItem) => {
     capture("dashboard:widget_added", {
@@ -167,7 +173,9 @@ export function SelectWidgetDialog({
         </DialogHeader>
 
         <DialogBody>
-          {widgets.isPending ? (
+          {/* isInitializing: an unresolved session reads as v1, which would
+              briefly offer the unfiltered list to a v4 user. */}
+          {widgets.isPending || isInitializing ? (
             <div className="py-8 text-center">Loading widgets...</div>
           ) : widgets.isError ? (
             <div className="text-destructive py-8 text-center">
@@ -201,8 +209,12 @@ export function SelectWidgetDialog({
               </button>
 
               <Tabs
+                // Open on the project tab when it has something to say — a
+                // hidden-widget note included, so it is not missed.
                 defaultValue={
-                  projectWidgets.length > 0 ? "project" : "home-cards"
+                  projectWidgets.length > 0 || hiddenWidgetsNote
+                    ? "project"
+                    : "home-cards"
                 }
                 onValueChange={(tab) =>
                   capture("dashboard:add_widget_tab_switch", { tab })
@@ -220,28 +232,23 @@ export function SelectWidgetDialog({
                 </TabsList>
                 <TabsContent value="project">
                   <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
+                    {projectWidgets.map((widget) => (
+                      <WidgetRow
+                        key={widget.id}
+                        widget={widget as WidgetItem}
+                        onClick={() => selectWidget(widget as WidgetItem)}
+                      />
+                    ))}
                     {projectWidgets.length === 0 ? (
                       <div className="text-muted-foreground py-8 text-center text-sm">
-                        No saved widgets in this project yet — build one with
-                        Custom Chart.
+                        {hiddenWidgetsNote ??
+                          "No saved widgets in this project yet — build one with Custom Chart."}
                       </div>
-                    ) : (
-                      projectWidgets.map((widget) => (
-                        <WidgetRow
-                          key={widget.id}
-                          widget={widget as WidgetItem}
-                          onClick={() => selectWidget(widget as WidgetItem)}
-                        />
-                      ))
-                    )}
-                    {hiddenWidgetCount > 0 && (
+                    ) : hiddenWidgetsNote ? (
                       <div className="text-muted-foreground px-1 py-2 text-xs">
-                        {hiddenWidgetCount} trace-based widget
-                        {hiddenWidgetCount === 1 ? "" : "s"} hidden — the Traces
-                        view is not available for new charts. Manage them under
-                        Widgets.
+                        {hiddenWidgetsNote}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </TabsContent>
                 {onSelectPreset && (
