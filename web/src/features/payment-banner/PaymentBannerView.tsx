@@ -52,7 +52,7 @@ export function PaymentBannerView({
       aria-live="polite"
     >
       <AlertCircle className="h-4 w-4 shrink-0" />
-      <p className="min-w-0 flex-1 text-sm break-words">
+      <p className="min-w-0 flex-1 text-sm wrap-break-word">
         <span className="font-bold">Billing Issue:</span>{" "}
         {`We have problems collecting subscription payment for your organization '${organizationName}'. Please update your payment information to continue using Langfuse.`}
       </p>
