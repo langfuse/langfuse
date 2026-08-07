@@ -756,6 +756,27 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 
+  it("rejects when the discovery doc points a server-fetched endpoint at an internal address", async () => {
+    const { org, caller } = await prepare();
+    const domain = `discovery-internal-endpoint-${uuidv4().slice(0, 8)}.com`;
+    await addVerifiedDomain(org.id, domain);
+    fetchMock.mockResolvedValueOnce(
+      discoveryResponse({
+        issuer: "https://example.com",
+        authorization_endpoint: "https://example.com/authorize",
+        token_endpoint: "https://169.254.169.254/oauth/token",
+        jwks_uri: "https://example.com/.well-known/jwks.json",
+      }),
+    );
+
+    await expect(
+      caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+    expect(row).toBeNull();
+  });
+
   it("rejects when the returned issuer does not match the configured one", async () => {
     const { org, caller } = await prepare();
     const domain = `discovery-mismatch-${uuidv4().slice(0, 8)}.com`;
