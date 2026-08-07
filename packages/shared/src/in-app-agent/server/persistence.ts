@@ -317,7 +317,7 @@ export async function appendRunEvents(params: {
   };
 }): Promise<boolean> {
   return params.prisma.$transaction(async (tx) => {
-    await lockConversation(tx, params.projectId, params.conversationId);
+    await lockConversationRow(tx, params.projectId, params.conversationId);
 
     if (params.finish) {
       const finished = await tx.inAppAgentRun.updateMany({
@@ -1429,6 +1429,18 @@ export async function lockConversation(
   projectId: string,
   conversationId: string,
 ) {
+  const conversation = await lockConversationRow(tx, projectId, conversationId);
+
+  if (conversation.deletedAt) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
+}
+
+async function lockConversationRow(
+  tx: InAppAgentTx,
+  projectId: string,
+  conversationId: string,
+) {
   const conversations = await tx.$queryRaw<Array<{ deletedAt: Date | null }>>`
     SELECT "deleted_at" AS "deletedAt"
     FROM "in_app_agent_conversations"
@@ -1437,9 +1449,12 @@ export async function lockConversation(
     FOR UPDATE
   `;
 
-  if (!conversations[0] || conversations[0].deletedAt) {
+  const conversation = conversations[0];
+  if (!conversation) {
     throw new LangfuseNotFoundError("Agent conversation not found");
   }
+
+  return conversation;
 }
 
 function parseMessages(messages: unknown[]): AgUiMessage[] {
