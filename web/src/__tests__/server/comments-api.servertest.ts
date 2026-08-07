@@ -340,6 +340,40 @@ describe("GET /api/public/comments API Endpoint", () => {
       );
     }
   });
+
+  it("should filter comments by content substring (case-insensitive)", async () => {
+    const response = await makeZodVerifiedAPICall(
+      GetCommentsV1Response,
+      "GET",
+      "/api/public/comments?content=comment-3",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.map((c) => c.id)).toEqual(["comment-2021-03-01"]);
+  });
+
+  it("should match content case-insensitively", async () => {
+    const response = await makeZodVerifiedAPICall(
+      GetCommentsV1Response,
+      "GET",
+      "/api/public/comments?content=COMMENT-2",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.map((c) => c.id)).toEqual(["comment-2021-02-01"]);
+  });
+
+  it("should return empty array when no comment matches the content filter", async () => {
+    const response = await makeZodVerifiedAPICall(
+      GetCommentsV1Response,
+      "GET",
+      "/api/public/comments?content=nonexistent-substring-xyz",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual([]);
+    expect(response.body.meta.totalItems).toBe(0);
+  });
 });
 
 describe("Public API does NOT process mentions", () => {
