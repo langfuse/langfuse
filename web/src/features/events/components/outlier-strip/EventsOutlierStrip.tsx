@@ -386,7 +386,9 @@ export function EventsOutlierStrip({
     // instead of floating between the toolbar and the table header.
     <div ref={wrapperRef} className="shrink-0 border-y">
       {size === undefined ? null : (
-        <div className="relative px-2 pt-1 pb-1">
+        // pt-3 keeps the metric switcher off the top rule; the label then sits
+        // closer to its chart (mt-2) than to the band's edge.
+        <div className="relative px-2 pt-3 pb-1">
           {!canApplyFilters ? (
             <div>
               <div className="flex items-baseline gap-1.5">
