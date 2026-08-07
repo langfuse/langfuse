@@ -1,4 +1,5 @@
 import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { api } from "@/src/utils/api";
 
@@ -36,6 +37,14 @@ ${V4_CODING_AGENT_PROMPT}
 """
 Also ask me whether I would instead like to complete the upgrade by deactivating or deleting all deprecated evaluators — if I say yes, help me do that here, confirming each one with me first.`;
 
+/** Whether the in-app assistant can be used for v4 migration actions. */
+export function useCanUseAgentForMigration() {
+  const canUseAgent = useCanUseInAppAgent();
+  const { organization } = useQueryProjectOrOrganization();
+
+  return canUseAgent && Boolean(organization?.aiFeaturesEnabled);
+}
+
 export type V4UpgradeAssistantMode =
   | "evals-ready"
   | "sdk-first-choice"
@@ -58,7 +67,7 @@ export function useEvalUpgradeAssistantPlan(params: {
   orgId: string | undefined;
   enabled: boolean;
 }) {
-  const canUseAssistant = useCanUseInAppAgent();
+  const canUseAssistant = useCanUseAgentForMigration();
   const sdk = useProjectV4SdkData(params);
   const evalQuery = api.v4Transition.traceLevelEvalSummary.useQuery(
     { projectId: params.projectId ?? "" },
