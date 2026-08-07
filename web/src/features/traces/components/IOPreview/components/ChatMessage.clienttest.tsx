@@ -363,6 +363,23 @@ describe("ChatMessage media content parts", () => {
     );
   });
 
+  // LFE-9577: a single reference string renders inline, and so do several in
+  // one string — but an ARRAY of bare references failed OpenAIContentParts
+  // (which only accepted `{type, …}` objects) and dropped to a JSON table.
+  it("renders an array of bare media reference strings inline", () => {
+    const second = referenceString.replace(mediaId, "zzz987yxw654vut321srq0");
+    renderChatMessage({
+      role: "user",
+      content: [referenceString, second],
+    } as unknown as ChatMlMessage);
+
+    expect(
+      screen
+        .getAllByTestId("langfuse-media")
+        .map((el) => el.getAttribute("data-media-ref")),
+    ).toEqual([referenceString, second]);
+  });
+
   // The ChatML transform materializes all 10 schema keys, so a message that
   // normalized to `{}` used to table out one `undefined` row per key.
   it("renders nothing for a parsed message that carries no data", () => {

@@ -163,7 +163,19 @@ const OpenAIImageContentPart = z.object({
 export type OpenAIImageContentPartType = z.infer<typeof OpenAIImageContentPart>;
 
 /**
- * Array of OpenAI content parts (text, image, audio).
+ * A bare `@@@langfuseMedia:…@@@` reference used as a whole content part.
+ *
+ * Validates through the canonical parser but deliberately does NOT transform:
+ * a transforming member of this union hands the renderer a shape its own part
+ * guards reject, which is how inline media silently stopped rendering
+ * (LFE-14815). The raw string must survive.
+ */
+export const MediaReferencePartSchema = z
+  .string()
+  .refine((value) => MediaReferenceStringSchema.safeParse(value).success);
+
+/**
+ * Array of OpenAI content parts (text, image, audio, bare media reference).
  * Used when message content is structured with multiple parts.
  */
 export const OpenAIContentParts = z.array(
@@ -171,8 +183,14 @@ export const OpenAIContentParts = z.array(
     OpenAITextContentPart,
     OpenAIImageContentPart,
     OpenAIInputAudioContentPart,
+    MediaReferencePartSchema,
   ]),
 );
+
+export const isMediaReferencePart = (
+  content: unknown,
+): content is z.infer<typeof MediaReferencePartSchema> =>
+  MediaReferencePartSchema.safeParse(content).success;
 
 /**
  * OpenAI output audio schema.

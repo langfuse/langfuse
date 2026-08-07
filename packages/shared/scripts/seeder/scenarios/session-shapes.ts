@@ -147,7 +147,7 @@ const buildChatMessages = (turnIdx: number): string => {
 };
 
 /**
- * The three media-bearing message shapes behind LFE-14815 / LFE-13602:
+ * The media-bearing message shapes behind LFE-14815 / LFE-13602 / LFE-9577:
  *
  *  0 inline-image  one `image_url` part holding a `@@@langfuseMedia:…@@@`
  *                  reference — the customer's shape; the image must render
@@ -156,14 +156,19 @@ const buildChatMessages = (turnIdx: number): string => {
  *  2 linked-only   a non-ChatML payload the chat renderer cannot inline, with
  *                  the media linked to the observation — the "Media" strip is
  *                  the only surface, so it proves session/trace-detail parity.
+ *  3 bare-refs     content is an ARRAY of bare reference strings, with no
+ *                  `{type, …}` wrapper at all (LFE-9577).
  */
-type MediaVariant = "inline-image" | "multi-ref" | "linked-only";
+type MediaVariant = "inline-image" | "multi-ref" | "linked-only" | "bare-refs";
 
 const MEDIA_VARIANTS: readonly MediaVariant[] = [
   "inline-image",
   "multi-ref",
   "linked-only",
+  "bare-refs",
 ];
+
+type MediaFixtures = Record<"image" | "audio" | "pdf", SeedMediaFixture>;
 
 const MEDIA_PROMPTS: Record<MediaVariant, { user: string; assistant: string }> =
   {
@@ -180,6 +185,11 @@ const MEDIA_PROMPTS: Record<MediaVariant, { user: string; assistant: string }> =
     "linked-only": {
       user: "Filing the attachment against the work order.",
       assistant: "Attachment stored against work order #4821.",
+    },
+    "bare-refs": {
+      user: "Attaching the unit photo and the inspection report.",
+      assistant:
+        "Received both. The report confirms the drain pan was replaced last year, so the rust is recent — I'd check the condensate line first.",
     },
   };
 
@@ -492,7 +502,7 @@ const buildMediaTrace = (
   traceId: string,
   turnIdx: number,
   timestamp: number,
-  fixtures: { image: SeedMediaFixture; audio: SeedMediaFixture },
+  fixtures: MediaFixtures,
 ): {
   trace: TraceRecordInsertType;
   observations: ObservationRecordInsertType[];
@@ -503,25 +513,27 @@ const buildMediaTrace = (
   const genId = `${traceId}-o1`;
 
   const userContent =
-    variant === "inline-image"
-      ? [
-          { type: "text", text: prompt.user },
-          {
-            type: "image_url",
-            image_url: { url: fixtures.image.referenceString },
-          },
-        ]
-      : [
-          { type: "text", text: prompt.user },
-          {
-            type: "image_url",
-            image_url: { url: fixtures.image.referenceString },
-          },
-          {
-            type: "input_audio",
-            input_audio: { data: fixtures.audio.referenceString },
-          },
-        ];
+    variant === "bare-refs"
+      ? [fixtures.image.referenceString, fixtures.pdf.referenceString]
+      : variant === "inline-image"
+        ? [
+            { type: "text", text: prompt.user },
+            {
+              type: "image_url",
+              image_url: { url: fixtures.image.referenceString },
+            },
+          ]
+        : [
+            { type: "text", text: prompt.user },
+            {
+              type: "image_url",
+              image_url: { url: fixtures.image.referenceString },
+            },
+            {
+              type: "input_audio",
+              input_audio: { data: fixtures.audio.referenceString },
+            },
+          ];
 
   // linked-only stays deliberately non-ChatML: the chat renderer cannot inline
   // it, so only the media strip can surface the asset.
@@ -552,6 +564,9 @@ const buildMediaTrace = (
   ];
   if (variant === "multi-ref") {
     mediaLinks.push({ observationId: genId, mediaId: fixtures.audio.mediaId });
+  }
+  if (variant === "bare-refs") {
+    mediaLinks.push({ observationId: genId, mediaId: fixtures.pdf.mediaId });
   }
 
   const trace = createTrace({
@@ -675,7 +690,7 @@ const buildSession = (
   rng: Rng,
   shape: Shape,
   turns: number,
-  mediaFixtures?: { image: SeedMediaFixture; audio: SeedMediaFixture },
+  mediaFixtures?: MediaFixtures,
 ): {
   sessionId: string;
   sessionStart: number;
@@ -773,21 +788,20 @@ const run = async (
   // Uploaded up front: the reference strings must be embedded in the payloads
   // the builders produce, and a media shape with unresolvable assets would
   // silently look like the bug it exists to disprove.
-  let mediaFixtures:
-    | { image: SeedMediaFixture; audio: SeedMediaFixture }
-    | undefined;
+  let mediaFixtures: MediaFixtures | undefined;
   if (shapesToSeed.includes("media") && !ctx.dryRun) {
-    const [image, audio] = await Promise.all([
+    const [image, audio, pdf] = await Promise.all([
       ensureSeedMediaUploaded(ctx.projectId, "image"),
       ensureSeedMediaUploaded(ctx.projectId, "audio"),
+      ensureSeedMediaUploaded(ctx.projectId, "pdf"),
     ]);
-    if (!image || !audio) {
+    if (!image || !audio || !pdf) {
       throw new SeedError(
         "could not seed media assets for the media shape",
         "check LANGFUSE_S3_MEDIA_UPLOAD_BUCKET and that MinIO is running (pnpm run seed -- doctor)",
       );
     }
-    mediaFixtures = { image, audio };
+    mediaFixtures = { image, audio, pdf };
   }
 
   if (ctx.dryRun) {
