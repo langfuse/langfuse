@@ -1423,23 +1423,23 @@ function stripAssistantRunIds(messages: readonly AgUiMessage[]) {
 
 export type InAppAgentTx = Prisma.TransactionClient;
 
-/**
- * Serializes every run-creating and approval-consuming mutation on one row.
- * The partial unique index on active runs is only the backstop; this lock is
- * what turns a race into a clean conflict error instead of a 500.
- */
+/** Serialize run mutations and reject conversations deleted while waiting. */
 export async function lockConversation(
   tx: InAppAgentTx,
   projectId: string,
   conversationId: string,
 ) {
-  await tx.$queryRaw`
-    SELECT 1
+  const conversations = await tx.$queryRaw<Array<{ deletedAt: Date | null }>>`
+    SELECT "deleted_at" AS "deletedAt"
     FROM "in_app_agent_conversations"
     WHERE "id" = ${conversationId}
       AND "project_id" = ${projectId}
     FOR UPDATE
   `;
+
+  if (!conversations[0] || conversations[0].deletedAt) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
 }
 
 function parseMessages(messages: unknown[]): AgUiMessage[] {
