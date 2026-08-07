@@ -1028,6 +1028,14 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
+      - name: Setup Turbo cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] server e2e build cache only; publish jobs rebuild artifacts without restoring this cache
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-e2e-server-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-e2e-server-
       # The next two downloads/startups have no dependency on the build, so
       # they run in the background and the build overlaps them. Later steps
       # wait on their marker files.
@@ -1076,6 +1084,9 @@ jobs:
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
+      - name: Prune stale turbo cache entries
+        if: env.CI_CACHE_ALLOWED == 'true'
+        run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
