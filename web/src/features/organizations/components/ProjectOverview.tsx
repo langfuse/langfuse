@@ -101,11 +101,11 @@ const OrganizationProjectTiles = ({
                   )}
                 </div>
               </CardHeader>
-              {!project.deletedAt && lastTraceTimes && (
-                <CardContent className="pb-3">
+              {!project.deletedAt && (
+                <CardContent className="min-h-7 pb-3">
                   <p className="text-muted-foreground text-xs">
                     {(() => {
-                      const lastTraceAt = lastTraceTimes.find(
+                      const lastTraceAt = lastTraceTimes?.find(
                         (t) => t.projectId === project.id,
                       )?.lastTraceAt;
                       return lastTraceAt
