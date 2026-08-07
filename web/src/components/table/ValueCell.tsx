@@ -485,18 +485,13 @@ export const ValueCell = memo(
         {metadataActions ? (
           <DropdownMenuController
             align="end"
-            renderMenu={({ renderContent }) =>
-              renderContent({
-                className: "max-w-[320px]",
-                onClick: (event) => event.stopPropagation(),
-                children: (
-                  <ValueCellActionsMenuContent
-                    row={row}
-                    metadataActions={metadataActions}
-                  />
-                ),
-              })
-            }
+            maxWidth="320px"
+            renderMenu={() => (
+              <ValueCellActionsMenuContent
+                row={row}
+                metadataActions={metadataActions}
+              />
+            )}
           >
             {({ isOpen, Trigger }) => (
               <Trigger asChild>

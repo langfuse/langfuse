@@ -252,11 +252,6 @@ const DropdownMenuContent = React.forwardRef<
 );
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
-type DropdownMenuControllerContentProps = Omit<
-  React.ComponentPropsWithoutRef<typeof DropdownMenuContent>,
-  "align"
->;
-
 /**
  * Owns dropdown open state while callers retain trigger and menu presentation.
  * Use the supplied primitives in each render prop to preserve Radix behavior.
@@ -264,6 +259,7 @@ type DropdownMenuControllerContentProps = Omit<
 const DropdownMenuController = ({
   align,
   children,
+  maxWidth,
   renderMenu,
 }: {
   align: React.ComponentProps<typeof DropdownMenuContent>["align"];
@@ -271,22 +267,21 @@ const DropdownMenuController = ({
     isOpen: boolean;
     Trigger: typeof DropdownMenuTrigger;
   }) => React.ReactNode;
-  renderMenu: (control: {
-    renderContent: (
-      props: DropdownMenuControllerContentProps,
-    ) => React.ReactNode;
-  }) => React.ReactNode;
+  maxWidth: React.CSSProperties["maxWidth"];
+  renderMenu: () => React.ReactNode;
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       {children({ isOpen, Trigger: DropdownMenuTrigger })}
-      {renderMenu({
-        renderContent: (props) => (
-          <DropdownMenuContent {...props} align={align} />
-        ),
-      })}
+      <DropdownMenuContent
+        align={align}
+        style={{ maxWidth }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {renderMenu()}
+      </DropdownMenuContent>
     </DropdownMenu>
   );
 };
