@@ -12,7 +12,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { cn } from "@/src/utils/tailwind";
 import {
   buildEventsTablePathForMetadataFilter,
   type MetadataFilterOperator,
@@ -212,7 +214,7 @@ function ValueCellActionsMenuController({
   row,
   metadataActions,
 }: {
-  children: (control: { openMenu: () => void }) => ReactNode;
+  children: (control: { open: boolean }) => ReactNode;
   row: Row<JsonTableRow>;
   metadataActions: MetadataFilterActions;
 }) {
@@ -277,7 +279,7 @@ function ValueCellActionsMenuController({
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      {children({ openMenu: () => setOpen(true) })}
+      {children({ open })}
       <DropdownMenuContent
         align="end"
         className="max-w-[320px]"
@@ -497,20 +499,22 @@ export const ValueCell = memo(
             row={row}
             metadataActions={metadataActions}
           >
-            {({ openMenu }) => (
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Value actions"
-                title="Actions"
-                className="bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openMenu();
-                }}
-              >
-                <EllipsisVertical className="h-3 w-3" />
-              </Button>
+            {({ open }) => (
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Value actions"
+                  title="Actions"
+                  className={cn(
+                    "bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100",
+                    open && "opacity-100",
+                  )}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <EllipsisVertical className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
             )}
           </ValueCellActionsMenuController>
         ) : (
