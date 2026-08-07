@@ -844,7 +844,6 @@ export async function getAuthOptions(signupAttribution?: {
             },
           });
 
-          span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
           // V4 preview availability is governed by the write mode:
           // - events_only: the legacy traces/observations tables are no longer
