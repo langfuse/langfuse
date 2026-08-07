@@ -352,6 +352,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
       input: '{"input_number":107505301260286111,"safe_number":42}',
       expectedOutput: '{"output_number":107505301260286111}',
       metadata: '{"metadata_number":107505301260286111}',
+      normalizeOpts: { parseJsonStrings: true },
       validateOpts: { normalizeUndefinedToNull: true },
     });
 
@@ -380,6 +381,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
       input: "null",
       expectedOutput: "null",
       metadata: "null",
+      normalizeOpts: { parseJsonStrings: true },
       validateOpts: { normalizeUndefinedToNull: true },
     });
 
