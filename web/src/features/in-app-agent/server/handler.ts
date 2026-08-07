@@ -430,8 +430,7 @@ export default async function handler(request: Request) {
             });
 
           const userAccess = getInAppAgentUserAccess(user, projectId);
-          // Foreground never carries conversation-scoped grants: it is the
-          // rollback path, and its approvals are single-use by construction.
+          // Foreground approvals remain single-use.
           const toolPolicy = createInAppAgentToolPolicy({ userAccess });
 
           const stream = await createAgUiStream({

@@ -47,10 +47,7 @@ import {
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
-// Conversation-scoped approvals collapse a batch of mutations into one run, so
-// this budget now bounds work that used to be spread over one continuation run
-// per approval, each with its own budget. Wall-clock is still bounded by
-// RUN_MAX_DURATION_MS and the per-user/organization active-run ceilings.
+// Conversation grants can batch more mutations into one run; other runtime limits still apply.
 const MAX_AGENT_STEPS = 50;
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
@@ -507,10 +504,7 @@ export async function createAgUiStream(params: {
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
           currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
 
-          // A one-off approval grants its tool for exactly one call, so the
-          // override must be torn down once that call has run. A tool the user
-          // approved for the whole conversation is already in the policy, so
-          // its override is not one-off and the rebuild is skipped entirely.
+          // Drop a one-off override after its call; standing grants remain in the policy.
           const oneOffApprovedToolName =
             forwardedProps?.command?.resume?.approved === true
               ? getInAppAgentRegistryToolName(
@@ -525,8 +519,6 @@ export async function createAgUiStream(params: {
               oneOffApprovedToolName,
             )
           ) {
-            // Rebuild with the conversation's standing grants only, dropping
-            // the one-off tool.
             const standingAllowedToolNames = getInAppAgentMcpAllowedToolNames(
               params.options.langfuseMcp.toolPolicy,
             );

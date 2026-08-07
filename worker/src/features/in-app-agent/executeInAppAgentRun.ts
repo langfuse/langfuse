@@ -287,8 +287,7 @@ export async function executeInAppAgentRun(params: {
       isAdmin: access.isAdmin,
     };
 
-    // Rebuilt every run rather than trusted from enqueue time, so a grant the
-    // owner's role no longer covers silently drops out.
+    // Rebuild each run so grants invalidated by role changes drop out.
     const toolPolicy = createInAppAgentToolPolicy({
       userAccess,
       additionalAutoApproved: conversation.alwaysAllowedTools,

@@ -974,16 +974,11 @@ describe("createAgUiStream", () => {
     const { Agent } = await import("@mastra/core/agent");
     const agentTools = getAgentTools(vi.mocked(Agent).mock.calls[0]?.[0]);
 
-    // requireApproval is per tool, not per call, so the grant covers every
-    // later invocation with any arguments — that is the whole point.
     expect(agentTools?.langfuse_upsertDataset).not.toHaveProperty(
       "requireApproval",
     );
-    // A mutating tool that was never granted still suspends.
     expect(agentTools?.langfuse_createScoreConfig?.requireApproval).toBe(true);
 
-    // MCP authorization has to agree with the runtime, or the ungated call
-    // would just fail at the server instead of prompting.
     expect(
       vi.mocked(MCPClient).mock.calls[0]?.[0].servers.langfuse.requestInit
         ?.headers,

@@ -274,9 +274,9 @@ describe("in-app agent execution", () => {
     expect(abortRun).toHaveBeenCalled();
   });
 
-  it("renders persisted background messages and approval actions in the drawer", async () => {
+  it("always allows a persisted background tool for the conversation", async () => {
     providerMocks.backgroundExecutionEnabled = true;
-    providerMocks.conversationQuery.data = {
+    const approvedSnapshot = {
       conversation: {
         id: "conversation-1",
         isWriteLocked: false,
@@ -300,6 +300,10 @@ describe("in-app agent execution", () => {
         errorCode: null,
         cancelRequested: false,
       },
+      pendingToolApprovals: [],
+    } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
+    providerMocks.conversationQuery.data = {
+      ...approvedSnapshot,
       pendingToolApprovals: [
         {
           runId: "run-1",
@@ -312,6 +316,10 @@ describe("in-app agent execution", () => {
         },
       ],
     };
+    providerMocks.decideToolApproval.mockResolvedValueOnce({});
+    providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValueOnce(
+      approvedSnapshot,
+    );
     window.sessionStorage.setItem(
       "langfuse:in-app-ai-agent-selected-conversation:project-1",
       JSON.stringify("conversation-1"),
@@ -321,16 +329,32 @@ describe("in-app agent execution", () => {
 
     expect(await screen.findByText("Create the prompt")).toBeInTheDocument();
     expect(screen.getByText("I need approval.")).toBeInTheDocument();
-    expect(
+    fireEvent.click(
       screen.getByRole("button", {
-        name: "Confirm",
+        name: "Always allow",
       }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: "Reject",
-      }),
-    ).toBeInTheDocument();
+    );
+
+    await waitFor(() => {
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledOnce();
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledWith({
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        runId: "run-1",
+        toolCallId: "tool-call-1",
+        approved: true,
+        approvalScope: "conversation",
+      });
+      expect(providerMocks.capture).toHaveBeenCalledOnce();
+      expect(providerMocks.capture).toHaveBeenCalledWith(
+        "in_app_agent:tool_approval_decided",
+        {
+          isApproved: true,
+          toolName: "langfuse_createTextPrompt",
+          approvalScope: "conversation",
+        },
+      );
+    });
   });
 
   it("replays prompt and dashboard invalidations after a detached run completes", async () => {

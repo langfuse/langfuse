@@ -398,10 +398,7 @@ export const IN_APP_AGENT_SANDBOX_TOOL_NAMES = new Set([
   "bash",
 ]);
 
-// Runtime-owned tools that never suspend: the redirect affordance and the
-// sandbox tools, which are confined to the sandbox. Callers do not choose
-// these, so they are not part of InAppAgentToolPolicy. Documentation MCP tools
-// are auto-approved by their `langfuseDocs_` prefix.
+// Runtime-owned tools never suspend; documentation tools are approved by prefix.
 const IN_APP_AGENT_LOCAL_AUTO_APPROVED_TOOL_NAMES = new Set<string>([
   ...IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES,
   ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
@@ -415,20 +412,11 @@ export function isMcpToolName(
   );
 }
 
-/**
- * A tool name that still says which MCP surface it came from. Anything durable
- * -- a stored grant, a decision record -- must use this form: two servers can
- * expose the same registry name, and an unprefixed identifier would silently
- * authorize whichever one happened to be resolved.
- */
+/** Durable grants retain the MCP surface prefix to avoid cross-surface collisions. */
 export type InAppAgentPrefixedLangfuseMcpToolName =
   `langfuse_${InAppAgentLangfuseMcpToolName}`;
 
-/**
- * Maps the `langfuse_`-prefixed name the model and AG-UI events use back to the
- * unprefixed MCP registry name that the MCP route and tool policies speak.
- * Returns undefined for any name that is not a prefixed Langfuse MCP tool.
- */
+/** Resolve only valid `langfuse_`-prefixed registry tool names. */
 export function getInAppAgentRegistryToolName(
   toolName: string | undefined,
 ): InAppAgentLangfuseMcpToolName | undefined {
@@ -441,10 +429,7 @@ export function getInAppAgentRegistryToolName(
   return isMcpToolName(registryToolName) ? registryToolName : undefined;
 }
 
-/**
- * Validates a prefixed tool name for durable storage. Rejects an unprefixed
- * registry name outright, so a caller cannot persist an ambiguous grant.
- */
+/** Return the canonical prefixed name accepted for durable grants. */
 export function getInAppAgentPrefixedToolName(
   toolName: string | undefined,
 ): InAppAgentPrefixedLangfuseMcpToolName | undefined {
@@ -474,26 +459,10 @@ export function isInAppAgentLangfuseMcpToolAvailable(params: {
   });
 }
 
-/**
- * The Langfuse MCP tool surface for one run: which tools the model may see, and
- * which of those execute without suspending for a human.
- *
- * Callers own both sets, so the runtime never learns where an approval came
- * from. A project role, a conversation-scoped grant the user clicked, and an
- * operator-configured headless policy all arrive here as the same two sets.
- *
- * Invariant: `autoApproved` is a subset of `available`. `createInAppAgentToolPolicy`
- * establishes it by construction, which is what makes a stale grant harmless.
- */
+/** Per-run role-filtered tool availability and auto-approval policy. */
 export type InAppAgentToolPolicy = {
   readonly available: ReadonlySet<InAppAgentLangfuseMcpToolName>;
-  /**
-   * Wider than the policy map's `approval: "auto"`: this is every tool that
-   * will not suspend on this run, so it unions the statically read-only tools
-   * with whatever the caller passed as `additionalAutoApproved` (today, the
-   * conversation's `alwaysAllowedTools`). The runtime only asks "does this
-   * suspend?", so it does not need the two sources kept apart.
-   */
+  /** Available tools that execute without suspension. */
   readonly autoApproved: ReadonlySet<InAppAgentLangfuseMcpToolName>;
 };
 
@@ -502,13 +471,7 @@ export function createInAppAgentToolPolicy(params: {
   toolNames?: Iterable<InAppAgentLangfuseMcpToolName>;
   /** Role gate. Omit to deny everything, matching isInAppAgentLangfuseMcpToolAvailable. */
   userAccess?: InAppAgentUserAccess;
-  /**
-   * Prefixed tool names to stop gating on top of the statically read-only ones
-   * -- today, the conversation's `alwaysAllowedTools`. An entry that is
-   * unprefixed, unknown, since reclassified as read-only, or outside the
-   * caller's role drops out: first at the prefix check, then at the
-   * intersection with `available` below.
-   */
+  /** Prefixed grants; invalid, stale, or unauthorized entries are ignored. */
   additionalAutoApproved?: Iterable<string>;
 }): InAppAgentToolPolicy {
   const candidates =
@@ -545,10 +508,7 @@ export function createInAppAgentToolPolicy(params: {
   return { available, autoApproved };
 }
 
-/**
- * The MCP override allowlist for one run. Read-only tools are permitted by the
- * MCP route regardless, so only the mutating ones need listing.
- */
+/** Return the mutating MCP tools authorized for this run. */
 export function getInAppAgentMcpAllowedToolNames(
   policy: InAppAgentToolPolicy,
   oneOffToolName?: InAppAgentLangfuseMcpToolName,
@@ -563,11 +523,7 @@ export function getInAppAgentMcpAllowedToolNames(
     }
   }
 
-  // Gated by `available` for the same reason a conversation grant is: an
-  // approval decided before the user lost the role must not still mint a
-  // header. The runtime already fails closed here (the tool is absent from the
-  // role-filtered tool map, so it cannot execute), but leaving the two paths
-  // inconsistent invites the question of why only one is checked.
+  // Require current role access even when the approval predates a role change.
   if (oneOffToolName && policy.available.has(oneOffToolName)) {
     allowed.add(oneOffToolName);
   }
