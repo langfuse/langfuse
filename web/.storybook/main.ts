@@ -62,6 +62,13 @@ const config: StorybookConfig = {
       files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design",
     })),
+    // Production-ready evaluator components are documented together as a
+    // feature surface, rather than mixed into the generic Playground.
+    {
+      directory: "../src/features/evals/v2/components/production",
+      files: `**/*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Features/Evaluations",
+    },
     // All other component stories belong to the flat Playground by default.
     // Outside components/design-system the exclusion is by path, so a generic
     // basename like Charts.stories.tsx elsewhere still reaches the Playground;

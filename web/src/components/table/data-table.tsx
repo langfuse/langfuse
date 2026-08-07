@@ -428,14 +428,20 @@ export function DataTable<TData extends object, TValue>({
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
-                    const width = columnDef.isFlexWidth
-                      ? "auto"
-                      : isValidCssVariableName({
-                            name: header.id,
-                            includesHyphens: false,
-                          })
-                        ? `calc(var(--header-${header.id}-size) * 1px)`
-                        : 150;
+                    const pxWidth = isValidCssVariableName({
+                      name: header.id,
+                      includesHyphens: false,
+                    })
+                      ? `calc(var(--header-${header.id}-size) * 1px)`
+                      : 150;
+                    // Flex columns absorb leftover width until the user
+                    // explicitly resizes them. From then on, honor the stored
+                    // size like any other column.
+                    const isAutoFlexWidth =
+                      columnDef.isFlexWidth &&
+                      columnSizing[header.column.id] === undefined;
+                    const width = isAutoFlexWidth ? "auto" : pxWidth;
+                    const minWidth = isAutoFlexWidth ? pxWidth : undefined;
 
                     return header.column.getIsVisible() ? (
                       <TableHead
@@ -448,6 +454,7 @@ export function DataTable<TData extends object, TValue>({
                         style={{
                           ...getCommonPinningStyles(header.column),
                           width,
+                          minWidth,
                         }}
                         onClick={(event) => {
                           event.preventDefault();
@@ -748,9 +755,11 @@ function TableBodyComponent<TData>({
                   )}
                   style={{
                     ...getCommonPinningStyles(column),
-                    width: columnDef.isFlexWidth
-                      ? "auto"
-                      : `calc(var(--col-${column.id}-size) * 1px)`,
+                    width:
+                      columnDef.isFlexWidth &&
+                      table.getState().columnSizing[column.id] === undefined
+                        ? "auto"
+                        : `calc(var(--col-${column.id}-size) * 1px)`,
                   }}
                 >
                   <div
@@ -822,9 +831,12 @@ function TableBodyComponent<TData>({
                   )}
                   style={{
                     ...getCommonPinningStyles(cell.column),
-                    width: columnDef.isFlexWidth
-                      ? "auto"
-                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                    width:
+                      columnDef.isFlexWidth &&
+                      table.getState().columnSizing[cell.column.id] ===
+                        undefined
+                        ? "auto"
+                        : `calc(var(--col-${cell.column.id}-size) * 1px)`,
                   }}
                 >
                   <div

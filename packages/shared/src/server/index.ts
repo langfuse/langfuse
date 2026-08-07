@@ -3,6 +3,7 @@ import {
   getTraceById as getTraceByIdRoutingWrapper,
   getTracesIdentifierForSession as getTracesIdentifierForSessionRoutingWrapper,
 } from "./repositories/events";
+export { getRecentExecutionTracesByEvaluatorIds } from "./repositories/events";
 
 export * from "./services/StorageService";
 export * from "./media";

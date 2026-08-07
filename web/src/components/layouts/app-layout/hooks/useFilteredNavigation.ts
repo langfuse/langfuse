@@ -139,7 +139,11 @@ export function useFilteredNavigation(
       return {
         ...route,
         url,
-        isActive: isPathActive(route.pathname, router.pathname),
+        isActive:
+          isPathActive(route.pathname, router.pathname) &&
+          !route.activePathExclusions?.some((excludedPath) =>
+            isPathActive(excludedPath, router.pathname),
+          ),
         items: items && items.length > 0 ? items : undefined,
       };
     };

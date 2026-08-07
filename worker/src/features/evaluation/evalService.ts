@@ -1093,6 +1093,7 @@ export async function executeLLMAsJudgeEvaluation(
   const executionMetadata = buildEvalExecutionMetadata({
     jobExecutionId: params.jobExecutionId,
     jobConfigurationId: params.job.jobConfigurationId,
+    ruleId: params.job.runScopeId,
     targetTraceId: params.job.jobInputTraceId,
     targetObservationId: params.job.jobInputObservationId,
     targetDatasetItemId: params.job.jobInputDatasetItemId,
@@ -1159,6 +1160,13 @@ export const evaluate = async ({
       id: job.jobConfigurationId,
       projectId: event.projectId,
     },
+    include: {
+      runScopeAssignments: {
+        where: { runScopeId: job.runScopeId ?? "__no_rule__" },
+        select: { variableMapping: true },
+        take: 1,
+      },
+    },
   });
 
   if (!config || !config.evalTemplateId) {
@@ -1201,7 +1209,7 @@ export const evaluate = async ({
 
   // Extract variables from tracing data
   const parsedVariableMapping = variableMappingList.parse(
-    config.variableMapping,
+    config.runScopeAssignments?.[0]?.variableMapping ?? config.variableMapping,
   );
 
   const extractedVariables = await extractVariablesFromTracingData({

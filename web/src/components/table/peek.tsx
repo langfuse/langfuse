@@ -24,7 +24,7 @@ const PEEK_VIEW_EXPANDED = "expanded";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
-  "TRACE" | "DATASET_ITEM" | "RUNNING_EVALUATOR" | "EVALUATOR"
+  "TRACE" | "DATASET_ITEM" | "EVALUATOR" | "EVALUATION_RULE"
 >;
 
 /**

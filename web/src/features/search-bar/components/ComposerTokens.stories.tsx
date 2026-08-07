@@ -8,7 +8,7 @@ const meta = preview.meta({
   // tokens render in a representative context.
   decorators: [
     (Story) => (
-      <div className="border-input bg-background max-w-2xl rounded-md border px-3 py-2 font-mono text-xs leading-6">
+      <div className="border-input bg-background max-w-2xl rounded-md border px-2 py-2 font-mono text-xs leading-6">
         <Story />
       </div>
     ),

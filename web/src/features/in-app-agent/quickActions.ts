@@ -47,12 +47,15 @@ export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS: Record<
   dashboards: "Dashboard",
 };
 
-export type InAppAgentQuickAction = {
+type InAppAgentQuickActionBase = {
   id: string;
   label: string;
   description: string;
-  prompt: string;
   icon: LucideIcon;
+};
+
+export type InAppAgentQuickAction = InAppAgentQuickActionBase & {
+  prompt: string;
 };
 
 export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS: Record<

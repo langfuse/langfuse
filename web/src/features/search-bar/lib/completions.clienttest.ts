@@ -872,7 +872,10 @@ describe("planInputCompletions", () => {
       const opt = flattenOptions(p).find((o) => o.id === "match:toolNames:mcp");
       expect(opt).toBeDefined();
       const r = applyPick(
-        opt as Exclude<CompletionOption, { kind: "recent" }>,
+        opt as Exclude<
+          CompletionOption,
+          { kind: "recent" } | { kind: "saved" }
+        >,
         "mcp",
         p!,
       );
@@ -886,7 +889,7 @@ describe("planInputCompletions", () => {
 describe("applyPick", () => {
   // Narrowing helper: the popover only picks non-recent options here.
   const nonRecent = (o: CompletionOption | undefined) =>
-    o as Exclude<CompletionOption, { kind: "recent" }>;
+    o as Exclude<CompletionOption, { kind: "recent" } | { kind: "saved" }>;
 
   it("keeps the caret INSIDE the block after picking a numeric operator", () => {
     // LFE-10501 BUG A. Picking `>` for a numeric field must not append a

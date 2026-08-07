@@ -6,6 +6,15 @@ import { basename } from "path";
 import * as ts from "typescript";
 
 const STORY_FILE_PATTERN = /\.stories\.[cm]?[jt]sx?$/;
+const EVALUATION_PRODUCTION_STORY_PATH =
+  "/src/features/evals/v2/components/production/";
+
+function flatStoryTitle(fileName: string) {
+  const componentTitle = basename(fileName).replace(STORY_FILE_PATTERN, "");
+  return fileName.includes(EVALUATION_PRODUCTION_STORY_PATH)
+    ? `Features/Evaluations/${componentTitle}`
+    : componentTitle;
+}
 
 function findMetaObject(code: string, fileName: string) {
   const sourceFile = ts.createSourceFile(
@@ -65,7 +74,7 @@ function addFlatStoryTitle(code: string, fileName: string) {
   const metaObject = assertNoExplicitStoryTitle(code, fileName);
   if (!metaObject) return null;
 
-  const componentTitle = basename(fileName).replace(STORY_FILE_PATTERN, "");
+  const componentTitle = flatStoryTitle(fileName);
   const insertionPoint = metaObject.getStart() + 1;
 
   return `${code.slice(0, insertionPoint)}\n  title: ${JSON.stringify(componentTitle)},${code.slice(insertionPoint)}`;
@@ -90,7 +99,9 @@ export const flattenStoryIndexTitles: NonNullable<
         const componentTitle = entry.title?.split("/").at(-1);
         if (!componentTitle) return entry;
 
-        const title = options.makeTitle(componentTitle);
+        const title = fileName.includes(EVALUATION_PRODUCTION_STORY_PATH)
+          ? `Features/Evaluations/${componentTitle}`
+          : options.makeTitle(componentTitle);
         const storyName = storyNameFromExport(entry.exportName);
         const derivedId = entry.title
           ? toId(entry.title, storyName)

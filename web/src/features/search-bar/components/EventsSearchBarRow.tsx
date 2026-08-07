@@ -43,6 +43,9 @@ export function EventsSearchBarRow({
   onApplyFilters,
   onRequestColumns,
   aiDataContext,
+  composerSurfaceClassName,
+  savedQueries,
+  onPickSavedQuery,
   aiScoreNames,
   className,
 }: {
@@ -77,6 +80,15 @@ export function EventsSearchBarRow({
   /** Project data context (observed values + metadata keys + result count) for
    *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
   aiDataContext?: string;
+  /** Overrides the composer surface spacing for embedded form layouts. */
+  composerSurfaceClassName?: string;
+  /** Host-provided saved queries shown as an empty-bar autocomplete section;
+   *  picking one calls onPickSavedQuery(id). See SearchComposer. */
+  savedQueries?: {
+    title: string;
+    items: { id: string; label: string; detail?: string }[];
+  };
+  onPickSavedQuery?: (id: string) => void;
   /** Observed score names by column type, for the server's score-name
    *  validation of the generated filters (undefined sets are not enforced). */
   aiScoreNames?: ObservedScoreNames;
@@ -122,6 +134,9 @@ export function EventsSearchBarRow({
             freeTextReason={freeTextReason}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
+            surfaceClassName={composerSurfaceClassName}
+            savedQueries={savedQueries}
+            onPickSavedQuery={onPickSavedQuery}
           />
         </SearchBarStoreProvider>
       )}

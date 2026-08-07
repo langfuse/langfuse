@@ -1,0 +1,58 @@
+# Evaluators v2
+
+## Ownership map
+
+- `pages/evaluator-detail.tsx` owns evaluator detail/edit routing and header state.
+- `components/EvaluatorSetupForm.tsx` owns the shared create/edit definition form,
+  sample selection, test workflow, and reusable rule-filter suggestions.
+  `components/EvaluatorEditView.tsx` supplies attached rule IDs so those
+  suggestions can be prioritized without exposing relationship controls.
+- `actions/validateAndAttachRule.ts` owns the direct-attachment workflow:
+  load one matching observation, test the saved evaluator, and only then
+  activate the assignment. The two detail views only own pending and warning
+  presentation through `hooks/useValidatedRuleAttachment.ts`.
+- `pages/evaluators.tsx` and `pages/rules.tsx` own the standalone v2 list
+  lifecycle. `EvaluatorOverviewTable` and `EvaluationRulesOverviewTable` own their
+  table selection and bulk actions; rendered cells remain narrow views.
+- `components/EvaluationRulePeekView.tsx` opens directly in rule edit mode for
+  writers and remains read-only for users without write access. New attachments
+  validate in place; failures link to evaluator edit with the rule preselected
+  for manual review and testing.
+- `components/EvaluationRuleEvaluatorList.tsx` owns the collapsible evaluator
+  rows in rule create/edit forms. Each row edits the pairing-specific variable
+  mapping, initially copied from the evaluator default.
+- `components/production/evaluator-detail/` owns the prop-driven version-history
+  views used by the detail page, including its read-only evaluator definition.
+- `server/router.ts` owns the project-scoped tRPC contract.
+- `server/evaluationRuleService.ts` owns evaluator ↔ rule assignment workflows.
+- `components/ActivateEvaluatorDialog.tsx` owns the post-save choice to keep an
+  evaluator disabled or continue into a prefilled
+  `CreateEvaluationRuleDialog`. Creating the rule activates its attached
+  evaluator through `server/evaluationRuleService.ts`.
+
+Server data remains in tRPC/React Query. Each detail page keeps only its
+form-local draft and selected evaluator/rule in React state. Rule filters are
+persisted on the legacy-named `EvalRunScope`; `EvalRunScopeAssignment` is the explicit
+many-to-many mapping to `JobConfiguration`.
+Its nullable `variableMapping` overrides the evaluator default for that rule;
+workers fall back to `JobConfiguration.variableMapping` for older pairings.
+
+`JobConfiguration.createdByUserId` records the creator of the runnable
+evaluator independently of its versioned definition. `EvalRunScope.enabled`
+pauses every evaluator assignment for that shared rule. The rule list
+shows the five latest individual `JobExecution` records across those
+assignments.
+
+The evaluator detail page exposes template versions in a read-only sheet. A
+definition change creates a new project template version; evaluator metadata
+changes keep the current definition version.
+
+Evaluator editing suggests filters from attached and existing rules in the
+filter search bar. Attached rules are ranked first and labeled, while selecting
+any suggestion copies its filter and sampling into the evaluator draft without
+changing rule relationships.
+
+The worker schedules each matching evaluator-rule pair as a distinct
+execution. The execution stores its rule ID so logs can be
+filtered to that exact pairing. The legacy filter and sampling columns remain a
+fallback for evaluator rows without assignments.

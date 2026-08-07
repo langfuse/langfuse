@@ -523,6 +523,71 @@ describe("processObservationEval", () => {
       );
     });
 
+    it("uses the rule-specific variable mapping when present", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+        jobInputTraceId: "trace-abc",
+        jobInputObservationId: "obs-xyz",
+        runScopeId: "rule-123",
+      });
+      const template = createMockEvalTemplate({
+        id: "template-456",
+        projectId,
+        prompt: "Evaluate: {{value}}",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        evalTemplateId: "template-456",
+        variableMapping: [
+          { templateVariable: "value", selectedColumnId: "input" },
+        ],
+        runScopeAssignments: [
+          {
+            variableMapping: [
+              { templateVariable: "value", selectedColumnId: "output" },
+            ],
+          },
+        ],
+        evalTemplate: template,
+      });
+      const observation = createTestObservation({
+        span_id: "obs-xyz",
+        project_id: projectId,
+        trace_id: "trace-abc",
+        environment: "production",
+        input: '{"source": "default"}',
+        output: '{"source": "override"}',
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+
+      await processObservationEval({
+        event: baseEvent,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps: createMockProcessorDeps({
+          downloadObservationFromS3: vi
+            .fn()
+            .mockResolvedValue(JSON.stringify(observation)),
+        }),
+      });
+
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          extractedVariables: [
+            expect.objectContaining({
+              var: "value",
+              value: { source: "override" },
+            }),
+          ],
+        }),
+      );
+    });
+
     it("should complete eval execution with the executor result", async () => {
       const job = createMockJobExecution({
         id: jobExecutionId,
@@ -865,6 +930,25 @@ describe("processObservationEval", () => {
       expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
       expect(executeCodeBasedEvaluation).not.toHaveBeenCalled();
       expect(prisma.jobExecution.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: JobExecutionStatus.CANCELLED,
+          }),
+        }),
+      );
+    });
+
+    it("executes explicit manual evals on internal observations", async () => {
+      const deps = setupExecutableJob("langfuse-in-app-agent");
+
+      await processObservationEval({
+        event: { ...baseEvent, executionMode: "MANUAL" },
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps,
+      });
+
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledTimes(1);
+      expect(prisma.jobExecution.update).not.toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             status: JobExecutionStatus.CANCELLED,

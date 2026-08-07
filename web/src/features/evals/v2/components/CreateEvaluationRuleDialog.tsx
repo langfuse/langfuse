@@ -1,0 +1,519 @@
+import { useMemo, useState } from "react";
+import { ArrowLeft, Link2 } from "lucide-react";
+
+import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
+import {
+  TraceDetailBody,
+  traceDetailTitle,
+} from "@/src/features/traces/TraceDetailBody";
+import { Button } from "@/src/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/src/components/ui/command";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { Input } from "@/src/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { Slider } from "@/src/components/ui/slider";
+import { ActivationCostEstimate } from "@/src/features/evals/v2/components/ActivationCostEstimate";
+import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/production/EvaluationRuleAttachmentValidationAlert/EvaluationRuleAttachmentValidationAlert";
+import {
+  EvaluationRuleEvaluatorList,
+  parseEvaluationRuleVariableMapping,
+} from "@/src/features/evals/v2/components/EvaluationRuleEvaluatorList";
+import { EvaluationRuleFieldLabel } from "@/src/features/evals/v2/components/EvaluationRuleFieldLabel";
+import {
+  EVALUATION_OBSERVATION_EXCLUSION_FILTERS,
+  EXAMPLE_FILTERS,
+  generateEvaluationRuleName,
+  mergeExampleFilters,
+  RuleFilterSearchBar,
+} from "@/src/features/evals/v2/components/EvaluationRuleSection";
+import { EvaluationRulePreviewTable } from "@/src/features/evals/v2/components/EvaluationRulePreviewTable";
+import { Stepper } from "@/src/features/evals/v2/components/production/Stepper/Stepper";
+import { useValidatedRuleDraftEvaluator } from "@/src/features/evals/v2/hooks/useValidatedRuleDraftEvaluator";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { api } from "@/src/utils/api";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import {
+  type FilterState,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
+
+export function CreateEvaluationRuleDialog({
+  projectId,
+  open,
+  onOpenChange,
+  initialFilterState,
+  initialSampling = 1,
+  initialEvaluatorIds = [],
+  testRunCostUsdByEvaluatorId = {},
+}: {
+  projectId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialFilterState?: FilterState;
+  initialSampling?: number;
+  initialEvaluatorIds?: string[];
+  testRunCostUsdByEvaluatorId?: Record<string, number>;
+}) {
+  const utils = api.useUtils();
+  const [observationsOpen, setObservationsOpen] = useState(true);
+  const [samplingOpen, setSamplingOpen] = useState(false);
+  const [evaluatorOpen, setEvaluatorOpen] = useState(true);
+  const [nameOpen, setNameOpen] = useState(initialEvaluatorIds.length > 0);
+  const [name, setName] = useState(() =>
+    initialEvaluatorIds.length > 0
+      ? generateEvaluationRuleName({
+          filter:
+            initialFilterState ?? EVALUATION_OBSERVATION_EXCLUSION_FILTERS,
+          targetObject: "event",
+          existingNames: [],
+        })
+      : "",
+  );
+  const [nameCustomized, setNameCustomized] = useState(false);
+  const [filterState, setFilterState] = useState<FilterState>(() =>
+    initialFilterState
+      ? [...initialFilterState]
+      : [...EVALUATION_OBSERVATION_EXCLUSION_FILTERS],
+  );
+  const [sampling, setSampling] = useState(initialSampling);
+  const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<string[]>(
+    () => [...new Set(initialEvaluatorIds)],
+  );
+  const isEvaluatorOriginFlow = initialEvaluatorIds.length > 0;
+  const [mappingOverrides, setMappingOverrides] = useState<
+    Record<string, ObservationVariableMapping[]>
+  >({});
+  const [evaluatorPickerOpen, setEvaluatorPickerOpen] = useState(false);
+  const [traceId, setTraceId] = useState<string | null>(null);
+  const validation = useValidatedRuleDraftEvaluator({ projectId });
+  const trace = usePeekData({
+    projectId,
+    traceId: traceId ?? undefined,
+  });
+  const { timeRange } = useTableDateRange(projectId);
+  const absoluteTimeRange = useMemo(
+    () => toAbsoluteTimeRange(timeRange),
+    [timeRange],
+  );
+  const rules = api.evalsV2.rules.useQuery({ projectId }, { enabled: open });
+  const evaluatorOptions = api.evalsV2.evaluatorOptions.useQuery(
+    { projectId },
+    { enabled: open && evaluatorOpen },
+  );
+  const selectedEvaluators = selectedEvaluatorIds.flatMap((evaluatorId) => {
+    const evaluator = evaluatorOptions.data?.find(
+      (candidate) => candidate.id === evaluatorId,
+    );
+    return evaluator
+      ? [
+          {
+            ...evaluator,
+            variableMapping:
+              mappingOverrides[evaluator.id] ??
+              parseEvaluationRuleVariableMapping(evaluator.variableMapping),
+          },
+        ]
+      : [];
+  });
+  const availableEvaluators = (evaluatorOptions.data ?? []).filter(
+    (evaluator) => evaluator.targetObject === "event",
+  );
+  const unattachedEvaluators = availableEvaluators.filter(
+    (evaluator) => !selectedEvaluatorIds.includes(evaluator.id),
+  );
+  const createRule = api.evalsV2.createRule.useMutation({
+    onError: (error) => trpcErrorToast(error),
+  });
+
+  const updateFilters = (nextFilters: FilterState) => {
+    setFilterState(nextFilters);
+    validation.resetIssue();
+  };
+
+  const toggleEvaluator = (evaluatorId: string) => {
+    if (selectedEvaluatorIds.includes(evaluatorId)) {
+      const nextSelectedIds = selectedEvaluatorIds.filter(
+        (selectedId) => selectedId !== evaluatorId,
+      );
+      setSelectedEvaluatorIds(nextSelectedIds);
+      setMappingOverrides((current) => {
+        const next = { ...current };
+        delete next[evaluatorId];
+        return next;
+      });
+      if (nextSelectedIds.length === 0) setNameOpen(false);
+      validation.resetIssue();
+      setEvaluatorPickerOpen(false);
+      return;
+    }
+
+    const nextSelectedIds = [...selectedEvaluatorIds, evaluatorId];
+    setSelectedEvaluatorIds(nextSelectedIds);
+    validation.resetIssue();
+    setEvaluatorPickerOpen(false);
+    if (!nameCustomized) {
+      setName(
+        generateEvaluationRuleName({
+          filter: filterState,
+          targetObject: "event",
+          existingNames: (rules.data ?? []).map((rule) => rule.name),
+        }),
+      );
+    }
+    setNameOpen(true);
+  };
+
+  const validateSelectedEvaluators = async () => {
+    for (const evaluatorId of selectedEvaluatorIds) {
+      const valid = await validation.validate({
+        evaluatorId,
+        filter: filterState,
+        mapping:
+          selectedEvaluators.find((evaluator) => evaluator.id === evaluatorId)
+            ?.variableMapping ?? [],
+      });
+      if (!valid) return false;
+    }
+    return true;
+  };
+
+  const create = async () => {
+    await validateSelectedEvaluators();
+    try {
+      await createRule.mutateAsync({
+        projectId,
+        name: name.trim(),
+        targetObject: "event",
+        filter: filterState,
+        sampling,
+        enabled: true,
+        ...(selectedEvaluatorIds.length > 0
+          ? {
+              evaluatorIds: selectedEvaluatorIds,
+              evaluatorMappings: selectedEvaluators.map((evaluator) => ({
+                evaluatorId: evaluator.id,
+                mapping: evaluator.variableMapping,
+              })),
+            }
+          : {}),
+      });
+    } catch {
+      return;
+    }
+
+    await Promise.all([
+      utils.evalsV2.rules.invalidate({ projectId }),
+      utils.evalsV2.invalidate(),
+    ]).catch(() => undefined);
+    showSuccessToast({
+      title: "Rule created",
+      description:
+        selectedEvaluators.length === 0
+          ? `${name.trim()} is active. Attach an evaluator when you are ready.`
+          : selectedEvaluators.length === 1
+            ? `${name.trim()} is active with ${selectedEvaluators[0]?.scoreName ?? "the evaluator"} attached.`
+            : `${name.trim()} is active with ${selectedEvaluators.length} evaluators attached.`,
+    });
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        size={traceId ? "xxl" : "xl"}
+        className={traceId ? undefined : "max-w-6xl"}
+      >
+        <DialogHeader>
+          {traceId ? (
+            <div className="flex min-w-0 items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Back to new rule"
+                onClick={() => setTraceId(null)}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <DialogTitle
+                className="truncate"
+                title={traceDetailTitle(trace.data, traceId)}
+              >
+                {traceDetailTitle(trace.data, traceId)}
+              </DialogTitle>
+            </div>
+          ) : (
+            <>
+              <DialogTitle>New rule</DialogTitle>
+              <DialogDescription>
+                Define what data is evaluated, attach evaluators, then name the
+                rule.
+              </DialogDescription>
+            </>
+          )}
+        </DialogHeader>
+
+        {traceId ? (
+          <DialogBody className="min-h-0 gap-0 p-0">
+            <TraceDetailBody trace={trace.data} context="peek" />
+          </DialogBody>
+        ) : (
+          <DialogBody className="gap-3">
+            <Stepper
+              number={1}
+              title="Choose observations"
+              description="Filter incoming observations and preview what this rule will evaluate."
+              open={observationsOpen}
+              onOpenChange={setObservationsOpen}
+            >
+              <div className="flex flex-col gap-6">
+                <section className="flex min-w-0 flex-col gap-2">
+                  <EvaluationRuleFieldLabel tooltip="Only matching observations are evaluated. Add filters to narrow the incoming data included.">
+                    Filters
+                  </EvaluationRuleFieldLabel>
+                  <RuleFilterSearchBar
+                    projectId={projectId}
+                    filterState={filterState}
+                    setFilterState={updateFilters}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    {EXAMPLE_FILTERS.map((example) => (
+                      <Button
+                        key={example.label}
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          updateFilters(
+                            mergeExampleFilters(filterState, example.filters),
+                          )
+                        }
+                      >
+                        <example.icon className="mr-1.5 h-3.5 w-3.5" />
+                        {example.label}
+                      </Button>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="flex min-w-0 flex-col gap-2">
+                  <EvaluationRuleFieldLabel tooltip="Preview recent observations that currently match this rule.">
+                    Matching observations
+                  </EvaluationRuleFieldLabel>
+                  <EvaluationRulePreviewTable
+                    projectId={projectId}
+                    filterState={filterState}
+                    timeRange={absoluteTimeRange}
+                    onSelectObservation={(row) => {
+                      if (row.traceId) setTraceId(row.traceId);
+                    }}
+                  />
+                </section>
+              </div>
+            </Stepper>
+
+            <Stepper
+              number={2}
+              title="Set sampling rate"
+              description="Choose the share of matching observations to evaluate."
+              open={samplingOpen}
+              onOpenChange={setSamplingOpen}
+            >
+              <div className="flex flex-col gap-2">
+                <EvaluationRuleFieldLabel tooltip="The share of matching observations to evaluate. 100% evaluates every match.">
+                  Sampling
+                </EvaluationRuleFieldLabel>
+                <Slider
+                  min={0.0001}
+                  max={1}
+                  step={0.0001}
+                  value={[sampling]}
+                  onValueChange={(value) => {
+                    setSampling(value[0] ?? sampling);
+                    validation.resetIssue();
+                  }}
+                  showInput
+                  displayAsPercentage
+                />
+              </div>
+            </Stepper>
+
+            <Stepper
+              number={3}
+              title="Attach evaluator"
+              description="Choose which evaluators should run on matching observations."
+              open={evaluatorOpen}
+              onOpenChange={setEvaluatorOpen}
+            >
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <EvaluationRuleFieldLabel tooltip="Choose what should run on observations matched by this rule.">
+                    Evaluators
+                  </EvaluationRuleFieldLabel>
+                  {isEvaluatorOriginFlow ? null : (
+                    <Popover
+                      open={evaluatorPickerOpen}
+                      onOpenChange={setEvaluatorPickerOpen}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          aria-label="Attach evaluator"
+                        >
+                          Attach evaluator
+                          <Link2 className="ml-1.5 h-3.5 w-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-80 p-0">
+                        <Command>
+                          <CommandInput placeholder="Find an evaluator..." />
+                          <CommandList>
+                            <CommandEmpty>
+                              No unattached evaluator found.
+                            </CommandEmpty>
+                            <CommandGroup heading="Available evaluators">
+                              {unattachedEvaluators.map((evaluator) => (
+                                <CommandItem
+                                  key={evaluator.id}
+                                  value={`${evaluator.scoreName} ${evaluator.id}`}
+                                  onSelect={() => toggleEvaluator(evaluator.id)}
+                                >
+                                  <span
+                                    className="truncate"
+                                    title={evaluator.scoreName}
+                                  >
+                                    {evaluator.scoreName}
+                                  </span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+                <EvaluationRuleEvaluatorList
+                  projectId={projectId}
+                  filterState={filterState}
+                  timeRange={absoluteTimeRange}
+                  evaluators={selectedEvaluators}
+                  onMappingChange={(evaluatorId, mapping) =>
+                    setMappingOverrides((current) => ({
+                      ...current,
+                      [evaluatorId]: mapping,
+                    }))
+                  }
+                  onRemove={toggleEvaluator}
+                />
+                {validation.issue?.requiresMappingReview ? (
+                  <EvaluationRuleAttachmentValidationAlert
+                    issue={validation.issue}
+                    onDismiss={validation.resetIssue}
+                    reviewHref={`/project/${projectId}/evals/v2/${encodeURIComponent(validation.issue.evaluatorId)}?edit=1`}
+                  />
+                ) : null}
+                {selectedEvaluators.map((evaluator) => (
+                  <ActivationCostEstimate
+                    key={evaluator.id}
+                    projectId={projectId}
+                    evaluatorId={evaluator.id}
+                    filter={filterState}
+                    sampling={sampling}
+                    testRunCostUsd={
+                      testRunCostUsdByEvaluatorId[evaluator.id] ?? null
+                    }
+                    isCodeEvaluator={evaluator.evalTemplate?.type === "CODE"}
+                    enabled={open}
+                  />
+                ))}
+                {selectedEvaluatorIds.length > 0 ? (
+                  <p className="text-muted-foreground text-xs">
+                    Evaluator compatibility is validated when you save.
+                  </p>
+                ) : null}
+              </div>
+            </Stepper>
+
+            <Stepper
+              number={4}
+              title="Name rule"
+              description="Give this rule a clear name so it is easy to recognize."
+              open={nameOpen}
+              isLast
+              onOpenChange={setNameOpen}
+            >
+              <div className="flex flex-col gap-2">
+                <EvaluationRuleFieldLabel
+                  htmlFor="new-evaluation-rule-name"
+                  tooltip="Use a short, recognizable name for this rule."
+                >
+                  Name
+                </EvaluationRuleFieldLabel>
+                <Input
+                  id="new-evaluation-rule-name"
+                  value={name}
+                  placeholder="e.g. Production observations"
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setNameCustomized(true);
+                  }}
+                  autoFocus
+                />
+                <p className="text-muted-foreground text-xs">
+                  The rule becomes active when it is created.
+                </p>
+              </div>
+            </Stepper>
+          </DialogBody>
+        )}
+
+        {!traceId ? (
+          <DialogFooter className="px-6 py-4">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={createRule.isPending}
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              loading={
+                createRule.isPending || validation.pendingEvaluatorId !== null
+              }
+              disabled={!name.trim()}
+              onClick={() => create().catch(() => undefined)}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -130,6 +130,7 @@ const ConfigWithTemplateSchema = z.object({
     .object({
       name: z.string(),
       partner: z.string().nullable(),
+      createdByUserId: z.string().nullable(),
       id: z.string(),
       createdAt: z.coerce.date(),
       updatedAt: z.coerce.date(),
@@ -634,10 +635,16 @@ export const evalRouter = createTRPCRouter({
         },
         include: {
           evalTemplate: true,
+          runScopeAssignments: {
+            orderBy: { createdAt: "asc" },
+            include: { runScope: true },
+          },
         },
       });
 
       if (!config) return null;
+
+      const { runScopeAssignments, ...configWithoutRuleAssignments } = config;
 
       const displayStatus = deriveEvaluatorDisplayStateFromExecutionCounts({
         status: config.status,
@@ -646,7 +653,13 @@ export const evalRouter = createTRPCRouter({
       });
 
       return {
-        ...config,
+        ...configWithoutRuleAssignments,
+        ruleAssignments: runScopeAssignments.map(
+          ({ runScope, ...assignment }) => ({
+            ...assignment,
+            rule: runScope,
+          }),
+        ),
         displayStatus,
       };
     }),
@@ -1099,6 +1112,7 @@ export const evalRouter = createTRPCRouter({
         data: {
           id: jobId,
           projectId: input.projectId,
+          createdByUserId: ctx.session.user.id,
           jobType: "EVAL",
           evalTemplateId: resolvedEvalTemplate.id,
           scoreName: input.scoreName,
@@ -1339,6 +1353,7 @@ export const evalRouter = createTRPCRouter({
           version: (latestTemplate?.version ?? 0) + 1,
           name: input.name,
           projectId: input.projectId,
+          createdByUserId: ctx.session.user.id,
         };
 
         const evalTemplate = await (async () => {
@@ -2086,7 +2101,6 @@ const generateExecutionsQuery = (
   const configCondition = jobConfigurationId
     ? Prisma.sql`AND je.job_configuration_id = ${jobConfigurationId}`
     : Prisma.empty;
-
   return Prisma.sql`
   SELECT
    ${select}

@@ -55,11 +55,6 @@ function parseMultiEncodedJson(value: unknown): unknown {
 }
 
 function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
-  // JSONPath can only query objects/arrays — return primitives as-is
-  if (typeof selectedColumn !== "object" || selectedColumn === null) {
-    return selectedColumn;
-  }
-
   const result = JSONPath({
     path: jsonSelector,
     json: selectedColumn as any, // JSONPath accepts unknown but types are strict
@@ -88,7 +83,7 @@ export function extractValueFromObject(
   let jsonSelectedColumn;
   let error: Error | null = null;
 
-  if (jsonSelector && selectedColumn) {
+  if (jsonSelector && selectedColumn !== null && selectedColumn !== undefined) {
     // Only parse multi-encoded JSON when a selector is present — avoids
     // mutating formatting (e.g. whitespace) for the no-selector passthrough.
     const parsed =
@@ -113,6 +108,18 @@ export function extractValueFromObject(
 }
 
 /**
+ * Stringification for LLM prompt surfaces (previews, test runs, judge
+ * prompts): unwraps (multi-)encoded JSON strings before stringifying, so a
+ * full-value mapping of an encoded column injects clean JSON into the prompt
+ * instead of an escaped string. Plain strings pass through unchanged; code
+ * evals keep the typed value from `extractValueFromObject` instead.
+ */
+export const parseUnknownToPromptString = (value: unknown): string =>
+  parseUnknownToString(
+    typeof value === "string" ? parseMultiEncodedJson(value) : value,
+  );
+
+/**
  * Backwards-compatible extraction for UI prompt previews and LLM prompt
  * rendering. `extractValueFromObject` preserves typed values for code eval;
  * this wrapper keeps the previous string-only behavior for prompt surfaces.
@@ -130,5 +137,5 @@ export function extractValueFromObjectAsString(
     parseJson,
   );
 
-  return { value: parseUnknownToString(value), error };
+  return { value: parseUnknownToPromptString(value), error };
 }

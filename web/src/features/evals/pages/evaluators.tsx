@@ -1,7 +1,7 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
 import {
   getEvalsTabs,
@@ -13,11 +13,27 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { EvaluatorGalleryDialog } from "@/src/features/evals/v2/components/EvaluatorGalleryDialog";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+
+  // The v2 template gallery lives on this list page behind a query param
+  // (deep-linkable); picking an entry deep-links into the standalone setup
+  // page, which is decoupled from the gallery.
+  const galleryOpen = router.query.gallery === "1";
+  const setGalleryOpen = (open: boolean) => {
+    const { gallery: _gallery, ...rest } = router.query;
+    router
+      .push(
+        { query: open ? { ...router.query, gallery: "1" } : rest },
+        undefined,
+        { shallow: true },
+      )
+      .catch(() => undefined);
+  };
 
   const evaluatorLimit = useEntitlementLimit(
     "model-based-evaluations-count-evaluators",
@@ -74,45 +90,80 @@ export default function EvaluatorsPage() {
   }
 
   return (
-    <Page
-      headerProps={{
-        title: "Evaluators",
-        titleBadges: <V4MigrationUpdateRequiredBadge />,
-        help: {
-          description:
-            "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
-          href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
-        },
-        tabsProps: {
-          tabs: getEvalsTabs(projectId),
-          activeTab: EVALS_TABS.CONFIGS,
-        },
-        actionButtonsRight: (
-          <>
-            <ManageDefaultEvalModel projectId={projectId} />
-            <ActionButton
-              hasAccess={hasWriteAccess}
-              href={`/project/${projectId}/evals/new`}
-              icon={<Plus className="h-4 w-4" />}
-              trackingEventName="eval_config:new_form_open"
-              variant="default"
-              usageLimit={
-                typeof evaluatorLimit === "number"
-                  ? {
-                      current: countsQuery.data?.configActiveCount ?? 0,
-                      max: evaluatorLimit,
-                    }
-                  : undefined
-              }
-            >
-              Set up evaluator
-            </ActionButton>
-          </>
-        ),
-        actionButtonsRightClassName: "justify-end",
-      }}
-    >
-      <EvaluatorTable projectId={projectId} />
-    </Page>
+    <>
+      <Page
+        headerProps={{
+          title: "Evaluators",
+          titleBadges: <V4MigrationUpdateRequiredBadge />,
+          help: {
+            description:
+              "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
+            href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
+          },
+          tabsProps: {
+            tabs: getEvalsTabs(projectId),
+            activeTab: EVALS_TABS.CONFIGS,
+          },
+          actionButtonsRight: (
+            <>
+              <ManageDefaultEvalModel projectId={projectId} />
+              <ActionButton
+                hasAccess={hasWriteAccess}
+                icon={<Sparkles className="h-4 w-4" />}
+                variant="outline"
+                onClick={() => setGalleryOpen(true)}
+                usageLimit={
+                  typeof evaluatorLimit === "number"
+                    ? {
+                        current: countsQuery.data?.configActiveCount ?? 0,
+                        max: evaluatorLimit,
+                      }
+                    : undefined
+                }
+              >
+                New setup (beta)
+              </ActionButton>
+              <ActionButton
+                hasAccess={hasWriteAccess}
+                href={`/project/${projectId}/evals/new`}
+                icon={<Plus className="h-4 w-4" />}
+                trackingEventName="eval_config:new_form_open"
+                variant="default"
+                usageLimit={
+                  typeof evaluatorLimit === "number"
+                    ? {
+                        current: countsQuery.data?.configActiveCount ?? 0,
+                        max: evaluatorLimit,
+                      }
+                    : undefined
+                }
+              >
+                Set up evaluator
+              </ActionButton>
+            </>
+          ),
+          actionButtonsRightClassName: "justify-end",
+        }}
+      >
+        <EvaluatorTable projectId={projectId} />
+      </Page>
+      <EvaluatorGalleryDialog
+        projectId={projectId}
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onSelectTemplate={(template) => {
+          router
+            .push(
+              `/project/${projectId}/evals/v2/new?templateId=${encodeURIComponent(template.id)}`,
+            )
+            .catch(() => undefined);
+        }}
+        onCreateFromScratch={(type) => {
+          router
+            .push(`/project/${projectId}/evals/v2/new?scratch=${type}`)
+            .catch(() => undefined);
+        }}
+      />
+    </>
   );
 }

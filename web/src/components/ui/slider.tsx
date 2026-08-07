@@ -14,6 +14,8 @@ export interface SliderProps extends React.ComponentPropsWithoutRef<
   displayAsPercentage?: boolean;
   decimalPlaces?: number;
   onValueChange?: (value: number[]) => void;
+  /** Overrides the filled range's color (default bg-primary). */
+  rangeClassName?: string;
 }
 
 const Slider = React.forwardRef<
@@ -21,7 +23,14 @@ const Slider = React.forwardRef<
   SliderProps
 >(
   (
-    { className, showInput, displayAsPercentage, decimalPlaces = 2, ...props },
+    {
+      className,
+      showInput,
+      displayAsPercentage,
+      decimalPlaces = 2,
+      rangeClassName,
+      ...props
+    },
     ref,
   ) => {
     const [inputValue, setInputValue] = React.useState<string>("");
@@ -100,6 +109,7 @@ const Slider = React.forwardRef<
               className={cn(
                 "absolute h-full",
                 props.disabled ? "bg-input" : "bg-primary",
+                !props.disabled && rangeClassName,
               )}
             />
           </SliderPrimitive.Track>

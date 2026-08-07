@@ -293,8 +293,11 @@ export function SearchComposer({
   erroredColumns,
   onActivateAi,
   onRequestColumns,
+  savedQueries,
+  onPickSavedQuery,
   fieldReason,
   freeTextReason,
+  surfaceClassName,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
@@ -311,11 +314,24 @@ export function SearchComposer({
    * loading is wired by the host table.
    */
   onRequestColumns?: (columns: readonly string[]) => void;
+  /**
+   * Host-provided saved queries (e.g. shared filters on the evaluator form),
+   * offered as their own empty-bar section like recents. Picking one calls
+   * `onPickSavedQuery(id)` — the host applies the saved state and the bar
+   * re-derives from it; the pick never edits the draft directly.
+   */
+  savedQueries?: {
+    title: string;
+    items: { id: string; label: string; detail?: string }[];
+  };
+  onPickSavedQuery?: (id: string) => void;
   /** Given a filter token's field, the reason it is not applied on the current
    *  surface (dims the pill + hover), or null. Undefined leaves all active. */
   fieldReason?: (field: string) => string | null;
   /** Reason free-text tokens are not applied on the current surface, or null. */
   freeTextReason?: string | null;
+  /** Host-specific spacing for the composer surface. */
+  surfaceClassName?: string;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -370,6 +386,12 @@ export function SearchComposer({
     [autocompleteOpen, draft, projectId],
   );
 
+  // Saved queries are offered at any empty-term caret (the empty completion
+  // stage), NOT only on an empty bar like recents: the section is explicitly
+  // labeled and picking one is a deliberate switch to the saved state, not a
+  // text completion that could silently clobber a built-up draft.
+  const saved = autocompleteOpen ? savedQueries : undefined;
+
   const plan: CompletionPlan | null =
     autocompleteOpen && selectionCollapsed
       ? planInputCompletions({
@@ -379,6 +401,7 @@ export function SearchComposer({
           erroredColumns,
           recents,
           currentQueryText: draft,
+          saved,
         })
       : null;
   // Lazy filter-options: when the current completion stage needs option columns
@@ -772,6 +795,13 @@ export function SearchComposer({
     (option: CompletionOption) => {
       const currentPlan = planRef.current;
       if (currentPlan === null) return;
+      if (option.kind === "saved") {
+        // The host applies the saved state (filter + any state of its own,
+        // e.g. scope selection); the bar re-derives the pills from it.
+        onPickSavedQuery?.(option.savedId);
+        setAutocompleteOpen(false);
+        return;
+      }
       if (option.kind === "recent") {
         // Land in the RESTING (trailing-space) form like every other commit
         // landing, so a later click past the text doesn't have to mutate the
@@ -822,6 +852,7 @@ export function SearchComposer({
       commitStructuredEdit,
       commitToFilterState,
       storeApi,
+      onPickSavedQuery,
     ],
   );
 
@@ -1286,6 +1317,7 @@ export function SearchComposer({
           onActivateAi !== undefined && !showGlobalDiagnostics
             ? "pr-20"
             : "pr-8",
+          surfaceClassName,
           "focus-within:ring-ring focus-within:ring-1",
           showGlobalDiagnostics &&
             "border-destructive focus-within:ring-destructive/40",

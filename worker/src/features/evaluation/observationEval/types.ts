@@ -1,6 +1,7 @@
 import {
   EvalTemplate,
   EvalTemplateType,
+  EvalRunScope,
   JobConfiguration,
   JobExecutionStatus,
 } from "@langfuse/shared/src/db";
@@ -38,6 +39,12 @@ export type ObservationEvalConfig = Pick<
   | "blockedAt"
 > & {
   evalTemplate: Pick<EvalTemplate, "type">;
+  evaluationRules?: Array<
+    Pick<
+      EvalRunScope,
+      "id" | "enabled" | "filter" | "sampling" | "targetObject"
+    >
+  >;
 };
 
 /**
@@ -50,6 +57,7 @@ export interface ObservationEvalSchedulerDeps {
     id: string;
     projectId: string;
     jobConfigurationId: string;
+    ruleId?: string;
     jobInputTraceId: string;
     jobInputObservationId: string;
     jobTemplateId: string | null;

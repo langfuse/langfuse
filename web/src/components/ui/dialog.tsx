@@ -84,6 +84,7 @@ const DialogContent = React.forwardRef<
       closeOnInteractionOutside?: boolean;
       confirmCloseOnEscape?: string;
       overlayMode?: DialogOverlayMode;
+      showCloseButton?: boolean;
       overlayClassName?: string;
       stopPropagationOnEnterSpace?: boolean;
     } & VariantProps<typeof dialogContentVariants>,
@@ -97,6 +98,7 @@ const DialogContent = React.forwardRef<
       closeOnInteractionOutside = false,
       confirmCloseOnEscape,
       overlayMode = "subtle",
+      showCloseButton = true,
       overlayClassName,
       stopPropagationOnEnterSpace = true,
       onEscapeKeyDown,
@@ -158,12 +160,14 @@ const DialogContent = React.forwardRef<
           {...props}
         >
           {children}
-          <div className="[&:has(.dialog-header)]:hidden [&:not(:has(.dialog-header))]:absolute [&:not(:has(.dialog-header))]:top-3 [&:not(:has(.dialog-header))]:right-3 [&:not(:has(.dialog-header))]:z-20">
-            <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </DialogPrimitive.Close>
-          </div>
+          {showCloseButton ? (
+            <div className="[&:has(.dialog-header)]:hidden [&:not(:has(.dialog-header))]:absolute [&:not(:has(.dialog-header))]:top-3 [&:not(:has(.dialog-header))]:right-3 [&:not(:has(.dialog-header))]:z-20">
+              <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </DialogPrimitive.Close>
+            </div>
+          ) : null}
         </DialogPrimitive.Content>
       </DialogPortal>
     );
@@ -205,7 +209,9 @@ const DialogHeader = ({
     <div className="flex w-full items-center justify-between gap-4 text-center sm:text-left">
       <div className="min-w-0 flex-1">{children}</div>
       <DialogPrimitive.Close
-        className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-20 mt-1 ml-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+        // No vertical margin: the row is items-center, so any margin knocks
+        // the X off the title's center (most visible in title-only headers).
+        className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-20 ml-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
         tabIndex={-1}
       >
         <X className="h-4 w-4" />
