@@ -52,6 +52,10 @@ export type BedrockCredential = z.infer<typeof BedrockCredentialSchema>;
 export const VertexAIConfigSchema = z
   .object({
     location: z.string().optional(),
+    // Optional GCP project override used only when Application Default Credentials
+    // (ADC) are in effect and the server has opted in via
+    // VERTEXAI_ADC_ALLOW_PROJECT_OVERRIDE. Ignored otherwise.
+    projectId: z.string().optional(),
   })
   .strict();
 
