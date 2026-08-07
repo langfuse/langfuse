@@ -1379,6 +1379,18 @@ const getScoresUiGeneric = async <T>(props: {
     props.select === "rows" ||
     scoresFilter.some((f) => f.clickhouseTable === "traces");
 
+  // Append the unique score id as a tiebreaker so offset-based pagination
+  // is stable when rows share a value in the user's chosen sort column
+  // (e.g. timestamp). The count query is a single aggregate row, so it
+  // must not receive the extra clause.
+  const scoresOrderBy: OrderByState[] = [];
+  if (orderBy) {
+    scoresOrderBy.push(orderBy);
+  }
+  if (props.select === "rows" && orderBy?.column !== "id") {
+    scoresOrderBy.push({ column: "id", order: "DESC" });
+  }
+
   const query = `
       SELECT
           ${select}
@@ -1387,7 +1399,7 @@ const getScoresUiGeneric = async <T>(props: {
       WHERE s.project_id = {projectId: String}
       AND s.data_type IN ({dataTypes: Array(String)})
       ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
-      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
+      ${orderByToClickhouseSql(scoresOrderBy.length > 0 ? scoresOrderBy : null, scoresTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
@@ -1572,6 +1584,17 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
+  // Append the unique score id as a tiebreaker so offset-based pagination
+  // is stable when rows share a value in the user's chosen sort column.
+  // The count query is a single aggregate row, so it must not receive it.
+  const eventsScoresOrderBy: OrderByState[] = [];
+  if (orderBy) {
+    eventsScoresOrderBy.push(orderBy);
+  }
+  if (props.select === "rows" && orderBy?.column !== "id") {
+    eventsScoresOrderBy.push({ column: "id", order: "DESC" });
+  }
+
   const query = `
       ${tracesCTEClause}
       SELECT
@@ -1581,7 +1604,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       WHERE s.project_id = {projectId: String}
       AND s.data_type IN ({dataTypes: Array(String)})
       ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
-      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
+      ${orderByToClickhouseSql(eventsScoresOrderBy.length > 0 ? eventsScoresOrderBy : null, scoresTableUiColumnDefinitionsFromEvents)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
