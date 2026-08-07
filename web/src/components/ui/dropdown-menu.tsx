@@ -256,24 +256,27 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
  * Owns dropdown open state while callers retain trigger and menu presentation.
  * Use the supplied primitives in each render prop to preserve Radix behavior.
  */
-const DropdownMenuController = ({
-  align,
-  children,
-  maxWidth,
-  onCloseAutoFocus,
-  renderMenu,
-}: {
+type DropdownMenuControllerProps = {
   align: React.ComponentProps<typeof DropdownMenuContent>["align"];
   children: (control: {
     isOpen: boolean;
     Trigger: typeof DropdownMenuTrigger;
   }) => React.ReactNode;
   maxWidth?: React.CSSProperties["maxWidth"];
+  /** Customizes Radix focus restoration after the menu closes. */
   onCloseAutoFocus?: React.ComponentProps<
     typeof DropdownMenuContent
   >["onCloseAutoFocus"];
   renderMenu: () => React.ReactNode;
-}) => {
+};
+
+const DropdownMenuController = ({
+  align,
+  children,
+  maxWidth,
+  onCloseAutoFocus,
+  renderMenu,
+}: DropdownMenuControllerProps) => {
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (

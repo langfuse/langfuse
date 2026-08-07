@@ -175,12 +175,7 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
  * Owns dialog open state while callers retain trigger and content presentation.
  * Use the supplied Trigger to preserve Radix behavior.
  */
-const DialogController = ({
-  children,
-  closeOnInteractionOutside,
-  renderContent,
-  size,
-}: {
+type DialogControllerProps = {
   children: (control: {
     isOpen: boolean;
     Trigger: typeof DialogTrigger;
@@ -188,7 +183,14 @@ const DialogController = ({
   closeOnInteractionOutside: boolean;
   renderContent: (control: { closeDialog: () => void }) => React.ReactNode;
   size: React.ComponentProps<typeof DialogContent>["size"];
-}) => {
+};
+
+const DialogController = ({
+  children,
+  closeOnInteractionOutside,
+  renderContent,
+  size,
+}: DialogControllerProps) => {
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (
