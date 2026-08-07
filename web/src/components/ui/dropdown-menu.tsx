@@ -257,21 +257,6 @@ type DropdownMenuControllerContentProps = Omit<
   "align"
 >;
 
-const DropdownMenuControllerAlignContext =
-  React.createContext<
-    React.ComponentProps<typeof DropdownMenuContent>["align"]
-  >(undefined);
-
-const DropdownMenuControllerContent = React.forwardRef<
-  React.ComponentRef<typeof DropdownMenuContent>,
-  DropdownMenuControllerContentProps
->((props, ref) => {
-  const align = React.useContext(DropdownMenuControllerAlignContext);
-
-  return <DropdownMenuContent {...props} ref={ref} align={align} />;
-});
-DropdownMenuControllerContent.displayName = "DropdownMenuControllerContent";
-
 /**
  * Owns dropdown open state while callers retain trigger and menu presentation.
  * Use the supplied primitives in each render prop to preserve Radix behavior.
@@ -287,18 +272,22 @@ const DropdownMenuController = ({
     Trigger: typeof DropdownMenuTrigger;
   }) => React.ReactNode;
   renderMenu: (control: {
-    Content: typeof DropdownMenuControllerContent;
+    renderContent: (
+      props: DropdownMenuControllerContentProps,
+    ) => React.ReactNode;
   }) => React.ReactNode;
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (
-    <DropdownMenuControllerAlignContext.Provider value={align}>
-      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-        {children({ isOpen, Trigger: DropdownMenuTrigger })}
-        {renderMenu({ Content: DropdownMenuControllerContent })}
-      </DropdownMenu>
-    </DropdownMenuControllerAlignContext.Provider>
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      {children({ isOpen, Trigger: DropdownMenuTrigger })}
+      {renderMenu({
+        renderContent: (props) => (
+          <DropdownMenuContent {...props} align={align} />
+        ),
+      })}
+    </DropdownMenu>
   );
 };
 
