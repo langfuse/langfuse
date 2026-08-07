@@ -66,6 +66,8 @@ import {
 } from "@/src/features/scores/lib/scoreColumns";
 import { getScoreLabelFromKey } from "@/src/features/scores/lib/aggregateScores";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { BatchExportTableName } from "@langfuse/shared";
 
 export type DatasetRunRowData = {
   id: string;
@@ -733,6 +735,21 @@ export function DatasetRunsTable(props: {
                     setRowSelection={setSelectedRows}
                   />
                 ) : null,
+                <BatchExportTableButton
+                  key="batchExport"
+                  projectId={props.projectId}
+                  tableName={BatchExportTableName.DatasetRuns}
+                  orderByState={{ column: "createdAt", order: "DESC" }}
+                  filterState={[
+                    {
+                      type: "string",
+                      operator: "=",
+                      column: "datasetId",
+                      value: props.datasetId,
+                    },
+                    ...userFilterState,
+                  ]}
+                />,
               ]}
             />
             <DataTable
@@ -798,6 +815,21 @@ export function DatasetRunsTable(props: {
                   setRowSelection={setSelectedRows}
                 />
               ) : null,
+              <BatchExportTableButton
+                key="batchExport"
+                projectId={props.projectId}
+                tableName={BatchExportTableName.DatasetRuns}
+                orderByState={{ column: "createdAt", order: "DESC" }}
+                filterState={[
+                  {
+                    type: "string",
+                    operator: "=",
+                    column: "datasetId",
+                    value: props.datasetId,
+                  },
+                  ...userFilterState,
+                ]}
+              />,
             ]}
           />
           <DataTable

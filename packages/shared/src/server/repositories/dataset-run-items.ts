@@ -324,6 +324,15 @@ const getDatasetRunsTableInternal = async <T>(
   if (orderBy) {
     orderByArray.push(orderBy);
   }
+  // Append the unique run id as a tiebreaker so offset-based pagination is
+  // stable when runs share a creation timestamp (e.g. batch exports). The
+  // count query aggregates to a single row, so it must not receive it.
+  if (opts.select !== "count" && orderBy?.column !== "id") {
+    orderByArray.push({
+      column: "id",
+      order: "DESC",
+    });
+  }
 
   const orderByClause = orderByToClickhouseSql(
     orderByArray,
