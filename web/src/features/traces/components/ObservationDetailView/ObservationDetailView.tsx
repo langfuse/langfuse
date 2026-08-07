@@ -63,6 +63,7 @@ import {
   aggregateTraceMetrics,
   getDescendantIds,
 } from "@/src/features/traces/fns/trace-aggregation";
+import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/node-scores";
 import TagList from "@/src/features/tag/components/TagList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
@@ -114,6 +115,12 @@ export function ObservationDetailView({
   // Uses the tree's roots array which handles orphans correctly
   const treeNode = nodeMap.get(observation.id);
   const isRoot = roots.some((root) => root.id === observation.id);
+
+  // Without a TRACE row (v4) this span stands in for the trace, so its badge and
+  // its Scores tab both cover the trace-level scores.
+  const ownsTraceLevelScores = traceLevelScoreOwnerIds(roots).has(
+    observation.id,
+  );
 
   // For root observations, compute subtree metrics for badge tooltips.
   // We compute this lazily here rather than in tree-building.ts because:
@@ -539,6 +546,7 @@ export function ObservationDetailView({
                 projectId={projectId}
                 traceId={traceId}
                 observationId={observation.id}
+                includeTraceLevelScores={ownsTraceLevelScores}
                 hiddenColumns={[
                   "traceId",
                   "observationId",
