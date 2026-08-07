@@ -198,8 +198,8 @@ const STATUS: SemanticToken[] = [
 const TEXT_SIZES = [
   {
     token: "--text-size-md",
-    value: "0.7rem",
-    pixels: "11.2px",
+    value: "0.75rem",
+    pixels: "12px",
     purpose: "Button labels, compact UI text",
   },
 ];
