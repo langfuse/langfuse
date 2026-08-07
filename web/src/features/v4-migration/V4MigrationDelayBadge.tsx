@@ -37,7 +37,7 @@ export function V4MigrationDelayBadge() {
     <V4MigrationBadgeContent
       onClick={handleClick}
       title="New data in ~15 min"
-      description="Update your SDK for real-time data"
+      description="Your setup is outdated. Update SDK for real-time data"
     />
   );
 }
