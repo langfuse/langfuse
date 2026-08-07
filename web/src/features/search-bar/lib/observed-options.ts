@@ -11,6 +11,7 @@
 
 import type { ScoreTypeContext } from "./adapter";
 import { SCORE_COLUMNS } from "./fields";
+import { observedMetadataOptions, type StoredKeyInfo } from "./metadata-paths";
 
 export type ObservedValue = {
   value: string;
@@ -99,6 +100,23 @@ export function toObservedOptions(
   }
   normalizeScoreTypes(out);
   return out;
+}
+
+/**
+ * Merge the observed-metadata suggestions into the map the completion planner
+ * reads (see metadata-paths.ts observedMetadataOptions). `undefined` observed
+ * (filter options still loading) stays `undefined` so the planner's loading
+ * semantics are untouched.
+ */
+export function withMetadataPathOptions(
+  observed: ObservedOptions | undefined,
+  paths: Record<string, StoredKeyInfo> | undefined,
+): ObservedOptions | undefined {
+  if (observed === undefined) return observed;
+  const suggestions = observedMetadataOptions(paths);
+  return Object.keys(suggestions).length === 0
+    ? observed
+    : { ...observed, ...suggestions };
 }
 
 /**
