@@ -174,6 +174,10 @@ const viewFilterDefinitions: Record<
       sourceSpec("Score Source", { uiTableId: "scoreSource" }),
     ),
     defineField(
+      "comment",
+      sourceSpec("Score Comment", { uiTableId: "scoreComment" }),
+    ),
+    defineField(
       "value",
       sourceSpec("Score Value", {
         uiTableId: "value",
@@ -269,6 +273,10 @@ const viewFilterDefinitions: Record<
     defineField(
       "source",
       sourceSpec("Score Source", { uiTableId: "scoreSource" }),
+    ),
+    defineField(
+      "comment",
+      sourceSpec("Score Comment", { uiTableId: "scoreComment" }),
     ),
     defineField(
       "stringValue",
