@@ -5,6 +5,7 @@ import {
   filterAlreadyRenderedMedia,
   getRenderedInlineMediaIds,
 } from "@/src/components/ui/markdown-media.utils";
+import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
 import { ChatMessage, type ViewMode } from "./ChatMessage";
 import { SectionMedia } from "./SectionMedia";
 import {
@@ -94,10 +95,10 @@ export function ChatMessageList({
     visibleMessages.forEach(({ message }) => {
       const content = message.content;
 
-      // Queue previews reliably render standalone media tags in strings and
-      // output audio inline, but OpenAI content-part images still fall back to
-      // the shared media strip on this surface.
-      if (typeof content === "string") {
+      // Only content that ChatMessage renders through MarkdownView shows its
+      // media inline; anything falling back to a JSON table still needs the
+      // shared strip, so ask the renderer's own predicate.
+      if (typeof content === "string" || canRenderContentAsMarkdown(content)) {
         getRenderedInlineMediaIds({
           markdown: content,
           audio: message.audio,
