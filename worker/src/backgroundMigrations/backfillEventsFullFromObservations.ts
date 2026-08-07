@@ -9,12 +9,18 @@ import {
   detectTableEngine,
   runBackfillMigrationCli,
 } from "./utils/backfillBase";
+import { qualifiedClickhouseTableName } from "./utils/clickhouseIdentifiers";
 
 // Hard-coded UUID identifying the row in background_migrations. Must match
 // the Prisma migration that registers this row.
 const backgroundMigrationId = "7a3f8d6e-2c91-4b5e-8d72-f4a5b6c7d8e9";
 
 const LOG_PREFIX = "[Backfill Events Observations]";
+const SCRATCH_TABLE = "observations_pid_tid_sorting";
+
+function qualifiedScratchTable(): string {
+  return qualifiedClickhouseTableName(env.CLICKHOUSE_DB, SCRATCH_TABLE);
+}
 
 interface PartChunkTodo extends BaseChunkTodo {
   partId: string;
@@ -106,7 +112,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
         `observations_pid_tid_sorting replicas have not converged (${lastSummary}). ` +
         `M2 freezes merges and syncs all replicas on success, so this indicates a replica joined or ` +
         `recovered after M2, or M3 resumed after a topology change. Once replication settles (or after ` +
-        `running SYSTEM SYNC REPLICA ON CLUSTER ${cluster} observations_pid_tid_sorting STRICT), clear ` +
+        `running SYSTEM SYNC REPLICA ON CLUSTER ${cluster} ${qualifiedScratchTable()} STRICT), clear ` +
         `failedAt and re-run.`,
     };
   }
@@ -338,7 +344,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
         o.updated_at,
         o.event_ts,
         o.is_deleted
-      FROM observations_pid_tid_sorting o
+      FROM ${qualifiedScratchTable()} o
       LEFT ANY JOIN (
         SELECT project_id, id, version, release, tags, public, bookmarked, name, user_id, session_id
         FROM traces t

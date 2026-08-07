@@ -11,12 +11,18 @@ import {
   onClusterClause,
   runBackfillMigrationCli,
 } from "./utils/backfillBase";
+import { qualifiedClickhouseTableName } from "./utils/clickhouseIdentifiers";
 
 // Hard-coded UUID identifying the row in background_migrations.
 // Must match the Prisma migration that registers this row.
 const backgroundMigrationId = "9c2d5a4f-7b8e-4f6a-a91c-3e5d7f8a2b1c";
 
 const LOG_PREFIX = "[Backfill PidTid Sorting]";
+const SCRATCH_TABLE = "observations_pid_tid_sorting";
+
+function qualifiedScratchTable(): string {
+  return qualifiedClickhouseTableName(env.CLICKHOUSE_DB, SCRATCH_TABLE);
+}
 
 // ============================================================================
 // Cluster-aware DDL helpers
@@ -63,7 +69,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
    */
   private async ensureScratchTable(): Promise<void> {
     const ddl = `
-      CREATE TABLE IF NOT EXISTS observations_pid_tid_sorting ${onClusterClause()} (
+      CREATE TABLE IF NOT EXISTS ${qualifiedScratchTable()} ${onClusterClause()} (
         \`id\` String,
         \`trace_id\` String,
         \`project_id\` String,
@@ -137,7 +143,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
       // The documented equivalent is the per-table setting below, which is
       // assignment-scoped and persists until explicitly reset.
       await commandClickhouse({
-        query: `ALTER TABLE observations_pid_tid_sorting MODIFY SETTING shared_merge_tree_disable_merges_and_mutations_assignment = 1`,
+        query: `ALTER TABLE ${qualifiedScratchTable()} MODIFY SETTING shared_merge_tree_disable_merges_and_mutations_assignment = 1`,
         tags: {
           surface: "worker",
           route: "background-migration.stopMerges",
@@ -149,7 +155,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
       // reset on server restart, so on its own it is not a durable freeze
       // across the M2 -> M3 gap.
       await commandClickhouse({
-        query: `SYSTEM STOP MERGES ${onClusterClause()} observations_pid_tid_sorting`,
+        query: `SYSTEM STOP MERGES ${onClusterClause()} ${qualifiedScratchTable()}`,
         tags: {
           surface: "worker",
           route: "background-migration.stopMerges",
@@ -164,7 +170,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
       // See https://github.com/ClickHouse/ClickHouse/issues/22830.
       if (isReplicatedMergeTree) {
         await commandClickhouse({
-          query: `ALTER TABLE observations_pid_tid_sorting ${onClusterClause()} MODIFY SETTING max_replicated_merges_in_queue = 0, always_fetch_merged_part = 1`,
+          query: `ALTER TABLE ${qualifiedScratchTable()} ${onClusterClause()} MODIFY SETTING max_replicated_merges_in_queue = 0, always_fetch_merged_part = 1`,
           tags: {
             surface: "worker",
             route: "background-migration.stopMerges",
@@ -203,7 +209,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
       `${this.logPrefix} Syncing all replicas of observations_pid_tid_sorting`,
     );
     await commandClickhouse({
-      query: `SYSTEM SYNC REPLICA ${onClusterClause()} observations_pid_tid_sorting STRICT`,
+      query: `SYSTEM SYNC REPLICA ${onClusterClause()} ${qualifiedScratchTable()} STRICT`,
       tags: {
         surface: "worker",
         route: "background-migration.syncReplica",
@@ -237,7 +243,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
     assertSafePartition(todo.partition);
 
     const query = `
-      INSERT INTO observations_pid_tid_sorting (
+      INSERT INTO ${qualifiedScratchTable()} (
         id, trace_id, project_id, environment, type, parent_observation_id,
         start_time, end_time, name, metadata, level, status_message, version,
         input, output,
