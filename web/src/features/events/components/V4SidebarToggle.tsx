@@ -217,7 +217,7 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
   return (
     <>
       <div className="flex items-center gap-2">
-        <span className="text-tertiary shrink-0 text-sm">V3</span>
+        <span className="text-muted-foreground shrink-0 text-sm">V3</span>
         <Switch
           id={toggleId}
           size="sm"
@@ -229,7 +229,7 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
         />
         <Label
           htmlFor={toggleId}
-          className="text-tertiary block min-w-0 cursor-pointer truncate text-sm font-normal"
+          className="text-muted-foreground block min-w-0 cursor-pointer truncate text-sm font-normal"
           title="V4"
         >
           V4

@@ -399,7 +399,7 @@ export const VariantMatrix = meta.story({
           ],
           [
             "16. Clean sections collapse into one summary line",
-            <p key="16" className="text-tertiary py-1.5 text-sm">
+            <p key="16" className="text-muted-foreground py-1.5 text-sm">
               Evals, experiments, APIs and integrations are up to date.
             </p>,
           ],

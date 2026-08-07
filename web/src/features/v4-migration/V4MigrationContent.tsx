@@ -125,7 +125,7 @@ function Section({
         {/* A rendered section always needs the user to act (clean ones hide
             themselves); same dot as the action-required badge. */}
         <V4MigrationStatusDot variant="action" />
-        <span className="text-tertiary flex items-center gap-1.5 text-sm">
+        <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
           {title}
           {typeof count === "number" && (
             // Same count-badge recipe as the "My Views" table button.
@@ -133,8 +133,8 @@ function Section({
           )}
         </span>
         <span className="flex-1" />
-        {meta && <span className="text-tertiary text-xs">{meta}</span>}
-        <ChevronRight className="text-tertiary h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+        {meta && <span className="text-muted-foreground text-xs">{meta}</span>}
+        <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pt-0.5 pb-4 pl-4.25">{children}</div>
@@ -144,7 +144,7 @@ function Section({
 }
 
 function MonoValue({ children }: { children: ReactNode }) {
-  return <span className="text-secondary font-bold">{children}</span>;
+  return <span className="text-foreground font-bold">{children}</span>;
 }
 
 function ExternalLink({
@@ -211,13 +211,13 @@ function SdkUsageSeriesRows({
             className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
           >
             {/* Action line: what it is and what to do about it. */}
-            <div className="text-tertiary flex items-center gap-1.5">
+            <div className="text-muted-foreground flex items-center gap-1.5">
               <span aria-hidden="true">{needsAction(usage) ? "⚠️" : "✅"}</span>
               <MonoValue>{sdkLabel}</MonoValue>
               {suffix(usage)}
             </div>
             {/* Metadata line, indented under the label (emoji + gap). */}
-            <div className="text-tertiary flex flex-wrap items-baseline gap-x-1.5 pl-5">
+            <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
               {/* Deep link to the exact evidence: the events table filtered by
                   this public key over the same lookback window the detection
                   used. Only the key is a supported, exact filter dimension;
@@ -286,7 +286,7 @@ export function V4MigrationSdkSection({
       }
       defaultOpen={defaultOpen}
     >
-      <p className="text-tertiary text-sm leading-relaxed">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         {section.status === "checking" ? (
           "Checking the latest traces for this project…"
         ) : section.status === "error" ? (
@@ -354,7 +354,7 @@ export function V4MigrationOtelSection({
       count={section.delayedCount}
       defaultOpen={defaultOpen}
     >
-      <p className="text-tertiary text-sm leading-relaxed">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         OTel data is arriving through the delayed ingestion path. Set the{" "}
         <MonoValue>x-langfuse-ingestion-version</MonoValue> header to{" "}
         <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
@@ -409,7 +409,7 @@ export function V4MigrationCustomInstrumentationSection({
       count={section.series.length}
       defaultOpen={defaultOpen}
     >
-      <p className="text-tertiary text-sm leading-relaxed">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         Data is arriving through the ingestion API without a Langfuse SDK
         header, so this looks like custom instrumentation or a very old SDK
         version. Please upgrade to one of our latest{" "}
@@ -466,14 +466,16 @@ export function V4MigrationEvalsSection({
       defaultOpen={defaultOpen}
     >
       {state.status === "loading" ? (
-        <p className="text-tertiary text-sm">Checking configured evals…</p>
+        <p className="text-muted-foreground text-sm">
+          Checking configured evals…
+        </p>
       ) : state.status === "error" ? (
-        <p className="text-tertiary text-sm">
+        <p className="text-muted-foreground text-sm">
           We could not check configured evals. Try again later.
         </p>
       ) : state.count > 0 ? (
         <>
-          <p className="text-tertiary mb-2 text-sm">
+          <p className="text-muted-foreground mb-2 text-sm">
             {evalsUrl ? (
               <Link href={evalsUrl} onClick={onNavigate} className="underline">
                 {state.count}{" "}
@@ -498,7 +500,9 @@ export function V4MigrationEvalsSection({
           )}
         </>
       ) : (
-        <p className="text-tertiary text-sm">No deprecated evals detected.</p>
+        <p className="text-muted-foreground text-sm">
+          No deprecated evals detected.
+        </p>
       )}
     </Section>
   );
@@ -605,14 +609,16 @@ export function V4MigrationApisSection({
       defaultOpen={defaultOpen}
     >
       {state.status === "loading" ? (
-        <p className="text-tertiary text-sm">Checking public API usage…</p>
+        <p className="text-muted-foreground text-sm">
+          Checking public API usage…
+        </p>
       ) : state.status === "error" ? (
-        <p className="text-tertiary text-sm">
+        <p className="text-muted-foreground text-sm">
           We could not check public API usage. Try again later.
         </p>
       ) : usage.length > 0 ? (
         <>
-          <p className="text-tertiary mb-2 text-sm">
+          <p className="text-muted-foreground mb-2 text-sm">
             You&apos;ve called these deprecated endpoints in the last{" "}
             {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working soon; the{" "}
             <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
@@ -624,7 +630,7 @@ export function V4MigrationApisSection({
             {usage.map((row) => (
               <div
                 key={row.endpoint}
-                className="text-tertiary flex flex-wrap items-baseline justify-between gap-x-2 py-0.5"
+                className="text-muted-foreground flex flex-wrap items-baseline justify-between gap-x-2 py-0.5"
               >
                 <ExternalLink
                   href={DEPRECATED_API_MIGRATION_URL}
@@ -633,7 +639,7 @@ export function V4MigrationApisSection({
                   {row.endpoint}
                 </ExternalLink>
                 <span
-                  className="text-tertiary text-sm whitespace-nowrap"
+                  className="text-muted-foreground text-sm whitespace-nowrap"
                   title={`Last seen at ${row.lastSeen}`}
                 >
                   {numberFormatter(row.count, 0, 2)} calls · last seen{" "}
@@ -644,7 +650,7 @@ export function V4MigrationApisSection({
           </div>
         </>
       ) : (
-        <p className="text-tertiary text-sm">
+        <p className="text-muted-foreground text-sm">
           No deprecated public API usage detected in the last{" "}
           {V4_MIGRATION_LOOKBACK_DAYS} days.
         </p>
@@ -680,14 +686,14 @@ export function V4MigrationIntegrationsSection({
       defaultOpen={defaultOpen}
     >
       {state.status === "loading" ? (
-        <p className="text-tertiary text-sm">Checking integrations…</p>
+        <p className="text-muted-foreground text-sm">Checking integrations…</p>
       ) : state.status === "error" ? (
-        <p className="text-tertiary text-sm">
+        <p className="text-muted-foreground text-sm">
           We could not check integrations. Try again later.
         </p>
       ) : integrations.length > 0 ? (
         <>
-          <p className="text-tertiary mb-2 text-sm">
+          <p className="text-muted-foreground mb-2 text-sm">
             These exports still read from the old data source. Switching them
             over can change what downstream consumers receive, so worth a quick
             check.
@@ -696,7 +702,7 @@ export function V4MigrationIntegrationsSection({
             {integrations.map((name) => (
               <div
                 key={name}
-                className="text-tertiary flex items-baseline gap-1.5 py-0.5"
+                className="text-muted-foreground flex items-baseline gap-1.5 py-0.5"
               >
                 {integrationsUrl ? (
                   <Link
@@ -709,7 +715,7 @@ export function V4MigrationIntegrationsSection({
                 ) : (
                   <span className="text-sm">{name}</span>
                 )}
-                <span className="text-tertiary text-sm">·</span>
+                <span className="text-muted-foreground text-sm">·</span>
                 <ExternalLink
                   href={
                     DEPRECATED_INTEGRATION_MIGRATION_URLS[name] ?? V4_DOCS_URL
@@ -723,7 +729,7 @@ export function V4MigrationIntegrationsSection({
           </div>
         </>
       ) : (
-        <p className="text-tertiary text-sm">
+        <p className="text-muted-foreground text-sm">
           No deprecated integration exports detected.
         </p>
       )}
@@ -771,7 +777,7 @@ export function V4MigrationHeaderContent({
           {projectName ? <>Migrate {projectName} to v4</> : "Migrate to v4"}
         </p>
       </div>
-      <p className="text-tertiary text-sm leading-relaxed">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         {/* Only claim the setup is outdated once the checks confirm it. */}
         {needsMigration && "Your setup is outdated. "}
         Upgrade to Langfuse v4 for{" "}
@@ -886,7 +892,7 @@ export function V4MigrationAgentUpgradeSection({
         <div className="flex items-center gap-2 text-base font-bold">
           Auto-upgrade with agents
         </div>
-        <p className="text-tertiary text-sm">
+        <p className="text-muted-foreground text-sm">
           Paste prompt into Claude Code or other coding agents
         </p>
       </div>
@@ -906,7 +912,7 @@ export function V4MigrationAgentUpgradeSection({
         </RainbowButton>
         {promptVisible && (
           <div className="bg-muted/50 my-3 max-h-32 overflow-y-auto rounded-md border p-3">
-            <code className="text-tertiary font-mono text-[10px] leading-4 break-words whitespace-pre-wrap">
+            <code className="text-muted-foreground font-mono text-[10px] leading-4 break-words whitespace-pre-wrap">
               {V4_CODING_AGENT_PROMPT}
             </code>
           </div>
@@ -914,7 +920,7 @@ export function V4MigrationAgentUpgradeSection({
         {promptVisible && projectId && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-tertiary min-w-0 text-sm leading-relaxed">
+              <p className="text-muted-foreground min-w-0 text-sm leading-relaxed">
                 Create project API keys to give your agent access
               </p>
               {!envBlock &&
@@ -938,7 +944,7 @@ export function V4MigrationAgentUpgradeSection({
             </div>
             {envBlock && (
               <div className="bg-muted/50 relative rounded-md border p-3">
-                <code className="text-tertiary font-mono text-[10px] leading-4 break-words whitespace-pre-wrap">
+                <code className="text-muted-foreground font-mono text-[10px] leading-4 break-words whitespace-pre-wrap">
                   {envBlock}
                 </code>
                 <Button
@@ -959,7 +965,7 @@ export function V4MigrationAgentUpgradeSection({
                   }}
                   aria-label={envCopied ? "Copied" : "Copy keys"}
                   title={envCopied ? "Copied" : "Copy keys"}
-                  className="text-tertiary absolute top-1 right-1 h-6 w-6"
+                  className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
                 >
                   {envCopied ? (
                     <Check className="h-3.5 w-3.5" />
@@ -1127,7 +1133,7 @@ export function V4MigrationDetailsContent({
           )}
 
           {cleanSummary && (
-            <p className="text-tertiary flex items-center gap-2.5 py-2.5 text-sm">
+            <p className="text-muted-foreground flex items-center gap-2.5 py-2.5 text-sm">
               <V4MigrationStatusDot variant="done" />
               {cleanSummary}
             </p>
@@ -1145,7 +1151,7 @@ export function V4MigrationDetailsContent({
       {canToggleV4 && (
         <>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-tertiary flex min-w-0 items-center gap-1.5 text-sm">
+            <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-sm">
               Compare traces while you upgrade
               <HoverCard openDelay={200}>
                 <HoverCardTrigger asChild>
@@ -1169,7 +1175,7 @@ export function V4MigrationDetailsContent({
 
       <Separator />
 
-      <div className="text-tertiary flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+      <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
         <a
           href={V4_DOCS_URL}
           target="_blank"
