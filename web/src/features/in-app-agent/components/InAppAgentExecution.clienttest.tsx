@@ -333,7 +333,7 @@ describe("in-app agent execution", () => {
     ).toBeInTheDocument();
   });
 
-  it("replays prompt invalidations after a detached run completes", async () => {
+  it("replays prompt and dashboard invalidations after a detached run completes", async () => {
     providerMocks.backgroundExecutionEnabled = true;
     const completedSnapshot = {
       conversation: {
@@ -383,6 +383,27 @@ describe("in-app agent execution", () => {
           toolCallId: "prompt-tool-call-2",
           content: '{"id":"prompt-2"}',
         },
+        {
+          id: "placement-call",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "placement-tool-call",
+              type: "function",
+              function: {
+                name: "langfuse_addDashboardPlacement",
+                arguments: "{}",
+              },
+            },
+          ],
+        },
+        {
+          id: "placement-result",
+          role: "tool",
+          toolCallId: "placement-tool-call",
+          content: '{"id":"placement-1"}',
+        },
       ],
       eventCursor: 14,
       latestRun: {
@@ -409,11 +430,11 @@ describe("in-app agent execution", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Reopen assistant" }));
 
-    // Two completed prompt tool calls must union into a single invalidation.
+    // Repeated calls union into one invalidation per affected route.
     await waitFor(() => {
       expect(providerMocks.utils.prompts.invalidate).toHaveBeenCalledOnce();
+      expect(providerMocks.utils.dashboard.invalidate).toHaveBeenCalledOnce();
     });
-    expect(providerMocks.utils.dashboard.invalidate).not.toHaveBeenCalled();
     expect(
       providerMocks.utils.dashboardWidgets.invalidate,
     ).not.toHaveBeenCalled();

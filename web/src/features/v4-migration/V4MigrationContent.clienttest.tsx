@@ -401,7 +401,7 @@ describe("V4MigrationHeaderContent", () => {
         titleRowClassName="pr-6"
       />,
     );
-    const link = screen.getByRole("link", { name: "View Status" });
+    const link = screen.getByRole("link", { name: "View Org status" });
     expect(link).toHaveAttribute("href", "/v4-migration");
     expect(link.parentElement).toHaveClass("pr-6");
   });

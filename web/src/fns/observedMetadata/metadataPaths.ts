@@ -4,7 +4,7 @@
 // of observed keys is built OPPORTUNISTICALLY from rows the user has already
 // loaded: each fetch samples the visible rows, records their TOP-LEVEL
 // metadata keys with the observed JSON value type, and unions the result into
-// the persisted per-project store (store/observedMetadataStore.ts). Accepted
+// the persisted per-project store (stores/observedMetadataStore.ts). Accepted
 // caveat: metadata the user has never loaded is never suggested.
 //
 // Top-level keys ONLY — deliberately not flattened into nested dot-paths.
@@ -24,8 +24,6 @@
 // `stringObject` (see fields.ts operatorIssue — numeric metadata comparisons
 // are rejected), so a key observed with more than one type simply drops its
 // hint rather than changing any filter behavior.
-
-import type { ObservedOptions, ObservedValue } from "./observed-options";
 
 export type MetadataLeafType =
   | "string"
@@ -149,31 +147,30 @@ export function collectMetadataPathTypes(
   return out;
 }
 
+/** One offered metadata key or value; `type` is the display-only hint. */
+export type MetadataSuggestion = { value: string; type?: MetadataLeafType };
+
 /**
- * Merge the persisted per-project key map into the observed-options map where
- * the completion planner reads it: keys under `metadata` (keyPathOptions) and
- * each key's observed values under `metadata.<key>` (the value stage). Keys
- * are sorted so related dotted keys group together in the dropdown;
- * `"mixed"`/null-only keys carry no type hint. `undefined` observed (filter
- * options still loading) stays `undefined` so the planner's loading semantics
- * are untouched.
+ * Project the persisted per-project key map into option-map entries, keyed the
+ * way both suggestion surfaces look them up: observed keys under `metadata`,
+ * each key's observed values under `metadata.<key>`. Keys are sorted so
+ * related dotted keys group together; `"mixed"`/null-only keys carry no type
+ * hint. Empty when nothing has been observed, so callers can skip the merge.
  */
-export function withMetadataPathOptions(
-  observed: ObservedOptions | undefined,
+export function observedMetadataOptions(
   paths: Record<string, StoredKeyInfo> | undefined,
-): ObservedOptions | undefined {
-  if (observed === undefined || paths === undefined) return observed;
-  const entries = Object.entries(paths);
-  if (entries.length === 0) return observed;
-  const out: ObservedOptions = { ...observed };
-  out.metadata = entries
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(
-      ([path, { type }]): ObservedValue =>
+): Record<string, MetadataSuggestion[]> {
+  const entries = Object.entries(paths ?? {});
+  if (entries.length === 0) return {};
+  const out: Record<string, MetadataSuggestion[]> = {
+    metadata: [...entries]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([path, { type }]) =>
         type === "" || type === "mixed"
           ? { value: path }
           : { value: path, type },
-    );
+      ),
+  };
   for (const [path, { values }] of entries) {
     if (values !== undefined && values.length > 0) {
       out[`metadata.${path}`] = values.map((v) => ({ value: v }));
