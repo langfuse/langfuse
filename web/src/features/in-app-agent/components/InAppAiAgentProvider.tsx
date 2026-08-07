@@ -52,6 +52,7 @@ import type {
   InAppAgentActivityByConversationId,
   InAppAgentActivityRunSummary,
 } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import { InAppAgentActivityNotifications } from "@/src/features/in-app-agent/components/InAppAgentActivityNotifications";
 import { InAppAgentBackgroundClient } from "@/src/features/in-app-agent/lib/backgroundAgentClient";
 import { useInAppAgentBackgroundExecutionEnabled } from "@/src/features/in-app-agent/lib/executionMode";
 import {
@@ -1974,6 +1975,39 @@ function InAppAiAgentProviderInner({
     isCancellingRun,
   ]);
 
+  /** Only outcomes and questions surface as cards; a run in progress is not news. */
+  const activityNotifications = useMemo(
+    () =>
+      [...activityByConversationId.entries()].flatMap(
+        ([conversationId, { state, entry }]) =>
+          state === "running" || entry.toastDelivered
+            ? []
+            : [
+                {
+                  conversationId,
+                  runId: entry.runId,
+                  title: entry.title,
+                  state,
+                },
+              ],
+      ),
+    [activityByConversationId],
+  );
+
+  const openConversationFromActivity = useCallback(
+    (conversationId: string) => {
+      const state = activityByConversationId.get(conversationId)?.state;
+
+      capture("in_app_agent:activity_opened", {
+        source: "notification",
+        activityType: state ?? "unknown",
+      });
+      setAgentOpen(true);
+      selectConversation(conversationId);
+    },
+    [activityByConversationId, capture, selectConversation, setAgentOpen],
+  );
+
   const approveToolCall = useCallback(
     (approvalId: string) => resumeToolApproval(approvalId, true),
     [resumeToolApproval],
@@ -2055,6 +2089,13 @@ function InAppAiAgentProviderInner({
   return (
     <InAppAiAgentContext.Provider value={value}>
       {children}
+      {/* Rendered here, not from the window host, which unmounts when the
+          assistant is closed — exactly when a notification matters most. */}
+      <InAppAgentActivityNotifications
+        notifications={activityNotifications}
+        onDelivered={markDelivered}
+        onOpenConversation={openConversationFromActivity}
+      />
       <InAppAgentDisabledDialog
         open={enableDialogOpen}
         onOpenChange={setEnableDialogOpen}
