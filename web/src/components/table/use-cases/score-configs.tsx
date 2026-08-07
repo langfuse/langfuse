@@ -19,7 +19,6 @@ import {
 } from "@/src/features/scores/lib/helpers";
 import { Archive, Edit, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { PopoverTrigger } from "@/src/components/ui/popover";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -182,48 +181,45 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         const { id: configId, isArchived, name } = row.original;
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                key={configId}
-                aria-label="edit"
-                onClick={() => setEditConfigId(configId)}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <ArchiveScoreConfigPopoverController
-                configId={configId}
-                projectId={projectId}
-                isArchived={isArchived}
-                name={name}
-              >
-                {({ disabled, openPopover }) => (
+          <ArchiveScoreConfigPopoverController
+            configId={configId}
+            projectId={projectId}
+            isArchived={isArchived}
+            name={name}
+          >
+            {({ disabled, Trigger }) => (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    key={configId}
+                    aria-label="edit"
+                    onClick={() => setEditConfigId(configId)}
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
+                  </DropdownMenuItem>
                   <DropdownMenuItem asChild key="archive">
-                    <PopoverTrigger asChild>
+                    <Trigger asChild>
                       <Button
                         variant="ghost"
                         className="flex w-full items-center justify-start"
                         disabled={disabled !== undefined}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openPopover();
-                        }}
+                        onClick={(event) => event.stopPropagation()}
                       >
                         <Archive className="mr-2 h-4 w-4" />
                         Archive
                       </Button>
-                    </PopoverTrigger>
+                    </Trigger>
                   </DropdownMenuItem>
-                )}
-              </ArchiveScoreConfigPopoverController>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </ArchiveScoreConfigPopoverController>
         );
       },
     },

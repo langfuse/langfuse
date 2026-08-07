@@ -1,6 +1,9 @@
 import { Button } from "@/src/components/ui/button";
-import { Popover, PopoverContent } from "@/src/components/ui/popover";
-import { type ReactNode, useState } from "react";
+import {
+  PopoverController,
+  type PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { type ReactNode } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -15,7 +18,8 @@ export const ArchiveScoreConfigPopoverController = ({
 }: {
   children: (control: {
     disabled: { reason: string } | undefined;
-    openPopover: () => void;
+    isOpen: boolean;
+    Trigger: typeof PopoverTrigger;
   }) => ReactNode;
   configId: string;
   projectId: string;
@@ -23,7 +27,6 @@ export const ArchiveScoreConfigPopoverController = ({
   name: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const [open, setOpen] = useState(false);
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
     useEmptyScoreConfigs();
 
@@ -41,50 +44,50 @@ export const ArchiveScoreConfigPopoverController = ({
     ? undefined
     : { reason: "You don't have permission to archive this score config." };
 
-  const openPopover = () => {
-    if (!hasAccess) return;
-
-    setOpen(true);
-    capture("score_configs:archive_form_open");
-  };
-
   return (
-    <Popover open={hasAccess && open} onOpenChange={setOpen}>
-      {children({ disabled, openPopover })}
-      <PopoverContent
-        onClick={(e) => e.stopPropagation()}
-        className="max-w-[500px]"
-      >
-        <h2 className="mb-3 font-bold">
-          {isArchived ? "Restore config" : "Archive config"}
-        </h2>
-        <p className="mb-3 text-sm">
-          Your config is currently{" "}
-          {isArchived
-            ? `archived. Restore if you want to use "${name}" in annotation again.`
-            : `active. Archive if you no longer want to use "${name}" in annotation. Historic "${name}" scores will still be shown and can be deleted. You can restore your config at any point.`}
-        </p>
-        <div className="flex justify-end space-x-4">
-          <Button
-            type="button"
-            variant={isArchived ? "default" : "destructive"}
-            loading={configMutation.isPending}
-            onClick={() => {
-              configMutation.mutateAsync({
-                projectId,
-                id: configId,
-                isArchived: !isArchived,
-              });
-              setEmptySelectedConfigIds(
-                emptySelectedConfigIds.filter((id) => id !== configId),
-              );
-              capture("score_configs:archive_form_submit");
-            }}
-          >
-            Confirm
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <PopoverController
+      align="center"
+      contentClassName="max-w-[500px]"
+      onOpenChange={(isOpen) => {
+        if (isOpen && hasAccess) {
+          capture("score_configs:archive_form_open");
+        }
+      }}
+      renderContent={() => (
+        <>
+          <h2 className="mb-3 font-bold">
+            {isArchived ? "Restore config" : "Archive config"}
+          </h2>
+          <p className="mb-3 text-sm">
+            Your config is currently{" "}
+            {isArchived
+              ? `archived. Restore if you want to use "${name}" in annotation again.`
+              : `active. Archive if you no longer want to use "${name}" in annotation. Historic "${name}" scores will still be shown and can be deleted. You can restore your config at any point.`}
+          </p>
+          <div className="flex justify-end space-x-4">
+            <Button
+              type="button"
+              variant={isArchived ? "default" : "destructive"}
+              loading={configMutation.isPending}
+              onClick={() => {
+                configMutation.mutateAsync({
+                  projectId,
+                  id: configId,
+                  isArchived: !isArchived,
+                });
+                setEmptySelectedConfigIds(
+                  emptySelectedConfigIds.filter((id) => id !== configId),
+                );
+                capture("score_configs:archive_form_submit");
+              }}
+            >
+              Confirm
+            </Button>
+          </div>
+        </>
+      )}
+    >
+      {({ isOpen, Trigger }) => children({ disabled, isOpen, Trigger })}
+    </PopoverController>
   );
 };
