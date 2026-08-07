@@ -6,10 +6,17 @@ import {
   type Context,
   type Span,
   type SpanOptions,
+  type TextMapPropagator,
+  type TextMapSetter,
   type Tracer,
   type TracerOptions,
   type TracerProvider,
 } from "@opentelemetry/api";
+import {
+  CompositePropagator,
+  W3CBaggagePropagator,
+  W3CTraceContextPropagator,
+} from "@opentelemetry/core";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { TraceIdRatioBasedSampler } from "@opentelemetry/sdk-trace-base";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -101,12 +108,43 @@ class ScopeFilteringTracerProvider implements TracerProvider {
   }
 }
 
+/**
+ * Injects outbound context like the SDK default (W3C tracecontext + baggage)
+ * but ignores inbound context, so every incoming request roots a fresh trace.
+ *
+ * Web is internet-facing: honoring a client-sent `traceparent` lets any
+ * OTel-instrumented client (MCP clients in particular) bundle its entire
+ * session into one Datadog trace and pick the trace id our ratio sampler
+ * decides on, and honoring client-sent `baggage` lets it plant `langfuse.*`
+ * entries that reach log fields and ClickHouse query tags. Inject must stay
+ * active: BullMQ producer spans propagate context to worker consumers through
+ * the global propagator.
+ */
+class InjectOnlyPropagator implements TextMapPropagator {
+  private readonly delegate = new CompositePropagator({
+    propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
+  });
+
+  inject(ctx: Context, carrier: unknown, setter: TextMapSetter): void {
+    this.delegate.inject(ctx, carrier, setter);
+  }
+
+  extract(ctx: Context): Context {
+    return ctx;
+  }
+
+  fields(): string[] {
+    return this.delegate.fields();
+  }
+}
+
 dd.init({
   runtimeMetrics: true,
   plugins: false,
 });
 
 const sdk = new NodeSDK({
+  textMapPropagator: new InjectOnlyPropagator(),
   resource: resourceFromAttributes({
     "service.name": env.OTEL_SERVICE_NAME,
     "service.version": env.BUILD_ID,
