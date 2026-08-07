@@ -119,7 +119,7 @@ Requirements
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
 - Pnpm v.11.10.0
 - Docker to run the database locally
-- Clickhouse client
+- ClickHouse client access (set up via the Docker shim in step 1)
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
@@ -201,7 +201,28 @@ When you change the shared MCP setup:
 
 1. Install development dependencies:
    - [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
-   - [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `curl https://clickhouse.com/ | sh`
+   - ClickHouse client via the dev container. The official ClickHouse binary
+     installers are currently unreliable on macOS (the Homebrew cask removes
+     itself and leaves a large quarantined binary). Instead, create a small shim
+     that invokes the `clickhouse` client already inside the running Docker
+     container:
+
+     ```bash
+     mkdir -p ~/.local/bin
+     cat > ~/.local/bin/clickhouse <<'EOF'
+     #!/usr/bin/env bash
+     exec docker exec -i "${CLICKHOUSE_CONTAINER_NAME:-langfuse-clickhouse}" clickhouse "$@"
+     EOF
+     chmod +x ~/.local/bin/clickhouse
+     ```
+
+     Make sure `~/.local/bin` is on your `PATH` (or choose another directory that
+     is). The dev containers started later by `pnpm run dx` or
+     `pnpm run infra:dev:up` expose ClickHouse under the default
+     `langfuse-clickhouse` container name. If you override
+     `CLICKHOUSE_CONTAINER_NAME` in `.env`, the shim respects that override, so
+     `pnpm run ch:dev-tables` and other ClickHouse scripts work without
+     installing a separate 800 MB binary.
 
 2. Fork the repository and clone it locally
 
