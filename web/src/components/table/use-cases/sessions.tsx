@@ -37,6 +37,7 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
@@ -247,7 +248,8 @@ export default function SessionsTable({
           value: u.value,
           count: Number(u.count),
         })) ?? undefined,
-      tags: filterOptions.data?.tags.map((t) => t.value) ?? undefined, // tags don't have counts
+      // tags don't have counts; they read A→Z
+      tags: sortOptionValues(filterOptions.data?.tags.map((t) => t.value)),
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],

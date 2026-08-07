@@ -101,7 +101,7 @@ jobs:
               - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -159,7 +159,10 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        run: pnpm run lint
+        # Turbo runs up to three packages at once. The largest overlap is web's
+        # four ESLint workers plus two packages with two workers each, matching
+        # this runner's eight vCPUs.
+        run: pnpm turbo run lint --concurrency=3
       - name: typecheck
         run: pnpm run typecheck
 
@@ -390,8 +393,9 @@ jobs:
         run: pnpm --filter @langfuse/shared run test
 
   test-docker-build:
+    name: test-docker-build (${{ matrix.component }})
     timeout-minutes: 20
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ matrix.runner }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -400,6 +404,18 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       DOCKER_COMPOSE_FILE: docker-compose.build.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: web
+            service: langfuse-web
+            runner: blacksmith-8vcpu-ubuntu-2404
+            health_url: http://localhost:3000/api/public/health
+          - component: worker
+            service: langfuse-worker
+            runner: blacksmith-4vcpu-ubuntu-2404
+            health_url: http://localhost:3030/api/health
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -419,25 +435,25 @@ jobs:
         run: |
           (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
       - name: Build images
-        # Skip the Next.js type check inside the web image build: the lint job
-        # runs `pnpm run typecheck` already. Release builds keep type-checking.
+        # Type-checking runs in the lint job; release builds retain it.
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
-          docker buildx bake -f /tmp/bake.json \
-            --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true"
+          if [ "${{ matrix.component }}" = "web" ]; then
+            docker buildx bake -f /tmp/bake.json \
+              --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true" \
+              langfuse-web
+          else
+            docker buildx bake -f /tmp/bake.json langfuse-worker
+          fi
       - name: Start compose services and wait for healthchecks
         run: |
           timeout 300 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' || true
           cat /tmp/deps-up.log
-          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180
-      - name: Check worker health
+          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 "${{ matrix.service }}"
+      - name: Check service health
         run: |
           curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
-            http://localhost:3030/api/health
-      - name: Check server health
-        run: |
-          curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
-            http://localhost:3000/api/public/health
+            "${{ matrix.health_url }}"
       - name: Capture docker diagnostics on failure
         if: failure()
         run: |
@@ -465,7 +481,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: test-docker-build-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          name: test-docker-build-${{ matrix.component }}-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: /tmp/docker-diagnostics
           if-no-files-found: ignore
   tests-web:

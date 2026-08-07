@@ -43,6 +43,7 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
@@ -455,11 +456,13 @@ export default function ObservationsTable({
           value: pn.value,
           count: pn.count !== undefined ? Number(pn.count) : undefined,
         })) ?? undefined,
-      tags:
+      // tags read A→Z
+      tags: sortOptionValues(
         filterOptions.data?.tags?.map((t) => ({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
-        })) ?? undefined,
+        })),
+      ),
       toolNames:
         filterOptions.data?.toolNames?.map((tn) => ({
           value: tn.value,
