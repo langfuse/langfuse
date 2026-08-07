@@ -597,6 +597,7 @@ const meta = preview.meta({
     executionUi: { notice: null, stop: null },
     isExpanded: false,
     isConversationInteractionDisabled: false,
+    isSelectedConversationHydrating: false,
     conversations,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
@@ -665,6 +666,15 @@ export const ToolApprovalRequired = meta.story({
 export const Empty = meta.story({
   args: {
     messages: [],
+  },
+});
+
+/** Mid-switch: no transcript yet, and deliberately no welcome screen either. */
+export const LoadingConversation = meta.story({
+  args: {
+    messages: [],
+    selectedConversationId: "conversation-1",
+    isSelectedConversationHydrating: true,
   },
 });
 

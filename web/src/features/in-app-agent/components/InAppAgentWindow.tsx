@@ -274,6 +274,11 @@ export type InAppAgentWindowProps = {
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isConversationInteractionDisabled: boolean;
+  /**
+   * The selected conversation's transcript is still loading. Distinct from
+   * having no messages: one is "nothing yet", the other is "nothing to say".
+   */
+  isSelectedConversationHydrating: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
   onExpandedChange: (isExpanded: boolean) => void;
@@ -378,6 +383,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isExpanded,
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
+    isSelectedConversationHydrating,
     messages,
     onDeleteConversation,
     onExpandedChange,
@@ -737,7 +743,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               isExpanded ? "px-0" : "px-3",
             )}
           >
-            {messages.length === 0 ? (
+            {/* An empty transcript that is still loading is not an empty
+                conversation. Offering the welcome screen and its quick actions
+                mid-switch flashes the wrong thing and invites a click that
+                would start a turn in the conversation being left behind. */}
+            {messages.length === 0 &&
+            isSelectedConversationHydrating ? null : messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
                   <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
