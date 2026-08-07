@@ -107,7 +107,7 @@ jobs:
         # depends on db:generate, which is offline.
         run: |
           if [ "${{ matrix.env_profile }}" = "tests-web" ]; then
-            pnpm turbo run build:test --filter=web --filter=worker --filter=@repo/in-app-agent-sandbox-runtime
+            pnpm turbo run build:test
           else
             pnpm run build
           fi
