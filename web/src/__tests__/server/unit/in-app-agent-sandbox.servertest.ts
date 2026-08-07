@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import { createInAppAgentSandbox } from "@langfuse/shared/in-app-agent/server/sandbox";
 import { withOptionalSilentMcpOutput } from "@langfuse/shared/in-app-agent/server/tools";
+import { listObservationsTool } from "@/src/features/mcp/features/observations/tools/listObservations";
 
 describe("in-app agent sandbox", () => {
   it("redacts silent MCP output from persisted conversation display", async () => {
@@ -356,24 +357,22 @@ describe("in-app agent sandbox", () => {
     );
   });
 
-  it("advertises silent MCP output for JSON Schema tools", () => {
+  it("supports silent output for the listObservations JSON Schema", async () => {
+    let receivedInput: unknown;
     const tools = withOptionalSilentMcpOutput({
       tools: {
-        search: new Tool({
-          id: "search",
-          description: "Search",
-          inputSchema: {
-            type: "object",
-            properties: {
-              query: { type: "string" },
+        // MCP tools can originate from a different @mastra/core module instance.
+        listObservations: {
+          ...new Tool({
+            id: "listObservations",
+            description: listObservationsTool.description,
+            inputSchema: listObservationsTool.inputSchema,
+            execute: async (input) => {
+              receivedInput = input;
+              return { data: [] };
             },
-            required: ["query"],
-            additionalProperties: false,
-          },
-          execute: async (input: { query: string }) => ({
-            result: input.query,
           }),
-        }),
+        },
       },
       sandbox: {
         async read() {
@@ -391,11 +390,14 @@ describe("in-app agent sandbox", () => {
       },
     });
 
-    if (!tools.search.inputSchema) {
+    if (!tools.listObservations.inputSchema) {
       throw new Error("Expected an input schema");
     }
 
-    expect(standardSchemaToJSONSchema(tools.search.inputSchema)).toMatchObject({
+    expect(
+      standardSchemaToJSONSchema(tools.listObservations.inputSchema),
+    ).toMatchObject({
+      additionalProperties: false,
       properties: {
         silent: {
           type: "boolean",
@@ -404,6 +406,17 @@ describe("in-app agent sandbox", () => {
         },
       },
     });
+
+    await expect(
+      tools.listObservations.execute?.(
+        { limit: 10, silent: true },
+        {} as never,
+      ),
+    ).resolves.toEqual({
+      type: "silent-mcp-output",
+      output: { data: [] },
+    });
+    expect(receivedInput).toEqual({ limit: 10 });
   });
 
   it("returns normal MCP output when silent is omitted", async () => {

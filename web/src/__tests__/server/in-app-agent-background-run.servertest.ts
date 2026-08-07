@@ -883,6 +883,60 @@ describe("in-app agent background runs", () => {
     });
   });
 
+  it("deletes a conversation while cancelling its unsettled run", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const runningConversation = await createConversation({ projectId, userId });
+    const parkedConversation = await createConversation({ projectId, userId });
+
+    const runningRun = await prisma.inAppAgentRun.create({
+      data: {
+        id: createInAppAgentRunId(),
+        projectId,
+        conversationId: runningConversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        claimedAt: new Date(),
+        heartbeatAt: new Date(),
+      },
+    });
+    // Parked approvals have finishedAt set but still require cancellation.
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: parkedConversation.id,
+      userId,
+      toolCallId: "tool-call-delete",
+    });
+
+    for (const conversationId of [
+      runningConversation.id,
+      parkedConversation.id,
+    ]) {
+      await caller.deleteConversation({ projectId, conversationId });
+      await expect(
+        prisma.inAppAgentConversation.findFirstOrThrow({
+          where: { id: conversationId, projectId },
+        }),
+      ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
+    }
+
+    await expect(
+      prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: parkedRunId, projectId },
+      }),
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.CANCELLED,
+      errorCode: InAppAgentRunErrorCode.APPROVAL_CANCELLED,
+    });
+    await expect(
+      prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: runningRun.id, projectId },
+      }),
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.RUNNING,
+      cancelRequestedAt: expect.any(Date),
+    });
+  });
+
   it("stops surfacing an approval that a newer message superseded", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });

@@ -846,6 +846,7 @@ interface GetEventBatchIOParams<
   minStartTime: Date;
   maxStartTime: Date;
   truncated?: boolean;
+  ioCharLimit?: number;
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
@@ -866,6 +867,7 @@ export async function getEventBatchIO<
     minStartTime: params.minStartTime,
     maxStartTime: params.maxStartTime,
     truncated: params.truncated,
+    ioCharLimit: params.ioCharLimit,
     includeExperimentFields: params.includeExperimentFields,
     includeToolCallFields: params.includeToolCallFields,
   });

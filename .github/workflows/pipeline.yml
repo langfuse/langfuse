@@ -101,7 +101,7 @@ jobs:
               - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -159,7 +159,10 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        run: pnpm run lint
+        # Turbo runs up to three packages at once. The largest overlap is web's
+        # four ESLint workers plus two packages with two workers each, matching
+        # this runner's eight vCPUs.
+        run: pnpm turbo run lint --concurrency=3
       - name: typecheck
         run: pnpm run typecheck
 
@@ -390,8 +393,9 @@ jobs:
         run: pnpm --filter @langfuse/shared run test
 
   test-docker-build:
+    name: test-docker-build (${{ matrix.component }})
     timeout-minutes: 20
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ matrix.runner }}
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -400,6 +404,18 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       DOCKER_COMPOSE_FILE: docker-compose.build.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: web
+            service: langfuse-web
+            runner: blacksmith-8vcpu-ubuntu-2404
+            health_url: http://localhost:3000/api/public/health
+          - component: worker
+            service: langfuse-worker
+            runner: blacksmith-4vcpu-ubuntu-2404
+            health_url: http://localhost:3030/api/health
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -407,7 +423,7 @@ jobs:
           persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -419,25 +435,25 @@ jobs:
         run: |
           (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
       - name: Build images
-        # Skip the Next.js type check inside the web image build: the lint job
-        # runs `pnpm run typecheck` already. Release builds keep type-checking.
+        # Type-checking runs in the lint job; release builds retain it.
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
-          docker buildx bake -f /tmp/bake.json \
-            --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true"
+          if [ "${{ matrix.component }}" = "web" ]; then
+            docker buildx bake -f /tmp/bake.json \
+              --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true" \
+              langfuse-web
+          else
+            docker buildx bake -f /tmp/bake.json langfuse-worker
+          fi
       - name: Start compose services and wait for healthchecks
         run: |
           timeout 300 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' || true
           cat /tmp/deps-up.log
-          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180
-      - name: Check worker health
+          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 "${{ matrix.service }}"
+      - name: Check service health
         run: |
           curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
-            http://localhost:3030/api/health
-      - name: Check server health
-        run: |
-          curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
-            http://localhost:3000/api/public/health
+            "${{ matrix.health_url }}"
       - name: Capture docker diagnostics on failure
         if: failure()
         run: |
@@ -465,7 +481,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: test-docker-build-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          name: test-docker-build-${{ matrix.component }}-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: /tmp/docker-diagnostics
           if-no-files-found: ignore
   tests-web:
@@ -507,7 +523,7 @@ jobs:
           version: 11.10.0
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -529,30 +545,33 @@ jobs:
           pnpm install
       - name: Load default env
         run: |
-          cp .env.dev${{ matrix.deploy-mode }}.example .env
-          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.deploy-mode }}.example > .env
-          echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
-          echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
-          echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
-          echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1" >> .env
-          echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
-          echo "ADMIN_API_KEY=admin-api-key" >> .env
-          echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
-          echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true" >> .env
-          echo "LANGFUSE_ENABLE_SCORES_V3_API=true" >> .env
+          write_test_env() {
+            {
+              grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' "$1"
+              echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1"
+              echo "LANGFUSE_CACHE_PROMPT_ENABLED=false"
+              echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1"
+              echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1"
+              echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100"
+              echo "ADMIN_API_KEY=admin-api-key"
+              echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test"
+              echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true"
+              echo "LANGFUSE_ENABLE_SCORES_V3_API=true"
+            } > "$2"
+          }
+
+          # Compile once under the default test environment. Next's generate
+          # phase below reapplies the mode-specific config and prerendering.
+          write_test_env .env.dev.example .env
+          write_test_env .env.dev${{ matrix.deploy-mode }}.example .env.runtime
       - name: Setup Turbo cache
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
-          # Turbo hashes the whole .env (turbo.json globalDependencies) and
-          # each deploy-mode writes a different .env, so keys must be
-          # mode-scoped for every matrix job to replay its own builds. The
-          # default mode gets an explicit "-default" segment so its restore
-          # prefix cannot match the other modes' keys.
-          key: ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode == '' && '-default' || matrix.deploy-mode }}-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-tests-web-compile-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode == '' && '-default' || matrix.deploy-mode }}-
+            ${{ runner.os }}-turbo-tests-web-compile-
       # No Next.js build cache here on purpose: its ~30s/job restore+save cost
       # roughly cancels the build speedup, and the Turbo cache above already
       # replays unchanged builds.
@@ -560,22 +579,29 @@ jobs:
         # Independent of the build, so let the build overlap the ~15-20s
         # container startup. "Wait for dev containers" collects the result.
         run: |
-          (set +e; docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+          (set +e; docker compose --env-file .env.runtime -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Build
-        run: pnpm run build
+        run: pnpm turbo run build:test
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Finalize build for runtime environment
+        run: |
+          cp .env.runtime .env
+          pnpm --filter web exec dotenv -e ../.env -- next build --experimental-build-mode generate
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
           NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Wait for dev containers
         run: |
           timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
             || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
           cat /tmp/compose-up.log
-          docker compose ps
+          docker compose --env-file .env.runtime -f docker-compose.dev${{ matrix.deploy-mode }}.yml ps
           exit "$(cat /tmp/compose-up.exit)"
       - name: Migrate DB
         run: |
@@ -692,7 +718,7 @@ jobs:
           version: 11.10.0
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -784,7 +810,7 @@ jobs:
           version: 11.10.0
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -879,7 +905,7 @@ jobs:
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -986,7 +1012,7 @@ jobs:
           persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -1012,6 +1038,14 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
+      - name: Setup Turbo cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] server e2e build cache only; publish jobs rebuild artifacts without restoring this cache
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-server-e2e-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-server-e2e-
       # The next two downloads/startups have no dependency on the build, so
       # they run in the background and the build overlaps them. Later steps
       # wait on their marker files.
@@ -1060,6 +1094,9 @@ jobs:
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
+      - name: Prune stale turbo cache entries
+        if: env.CI_CACHE_ALLOWED == 'true'
+        run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
@@ -1166,13 +1203,13 @@ jobs:
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Log in to the GitHub Container registry
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Log in to Docker Hub
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -1185,7 +1222,7 @@ jobs:
       #   warning nobody reads. Releases are rare and cache-cold builds are
       #   slow, so a Blacksmith outage should block the release, not hide in it.
       - name: Setup Blacksmith Builder
-        uses: useblacksmith/setup-docker-builder@33803e640bd9d674f2843a8c323aa2a7da478d23 # v2.0.0
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
         with:
           cache-key: langfuse/${{ matrix.image_name }}-${{ matrix.platform_tag }}
           nofallback: "true"
@@ -1271,13 +1308,13 @@ jobs:
 
     steps:
       - name: Log in to the GitHub Container registry
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Log in to Docker Hub
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}

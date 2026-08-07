@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getWidgetRequiredVersion,
+  isSuggestedWidgetView,
   resolveWidgetEditorVersion,
   resolveWidgetRenderVersion,
   type WidgetQueryShape,
@@ -54,6 +55,20 @@ describe("widget query version selection", () => {
       ).toBe(expected);
     },
   );
+
+  // v4 suggestions must not offer v3 trace-based widgets (LFE-14444), in
+  // either the persisted (Prisma) or query view spelling.
+  it.each([
+    ["traces", "v2", false],
+    ["TRACES", "v2", false],
+    ["observations", "v2", true],
+    ["OBSERVATIONS", "v2", true],
+    ["SCORES_NUMERIC", "v2", true],
+    ["traces", "v1", true],
+    ["TRACES", "v1", true],
+  ] as const)("suggests %s in %s: %s", (view, version, expected) => {
+    expect(isSuggestedWidgetView(view, version)).toBe(expected);
+  });
 
   it.each([
     ["v1 editor", v1Shape, 1, "v1", "v1"],
