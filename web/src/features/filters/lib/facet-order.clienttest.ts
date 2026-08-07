@@ -4,6 +4,7 @@ import {
   orderFacets,
   promoteFacet,
   settleFacetOrder,
+  settleOnNextChange,
 } from "./facet-order";
 import type { FacetOrder } from "./facet-order";
 
@@ -47,6 +48,33 @@ describe("facet order", () => {
     // no new facet interaction, so the order settles to reality.
     order = advanceFacetOrder(order, ["alpha", "gamma"], 2);
     expect(shown(order)).toEqual(["alpha", "gamma", "beta"]);
+  });
+
+  it("never holds a stale block: an outstanding interaction cannot survive an empty set or a boundary", () => {
+    // beta settled on top, then three in-list edits that changed values but not
+    // promotion: none of them consumed its token, so one is still outstanding.
+    const order = settleFacetOrder(["beta"]);
+    const token = 3;
+
+    // Clearing everything settles regardless — no block to hold, no separator.
+    expect(shown(advanceFacetOrder(order, [], token))).toEqual([
+      "alpha",
+      "beta",
+      "gamma",
+    ]);
+
+    // Left outstanding, the attribution would hold the old block…
+    expect(shown(advanceFacetOrder(order, ["gamma"], token))).toEqual([
+      "beta",
+      "alpha",
+      "gamma",
+    ]);
+    // …so a boundary the sidebar owns (Clear all, AI apply) drops it first.
+    expect(
+      shown(
+        advanceFacetOrder(settleOnNextChange(order, token), ["gamma"], token),
+      ),
+    ).toEqual(["gamma", "alpha", "beta"]);
   });
 
   it("promotes an added facet into the top block without re-settling the rest", () => {

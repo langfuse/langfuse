@@ -462,6 +462,44 @@ describe("DataTableControls facet ordering", () => {
     expect(labelOrder("Alpha", "Beta")).toBe(true);
   });
 
+  it("restores catalog order on Clear all, even with an in-list interaction outstanding", () => {
+    const { rerender } = render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter([
+            categoricalFilter("alpha", "Alpha", false),
+            categoricalFilter("beta", "Beta", true),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+    expect(labelOrder("Beta", "Alpha")).toBe(true);
+
+    // An in-list interaction that changes no promotion leaves its attribution
+    // outstanding — Clear all must not inherit it and keep Beta pinned.
+    fireEvent.pointerDown(screen.getByText("Beta"));
+    // Radix opens the menu on pointer-down, which jsdom doesn't synthesize
+    // reliably; the keyboard path opens it without PointerEvent support.
+    fireEvent.keyDown(screen.getByRole("button", { name: "Filter options" }), {
+      key: "Enter",
+    });
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Clear all filters" }),
+    );
+
+    rerender(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter([
+            categoricalFilter("alpha", "Alpha", false),
+            categoricalFilter("beta", "Beta", false),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+    expect(labelOrder("Alpha", "Beta")).toBe(true);
+  });
+
   it("re-sorts immediately when a facet's activity changes externally", () => {
     const { rerender } = render(
       <TooltipProvider>

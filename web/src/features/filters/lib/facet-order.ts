@@ -56,9 +56,29 @@ export function advanceFacetOrder(
 ): FacetOrder {
   const key = orderKey(promotedColumns);
   if (key === order.key) return order;
-  return interactionToken !== order.interactionToken
+  // Nothing promoted means there is no block to protect, so never hold a stale
+  // one: whatever emptied the filters (Clear all, a cleared search bar) must
+  // fall back to plain config order.
+  const holdOrder =
+    promotedColumns.length > 0 && interactionToken !== order.interactionToken;
+  return holdOrder
     ? { promoted: order.promoted, key, interactionToken }
     : settleFacetOrder(promotedColumns, interactionToken);
+}
+
+/**
+ * Cancel any pending in-list attribution, so the change a boundary action
+ * causes settles even if an earlier interaction left one outstanding (an
+ * in-list edit that changed values without changing promotion never consumed
+ * its token). Called by the boundaries the sidebar owns: Clear all, AI apply.
+ */
+export function settleOnNextChange(
+  order: FacetOrder,
+  interactionToken: number,
+): FacetOrder {
+  return order.interactionToken === interactionToken
+    ? order
+    : { ...order, interactionToken };
 }
 
 /**

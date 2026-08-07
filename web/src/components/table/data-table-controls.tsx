@@ -26,6 +26,7 @@ import {
   advanceFacetOrder,
   orderFacets,
   promoteFacet,
+  settleOnNextChange,
   EMPTY_FACET_ORDER,
 } from "@/src/features/filters/lib/facet-order";
 import { useMediaQuery } from "react-responsive";
@@ -248,6 +249,14 @@ export function DataTableControls({
   const noteFacetInteraction = () => {
     facetInteractionRef.current += 1;
   };
+  // Boundaries the sidebar owns itself (Clear all, AI apply): the change they
+  // cause must settle, so drop any attribution still outstanding.
+  const noteSettleBoundary = useCallback(() => {
+    facetOrderRef.current = settleOnNextChange(
+      facetOrderRef.current,
+      facetInteractionRef.current,
+    );
+  }, []);
 
   const orderedFilters = orderFacets(queryFilter.filters, facetOrder);
   const displayedFilters = showOnlyActive
@@ -363,6 +372,7 @@ export function DataTableControls({
   const handleFiltersGenerated = useCallback(
     (filters: FilterState) => {
       // Apply filters
+      noteSettleBoundary();
       queryFilter.setFilterState(filters);
       // The v3 wand previously emitted nothing at its only intent seam
       // (metadata only: count of generated conditions, never their values).
@@ -386,14 +396,19 @@ export function DataTableControls({
       // Close popover
       setAiPopoverOpen(false);
     },
-    [queryFilter, capture, tableName],
+    [queryFilter, capture, tableName, noteSettleBoundary],
   );
 
   // Separator position: the SETTLED promoted block, not the live one — a facet
   // activated mid-session keeps its place below the line until the next settle.
-  const promotedFacetCount = displayedFilters.filter((filter) =>
-    facetOrder.promoted.has(filter.column),
-  ).length;
+  // Active-only mode has no inactive catalog to divide from, so no separator:
+  // counting every displayed facet keeps the divider out of the render loop's
+  // range, as the live count did before.
+  const promotedFacetCount = showOnlyActive
+    ? displayedFilters.length
+    : displayedFilters.filter((filter) =>
+        facetOrder.promoted.has(filter.column),
+      ).length;
 
   const renderFacet = (filter: UIFilter) => {
     // A column the current surface can't honour blocks the facet whether or
@@ -912,6 +927,7 @@ export function DataTableControls({
                     // this, a value-less added facet stays pinned after
                     // Clear all and the active-only empty state can never
                     // render again this mount.
+                    noteSettleBoundary();
                     setRevealedColumns([]);
                     queryFilter.clearAll();
                   }}
