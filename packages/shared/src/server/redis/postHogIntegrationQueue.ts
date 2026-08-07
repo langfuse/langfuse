@@ -2,8 +2,7 @@ import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
-
-export const POSTHOG_SYNC_CRON_PATTERN = "30 * * * *"; // every hour at :30
+import { getBullMQRepeatableJobOptions } from "./repeatableJobs";
 
 export class PostHogIntegrationQueue {
   private static instance: Queue | null = null;
@@ -42,7 +41,9 @@ export class PostHogIntegrationQueue {
           QueueJobs.PostHogIntegrationJob,
           {},
           {
-            repeat: { pattern: POSTHOG_SYNC_CRON_PATTERN },
+            repeat: getBullMQRepeatableJobOptions(
+              QueueJobs.PostHogIntegrationJob,
+            ),
           },
         )
         .catch((err) => {

@@ -3,6 +3,7 @@ import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 import { env } from "../../env";
+import { getBullMQRepeatableJobOptions } from "./repeatableJobs";
 
 export class MeteringDataPostgresExportQueue {
   private static instance: Queue | null = null;
@@ -45,7 +46,9 @@ export class MeteringDataPostgresExportQueue {
           QueueJobs.MeteringDataPostgresExportJob,
           {},
           {
-            repeat: { pattern: "30 2 * * *" }, // every day at 2:30am UTC
+            repeat: getBullMQRepeatableJobOptions(
+              QueueJobs.MeteringDataPostgresExportJob,
+            ),
           },
         )
         .catch((err) => {

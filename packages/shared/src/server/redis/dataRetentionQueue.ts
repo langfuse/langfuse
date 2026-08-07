@@ -2,6 +2,7 @@ import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
+import { getBullMQRepeatableJobOptions } from "./repeatableJobs";
 
 export class DataRetentionQueue {
   private static instance: Queue | null = null;
@@ -40,7 +41,7 @@ export class DataRetentionQueue {
           QueueJobs.DataRetentionJob,
           {},
           {
-            repeat: { pattern: "15 3 * * *" }, // every day at 3:15am
+            repeat: getBullMQRepeatableJobOptions(QueueJobs.DataRetentionJob),
           },
         )
         .catch((err) => {

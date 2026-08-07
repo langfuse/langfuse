@@ -3,6 +3,7 @@ import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
+import { getBullMQRepeatableJobOptions } from "./repeatableJobs";
 
 export class CloudUsageMeteringQueue {
   private static instance: Queue | null = null;
@@ -50,7 +51,9 @@ export class CloudUsageMeteringQueue {
           {},
           {
             // Run at minute 5 of every hour (e.g. 1:05, 2:05, 3:05, etc)
-            repeat: { pattern: "5 * * * *" },
+            repeat: getBullMQRepeatableJobOptions(
+              QueueJobs.CloudUsageMeteringJob,
+            ),
           },
         )
         .catch((err) => {
