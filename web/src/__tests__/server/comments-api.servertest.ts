@@ -340,6 +340,67 @@ describe("GET /api/public/comments API Endpoint", () => {
       );
     }
   });
+
+  it("should filter comments by fromTimestamp", async () => {
+    const response = await makeZodVerifiedAPICall(
+      GetCommentsV1Response,
+      "GET",
+      "/api/public/comments?fromTimestamp=2021-02-01T00:00:00Z",
+    );
+
+    expect(response.status).toBe(200);
+    // The test data has comments at 2021-01-01, 2021-02-01, 2021-03-01, 2021-04-01, 2021-05-01
+    // fromTimestamp=2021-02-01 should return the 4 comments on or after 2021-02-01
+    expect(response.body.data.map((c) => c.id)).toEqual([
+      "comment-2021-02-01",
+      "comment-2021-03-01",
+      "comment-2021-04-01",
+      "comment-2021-05-01",
+    ]);
+  });
+
+  it("should filter comments by toTimestamp", async () => {
+    const response = await makeZodVerifiedAPICall(
+      GetCommentsV1Response,
+      "GET",
+      "/api/public/comments?toTimestamp=2021-02-01T00:00:00Z",
+    );
+
+    expect(response.status).toBe(200);
+    // toTimestamp is exclusive (<): only 2021-01-01 should be returned
+    expect(response.body.data.map((c) => c.id)).toEqual(["comment-2021-01-01"]);
+  });
+
+  it("should filter comments by both fromTimestamp and toTimestamp", async () => {
+    const response = await makeZodVerifiedAPICall(
+      GetCommentsV1Response,
+      "GET",
+      "/api/public/comments?fromTimestamp=2021-02-01T00:00:00Z&toTimestamp=2021-04-01T00:00:00Z",
+    );
+
+    expect(response.status).toBe(200);
+    // 2021-02-01 inclusive, 2021-04-01 exclusive: 2021-02-01 and 2021-03-01
+    expect(response.body.data.map((c) => c.id)).toEqual([
+      "comment-2021-02-01",
+      "comment-2021-03-01",
+    ]);
+  });
+
+  it("should return 400 when fromTimestamp is not a valid date", async () => {
+    try {
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "GET",
+        "/api/public/comments?fromTimestamp=not-a-date",
+      );
+    } catch (error) {
+      expect((error as Error).message).toContain("API call did not return 200");
+      expect((error as Error).message).toContain("400");
+    }
+  });
 });
 
 describe("Public API does NOT process mentions", () => {
