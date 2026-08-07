@@ -88,6 +88,7 @@ import {
   getTraceFilterConfig,
   type TraceOmittableFilterColumn,
 } from "@/src/features/filters/config/traces-config";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -383,9 +384,12 @@ export default function TracesTable({
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        userId ? "user" : undefined,
+      ),
     };
-  }, [hideControls, isSidebarFilterLoading, peekContext, projectId]);
+  }, [hideControls, isSidebarFilterLoading, peekContext, projectId, userId]);
 
   const queryFilter = useSidebarFilterState(
     tracesFilterConfig,
