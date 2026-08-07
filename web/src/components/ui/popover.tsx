@@ -47,8 +47,62 @@ const PopoverContent = React.forwardRef<
 );
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
+/**
+ * Owns popover open state while callers retain trigger and content presentation.
+ * Use the supplied Trigger to preserve Radix behavior.
+ */
+type PopoverControllerProps = {
+  align: React.ComponentProps<typeof PopoverContent>["align"];
+  children: (control: {
+    disabled: boolean;
+    isOpen: boolean;
+    Trigger: typeof PopoverTrigger;
+  }) => React.ReactNode;
+  contentClassName: string;
+  disabled: boolean;
+  onOpenChange?: (isOpen: boolean) => void;
+  renderContent: (control: { closePopover: () => void }) => React.ReactNode;
+};
+
+const PopoverController = ({
+  align,
+  children,
+  contentClassName,
+  disabled,
+  onOpenChange,
+  renderContent,
+}: PopoverControllerProps) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const handleOpenChange = (nextIsOpen: boolean) => {
+    if (nextIsOpen && disabled) return;
+
+    setIsOpen(nextIsOpen);
+    onOpenChange?.(nextIsOpen);
+  };
+
+  return (
+    <Popover open={isOpen} onOpenChange={handleOpenChange}>
+      {children({ disabled, isOpen, Trigger: PopoverTrigger })}
+      <PopoverContent
+        align={align}
+        className={contentClassName}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {renderContent({ closePopover: () => setIsOpen(false) })}
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const PopoverClose = PopoverPrimitive.Close;
 
 const PopoverAnchor = PopoverPrimitive.Anchor;
 
-export { Popover, PopoverTrigger, PopoverContent, PopoverClose, PopoverAnchor };
+export {
+  Popover,
+  PopoverController,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverClose,
+  PopoverAnchor,
+};

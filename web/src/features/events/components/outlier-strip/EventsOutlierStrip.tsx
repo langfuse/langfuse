@@ -1,15 +1,13 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { useMemo, useRef, useState } from "react";
+import { forwardRef, useMemo, useRef, useState } from "react";
+import type * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
+  DropdownMenuController,
   DropdownMenuItem,
-  DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { toChartFilters } from "@/src/features/chart-view/lib/chartFilterCompatibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -59,6 +57,41 @@ const MODE_OPTIONS: StripMode[] = ["count", "cost", "latency"];
 const modeLabel = (mode: StripMode): string =>
   OUTLIER_STRIP_METRICS[mode].shortLabel;
 
+type OutlierDropdownButtonVariant = "mode" | "aggregation";
+
+const outlierDropdownButtonClasses: Record<
+  OutlierDropdownButtonVariant,
+  string
+> = {
+  mode: "text-foreground hover:text-muted-foreground font-bold",
+  aggregation:
+    "text-muted-foreground hover:text-foreground underline-offset-2 hover:underline",
+};
+
+const OutlierDropdownButton = forwardRef<
+  HTMLButtonElement,
+  {
+    ariaLabel: string;
+    label: string;
+    variant: OutlierDropdownButtonVariant;
+  } & Omit<React.ComponentPropsWithoutRef<"button">, "aria-label" | "className">
+>(({ ariaLabel, label, variant, ...buttonProps }, ref) => (
+  <button
+    {...buttonProps}
+    ref={ref}
+    type="button"
+    aria-label={ariaLabel}
+    className={cn(
+      "flex items-center gap-0.5 text-[13px] leading-none",
+      outlierDropdownButtonClasses[variant],
+    )}
+  >
+    {label}
+    <ChevronDown className="h-2.5 w-2.5" />
+  </button>
+));
+OutlierDropdownButton.displayName = "OutlierDropdownButton";
+
 /**
  * Prevent Radix's close-refocus ONLY after a pointer-driven selection — the
  * programmatic refocus renders as a keyboard-style outline on the trigger.
@@ -82,32 +115,22 @@ const usePointerSelectionFocusGuard = () => {
   };
 };
 
-const AggDropdown = ({
-  metricLabel,
-  value,
+const AggDropdownController = ({
+  children,
   options,
   onChange,
 }: {
-  metricLabel: string;
-  value: OutlierStripAggKey;
+  children: React.ComponentProps<typeof DropdownMenuController>["children"];
   options: readonly OutlierStripAggKey[];
   onChange: (agg: OutlierStripAggKey) => void;
 }) => {
   const focusGuard = usePointerSelectionFocusGuard();
   return (
-    <span className="flex items-baseline gap-1">
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          aria-label={`${metricLabel} aggregation: ${value}`}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-[13px] leading-none underline-offset-2 hover:underline"
-        >
-          {value}
-          <ChevronDown className="h-2.5 w-2.5" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          onCloseAutoFocus={focusGuard.onCloseAutoFocus}
-        >
+    <DropdownMenuController
+      align="start"
+      onCloseAutoFocus={focusGuard.onCloseAutoFocus}
+      renderMenu={() => (
+        <>
           {options.map((agg) => (
             <DropdownMenuItem
               key={agg}
@@ -120,49 +143,47 @@ const AggDropdown = ({
               {agg}
             </DropdownMenuItem>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </span>
+        </>
+      )}
+    >
+      {children}
+    </DropdownMenuController>
   );
 };
 
-const ModeDropdown = ({
-  value,
+const ModeDropdownController = ({
+  children,
   options,
   onChange,
 }: {
-  value: StripMode;
+  children: React.ComponentProps<typeof DropdownMenuController>["children"];
   options: StripMode[];
   onChange: (mode: StripMode) => void;
 }) => {
   const focusGuard = usePointerSelectionFocusGuard();
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label={`Chart mode: ${modeLabel(value)}`}
-        className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[13px] leading-none font-bold"
-      >
-        {modeLabel(value)}
-        <ChevronDown className="h-2.5 w-2.5" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        onCloseAutoFocus={focusGuard.onCloseAutoFocus}
-      >
-        {options.map((mode) => (
-          <DropdownMenuItem
-            key={mode}
-            onClick={(event) => {
-              focusGuard.markPointerSelection(event);
-              onChange(mode);
-            }}
-            className="text-xs"
-          >
-            {modeLabel(mode)}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DropdownMenuController
+      align="start"
+      onCloseAutoFocus={focusGuard.onCloseAutoFocus}
+      renderMenu={() => (
+        <>
+          {options.map((mode) => (
+            <DropdownMenuItem
+              key={mode}
+              onClick={(event) => {
+                focusGuard.markPointerSelection(event);
+                onChange(mode);
+              }}
+              className="text-xs"
+            >
+              {modeLabel(mode)}
+            </DropdownMenuItem>
+          ))}
+        </>
+      )}
+    >
+      {children}
+    </DropdownMenuController>
   );
 };
 
@@ -388,11 +409,20 @@ export function EventsOutlierStrip({
           {!canApplyFilters ? (
             <div>
               <div className="flex items-baseline gap-1.5">
-                <ModeDropdown
-                  value={mode}
+                <ModeDropdownController
                   options={MODE_OPTIONS}
                   onChange={handleModeChange}
-                />
+                >
+                  {({ Trigger }) => (
+                    <Trigger asChild>
+                      <OutlierDropdownButton
+                        ariaLabel={`Chart mode: ${modeLabel(mode)}`}
+                        label={modeLabel(mode)}
+                        variant="mode"
+                      />
+                    </Trigger>
+                  )}
+                </ModeDropdownController>
               </div>
               <OutlierBarStrip
                 className="mt-2"
@@ -423,21 +453,40 @@ export function EventsOutlierStrip({
               )}
             >
               <div className="flex items-baseline gap-1.5">
-                <ModeDropdown
-                  value={mode}
+                <ModeDropdownController
                   options={MODE_OPTIONS}
                   onChange={handleModeChange}
-                />
+                >
+                  {({ Trigger }) => (
+                    <Trigger asChild>
+                      <OutlierDropdownButton
+                        ariaLabel={`Chart mode: ${modeLabel(mode)}`}
+                        label={modeLabel(mode)}
+                        variant="mode"
+                      />
+                    </Trigger>
+                  )}
+                </ModeDropdownController>
                 {/* The bar's aggregate must be legible where there is a
                     choice (p95 vs avg); single-option metrics are
                     unambiguous and render no aggregation label. */}
                 {aggOptions.length > 1 && (
-                  <AggDropdown
-                    metricLabel={def.shortLabel}
-                    value={aggregation}
+                  <AggDropdownController
                     options={aggOptions}
                     onChange={(agg) => setAggregation(mode, agg)}
-                  />
+                  >
+                    {({ Trigger }) => (
+                      <span className="flex items-baseline gap-1">
+                        <Trigger asChild>
+                          <OutlierDropdownButton
+                            ariaLabel={`${def.shortLabel} aggregation: ${aggregation}`}
+                            label={aggregation}
+                            variant="aggregation"
+                          />
+                        </Trigger>
+                      </span>
+                    )}
+                  </AggDropdownController>
                 )}
               </div>
               <OutlierBarStrip
