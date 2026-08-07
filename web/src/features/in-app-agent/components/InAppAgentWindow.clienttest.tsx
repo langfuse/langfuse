@@ -86,6 +86,7 @@ function windowElement(
     isAssistantTurnInProgress: false,
     isExpanded: false,
     isConversationInteractionDisabled: false,
+    isSelectedConversationHydrating: false,
     isLoadingMoreConversations: false,
     messages: [],
     onApproveToolCall: vi.fn(),
@@ -177,6 +178,26 @@ describe("InAppAgentWindow quick actions", () => {
       position: 0,
     });
     expect(capture).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer quick actions while a conversation is still loading", () => {
+    // Switching conversations empties the transcript before the next one
+    // arrives. Showing the welcome screen there flashes the wrong thing and
+    // invites a click that would start a turn in the conversation being left.
+    render(
+      windowElement({
+        messages: [],
+        selectedConversationId: "conversation-1",
+        isSelectedConversationHydrating: true,
+      }),
+    );
+
+    expect(
+      screen.queryByText("Welcome to the Langfuse Assistant"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Create a prompt/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows focused actions on the initial tab and coarse actions elsewhere", () => {

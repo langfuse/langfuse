@@ -379,12 +379,25 @@ function InAppAiAgentProviderInner({
       conversationId: _selectedConversationId ?? "",
     },
     {
-      // Keyed against the raw id because `selectedConversationId` is derived
-      // from this very query's error state.
+      /**
+       * The submit lock suppresses this refetch only on the foreground path,
+       * where the in-flight turn lives in memory and a snapshot would flash the
+       * transcript backwards to before the user's message.
+       *
+       * A background submit commits its user message before the run starts, so
+       * the snapshot is already correct and the suppression would instead be
+       * harmful: the lock is held for the whole run, so returning to a
+       * still-running conversation would find this query disabled, no session
+       * (leaving disposed it) and therefore nothing to render at all.
+       *
+       * Keyed against the raw id because `selectedConversationId` is derived
+       * from this very query's error state.
+       */
       enabled:
         open &&
         Boolean(_selectedConversationId) &&
-        submittingConversationId !== _selectedConversationId,
+        (backgroundExecutionEnabled ||
+          submittingConversationId !== _selectedConversationId),
     },
   );
   const deleteConversationMutation =
