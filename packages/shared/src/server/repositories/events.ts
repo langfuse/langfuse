@@ -2513,15 +2513,19 @@ export const getObservationsBatchIOFromEventsTable = async <
   const outputSelect = charLimit
     ? `leftUTF8(e.output, ${charLimit}) as output`
     : `e.output as output`;
-  // events_core already stores metadata values pre-truncated; on a full read
-  // cap them alongside I/O so an explicit limit bounds the whole payload.
-  const metadataValues = fullReadCharLimit
-    ? `arrayMap(v -> leftUTF8(v, ${fullReadCharLimit}), e.metadata_values)`
-    : `e.metadata_values`;
+  // events_core already stores these pre-truncated, so only a full read needs
+  // capping — an explicit limit has to bound every large field, not just I/O.
+  const capOnFullRead = (expr: string) =>
+    fullReadCharLimit ? `leftUTF8(${expr}, ${fullReadCharLimit})` : expr;
+  const capEachOnFullRead = (expr: string) =>
+    fullReadCharLimit
+      ? `arrayMap(v -> leftUTF8(v, ${fullReadCharLimit}), ${expr})`
+      : expr;
+  const metadataValues = capEachOnFullRead("e.metadata_values");
   const experimentFieldsSelect = opts.includeExperimentFields
     ? `
-      experiment_item_expected_output,
-      mapFromArrays(arrayReverse(e.experiment_item_metadata_names), arrayReverse(e.experiment_item_metadata_values)) as experiment_item_metadata,
+      ${capOnFullRead("e.experiment_item_expected_output")} as experiment_item_expected_output,
+      mapFromArrays(arrayReverse(e.experiment_item_metadata_names), arrayReverse(${capEachOnFullRead("e.experiment_item_metadata_values")})) as experiment_item_metadata,
     `
     : "";
   const toolCallFieldsSelect = opts.includeToolCallFields

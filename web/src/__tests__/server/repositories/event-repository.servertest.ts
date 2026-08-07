@@ -3789,6 +3789,7 @@ describe("Clickhouse Events Repository Test", () => {
       const longInput = "i".repeat(3 * charLimit);
       const longOutput = "o".repeat(3 * charLimit);
       const longMetadataValue = "m".repeat(3 * charLimit);
+      const longExpectedOutput = "e".repeat(3 * charLimit);
 
       await createEventsCh([
         createEvent({
@@ -3802,6 +3803,7 @@ describe("Clickhouse Events Repository Test", () => {
           output: longOutput,
           metadata_names: ["long"],
           metadata_values: [longMetadataValue],
+          experiment_item_expected_output: longExpectedOutput,
           start_time: nowMicro,
         }),
       ]);
@@ -3818,14 +3820,19 @@ describe("Clickhouse Events Repository Test", () => {
       const truncated = await getObservationsBatchIOFromEventsTable(baseParams);
       expect(truncated[0]?.input?.length).toBeLessThan(charLimit);
 
+      // The limit has to bound every large field the read returns, not just I/O.
       const capped = await getObservationsBatchIOFromEventsTable({
         ...baseParams,
         truncated: false,
         ioCharLimit: charLimit,
+        includeExperimentFields: true,
       });
       expect(capped[0]?.input).toBe("i".repeat(charLimit));
       expect(capped[0]?.output).toBe("o".repeat(charLimit));
       expect(capped[0]?.metadata?.long).toBe("m".repeat(charLimit));
+      expect(capped[0]?.experimentItemExpectedOutput).toBe(
+        "e".repeat(charLimit),
+      );
 
       // Without a limit an untruncated read still returns everything.
       const full = await getObservationsBatchIOFromEventsTable({
