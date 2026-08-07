@@ -76,3 +76,65 @@ export const getEnvironmentsForProject = async (
     }),
   );
 };
+
+export type EnvironmentCount = {
+  environment: string;
+  count: number;
+};
+
+/**
+ * Same env discovery as `getEnvironmentsForProject`, but with a per-environment
+ * distinct-trace count. Used by the seeder CLI's `env` subcommand and similar
+ * data-inspection flows where the caller wants to know how much data is in
+ * each environment, not just the names.
+ *
+ * The count is the number of distinct traces per environment, scoped to the
+ * project. In legacy write mode this is `count(DISTINCT id)` against the
+ * `traces` table; in dual/events_only it is `count(DISTINCT trace_id)` against
+ * `events_core` (one row per span). This matches the env-semantic the UI
+ * shows: a single trace belongs to exactly one environment.
+ */
+export const getEnvironmentsWithCountsForProject = async (
+  props: EnvironmentFilterProps,
+): Promise<EnvironmentCount[]> => {
+  const { projectId, fromTimestamp } = props;
+
+  const result =
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+      ? queryClickhouse<EnvironmentCount>({
+          query: `
+            SELECT environment, count(DISTINCT id) AS count
+            FROM traces
+            WHERE project_id = {projectId: String}
+            ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
+            GROUP BY environment
+          `,
+          params: { projectId, fromTimestamp },
+          tags: { projectId },
+          preferredClickhouseService: "ReadOnly",
+        })
+      : queryClickhouse<EnvironmentCount>({
+          query: `
+            SELECT environment, count(DISTINCT trace_id) AS count
+            FROM events_core
+            WHERE project_id = {projectId: String}
+            ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
+            GROUP BY environment
+          `,
+          params: { projectId, fromTimestamp },
+          tags: { projectId },
+          preferredClickhouseService: "EventsReadOnly",
+        });
+
+  const counts = await result;
+
+  // Always include the default environment, even if no rows exist for it.
+  const byEnv = new Map<string, EnvironmentCount>(
+    counts.map((row) => [row.environment, row]),
+  );
+  if (!byEnv.has("default")) {
+    byEnv.set("default", { environment: "default", count: 0 });
+  }
+
+  return Array.from(byEnv.values()).sort((a, b) => b.count - a.count);
+};

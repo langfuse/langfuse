@@ -35,6 +35,7 @@ import {
   createTraceScore,
   createScoresCh,
   getEnvironmentsForProject,
+  getEnvironmentsWithCountsForProject,
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
@@ -121,5 +122,42 @@ maybe("environment repository (events_only write mode)", () => {
       ]),
     );
     expect(environments).toHaveLength(2);
+  });
+});
+
+describe("getEnvironmentsWithCountsForProject (events_only)", () => {
+  it("counts distinct traces per environment on the events table", async () => {
+    const projectId = randomUUID();
+    const envA = randomUUID();
+    const envB = randomUUID();
+
+    // 2 events in envA (same trace), 1 event in envB. Distinct trace count
+    // for envA is 1, for envB is 1.
+    await createEventsCh([
+      createEvent({
+        project_id: projectId,
+        environment: envA,
+        trace_id: "trace-A",
+      }),
+      createEvent({
+        project_id: projectId,
+        environment: envA,
+        trace_id: "trace-A",
+        span_id: "span-A-2",
+      }),
+      createEvent({
+        project_id: projectId,
+        environment: envB,
+        trace_id: "trace-B",
+      }),
+    ]);
+
+    const rows = await getEnvironmentsWithCountsForProject({ projectId });
+    const byEnv = Object.fromEntries(rows.map((r) => [r.environment, r.count]));
+
+    expect(byEnv[envA]).toBe(1);
+    expect(byEnv[envB]).toBe(1);
+    // default is always present even with zero rows
+    expect(byEnv.default).toBe(0);
   });
 });

@@ -8,6 +8,7 @@ verification, and deep links.
 ```bash
 pnpm run seed -- doctor        # check the stack; prints the fix per failure
 pnpm run seed -- list          # scenarios and flags (--json for machines)
+pnpm run seed -- env           # environments + trace counts for the project (--json for machines)
 pnpm run seed -- trace-tree --observations 5000 --breadth 500 --v4
 pnpm run seed -- trace-tree --observations 12 --plain --v4  # SPAN/GENERATION/EVENT only (collapsed-by-default graph panel)
 pnpm run seed -- trace-tree --observations 12 --v4 --tags "Zebra,apple,Ärger"  # extra trace tags (alphabetical tag filter ordering)
