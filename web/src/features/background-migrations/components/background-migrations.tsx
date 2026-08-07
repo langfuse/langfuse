@@ -6,6 +6,9 @@ import { type BackgroundMigration } from "@langfuse/shared";
 import { RetryBackgroundMigration } from "@/src/features/background-migrations/components/retry-background-migration";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import Page from "@/src/components/layouts/page";
+import { PopoverTrigger } from "@/src/components/ui/popover";
+import { Button } from "@/src/components/ui/button";
+import { RotateCcw } from "lucide-react";
 
 export default function BackgroundMigrationsTable() {
   const backgroundMigrations = api.backgroundMigrations.all.useQuery();
@@ -76,7 +79,15 @@ export default function BackgroundMigrationsTable() {
           <RetryBackgroundMigration
             backgroundMigrationName={name}
             isRetryable={isRetryable}
-          />
+          >
+            {({ disabled }) => (
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="xs" disabled={disabled}>
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+            )}
+          </RetryBackgroundMigration>
         );
       },
     },

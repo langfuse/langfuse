@@ -1,23 +1,19 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { type ReactNode, useState } from "react";
+import { Popover, PopoverContent } from "@/src/components/ui/popover";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 export function RetryBackgroundMigration({
   backgroundMigrationName,
   isRetryable,
+  children,
 }: {
   backgroundMigrationName: string;
   isRetryable: boolean;
+  children: (props: { disabled: boolean }) => ReactNode;
 }) {
   const utils = api.useUtils();
   const [isOpen, setIsOpen] = useState(false);
@@ -58,11 +54,7 @@ export function RetryBackgroundMigration({
 
   return (
     <Popover open={isOpen} onOpenChange={() => setIsOpen((prev) => !prev)}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="xs" disabled={!isRetryable}>
-          <RotateCcw className="h-4 w-4" />
-        </Button>
-      </PopoverTrigger>
+      {children({ disabled: !isRetryable })}
       <PopoverContent className="w-96">
         <h2 className="mb-3 font-bold">Retry Background Migration</h2>
         <p className="mb-4 text-sm">
