@@ -159,9 +159,10 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # web uses four ESLint workers while the other packages use two. Cap
-        # package concurrency so cold lint tasks fit the runner's CPU budget.
+        # Benchmark the original two-worker ESLint setting on eight vCPUs.
         run: pnpm turbo run lint --concurrency=3
+        env:
+          TURBO_FORCE: "true"
       - name: typecheck
         run: pnpm run typecheck
 
