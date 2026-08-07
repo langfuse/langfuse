@@ -184,7 +184,15 @@ function SuggestingInput({
             setActiveIndex(-1);
           }}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          // Blur resets the whole interaction, not just focus: a stale
+          // `activeIndex` would let the next Enter accept a highlight the user
+          // never made, and a stale `dismissed` would survive into whichever row
+          // React reuses this index-keyed instance for after a row is deleted.
+          onBlur={() => {
+            setFocused(false);
+            setDismissed(false);
+            setActiveIndex(-1);
+          }}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           role="combobox"
@@ -211,7 +219,7 @@ function SuggestingInput({
               id={`${listId}-${i}`}
               type="button"
               role="option"
-              aria-selected={suggestion === value}
+              aria-selected={i === activeIndex}
               className={cn(
                 "flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left text-sm",
                 i === activeIndex ? "bg-accent" : "hover:bg-accent",

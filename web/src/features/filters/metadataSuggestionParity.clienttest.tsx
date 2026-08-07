@@ -129,6 +129,15 @@ describe("metadata suggestions in the filter sidebar", () => {
     fireEvent.keyDown(key, { key: "ArrowDown" });
     fireEvent.keyDown(key, { key: "Enter" });
     expect(key).toHaveValue("scope");
+
+    // Blur clears the highlight: coming back to the field must not let Enter
+    // accept a suggestion the user never picked in this visit.
+    fireEvent.change(key, { target: { value: "re" } });
+    fireEvent.keyDown(key, { key: "ArrowDown" });
+    fireEvent.blur(key);
+    fireEvent.focus(key);
+    fireEvent.keyDown(key, { key: "Enter" });
+    expect(key).toHaveValue("re");
   });
 
   it("still accepts a key and value the observed map has never seen", () => {
