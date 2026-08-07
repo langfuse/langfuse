@@ -96,8 +96,10 @@ export function useCopyMigrationPrompt() {
   const capture = usePostHogClientCapture();
 
   return async () => {
+    // Falls back to a hidden textarea on non-secure contexts (plain-HTTP
+    // self-hosted) where navigator.clipboard is unavailable.
+    await copyTextToClipboard(V4_CODING_AGENT_PROMPT);
     capture("v4_migration:coding_agent_prompt_copied");
-    await navigator.clipboard.writeText(V4_CODING_AGENT_PROMPT);
     showSuccessToast({
       title: "Prompt copied",
       description: "Paste it into Cursor, Codex, or another coding agent.",
@@ -444,11 +446,8 @@ export function V4MigrationEvalsSection({
   defaultOpen,
 }: {
   state: MigrationCountState;
-  /** Assistant CTA; null hides the button. Mode drives the trailing copy. */
-  assistant: {
-    mode: "evals-ready" | "plan-order";
-    onMigrate: () => void;
-  } | null;
+  /** Assistant CTA; null hides the button. */
+  assistant: { onMigrate: () => void } | null;
   evalsUrl?: string;
   onNavigate?: () => void;
   defaultOpen?: boolean;
@@ -1105,13 +1104,7 @@ export function V4MigrationDetailsContent({
               state={migrationData.evals}
               assistant={
                 upgradePlan.showAssistantButton
-                  ? {
-                      mode:
-                        upgradePlan.mode === "evals-ready"
-                          ? "evals-ready"
-                          : "plan-order",
-                      onMigrate: handleMigrateEvalsWithAgent,
-                    }
+                  ? { onMigrate: handleMigrateEvalsWithAgent }
                   : null
               }
               evalsUrl={evalsUrl}
@@ -1165,7 +1158,13 @@ export function V4MigrationDetailsContent({
               Compare traces while you upgrade
               <HoverCard openDelay={200}>
                 <HoverCardTrigger asChild>
-                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  <button
+                    type="button"
+                    aria-label="Why compare traces?"
+                    className="shrink-0"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
                 </HoverCardTrigger>
                 <HoverCardPortal>
                   <HoverCardContent className="w-80 text-sm">

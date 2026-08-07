@@ -112,6 +112,23 @@ describe("v4 migration SDK status", () => {
     });
   });
 
+  it("keeps custom-instrumentation traffic action-needed despite a compatible SDK", () => {
+    expect(
+      getLoadedSdkState(
+        sdkSeries(),
+        sdkSeries({
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          canonicalSdkName: null,
+          publicKey: "pk-lf-custom",
+          attributionStatus: "missing_name_and_version",
+          v4MigrationStatus: "unknown",
+          hasDelayedOtelEvents: null,
+        }),
+      ),
+    ).toMatchObject({ status: "unknown" });
+  });
+
   it("keeps a recognized SDK with an invalid version unknown", () => {
     expect(
       getLoadedSdkState(

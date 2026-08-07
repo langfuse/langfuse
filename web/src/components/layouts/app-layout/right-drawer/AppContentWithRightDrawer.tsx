@@ -72,7 +72,7 @@ export function AppContentWithRightDrawer({ children }: PropsWithChildren) {
       primaryContent={children}
       secondaryContent={rightDrawerContent}
       open={supportOpen || migrationOpen}
-      defaultPrimarySize={60}
+      defaultPrimarySize={supportOpen ? 70 : 60}
       // The migration panel carries denser content than the support drawer,
       // so it opens wider by default.
       defaultSecondarySize={supportOpen ? 30 : 40}

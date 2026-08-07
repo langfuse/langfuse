@@ -32,6 +32,15 @@ const requiresOtelIngestionHeader = (
 ): boolean =>
   series.hasDelayedOtelEvents === true && series.canonicalSdkName === null;
 
+// Ingestion-API series without a recognized Langfuse SDK: custom
+// instrumentation against POST /api/public/ingestion, an unrecognized SDK
+// name, or an SDK too old to send attribution headers. (hasDelayedOtelEvents
+// is null for non-OTel ingestion.)
+export const isCustomInstrumentationSeries = (
+  series: V4MigrationSdkUsageSeries,
+): boolean =>
+  series.hasDelayedOtelEvents === null && series.canonicalSdkName === null;
+
 const sortSdkUsageSeries = (
   rows: V4MigrationSdkUsageSeries[],
 ): V4MigrationSdkUsageSeries[] =>
@@ -85,6 +94,12 @@ export const getV4MigrationSdkState = (params: {
     (series) =>
       series.canonicalSdkName === null && series.hasDelayedOtelEvents === false,
   );
+  // Custom-instrumentation traffic is always an action item in the panel, so
+  // the combined status must not report the project as fully migrated while
+  // the Upgrade Instrumentation section is telling the user to act.
+  const hasCustomInstrumentation = sdkUsageSeries.some(
+    isCustomInstrumentationSeries,
+  );
 
   return {
     status:
@@ -94,7 +109,7 @@ export const getV4MigrationSdkState = (params: {
           ? "legacy"
           : delayedOtelIngestionCount > 0
             ? "otel_header_required"
-            : hasUnknownRecognizedSdk
+            : hasUnknownRecognizedSdk || hasCustomInstrumentation
               ? "unknown"
               : hasCompatibleSdk
                 ? "latest"
@@ -163,15 +178,6 @@ export const getSdkSectionState = (
     actionableCount,
   };
 };
-
-// Ingestion-API series without a recognized Langfuse SDK: custom
-// instrumentation against POST /api/public/ingestion, an unrecognized SDK
-// name, or an SDK too old to send attribution headers. (hasDelayedOtelEvents
-// is null for non-OTel ingestion.)
-export const isCustomInstrumentationSeries = (
-  series: V4MigrationSdkUsageSeries,
-): boolean =>
-  series.hasDelayedOtelEvents === null && series.canonicalSdkName === null;
 
 export type V4MigrationCustomInstrumentationSectionState = {
   /** Every series here is an offender; the section hides when empty. */

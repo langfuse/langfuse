@@ -205,7 +205,7 @@ export const EvalsDeprecated = meta.story({
   render: () => (
     <V4MigrationEvalsSection
       state={{ status: "loaded", count: 3 }}
-      assistant={{ mode: "evals-ready", onMigrate: fn() }}
+      assistant={{ onMigrate: fn() }}
       evalsUrl="/project/demo/evals"
       defaultOpen
     />
@@ -318,7 +318,7 @@ export const VariantMatrix = meta.story({
             <V4MigrationEvalsSection
               key="7"
               state={{ status: "loaded", count: 3 }}
-              assistant={{ mode: "evals-ready", onMigrate: fn() }}
+              assistant={{ onMigrate: fn() }}
               evalsUrl="/project/demo/evals"
               defaultOpen
             />,
@@ -328,7 +328,7 @@ export const VariantMatrix = meta.story({
             <V4MigrationEvalsSection
               key="8"
               state={{ status: "loaded", count: 1 }}
-              assistant={{ mode: "plan-order", onMigrate: fn() }}
+              assistant={{ onMigrate: fn() }}
               evalsUrl="/project/demo/evals"
               defaultOpen
             />,
@@ -414,7 +414,7 @@ export const VariantMatrix = meta.story({
               />
               <V4MigrationEvalsSection
                 state={{ status: "loaded", count: 2 }}
-                assistant={{ mode: "evals-ready", onMigrate: fn() }}
+                assistant={{ onMigrate: fn() }}
                 evalsUrl="/project/demo/evals"
                 defaultOpen
               />

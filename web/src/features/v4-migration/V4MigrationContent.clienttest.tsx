@@ -20,6 +20,8 @@ import {
   type V4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
 } from "./sdkVersionStatus";
+import { V4_MIGRATION_LOOKBACK_DAYS } from "./migrationData";
+import { TIME_RANGES } from "@langfuse/shared";
 
 const makeSdkUsageSeries = (
   overrides: Partial<V4MigrationSdkUsageSeries>,
@@ -457,6 +459,14 @@ describe("V4MigrationDetailsContent", () => {
       screen.getByText(/1 detected SDK configuration needs an update/),
     ).toBeInTheDocument();
     expect(screen.getByText("· version not recognized")).toBeInTheDocument();
+  });
+
+  it("keeps the evidence-link date range expressible as a table range", () => {
+    // rangeFromString falls back to the page default when the abbreviation is
+    // unknown, which would silently unscope the evidence links.
+    expect(
+      Object.values(TIME_RANGES).map((range) => range.abbreviation),
+    ).toContain(`${V4_MIGRATION_LOOKBACK_DAYS}d`);
   });
 
   it("renders the public key as plain text when the v4 preview is off", () => {
