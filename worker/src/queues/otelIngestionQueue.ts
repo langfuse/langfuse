@@ -147,6 +147,33 @@ export function isLangfuseSdkTraffic(params: {
 }
 
 /**
+ * Whether any instrumentation scope in the batch identifies a Langfuse SDK.
+ *
+ * The scope-based version check reads only the first scope (all spans a
+ * Langfuse SDK exports share it), but the org-cutoff exclusion must be
+ * conservative: a collector-forwarded batch can mix SDK spans with third-party
+ * scopes in any order, and one Langfuse scope anywhere is enough to keep the
+ * whole batch on its established write path. Scans scope metadata only — no
+ * span bodies are touched.
+ */
+export function batchContainsLangfuseScope(
+  resourceSpans: ResourceSpan[],
+): boolean {
+  // Malformed OTLP shapes reach this code (non-array scopeSpans and the like);
+  // scanning is best-effort and must not fail the batch.
+  try {
+    return resourceSpans.some((resourceSpan) =>
+      (resourceSpan?.scopeSpans ?? []).some((scopeSpan) =>
+        isLangfuseSdkTraffic({ scopeName: scopeSpan?.scope?.name ?? null }),
+      ),
+    );
+  } catch (error) {
+    logger.warn("Failed to scan batch scopes for Langfuse SDK spans", error);
+    return false;
+  }
+}
+
+/**
  * Whether an organization's signup date puts it past the direct-write cutoff.
  *
  * Organizations created on or after the cutoff are past the point where the v4
@@ -161,37 +188,34 @@ export function isLangfuseSdkTraffic(params: {
  * signal available. It mirrors the UI-side rollout boundary but keys on the
  * single organization owning the API key rather than the oldest organization a
  * user belongs to — ingestion has no user context.
+ *
+ * The rule is Cloud-only, gated at the call site
+ * (isProjectOrgPastOtelDirectWriteCutoff): self-hosted deployments move the
+ * whole deployment at once via LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR.
  */
 export function isOrgPastOtelDirectWriteCutoff(params: {
   /** Organization signup date; nullish when it could not be resolved. */
   orgCreatedAt: Date | null | undefined;
   /** ISO date (YYYY-MM-DD), read as midnight UTC. Unset disables the rule. */
   cutoff: string | undefined;
-  isLangfuseCloud: boolean;
 }): boolean {
-  const { orgCreatedAt, cutoff, isLangfuseCloud } = params;
+  const { orgCreatedAt, cutoff } = params;
 
-  // Self-hosted deployments move the whole deployment at once via
-  // LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct; rolling a tenant cohort
-  // forward is a Cloud-only concern.
-  if (!isLangfuseCloud || !cutoff || !orgCreatedAt) {
+  if (!cutoff || !orgCreatedAt) {
     return false;
   }
 
-  // Env validation rejects a malformed cutoff at startup, so this only guards
-  // against a value reaching the comparison some other way. Treat anything
-  // unparsable as "unknown" and keep the pre-cutoff behaviour.
-  const cutoffMs = Date.parse(`${cutoff}T00:00:00.000Z`);
-  if (isNaN(cutoffMs) || isNaN(orgCreatedAt.getTime())) {
-    return false;
-  }
-
-  return orgCreatedAt.getTime() >= cutoffMs;
+  // An invalid date on either side compares as NaN, which is false for every
+  // comparison — unparsable input keeps the pre-cutoff behaviour by itself.
+  return orgCreatedAt.getTime() >= Date.parse(`${cutoff}T00:00:00.000Z`);
 }
 
-// Organization signup dates never change, so this only needs to bound memory
-// and let a deleted project fall out. A miss costs one indexed Postgres read,
-// and only for batches that no other signal already routed (see below).
+// An organization's signup date never changes, and the project → organization
+// mapping changes only through the rare `projects.transfer` mutation — a stale
+// entry then self-corrects within the TTL, which is acceptable for a routing
+// hint whose destinations both land the data. So the cache only needs to bound
+// memory and let deleted projects fall out. A miss costs one indexed Postgres
+// read, and only for batches that no other signal already routed (see below).
 const ORG_CREATED_AT_CACHE_TTL_MS = 60 * 60 * 1000;
 const orgCreatedAtCache = new LocalCache<{ createdAt: Date }>({
   namespace: "otel_org_created_at",
@@ -210,7 +234,7 @@ const orgCreatedAtCache = new LocalCache<{ createdAt: Date }>({
 export async function isProjectOrgPastOtelDirectWriteCutoff(
   projectId: string,
 ): Promise<boolean> {
-  const cutoff = env.LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CUTOFF;
+  const cutoff = env.LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CREATED_CUTOFF;
   if (!cutoff || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     return false;
   }
@@ -233,7 +257,6 @@ export async function isProjectOrgPastOtelDirectWriteCutoff(
     return isOrgPastOtelDirectWriteCutoff({
       orgCreatedAt: value?.createdAt,
       cutoff,
-      isLangfuseCloud: true,
     });
   } catch (error) {
     // A lookup failure must not fail the batch: fall back to the pre-cutoff
@@ -616,10 +639,11 @@ export const otelIngestionQueueProcessorBuilder = (
         );
         // An older SDK that predates the header still identifies itself through
         // its instrumentation scope, so both signals have to be consulted
-        // before the org cutoff may flip a batch.
+        // before the org cutoff may flip a batch. Checked across every scope in
+        // the batch, not just the first — collector-forwarded batches can mix
+        // SDK spans with third-party scopes in any order.
         langfuseSdkTraffic =
-          langfuseSdkTraffic ||
-          isLangfuseSdkTraffic({ scopeName: sdkInfo.scopeName });
+          langfuseSdkTraffic || batchContainsLangfuseScope(parsedSpans);
       }
 
       // Resolved only when it can still change the outcome — every

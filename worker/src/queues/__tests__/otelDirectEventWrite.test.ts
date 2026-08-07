@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
   checkSdkVersionRequirements,
   getSdkInfoFromResourceSpans,
@@ -15,7 +16,6 @@ describe("isOrgPastOtelDirectWriteCutoff", () => {
   const inScope = {
     orgCreatedAt: new Date("2026-08-07T09:00:00.000Z"),
     cutoff,
-    isLangfuseCloud: true,
   };
 
   it("includes organizations created after the cutoff", () => {
@@ -43,12 +43,6 @@ describe("isOrgPastOtelDirectWriteCutoff", () => {
   it("is disabled when the cutoff is unset", () => {
     expect(
       isOrgPastOtelDirectWriteCutoff({ ...inScope, cutoff: undefined }),
-    ).toBe(false);
-  });
-
-  it("is disabled off Cloud even with a cutoff configured", () => {
-    expect(
-      isOrgPastOtelDirectWriteCutoff({ ...inScope, isLangfuseCloud: false }),
     ).toBe(false);
   });
 
@@ -106,6 +100,42 @@ describe("isLangfuseSdkTraffic", () => {
     },
   ])("$label → $expected", ({ params, expected }) => {
     expect(isLangfuseSdkTraffic(params)).toBe(expected);
+  });
+});
+
+describe("batchContainsLangfuseScope", () => {
+  const scoped = (...names: string[]) => ({
+    scopeSpans: names.map((name) => ({ scope: { name }, spans: [] })),
+  });
+
+  it("finds a Langfuse scope that is not the batch's first scope", () => {
+    expect(
+      batchContainsLangfuseScope([scoped("openlit", "langfuse-sdk")]),
+    ).toBe(true);
+  });
+
+  it("finds a Langfuse scope on a later resource", () => {
+    expect(
+      batchContainsLangfuseScope([scoped("openlit"), scoped("langfuse-sdk")]),
+    ).toBe(true);
+  });
+
+  it("rejects batches with only third-party scopes", () => {
+    expect(
+      batchContainsLangfuseScope([scoped("openlit", "openinference")]),
+    ).toBe(false);
+  });
+
+  it.each([
+    { input: [], label: "an empty batch" },
+    { input: [{}], label: "a resource without scopeSpans" },
+    {
+      // Malformed OTLP reaches this code path; scanning must not throw.
+      input: [{ scopeSpans: {} } as never],
+      label: "a non-array scopeSpans shape",
+    },
+  ])("rejects $label", ({ input }) => {
+    expect(batchContainsLangfuseScope(input)).toBe(false);
   });
 });
 

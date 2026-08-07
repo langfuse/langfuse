@@ -546,7 +546,9 @@ const EnvSchema = z.object({
   // those deployments move the whole deployment at once via
   // LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct instead of rolling a
   // tenant cohort forward.
-  LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CUTOFF: z.iso.date().optional(),
+  LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CREATED_CUTOFF: z.iso
+    .date()
+    .optional(),
   LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
     .enum(["true", "false"])
     .default("true"),
