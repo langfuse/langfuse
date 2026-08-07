@@ -17,8 +17,9 @@ import {
   isCategoricalDataType,
   isNumericDataType,
 } from "@/src/features/scores/lib/helpers";
-import { Edit, MoreVertical } from "lucide-react";
+import { Archive, Edit, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { PopoverTrigger } from "@/src/components/ui/popover";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -28,7 +29,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { ArchiveScoreConfigButton } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
+import { ArchiveScoreConfigPopoverController } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
 import { UpsertScoreConfigDialog } from "@/src/features/score-configs/components/UpsertScoreConfigDialog";
 
 type ScoreConfigTableRow = {
@@ -196,14 +197,31 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </DropdownMenuItem>
-              <DropdownMenuItem asChild key="archive">
-                <ArchiveScoreConfigButton
-                  configId={configId}
-                  projectId={projectId}
-                  isArchived={isArchived}
-                  name={name}
-                />
-              </DropdownMenuItem>
+              <ArchiveScoreConfigPopoverController
+                configId={configId}
+                projectId={projectId}
+                isArchived={isArchived}
+                name={name}
+              >
+                {({ disabled, openPopover }) => (
+                  <DropdownMenuItem asChild key="archive">
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="flex w-full items-center justify-start"
+                        disabled={disabled !== undefined}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openPopover();
+                        }}
+                      >
+                        <Archive className="mr-2 h-4 w-4" />
+                        Archive
+                      </Button>
+                    </PopoverTrigger>
+                  </DropdownMenuItem>
+                )}
+              </ArchiveScoreConfigPopoverController>
             </DropdownMenuContent>
           </DropdownMenu>
         );

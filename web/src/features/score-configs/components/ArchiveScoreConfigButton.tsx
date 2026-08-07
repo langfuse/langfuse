@@ -1,29 +1,29 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { Archive } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import React from "react";
+import { Popover, PopoverContent } from "@/src/components/ui/popover";
+import { type ReactNode, useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 
-export const ArchiveScoreConfigButton = ({
+export const ArchiveScoreConfigPopoverController = ({
+  children,
   configId,
   projectId,
   isArchived,
   name,
 }: {
+  children: (control: {
+    disabled: { reason: string } | undefined;
+    openPopover: () => void;
+  }) => ReactNode;
   configId: string;
   projectId: string;
   isArchived: boolean;
   name: string;
 }) => {
   const capture = usePostHogClientCapture();
+  const [open, setOpen] = useState(false);
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
     useEmptyScoreConfigs();
 
@@ -37,22 +37,20 @@ export const ArchiveScoreConfigButton = ({
     onSuccess: () => utils.scoreConfigs.invalidate(),
   });
 
+  const disabled = hasAccess
+    ? undefined
+    : { reason: "You don't have permission to archive this score config." };
+
+  const openPopover = () => {
+    if (!hasAccess) return;
+
+    setOpen(true);
+    capture("score_configs:archive_form_open");
+  };
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          className="flex w-full items-center justify-start"
-          disabled={!hasAccess}
-          onClick={(e) => {
-            e.stopPropagation();
-            capture("score_configs:archive_form_open");
-          }}
-        >
-          <Archive className="mr-2 h-4 w-4"></Archive>
-          Archive
-        </Button>
-      </PopoverTrigger>
+    <Popover open={hasAccess && open} onOpenChange={setOpen}>
+      {children({ disabled, openPopover })}
       <PopoverContent
         onClick={(e) => e.stopPropagation()}
         className="max-w-[500px]"
