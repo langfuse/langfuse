@@ -1,10 +1,4 @@
-import {
-  memo,
-  type JSX,
-  type MouseEventHandler,
-  type ReactNode,
-  useState,
-} from "react";
+import { memo, type JSX, type ReactNode, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
@@ -18,7 +12,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import {
   buildEventsTablePathForMetadataFilter,
@@ -219,13 +212,12 @@ function ValueCellActionsMenuController({
   row,
   metadataActions,
 }: {
-  children: (control: {
-    onTriggerClick: MouseEventHandler<HTMLButtonElement>;
-  }) => ReactNode;
+  children: (control: { openMenu: () => void }) => ReactNode;
   row: Row<JsonTableRow>;
   metadataActions: MetadataFilterActions;
 }) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const { value, type, hasChildren, level } = row.original;
 
   const filterValue = String(value);
@@ -284,8 +276,8 @@ function ValueCellActionsMenuController({
   const excludeFilterText = `metadata.${metadataKey} ${excludeOperator} ${displayValue}`;
 
   return (
-    <DropdownMenu>
-      {children({ onTriggerClick: (event) => event.stopPropagation() })}
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      {children({ openMenu: () => setOpen(true) })}
       <DropdownMenuContent
         align="end"
         className="max-w-[320px]"
@@ -505,19 +497,20 @@ export const ValueCell = memo(
             row={row}
             metadataActions={metadataActions}
           >
-            {({ onTriggerClick }) => (
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Value actions"
-                  title="Actions"
-                  className="bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100 data-[state=open]:opacity-100"
-                  onClick={onTriggerClick}
-                >
-                  <EllipsisVertical className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
+            {({ openMenu }) => (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Value actions"
+                title="Actions"
+                className="bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openMenu();
+                }}
+              >
+                <EllipsisVertical className="h-3 w-3" />
+              </Button>
             )}
           </ValueCellActionsMenuController>
         ) : (
