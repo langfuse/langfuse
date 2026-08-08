@@ -201,6 +201,10 @@ When you change the shared MCP setup:
 
 1. Install development dependencies:
    - [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
+     - macOS with brew: `brew install golang-migrate`
+     - Linux: install with the `clickhouse` build tag, since most
+       package-manager builds omit the ClickHouse driver:
+       `go install -tags clickhouse github.com/golang-migrate/migrate/v4/cmd/migrate@latest`
    - [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `curl https://clickhouse.com/ | sh`
 
 2. Fork the repository and clone it locally
