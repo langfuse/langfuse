@@ -9,8 +9,10 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import {
   annotationQueueItemsTableCols,
   type AnnotationQueueStatus,
+  type FilterState,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import isEqual from "lodash/isEqual";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -185,7 +187,17 @@ export function AnnotationQueueItemsTable({
     projectId,
   );
   const [orderByState, setOrderByState] = useOrderByState(null);
-  const setFilterStateWithDebounce = useDebounce(setFilterState);
+  const setFilterStateWithDebounce = useDebounce(
+    (newState: FilterState) => {
+      const filterChanged = !isEqual(newState, filterState);
+      setFilterState(newState);
+      if (filterChanged) {
+        setPaginationState({ pageIndex: 0 });
+      }
+    },
+    600,
+    false,
+  );
   const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
     queueId,
