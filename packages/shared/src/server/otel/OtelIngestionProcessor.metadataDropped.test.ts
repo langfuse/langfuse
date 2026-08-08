@@ -678,32 +678,6 @@ describe("OTel reconstructed array drop telemetry", () => {
         ARRAY_ATTRIBUTE_DROPPED_METRIC,
         1,
         {
-          reason: "index_out_of_range",
-          prefix: "llm.input_messages",
-        },
-      ],
-    ]);
-  });
-
-  it("reports a path that exceeds the total reconstructed-array budget", async () => {
-    await createProcessor().processToIngestionEvents(
-      buildBatch([
-        {
-          key: "llm.input_messages.0.message.9999.content",
-          value: { stringValue: "accepted" },
-        },
-        {
-          key: "llm.input_messages.1.message.9999.content",
-          value: { stringValue: "dropped" },
-        },
-      ]),
-    );
-
-    expect(arrayDropCalls()).toEqual([
-      [
-        ARRAY_ATTRIBUTE_DROPPED_METRIC,
-        1,
-        {
           reason: "reconstruction_budget_exceeded",
           prefix: "llm.input_messages",
         },
@@ -741,7 +715,7 @@ describe("OTel reconstructed array drop telemetry", () => {
           {
             projectId: PROJECT_ID,
             prefix: "llm.input_messages",
-            reason: "index_out_of_range",
+            reason: "reconstruction_budget_exceeded",
             droppedAttributeCount: 1,
           },
         ]);

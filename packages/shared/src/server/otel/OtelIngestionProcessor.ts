@@ -98,10 +98,6 @@ interface MetadataDropContext {
   dropScope: object;
 }
 
-type ArrayAttributeDropReason =
-  | "index_out_of_range"
-  | "reconstruction_budget_exceeded";
-
 interface CreateTraceEventParams {
   traceId: string;
   startTimeISO: string;
@@ -203,9 +199,8 @@ export class OtelIngestionProcessor {
   private static readonly OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC =
     "langfuse.ingestion.otel.array_attribute_dropped";
 
-  // Flattened OTel message attributes name array slots directly, so cap each
-  // reconstructed slot to limit sparse JSON expansion to roughly 50 KB.
-  private static readonly MAX_OTEL_ARRAY_INDEX = 10_000;
+  // Flattened OTel message attributes name array slots directly, so cap the
+  // total logical array length before reconstructing the value.
   private static readonly MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS = 10_001;
 
   private static readonly METADATA_DROP_WARN_CAP = 10;
@@ -1494,10 +1489,9 @@ export class OtelIngestionProcessor {
    *
    * TraceLoop and OpenInference encode structured messages in attribute names;
    * for example, `gen_ai.prompt.0.content` becomes `[{ content: value }]`.
-   * Numeric path segments therefore become JavaScript array indices. Both the
-   * individual index and the total logical slots across all nested arrays are
-   * bounded, since individually safe dimensions can otherwise multiply into a
-   * huge sparse structure when the observation is serialized later.
+   * Numeric path segments therefore become JavaScript array indices. The total
+   * logical slots across all nested arrays are bounded, since dimensions can
+   * otherwise multiply into a huge sparse structure during serialization.
    */
   private convertKeyPathToNestedObject(
     input: Record<string, unknown>,
@@ -1508,72 +1502,53 @@ export class OtelIngestionProcessor {
       return input[prefix];
     }
 
-    const isSafeArrayIndex = (segment: string): boolean => {
-      const index = Number(segment);
-      return (
-        /^\d+$/.test(segment) &&
-        Number.isSafeInteger(index) &&
-        index <= OtelIngestionProcessor.MAX_OTEL_ARRAY_INDEX
-      );
-    };
-
-    // Drop only the attribute containing an unsafe numeric segment before any
-    // array is allocated; valid sibling attributes still form the observation.
-    // Report the aggregate rather than logging keys or values, which may hold
-    // user content and would make this security guard itself leak data.
+    // Reserve the logical length of every array implied by each dotted path.
+    // Array paths include their parent indices, so sibling nested arrays have
+    // separate entries (for example, `0.message` and `1.message`). Rejecting a
+    // path before reconstruction keeps the operation atomic and prevents
+    // individually bounded dimensions from multiplying into a huge value.
     const keys: string[] = [];
-    const outOfRangeKeys: string[] = [];
+    const arrayLengths = new Map<string, number>();
+    const overBudgetKeys: string[] = [];
+    let reconstructedArraySlots = 0;
     for (const inputKey of Object.keys(input)) {
       const key = inputKey.replace(`${prefix}.`, "");
-      const hasOutOfRangeIndex = key
-        .split(".")
-        .some((segment) => /^\d+$/.test(segment) && !isSafeArrayIndex(segment));
-      if (hasOutOfRangeIndex) {
-        outOfRangeKeys.push(key);
-      } else {
-        keys.push(key);
+      const pathParts = key.split(".");
+      const updates: Array<[path: string, length: number]> = [];
+      let slotGrowth = 0;
+
+      for (let index = 0; index < pathParts.length; index++) {
+        const segment = pathParts[index];
+        if (!/^\d+$/.test(segment)) continue;
+
+        const arrayPath = pathParts.slice(0, index).join(".");
+        const previousLength = arrayLengths.get(arrayPath) ?? 0;
+        const nextLength = Number(segment) + 1;
+        if (nextLength > previousLength) {
+          slotGrowth += nextLength - previousLength;
+          updates.push([arrayPath, nextLength]);
+        }
       }
+
+      if (
+        reconstructedArraySlots + slotGrowth >
+        OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS
+      ) {
+        overBudgetKeys.push(key);
+        continue;
+      }
+
+      reconstructedArraySlots += slotGrowth;
+      updates.forEach(([arrayPath, length]) =>
+        arrayLengths.set(arrayPath, length),
+      );
+      keys.push(key);
     }
-    this.recordArrayAttributesDropped(
-      "index_out_of_range",
-      prefix,
-      outOfRangeKeys,
-      dropScope,
-    );
+    this.recordArrayAttributesDropped(prefix, overBudgetKeys, dropScope);
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
     // Blocklist to prevent prototype pollution via crafted OTel attribute keys
     const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-    const estimateArraySlotGrowth = (obj: any, path: string[]): number => {
-      let current = obj;
-      let growth = 0;
-
-      for (let i = 0; i < path.length; i++) {
-        const key = path[i];
-        if (Array.isArray(current) && /^\d+$/.test(key)) {
-          const index = Number(key);
-          growth += Math.max(0, index + 1 - current.length);
-        }
-
-        if (i === path.length - 1) break;
-
-        if (
-          current !== null &&
-          typeof current === "object" &&
-          Object.hasOwn(current, key)
-        ) {
-          // Read only an own data property. Besides matching the null-prototype
-          // containers built below, this prevents the size estimator from ever
-          // following a crafted path into an object's prototype chain.
-          current = Object.getOwnPropertyDescriptor(current, key)?.value;
-        } else {
-          current = /^\d+$/.test(path[i + 1]) ? [] : {};
-        }
-      }
-
-      return growth;
-    };
 
     // Helper function to set a value at a nested path
     const setNestedValue = (obj: any, path: string[], value: unknown): void => {
@@ -1595,20 +1570,10 @@ export class OtelIngestionProcessor {
 
     if (useArray) {
       const result: any[] = [];
-      let reconstructedArraySlots = 0;
-      const overBudgetKeys: string[] = [];
       for (const key of keys) {
         const pathParts = key.split(".");
         const indexSegment = pathParts[0];
         const index = Number(indexSegment);
-        const slotGrowth = estimateArraySlotGrowth(result, pathParts);
-        if (
-          reconstructedArraySlots + slotGrowth >
-          OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS
-        ) {
-          overBudgetKeys.push(key);
-          continue;
-        }
         if (!result[index]) {
           result[index] = Object.create(null);
         }
@@ -1623,43 +1588,19 @@ export class OtelIngestionProcessor {
             input[`${prefix}.${key}`],
           );
         }
-        reconstructedArraySlots += slotGrowth;
       }
-      this.recordArrayAttributesDropped(
-        "reconstruction_budget_exceeded",
-        prefix,
-        overBudgetKeys,
-        dropScope,
-      );
       return result;
     }
 
     const result: Record<string, unknown> = Object.create(null);
-    let reconstructedArraySlots = 0;
-    const overBudgetKeys: string[] = [];
     for (const key of keys) {
       const pathParts = key.split(".");
-      const slotGrowth = estimateArraySlotGrowth(result, pathParts);
-      if (
-        reconstructedArraySlots + slotGrowth >
-        OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS
-      ) {
-        overBudgetKeys.push(key);
-        continue;
-      }
       if (pathParts.length === 1) {
         result[key] = input[`${prefix}.${key}`];
       } else {
         setNestedValue(result, pathParts, input[`${prefix}.${key}`]);
       }
-      reconstructedArraySlots += slotGrowth;
     }
-    this.recordArrayAttributesDropped(
-      "reconstruction_budget_exceeded",
-      prefix,
-      overBudgetKeys,
-      dropScope,
-    );
     return result;
   }
 
@@ -1670,7 +1611,6 @@ export class OtelIngestionProcessor {
    * metrics without retaining spans after the ingestion job finishes.
    */
   private recordArrayAttributesDropped(
-    reason: ArrayAttributeDropReason,
     prefix: string,
     keys: string[],
     dropScope: object,
@@ -1685,7 +1625,7 @@ export class OtelIngestionProcessor {
 
     let droppedAttributeCount = 0;
     for (const key of keys) {
-      const dedupeKey = `${prefix}|${key}|${reason}`;
+      const dedupeKey = `${prefix}|${key}`;
       if (!seen.has(dedupeKey)) {
         seen.add(dedupeKey);
         droppedAttributeCount += 1;
@@ -1696,7 +1636,7 @@ export class OtelIngestionProcessor {
     recordIncrement(
       OtelIngestionProcessor.OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC,
       droppedAttributeCount,
-      { reason, prefix },
+      { reason: "reconstruction_budget_exceeded", prefix },
     );
     if (
       this.arrayAttributeDropWarnCount <
@@ -1706,7 +1646,7 @@ export class OtelIngestionProcessor {
       logger.warn("OTEL array attribute dropped", {
         projectId: this.projectId,
         prefix,
-        reason,
+        reason: "reconstruction_budget_exceeded",
         droppedAttributeCount,
       });
     }
