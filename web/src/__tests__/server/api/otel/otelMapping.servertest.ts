@@ -4727,6 +4727,8 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
+    // TraceLoop flattens prompt arrays into gen_ai.prompt.<index>.* attributes.
+    // An unsafe message must not prevent a valid sibling from being ingested.
     it("should ignore out-of-range OTEL message indices without dropping valid messages", async () => {
       const resourceSpan = {
         resource: {},
@@ -4763,6 +4765,8 @@ describe("OTel Resource Span Mapping", () => {
       expect(observation?.body.input).toEqual([{ content: "valid message" }]);
     });
 
+    // OpenInference may place array indices deeper in llm.input_messages paths,
+    // so every numeric segment must be checked, not only the first one.
     it("should ignore out-of-range nested OTEL indices", async () => {
       const resourceSpan = {
         resource: {},

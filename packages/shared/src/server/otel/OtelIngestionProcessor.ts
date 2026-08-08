@@ -197,7 +197,8 @@ export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
 
-  // Limits sparse JSON expansion to roughly 50 KB per reconstructed array.
+  // Flattened OTel message attributes name array slots directly, so cap each
+  // reconstructed slot to limit sparse JSON expansion to roughly 50 KB.
   private static readonly MAX_OTEL_ARRAY_INDEX = 10_000;
 
   private static readonly METADATA_DROP_WARN_CAP = 10;
@@ -1475,6 +1476,15 @@ export class OtelIngestionProcessor {
     return undefined;
   }
 
+  /**
+   * Rebuilds observation input/output from flattened adapter attributes.
+   *
+   * TraceLoop and OpenInference encode structured messages in attribute names;
+   * for example, `gen_ai.prompt.0.content` becomes `[{ content: value }]`.
+   * Numeric path segments therefore become JavaScript array indices. Without
+   * a bound, one crafted segment can create a huge sparse array when the
+   * observation is serialized later in the ingestion pipeline.
+   */
   private convertKeyPathToNestedObject(
     input: Record<string, unknown>,
     prefix: string,
@@ -1492,7 +1502,8 @@ export class OtelIngestionProcessor {
       );
     };
 
-    // Drop unsafe numeric segments before constructing nested arrays.
+    // Drop only the attribute containing an unsafe numeric segment before any
+    // array is allocated; valid sibling attributes still form the observation.
     const keys = Object.keys(input)
       .map((key) => key.replace(`${prefix}.`, ""))
       .filter((key) =>
