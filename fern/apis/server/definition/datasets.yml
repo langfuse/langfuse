@@ -27,6 +27,38 @@ service:
       path-parameters:
         datasetName: string
       response: commons.Dataset
+    get-runs-by-id:
+      method: GET
+      docs: Get dataset runs by dataset ID. Use this v2 route when dataset names may contain `/`.
+      path: /v2/dataset-runs/by-dataset-id/{datasetId}
+      path-parameters:
+        datasetId: string
+      request:
+        name: GetDatasetRunsByIdRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedDatasetRuns
+    get-run-by-id:
+      method: GET
+      docs: Get a dataset run and its items by dataset ID and run ID. Use this v2 route when dataset names may contain `/`.
+      path: /v2/dataset-runs/by-dataset-id/{datasetId}/{runId}
+      path-parameters:
+        datasetId: string
+        runId: string
+      response: commons.DatasetRunWithItems
+    delete-run-by-id:
+      method: DELETE
+      docs: Delete a dataset run and all its run items by dataset ID and run ID. Use this v2 route when dataset names may contain `/`.
+      path: /v2/dataset-runs/by-dataset-id/{datasetId}/{runId}
+      path-parameters:
+        datasetId: string
+        runId: string
+      response: DeleteDatasetRunResponse
     create:
       method: POST
       docs: Create a dataset
@@ -38,7 +70,7 @@ service:
         status: deprecated
         message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset runs are replaced by experiments; use GET /api/public/experiments instead."
       method: GET
-      docs: Get a dataset run and its items
+      docs: Get a dataset run and its items. Kept for backward compatibility; prefer the v2 ID-based route when dataset names may contain `/`.
       path: /datasets/{datasetName}/runs/{runName}
       path-parameters:
         datasetName: string
@@ -49,7 +81,7 @@ service:
         status: deprecated
         message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset runs are replaced by experiments."
       method: DELETE
-      docs: Delete a dataset run and all its run items. This action is irreversible.
+      docs: Delete a dataset run and all its run items. This action is irreversible. Kept for backward compatibility; prefer the v2 ID-based route when dataset names may contain `/`.
       path: /datasets/{datasetName}/runs/{runName}
       path-parameters:
         datasetName: string
@@ -60,7 +92,7 @@ service:
         status: deprecated
         message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset runs are replaced by experiments; use GET /api/public/experiments instead."
       method: GET
-      docs: Get dataset runs
+      docs: Get dataset runs. Kept for backward compatibility; prefer the v2 ID-based route when dataset names may contain `/`.
       path: /datasets/{datasetName}/runs
       path-parameters:
         datasetName: string
