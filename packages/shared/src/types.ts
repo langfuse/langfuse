@@ -47,6 +47,7 @@ export type TableName =
   | "users"
   | "eval_configs"
   | "dataset_items"
+  | "annotation_queue_items"
   | "job_executions"
   | "dataset_runs"
   | "dataset_run_items_by_run"
