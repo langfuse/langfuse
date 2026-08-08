@@ -1,24 +1,107 @@
-# The node alpine image is available here: https://github.com/nodejs/docker-node
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
+# FIPS 140-3 base: UBI 9 with the nodejs:24 module-stream RPM
+# instead of node:24-alpine. The RPM Node dynamically links the system
+# libcrypto.so.3, so node:crypto routes through RHEL's CMVP-validated OpenSSL
+# FIPS provider (/usr/lib64/ossl-modules/fips.so). Upstream node images
+# statically bundle their own non-validated OpenSSL and bypass the platform
+# module entirely.
+# The defaults are Red Hat's public UBI9 images, so the build needs no
+# credentials. Iron Bank serves the same content from an authenticated registry
+# with DoD provenance and scan attestations. Release builds opt in by overriding
+# both args after `docker login registry1.dso.mil` (free P1 account plus a CLI
+# secret):
+#   --build-arg BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8
+#   --build-arg MICRO_BASE_IMAGE=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8
+ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
+ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
-# It's important to update the index before installing packages to ensure you're getting the latest versions.
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
+# nodejs:24 and openssl (incl. the FIPS provider) come from the freely
+# redistributable UBI repos, so no RHEL entitlement is required.
+# nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
+# segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
+# formatting) without the full ICU data.
+RUN dnf -y upgrade && \
+    dnf -y module enable nodejs:24 && \
+    dnf -y install --setopt=install_weak_deps=0 nodejs npm nodejs-full-i18n && \
+    dnf clean all
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
-RUN npm install turbo@2.10.5 --global
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
-RUN corepack prepare pnpm@11.22.0 --activate
+# pnpm is installed pinned via npm instead of corepack: the corepack shim would
+# fetch pnpm from an unpinned CDN on first use.
+RUN npm install -g turbo@2.10.5 pnpm@11.22.0
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
-# Remove build-only package managers. npm stays here because the runner stage
-# uses it to install prisma and optional dd-trace before removing it.
-RUN rm -rf /usr/local/lib/node_modules/corepack \
-            /root/.cache/node/corepack && \
-    rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
+# Runtime rootfs assembled with dnf --installroot and layered onto ubi9-micro:
+# the final image carries no package manager, python, or curl. It holds only
+# the packages listed below plus their deps, with an intact rpmdb for scanners.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS rpm-installer
+
+ARG TARGETARCH
+ARG UID=1001
+ARG GID=1001
+
+# nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
+# segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
+# formatting) without the full ICU data. sed is used by entrypoint.sh.
+RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
+    --disableexcludes=all \
+    module enable nodejs:24 && \
+    dnf -y --installroot /mnt/rootfs --releasever 9 \
+    --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
+    --disableexcludes=all \
+    install nodejs nodejs-full-i18n bash coreutils-single sed \
+    tzdata ca-certificates crypto-policies && \
+    dnf --installroot /mnt/rootfs clean all && \
+    rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
+
+# The nodejs RPM drags npm in as a dependency; the runtime image must carry
+# no package manager, so remove it from the rootfs (rpmdb stays consistent).
+RUN if rpm --root /mnt/rootfs -q npm >/dev/null 2>&1; then \
+    rpm --root /mnt/rootfs -e --nodeps npm; \
+    fi
+
+# Activate the FIPS crypto policy in the rootfs so the FIPS provider is used
+# even when the container host kernel is not in FIPS mode (on FIPS-mode hosts
+# RHEL activates it regardless). update-crypto-policies is python-based and
+# python is deliberately absent from the runtime image, so flip the same
+# policy symlinks it would have flipped. Full FIPS 140-3 compliance still
+# requires a FIPS-mode host; deployments enforce that with
+# LANGFUSE_REQUIRE_FIPS=true (checked in entrypoint.sh via crypto.getFips()).
+RUN echo FIPS > /mnt/rootfs/etc/crypto-policies/config && \
+    for c in /mnt/rootfs/etc/crypto-policies/back-ends/*.config; do \
+    n=$(basename "$c" .config); \
+    ln -sfn "/usr/share/crypto-policies/FIPS/$n.txt" "$c"; \
+    done
+
+# dumb-init is not packaged in UBI; install the pinned, checksum-verified
+# static release binary (preserves the semver-covered ENTRYPOINT contract).
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+    amd64) di_arch=x86_64; di_sha256=e874b55f3279ca41415d290c512a7ba9d08f98041b28ae7c2acb19a545f1c4df ;; \
+    arm64) di_arch=aarch64; di_sha256=b7d648f97154a99c539b63c55979cd29f005f88430fb383007fe3458340b795e ;; \
+    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /mnt/rootfs/usr/bin/dumb-init "https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_${di_arch}"; \
+    echo "${di_sha256}  /mnt/rootfs/usr/bin/dumb-init" | sha256sum -c -; \
+    chmod 0755 /mnt/rootfs/usr/bin/dumb-init
+
+# Bake the non-root user into the rootfs (micro has no shadow-utils).
+RUN echo "nodejs:x:${GID}:" >> /mnt/rootfs/etc/group && \
+    echo "nextjs:x:${UID}:${GID}::/home/nextjs:/sbin/nologin" >> /mnt/rootfs/etc/passwd
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime-base
+COPY --from=rpm-installer /mnt/rootfs /
+
+# prisma CLI + optional dd-trace are npm-installed here and copied into the
+# package-manager-less runtime image.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS web-tools
+RUN npm install -g --prefix /opt/prisma-cli --no-package-lock --no-save prisma@6.19.3
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+RUN mkdir -p /opt/dd/node_modules && \
+    if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
+    cd /opt/dd && npm install --no-package-lock --no-save dd-trace@5.109.0; \
+    fi
 
 FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
@@ -27,6 +110,10 @@ ENV CGO_ENABLED=0 \
     GOBIN=/out \
     GOOS=${TARGETOS} \
     GOARCH=${TARGETARCH}
+# Build against the validated Go Cryptographic Module snapshot (Go >= 1.24) so
+# the migrate CLI's ClickHouse TLS uses FIPS-approved crypto; GOFIPS140 also
+# defaults GODEBUG=fips140=on at runtime.
+ENV GOFIPS140=v1.0.0
 # Build only the ClickHouse migrate CLI Langfuse uses at runtime.
 # compile this ourselves instead of downloading the upstream release
 # because prebuilt bins bundle many unused drivers and thus inherit CVEs
@@ -155,25 +242,17 @@ ENV DOCKER_BUILD 0
 # Set NEXT_MANUAL_SIG_HANDLE for runtime
 ENV NEXT_MANUAL_SIG_HANDLE true
 
-RUN apk add --no-cache dumb-init tzdata
+# The non-root user (nextjs, uid 1001) is baked into the runtime rootfs by
+# the rpm-installer stage, since micro has no shadow-utils.
 
-# Don't run production as root
-ARG UID=1001
-ARG GID=1001
-RUN addgroup --system --gid ${GID} nodejs
-RUN adduser --system --uid ${UID} nextjs
+# prisma CLI from the tools stage (bin/prisma symlink + lib/node_modules
+# structure lands under /usr/local); the runtime image has no npm.
+COPY --from=web-tools /opt/prisma-cli /usr/local
 
-RUN npm install -g --no-package-lock --no-save prisma@6.19.3
-
-# Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
-ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    npm install --no-package-lock --no-save dd-trace@5.109.0; \
-    fi
-
-# npm is only used for the installs above; remove it from the final runtime image.
-RUN rm -rf /usr/local/lib/node_modules/npm && \
-    rm -f /usr/local/bin/npm /usr/local/bin/npx
+# dd-trace, npm-installed in the tools stage (node_modules is empty unless
+# NEXT_PUBLIC_LANGFUSE_CLOUD_REGION was set); the standalone output copied
+# below merges on top of it.
+COPY --from=web-tools --chown=nextjs:nodejs /opt/dd/node_modules ./node_modules
 
 COPY --from=migrate-builder /out/migrate /usr/bin/migrate
 
@@ -193,7 +272,10 @@ COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 COPY --chown=nextjs:nodejs ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql
 RUN chmod +x ./web/entrypoint.sh
 
-USER nextjs
+# Numeric USER (uid of nextjs) so runAsNonRoot checks and Iron Bank hardening
+# validation can verify the user without resolving names.
+ARG UID=1001
+USER ${UID}
 
 # Default port to 3000
 ENV PORT 3000
