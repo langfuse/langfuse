@@ -247,6 +247,32 @@ Always fetch pricing from the provider's official docs before editing.
   `o4-mini-2025-04-16`), explicitly confirm which table a fetched price came from before
   applying it to the bare (non-`ft:`) entry — a summarizer can silently pick either table
   when both rows share the same model name.
+- **Gemini 3.5 Live Translate (found August 8 2026; out of scope)** — `ai.google.dev/pricing`
+  now lists a `gemini-3.5-live-translate-preview` model: a real-time audio-to-audio
+  translation model billed at $3.50/MTok input (audio) and $21.00/MTok output (audio), where
+  "Billing is based on total input and output audio token consumption, calculated at a rate
+  of 25 tokens per second of audio" (≈$0.0368/minute effective). This is an audio/live
+  translation endpoint, not a flagship text/chat/reasoning model, so per the automated-audit
+  scope rules it was not added to the pricing file or selectable model lists. Re-evaluate
+  only if a future task explicitly asks to cover Gemini Live / audio-translation models.
+- **`gemini-3-pro-preview` re-confirmed absent from the official page (August 8 2026)** — A
+  targeted, non-aggregated fetch asking specifically for a "Gemini 3 Pro Preview" section
+  found none; the page has "Gemini 3.1 Pro Preview" but no separate `gemini-3-pro-preview`
+  row. A same-day broad table-dump fetch had incorrectly reported a `gemini-3-pro-preview`
+  row (likely conflating it with `gemini-3.1-pro-preview` or `gemini-3-flash-preview`) —
+  always re-check an unexpected "this model now has its own row" claim with a second,
+  narrowly-scoped fetch before trusting it. The pricing file's existing prices remain
+  unverified and unchanged; see the long-standing unresolved finding in
+  `model-audit-memory.md`.
+- **`ft:gpt-3.5-turbo-0613` fine-tuning rate is unverified against the current page (noted
+  August 8 2026)** — The pricing file prices this entry at $12/MTok input, $16/MTok output,
+  which was the original (2023-era) `gpt-3.5-turbo-0613` fine-tuned-inference rate. The
+  current OpenAI Fine-tuning pricing table shows only one consolidated
+  "gpt-3.5-turbo (legacy)" row at $3.00/MTok input, $6.00/MTok output, Training $8.00/MTok —
+  this matches the file's separate `ft:gpt-3.5-turbo-1106` entry exactly, but the page does
+  not distinguish the `-0613` vintage from `-1106`. Do not assume the two vintages share a
+  rate, and do not assume they differ — this needs an official source that explicitly names
+  the `-0613` snapshot before either changing or re-confirming the entry.
 
 Capture:
 
