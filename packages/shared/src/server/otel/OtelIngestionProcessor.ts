@@ -1563,7 +1563,10 @@ export class OtelIngestionProcessor {
           typeof current === "object" &&
           Object.hasOwn(current, key)
         ) {
-          current = current[key];
+          // Read only an own data property. Besides matching the null-prototype
+          // containers built below, this prevents the size estimator from ever
+          // following a crafted path into an object's prototype chain.
+          current = Object.getOwnPropertyDescriptor(current, key)?.value;
         } else {
           current = /^\d+$/.test(path[i + 1]) ? [] : {};
         }
