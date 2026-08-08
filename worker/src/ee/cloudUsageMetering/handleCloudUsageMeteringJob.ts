@@ -224,6 +224,13 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
           await stripe.billing.meterEvents.create({
             event_name: "tracing_observations",
             timestamp: meterIntervalEnd.getTime() / 1000,
+            // The whole job re-enqueues from the start if any org's Stripe
+            // call fails (see cloudUsageMeteringQueue.ts), so orgs already
+            // billed in the failed run get billed again on retry. A stable
+            // identifier per org, event type and interval lets Stripe dedupe
+            // the resubmission instead of charging twice. Stripe holds
+            // identifiers unique for at least 24h.
+            identifier: `lf-${org.id}-tracing_observations-${meterIntervalEnd.getTime()}`,
             payload: {
               stripe_customer_id: stripeCustomerId,
               value: countObservations.toString(), // value is a string in stripe
@@ -253,6 +260,9 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
           await stripe.billing.meterEvents.create({
             event_name: "tracing_events",
             timestamp: meterIntervalEnd.getTime() / 1000,
+            // Same idempotency reason as the tracing_observations call above,
+            // with the event type in the key so the two don't collide.
+            identifier: `lf-${org.id}-tracing_events-${meterIntervalEnd.getTime()}`,
             payload: {
               stripe_customer_id: stripeCustomerId,
               value: countEvents.toString(), // value is a string in stripe
