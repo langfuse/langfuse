@@ -12,12 +12,13 @@ import {
 import {
   annotationQueueItemsTableCols,
   type AnnotationQueueStatus,
+  type FilterState,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import isEqual from "lodash/isEqual";
+import { useQueryFilterState } from "@/src/features/filters";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ListTree, Trash } from "lucide-react";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { type RouterOutput } from "@/src/utils/types";
@@ -40,6 +41,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 
@@ -222,7 +224,17 @@ export function AnnotationQueueItemsTable({
     projectId,
   );
   const [orderByState, setOrderByState] = useOrderByState(null);
-  const setFilterStateWithDebounce = useDebounce(setFilterState);
+  const setFilterStateWithDebounce = useDebounce(
+    (newState: FilterState) => {
+      const filterChanged = !isEqual(newState, filterState);
+      setFilterState(newState);
+      if (filterChanged) {
+        setPaginationState({ pageIndex: 0 });
+      }
+    },
+    600,
+    false,
+  );
   const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
     queueId,
@@ -374,19 +386,13 @@ export function AnnotationQueueItemsTable({
       enableSorting: true,
       isLive: false,
     }),
-    {
+    createDateTableColumn<QueueItemRowData>({
       accessorKey: "createdAt",
       header: "Created At",
-      id: "createdAt",
       size: 60,
       enableHiding: true,
       enableSorting: true,
-      cell: ({ row }) => {
-        const createdAt: QueueItemRowData["createdAt"] =
-          row.getValue("createdAt");
-        return <LocalIsoDate date={createdAt} />;
-      },
-    },
+    }),
     {
       accessorKey: "completedAt",
       header: "Completed At",
