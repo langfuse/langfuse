@@ -1,5 +1,6 @@
 import {
   clickhouseClient,
+  ClickHouseError,
   ClickhouseClientType,
   BlobStorageFileLogInsertType,
   getCurrentSpan,
@@ -31,6 +32,8 @@ const DECIMAL_64_12_LIMIT = new Decimal("1e6");
 const DECIMAL_64_12_MAX_NUM = 999_999.999_999;
 const DECIMAL_64_12_MIN_NUM = -DECIMAL_64_12_MAX_NUM;
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
+const MALFORMED_SURROGATE_PAIR_MESSAGE =
+  /cannot parse escape sequence: (?:missing second part of surrogate pair|incorrect surrogate pair of unicode escape sequences in JSON)/i;
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -168,6 +171,41 @@ export class ClickhouseWriter {
 
     // Node.js string size errors
     return errorMessage.includes("invalid string length");
+  }
+
+  private isMalformedSurrogatePairError(error: unknown): boolean {
+    return (
+      error instanceof ClickHouseError &&
+      error.code === "25" &&
+      error.type === "CANNOT_PARSE_ESCAPE_SEQUENCE" &&
+      MALFORMED_SURROGATE_PAIR_MESSAGE.test(error.message)
+    );
+  }
+
+  private makeStringsWellFormed<T>(value: T): T {
+    if (typeof value === "string") {
+      return value.toWellFormed() as T;
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.makeStringsWellFormed(item)) as T;
+    }
+
+    if (!value || typeof value !== "object") {
+      return value;
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      return value;
+    }
+
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key.toWellFormed(),
+        this.makeStringsWellFormed(item),
+      ]),
+    ) as T;
   }
 
   /**
@@ -402,13 +440,48 @@ export class ClickhouseWriter {
         this.clampDecimal64Fields(tableName, r),
       );
       let hasBeenTruncated = false;
+      let hasRepairedMalformedSurrogates = false;
 
       await backOff(
-        async () =>
-          this.writeToClickhouse({
-            table: tableName,
-            records: recordsToWrite,
-          }),
+        async () => {
+          try {
+            await this.writeToClickhouse({
+              table: tableName,
+              records: recordsToWrite,
+            });
+          } catch (error) {
+            if (
+              hasRepairedMalformedSurrogates ||
+              !this.isMalformedSurrogatePairError(error)
+            ) {
+              throw error;
+            }
+
+            recordsToWrite = recordsToWrite.map((record) =>
+              this.makeStringsWellFormed(record),
+            );
+            hasRepairedMalformedSurrogates = true;
+
+            logger.warn(
+              `ClickHouse Writer rejected malformed surrogate pairs for ${tableName}; repairing the failed batch and retrying once`,
+              { batchSize: recordsToWrite.length },
+            );
+            recordIncrement(
+              "langfuse.queue.clickhouse_writer.malformed_surrogate_pair_batch_repair",
+              1,
+              { entity_type: tableName },
+            );
+            currentSpan?.addEvent(
+              "clickhouse-query-malformed-surrogate-retry",
+              { "batch.size": recordsToWrite.length },
+            );
+
+            await this.writeToClickhouse({
+              table: tableName,
+              records: recordsToWrite,
+            });
+          }
+        },
         {
           numOfAttempts: env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
           retry: (error: Error, attemptNumber: number) => {

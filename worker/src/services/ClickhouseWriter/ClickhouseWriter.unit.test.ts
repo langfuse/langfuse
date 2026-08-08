@@ -38,10 +38,32 @@ vi.mock("../../env", async (importOriginal) => {
 });
 
 describe("ClickhouseWriter", () => {
+  const malformedInput = `before${String.fromCharCode(0xd800)}after`;
+  const missingSurrogatePairMessage =
+    "Cannot parse escape sequence: missing second part of surrogate pair";
   let clickhouseClientMock: {
     insert: ReturnType<typeof vi.fn>;
   };
   let writer: ClickhouseWriter;
+
+  const createClickHouseError = (
+    overrides: Partial<{ code: string; type: string; message: string }> = {},
+  ) =>
+    new serverExports.ClickHouseError({
+      code: "25",
+      type: "CANNOT_PARSE_ESCAPE_SEQUENCE",
+      message: missingSurrogatePairMessage,
+      ...overrides,
+    });
+
+  const queueMalformedTraceAndFlush = async () => {
+    writer.addToQueue(TableName.Traces, {
+      id: "malformed",
+      input: malformedInput,
+    } as any);
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+    await vi.advanceTimersByTimeAsync(200);
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -210,6 +232,119 @@ describe("ClickhouseWriter", () => {
       expect.anything(),
       expect.anything(),
     );
+  });
+
+  it.each([
+    "Cannot parse escape sequence: incorrect surrogate pair of unicode escape sequences in JSON",
+    "Cannot parse escape sequence: missing second part of surrogate pair",
+  ])(
+    "should preserve a batch when ClickHouse rejects a malformed surrogate pair: %s",
+    async (message) => {
+      const mockInsert = vi
+        .spyOn(clickhouseClientMock, "insert")
+        .mockRejectedValueOnce(createClickHouseError({ message }))
+        .mockResolvedValueOnce();
+
+      writer.addToQueue(TableName.Traces, {
+        id: "malformed",
+        input: malformedInput,
+      } as any);
+      writer.addToQueue(TableName.Traces, {
+        id: "healthy",
+        input: "unchanged",
+      } as any);
+
+      await vi.advanceTimersByTimeAsync(writer.writeInterval);
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(mockInsert).toHaveBeenCalledTimes(2);
+      expect(mockInsert.mock.calls[0][0].values).toEqual([
+        expect.objectContaining({ id: "malformed", input: malformedInput }),
+        expect.objectContaining({ id: "healthy", input: "unchanged" }),
+      ]);
+      expect(mockInsert.mock.calls[1][0].values).toEqual([
+        expect.objectContaining({ id: "malformed", input: "before�after" }),
+        expect.objectContaining({ id: "healthy", input: "unchanged" }),
+      ]);
+      expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    },
+  );
+
+  it.each([
+    {
+      code: "25",
+      type: "CANNOT_PARSE_ESCAPE_SEQUENCE",
+      message: "Cannot parse escape sequence: invalid hexadecimal value",
+    },
+    {
+      code: "26",
+      type: "CANNOT_PARSE_ESCAPE_SEQUENCE",
+      message:
+        "Cannot parse escape sequence: missing second part of surrogate pair",
+    },
+    {
+      code: "25",
+      type: "CANNOT_PARSE_INPUT_ASSERTION_FAILED",
+      message:
+        "Cannot parse escape sequence: missing second part of surrogate pair",
+    },
+  ])(
+    "should not repair unrelated ClickHouse parsing errors: $code $type",
+    async ({ code, type, message }) => {
+      const mockInsert = vi
+        .spyOn(clickhouseClientMock, "insert")
+        .mockRejectedValue(createClickHouseError({ code, type, message }));
+
+      await queueMalformedTraceAndFlush();
+
+      expect(mockInsert).toHaveBeenCalledTimes(1);
+      expect(writer["queue"][TableName.Traces]).toHaveLength(1);
+    },
+  );
+
+  it("should not repair a non-ClickHouse error with matching fields", async () => {
+    const lookalikeError = Object.assign(
+      new Error(missingSurrogatePairMessage),
+      { code: "25", type: "CANNOT_PARSE_ESCAPE_SEQUENCE" },
+    );
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValue(lookalikeError);
+
+    await queueMalformedTraceAndFlush();
+
+    expect(mockInsert).toHaveBeenCalledTimes(1);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(1);
+  });
+
+  it("should attempt malformed surrogate repair only once", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValue(createClickHouseError());
+
+    await queueMalformedTraceAndFlush();
+
+    expect(mockInsert).toHaveBeenCalledTimes(2);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(1);
+  });
+
+  it("should repair malformed surrogates when general retries are disabled", async () => {
+    const previousMaxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
+    (env as any).LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS = 1;
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValueOnce(createClickHouseError())
+      .mockResolvedValueOnce();
+
+    try {
+      await queueMalformedTraceAndFlush();
+
+      expect(mockInsert).toHaveBeenCalledTimes(2);
+      expect(mockInsert.mock.calls[1][0].values[0].input).toBe("before�after");
+    } finally {
+      (env as any).LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS =
+        previousMaxAttempts;
+    }
   });
 
   it("should shutdown gracefully", async () => {
