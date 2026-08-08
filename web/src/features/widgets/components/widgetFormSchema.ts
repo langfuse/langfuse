@@ -8,8 +8,9 @@ import {
 } from "@langfuse/shared";
 import {
   getValidAggregationsForMeasureType,
+  getWidgetRequiredVersion,
   metricAggregations,
-  requiresV2,
+  resolveWidgetEditorVersion,
   viewDeclarations,
   views,
   type ViewVersion,
@@ -309,7 +310,7 @@ export type WidgetInitialValues = {
   minVersion?: number;
 };
 
-/** The exact object shape passed to `onSave` — unchanged from the legacy form. */
+/** The editor payload passed to `onSave`; persistence metadata is server-owned. */
 export type WidgetSavePayload = {
   name: string;
   description: string;
@@ -319,18 +320,17 @@ export type WidgetSavePayload = {
   filters: FilterState;
   chartType: WidgetFormValues["chart"]["type"];
   chartConfig: WidgetChartConfig;
-  minVersion: number;
 };
 
 /**
- * The frozen, view-shape-derived base minVersion for a widget, computed from the
- * `initialValues` at mount. Mirrors the legacy `initialWidgetRequiresV2 ? 2 :
- * (initialValues.minVersion ?? 1)`.
+ * The frozen local version hint for a widget. The server owns the persisted
+ * version; the editor only uses the stored hint and current shape to select
+ * the declaration it can show.
  */
 export function deriveWidgetBaseMinVersion(
   initialValues: WidgetInitialValues,
 ): number {
-  const initialWidgetRequiresV2 = requiresV2({
+  const requiredVersion = getWidgetRequiredVersion({
     view: initialValues.view,
     dimensions:
       initialValues.dimensions ??
@@ -342,24 +342,37 @@ export function deriveWidgetBaseMinVersion(
     })) ?? [{ measure: initialValues.measure }],
     filters: initialValues.filters ?? [],
   });
-  return initialWidgetRequiresV2 ? 2 : (initialValues.minVersion ?? 1);
+
+  return requiredVersion === 2 ? 2 : (initialValues.minVersion ?? 1);
 }
 
 /**
- * Derives the effective view version (query-engine v1/v2) from the current view
- * plus the frozen base minVersion and the beta flag. Mirrors the legacy
- * `initialWidgetRequiresV2 || widgetMinVersion >= 2 || (isBetaEnabled && view
- * !== "traces")`. Traces has no v2-only fields, so beta never promotes it.
+ * Adapts editor-space form values to the canonical widget query shape and
+ * resolves the active editor declaration. Persistence remains server-owned.
  */
-export function resolveWidgetViewVersion(params: {
+export function resolveWidgetFormVersion(params: {
   view: z.infer<typeof views>;
   baseMinVersion: number;
-  isBetaEnabled: boolean;
+  activeVersion: ViewVersion;
+  shape?: {
+    dimensions: { field: string }[];
+    metrics: { measure: string }[];
+    filters?: FilterState;
+  };
 }): ViewVersion {
-  return params.baseMinVersion >= 2 ||
-    (params.isBetaEnabled && params.view !== "traces")
-    ? "v2"
-    : "v1";
+  return resolveWidgetEditorVersion({
+    shape: {
+      view: params.view,
+      dimensions: params.shape?.dimensions ?? [],
+      measures: params.shape?.metrics ?? [],
+      filters: mapWidgetUiTableFilterToView(
+        params.view,
+        params.shape?.filters ?? [],
+      ),
+    },
+    baseMinVersion: params.baseMinVersion,
+    activeVersion: params.activeVersion,
+  });
 }
 
 /** Sanitized pivot default sort for the current metric/dimension selection, or undefined when the stored sort no longer applies. */
@@ -616,8 +629,8 @@ export function toDefaultValues(
  * toSavePayload folds the form values into the exact `onSave` object the legacy
  * `handleSaveWidget` produced (WidgetForm.tsx :1430-1471), byte for byte:
  * name/description fall back to the live suggestions, filters are mapped into
- * view space, the per-type chartConfig is rebuilt, and `minVersion` is derived
- * from the query shape via `requiresV2`.
+ * view space and the per-type chartConfig is rebuilt. The server derives and
+ * persists the query version from this shape when the widget is written.
  */
 export function toSavePayload(
   values: WidgetFormValues,
@@ -680,14 +693,6 @@ export function toSavePayload(
     filters: normalizedFilters,
     chartType,
     chartConfig,
-    minVersion: requiresV2({
-      view: values.view,
-      dimensions: saveDimensions,
-      measures: saveMetrics.map((m) => ({ measure: m.measure })),
-      filters: normalizedFilters,
-    })
-      ? 2
-      : 1,
   };
 }
 

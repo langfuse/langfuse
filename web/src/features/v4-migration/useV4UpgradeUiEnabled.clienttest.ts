@@ -13,8 +13,9 @@ const mockUseSession = vi.mocked(useSession);
 
 describe("useV4UpgradeUiEnabled", () => {
   it("maps the database flag into the session flag shape", () => {
-    expect(parseFlags(["v4UpgradeUi"]).v4UpgradeUi).toBe(true);
-    expect(parseFlags([]).v4UpgradeUi).toBe(false);
+    const context = { email: undefined, v4BetaEnabled: false };
+    expect(parseFlags(["v4UpgradeUi"], context).v4UpgradeUi).toBe(true);
+    expect(parseFlags([], context).v4UpgradeUi).toBe(false);
   });
 
   it("does not enable the UI for admins or experimental deployments", () => {

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * CopyButton - Copy value to clipboard
  *

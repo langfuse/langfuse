@@ -6,8 +6,8 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
   TraceDetailBody,
   traceDetailTitle,
-} from "@/src/components/trace/TraceDetailBody";
-import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
+} from "@/src/features/traces/TraceDetailBody";
+import { TraceDetailActions } from "@/src/features/traces/TraceDetailActions";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { useRouter } from "next/router";

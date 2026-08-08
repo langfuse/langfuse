@@ -18,6 +18,13 @@
       "cache": true,
       "outputLogs": "errors-only"
     },
+    "build:test": {
+      "dependsOn": ["db:generate", "^build"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "cache": true,
+      "outputLogs": "errors-only"
+    },
     "start": {
       "dependsOn": ["^start"]
     },

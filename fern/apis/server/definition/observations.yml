@@ -65,6 +65,9 @@ service:
               Remove this parameter or set it to `false`.
           name: optional<string>
           userId: optional<string>
+          sessionId:
+            type: optional<string>
+            docs: Filter by session ID.
           type:
             type: optional<string>
             docs: Filter by observation type (e.g., "GENERATION", "SPAN", "EVENT", "AGENT", "TOOL", "CHAIN", "RETRIEVER", "EVALUATOR", "EMBEDDING", "GUARDRAIL")

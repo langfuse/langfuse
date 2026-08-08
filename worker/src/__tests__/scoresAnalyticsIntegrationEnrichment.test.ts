@@ -230,7 +230,7 @@ maybeDescribe(
     // dual-write data. Both cases fail on the eventsTracesAggregation field
     // expressions (no root-name fallback; latest-write-only tags).
 
-    it("falls back to the root span's own name when no explicit trace name exists", async () => {
+    it("falls back to the app root's own name when no explicit trace name exists", async () => {
       const projectId = randomUUID();
       const traceId = randomUUID();
       const now = Date.now();
@@ -239,7 +239,8 @@ maybeDescribe(
         createEvent({
           project_id: projectId,
           trace_id: traceId,
-          parent_span_id: "",
+          parent_span_id: "external-parent",
+          is_app_root: true,
           type: "SPAN",
           name: "root-span-name",
           trace_name: null,
@@ -272,8 +273,8 @@ maybeDescribe(
       );
 
       expect(rows).toHaveLength(1);
-      // Legacy parity: the traces upsert derives the trace name from the root
-      // span when no explicit trace name was set; absent attributes stay null.
+      // The trace name falls back to the semantic root when no explicit trace
+      // name was set; absent attributes stay null.
       expect(rows[0].langfuse_trace_name).toBe("root-span-name");
       expect(rows[0].langfuse_user_id).toBe("user-1");
       expect(rows[0].langfuse_release).toBeNull();

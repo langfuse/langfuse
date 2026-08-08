@@ -2,10 +2,15 @@ import { disconnectQueues } from "@/src/__tests__/test-utils";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  EntityChangeQueue,
+} from "@langfuse/shared/src/server";
+import { PromptType } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import waitForExpect from "wait-for-expect";
+import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
 
 function createCaller({
   projectId,
@@ -13,12 +18,14 @@ function createCaller({
   projectName = "Test project",
   orgName = "Test organization",
   admin = true,
+  projectRole = "ADMIN",
 }: {
   projectId: string;
   orgId: string;
   projectName?: string;
   orgName?: string;
   admin?: boolean;
+  projectRole?: "ADMIN" | "MEMBER";
 }) {
   const session: Session = {
     expires: "1",
@@ -39,7 +46,7 @@ function createCaller({
           projects: [
             {
               id: projectId,
-              role: "ADMIN",
+              role: projectRole,
               retentionDays: 30,
               deletedAt: null,
               hasTraces: false,
@@ -130,6 +137,223 @@ describe("prompts trpc", () => {
         });
       },
     );
+  });
+
+  describe("prompts.importBulk", () => {
+    it("enforces the prompt count limit for new prompt names", async () => {
+      const { project, org } = await createOrgProjectAndApiKey();
+      const existingPromptName = `existing-${v4()}`;
+      await prisma.prompt.create({
+        data: {
+          projectId: project.id,
+          name: existingPromptName,
+          version: 1,
+          type: "text",
+          prompt: "Version 1",
+          createdBy: "API",
+          labels: ["latest"],
+        },
+      });
+      const { caller } = createCaller({
+        projectId: project.id,
+        orgId: org.id,
+        projectName: project.name,
+        orgName: org.name,
+        admin: false,
+      });
+      const previousLimit =
+        entitlementAccess["cloud:hobby"].entitlementLimits[
+          "prompt-management-count-prompts"
+        ];
+      entitlementAccess["cloud:hobby"].entitlementLimits[
+        "prompt-management-count-prompts"
+      ] = 1;
+
+      try {
+        const existingPromptResult = await caller.prompts.importBulk({
+          projectId: project.id,
+          prompts: [{ name: existingPromptName, prompt: "Version 2" }],
+        });
+        expect(existingPromptResult.results).toEqual([
+          { name: existingPromptName, success: true },
+        ]);
+
+        const newPromptName = `new-${v4()}`;
+        await expect(
+          caller.prompts.importBulk({
+            projectId: project.id,
+            prompts: [{ name: newPromptName, prompt: "Version 1" }],
+          }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          prisma.prompt.findFirst({
+            where: { projectId: project.id, name: newPromptName },
+          }),
+        ).resolves.toBeNull();
+      } finally {
+        entitlementAccess["cloud:hobby"].entitlementLimits[
+          "prompt-management-count-prompts"
+        ] = previousLimit;
+      }
+    });
+
+    it("rejects protected labels without protected-label access", async () => {
+      const { project, org } = await createOrgProjectAndApiKey();
+      const protectedLabel = `protected-${v4().slice(0, 8)}`;
+      await prisma.promptProtectedLabels.create({
+        data: { projectId: project.id, label: protectedLabel },
+      });
+      const { caller } = createCaller({
+        projectId: project.id,
+        orgId: org.id,
+        projectName: project.name,
+        orgName: org.name,
+        admin: false,
+        projectRole: "MEMBER",
+      });
+
+      await expect(
+        caller.prompts.importBulk({
+          projectId: project.id,
+          prompts: [
+            {
+              name: `protected-label-import-${v4()}`,
+              prompt: "Hello world",
+              labels: [protectedLabel],
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it.each([
+      {
+        caseName: "array content without a chat type",
+        prompt: { name: "invalid-text-prompt", prompt: [] },
+      },
+      {
+        caseName: "string content with a chat type",
+        prompt: {
+          name: "invalid-chat-prompt",
+          type: "chat",
+          prompt: "Hello world",
+        },
+      },
+      {
+        caseName: "a malformed chat message",
+        prompt: {
+          name: "invalid-chat-message",
+          type: "chat",
+          prompt: [{ role: "user" }],
+        },
+      },
+    ])("rejects $caseName", async ({ prompt }) => {
+      const { project, caller } = await prepare();
+      const input: unknown = {
+        projectId: project.id,
+        prompts: [prompt],
+      };
+
+      await expect(
+        caller.prompts.importBulk(
+          input as Parameters<typeof caller.prompts.importBulk>[0],
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("reports a committed item as successful when audit logging fails", async () => {
+      const { project, caller } = await prepare();
+      const promptName = `audit-failure-${v4()}`;
+      const auditLogCreateSpy = vi
+        .spyOn(prisma.auditLog, "create")
+        .mockRejectedValueOnce(new Error("audit log unavailable"));
+
+      try {
+        const result = await caller.prompts.importBulk({
+          projectId: project.id,
+          prompts: [{ name: promptName, prompt: "Hello world" }],
+        });
+
+        expect(result.results).toEqual([{ name: promptName, success: true }]);
+        await expect(
+          prisma.prompt.findUnique({
+            where: {
+              projectId_name_version: {
+                projectId: project.id,
+                name: promptName,
+                version: 1,
+              },
+            },
+          }),
+        ).resolves.not.toBeNull();
+      } finally {
+        auditLogCreateSpy.mockRestore();
+      }
+    });
+
+    it("reports a committed item as successful when event sourcing fails", async () => {
+      const { project, caller } = await prepare();
+      const promptName = `event-failure-${v4()}`;
+      const getQueueSpy = vi
+        .spyOn(EntityChangeQueue, "getInstance")
+        .mockReturnValue({
+          add: vi.fn().mockRejectedValue(new Error("queue unavailable")),
+        } as never);
+
+      try {
+        const result = await caller.prompts.importBulk({
+          projectId: project.id,
+          prompts: [{ name: promptName, prompt: "Hello world" }],
+        });
+
+        expect(result.results).toEqual([{ name: promptName, success: true }]);
+        await expect(
+          prisma.prompt.findUnique({
+            where: {
+              projectId_name_version: {
+                projectId: project.id,
+                name: promptName,
+                version: 1,
+              },
+            },
+          }),
+        ).resolves.not.toBeNull();
+      } finally {
+        getQueueSpy.mockRestore();
+      }
+    });
+
+    it("reports failures that happen before the prompt is committed", async () => {
+      const { project, caller } = await prepare();
+      const promptName = `type-mismatch-${v4()}`;
+      await caller.prompts.importBulk({
+        projectId: project.id,
+        prompts: [{ name: promptName, prompt: "Text prompt" }],
+      });
+
+      const result = await caller.prompts.importBulk({
+        projectId: project.id,
+        prompts: [
+          {
+            name: promptName,
+            type: PromptType.Chat,
+            prompt: [{ role: "user", content: "Chat prompt" }],
+          },
+        ],
+      });
+
+      expect(result.results).toEqual([
+        expect.objectContaining({
+          name: promptName,
+          success: false,
+        }),
+      ]);
+      await expect(
+        prisma.prompt.count({
+          where: { projectId: project.id, name: promptName },
+        }),
+      ).resolves.toBe(1);
+    });
   });
 
   describe("prompts.allVersions", () => {

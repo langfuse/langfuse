@@ -1,41 +1,49 @@
 import { z } from "zod";
-import type { Session } from "next-auth";
 
 import {
-  BaseError,
-  ForbiddenError,
   InvalidRequestError,
   ScoreDataTypeEnum,
   ScoreSourceEnum,
   TEXT_SCORE_MAX_LENGTH,
 } from "@langfuse/shared";
-import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
+  AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
 } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "@langfuse/shared/in-app-agent";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
-  getConversationEvents,
-  getConversationMessagesForDisplay,
   getConversationMessages,
   getOwnedConversationOrThrow,
-  isInAppAgentConversationWriteLocked,
   serializeConversation,
 } from "@langfuse/shared/in-app-agent/server/persistence";
+import {
+  assertInAppAgentRateLimit,
+  getInAppAgentApiAccessScope,
+} from "@/src/features/in-app-agent/server/rateLimit";
+import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
+import {
+  cancelBackgroundRun,
+  decideBackgroundApproval,
+  deleteBackgroundConversation,
+  getBackgroundConversationSnapshot,
+  startBackgroundRun,
+} from "@/src/features/in-app-agent/server/backgroundRunService";
 
 const CONVERSATION_LIST_LIMIT = 50;
+const MAX_IN_APP_AGENT_MESSAGE_LENGTH = 32_000;
 
 const ConversationListCursorSchema = z.object({
   updatedAt: z.date(),
@@ -51,6 +59,26 @@ const RenameConversationInput = ConversationIdInput.extend({
   title: z.string().trim().min(1).max(80),
 });
 
+const StartRunInput = ConversationIdInput.extend({
+  message: z.string().trim().min(1).max(MAX_IN_APP_AGENT_MESSAGE_LENGTH),
+  /**
+   * The same AG-UI context array the foreground path sends (current page, the
+   * quick action and entry point that triggered the turn); resolved and
+   * sanitized server-side, then stored on the run for the worker to replay.
+   */
+  context: z.array(AgUiContextSchema).default([]),
+});
+
+const CancelRunInput = ConversationIdInput.extend({
+  runId: z.string(),
+});
+
+const DecideToolApprovalInput = ConversationIdInput.extend({
+  runId: z.string(),
+  toolCallId: z.string(),
+  approved: z.boolean(),
+});
+
 const SubmitFeedbackInput = ConversationIdInput.extend({
   messageId: z.string(),
   runId: z.string(),
@@ -62,6 +90,14 @@ const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
 const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
+  // Deployment config, not agent access, so no availability assert: an org
+  // without the entitlement should get an answer rather than an error.
+  getExecutionMode: protectedProjectProcedureWithoutTracing
+    .input(z.object({ projectId: z.string() }))
+    .query(() => ({
+      mode: sharedEnv.LANGFUSE_IN_APP_AGENT_EXECUTION_MODE,
+    })),
+
   listConversations: protectedProjectProcedure
     .input(
       z.object({
@@ -71,7 +107,11 @@ export const inAppAgentRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      await assertInAppAgentAvailable({ ctx, projectId: input.projectId });
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
 
       const conversations = await ctx.prisma.inAppAgentConversation.findMany({
         where: {
@@ -114,76 +154,152 @@ export const inAppAgentRouter = createTRPCRouter({
   getConversation: protectedProjectProcedureWithoutTracing
     .input(ConversationIdInput)
     .query(async ({ ctx, input }) => {
-      await assertInAppAgentAvailable({ ctx, projectId: input.projectId });
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
 
-      const conversation = await getOwnedConversationOrThrow({
+      return getBackgroundConversationSnapshot({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
       });
+    }),
 
-      const [messages, events] = await Promise.all([
-        getConversationMessagesForDisplay({
-          prisma: ctx.prisma,
-          projectId: input.projectId,
-          conversationId: input.conversationId,
-        }),
-        getConversationEvents({
-          prisma: ctx.prisma,
-          projectId: input.projectId,
-          conversationId: input.conversationId,
-        }),
-      ]);
+  /**
+   * Submit a turn for background execution.
+   *
+   * Runs the same validation chain as the foreground route, then commits the
+   * run as QUEUED with its user message already appended — the events table is
+   * the render source from the instant of submit, so there is no optimistic UI
+   * state to survive a refresh. The BullMQ enqueue happens after commit; a
+   * failure there marks the run FAILED immediately rather than leaving a
+   * committed run nobody will execute.
+   */
+  startRun: protectedProjectProcedureWithoutTracing
+    .input(StartRunInput)
+    .mutation(async ({ ctx, input }) => {
+      const projectAvailability = await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
 
-      return {
-        conversation: serializeConversation(conversation, {
-          isWriteLocked: isInAppAgentConversationWriteLocked({
-            conversation,
-            events,
-          }),
-        }),
-        messages,
-        state: {
-          type: "existingConversation" as const,
-          projectId: input.projectId,
-          conversationId: input.conversationId,
-        },
-      };
+      const rateLimitScope = getInAppAgentApiAccessScope(
+        ctx.session.user,
+        input.projectId,
+        projectAvailability,
+      );
+
+      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+
+      // The concurrency ceiling is enforced inside `startBackgroundRun`, which
+      // owns the conversation lookup it has to reconcile against first.
+      return startBackgroundRun({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
+        conversationId: input.conversationId,
+        userId: ctx.session.user.id,
+        message: input.message,
+        context: input.context,
+        isV4Enabled: ctx.session.user.v4BetaEnabled === true,
+        model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+        aiTelemetryEnabled: projectAvailability.aiTelemetryEnabled,
+      });
+    }),
+
+  cancelRun: protectedProjectProcedureWithoutTracing
+    .input(CancelRunInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+
+      return cancelBackgroundRun({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        runId: input.runId,
+        userId: ctx.session.user.id,
+      });
+    }),
+
+  /**
+   * Decide a pending tool approval.
+   *
+   * The client sends only IDs and a boolean. The tool name and arguments are
+   * read server-side from the persisted interrupt event, so there is nothing
+   * to tamper with on the way back and no fingerprint to keep in sync.
+   */
+  decideToolApproval: protectedProjectProcedureWithoutTracing
+    .input(DecideToolApprovalInput)
+    .mutation(async ({ ctx, input }) => {
+      const projectAvailability = await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
+
+      const rateLimitScope = getInAppAgentApiAccessScope(
+        ctx.session.user,
+        input.projectId,
+        projectAvailability,
+      );
+
+      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+      // A continuation is a fresh run that occupies a worker slot, and parked
+      // approvals accumulate without holding one, so this path needs the
+      // ceiling for the same reason it already needs the daily bucket.
+      await assertInAppAgentRunCapacity({
+        prisma: ctx.prisma,
+        orgId: rateLimitScope.orgId,
+        plan: rateLimitScope.plan,
+        userId: ctx.session.user.id,
+      });
+
+      return decideBackgroundApproval({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        runId: input.runId,
+        toolCallId: input.toolCallId,
+        approved: input.approved,
+        userId: ctx.session.user.id,
+        model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+      });
     }),
 
   deleteConversation: protectedProjectProcedureWithoutTracing
     .input(ConversationIdInput)
     .mutation(async ({ ctx, input }) => {
-      await assertInAppAgentAvailable({ ctx, projectId: input.projectId });
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
 
-      await getOwnedConversationOrThrow({
+      return deleteBackgroundConversation({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
         userId: ctx.session.user.id,
       });
-
-      await ctx.prisma.inAppAgentConversation.update({
-        where: {
-          id_projectId: {
-            id: input.conversationId,
-            projectId: input.projectId,
-          },
-        },
-        data: {
-          providerSessionId: null,
-          deletedAt: new Date(),
-        },
-      });
-
-      return { success: true };
     }),
 
   renameConversation: protectedProjectProcedureWithoutTracing
     .input(RenameConversationInput)
     .mutation(async ({ ctx, input }) => {
-      await assertInAppAgentAvailable({ ctx, projectId: input.projectId });
+      await assertInAppAgentAvailable({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        user: ctx.session.user,
+      });
 
       await getOwnedConversationOrThrow({
         prisma: ctx.prisma,
@@ -214,8 +330,9 @@ export const inAppAgentRouter = createTRPCRouter({
     .input(SubmitFeedbackInput)
     .mutation(async ({ ctx, input }) => {
       const projectAvailability = await assertInAppAgentAvailable({
-        ctx,
+        prisma: ctx.prisma,
         projectId: input.projectId,
+        user: ctx.session.user,
       });
 
       await getOwnedConversationOrThrow({
@@ -292,51 +409,3 @@ export const inAppAgentRouter = createTRPCRouter({
       return { feedback: { value: input.value, comment } };
     }),
 });
-
-async function assertInAppAgentAvailable({
-  ctx,
-  projectId,
-}: {
-  ctx: {
-    session: {
-      user: NonNullable<Session["user"]>;
-    };
-    prisma: PrismaClient;
-  };
-  projectId: string;
-}) {
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    throw new BaseError(
-      "PreconditionFailedError",
-      412,
-      "In-app agent is not available in this environment yet.",
-      true,
-    );
-  }
-
-  throwIfNoEntitlement({
-    entitlement: "in-app-agent",
-    sessionUser: ctx.session.user,
-    projectId,
-  });
-
-  const project = await ctx.prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      organization: {
-        select: {
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: true,
-        },
-      },
-    },
-  });
-
-  if (!project?.organization.aiFeaturesEnabled) {
-    throw new ForbiddenError("Assistant is not enabled for this organization");
-  }
-
-  return {
-    aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
-  };
-}

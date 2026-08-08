@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";
 import React, {

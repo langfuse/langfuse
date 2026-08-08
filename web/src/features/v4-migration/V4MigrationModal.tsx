@@ -63,6 +63,8 @@ function V4MigrationModalContent({
             projectName={project.name}
             projectId={project.id}
             onNavigate={() => setOpen(false)}
+            // Clear the dialog's floating fallback close button (top-right).
+            titleRowClassName="pr-6"
           />
           <Separator className="my-6" />
           <div className="flex flex-col gap-6">

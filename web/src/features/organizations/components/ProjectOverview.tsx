@@ -49,11 +49,10 @@ const OrganizationProjectTiles = ({
   search?: string;
 }) => {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const { data: lastTraceTimes } =
-    api.organizations.lastTraceByProject.useQuery(
-      { orgId: org.id },
-      { enabled: v4UpgradeUiEnabled },
-    );
+  const lastTraceQuery = api.organizations.lastTraceByProject.useQuery(
+    { orgId: org.id },
+    { enabled: v4UpgradeUiEnabled },
+  );
   const migrationStatusByProjectId = useAccountV4MigrationData({
     organizations: [
       {
@@ -101,17 +100,19 @@ const OrganizationProjectTiles = ({
                   )}
                 </div>
               </CardHeader>
-              {!project.deletedAt && lastTraceTimes && (
-                <CardContent className="pb-3">
+              {!project.deletedAt && (
+                <CardContent className="min-h-7 pb-3">
                   <p className="text-muted-foreground text-xs">
-                    {(() => {
-                      const lastTraceAt = lastTraceTimes.find(
-                        (t) => t.projectId === project.id,
-                      )?.lastTraceAt;
-                      return lastTraceAt
-                        ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
-                        : "No traces in the last 30d";
-                    })()}
+                    {lastTraceQuery.isSuccess
+                      ? (() => {
+                          const lastTraceAt = lastTraceQuery.data?.find(
+                            (t) => t.projectId === project.id,
+                          )?.lastTraceAt;
+                          return lastTraceAt
+                            ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
+                            : "No traces in the last 30d";
+                        })()
+                      : null}
                   </p>
                 </CardContent>
               )}

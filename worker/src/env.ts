@@ -24,6 +24,18 @@ const EnvSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().optional(),
 
+  // ClickHouse Billing cutoff, shared with web via the provider resolver in
+  // @langfuse/shared (getBillingProvider). The worker only consults it in the
+  // defensive usage-metering guard; unset = CHB routing off. Date-only
+  // (YYYY-MM-DD) so the cutline is a single unambiguous instant of UTC
+  // midnight, which is what new Date() yields for a date-only string. Parsed
+  // here so every consumer gets the same instant; keep in sync with
+  // web/src/env.mjs.
+  LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso
+    .date()
+    .optional()
+    .transform((date) => (date ? new Date(date) : null)),
+
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -365,6 +377,14 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2 * 1024 * 1024),
 
   // Metering data Postgres export - Langfuse Cloud
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z

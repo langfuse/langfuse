@@ -1258,6 +1258,13 @@ model Media {
   @@map("media")
 }
 
+enum MediaAssociationOrigin {
+  UNKNOWN
+  CLIENT_UPLOAD
+  INGESTION_MEDIA_EXTRACTION
+  INGESTION_FIELD_OVERFLOW
+}
+
 model TraceMedia {
   id        String   @id @default(cuid())
   projectId String   @map("project_id")
@@ -1266,6 +1273,7 @@ model TraceMedia {
   mediaId   String   @map("media_id")
   traceId   String   @map("trace_id")
   field     String   @map("field")
+  origin    MediaAssociationOrigin @default(UNKNOWN)
 
   @@unique([projectId, traceId, mediaId, field])
   @@index([projectId, mediaId])
@@ -1281,6 +1289,7 @@ model ObservationMedia {
   traceId       String   @map("trace_id")
   observationId String   @map("observation_id")
   field         String   @map("field")
+  origin        MediaAssociationOrigin @default(UNKNOWN)
 
   @@unique([projectId, traceId, observationId, mediaId, field])
   @@index([projectId, mediaId])

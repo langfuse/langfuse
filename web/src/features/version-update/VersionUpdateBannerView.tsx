@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { RotateCw, Sparkles, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";

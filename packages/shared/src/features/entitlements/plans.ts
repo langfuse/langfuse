@@ -29,3 +29,28 @@ export const isSelfHostedPlan = (plan?: Plan) =>
 
 export const isPlan = (value: string): value is Plan =>
   plans.includes(value as Plan);
+
+/**
+ * ClickHouse Billing (CHB) identifies plans by code. These are the lowercased
+ * paid tiers of `cloudConfigPlans` — there is deliberately no code for the free
+ * tier, because a free org simply carries no CHB bundle.
+ *
+ * Lives here rather than next to the Stripe catalogue in web because
+ * `cloudConfigSchema` validates stored plan codes against it, and shared cannot
+ * import from web.
+ */
+export const chbPlanCodes = ["core", "pro", "team", "enterprise"] as const;
+
+export type ChbPlanCode = (typeof chbPlanCodes)[number];
+
+/**
+ * Total mapping from CHB plan code to Langfuse plan. Total on purpose: callers
+ * get an exhaustive lookup with no unmapped-code branch to handle, and adding a
+ * code without a plan is a compile error.
+ */
+export const chbPlanCodeToPlan = {
+  core: "cloud:core",
+  pro: "cloud:pro",
+  team: "cloud:team",
+  enterprise: "cloud:enterprise",
+} as const satisfies Record<ChbPlanCode, Plan>;

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
@@ -10,10 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  chartFilterExclusionReason,
-  toChartFilters,
-} from "@/src/features/chart-view/lib/chartFilterCompatibility";
+import { toChartFilters } from "@/src/features/chart-view/lib/chartFilterCompatibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   OutlierBarStrip,
@@ -34,6 +32,7 @@ import {
   useOutlierStripSettings,
   type OutlierStripSettings,
 } from "./lib/useOutlierStripSettings";
+import { canApplyOutlierStripFilters } from "./lib/filterCompatibility";
 
 /**
  * Production container for the outlier strip ("Pulse") above the events table
@@ -45,10 +44,9 @@ import {
  * table's time range to that bucket; the browser Back button restores the
  * outer view.
  *
- * Filters forward exactly like the in-view chart (`toChartFilters`); filters
- * the aggregate query can't express are disclosed by a small "not applied"
- * hint on the strip (unlike chart mode's sidebar dimming: here the TABLE
- * still honors those filters, only the strip doesn't).
+ * Filters forward exactly like the in-view chart (`toChartFilters`). If the
+ * aggregate query cannot represent the table's complete filter/search state,
+ * the query stays disabled rather than reporting a partial distribution.
  */
 
 /** Target horizontal pixels per bar for granularity picking. */
@@ -56,7 +54,7 @@ const BAR_SLOT_TARGET_PX = 5;
 
 type StripMode = OutlierStripSettings["mode"];
 
-const MODE_OPTIONS: StripMode[] = ["cost", "latency"];
+const MODE_OPTIONS: StripMode[] = ["count", "cost", "latency"];
 
 const modeLabel = (mode: StripMode): string =>
   OUTLIER_STRIP_METRICS[mode].shortLabel;
@@ -101,7 +99,7 @@ const AggDropdown = ({
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${metricLabel} aggregation: ${value}`}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-[13px] leading-none underline-offset-2 hover:underline"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-xs leading-none underline-offset-2 hover:underline"
         >
           {value}
           <ChevronDown className="h-2.5 w-2.5" />
@@ -142,7 +140,8 @@ const ModeDropdown = ({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`Chart mode: ${modeLabel(value)}`}
-        className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-[13px] leading-none font-bold"
+        // Same typography as the Table/Chart tabs (toggleVariants + text-xs).
+        className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 text-xs leading-none font-bold"
       >
         {modeLabel(value)}
         <ChevronDown className="h-2.5 w-2.5" />
@@ -167,20 +166,6 @@ const ModeDropdown = ({
     </DropdownMenu>
   );
 };
-
-/** Filters the strip's aggregate query cannot express — excluding the ones
- * whose dropping is by design (the explicit from/to carries startTime; root
- * scoping is deliberately ignored per the LFE-14451 product call).
- * `has:`/`-has:` presence filters (type "null") are dropped by toChartFilters
- * even on forwardable columns, so they count regardless of column. */
-const countIgnoredFilters = (filterState: FilterState): number =>
-  filterState.filter(
-    (f) =>
-      !(f.type === "datetime" && f.column === "startTime") &&
-      f.column !== "isRootObservation" &&
-      f.column !== "hasParentObservation" &&
-      (f.type === "null" || chartFilterExclusionReason(f.column) !== null),
-  ).length;
 
 export function EventsOutlierStrip({
   projectId,
@@ -228,8 +213,10 @@ export function EventsOutlierStrip({
   });
 
   const filters = useMemo(() => toChartFilters(filterState), [filterState]);
-  const ignoredFilterCount =
-    countIgnoredFilters(filterState) + (searchIgnored ? 1 : 0);
+  const canApplyFilters = canApplyOutlierStripFilters(
+    filterState,
+    searchIgnored,
+  );
 
   const query: QueryType = useMemo(
     () => ({
@@ -251,8 +238,9 @@ export function EventsOutlierStrip({
   const queryResult = api.dashboard.executeQuery.useQuery(
     { projectId, query, version: "v2" },
     {
-      // Wait for the first width measurement — it decides the bucket size.
-      enabled: validRange && width > 0,
+      // Wait for the first width measurement, and never run a partially
+      // filtered query when the table state cannot be represented.
+      enabled: validRange && width > 0 && canApplyFilters,
       // Keep the previous bins ONLY across same-grid refetches (auto-refresh
       // ticks re-key the query via the re-evaluated relative window) — a
       // persistent band must not flash to a skeleton every interval. A grid
@@ -286,16 +274,20 @@ export function EventsOutlierStrip({
     [queryResult.data],
   );
 
-  const aggregationFor = (metric: OutlierStripMetricKey): OutlierStripAggKey =>
-    metric === "latency" ? settings.latencyAgg : settings.costAgg;
+  const aggregationFor = (
+    metric: OutlierStripMetricKey,
+  ): OutlierStripAggKey => {
+    if (metric === "count") return "count";
+    return metric === "latency" ? settings.latencyAgg : settings.costAgg;
+  };
+  const aggregation = aggregationFor(mode);
 
   const series = useMemo(
     () =>
       prepareOutlierSeries({
         bins,
         metric: mode,
-        aggregation:
-          mode === "latency" ? settings.latencyAgg : settings.costAgg,
+        aggregation,
         fromMs,
         toMs,
         stepSeconds: granularity.stepSeconds,
@@ -307,8 +299,7 @@ export function EventsOutlierStrip({
       toMs,
       granularity.stepSeconds,
       mode,
-      settings.latencyAgg,
-      settings.costAgg,
+      aggregation,
       chartWidth,
     ],
   );
@@ -323,7 +314,7 @@ export function EventsOutlierStrip({
     capture("pulse:drill_in", {
       trigger: meta.trigger,
       metric: mode,
-      aggregation: aggregationFor(mode),
+      aggregation,
       mode,
       stepSeconds: granularity.stepSeconds,
       spanBuckets: Math.max(
@@ -392,10 +383,34 @@ export function EventsOutlierStrip({
   // needs the width, so painting before the first measurement would flash a
   // skeleton sized for nothing.
   return (
-    <div ref={wrapperRef} className="shrink-0 border-b">
+    // Ruled top and bottom (LFE-14829): the strip reads as its own band
+    // instead of floating between the toolbar and the table header.
+    <div ref={wrapperRef} className="shrink-0 border-y">
       {size === undefined ? null : (
-        <div className="relative px-2 pt-1 pb-1">
-          {isLoading || width === 0 ? (
+        // pt-2.5 keeps the metric switcher off the top rule; the label then
+        // sits closer to its chart (mt-1.5) than to the band's edge.
+        <div className="relative px-2 pt-2.5 pb-1">
+          {!canApplyFilters ? (
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <ModeDropdown
+                  value={mode}
+                  options={MODE_OPTIONS}
+                  onChange={handleModeChange}
+                />
+              </div>
+              <OutlierBarStrip
+                className="mt-1.5"
+                dense={[]}
+                maxValue={0}
+                ticks={[]}
+                stepMs={stepMs}
+                metric={mode}
+                widthPx={chartWidth}
+                disabledReason="Chart unavailable for the current filters"
+              />
+            </div>
+          ) : isLoading || width === 0 ? (
             <div className="bg-muted h-[76px] animate-pulse rounded" />
           ) : queryResult.isError ? (
             <div className="text-muted-foreground flex h-[76px] items-center justify-center text-[11px]">
@@ -424,26 +439,14 @@ export function EventsOutlierStrip({
                 {aggOptions.length > 1 && (
                   <AggDropdown
                     metricLabel={def.shortLabel}
-                    value={aggregationFor(mode)}
+                    value={aggregation}
                     options={aggOptions}
                     onChange={(agg) => setAggregation(mode, agg)}
                   />
                 )}
-                {/* Unlike full chart mode (which dims sidebar facets),
-                    the TABLE still honors these filters — only the strip
-                    can't express them, so the disclosure lives here. */}
-                {ignoredFilterCount > 0 && (
-                  <span
-                    className="text-muted-foreground/70 text-[11px] leading-none"
-                    title="Some active filters (measures, scores, comments, metadata, free-text search) cannot be applied to this chart's aggregate query. The table still honors them; the chart shows the unfiltered distribution for those."
-                  >
-                    · {ignoredFilterCount} filter
-                    {ignoredFilterCount > 1 ? "s" : ""} not applied
-                  </span>
-                )}
               </div>
               <OutlierBarStrip
-                className="mt-2"
+                className="mt-1.5"
                 dense={series.dense}
                 maxValue={series.maxValue}
                 ticks={series.ticks}

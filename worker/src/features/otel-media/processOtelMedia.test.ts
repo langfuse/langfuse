@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => {
     logger: { warn: vi.fn() },
     recordDistribution: vi.fn(),
     span,
+    uploadMediaForTrace: vi.fn(),
   };
 });
 
@@ -22,9 +23,10 @@ vi.mock("@langfuse/shared/src/server", () => ({
   logger: mocks.logger,
   processOtelMedia: vi.fn(),
   recordDistribution: mocks.recordDistribution,
-  uploadMediaForTrace: vi.fn(),
+  uploadMediaForTrace: mocks.uploadMediaForTrace,
 }));
 
+import { MediaAssociationOrigin } from "@langfuse/shared";
 import type { IngestionEventType } from "@langfuse/shared/src/server";
 import {
   createDirectOtelMediaTargets,
@@ -90,6 +92,22 @@ describe("processOtelEventMedia", () => {
           },
         ],
         writePath: "direct",
+      }),
+    );
+    const uploadMedia = processMedia.mock.calls[0]?.[0].uploadMedia;
+    await uploadMedia({
+      projectId: "project-id",
+      traceId: "trace-id",
+      observationId: "observation-id",
+      field: "input",
+      contentType: "image/png",
+      contentBytes: Buffer.from("media"),
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+    });
+    expect(mocks.uploadMediaForTrace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
       }),
     );
     expect(mocks.instrumentAsync).toHaveBeenCalledWith(

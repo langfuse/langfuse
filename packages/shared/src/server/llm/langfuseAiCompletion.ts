@@ -43,6 +43,7 @@ export async function generateLangfuseAIText(params: {
   model?: string;
   maxTokens?: number;
   traceSinkParams?: TraceSinkParams;
+  timeout?: number;
 }): Promise<string> {
   const model = params.model ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
 
@@ -69,6 +70,7 @@ export async function generateLangfuseAIText(params: {
       credentialSource: "langfuse",
     }),
     trace: params.traceSinkParams,
+    timeout: params.timeout,
   });
 
   return result.text;

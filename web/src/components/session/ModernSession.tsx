@@ -1,227 +1,326 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { ItemBadge } from "@/src/components/ItemBadge";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
-import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
-import { cn } from "@/src/utils/tailwind";
-import { usdFormatter } from "@/src/utils/numbers";
+import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
+import { useElementSize } from "@/src/hooks/useElementSize";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
+import {
+  ModernSessionSidebar,
+  type ModernSessionSidebarFilterControls,
+  type ModernSessionSidebarTrace,
+} from "@/src/components/session/ModernSessionSidebar";
+import { api } from "@/src/utils/api";
 
 const MODERN_SESSION_OVERSCAN = 5;
+const SIDEBAR_TRACE_CHUNK_SIZE = 20;
+const SIDEBAR_OBSERVATION_PAGE_SIZE = 100;
+const EMPTY_TRACES: EventSessionTrace[] = [];
 
-type OpenPeek = (id: string, row: any) => void;
+type OpenPeek = (id: string, row: EventSessionTrace) => void;
 
 type ModernSessionProps = {
-  traces: EventSessionTrace[];
+  tracesState:
+    | { type: "loading" }
+    | { type: "loaded"; traces: EventSessionTrace[] };
   projectId: string;
   sessionId: string;
+  sessionMinTimestamp: Date;
+  sessionMaxTimestamp: Date;
   openPeek: OpenPeek;
   traceCommentCounts: Map<string, number> | undefined;
   filterState: FilterState;
   filterMeasurementKey: string;
   viewLabel: string | null;
-  totalCost: number;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
+  sidebarFilterControls: ModernSessionSidebarFilterControls;
+  onExcludeObservation: (name: string) => void;
 };
 
-const ModernSessionMinimapItem = React.memo(
-  ({
-    trace,
-    index,
-    isActive,
-    projectId,
-    traceCommentCounts,
-    openPeek,
-    onSelect,
-  }: {
-    trace: EventSessionTrace;
-    index: number;
-    isActive: boolean;
-    projectId: string;
-    traceCommentCounts: Map<string, number> | undefined;
-    openPeek: OpenPeek;
-    onSelect: (index: number) => void;
-  }) => {
-    const observationCount = trace.observationCount ?? 0;
-    const observationLabel = `${observationCount} observation${observationCount === 1 ? "" : "s"}`;
-
-    return (
-      <div
-        className={cn(
-          "group relative border-b border-l-2 transition-colors",
-          isActive
-            ? "border-l-primary bg-accent/60"
-            : "hover:bg-muted/60 border-l-transparent",
-        )}
-        data-modern-session-minimap-active={isActive}
-      >
-        <button
-          type="button"
-          className="flex w-full min-w-0 flex-col gap-1.5 px-3 py-3 text-left"
-          onClick={() =>
-            isActive ? openPeek(trace.id, trace) : onSelect(index)
-          }
-          aria-current={isActive ? "true" : undefined}
-        >
-          <span className="flex min-w-0 items-center gap-1.5">
-            <ItemBadge type="TRACE" isSmall />
-            <span
-              className="min-w-0 flex-1 truncate text-xs font-bold"
-              title={trace.name ?? "Trace"}
-            >
-              {trace.name ?? "Trace"}
-            </span>
-          </span>
-          <time className="text-muted-foreground text-xs">
-            {trace.timestamp.toLocaleString()}
-          </time>
-          <span
-            className="text-muted-foreground truncate font-mono text-[11px]"
-            title={trace.id}
-          >
-            {trace.id}
-          </span>
-          <span className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
-            <span>{observationLabel}</span>
-            <span>·</span>
-            {trace.scores.length > 0 ? (
-              <span>{trace.scores.length} scores</span>
-            ) : (
-              <span>no scores</span>
-            )}
-          </span>
-          {isActive && trace.scores.length > 0 ? (
-            <span className="flex max-h-10 flex-wrap gap-1 overflow-hidden">
-              <GroupedScoreBadges scores={trace.scores} />
-            </span>
-          ) : null}
-        </button>
-
-        {isActive ? (
-          <div
-            className="px-3 pb-2"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <SessionTraceActionButtons
-              projectId={projectId}
-              traceId={trace.id}
-              timestamp={trace.timestamp}
-              environment={trace.environment}
-              scores={trace.scores}
-              traceCommentCounts={traceCommentCounts}
-              density="compact"
-              className="gap-1"
-            />
-          </div>
-        ) : null}
-      </div>
-    );
-  },
-);
-ModernSessionMinimapItem.displayName = "ModernSessionMinimapItem";
-
-const ModernSessionMinimap = React.memo(
-  ({
-    traces,
-    activeTraceId,
-    projectId,
-    traceCommentCounts,
-    openPeek,
-    onSelect,
-    totalCost,
-  }: {
-    traces: EventSessionTrace[];
-    activeTraceId: string | undefined;
-    projectId: string;
-    traceCommentCounts: Map<string, number> | undefined;
-    openPeek: OpenPeek;
-    onSelect: (index: number) => void;
-    totalCost: number;
-  }) => {
-    const minimapRef = useRef<HTMLDivElement>(null);
-    const virtualizer = useVirtualizer({
-      count: traces.length,
-      getScrollElement: () => minimapRef.current,
-      estimateSize: () => 105,
-      overscan: MODERN_SESSION_OVERSCAN,
-      getItemKey: (index) => traces[index]?.id ?? index,
-    });
-
-    return (
-      <div
-        ref={minimapRef}
-        role="complementary"
-        aria-label="Session traces"
-        className="bg-muted/10 min-h-0 overflow-y-auto border-r"
-      >
-        <div className="bg-background sticky top-0 z-10 flex items-center justify-between gap-2 border-b px-3 py-2">
-          <span className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
-            Traces · {traces.length}
-          </span>
-          <span className="text-muted-foreground text-xs font-bold">
-            Total cost · {usdFormatter(totalCost, 2)}
-          </span>
-        </div>
-        <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            position: "relative",
-            width: "100%",
-          }}
-        >
-          {virtualizer.getVirtualItems().map((virtualItem) => {
-            const trace = traces[virtualItem.index];
-            if (!trace) return null;
-            const isActive = trace.id === activeTraceId;
-
-            return (
-              <SessionVirtualizedRow
-                key={virtualItem.key}
-                itemKey={String(virtualItem.key)}
-                measurementKey={`${String(virtualItem.key)}:${isActive}`}
-                source="modern"
-                virtualItem={virtualItem}
-                virtualizer={virtualizer}
-              >
-                <ModernSessionMinimapItem
-                  trace={trace}
-                  index={virtualItem.index}
-                  isActive={isActive}
-                  projectId={projectId}
-                  traceCommentCounts={traceCommentCounts}
-                  openPeek={openPeek}
-                  onSelect={onSelect}
-                />
-              </SessionVirtualizedRow>
-            );
-          })}
-        </div>
-      </div>
-    );
-  },
-);
-ModernSessionMinimap.displayName = "ModernSessionMinimap";
-
 export function ModernSession({
-  traces,
+  tracesState,
   projectId,
   sessionId,
+  sessionMinTimestamp,
+  sessionMaxTimestamp,
   openPeek,
   traceCommentCounts,
   filterState,
   filterMeasurementKey,
   viewLabel,
-  totalCost,
   showInlineToolCalls,
   showSystemPrompt,
+  sidebarFilterControls,
+  onExcludeObservation,
 }: ModernSessionProps) {
-  const feedRef = useRef<HTMLDivElement>(null);
-  const [selectedTraceId, setSelectedTraceId] = useState<string>();
+  const traces =
+    tracesState.type === "loaded" ? tracesState.traces : EMPTY_TRACES;
+  const [search, setSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSetSearchQuery = useDebounce(setSearchQuery, 500, false);
+  const isSearchPending = search.trim() !== searchQuery;
+  const [collapsedTraceIds, setCollapsedTraceIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [visibleTraceIds, setVisibleTraceIds] = useState<string[]>([]);
+  const [pageCounts, setPageCounts] = useState<Record<string, number>>({});
+  const expandedTraceIds = new Set(
+    traces
+      .filter((trace) => !collapsedTraceIds.has(trace.id))
+      .map((trace) => trace.id),
+  );
+
+  const baseFilters: FilterState = [
+    ...filterState,
+    {
+      column: "sessionId",
+      type: "string",
+      operator: "=",
+      value: sessionId,
+    },
+    {
+      column: "startTime",
+      type: "datetime",
+      operator: ">=",
+      value: sessionMinTimestamp,
+    },
+    {
+      column: "startTime",
+      type: "datetime",
+      operator: "<=",
+      value: sessionMaxTimestamp,
+    },
+  ];
+  const filtersRequireIO = filterState.some(
+    (filter) =>
+      (filter.column === "hasInput" || filter.column === "hasOutput") &&
+      filter.type === "boolean" &&
+      filter.operator === "=" &&
+      filter.value,
+  );
+
+  const traceIndexById = new Map(
+    traces.map((trace, index) => [trace.id, index] as const),
+  );
+  const activeChunkIndices = new Set<number>();
+  if (!searchQuery) {
+    for (const traceId of visibleTraceIds) {
+      if (!expandedTraceIds.has(traceId)) continue;
+      const traceIndex = traceIndexById.get(traceId);
+      if (traceIndex === undefined) continue;
+      activeChunkIndices.add(Math.floor(traceIndex / SIDEBAR_TRACE_CHUNK_SIZE));
+    }
+  }
+
+  const queryDescriptors: Array<{
+    key: string;
+    page: number;
+    traceIds: string[] | undefined;
+  }> = [];
+  if (searchQuery) {
+    const key = `search:${filterMeasurementKey}:${searchQuery}`;
+    const pageCount = pageCounts[key] ?? 1;
+    for (let page = 1; page <= pageCount; page++) {
+      queryDescriptors.push({ key, page, traceIds: undefined });
+    }
+  } else {
+    for (const chunkIndex of activeChunkIndices) {
+      const key = `browse:${filterMeasurementKey}:${chunkIndex}`;
+      const pageCount = pageCounts[key] ?? 1;
+      const startIndex = chunkIndex * SIDEBAR_TRACE_CHUNK_SIZE;
+      const traceIds = traces
+        .slice(startIndex, startIndex + SIDEBAR_TRACE_CHUNK_SIZE)
+        .map((trace) => trace.id);
+      for (let page = 1; page <= pageCount; page++) {
+        queryDescriptors.push({ key, page, traceIds });
+      }
+    }
+  }
+
+  const observationQueries = api.useQueries((t) =>
+    queryDescriptors.map((descriptor) =>
+      t.events.all(
+        {
+          projectId,
+          filter: descriptor.traceIds
+            ? [
+                ...baseFilters,
+                {
+                  column: "traceId",
+                  type: "stringOptions",
+                  operator: "any of",
+                  value: descriptor.traceIds,
+                },
+              ]
+            : baseFilters,
+          searchQuery: searchQuery || null,
+          searchType: searchQuery ? ["id"] : [],
+          page: descriptor.page,
+          limit: SIDEBAR_OBSERVATION_PAGE_SIZE,
+          orderBy: { column: "startTime", order: "ASC" },
+        },
+        {
+          staleTime: 60 * 1000,
+          refetchOnWindowFocus: false,
+        },
+      ),
+    ),
+  );
+
+  const observationsByTraceId = new Map<
+    string,
+    NonNullable<ModernSessionSidebarTrace["observations"]>
+  >();
+  const observationIdsByTraceId = new Map<string, Set<string>>();
+  const traceIdsWithMatchingTraceLevelIO = new Set<string>();
+  for (const query of observationQueries) {
+    for (const observation of query.data?.observations ?? []) {
+      if (!observation.traceId) {
+        continue;
+      }
+      if (observation.id === `t-${observation.traceId}`) {
+        traceIdsWithMatchingTraceLevelIO.add(observation.traceId);
+        continue;
+      }
+      const observationIds = observationIdsByTraceId.get(observation.traceId);
+      if (observationIds?.has(observation.id)) {
+        continue;
+      }
+      if (observationIds) observationIds.add(observation.id);
+      else {
+        observationIdsByTraceId.set(
+          observation.traceId,
+          new Set([observation.id]),
+        );
+      }
+      const observations = observationsByTraceId.get(observation.traceId);
+      const row = {
+        id: observation.id,
+        name: observation.name,
+        type: observation.type,
+        latency: observation.latency,
+      };
+      if (observations) observations.push(row);
+      else observationsByTraceId.set(observation.traceId, [row]);
+    }
+  }
+
+  const sidebarTraces: ModernSessionSidebarTrace[] = [];
+  for (const [index, trace] of traces.entries()) {
+    const chunkIndex = Math.floor(index / SIDEBAR_TRACE_CHUNK_SIZE);
+    const chunkKey = `browse:${filterMeasurementKey}:${chunkIndex}`;
+    const relevantQueryIndices = queryDescriptors.flatMap(
+      (descriptor, queryIndex) =>
+        descriptor.key ===
+        (searchQuery
+          ? `search:${filterMeasurementKey}:${searchQuery}`
+          : chunkKey)
+          ? [queryIndex]
+          : [],
+    );
+    const hasLoadedObservations = observationsByTraceId.has(trace.id);
+    const isPending =
+      relevantQueryIndices.length === 0 ||
+      relevantQueryIndices.every(
+        (queryIndex) => observationQueries[queryIndex]?.isPending,
+      );
+    const isError = relevantQueryIndices.some(
+      (queryIndex) => observationQueries[queryIndex]?.isError,
+    );
+    const lastRelevantQuery =
+      observationQueries[relevantQueryIndices.at(-1) ?? -1];
+    const mayHaveMoreObservations = Boolean(
+      lastRelevantQuery?.isPending || lastRelevantQuery?.data?.hasMore,
+    );
+    const observations =
+      isPending && !hasLoadedObservations
+        ? undefined
+        : isError
+          ? null
+          : mayHaveMoreObservations && !hasLoadedObservations
+            ? undefined
+            : (observationsByTraceId.get(trace.id) ?? []);
+
+    if (
+      searchQuery &&
+      !observationsByTraceId.has(trace.id) &&
+      !traceIdsWithMatchingTraceLevelIO.has(trace.id)
+    ) {
+      continue;
+    }
+
+    sidebarTraces.push({
+      trace,
+      turnNumber: index + 1,
+      idleGapSeconds:
+        index === 0 ? null : computeIdleGapSeconds(traces[index - 1]!, trace),
+      observations,
+      hasMatchingTraceLevelIO:
+        filtersRequireIO && traceIdsWithMatchingTraceLevelIO.has(trace.id),
+    });
+  }
+
+  const lastQueryByKey = new Map<string, number>();
+  queryDescriptors.forEach((descriptor, queryIndex) => {
+    lastQueryByKey.set(descriptor.key, queryIndex);
+  });
+  const hasMoreObservations = Array.from(lastQueryByKey.values()).some(
+    (queryIndex) => observationQueries[queryIndex]?.data?.hasMore,
+  );
+  const isLoadingMoreObservations = Array.from(lastQueryByKey.values()).some(
+    (queryIndex) => observationQueries[queryIndex]?.isFetching,
+  );
+  const observationLoadError = observationQueries.some(
+    (query) => query.isError,
+  );
+
+  const loadMoreObservations = () => {
+    setPageCounts((current) => {
+      let next = current;
+      for (const [key, queryIndex] of lastQueryByKey) {
+        const query = observationQueries[queryIndex];
+        const descriptor = queryDescriptors[queryIndex];
+        if (!query?.data?.hasMore || query.isFetching || !descriptor) {
+          continue;
+        }
+        if (next === current) next = { ...current };
+        next[key] = Math.max(current[key] ?? 1, descriptor.page + 1);
+      }
+      return next;
+    });
+  };
+
+  const handleVisibleTraceIdsChange = (nextTraceIds: string[]) => {
+    setVisibleTraceIds((current) => {
+      if (
+        current.length === nextTraceIds.length &&
+        current.every((traceId, index) => traceId === nextTraceIds[index])
+      ) {
+        return current;
+      }
+      return nextTraceIds;
+    });
+  };
+
+  const handleSearchChange = (nextSearch: string) => {
+    setSearch(nextSearch);
+    debouncedSetSearchQuery(nextSearch.trim());
+  };
+
+  const toggleTraceExpanded = (traceId: string) => {
+    setCollapsedTraceIds((current) => {
+      const next = new Set(current);
+      if (next.has(traceId)) next.delete(traceId);
+      else next.add(traceId);
+      return next;
+    });
+  };
+  const [feedRef, feedSize] = useElementSize<HTMLDivElement>();
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => feedRef.current,
@@ -229,81 +328,114 @@ export function ModernSession({
     overscan: MODERN_SESSION_OVERSCAN,
     getItemKey: (index) => traces[index]?.id ?? index,
   });
-  const virtualItems = virtualizer.getVirtualItems();
-  const scrollOffset = virtualizer.scrollOffset ?? 0;
-  const activeVirtualItem =
-    virtualItems.find(
-      (item) => item.start <= scrollOffset + 1 && item.end > scrollOffset + 1,
-    ) ?? virtualItems.find((item) => item.start > scrollOffset);
-  const scrollSpyTraceId =
-    traces[activeVirtualItem?.index ?? 0]?.id ?? traces[0]?.id;
-  const activeTraceId = selectedTraceId ?? scrollSpyTraceId;
+  const {
+    activeItemId: activeTraceId,
+    virtualItems,
+    selectItem: selectTrace,
+  } = useVirtualizedScrollSpy({
+    items: traces,
+    virtualizer,
+    scrollElementRef: feedRef,
+    viewportHeight: feedSize?.height ?? 0,
+    endTransitionRatio: 0.2,
+  });
+  const observationScrollCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => observationScrollCleanupRef.current?.(), []);
+  const handleSelect = (index: number, observationId?: string) => {
+    observationScrollCleanupRef.current?.();
+    observationScrollCleanupRef.current = null;
+    selectTrace(index);
+    if (!observationId) return;
 
-  const scrollToTrace = useCallback(
-    (index: number) => {
-      const feed = feedRef.current;
-      const offset = virtualizer.getOffsetForIndex(index, "start")?.[0];
-      if (!feed || offset === undefined) return;
-      // TanStack retries smooth scrolls against dynamic row measurements and
-      // can stop one row early. Native scrolling uses its measured target once
-      // and preserves the requested smooth minimap navigation.
-      feed.scrollTo({ top: offset, behavior: "smooth" });
-    },
-    [virtualizer],
-  );
+    const feed = feedRef.current;
+    if (!feed) return;
 
-  const selectTrace = useCallback(
-    (index: number) => {
-      const trace = traces[index];
-      if (!trace) return;
-      setSelectedTraceId(trace.id);
-      scrollToTrace(index);
-    },
-    [scrollToTrace, traces],
-  );
+    const scrollToObservation = () => {
+      const observation = Array.from(
+        feed.querySelectorAll<HTMLElement>("[data-session-observation-id]"),
+      ).find(
+        (element) => element.dataset.sessionObservationId === observationId,
+      );
+      if (!observation) return false;
 
-  const restoreScrollSpy = () => setSelectedTraceId(undefined);
+      const top =
+        feed.scrollTop +
+        observation.getBoundingClientRect().top -
+        feed.getBoundingClientRect().top -
+        Math.max(0, (feed.clientHeight - observation.clientHeight) / 2);
+      feed.scrollTo({ top, behavior: "smooth" });
+      return true;
+    };
+
+    if (scrollToObservation()) return;
+
+    let timeout: number;
+    const cleanup = () => {
+      observer.disconnect();
+      window.clearTimeout(timeout);
+    };
+    const observer = new MutationObserver(() => {
+      if (!scrollToObservation()) return;
+      cleanup();
+      if (observationScrollCleanupRef.current === cleanup) {
+        observationScrollCleanupRef.current = null;
+      }
+    });
+    observer.observe(feed, { childList: true, subtree: true });
+    timeout = window.setTimeout(() => {
+      cleanup();
+      if (observationScrollCleanupRef.current === cleanup) {
+        observationScrollCleanupRef.current = null;
+      }
+    }, 5_000);
+    observationScrollCleanupRef.current = cleanup;
+  };
 
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-1">
-      <ModernSessionMinimap
-        traces={traces}
-        activeTraceId={activeTraceId}
-        projectId={projectId}
-        traceCommentCounts={traceCommentCounts}
-        openPeek={openPeek}
-        onSelect={selectTrace}
-        totalCost={totalCost}
-      />
-      <div
-        ref={feedRef}
-        className="min-h-0 overflow-y-auto scroll-smooth"
-        onWheel={restoreScrollSpy}
-        onTouchMove={restoreScrollSpy}
-        onPointerDown={(event) => {
-          if (event.target === event.currentTarget) restoreScrollSpy();
-        }}
-      >
+    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
+      {tracesState.type === "loading" ? (
+        <ModernSessionSidebar state="loading" />
+      ) : (
+        <ModernSessionSidebar
+          state="loaded"
+          traces={isSearchPending ? [] : sidebarTraces}
+          activeTraceId={activeTraceId}
+          filterControls={sidebarFilterControls}
+          search={search}
+          onSearchChange={handleSearchChange}
+          expandedTraceIds={expandedTraceIds}
+          onToggleTraceExpanded={toggleTraceExpanded}
+          onExcludeObservation={onExcludeObservation}
+          onSelect={handleSelect}
+          onVisibleTraceIdsChange={handleVisibleTraceIdsChange}
+          hasMoreObservations={hasMoreObservations}
+          isLoadingMoreObservations={
+            isSearchPending || isLoadingMoreObservations
+          }
+          observationLoadError={observationLoadError}
+          onLoadMoreObservations={loadMoreObservations}
+          onViewportUnderfilled={
+            searchQuery && !isSearchPending ? loadMoreObservations : undefined
+          }
+        />
+      )}
+      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px]">
         <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            width: "100%",
-            position: "relative",
-          }}
+          ref={feedRef}
+          className="h-full min-h-0 overflow-y-auto scroll-smooth"
         >
-          {virtualItems.map((virtualItem) => {
-            const trace = traces[virtualItem.index];
-            if (!trace) return null;
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualItems.map((virtualItem) => {
+              const trace = traces[virtualItem.index];
+              if (!trace) return null;
 
-            return (
-              <SessionVirtualizedRow
-                key={virtualItem.key}
-                itemKey={String(virtualItem.key)}
-                measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}`}
-                source="modern"
-                virtualItem={virtualItem}
-                virtualizer={virtualizer}
-              >
+              const content = (
                 <LazySessionTraceEventsRow
                   trace={trace}
                   projectId={projectId}
@@ -316,11 +448,23 @@ export function ModernSession({
                   surface="modern"
                   contentMode={showInlineToolCalls ? "all" : "conversation"}
                   showSystemPrompt={showSystemPrompt}
-                  isActive={trace.id === activeTraceId}
                 />
-              </SessionVirtualizedRow>
-            );
-          })}
+              );
+
+              return (
+                <SessionVirtualizedRow
+                  key={virtualItem.key}
+                  itemKey={String(virtualItem.key)}
+                  measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}`}
+                  source="modern"
+                  virtualItem={virtualItem}
+                  virtualizer={virtualizer}
+                >
+                  {content}
+                </SessionVirtualizedRow>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

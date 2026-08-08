@@ -3,7 +3,10 @@
 import { useMemo } from "react";
 import { useRouter } from "next/router";
 import { InAppAgentWindow } from "./InAppAgentWindow";
-import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
+import type {
+  InAppAgentWindowConversation,
+  InAppAgentWindowExecutionUi,
+} from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 import { getDrawerMessages } from "./utils/utils";
@@ -12,9 +15,33 @@ import {
   getInAppAgentFocusedQuickActions,
   getInAppAgentQuickActionContext,
 } from "@/src/features/in-app-agent/quickActions";
+import {
+  getBackgroundRunFailureMessage,
+  isCancellableBackgroundRun,
+  type BackgroundExecutionRunView,
+} from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
+import { InAppAgentRunStatus } from "@langfuse/shared";
 
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
+
+function getBackgroundRunNotice(
+  run: BackgroundExecutionRunView | null,
+): string | null {
+  if (!run) {
+    return null;
+  }
+
+  if (isCancellableBackgroundRun(run.status) && run.cancelRequested) {
+    return "Stopping the run…";
+  }
+
+  if (run.status === InAppAgentRunStatus.FAILED) {
+    return getBackgroundRunFailureMessage(run.errorCode ?? null);
+  }
+
+  return null;
+}
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -46,6 +73,7 @@ export function ControlledInAppAgentWindow(
     isLoadingMoreConversations,
     isRunning,
     isSelectedConversationHydrating,
+    execution,
     isSubmitting,
     invalidateConversations,
     loadMoreConversations,
@@ -60,7 +88,12 @@ export function ControlledInAppAgentWindow(
     submit,
     submitFeedback,
   } = useInAppAiAgent();
+  const isCancellingRun =
+    execution.type === "background" && execution.isCancelling;
+  const shouldFlushCancelledRun =
+    execution.type === "background" && execution.run?.cancelRequested === true;
   const {
+    finishAnimation,
     isAnimating,
     messages: displayedMessages,
     pendingToolApprovals: displayedPendingToolApprovals,
@@ -69,15 +102,39 @@ export function ControlledInAppAgentWindow(
     messages,
     liveMessageVersion,
     pendingToolApprovals,
-    shouldFlush: error !== null,
+    // Keep the cancelled run flushed through its terminal publication. The
+    // final events and terminal status can arrive in one React batch, after
+    // `isCancelling` has cleared, and must not restart the reveal after Stop.
+    shouldFlush: error !== null || isCancellingRun || shouldFlushCancelledRun,
   });
-  const isInputDisabled =
+  const windowExecutionUi: InAppAgentWindowExecutionUi =
+    execution.type === "foreground"
+      ? execution
+      : {
+          type: "background",
+          notice: getBackgroundRunNotice(execution.run),
+          stop:
+            execution.run && isCancellableBackgroundRun(execution.run.status)
+              ? {
+                  status: execution.isCancelling ? "stopping" : "available",
+                  onStop: () => {
+                    finishAnimation();
+                    execution.cancel();
+                  },
+                }
+              : null,
+        };
+  // Only a read-only conversation disables the composer outright. An assistant
+  // turn -- including one paused on an approval -- blocks submission but leaves
+  // the draft editable.
+  const isConversationInteractionDisabled =
+    selectedConversationIsWriteLocked || isSelectedConversationHydrating;
+  const isAssistantTurnInProgress =
     isRunning ||
     isAnimating ||
     isSubmitting ||
-    selectedConversationIsWriteLocked ||
-    isSelectedConversationHydrating ||
-    pendingToolApprovals.length > 0;
+    pendingToolApprovals.length > 0 ||
+    displayedPendingToolApprovals.length > 0;
   const displayError = selectedConversationIsWriteLocked
     ? ({
         type: "generic",
@@ -123,12 +180,10 @@ export function ControlledInAppAgentWindow(
   return (
     <InAppAgentWindow
       error={displayError}
-      isAssistantTurnInProgress={
-        isRunning || isAnimating || displayedPendingToolApprovals.length > 0
-      }
+      isAssistantTurnInProgress={isAssistantTurnInProgress}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
-      isInputDisabled={isInputDisabled}
+      isConversationInteractionDisabled={isConversationInteractionDisabled}
       disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       quickActionContext={quickActionContext}
@@ -148,6 +203,7 @@ export function ControlledInAppAgentWindow(
       }}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
+      executionUi={windowExecutionUi}
       onApproveToolCall={approveToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
