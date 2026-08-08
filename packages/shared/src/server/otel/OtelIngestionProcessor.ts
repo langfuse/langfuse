@@ -869,7 +869,8 @@ export class OtelIngestionProcessor {
 
     const isRootSpan =
       !parentObservationId ||
-      String(attributes[LangfuseOtelSpanAttributes.AS_ROOT]) === "true";
+      String(attributes[LangfuseOtelSpanAttributes.AS_ROOT]) === "true" ||
+      this.extractIsAppRoot(attributes);
 
     const hasTraceUpdates = this.hasTraceUpdates(attributes);
 
