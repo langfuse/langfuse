@@ -10,13 +10,16 @@ import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
+  annotationQueueItemsTableCols,
   BatchActionQuerySchema,
   BatchActionType,
   BatchExportTableName,
   type BatchTableNames,
   LangfuseNotFoundError,
+  orderBy,
   paginationZod,
   Prisma,
+  singleFilter,
 } from "@langfuse/shared";
 import {
   getObservationById,
@@ -24,6 +27,8 @@ import {
   getObservationsTraceIdsFromEventsTable,
   getTraceIdsForObservations,
   logger,
+  orderByToPrismaSql,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -166,6 +171,8 @@ export const queueItemRouter = createTRPCRouter({
       z.object({
         queueId: z.string(),
         projectId: z.string(),
+        filter: z.array(singleFilter).nullish(),
+        orderBy: orderBy.nullish(),
         ...paginationZod,
       }),
     )
@@ -176,14 +183,26 @@ export const queueItemRouter = createTRPCRouter({
         scope: "annotationQueues:read",
       });
 
-      const [queueItems, totalItems] = await Promise.all([
+      const filterCondition = tableColumnsToSqlFilterAndPrefix(
+        input.filter ?? [],
+        annotationQueueItemsTableCols,
+        "annotation_queue_items",
+      );
+
+      const orderByCondition = orderByToPrismaSql(
+        input.orderBy ?? { column: "createdAt", order: "ASC" },
+        annotationQueueItemsTableCols,
+      );
+
+      const [queueItems, countResult] = await Promise.all([
         await ctx.prisma.$queryRaw<
           Array<{
             id: string;
             status: AnnotationQueueStatus;
             objectId: string;
             objectType: AnnotationQueueObjectType;
-            completedAt: string | null;
+            createdAt: Date;
+            completedAt: Date | null;
             annotatorUserId: string | null;
             annotatorUserImage: string | null;
             annotatorUserName: string | null;
@@ -194,6 +213,7 @@ export const queueItemRouter = createTRPCRouter({
               aqi.status,
               aqi.object_id AS "objectId",
               aqi.object_type AS "objectType",
+              aqi.created_at AS "createdAt",
               aqi.completed_at AS "completedAt",
               aqi.annotator_user_id AS "annotatorUserId",
               u.image AS "annotatorUserImage", 
@@ -202,22 +222,24 @@ export const queueItemRouter = createTRPCRouter({
               annotation_queue_items aqi
             LEFT JOIN 
               users u ON u.id = aqi.annotator_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${ctx.session.orgId})
-            WHERE 
+            WHERE
               aqi.project_id = ${input.projectId} AND aqi.queue_id = ${input.queueId}
-            ORDER BY 
-              aqi.created_at ASC,
-              aqi.object_id ASC,
-              aqi.object_type ASC
+              ${filterCondition}
+            ${orderByCondition},
+              aqi.id ASC
             ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
             ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
           `),
-        ctx.prisma.annotationQueueItem.count({
-          where: {
-            queueId: input.queueId,
-            projectId: input.projectId,
-          },
-        }),
+        ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(Prisma.sql`
+            SELECT count(*) AS "totalCount"
+            FROM annotation_queue_items aqi
+            WHERE
+              aqi.project_id = ${input.projectId} AND aqi.queue_id = ${input.queueId}
+              ${filterCondition}
+          `),
       ]);
+
+      const totalItems = Number(countResult[0]?.totalCount ?? 0);
 
       const observationIds = queueItems
         .filter(

@@ -9,3 +9,4 @@ export * from "./datasetRunsTable";
 export * from "./datasetRunItemsTable";
 export * from "./usersTable";
 export * from "./scoresTable";
+export * from "./annotationQueueItemsTable";
