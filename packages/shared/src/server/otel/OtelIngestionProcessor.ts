@@ -98,6 +98,50 @@ interface MetadataDropContext {
   dropScope: object;
 }
 
+/**
+ * Tracks the total number of array slots that dotted attribute paths would
+ * materialize. A path is reserved transactionally: when it would exceed the
+ * limit, none of its array lengths are committed.
+ *
+ * Multiple attributes can point into the same array, so only growth beyond
+ * that array's previously reserved length consumes budget. For example,
+ * `0.role` and `0.content` together reserve one slot, while `9999.content`
+ * reserves 10,000 slots even though it is only one attribute.
+ */
+class ArraySlotBudget {
+  private usedSlots = 0;
+  private readonly lengthsByPath = new Map<string, number>();
+
+  constructor(private readonly maxSlots: number) {}
+
+  tryReserve(pathParts: readonly string[]): boolean {
+    const pendingLengths = new Map<string, number>();
+    let additionalSlots = 0;
+
+    for (let index = 0; index < pathParts.length; index++) {
+      const segment = pathParts[index];
+      if (!/^\d+$/.test(segment)) continue;
+
+      const arrayPath = pathParts.slice(0, index).join(".");
+      const previousLength =
+        pendingLengths.get(arrayPath) ?? this.lengthsByPath.get(arrayPath) ?? 0;
+      const requiredLength = Number(segment) + 1;
+      if (requiredLength > previousLength) {
+        additionalSlots += requiredLength - previousLength;
+        pendingLengths.set(arrayPath, requiredLength);
+      }
+    }
+
+    if (this.usedSlots + additionalSlots > this.maxSlots) return false;
+
+    this.usedSlots += additionalSlots;
+    pendingLengths.forEach((length, path) =>
+      this.lengthsByPath.set(path, length),
+    );
+    return true;
+  }
+}
+
 interface CreateTraceEventParams {
   traceId: string;
   startTimeISO: string;
@@ -1502,46 +1546,18 @@ export class OtelIngestionProcessor {
       return input[prefix];
     }
 
-    // Reserve the logical length of every array implied by each dotted path.
-    // Array paths include their parent indices, so sibling nested arrays have
-    // separate entries (for example, `0.message` and `1.message`). Rejecting a
-    // path before reconstruction keeps the operation atomic and prevents
-    // individually bounded dimensions from multiplying into a huge value.
     const keys: string[] = [];
-    const arrayLengths = new Map<string, number>();
     const overBudgetKeys: string[] = [];
-    let reconstructedArraySlots = 0;
+    const arraySlotBudget = new ArraySlotBudget(
+      OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS,
+    );
     for (const inputKey of Object.keys(input)) {
       const key = inputKey.replace(`${prefix}.`, "");
-      const pathParts = key.split(".");
-      const updates: Array<[path: string, length: number]> = [];
-      let slotGrowth = 0;
-
-      for (let index = 0; index < pathParts.length; index++) {
-        const segment = pathParts[index];
-        if (!/^\d+$/.test(segment)) continue;
-
-        const arrayPath = pathParts.slice(0, index).join(".");
-        const previousLength = arrayLengths.get(arrayPath) ?? 0;
-        const nextLength = Number(segment) + 1;
-        if (nextLength > previousLength) {
-          slotGrowth += nextLength - previousLength;
-          updates.push([arrayPath, nextLength]);
-        }
-      }
-
-      if (
-        reconstructedArraySlots + slotGrowth >
-        OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS
-      ) {
+      if (!arraySlotBudget.tryReserve(key.split("."))) {
         overBudgetKeys.push(key);
         continue;
       }
 
-      reconstructedArraySlots += slotGrowth;
-      updates.forEach(([arrayPath, length]) =>
-        arrayLengths.set(arrayPath, length),
-      );
       keys.push(key);
     }
     this.recordArrayAttributesDropped(prefix, overBudgetKeys, dropScope);
