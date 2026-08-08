@@ -119,6 +119,102 @@ describe("OTEL to ObservationForEval Schema Validation", () => {
     vi.clearAllMocks();
   });
 
+  it("preserves malformed surrogates through OTEL parsing for writer repair", async () => {
+    const malformedInput = `before${String.fromCharCode(0xd800)}after`;
+    const resourceSpan = {
+      resource: { attributes: [] },
+      scopeSpans: [
+        {
+          scope: { name: "langfuse-sdk", version: "3.0.0" },
+          spans: [
+            {
+              traceId: createBufferId("2cce18f7e8cd065a0b4e634eef728391"),
+              spanId: createBufferId("57f0255417974100"),
+              name: "malformed-input",
+              kind: 1,
+              startTimeUnixNano: createNanoTimestamp(
+                BigInt(1714488530686000000),
+              ),
+              endTimeUnixNano: createNanoTimestamp(BigInt(1714488530687000000)),
+              attributes: [
+                {
+                  key: "langfuse.observation.type",
+                  value: { stringValue: "span" },
+                },
+                {
+                  key: "langfuse.observation.input",
+                  value: { stringValue: malformedInput },
+                },
+              ],
+              status: {},
+            },
+            {
+              traceId: createBufferId("2cce18f7e8cd065a0b4e634eef728391"),
+              spanId: createBufferId("57f0255417974101"),
+              name: "healthy-input",
+              kind: 1,
+              startTimeUnixNano: createNanoTimestamp(
+                BigInt(1714488530686000000),
+              ),
+              endTimeUnixNano: createNanoTimestamp(BigInt(1714488530687000000)),
+              attributes: [
+                {
+                  key: "langfuse.observation.type",
+                  value: { stringValue: "span" },
+                },
+                {
+                  key: "langfuse.observation.input",
+                  value: { stringValue: "unchanged" },
+                },
+              ],
+              status: {},
+            },
+          ],
+        },
+      ],
+    };
+
+    const eventInputs = createTestOtelProcessor().processToEvent([
+      resourceSpan,
+    ]);
+    expect(eventInputs.map(({ input }) => input)).toEqual([
+      malformedInput,
+      "unchanged",
+    ]);
+
+    const eventRecords = await Promise.all(
+      eventInputs.map((eventInput) =>
+        ingestionService.createEventRecord(eventInput, "test/otel/test.json"),
+      ),
+    );
+    expect(eventRecords.map(({ input }) => input)).toEqual([
+      malformedInput,
+      "unchanged",
+    ]);
+
+    await Promise.all(
+      eventRecords.map((eventRecord) =>
+        ingestionService.writeEventRecord(eventRecord),
+      ),
+    );
+    expect(mockAddToClickhouseWriter).toHaveBeenCalledTimes(2);
+    expect(
+      mockAddToClickhouseWriter.mock.calls.map(([table, record]) => ({
+        table,
+        input: record.input,
+      })),
+    ).toEqual([
+      {
+        table: clickhouseWriterExports.TableName.EventsFull,
+        input: malformedInput,
+      },
+      {
+        table: clickhouseWriterExports.TableName.EventsFull,
+        input: "unchanged",
+      },
+    ]);
+  });
+
   describe("Langfuse SDK spans", () => {
     it("should convert a Langfuse SDK generation span to valid ObservationForEval", async () => {
       const langfuseOtelSpan = {
