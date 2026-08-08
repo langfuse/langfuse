@@ -125,40 +125,47 @@ describe("Cloud Usage Metering idempotent retry after a mid-loop Stripe failure"
       updateProgress: vi.fn(),
     } as any;
 
-    // Run 1: org B's meter call always fails (stands in for backOff's 3
-    // attempts all failing and the error propagating out of the job). Org A's
-    // calls succeed. Iteration order over findMany isn't assumed, so which org
-    // succeeds before B fails is read back from the outcomes below.
+    // Run 1: the job makes two meter calls per org (observations + events).
+    // Fail on the third call so the first org processed is fully billed and
+    // the second one fails partway, which is the partial-progress-then-failure
+    // case. This doesn't assume which org comes first, since findMany has no
+    // orderBy and Postgres can return either order.
     const settledRun1: Array<{
       customerId: string;
       identifier: string | undefined;
       ok: boolean;
     }> = [];
+    let run1Calls = 0;
     meterEventsCreate.mockImplementation(async (args: any) => {
       const customerId = args?.payload?.stripe_customer_id as string;
       const identifier = args?.identifier as string | undefined;
-      if (customerId === "cus_test_org_b") {
+      run1Calls += 1;
+      if (run1Calls >= 3) {
         settledRun1.push({ customerId, identifier, ok: false });
-        throw new Error("simulated transient Stripe failure for org B");
+        throw new Error("simulated transient Stripe failure");
       }
       settledRun1.push({ customerId, identifier, ok: true });
       return { id: "me_1" };
     });
 
     await expect(handleCloudUsageMeteringJob(fakeJob)).rejects.toThrow(
-      "simulated transient Stripe failure for org B",
+      "simulated transient Stripe failure",
     );
 
     const successfulRun1 = settledRun1.filter((s) => s.ok);
-    // At least one call has to go through before org B fails, otherwise the
-    // test isn't exercising the partial-progress-then-failure case.
-    expect(successfulRun1.length).toBeGreaterThan(0);
+    // The first org is billed in full before the failure: its observations and
+    // events calls, all for the same customer.
+    expect(successfulRun1).toHaveLength(2);
+    const billedCustomer = successfulRun1[0].customerId;
+    expect(successfulRun1.every((s) => s.customerId === billedCustomer)).toBe(
+      true,
+    );
 
-    // Every successful call must carry a well-formed, non-empty identifier
-    // (the fix under test) rather than relying on Stripe's random default.
+    // Each of those carries a stable identifier (the fix) rather than a random
+    // one from Stripe.
     for (const call of successfulRun1) {
       expect(call.identifier).toMatch(
-        /^lf-cum-test-org-a-tracing_(observations|events)-\d+$/,
+        /^lf-cum-test-org-[ab]-tracing_(observations|events)-\d+$/,
       );
     }
 
@@ -188,12 +195,12 @@ describe("Cloud Usage Metering idempotent retry after a mid-loop Stripe failure"
     // again. Stripe keeps identifiers unique for at least 24h, so the resend
     // is a no-op instead of a second charge, which is the bug this catches.
     const run1Identifiers = new Set(successfulRun1.map((s) => s.identifier));
-    const run2IdentifiersForRebilledCustomers = settledRun2
-      .filter((s) => s.customerId === "cus_test_org_a")
+    const run2IdentifiersForBilledCustomer = settledRun2
+      .filter((s) => s.customerId === billedCustomer)
       .map((s) => s.identifier);
 
-    expect(run2IdentifiersForRebilledCustomers.length).toBeGreaterThan(0);
-    for (const identifier of run2IdentifiersForRebilledCustomers) {
+    expect(run2IdentifiersForBilledCustomer.length).toBeGreaterThan(0);
+    for (const identifier of run2IdentifiersForBilledCustomer) {
       expect(run1Identifiers.has(identifier)).toBe(true);
     }
   });
