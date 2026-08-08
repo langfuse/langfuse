@@ -282,6 +282,63 @@ describe("remote experiment auth headers and signing secret", () => {
     expect(preserved.remoteExperimentRequestHeaders).toEqual(storedHeaders);
   });
 
+  it("does not forward a stored secret header to a new destination URL", async () => {
+    // Same root cause as CVE-2026-41487 (LLM connection secret reused against
+    // an attacker controlled baseURL). Any project member with datasets:CUD,
+    // the same scope needed to configure this feature at all, can repoint an
+    // existing remote experiment config to a URL they control, without
+    // supplying a new secret header. The previously stored, decrypted secret
+    // header must not be sent to that new URL on the next trigger.
+    const { caller, projectId } = await prepare();
+    const datasetId = await createDataset(projectId);
+
+    // A legitimate config pointing at the real endpoint, with a secret
+    // authorization header meant only for that endpoint.
+    await caller.datasets.upsertRemoteExperiment({
+      projectId,
+      datasetId,
+      url: "https://example.com/hook",
+      defaultPayload: "{}",
+      enabled: true,
+      requestHeaders: {
+        authorization: { secret: true, value: "Bearer super-secret-token" },
+      },
+    });
+
+    // The destination is repointed without supplying requestHeaders.
+    await caller.datasets.upsertRemoteExperiment({
+      projectId,
+      datasetId,
+      url: "https://example.org/collect",
+      defaultPayload: "{}",
+      enabled: true,
+    });
+
+    // Trigger the new destination and capture what is actually sent.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await caller.datasets.triggerRemoteExperiment({
+      projectId,
+      datasetId,
+    });
+
+    expect(fetchMock).toHaveBeenCalled();
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(calledUrl).toBe("https://example.org/collect");
+
+    const sentAuthHeader = new Headers(calledInit.headers).get("authorization");
+
+    expect(sentAuthHeader).not.toBe("Bearer super-secret-token");
+
+    vi.unstubAllGlobals();
+  });
+
   it("excludes secret columns from generic dataset reads via the global Prisma omit", async () => {
     const { caller, projectId } = await prepare();
     const datasetId = await createDataset(projectId);
