@@ -4808,6 +4808,55 @@ describe("OTel Resource Span Mapping", () => {
       expect(input[0].message).toEqual({ role: "user" });
     });
 
+    it("should cap total array-slot expansion across nested OTEL paths", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "llm.input_messages.0.safe",
+                    value: { stringValue: "preserved sibling" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.9999.content",
+                    value: { stringValue: "accepted content" },
+                  },
+                  {
+                    key: "llm.input_messages.1.message.9999.content",
+                    value: { stringValue: "over budget content" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+      const input = observation?.body.input as Array<{
+        safe?: string;
+        message?: Array<{ content: string }>;
+      }>;
+
+      expect(input).toHaveLength(1);
+      expect(input[0].safe).toBe("preserved sibling");
+      expect(input[0].message).toHaveLength(10_000);
+      expect(input[0].message?.[9_999]).toEqual({
+        content: "accepted content",
+      });
+    });
+
     // GenAI semantic conventions v1.37+ record prompts/completions on a
     // gen_ai.client.inference.operation.details span event (e.g. Hindsight)
     it("should extract input/output from gen_ai.client.inference.operation.details span event", async () => {
