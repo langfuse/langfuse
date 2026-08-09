@@ -3483,16 +3483,16 @@
     ]
   },
   {
-    "id": "a5b2c3d4-e5f6-4789-8abc-def012345678",
+    "id": "abd84c5c-9437-4946-a516-de7e3df434fd",
     "modelName": "claude-opus-5",
     "matchPattern": "(?i)^((anthropic\\/)?claude-opus-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-5(-v1(:0)?)?)$",
     "createdAt": "2026-07-25T00:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-08-09T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
       {
-        "id": "a5b2c3d4-e5f6-4789-8abc-def012345678_tier_default",
+        "id": "abd84c5c-9437-4946-a516-de7e3df434fd_tier_default",
         "name": "Standard",
         "isDefault": true,
         "priority": 0,
