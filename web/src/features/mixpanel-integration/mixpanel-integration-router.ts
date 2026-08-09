@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -19,11 +20,6 @@ import {
   LangfuseNotFoundError,
   validateExportSource,
 } from "@langfuse/shared";
-import { Prisma } from "@langfuse/shared/src/db";
-
-const isMixpanelIntegrationNotFoundError = (error: unknown): boolean =>
-  error instanceof Prisma.PrismaClientKnownRequestError &&
-  error.code === "P2025";
 
 export const mixpanelIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -232,7 +228,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           },
         });
       } catch (error) {
-        if (isMixpanelIntegrationNotFoundError(error)) {
+        if (isPrismaRecordNotFoundError(error)) {
           throw new LangfuseNotFoundError("Mixpanel integration not found");
         }
 
