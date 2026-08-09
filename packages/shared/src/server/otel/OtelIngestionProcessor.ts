@@ -867,9 +867,13 @@ export class OtelIngestionProcessor {
         endTimeUnixNano: span.endTimeUnixNano,
       });
 
-    const isRootSpan =
-      !parentObservationId ||
-      String(attributes[LangfuseOtelSpanAttributes.AS_ROOT]) === "true";
+    // A span is only the root of its trace when it has no parent span of its
+    // own. Spans that join an existing trace (the SDK starts them under a
+    // remote parent and marks them with langfuse.internal.as_root) therefore
+    // never count as roots: treating them as roots would promote their
+    // observation-level input/output onto the trace record and let the
+    // last-ingested joining process overwrite the true root's name and IO.
+    const isRootSpan = !parentObservationId;
 
     const hasTraceUpdates = this.hasTraceUpdates(attributes);
 
