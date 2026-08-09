@@ -59,7 +59,7 @@ export const paginationZod = {
 export const publicApiPaginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().gt(0).default(1),
+    z.coerce.number().int().gt(0).default(1),
   ),
   limit: publicApiPaginationLimitZod,
 };
