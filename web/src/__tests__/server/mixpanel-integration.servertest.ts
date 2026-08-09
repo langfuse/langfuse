@@ -1,5 +1,5 @@
 import type { Session } from "next-auth";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
@@ -52,6 +52,35 @@ const buildSession = (orgId: string, projectId: string): Session => ({
     admin: true,
   },
   environment: {} as any,
+});
+
+describe("Mixpanel Integration delete", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns NOT_FOUND when the integration is already absent", async () => {
+    const { project, orgId } = await createOrgProjectAndApiKey();
+    const ctx = createInnerTRPCContext({
+      session: buildSession(orgId, project.id),
+      headers: {},
+    });
+    const caller = appRouter.createCaller({ ...ctx, prisma });
+
+    vi.spyOn(prisma.mixpanelIntegration, "delete").mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError(
+        "Record to delete does not exist.",
+        {
+          code: "P2025",
+          clientVersion: "test",
+        },
+      ),
+    );
+
+    await expect(
+      caller.mixpanelIntegration.delete({ projectId: project.id }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
 });
 
 describe("Mixpanel Integration legacy export source cutoff gate", () => {

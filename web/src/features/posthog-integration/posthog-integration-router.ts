@@ -17,8 +17,14 @@ import {
   AnalyticsIntegrationExportSource,
   areLegacyWritesActive,
   InvalidRequestError,
+  LangfuseNotFoundError,
   validateExportSource,
 } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared/src/db";
+
+const isPostHogIntegrationNotFoundError = (error: unknown): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2025";
 
 export const posthogIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -220,29 +226,30 @@ export const posthogIntegrationRouter = createTRPCRouter({
   delete: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "integrations:CRUD",
-        });
-        await auditLog({
-          session: ctx.session,
-          action: "delete",
-          resourceType: "posthogIntegration",
-          resourceId: input.projectId,
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "integrations:CRUD",
+      });
+      await auditLog({
+        session: ctx.session,
+        action: "delete",
+        resourceType: "posthogIntegration",
+        resourceId: input.projectId,
+      });
 
+      try {
         await ctx.prisma.posthogIntegration.delete({
           where: {
             projectId: input.projectId,
           },
         });
-      } catch (e) {
-        console.log("posthog integration delete", e);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-        });
+      } catch (error) {
+        if (isPostHogIntegrationNotFoundError(error)) {
+          throw new LangfuseNotFoundError("PostHog integration not found");
+        }
+
+        throw error;
       }
     }),
 });
