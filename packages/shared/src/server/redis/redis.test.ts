@@ -1,4 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { Redis } from "ioredis";
 
 vi.mock("../../env", () => ({
@@ -10,7 +17,11 @@ vi.mock("../../env", () => ({
 }));
 
 import { env } from "../../env";
-import { safeMultiGet, scanKeys } from "./redis";
+import {
+  safeMultiGet,
+  scanKeys,
+  redisQueueRetryOptions,
+} from "./redis";
 import {
   buildRedisErrorContext,
   formatRedisErrorMessage,
@@ -259,5 +270,115 @@ describe("formatRedisErrorMessage", () => {
     expect(formatRedisErrorMessage("Redis error", context)).toBe(
       "Redis error [connection-closed]: Connection is closed.",
     );
+  });
+});
+describe("redisQueueRetryOptions", () => {
+  const retryStrategy = redisQueueRetryOptions.retryStrategy as (
+    times: number,
+  ) => number;
+
+  describe("retryStrategy", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("keeps early retries at least 1s apart", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0.5);
+      const delay = retryStrategy(1);
+      expect(delay).toBeGreaterThanOrEqual(1000);
+      expect(delay).toBeLessThan(1501);
+    });
+
+    it("caps the base delay at 20s before jitter", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0);
+      expect(retryStrategy(50)).toBe(20000);
+    });
+
+    it("applies jitter so concurrent connections do not retry in lockstep", () => {
+      vi.spyOn(Math, "random").mockReturnValue(0);
+      const base = retryStrategy(8);
+      vi.spyOn(Math, "random").mockReturnValue(1);
+      const jittered = retryStrategy(8);
+      expect(jittered).toBeGreaterThan(base);
+      expect(jittered).toBeLessThanOrEqual(base * 1.5);
+    });
+  });
+
+  describe("reconnectOnError", () => {
+    // Re-import per test so the module-level error dedupe state is fresh.
+    let options: typeof redisQueueRetryOptions;
+    let logger: {
+      warn: ReturnType<typeof vi.fn>;
+      debug: ReturnType<typeof vi.fn>;
+    };
+
+    beforeEach(async () => {
+      vi.resetModules();
+      const redisModule = await import("./redis.js");
+      options = redisModule.redisQueueRetryOptions;
+      const loggerModule = await import("../logger.js");
+      logger = {
+        warn: vi
+          .spyOn(loggerModule.logger, "warn")
+          .mockImplementation(() => loggerModule.logger),
+        debug: vi
+          .spyOn(loggerModule.logger, "debug")
+          .mockImplementation(() => loggerModule.logger),
+      };
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
+    it("logs a reconnect error and does not reconnect for ordinary errors", () => {
+      const result = options.reconnectOnError!(
+        new Error("getaddrinfo ENOTFOUND langfuse-redis"),
+      );
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(result).toBe(false);
+    });
+
+    it("collapses repeated identical errors within the interval", () => {
+      const err = new Error("getaddrinfo ENOTFOUND langfuse-redis");
+      options.reconnectOnError!(err);
+      options.reconnectOnError!(err);
+      options.reconnectOnError!(err);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    });
+
+    it("logs the identical error again after the interval elapses", async () => {
+      vi.useFakeTimers();
+      const err = new Error("getaddrinfo ENOTFOUND langfuse-redis");
+      options.reconnectOnError!(err);
+      vi.setSystemTime(Date.now() + 60_001);
+      options.reconnectOnError!(err);
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+    });
+
+    it("logs distinct error messages immediately", () => {
+      options.reconnectOnError!(
+        new Error("getaddrinfo ENOTFOUND langfuse-redis"),
+      );
+      options.reconnectOnError!(new Error("ECONNREFUSED 127.0.0.1:6379"));
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+    });
+
+    it("returns 2 for READONLY errors and still logs", () => {
+      const result = options.reconnectOnError!(
+        new Error("READONLY You can't write against a read only replica."),
+      );
+      expect(result).toBe(2);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    });
+
+    it("treats MOVED redirects as debug and does not reconnect", () => {
+      const result = options.reconnectOnError!(
+        new Error("MOVED 3999 127.0.0.1:6381"),
+      );
+      expect(logger.debug).toHaveBeenCalledTimes(1);
+      expect(result).toBe(false);
+    });
   });
 });
