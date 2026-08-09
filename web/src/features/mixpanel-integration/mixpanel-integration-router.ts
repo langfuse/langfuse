@@ -16,8 +16,14 @@ import {
   AnalyticsIntegrationExportSource,
   areLegacyWritesActive,
   InvalidRequestError,
+  LangfuseNotFoundError,
   validateExportSource,
 } from "@langfuse/shared";
+import { Prisma } from "@langfuse/shared/src/db";
+
+const isMixpanelIntegrationNotFoundError = (error: unknown): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2025";
 
 export const mixpanelIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -207,29 +213,30 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
   delete: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "integrations:CRUD",
-        });
-        await auditLog({
-          session: ctx.session,
-          action: "delete",
-          resourceType: "mixpanelIntegration",
-          resourceId: input.projectId,
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "integrations:CRUD",
+      });
+      await auditLog({
+        session: ctx.session,
+        action: "delete",
+        resourceType: "mixpanelIntegration",
+        resourceId: input.projectId,
+      });
 
+      try {
         await ctx.prisma.mixpanelIntegration.delete({
           where: {
             projectId: input.projectId,
           },
         });
-      } catch (e) {
-        console.log("mixpanel integration delete", e);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-        });
+      } catch (error) {
+        if (isMixpanelIntegrationNotFoundError(error)) {
+          throw new LangfuseNotFoundError("Mixpanel integration not found");
+        }
+
+        throw error;
       }
     }),
 });
