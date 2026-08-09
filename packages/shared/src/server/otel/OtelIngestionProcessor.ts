@@ -253,7 +253,6 @@ export class OtelIngestionProcessor {
   private seenTraces: Set<string> = new Set();
   private reportedMetadataDrops = new WeakMap<object, Set<string>>();
   private metadataDropWarnCount = 0;
-  private reportedArrayAttributeDrops = new WeakMap<object, Set<string>>();
   private arrayAttributeDropWarnCount = 0;
   private isInitialized = false;
   private traceEventCounts = {
@@ -404,7 +403,6 @@ export class OtelIngestionProcessor {
                     events: span?.events ?? [],
                     attributes: spanAttributes,
                     instrumentationScopeName: scopeSpan?.scope?.name ?? "",
-                    dropScope: span,
                   });
 
                 // Construct metadata object with the specified structure
@@ -1003,7 +1001,6 @@ export class OtelIngestionProcessor {
         attributes,
         domain: "trace",
         instrumentationScopeName,
-        dropScope: span,
       });
 
       trace = {
@@ -1133,7 +1130,6 @@ export class OtelIngestionProcessor {
       events: span?.events ?? [],
       attributes,
       instrumentationScopeName,
-      dropScope: span,
     });
 
     const observationSpanId = this.tryParseSpanId(span);
@@ -1540,7 +1536,6 @@ export class OtelIngestionProcessor {
   private convertKeyPathToNestedObject(
     input: Record<string, unknown>,
     prefix: string,
-    dropScope: object,
   ): any {
     if (input[prefix]) {
       return input[prefix];
@@ -1560,7 +1555,7 @@ export class OtelIngestionProcessor {
 
       keys.push(key);
     }
-    this.recordArrayAttributesDropped(prefix, overBudgetKeys, dropScope);
+    this.recordArrayAttributesDropped(prefix, overBudgetKeys);
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
     // Blocklist to prevent prototype pollution via crafted OTel attribute keys
@@ -1620,38 +1615,12 @@ export class OtelIngestionProcessor {
     return result;
   }
 
-  /**
-   * Counts each rejected flattened attribute once per raw span. The worker runs
-   * both conversion pipelines on the same span object, and trace/observation
-   * extraction can inspect it more than once, so a WeakMap prevents duplicate
-   * metrics without retaining spans after the ingestion job finishes.
-   */
-  private recordArrayAttributesDropped(
-    prefix: string,
-    keys: string[],
-    dropScope: object,
-  ): void {
+  private recordArrayAttributesDropped(prefix: string, keys: string[]): void {
     if (keys.length === 0) return;
-
-    let seen = this.reportedArrayAttributeDrops.get(dropScope);
-    if (!seen) {
-      seen = new Set();
-      this.reportedArrayAttributeDrops.set(dropScope, seen);
-    }
-
-    let droppedAttributeCount = 0;
-    for (const key of keys) {
-      const dedupeKey = `${prefix}|${key}`;
-      if (!seen.has(dedupeKey)) {
-        seen.add(dedupeKey);
-        droppedAttributeCount += 1;
-      }
-    }
-    if (droppedAttributeCount === 0) return;
 
     recordIncrement(
       OtelIngestionProcessor.OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC,
-      droppedAttributeCount,
+      keys.length,
       { reason: "reconstruction_budget_exceeded", prefix },
     );
     if (
@@ -1663,7 +1632,7 @@ export class OtelIngestionProcessor {
         projectId: this.projectId,
         prefix,
         reason: "reconstruction_budget_exceeded",
-        droppedAttributeCount,
+        droppedAttributeCount: keys.length,
       });
     }
   }
@@ -1673,10 +1642,8 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>;
     instrumentationScopeName: string;
     domain?: "trace" | "observation";
-    dropScope: object;
   }): { input: any; output: any; filteredAttributes: Record<string, unknown> } {
-    const { instrumentationScopeName, events, attributes, domain, dropScope } =
-      params;
+    const { instrumentationScopeName, events, attributes, domain } = params;
 
     let input = null;
     let output = null;
@@ -2001,13 +1968,11 @@ export class OtelIngestionProcessor {
         events: [],
         attributes: input,
         instrumentationScopeName,
-        dropScope,
       });
       const { output: eventOutput } = this.extractInputAndOutput({
         events: [],
         attributes: output,
         instrumentationScopeName,
-        dropScope,
       });
       return {
         input: eventInput || input,
@@ -2145,16 +2110,8 @@ export class OtelIngestionProcessor {
         return acc;
       }, {});
       return {
-        input: this.convertKeyPathToNestedObject(
-          input,
-          "gen_ai.prompt",
-          dropScope,
-        ),
-        output: this.convertKeyPathToNestedObject(
-          output,
-          "gen_ai.completion",
-          dropScope,
-        ),
+        input: this.convertKeyPathToNestedObject(input, "gen_ai.prompt"),
+        output: this.convertKeyPathToNestedObject(output, "gen_ai.completion"),
         filteredAttributes,
       };
     }
@@ -2179,12 +2136,10 @@ export class OtelIngestionProcessor {
         input: this.convertKeyPathToNestedObject(
           llmInput,
           "llm.input_messages",
-          dropScope,
         ),
         output: this.convertKeyPathToNestedObject(
           llmOutput,
           "llm.output_messages",
-          dropScope,
         ),
         filteredAttributes,
       };
