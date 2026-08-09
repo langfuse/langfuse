@@ -57,22 +57,6 @@ const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   return Prisma.sql` AND (p.name LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\' OR p.name = ${pathPrefix})`;
 };
 
-const isPromptVersionConflict = (error: unknown): boolean => {
-  if (
-    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-    error.code !== "P2002"
-  ) {
-    return false;
-  }
-
-  const target = error.meta?.target;
-
-  return (
-    Array.isArray(target) &&
-    ["project_id", "name", "version"].every((column) => target.includes(column))
-  );
-};
-
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter),
@@ -343,29 +327,16 @@ export const promptRouter = createTRPCRouter({
         });
       }
 
-      let prompt: Prompt | null;
-
-      try {
-        prompt = await createPrompt({
-          ...input,
-          prisma: ctx.prisma,
-          createdBy: ctx.session.user.id,
-          user: {
-            id: ctx.session.user.id,
-            name: ctx.session.user.name ?? null,
-            email: ctx.session.user.email ?? null,
-          },
-        });
-      } catch (error) {
-        if (isPromptVersionConflict(error)) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "A prompt version was created concurrently. Please retry.",
-          });
-        }
-
-        throw error;
-      }
+      const prompt = await createPrompt({
+        ...input,
+        prisma: ctx.prisma,
+        createdBy: ctx.session.user.id,
+        user: {
+          id: ctx.session.user.id,
+          name: ctx.session.user.name ?? null,
+          email: ctx.session.user.email ?? null,
+        },
+      });
 
       if (!prompt) {
         throw new Error("Failed to create prompt");
