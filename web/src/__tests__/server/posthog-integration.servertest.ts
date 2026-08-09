@@ -109,10 +109,13 @@ describe("PostHog Integration delete", () => {
     const caller = appRouter.createCaller({ ...ctx, prisma });
 
     vi.spyOn(prisma.posthogIntegration, "delete").mockRejectedValueOnce(
-      new Prisma.PrismaClientKnownRequestError("Record to delete does not exist.", {
-        code: "P2025",
-        clientVersion: "test",
-      }),
+      new Prisma.PrismaClientKnownRequestError(
+        "Record to delete does not exist.",
+        {
+          code: "P2025",
+          clientVersion: "test",
+        },
+      ),
     );
 
     await expect(
