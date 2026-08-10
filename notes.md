@@ -68,64 +68,40 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   DB connectivity dead, see below). Whichever run gets BOTH a working
   Actions API AND live DB connectivity should verify this immediately.
 
-## 2026-08-03 (run 12) and 2026-08-06 (run 13) — both fully blocked, back-to-back
+## 2026-08-03/08-06 (runs 12-14) — three consecutive fully-blocked runs, condensed
 
-- **GitHub Actions MCP block recurred identically on both runs**, despite
-  run 11's "resolved" note. `actions_list` (all methods, incl. plain
-  `list_workflows`) and `actions_get` fail on the very first call with the
-  same secrecy-policy filter text. `get_job_logs` itself is NOT filtered
-  (returns a normal 404 for a bogus job id on 08-06) but is useless without
-  a run/job id, which only `actions_list` can supply — so the practical
-  effect is a full block on all timing/vitest-log gathering.
-  `search_pull_requests` is unaffected both times (ledger reconfirmed
-  empty). **08-06 ran from this workflow's own checkout at HEAD
-  `fix(ci): upgrade gh-aw to v0.85.4 to pick up the DIFC secrecy fix` —
-  i.e. a fix targeting this exact class of issue was already in the
-  checkout, and the block still occurred.** Treat as an unresolved,
-  recurring infra issue, not self-fixed — a human should look at the
-  guard-policy/DIFC config directly rather than trust prior runs' "resolved"
-  notes.
-- **DB connectivity also dead both runs.** `/tmp/gh-aw/db-stack-ready`
-  exists (provisioning claimed success) but
-  `dns.lookup('host.docker.internal')` fails `EAI_AGAIN` both times. Per
-  this workflow's own rule this is an infra signal, not a regression/flaky
-  signal — blocks all DB-backed sandbox verification, including the
-  standing `score-comparison-analytics.servertest.ts` candidate fix above.
-  `npx` itself works fine both runs (confirmed `npx --version` on 08-06) —
-  the constraint is DB reachability, not command execution.
-- **Net effect both runs: zero fresh timing/vitest data**, no new
-  `history/*.json`. Last real numbers remain
-  `history/2026-W31-partial-0731.json` (2026-07-31). Filed `missing_tool`
-  (Actions API) + `missing_data` (DB connectivity) both runs.
+- Both hard blockers below first appeared here: `actions_list`/`actions_get`
+  (all methods, incl. plain `list_workflows`) filtered by secrecy policy on
+  every call across all three runs, and `dns.lookup('host.docker.internal')`
+  failing `EAI_AGAIN` despite `/tmp/gh-aw/db-stack-ready` existing, both
+  runs on 08-06 (including one at a HEAD that specifically claimed to fix
+  the DIFC secrecy issue — did not help). `npx`, `search_pull_requests`,
+  and `missing_tool`/`missing_data` all confirmed working throughout — the
+  block is scoped to Actions API + DB reachability, not general sandbox
+  breakage. Recommended a human check the guard-policy/DIFC config and the
+  dev-stack DNS entry directly. Zero fresh data any of the three runs; last
+  real numbers stayed at `history/2026-W31-partial-0731.json` (2026-07-31).
 
-## 2026-08-06 (run 14, later same day as run 13) — third consecutive fully-blocked run
+## 2026-08-10 (run 15) — fourth consecutive fully-blocked run, both blockers unchanged
 
-- **Both hard blockers persist, unchanged from runs 12/13.** `actions_list`
-  (`list_workflow_runs`, `event: merge_group`, `status: completed`) failed on
-  the first call with the identical secrecy-policy filter text
-  ("not authorized to access private-scoped data"). `node -e
-  "require('dns').lookup('host.docker.internal',...)"` again returned
-  `EAI_AGAIN` despite `/tmp/gh-aw/db-stack-ready` existing. `npx --version`
-  and `.env` both fine, confirming (again) the constraint is DB reachability
-  and Actions-API authorization specifically, not general sandbox breakage.
-  `search_pull_requests` confirmed working, ledger reconfirmed empty
-  (`total_count: 0` for `label:ci-performance is:pr`).
-- **This is now 3 blocked runs in a row (08-03, 08-06 run 13, 08-06 run 14)
-  and 2 on the same calendar day** — strong evidence this is a standing
-  infra/guard-policy misconfiguration, not transient flakiness. A human
-  should check the DIFC/guard-policy config for `resource:actions_list`
-  directly (run 11's "self-fixed" belief was wrong — see 08-03/08-06 above)
-  and separately check why the dev-stack DNS entry for
-  `host.docker.internal` isn't resolving despite the ready-marker.
-  **Recommend a human investigate before the next scheduled run**, since no
-  further autonomous run can make progress on either the timing analysis or
-  the standing `score-comparison-analytics.servertest.ts` sandbox
-  verification until at least one of the two blockers clears.
-- No new `history/*.json` written this run (nothing to compute). Last real
-  numbers remain `history/2026-W31-partial-0731.json` (2026-07-31), now 6
-  days stale relative to this run's trailing-7-day window
-  (2026-07-31..2026-08-06). Filed `missing_tool` (Actions API) +
-  `missing_data` (DB connectivity) + `noop` (full report) this run.
+- **`actions_list` still filtered**, identical error text, on
+  `list_workflow_runs` (event=merge_group/completed) AND plain
+  `list_workflows` — confirms this is a blanket resource-level block, not
+  argument-specific. **DB connectivity still `EAI_AGAIN`** on
+  `host.docker.internal` despite `/tmp/gh-aw/db-stack-ready` present.
+  `npx --version` (11.16.0) fine; `search_pull_requests` fine (ledger
+  reconfirmed empty, `total_count: 0`); no `ci-perf/*` remote branches
+  exist. This is now **4 blocked runs across 3 separate calendar days
+  (08-03, 08-06 x2, 08-10) spanning a full week** with zero change in
+  symptom — this is a standing infra/guard-policy misconfiguration, not
+  transient flakiness, and no further autonomous run can make progress on
+  timing analysis, vitest-log mining, or verifying the standing
+  `score-comparison-analytics.servertest.ts` candidate fix until a human
+  fixes at least one of the two blockers. Last real numbers now 10 days
+  stale (`history/2026-W31-partial-0731.json`, 2026-07-31); the current
+  trailing-7-day window (08-04..08-10) has zero computable data points.
+  Filed `missing_tool` (Actions API) + `missing_data` (DB connectivity) +
+  `noop` (full report) this run.
 
 ## Tooling notes (for future runs)
 
