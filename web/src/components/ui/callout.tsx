@@ -82,7 +82,10 @@ export function Callout({
     variant === "warning"
       ? "border-light-yellow bg-light-yellow dark:border-light-yellow dark:bg-light-yellow"
       : "border-light-blue bg-light-blue dark:border-light-blue dark:bg-light-blue";
-  const alignmentClass = align === "middle" ? "items-center" : "items-start";
+  // Vertical alignment only applies once text and actions share a row (sm+);
+  // below that the column stacks them and the cross axis is horizontal.
+  const alignmentClass =
+    align === "middle" ? "sm:items-center" : "sm:items-start";
 
   const alignmentOverrides =
     align === "middle"
@@ -93,22 +96,30 @@ export function Callout({
     <Alert
       className={`${variantClass} ${alignmentOverrides} ${className ?? ""}`}
     >
+      {/* Dismiss stays outside the stacking wrapper so it keeps its corner
+          position; only the actions drop below the message on narrow widths. */}
       <AlertDescription
-        className={`flex ${alignmentClass} ml-1 justify-between`}
+        className={`ml-1 flex items-start gap-2 ${align === "middle" ? "sm:items-center" : ""}`}
       >
-        <div className="text-foreground flex-1 text-sm">{children}</div>
-        <div className="ml-4 flex items-center gap-2">
-          {actions && actions()}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDismiss}
-            className="text-muted-foreground hover:text-foreground h-6 w-6 p-0"
-            aria-label="Dismiss"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+        <div
+          className={`flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:justify-between ${alignmentClass}`}
+        >
+          <div className="text-foreground min-w-0 text-sm">{children}</div>
+          {actions && (
+            <div className="flex shrink-0 items-center gap-2 self-end sm:ml-4 sm:self-auto">
+              {actions()}
+            </div>
+          )}
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDismiss}
+          className="text-muted-foreground hover:text-foreground h-6 w-6 shrink-0 p-0"
+          aria-label="Dismiss"
+        >
+          <X className="h-4 w-4" />
+        </Button>
       </AlertDescription>
     </Alert>
   );
