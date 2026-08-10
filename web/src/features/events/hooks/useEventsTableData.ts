@@ -43,6 +43,11 @@ type UseEventsTableDataParams = {
    * fetches don't run alongside the chart's aggregate query.
    */
   rowsEnabled?: boolean;
+  /**
+   * Chars of I/O to fetch per cell. Undefined keeps the cheap pre-truncated
+   * read, which holds too little text to fill a taller row (LFE-14586).
+   */
+  ioCharLimit?: number;
 };
 
 export function useEventsTableData({
@@ -57,6 +62,7 @@ export function useEventsTableData({
   setSelectedRows,
   appRootFallbackEnabled = false,
   rowsEnabled = true,
+  ioCharLimit,
 }: UseEventsTableDataParams) {
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -158,11 +164,17 @@ export function useEventsTableData({
       })),
       minStartTime,
       maxStartTime,
+      // events_core's pre-truncated I/O can't fill a taller row, so ask for a
+      // bounded slice of the full I/O instead.
+      ...(ioCharLimit !== undefined
+        ? { truncated: false as const, ioCharLimit }
+        : {}),
     };
   }, [
     activeObservations.data?.observations,
     activeObservations.isPlaceholderData,
     projectId,
+    ioCharLimit,
   ]);
 
   // Fetch I/O data

@@ -1,5 +1,5 @@
 import type { Session } from "next-auth";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
@@ -92,6 +92,35 @@ describe("PostHog Integration SSRF Protection", () => {
         enabled: true,
       }),
     ).rejects.toThrow(/Invalid PostHog hostname.*Blocked/);
+  });
+});
+
+describe("PostHog Integration delete", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns NOT_FOUND when the integration is already absent", async () => {
+    const { project, orgId } = await createOrgProjectAndApiKey();
+    const ctx = createInnerTRPCContext({
+      session: buildSession(orgId, project.id),
+      headers: {},
+    });
+    const caller = appRouter.createCaller({ ...ctx, prisma });
+
+    vi.spyOn(prisma.posthogIntegration, "delete").mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError(
+        "Record to delete does not exist.",
+        {
+          code: "P2025",
+          clientVersion: "test",
+        },
+      ),
+    );
+
+    await expect(
+      caller.posthogIntegration.delete({ projectId: project.id }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
 
