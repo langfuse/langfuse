@@ -40,11 +40,10 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { TriangleAlert } from "lucide-react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useRouter } from "next/router";
+import { env } from "@/src/env.mjs";
 
 export function TransferProjectButton() {
   const capture = usePostHogClientCapture();
-  const router = useRouter();
   const session = useSession();
   const { project, organization } = useQueryProject();
   const hasAccess = useHasOrganizationAccess({
@@ -80,7 +79,8 @@ export function TransferProjectButton() {
       });
       await new Promise((resolve) => setTimeout(resolve, 5000));
       await session.update();
-      await router.push("/");
+      const target = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`;
+      window.location.href = new URL(target, window.location.origin).href;
     },
   });
 

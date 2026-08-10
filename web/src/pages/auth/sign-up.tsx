@@ -387,7 +387,7 @@ function VerifiedSignupFlow({
     }
   }
 
-  async function handleOtpVerify() {
+  function handleOtpVerify() {
     if (!otpCode || otpCode.length !== 6) return;
     setOtpLoading(true);
     setOtpError(null);
@@ -397,9 +397,8 @@ function VerifiedSignupFlow({
     const callback = encodeURIComponent(
       `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/setup-password`,
     );
-    await router.push(
-      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`,
-    );
+    const url = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
+    window.location.href = new URL(url, window.location.origin).href;
   }
 
   // OTP phase
