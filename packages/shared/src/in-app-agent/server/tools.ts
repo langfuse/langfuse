@@ -269,11 +269,11 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   listAlerts: {
     approval: "auto",
-    availability: { scope: "monitors:read" },
+    availability: { scope: "alerts:read" },
   },
   getAlert: {
     approval: "auto",
-    availability: { scope: "monitors:read" },
+    availability: { scope: "alerts:read" },
   },
   listPrompts: {
     approval: "auto",

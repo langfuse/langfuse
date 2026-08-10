@@ -11,7 +11,7 @@ import { type Monitor } from "@langfuse/shared/monitors";
 /** EditMonitorPage gates the edit-monitor route and defers all data fetching to EditMonitorPageContent so blocked users never trigger the monitor query. */
 export default function EditMonitorPage() {
   return (
-    <MonitorPagePermissions scope="monitors:read">
+    <MonitorPagePermissions scope="alerts:read">
       <EditMonitorPageRouter />
     </MonitorPagePermissions>
   );

@@ -37,7 +37,7 @@ export default function ListMonitorsPage() {
   );
 
   return (
-    <MonitorPagePermissions scope="monitors:read">
+    <MonitorPagePermissions scope="alerts:read">
       {!projectId || isLoading ? (
         <EmptyPage />
       ) : isSuccess && hasMonitors ? (
@@ -57,7 +57,7 @@ const OnboardingPage = ({ projectId }: { projectId: string }) => {
   /** hasCUDAccess is true if the user has permission to create monitors */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "monitors:CUD",
+    scope: "alerts:CUD",
   });
 
   return (
@@ -72,7 +72,7 @@ const MainPage = ({ projectId }: { projectId: string }) => {
   /** hasCUDAccess is true if the user has permission to create monitors */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "monitors:CUD",
+    scope: "alerts:CUD",
   });
 
   /** monitorEntitlementLimit is the limit of the number of monitors that can be created for this org  */

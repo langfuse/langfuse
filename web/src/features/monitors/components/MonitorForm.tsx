@@ -215,8 +215,8 @@ export const MonitorForm = ({
   const router = useRouter();
   /** isEdit is true when the form is bound to an existing monitor. */
   const isEdit = Boolean(monitor);
-  /** hasAccess gates write controls behind the monitors:CUD RBAC scope. */
-  const hasAccess = useHasProjectAccess({ projectId, scope: "monitors:CUD" });
+  /** hasAccess gates write controls behind the alerts:CUD RBAC scope. */
+  const hasAccess = useHasProjectAccess({ projectId, scope: "alerts:CUD" });
   /** utils is the tRPC utils handle used to invalidate caches after mutations. */
   const utils = api.useUtils();
 

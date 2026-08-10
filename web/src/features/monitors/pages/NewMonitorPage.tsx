@@ -10,7 +10,7 @@ export default function NewMonitorPage() {
   const projectId = router.query.projectId as string;
 
   return (
-    <MonitorPagePermissions scope="monitors:CUD">
+    <MonitorPagePermissions scope="alerts:CUD">
       <Page
         withPadding
         headerProps={{

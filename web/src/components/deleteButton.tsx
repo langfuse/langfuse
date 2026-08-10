@@ -361,7 +361,7 @@ export function DeleteMonitorButton(props: DeleteButtonProps) {
   const {
     itemId,
     projectId,
-    scope = "monitors:CUD",
+    scope = "alerts:CUD",
     invalidateFunc = () => utils.monitors.invalidate(),
   } = props;
   const monitorMutation = api.monitors.delete.useMutation({
