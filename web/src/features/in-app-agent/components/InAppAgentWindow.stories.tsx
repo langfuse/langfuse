@@ -1,12 +1,17 @@
 import preview from "../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
 import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/quickActions";
+import {
+  createInAppAgentDisplayState,
+  projectInAppAgentMessagesForDisplay,
+} from "@/src/features/in-app-agent/lib/display";
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
@@ -1445,5 +1450,73 @@ export const AlwaysAllowsConversationWithDeferredSibling = meta.story({
     await expect(confirm).toBeDisabled();
     await expect(alwaysAllow).toBeDisabled();
     await expect(reject).toBeDisabled();
+  },
+});
+
+export const ContinuedToolResultRendersOnce = meta.story({
+  name: "(Test) Continued Tool Result Renders Once",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAssistantTurnInProgress: false,
+    messages: getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: projectInAppAgentMessagesForDisplay(
+        [
+          {
+            id: "assistant-proposal",
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "tool-call-1",
+                type: "function",
+                function: {
+                  name: "langfuse_createDashboardWidget",
+                  arguments: '{"name":"Cost over time"}',
+                },
+              },
+            ],
+          },
+          {
+            id: "tool-call-1-approval-tool-call",
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "tool-call-1",
+                type: "function",
+                function: {
+                  name: "langfuse_createDashboardWidget",
+                  arguments: '{"name":"Changed by continuation"}',
+                },
+              },
+            ],
+          },
+          {
+            id: "tool-call-1-approval-tool-result",
+            role: "tool",
+            toolCallId: "tool-call-1",
+            content: '{"id":"widget-1"}',
+          },
+        ] satisfies AgUiMessage[],
+        createInAppAgentDisplayState(),
+      ),
+    }),
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.queryByText("Called 2 tools")).not.toBeInTheDocument();
+    await expect(
+      canvas.getAllByLabelText("createDashboardWidget: succeeded"),
+    ).toHaveLength(1);
+    await userEvent.click(
+      canvas.getByLabelText("createDashboardWidget: succeeded"),
+    );
+    await expect(canvas.getByText(/Cost over time/)).toBeInTheDocument();
+    await expect(
+      canvas.queryByText(/Changed by continuation/),
+    ).not.toBeInTheDocument();
   },
 });
