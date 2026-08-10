@@ -4,7 +4,10 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { emailSchema } from "@/src/features/auth/lib/emailSchema";
+import {
+  emailSchema,
+  normalizeEmail,
+} from "@/src/features/auth/lib/emailSchema";
 import { env } from "@/src/env.mjs";
 
 export function RequestResetPasswordEmailButton({
@@ -65,7 +68,7 @@ export function RequestResetPasswordEmailButton({
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const formattedEmail = encodeURIComponent(email.toLowerCase().trim());
+      const formattedEmail = encodeURIComponent(normalizeEmail(email));
       const formattedCode = encodeURIComponent(code.trim());
       const targetCb = callbackUrl
         ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${callbackUrl}`

@@ -9,7 +9,10 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
-import { emailSchema } from "@/src/features/auth/lib/emailSchema";
+import {
+  emailSchema,
+  normalizeEmail,
+} from "@/src/features/auth/lib/emailSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -385,7 +388,7 @@ function VerifiedSignupFlow({
     setOtpLoading(true);
     setOtpError(null);
 
-    const formattedEmail = encodeURIComponent(otpEmail.toLowerCase().trim());
+    const formattedEmail = encodeURIComponent(normalizeEmail(otpEmail));
     const formattedCode = encodeURIComponent(otpCode.trim());
     const callback = encodeURIComponent(
       `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/setup-password`,
