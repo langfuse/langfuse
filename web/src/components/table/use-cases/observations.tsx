@@ -70,7 +70,7 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
-} from "@/src/features/traces/components/_shared/BreakdownToolTip";
+} from "@/src/features/traces";
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
