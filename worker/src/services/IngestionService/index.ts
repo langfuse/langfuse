@@ -53,6 +53,8 @@ import {
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
   type IngestionAttribution,
+  getIngestionEventEnvironment,
+  shouldDropExternalIngestionForReservedEnvironment,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -188,6 +190,33 @@ export class IngestionService {
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${entityId}`,
     );
+
+    if (eventType === "trace" || eventType === "observation") {
+      const environment = getIngestionEventEnvironment(events[0]);
+      if (
+        shouldDropExternalIngestionForReservedEnvironment(
+          environment,
+          attribution,
+        )
+      ) {
+        logger.debug(
+          "Skipping ingestion for reserved internal environment from external source",
+          {
+            projectId,
+            entityId,
+            eventType,
+            environment,
+            ingestionSdkName: attribution.ingestionSdkName,
+          },
+        );
+        recordIncrement(
+          "langfuse.ingestion.dropped_reserved_internal_environment",
+          1,
+          { source: "ingestion_service" },
+        );
+        return;
+      }
+    }
 
     switch (eventType) {
       case "trace":
