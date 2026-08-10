@@ -119,13 +119,12 @@ describe("metadata suggestions in the filter sidebar", () => {
 
     const key = screen.getByPlaceholderText("Key");
     fireEvent.focus(key);
-    // Typing commits the row, so the draft key returns as an "observed" key —
-    // it must not become a suggestion for the input it came from.
-    fireEvent.change(key, { target: { value: "sc" } });
-    expect(
-      screen.getAllByRole("option").map((o) => o.textContent?.trim() ?? ""),
-    ).not.toContain("sc");
+    // A fully typed key is not re-offered — the list would cover the field with
+    // a row that changes nothing.
+    fireEvent.change(key, { target: { value: "scope" } });
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
 
+    fireEvent.change(key, { target: { value: "sc" } });
     fireEvent.keyDown(key, { key: "ArrowDown" });
     fireEvent.keyDown(key, { key: "Enter" });
     expect(key).toHaveValue("scope");

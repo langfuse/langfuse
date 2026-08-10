@@ -128,8 +128,8 @@ function SuggestingInput({
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const ranked = useMemo(
-    // Never offer what is already typed: each keystroke commits the row, so the
-    // in-progress key comes back around as an "observed" key of its own.
+    // Drop an exact match: re-offering what is already typed covers the field
+    // with a row that changes nothing when picked.
     () =>
       rankFacetOptions(
         suggestions.filter((s) => s !== value),
@@ -408,7 +408,11 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
         // (score names) — offering an observed metadata key must never take
         // away typing one the store has not seen (LFE-11030).
         const suggestKeys = mode === "string";
-        const hasKeyOptions = !suggestKeys && mergedKeyOptions.length > 0;
+        // Gate on the OFFERED keys, never on mergedKeyOptions: that folds in the
+        // live-typed row keys, so a facet with nothing enumerated would flip
+        // from free text to pick-only after the first keystroke and trap the
+        // user at one character.
+        const hasKeyOptions = !suggestKeys && (keyOptions?.length ?? 0) > 0;
 
         return (
           <div
