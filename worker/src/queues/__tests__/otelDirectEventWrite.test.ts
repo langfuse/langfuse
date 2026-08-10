@@ -143,6 +143,10 @@ describe("batchContainsLangfuseScope", () => {
       input: [{ scopeSpans: {} } as never],
       label: "a non-array scopeSpans shape",
     },
+    // The payload is JSON.parse output with no shape guarantee at all — a
+    // non-array top level must read as scope-less, not crash the job.
+    { input: {} as never, label: "a non-array payload" },
+    { input: "nonsense" as never, label: "a string payload" },
   ])("rejects $label", ({ input }) => {
     expect(batchContainsLangfuseScope(input)).toBe(false);
   });

@@ -159,10 +159,14 @@ export function isLangfuseSdkTraffic(params: {
 export function batchContainsLangfuseScope(
   resourceSpans: ResourceSpan[],
 ): boolean {
-  // Malformed OTLP shapes reach this code (non-array scopeSpans and the like).
-  // Guard per resource so a malformed one reads as scope-less rather than
-  // aborting the scan — it must not hide a Langfuse scope on a later resource,
-  // nor fail the batch.
+  // Malformed OTLP shapes reach this code (non-array payloads, non-array
+  // scopeSpans and the like); every other resourceSpans consumer guards the
+  // same way. Guard per resource so a malformed one reads as scope-less rather
+  // than aborting the scan — it must not hide a Langfuse scope on a later
+  // resource, nor fail the batch.
+  if (!Array.isArray(resourceSpans)) {
+    return false;
+  }
   return resourceSpans.some(
     (resourceSpan) =>
       Array.isArray(resourceSpan?.scopeSpans) &&
@@ -224,6 +228,19 @@ const orgCreatedAtCache = new LocalCache<{ createdAt: Date }>({
 });
 
 /**
+ * Whether the org-created cutoff rule can apply in this deployment at all:
+ * it needs a configured date and only runs on Langfuse Cloud. Work that only
+ * feeds the rule (the batch scope scan, the signup-date lookup) is skipped
+ * while this is false — the shipped default and every self-hosted deployment.
+ */
+function isOtelDirectWriteOrgCutoffConfigured(): boolean {
+  return Boolean(
+    env.LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CREATED_CUTOFF &&
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  );
+}
+
+/**
  * Resolve whether the project's organization is past the direct-write cutoff.
  *
  * Keyed on project rather than the payload's optional `orgId` so replayed jobs
@@ -233,10 +250,10 @@ const orgCreatedAtCache = new LocalCache<{ createdAt: Date }>({
 export async function isProjectOrgPastOtelDirectWriteCutoff(
   projectId: string,
 ): Promise<boolean> {
-  const cutoff = env.LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CREATED_CUTOFF;
-  if (!cutoff || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+  if (!isOtelDirectWriteOrgCutoffConfigured()) {
     return false;
   }
+  const cutoff = env.LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CREATED_CUTOFF;
 
   try {
     const { value } = await orgCreatedAtCache.getOrLoad(projectId, async () => {
@@ -640,9 +657,12 @@ export const otelIngestionQueueProcessorBuilder = (
         // its instrumentation scope, so both signals have to be consulted
         // before the org cutoff may flip a batch. Checked across every scope in
         // the batch, not just the first — collector-forwarded batches can mix
-        // SDK spans with third-party scopes in any order.
+        // SDK spans with third-party scopes in any order. The scan only feeds
+        // the cutoff rule, so it is skipped while that rule cannot apply.
         langfuseSdkTraffic =
-          langfuseSdkTraffic || batchContainsLangfuseScope(parsedSpans);
+          langfuseSdkTraffic ||
+          (isOtelDirectWriteOrgCutoffConfigured() &&
+            batchContainsLangfuseScope(parsedSpans));
       }
 
       // Resolved only when it can still change the outcome — every
