@@ -33,7 +33,7 @@ const newsletterFormSchema = z.object({
 type NewsletterFormData = z.infer<typeof newsletterFormSchema>;
 
 const PITCH =
-  "Get an email when we ship important features and new releases for self-hosted Langfuse. Self-hosting updates only, no marketing or spam.";
+  "Subscribe to the Langfuse OSS email newsletter to stay informed about new features and important updates.";
 
 /**
  * Self-hosted signup step: opt in to the Langfuse self-hosting newsletter.
@@ -140,7 +140,9 @@ export function SelfHostedNewsletterStep() {
         <NewsletterSignupFallback
           reason={
             isSignupUnreachable
-              ? "This instance could not reach langfuse.com, so it cannot subscribe you directly."
+              ? // Prefixed as an error only here: an unreachable proxy is a
+                // failure, whereas a switched-off signup is a deliberate choice.
+                "Error: This instance could not reach langfuse.com, so it cannot subscribe you directly."
               : "In-product signup is turned off on this instance."
           }
           onContinue={continueWithoutSubscribing}
@@ -223,14 +225,16 @@ function NewsletterSignupFallback({
   return (
     <div className="mt-6 flex flex-col">
       <p className="text-muted-foreground text-sm">
-        {reason} You can subscribe from{" "}
+        {reason} You can subscribe on{" "}
         <a
           href={NEWSLETTER_SIGNUP_FALLBACK_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-primary underline underline-offset-2"
+          className="text-primary break-words underline underline-offset-2"
         >
-          langfuse.com
+          {/* Spelled out rather than labelled: the URL has to be readable to
+              someone who cannot follow the link from an airgapped machine. */}
+          {NEWSLETTER_SIGNUP_FALLBACK_URL}
         </a>{" "}
         instead.
       </p>

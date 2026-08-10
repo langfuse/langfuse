@@ -130,8 +130,13 @@ describe("SelfHostedNewsletterStep", () => {
       ).toBeInTheDocument();
     });
 
-    // Onboarding must not be blocked by an unreachable signup endpoint.
-    expect(screen.getByRole("link", { name: "langfuse.com" })).toHaveAttribute(
+    // Onboarding must not be blocked by an unreachable signup endpoint. The URL
+    // is spelled out so it stays usable from a machine that cannot follow links.
+    expect(
+      screen.getByRole("link", {
+        name: "https://langfuse.com/self-hosting/oss-newsletter",
+      }),
+    ).toHaveAttribute(
       "href",
       "https://langfuse.com/self-hosting/oss-newsletter",
     );
