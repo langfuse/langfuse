@@ -2,6 +2,12 @@ import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 
 const DEPRECATED_EVALUATOR_FILTERS: FilterState = [
   {
+    column: "status",
+    type: "stringOptions",
+    operator: "any of",
+    value: ["ACTIVE"],
+  },
+  {
     column: "target",
     type: "stringOptions",
     operator: "any of",
