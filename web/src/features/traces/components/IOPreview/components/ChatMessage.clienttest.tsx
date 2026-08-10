@@ -37,7 +37,7 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
 import { ChatMlArraySchema } from "@langfuse/shared";
 
 import { ChatMessage } from "./ChatMessage";
-import { type ChatMlMessage } from "./chat-message-utils";
+import { type ChatMlMessage } from "../../../fns/chatMessageUtils";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { type IOPreviewContentMode } from "../IOPreview";
 

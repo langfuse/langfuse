@@ -48,7 +48,10 @@ import {
   usdFormatter,
 } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  getRowHeightIOCharLimit,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import {
   toAbsoluteTimeRange,
@@ -64,7 +67,7 @@ import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/features/traces/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -840,6 +843,7 @@ export default function ObservationsEventsTable({
     // In chart mode the table is hidden and the chart runs its own aggregate
     // query — don't also run the expensive row + batched-I/O fetches.
     rowsEnabled: !chartActive,
+    ioCharLimit: getRowHeightIOCharLimit(rowHeight),
   });
 
   useApplyAppRootFallback({

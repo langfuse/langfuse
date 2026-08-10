@@ -9,20 +9,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const fullIOQuery = vi.fn();
 const downloadJsonFile = vi.fn();
 const capture = vi.fn();
-const mediaUseQuery = vi.fn(
+const useMediaMock = vi.fn(
   (_args: Record<string, unknown>): { data: unknown } => ({ data: undefined }),
 );
 
 vi.mock("@/src/utils/api", () => ({
   api: {
-    media: {
-      getByTraceOrObservationId: {
-        useQuery: (
-          input: Record<string, unknown>,
-          options: Record<string, unknown>,
-        ) => mediaUseQuery({ ...input, ...options }),
-      },
-    },
     useUtils: () => ({
       client: {
         sessions: {
@@ -37,13 +29,16 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
 }));
 
-vi.mock("@/src/features/traces/components/IOPreview/IOPreview", () => ({
+// The component imports IOPreview through the traces feature surface, so the
+// mock has to intercept the surface — mocking the module behind it does nothing.
+vi.mock("@/src/features/traces", () => ({
   IOPreview: ({ media }: { media?: { mediaId: string }[] }) => (
     <div
       data-testid="io-preview"
       data-media-ids={(media ?? []).map((m) => m.mediaId).join(",")}
     />
   ),
+  useMedia: (args: Record<string, unknown>) => useMediaMock(args),
 }));
 
 vi.mock("@/src/components/session/actions/downloadSessionAsJson", () => ({
@@ -179,7 +174,7 @@ describe("SessionObservationIO", () => {
   // LFE-14815: trace detail resolved observation media, the session view did
   // not, so a media-bearing message had no thumbnail here.
   it("forwards observation media to IOPreview, and only looks it up when referenced", () => {
-    mediaUseQuery.mockReturnValue({ data: [{ mediaId: "media-1" }] });
+    useMediaMock.mockReturnValue({ data: [{ mediaId: "media-1" }] });
     renderComponent({
       ...baseObservation,
       input: `{"content":"@@@langfuseMedia:type=image/png|id=media-1|source=base64_data_uri@@@"}`,
@@ -189,14 +184,14 @@ describe("SessionObservationIO", () => {
       "data-media-ids",
       "media-1",
     );
-    expect(mediaUseQuery).toHaveBeenCalledWith(
+    expect(useMediaMock).toHaveBeenCalledWith(
       expect.objectContaining({ observationId: "obs-1", enabled: true }),
     );
 
-    mediaUseQuery.mockClear();
+    useMediaMock.mockClear();
     renderComponent(baseObservation);
 
-    expect(mediaUseQuery).toHaveBeenCalledWith(
+    expect(useMediaMock).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: false }),
     );
   });

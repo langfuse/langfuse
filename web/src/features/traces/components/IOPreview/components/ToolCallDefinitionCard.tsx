@@ -12,7 +12,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import type { ToolCallInvocation } from "../hooks/useChatMLParser";
+import type { ToolCallInvocation } from "../../../hooks/useChatMLParser";
 
 // Tool definition extracted from messages
 export interface ToolDefinition {
