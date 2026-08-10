@@ -146,12 +146,12 @@ export async function ensureSeedMediaUploaded(
   const fixture = getSeedMediaFixture(mediaKey);
   if (!fixture) return null;
 
-  const uploaded = await uploadAndCreateMediaRecord(
+  const mediaId = await uploadAndCreateMediaRecord(
     projectId,
     MEDIA_FILES[mediaKey],
   );
 
-  return uploaded ? fixture : null;
+  return mediaId ? fixture : null;
 }
 
 /**
@@ -179,19 +179,20 @@ export async function linkSeedMediaToObservation({
 }
 
 /**
- * Upload a media file to storage and create its `media` row. Returns false when
- * storage or the fixture file is unavailable.
+ * Upload a media file to storage and create its `media` row. Returns the
+ * media id it derived, so callers link rows without re-hashing the file, or
+ * null when storage or the fixture file is unavailable.
  */
 async function uploadAndCreateMediaRecord(
   projectId: string,
   mediaFile: MediaFile,
-): Promise<boolean> {
+): Promise<string | null> {
   // Check if bucket is configured
   if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
     logger.warn(
       "[seed-media] LANGFUSE_S3_MEDIA_UPLOAD_BUCKET not configured, skipping media seeding",
     );
-    return false;
+    return null;
   }
 
   // Check if file exists
@@ -199,7 +200,7 @@ async function uploadAndCreateMediaRecord(
     logger.warn(
       `[seed-media] Test file not found: ${mediaFile.filePath}, skipping`,
     );
-    return false;
+    return null;
   }
 
   const fileBytes = fs.readFileSync(mediaFile.filePath);
@@ -224,7 +225,7 @@ async function uploadAndCreateMediaRecord(
     logger.debug(
       `[seed-media] Media already exists for ${mediaFile.name}, reusing it`,
     );
-    return true;
+    return mediaId;
   }
 
   // Upload to storage
@@ -249,7 +250,7 @@ async function uploadAndCreateMediaRecord(
     logger.debug(`[seed-media] Uploaded ${mediaFile.name} to ${bucketPath}`);
   } catch (error) {
     logger.error(`[seed-media] Failed to upload ${mediaFile.name}:`, error);
-    return false;
+    return null;
   }
 
   // Create Media record
@@ -287,7 +288,7 @@ async function uploadAndCreateMediaRecord(
   `;
 
   logger.info(`[seed-media] Created media record for ${mediaFile.name}`);
-  return true;
+  return mediaId;
 }
 
 /** Links an uploaded fixture to a trace's field (the `dx` seed path). */
@@ -297,17 +298,12 @@ async function linkSeedMediaToTrace(
   field: "input" | "output" | "metadata",
   mediaFile: MediaFile,
 ): Promise<void> {
-  const uploaded = await uploadAndCreateMediaRecord(projectId, mediaFile);
-  if (!uploaded) return;
-
-  const sha256Hash = crypto
-    .createHash("sha256")
-    .update(fs.readFileSync(mediaFile.filePath))
-    .digest("base64");
+  const mediaId = await uploadAndCreateMediaRecord(projectId, mediaFile);
+  if (!mediaId) return;
 
   await prisma.$queryRaw`
     INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
-    VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${getMediaIdFromHash(sha256Hash)}, ${field})
+    VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
     ON CONFLICT DO NOTHING;
   `;
 }
