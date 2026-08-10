@@ -130,7 +130,7 @@ export function EvaluatorMigrationDialog({
                   >
                     <BotMessageSquare className="h-5 w-5 shrink-0" />
                     <span className="flex flex-col gap-1">
-                      <span className="font-semibold">Use Assistant</span>
+                      <span className="font-bold">Use Assistant</span>
                       <span className="text-muted-foreground text-sm font-normal">
                         Suggest upgrading all deprecated evaluators at once.
                       </span>
@@ -145,7 +145,7 @@ export function EvaluatorMigrationDialog({
                 >
                   <Wrench className="h-5 w-5 shrink-0" />
                   <span className="flex flex-col gap-1">
-                    <span className="font-semibold">
+                    <span className="font-bold">
                       {isSingleEvaluator
                         ? "Upgrade just this evaluator"
                         : "Upgrade manually"}

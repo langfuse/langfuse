@@ -92,7 +92,7 @@ export function V4MigrationUpdateRequiredBadge() {
   const handleManualUpgrade = () => {
     if (!project) return;
     setDialogOpen(false);
-    void router.push(buildDeprecatedEvaluatorsUrl(project.id));
+    router.push(buildDeprecatedEvaluatorsUrl(project.id));
   };
 
   return (
@@ -138,7 +138,7 @@ export function V4MigrationEvaluatorUpdateRequiredBadge({
 
   const handleManualUpgrade = () => {
     setDialogOpen(false);
-    void router.push(buildEvaluatorUpgradeUrl(projectId, evaluatorId));
+    router.push(buildEvaluatorUpgradeUrl(projectId, evaluatorId));
   };
 
   const handleClick = () => {

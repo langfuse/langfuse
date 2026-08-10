@@ -540,7 +540,7 @@ export function V4MigrationDetailsContent({
   const handleManualEvalUpgrade = () => {
     setEvalMigrationDialogOpen(false);
     onNavigate?.();
-    if (evalsUrl) void router.push(evalsUrl);
+    if (evalsUrl) router.push(evalsUrl);
   };
   const integrationsUrl =
     typeof projectId === "string"

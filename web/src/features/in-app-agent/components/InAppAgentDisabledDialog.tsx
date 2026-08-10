@@ -27,7 +27,9 @@ export function InAppAgentDisabledDialog({
         <DialogBody>
           <AIFeaturesDisabledNotice
             organizationId={organizationId}
-            onSettingsOpened={() => onOpenChange(false)}
+            onSettingsOpened={() => {
+              onOpenChange(false);
+            }}
           >
             The Langfuse Assistant requires AI features to be enabled for this
             organization.
