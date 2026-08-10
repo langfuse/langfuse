@@ -537,7 +537,7 @@ export function V4MigrationDetailsContent({
     capture("v4_migration:migrate_evals_with_agent_clicked");
     setEvalMigrationDialogOpen(true);
   };
-  const handleManualEvalMigration = () => {
+  const handleManualEvalUpgrade = () => {
     setEvalMigrationDialogOpen(false);
     onNavigate?.();
     if (evalsUrl) void router.push(evalsUrl);
@@ -892,7 +892,7 @@ export function V4MigrationDetailsContent({
           onOpenChange={setEvalMigrationDialogOpen}
           scope={{ type: "all" }}
           assistantPrompt={upgradePlan.assistantPrompt}
-          onManualMigration={handleManualEvalMigration}
+          onManualUpgrade={handleManualEvalUpgrade}
           onAssistantStarted={() => onNavigate?.()}
         />
       ) : null}

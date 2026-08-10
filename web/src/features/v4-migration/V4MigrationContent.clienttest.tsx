@@ -53,6 +53,8 @@ const mocks = vi.hoisted(() => ({
   },
   canToggleV4: true,
   hasApiKeyCreateAccess: true,
+  canUpdateOrgSettings: true,
+  aiFeaturesEnabled: true,
   createProjectApiKey: vi.fn(),
 }));
 
@@ -90,12 +92,19 @@ vi.mock("@/src/utils/api", () => ({
 vi.mock("@/src/features/projects/hooks", () => ({
   useProject: () => ({ organization: { id: "org-1" } }),
   useQueryProjectOrOrganization: () => ({
-    organization: { id: "org-1", aiFeaturesEnabled: true },
+    organization: {
+      id: "org-1",
+      aiFeaturesEnabled: mocks.aiFeaturesEnabled,
+    },
   }),
 }));
 
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => mocks.hasApiKeyCreateAccess,
+}));
+
+vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+  useHasOrganizationAccess: () => mocks.canUpdateOrgSettings,
 }));
 
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
@@ -153,6 +162,8 @@ describe("V4MigrationDetailsContent", () => {
     };
     mocks.migrationData.experimentInstrumentationUpgradePath = null;
     mocks.canToggleV4 = true;
+    mocks.canUpdateOrgSettings = true;
+    mocks.aiFeaturesEnabled = true;
     mocks.migrationData.sdk.status = "latest";
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
@@ -317,7 +328,9 @@ describe("V4MigrationDetailsContent", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
     const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
-      within(migrationDialog).getByRole("button", { name: "Use Assistant" }),
+      within(migrationDialog).getByRole("button", {
+        name: /^Use Assistant/,
+      }),
     );
     fireEvent.click(
       within(migrationDialog).getByRole("button", {
@@ -332,6 +345,34 @@ describe("V4MigrationDetailsContent", () => {
       "eval-upgrade-prompt",
       { newConversation: true },
     );
+  });
+
+  it("shows the admin handoff after a non-admin chooses the Assistant", () => {
+    mocks.migrationData.evals = { status: "loaded", count: 1 };
+    mocks.canUpdateOrgSettings = false;
+    mocks.aiFeaturesEnabled = false;
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    const migrationDialog = screen.getByRole("dialog");
+    fireEvent.click(
+      within(migrationDialog).getByRole("button", {
+        name: /^Use Assistant/,
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Ask your organization admin to enable AI features",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/enable AI features for our Langfuse organization/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue with manual upgrade" }),
+    ).not.toBeInTheDocument();
   });
 });
 
