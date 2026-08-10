@@ -238,10 +238,10 @@ export function getCompletedToolCalls(
 }
 
 /**
- * Single entrypoint for both execution paths: live TOOL_CALL_RESULT events pass
- * one call, snapshot replay passes every completed call in the transcript.
- * `handledToolCallIds` makes the two idempotent against each other, and the
- * targets are unioned so a long transcript still invalidates each route once.
+ * Live TOOL_CALL_RESULT events pass one call while snapshot replay passes every
+ * completed call in the transcript. `handledToolCallIds` makes the two
+ * idempotent against each other, and the targets are unioned so a long
+ * transcript still invalidates each route once.
  */
 export function performToolSideEffectsForCompletedToolCalls({
   toolCalls,

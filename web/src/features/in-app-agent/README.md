@@ -1,13 +1,12 @@
 # In-App Agent
 
 The in-app agent is Langfuse's project-scoped assistant inside the authenticated
-product UI. Browser turns execute durably in a worker while the browser observes
-their persisted event stream. The request-scoped POST adapter remains only for
-the rollout observation gate; the browser no longer calls it.
+product UI. Runs execute durably in a worker while the browser observes their
+persisted event stream.
 
 `ARCHITECTURE.md` covers why the feature is shaped this way: the one-log /
-three-derivations contract, where code lives and why, and the temporary boundary
-around the unused request-scoped adapter.
+three-derivations contract, where code lives and why, and the boundaries between
+browser, web server, shared runtime, and worker.
 Read it before changing how messages are represented or where logic lives.
 
 ## Core Model
@@ -25,9 +24,10 @@ Closing the drawer detaches observation without cancelling the worker run.
 ## Major Files
 
 - `schema.ts`: runtime-neutral AG-UI schemas and types shared by browser, server, persistence, replay, and rendering, including Langfuse-owned human-in-the-loop wire contracts.
-- `server/handler.ts`: legacy request-scoped adapter retained during the rollout observation gate. No supported browser path calls it.
 - `server/agent.ts`: Mastra/Bedrock/MCP runtime setup, custom tool wiring, human-in-the-loop approval gates, AG-UI event normalization, and cleanup.
-- `server/human-in-the-loop.ts`: interrupt parsing helpers, pending tool approval persistence, and resume approval validation/consumption.
+- `server/human-in-the-loop.ts`: interrupt parsing and worker continuation
+  compatibility, plus unused request-scoped pending-approval helpers retained
+  until the shared-runtime cleanup.
 - `server/tools.ts`: custom agent tools with strict schemas and scoped, user-visible behavior.
 - `server/persistence.ts`: conversations, runs, events, canonical accumulation, replay, active-run locking, and stale-run recovery. Knows nothing about rendering.
 - `lib/display.ts`: display-state recording, the render-time projection, and its
@@ -35,7 +35,7 @@ Closing the drawer detaches observation without cancelling the worker run.
   it builds a conversation snapshot.
 - `server/conversationSnapshot.ts`: rebuilds canonical messages and display state
   from one read of the persisted event log.
-- `server/router.ts`: non-streaming tRPC routes for conversation lists, replay, and feedback.
+- `server/router.ts`: tRPC routes for durable run start/cancel/approval, conversation snapshots and lists, and feedback.
 - `server/instrumentation.ts`: optional Langfuse tracing for agent runs, prompts, events, and errors.
 - `server/sandbox/config.ts`: sandbox provider selection and runtime configuration.
 - `server/sandbox/service.ts`: conversation-scoped sandbox session reuse, readonly file sync, and turn-end suspension.
@@ -51,6 +51,10 @@ Closing the drawer detaches observation without cancelling the worker run.
 - `lib/backgroundExecutionSession.ts`: background transcript, cursor, run,
   approval, attachment, cancel, and decision owner.
 
+The worker entrypoint at `worker/src/features/in-app-agent/executeInAppAgentRun.ts`
+owns runtime credentials, sandbox lifecycle, event persistence, approval
+continuations, and terminal run transitions.
+
 Outside this feature folder, `packages/in-app-agent-sandbox-runtime/src/*` provides the shared sandbox runtime and contract types used by both the local Docker provider and the Lambda MicroVM image.
 
 ## File Relationships
@@ -62,7 +66,6 @@ flowchart TB
   Controlled --> Window["InAppAgentWindow.tsx\nmain UI entrypoint"]
   Window --> Message["InAppAgentMessage.tsx\nmessage rendering"]
 
-  Handler["server/handler.ts\nlegacy POST adapter; no browser caller"]
   Provider -->|useSyncExternalStore| Session["backgroundExecutionSession.ts\nbackground state + actions"]
   Session --> BackgroundClient["backgroundAgentClient.ts\nstart + watch adapter"]
   Display["lib/display.ts\ndisplay state + projection"] -.-> Provider
@@ -75,19 +78,14 @@ flowchart TB
   Provider -->|tRPC| Router["server/router.ts\ntRPC routes (non-streaming)"]
 
   Schema["schema.ts\nshared AG-UI contract"] -.-> Provider
-  Schema -.-> Handler
   Schema -.-> HumanLoop["server/human-in-the-loop.ts\napproval state + validation"]
   Schema -.-> Router
   Schema -.-> Persistence["server/persistence.ts"]
 
-  Handler --> Persistence
-  Handler --> Sandbox["server/sandbox/service.ts\nsandbox lifecycle"]
-  Handler --> Agent["server/agent.ts\nagent runtime"]
-  Handler --> HumanLoop
   Router -->|enqueue| Worker["worker executeInAppAgentRun\ndurable run driver"]
   Worker --> Persistence
-  Worker --> Sandbox
-  Worker --> Agent
+  Worker --> Sandbox["server/sandbox/service.ts\nsandbox lifecycle"]
+  Worker --> Agent["server/agent.ts\nagent runtime"]
   Worker --> HumanLoop
   Watch --> Persistence
   Sandbox --> Persistence
@@ -100,18 +98,6 @@ flowchart TB
 ```
 
 ## Run Lifecycles
-
-### Retained POST adapter
-
-The authenticated route still validates an AG-UI request, creates a
-request-scoped run, invokes `server/agent.ts`, and streams its events to the
-caller. Approval resumes use the pending-approval row managed by
-`server/human-in-the-loop.ts`, and the run cannot outlive its request.
-
-There is no browser execution mode that selects this adapter. It remains only
-so rollout observation can confirm that it receives no traffic before deletion.
-
-### Supported durable lifecycle
 
 1. The provider starts the durable run through `startRun`.
 2. `BackgroundExecutionSessionController` installs the persisted canonical
@@ -133,7 +119,7 @@ so rollout observation can confirm that it receives no traffic before deletion.
   persisted query data only seeds the coherent bootstrap view consumed by the
   same external-store hook before a controller exists. Rendering never unions
   query state with a live session snapshot.
-- `InAppAgentWindow` receives execution controls derived from that session.
+- `InAppAgentWindow` receives an execution-UI value derived from that session.
 - Display pacing remains in `useSmoothStreamingMessages`; canonical AG-UI
   messages are never rewritten for animation.
 - Messages and their display state always come from the same source. The
@@ -141,7 +127,7 @@ so rollout observation can confirm that it receives no traffic before deletion.
   against persisted display state or the reverse.
 
 The provider is still a large integration controller. Do not add another
-background state mirror or reconnect the retained POST adapter to the browser.
+background state mirror.
 
 ## Consumers And Stability Boundaries
 
@@ -159,8 +145,8 @@ no product decision that a separate click event would answer yet.
 
 ## Operations
 
-Rollback is a code revert; there is no execution-mode environment override and
-background execution does not require a schema rollback.
+Rollback is a code revert; background execution does not require a schema
+rollback.
 
 `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED` must be on wherever turns run
 in background, otherwise runs commit as `QUEUED` and die at `queue_timeout`. It
@@ -169,9 +155,7 @@ is already enabled in every Langfuse Cloud region. Check
 its default of 20 equals full US capacity and exceeds JP and staging.
 
 Conversation switching, detached invalidations, retry, and conversation-list run
-statuses are separate project issues. After the observation gate confirms that
-the POST adapter receives no traffic, it can be deleted rather than preserved as
-a permanent rollback path.
+statuses remain separate project concerns.
 
 ## Sandbox Runtime
 
@@ -209,12 +193,12 @@ Session reuse only relies on an existing live or suspended runtime instance iden
 
 ## MCP Tool Authorization
 
-The supported worker path uses two run-scoped inputs when calling Langfuse MCP:
+The in-app agent worker uses two run-scoped inputs when calling Langfuse MCP:
 
 - A temporary project-scoped API key marked as an in-app-agent key.
 - An optional server-generated tool override sent with `x-langfuse-in-app-agent-tool-override`.
 
-The API key authenticates the request and scopes it to the project. Without an override, in-app-agent keys are restricted to MCP tools annotated with `readOnlyHint: true`. When the user approves a single Langfuse MCP tool call, the worker continuation creates a JSON override naming that one unprefixed MCP registry tool and passes it to the MCP route through the request header above. The retained POST adapter creates equivalent inputs inside `server/handler.ts`.
+The API key authenticates the request and scopes it to the project. Without an override, in-app-agent keys are restricted to MCP tools annotated with `readOnlyHint: true`. When the user approves a single Langfuse MCP tool call, the worker creates a JSON override naming that one unprefixed MCP registry tool and passes it to the MCP route through the request header above.
 
 MCP registry behavior:
 
@@ -224,13 +208,13 @@ MCP registry behavior:
 
 RBAC is the first gate for Langfuse MCP tools. Before a tool is exposed to the model, `server/tools.ts` checks the signed-in user's `projectRole` and `isAdmin` against the tool's required `ProjectScope` with `hasProjectAccess()`. That means the assistant never sees tools the user could not use manually in the product UI or APIs. Human approval is a second gate on top of RBAC for tools classified as `"approval"`: approval can allow one execution of a tool the user already has access to, but it does not widen the user's project permissions.
 
-Human approval is separate from the MCP tool override. `server/agent.ts` classifies every Langfuse MCP tool in `IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS`, using unprefixed MCP registry names and either `"auto"` or `"approval"`. The map is keyed by a type-only `McpToolName` union derived from the MCP feature modules, and tests compare this map against `toolRegistry`, so adding a Langfuse MCP tool requires an explicit in-app agent approval classification without exporting MCP feature modules into production in-app-agent code.
+Human approval is separate from the MCP tool override. Shared `server/tools.ts` classifies every Langfuse MCP tool in `IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES`, using unprefixed MCP registry names and either `"auto"` or `"approval"`. The web in-app-agent server test imports the MCP registry's `McpToolName` contract and verifies both type equality and runtime registry equality, so adding a Langfuse MCP tool requires an explicit in-app agent approval classification without making MCP bootstrap depend on the in-app agent.
 
 `IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES` is generated from that map by prefixing Langfuse MCP tools with `langfuse_` and adding local tools such as `IN_APP_AGENT_REDIRECT_TOOL_NAME`; docs MCP tools are auto-approved by the `langfuseDocs_` prefix. `server/agent.ts` marks every other tool with Mastra `requireApproval: true`. Mastra emits an interrupt, the browser asks the user, and the router records the decision for a durable worker continuation. `server/human-in-the-loop.ts` adapts Mastra's runtime interrupt payload into the Langfuse-owned `tool_approval_request` contract from `schema.ts`; the browser stores and forwards only that runtime-neutral shape.
 
-The retained POST adapter instead validates resumed approvals against its pending
-approval row. The row stays server-local, stores the tool-call identity and a
-stable argument fingerprint, and expires after a short TTL.
+The request-scoped pending-approval persistence helpers and their table are not
+used by background execution. The helpers remain temporarily for the following
+shared-runtime cleanup; the table remains for historical data compatibility.
 
 Sandbox tools are separate from MCP authorization. When a sandbox provider is enabled, `server/tools.ts` adds local `read`, `write`, `edit`, and `bash` tools backed by the sandbox provider contract rather than the MCP registry.
 
@@ -239,8 +223,8 @@ Sandbox tools are separate from MCP authorization. When a sandbox provider is en
 - Check AG-UI docs at `https://docs.ag-ui.com/llms.txt` before changing event semantics, ordering, stream handling, compaction, tools, or state.
 - Keep persisted schemas backward-compatible unless there is an explicit migration.
 - Keep sandbox conversation state backward-compatible unless there is an explicit migration or cleanup plan.
-- Keep presentational components prop-driven; connect tRPC, watching, streaming, and persistence at provider/router/watch/handler/worker boundaries.
+- Keep presentational components prop-driven; connect tRPC, watching, streaming, and persistence at provider/router/watch/worker boundaries.
 - Before changing client state ownership or adding effects, read the
   frontend-large-feature architecture and refactor-react-effects skills.
-- Protect the background session and worker contracts at their public seams;
-  retain adapter auth/stream coverage until the adapter is deleted.
+- Protect the background session and worker contracts with behavior tests at
+  their public seams.
