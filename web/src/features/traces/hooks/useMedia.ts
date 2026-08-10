@@ -4,6 +4,8 @@ export type UseMediaParams = {
   projectId: string;
   traceId: string;
   observationId?: string;
+  /** Skip the lookup on surfaces that render many observations at once. */
+  enabled?: boolean;
 };
 
 /**
@@ -17,6 +19,7 @@ export function useMedia({
   projectId,
   traceId,
   observationId,
+  enabled = true,
 }: UseMediaParams) {
   return api.media.getByTraceOrObservationId.useQuery(
     {
@@ -25,6 +28,7 @@ export function useMedia({
       observationId,
     },
     {
+      enabled,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,

@@ -22,6 +22,7 @@ import {
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
   getScoreFilterConfig,
+  observationScopeFilter,
   SCORE_COLUMN_TO_BACKEND_KEY,
   type ScoresTableHiddenColumn,
 } from "@/src/features/filters/config/scores-config";
@@ -103,6 +104,12 @@ export type ScoresTableProps = {
   userId?: string;
   traceId?: string;
   observationId?: string;
+  /**
+   * Widen the `observationId` scope to also list the trace's trace-level scores
+   * (no `observationId`). Set when the observation stands in for the trace — the
+   * top-level span of a v4 trace, which carries them on its badge too.
+   */
+  includeTraceLevelScores?: boolean;
   hiddenColumns?: ScoresTableHiddenColumn[];
   localStorageSuffix?: string;
   disableUrlPersistence?: boolean;
@@ -136,6 +143,7 @@ export default function ScoresTable({
   userId,
   traceId,
   observationId,
+  includeTraceLevelScores = false,
   hiddenColumns = [],
   localStorageSuffix = "",
   disableUrlPersistence = false,
@@ -391,13 +399,13 @@ export default function ScoresTable({
   );
 
   const filterState = createFilterState(
-    queryFilter.effectiveFilterState.concat(rowDateRangeFilter),
+    queryFilter.effectiveFilterState.concat(
+      rowDateRangeFilter,
+      observationScopeFilter(observationId, includeTraceLevelScores),
+    ),
     [
       ...(userId ? [{ key: "User ID", value: userId }] : []),
       ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
-      ...(observationId
-        ? [{ key: "Observation ID", value: observationId }]
-        : []),
     ],
   );
 

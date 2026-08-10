@@ -361,14 +361,14 @@ export function DeleteMonitorButton(props: DeleteButtonProps) {
   const {
     itemId,
     projectId,
-    scope = "monitors:CUD",
+    scope = "alerts:CUD",
     invalidateFunc = () => utils.monitors.invalidate(),
   } = props;
   const monitorMutation = api.monitors.delete.useMutation({
     onSuccess: () => {
       showSuccessToast({
-        title: "Monitor deleted",
-        description: "The monitor has been deleted successfully",
+        title: "Alert deleted",
+        description: "The alert has been deleted successfully",
       });
       utils.monitors.invalidate();
     },
@@ -398,8 +398,8 @@ export function DeleteMonitorButton(props: DeleteButtonProps) {
           source: isTableAction ? "table-single-row" : "monitor",
         })
       }
-      entityToDeleteName="monitor"
-      customDeletePrompt="This action cannot be undone. It stops all evaluations and removes the monitor's alert history."
+      entityToDeleteName="alert"
+      customDeletePrompt="This action cannot be undone. It stops all evaluations and removes its alert history."
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={monitorMutation.isPending}
     />

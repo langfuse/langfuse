@@ -45,13 +45,8 @@ import {
   IN_APP_AGENT_SANDBOX_TOOL_NAMES,
 } from "./tools";
 
-// Keep this close to the route maxDuration (120s) so a killed foreground stream
-// does not block the conversation long after the route can no longer respond.
-export const FOREGROUND_RUN_STALE_AFTER_MS = 150 * 1000;
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
-export const FOREGROUND_RUN_STALE_ERROR_MESSAGE =
-  "Run was marked stale before starting a new run";
 const SANDBOX_CONVERSATION_WRITE_WINDOW_MS = 8 * 60 * 60 * 1000;
 
 export type SerializedInAppAgentConversation = {
@@ -185,38 +180,8 @@ export async function createRun(params: {
   model?: string;
   mcpApiKeyId?: string;
 }) {
-  const now = new Date();
-  const staleBefore = new Date(now.getTime() - FOREGROUND_RUN_STALE_AFTER_MS);
-
   return params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
-
-    // If a foreground stream dies before finishRun runs, lazily mark the old
-    // run stale so it does not block the conversation forever.
-    //
-    // `claimedAt`/`heartbeatAt` must stay NULL here: only the background
-    // worker sets them, and a background run legitimately runs for up to
-    // RUN_MAX_DURATION. Without this guard a foreground submit (flag off)
-    // would stale-close a healthy background run at 150s and fence its
-    // worker — execution mode is not sticky per conversation, so that mix is
-    // a normal state. An unclaimed QUEUED run stays sweepable, which is what
-    // we want: it unblocks the conversation and reconcile-on-read agrees.
-    await tx.inAppAgentRun.updateMany({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        finishedAt: null,
-        createdAt: { lt: staleBefore },
-        claimedAt: null,
-        heartbeatAt: null,
-      },
-      data: {
-        status: InAppAgentRunStatus.FAILED,
-        finishedAt: now,
-        errorCode: InAppAgentRunErrorCode.STALE,
-        errorMessage: FOREGROUND_RUN_STALE_ERROR_MESSAGE,
-      },
-    });
 
     const activeRun = await tx.inAppAgentRun.findFirst({
       where: {
@@ -240,7 +205,6 @@ export async function createRun(params: {
           triggeredByUserId: params.triggeredByUserId,
           model: params.model,
           mcpApiKeyId: params.mcpApiKeyId,
-          // The foreground path has no queue/claim step; runs start executing.
           status: InAppAgentRunStatus.RUNNING,
         },
       });

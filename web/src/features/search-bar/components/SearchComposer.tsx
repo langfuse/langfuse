@@ -29,6 +29,7 @@ import {
   scoreTypeContextFromObserved,
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
+import { explainSegment } from "@/src/features/search-bar/lib/explain";
 import { getRecentSearches } from "@/src/features/search-bar/lib/recent-searches";
 import {
   applyPick,
@@ -50,6 +51,7 @@ import {
 } from "@/src/features/search-bar/components/ComposerTokens";
 import {
   COMPOSER_PLACEHOLDER,
+  deactivationReason,
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
 import {
@@ -62,6 +64,11 @@ const LISTBOX_ID = "search-bar-listbox";
 // between pills without changing the query text; stripped before the text
 // reaches the model or clipboard.
 const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
+
+// Shared by the visible tooltip and its screen-reader description, so a
+// deactivated token reads the same either way.
+const notAppliedNote = (reason: string) =>
+  `Not applied on this view: ${reason}`;
 
 // Stable empty recents reference so the plan memo doesn't churn when recents
 // are intentionally suppressed (popover closed, or a non-empty draft — recents
@@ -1166,18 +1173,18 @@ export function SearchComposer({
     setHoveredTokenId(token?.getAttribute("data-segment-id") ?? null);
   };
 
-  const describedBy =
-    visibleDiagnostics.length > 0 ? "search-bar-diagnostics" : undefined;
-
   const segments = deriveComposerSegments(draft, scoreTypes);
-  // The remove affordance targets the hovered token, or — while the editor is
-  // focused — the token holding a collapsed caret. Not at the trailing
-  // insertion point, where the user is appending, not editing.
-  const focusTokenId =
+  // The token holding a collapsed caret — the keyboard counterpart to hover.
+  // Not at the trailing insertion point, where the user is appending, not
+  // editing. Every segment kind qualifies: an operator explains itself on the
+  // caret path exactly as it does on hover (it just can't be removed, below).
+  const caretSegment =
     editorFocused && selectionCollapsed && caret < draft.length
-      ? (segments.find((s) => s.editable && s.from <= caret && caret <= s.to)
-          ?.id ?? null)
+      ? (segments.find((s) => s.from <= caret && caret <= s.to) ?? null)
       : null;
+  // The remove affordance targets the hovered token, or the caret token — but
+  // only an editable one, since operators/parens have nothing to remove.
+  const focusTokenId = caretSegment?.editable === true ? caretSegment.id : null;
   const removeTargetId = hoveredTokenId ?? focusTokenId;
   const removeTarget =
     segments.find((s) => s.editable && s.id === removeTargetId) ?? null;
@@ -1191,6 +1198,53 @@ export function SearchComposer({
       ? removeTarget
       : null;
 
+  // Plain-language explanation of a token (LFE-14447), in the same slot — an
+  // error wins it. Hover always explains; the caret path only while the popover
+  // is closed, so it never stacks a tooltip over the suggestions you are typing
+  // against.
+  const explainTarget =
+    errorTarget !== null
+      ? null
+      : hoveredTokenId !== null
+        ? (segments.find((s) => s.id === hoveredTokenId) ?? null)
+        : plan === null
+          ? caretSegment
+          : null;
+  const explainTargetId = explainTarget?.id ?? null;
+  const explanation =
+    explainTarget === null ? null : explainSegment(explainTarget);
+  const explainDeactivatedReason =
+    explainTarget === null
+      ? null
+      : deactivationReason(explainTarget, fieldReason, freeTextReason);
+  // Keyboard/AT path: the caret token's explanation, read through the combobox's
+  // description regardless of the popover — including the "not applied" note,
+  // which the visible tooltip also carries.
+  const caretExplanation =
+    caretSegment === null ? null : explainSegment(caretSegment);
+  const caretDeactivatedReason =
+    caretSegment === null
+      ? null
+      : deactivationReason(caretSegment, fieldReason, freeTextReason);
+  const caretHelp =
+    caretExplanation === null
+      ? null
+      : [
+          `${caretExplanation.subject} ${caretExplanation.predicate}`.trim(),
+          caretDeactivatedReason === null
+            ? null
+            : notAppliedNote(caretDeactivatedReason),
+        ]
+          .filter((part) => part !== null)
+          .join(" ");
+  const describedBy =
+    [
+      visibleDiagnostics.length > 0 ? "search-bar-diagnostics" : null,
+      caretHelp !== null ? "search-bar-token-help" : null,
+    ]
+      .filter((id) => id !== null)
+      .join(" ") || undefined;
+
   // Measure the remove target's last client rect in the parent's layout
   // effect: it runs after every commit that can move text, and after all
   // subtree refs (root + container) are attached.
@@ -1198,7 +1252,7 @@ export function SearchComposer({
     left: number;
     top: number;
   } | null>(null);
-  // Anchors for the per-token error tooltip — left edge of the token, plus its
+  // Anchors for the per-token tooltip — left edge of the token, plus its
   // bottom (default placement, just under the block) and top (used to flip the
   // tooltip ABOVE the block while the suggestions popover is open below). These
   // are VIEWPORT coordinates (not container-relative): the tooltip portals to
@@ -1206,61 +1260,70 @@ export function SearchComposer({
   // getClientRects() directly. The bar's band is sticky (it doesn't scroll out
   // from under the token), so a fixed anchor stays put; it re-measures on draft
   // change and the container ResizeObserver below, same as the X button.
-  const [errorPosition, setErrorPosition] = React.useState<{
+  const [tooltipPosition, setTooltipPosition] = React.useState<{
     left: number;
     belowTop: number;
     aboveTop: number;
   } | null>(null);
   const removeTargetIdActual = removeTarget?.id ?? null;
-  const measureRemovePosition = React.useCallback(() => {
+  // Measured separately from the remove target: an operator token explains
+  // itself but is not editable, so it never has a remove X to anchor to.
+  const tooltipTargetId =
+    errorTarget !== null
+      ? errorTarget.id
+      : explanation !== null
+        ? explainTargetId
+        : null;
+  const measurePositions = React.useCallback(() => {
     const root = rootRef.current;
     const container = containerRef.current;
-    if (root === null || container === null || removeTargetIdActual === null) {
-      setRemovePosition(null);
-      setErrorPosition(null);
-      return;
-    }
-    const el = root.querySelector(
-      `[data-segment-id="${CSS.escape(removeTargetIdActual)}"]`,
-    );
-    if (el === null) {
-      setRemovePosition(null);
-      setErrorPosition(null);
-      return;
-    }
-    const rects = el.getClientRects();
-    const rect =
-      rects.length > 0 ? rects[rects.length - 1]! : el.getBoundingClientRect();
-    const firstRect = rects.length > 0 ? rects[0]! : rect;
-    const containerRect = container.getBoundingClientRect();
-    setRemovePosition({
-      left: rect.right - containerRect.left - 6,
-      top: rect.top - containerRect.top - 8,
-    });
-    setErrorPosition({
-      left: firstRect.left,
-      belowTop: firstRect.bottom + 6,
-      aboveTop: firstRect.top,
-    });
-  }, [removeTargetIdActual]);
+    const rectsOf = (id: string | null): DOMRectList | null => {
+      if (root === null || id === null) return null;
+      const el = root.querySelector(`[data-segment-id="${CSS.escape(id)}"]`);
+      return el === null ? null : el.getClientRects();
+    };
 
-  // Re-measure when the target or draft text changes.
+    const removeRects = rectsOf(removeTargetIdActual);
+    const lastRect = removeRects?.[removeRects.length - 1] ?? null;
+    if (container === null || lastRect === null) {
+      setRemovePosition(null);
+    } else {
+      const containerRect = container.getBoundingClientRect();
+      setRemovePosition({
+        left: lastRect.right - containerRect.left - 6,
+        top: lastRect.top - containerRect.top - 8,
+      });
+    }
+
+    const tooltipRect = rectsOf(tooltipTargetId)?.[0] ?? null;
+    setTooltipPosition(
+      tooltipRect === null
+        ? null
+        : {
+            left: tooltipRect.left,
+            belowTop: tooltipRect.bottom + 6,
+            aboveTop: tooltipRect.top,
+          },
+    );
+  }, [removeTargetIdActual, tooltipTargetId]);
+
+  // Re-measure when a target or the draft text changes.
   React.useLayoutEffect(() => {
-    measureRemovePosition();
-  }, [measureRemovePosition, draft]);
+    measurePositions();
+  }, [measurePositions, draft]);
 
   // Those deps miss layout reflows that don't change React state — window
   // resize, browser zoom, sidebar collapse — which re-wrap the full-width bar
   // and move the token. Observe the composer surface so the absolutely-
   // positioned X re-anchors to its token instead of leaving a stale ghost X.
   React.useEffect(() => {
-    if (removeTargetIdActual === null) return;
+    if (removeTargetIdActual === null && tooltipTargetId === null) return;
     const container = containerRef.current;
     if (container === null || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => measureRemovePosition());
+    const observer = new ResizeObserver(() => measurePositions());
     observer.observe(container);
     return () => observer.disconnect();
-  }, [measureRemovePosition, removeTargetIdActual]);
+  }, [measurePositions, removeTargetIdActual, tooltipTargetId]);
 
   return (
     <div
@@ -1368,6 +1431,9 @@ export function SearchComposer({
             scoreTypes={scoreTypes}
             fieldReason={fieldReason}
             freeTextReason={freeTextReason}
+            highlightedSegmentId={
+              explanation !== null ? explainTargetId : errorTarget?.id
+            }
           />
         </div>
         {/* "Ask AI" affordance — a plain button, always available so filters can
@@ -1441,6 +1507,12 @@ export function SearchComposer({
         </div>
       )}
 
+      {caretHelp !== null && (
+        <div id="search-bar-token-help" className="sr-only">
+          {caretHelp}
+        </div>
+      )}
+
       {plan !== null && (
         <AutocompletePopover
           plan={plan}
@@ -1453,35 +1525,60 @@ export function SearchComposer({
         />
       )}
 
-      {/* Per-token error tooltip. The "tooltip" <Layer> renders it on a
-          body-level container so it escapes the page header's overflow:hidden
-          clip and z-50 stacking context when it flips above the bar — an
-          in-flow z-index can't win against either. `fixed` + viewport anchors.
-          pointer-events-none so moving onto it doesn't change the hovered token
-          (which would flicker it away). */}
-      {errorTarget !== null && errorPosition !== null && (
-        <Layer name="tooltip">
-          <div
-            role="tooltip"
-            style={
-              plan !== null
-                ? {
-                    left: errorPosition.left,
-                    top: errorPosition.aboveTop,
-                    transform: "translateY(calc(-100% - 6px))",
-                  }
-                : { left: errorPosition.left, top: errorPosition.belowTop }
-            }
-            className={cn(
-              "pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
-              "border-destructive/40 bg-popover text-destructive rounded-md border",
-              "px-2 py-1 font-sans text-xs leading-snug shadow-md",
-            )}
-          >
-            {errorTarget.message}
-          </div>
-        </Layer>
-      )}
+      {/* Per-token tooltip — the error diagnostic, or the token's plain-language
+          explanation. The "tooltip" <Layer> renders it on a body-level container
+          so it escapes the page header's overflow:hidden clip and z-50 stacking
+          context when it flips above the bar — an in-flow z-index can't win
+          against either. `fixed` + viewport anchors. pointer-events-none so
+          moving onto it doesn't change the hovered token (which would flicker it
+          away). */}
+      {(errorTarget !== null || explanation !== null) &&
+        tooltipPosition !== null && (
+          <Layer name="tooltip">
+            <div
+              role="tooltip"
+              data-testid="search-bar-token-tooltip"
+              style={
+                plan !== null
+                  ? {
+                      left: tooltipPosition.left,
+                      top: tooltipPosition.aboveTop,
+                      transform: "translateY(calc(-100% - 6px))",
+                    }
+                  : {
+                      left: tooltipPosition.left,
+                      top: tooltipPosition.belowTop,
+                    }
+              }
+              className={cn(
+                "pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
+                "bg-popover rounded-md border",
+                "px-2 py-1 font-sans text-xs leading-snug shadow-md",
+                errorTarget !== null
+                  ? "border-destructive/40 text-destructive"
+                  : "border-border text-popover-foreground",
+              )}
+            >
+              {errorTarget !== null ? (
+                errorTarget.message
+              ) : (
+                <>
+                  <span className="font-bold">{explanation?.subject}</span>
+                  {/* A boolean token's phrase IS the whole explanation — no
+                      predicate, so no dangling space before the period. */}
+                  {explanation?.predicate !== "" && (
+                    <> {explanation?.predicate}</>
+                  )}
+                  {explainDeactivatedReason !== null && (
+                    <span className="text-muted-foreground block pt-0.5">
+                      {notAppliedNote(explainDeactivatedReason)}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          </Layer>
+        )}
     </div>
   );
 }

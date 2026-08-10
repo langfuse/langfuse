@@ -54,10 +54,9 @@ type InAppAgentMcpToolPolicy = {
 
 // Exhaustive approval policy for Langfuse MCP tools. Keys use the unprefixed
 // MCP registry names and are the source of truth for the tool-name type below.
-// Exhaustiveness against web's MCP toolRegistry is enforced by a compile-time
-// assertion in web (src/features/in-app-agent/server/handler.ts) plus
-// the registry-comparison servertest, so new MCP tools must be classified
-// before the in-app agent can auto/approval-gate them.
+// Exhaustiveness against web's MCP toolRegistry is enforced by type and runtime
+// assertions in web's in-app-agent stream servertest, so new MCP tools must be
+// classified before the in-app agent can auto/approval-gate them.
 export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   listAnnotationQueues: {
     approval: "auto",
@@ -267,13 +266,13 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "prompts:read" },
   },
-  listMonitors: {
+  listAlerts: {
     approval: "auto",
-    availability: { scope: "monitors:read" },
+    availability: { scope: "alerts:read" },
   },
-  getMonitor: {
+  getAlert: {
     approval: "auto",
-    availability: { scope: "monitors:read" },
+    availability: { scope: "alerts:read" },
   },
   listPrompts: {
     approval: "auto",
@@ -713,13 +712,13 @@ function isSilentMcpToolOutput(value: unknown): value is SilentMcpToolOutput {
 }
 
 const InAppAgentRedirectDestinationSchema = z.enum([
+  "alerts",
   "dashboardWidget",
   "dashboards",
   "datasets",
   "evals",
   "experiments",
   "models",
-  "monitors",
   "playground",
   "projectMembers",
   "projectSettings",
@@ -818,6 +817,7 @@ const InAppAgentProjectSettingsPageSchema = z.enum([
 const InAppAgentRedirectToolInputStrictSchema = z.discriminatedUnion(
   "destination",
   [
+    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("alerts") }),
     InAppAgentRedirectBaseSchema.extend({
       destination: z.literal("dashboardWidget"),
       params: z.object({ widgetId: z.string().min(1).max(200) }),
@@ -836,7 +836,6 @@ const InAppAgentRedirectToolInputStrictSchema = z.discriminatedUnion(
       destination: z.literal("experiments"),
     }),
     InAppAgentRedirectBaseSchema.extend({ destination: z.literal("models") }),
-    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("monitors") }),
     InAppAgentRedirectBaseSchema.extend({
       destination: z.literal("playground"),
     }),
@@ -952,6 +951,10 @@ function getRedirectHref(
   projectId: string,
   isV4Enabled: boolean,
 ): string {
+  if (input.destination === "alerts") {
+    return buildMonitorsPath({ projectId });
+  }
+
   if (input.destination === "dashboardWidget") {
     return buildDashboardWidgetPath({
       projectId,
@@ -980,10 +983,6 @@ function getRedirectHref(
 
   if (input.destination === "models") {
     return buildModelsPath({ projectId });
-  }
-
-  if (input.destination === "monitors") {
-    return buildMonitorsPath({ projectId });
   }
 
   if (input.destination === "playground") {

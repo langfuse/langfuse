@@ -21,7 +21,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { DetailHeaderActionsMenu } from "@/src/features/traces/components/_shared/DetailHeaderActionsMenu";
+import { DetailHeaderActionsMenu } from "@/src/features/traces/components/DetailHeaderActionsMenu";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
@@ -36,10 +36,10 @@ import {
 } from "../../TraceMetadataBadges";
 import { LatencyBadge } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
-import { aggregateTraceMetrics } from "@/src/features/traces/fns/trace-aggregation";
-import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolve-metadata";
+import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
+import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { CollapsibleBadgeRow } from "@/src/features/traces/components/_shared/CollapsibleBadgeRow";
+import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Button } from "@/src/components/ui/button";
 import { MoreHorizontal } from "lucide-react";

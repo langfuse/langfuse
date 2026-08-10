@@ -15,8 +15,6 @@ import {
 } from "../../features/inAppAgent/types";
 import {
   ACTIVE_RUN_CONFLICT_MESSAGE,
-  FOREGROUND_RUN_STALE_AFTER_MS,
-  FOREGROUND_RUN_STALE_ERROR_MESSAGE,
   lockConversation,
   type InAppAgentTx,
 } from "./persistence";
@@ -581,22 +579,10 @@ function classifyStaleRun(
   }
 
   if (run.status === InAppAgentRunStatus.RUNNING) {
-    if (
-      !run.claimedAt &&
-      !run.heartbeatAt &&
-      now - run.createdAt.getTime() > FOREGROUND_RUN_STALE_AFTER_MS
-    ) {
-      return {
-        errorCode: InAppAgentRunErrorCode.STALE,
-        errorMessage: FOREGROUND_RUN_STALE_ERROR_MESSAGE,
-      };
-    }
-
-    // Duration wins because a hung tool may keep renewing its heartbeat.
-    if (
-      run.claimedAt &&
-      now - run.claimedAt.getTime() > IN_APP_AGENT_RUN_MAX_DURATION_MS
-    ) {
+    // Duration wins because a hung tool may keep renewing its heartbeat. Use
+    // creation time as the defensive lower bound when claim metadata is absent.
+    const startedAt = run.claimedAt ?? run.createdAt;
+    if (now - startedAt.getTime() > IN_APP_AGENT_RUN_MAX_DURATION_MS) {
       return {
         errorCode: InAppAgentRunErrorCode.RUN_TIMEOUT,
         errorMessage: "The run exceeded the maximum duration",

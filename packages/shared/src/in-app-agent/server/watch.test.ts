@@ -63,6 +63,7 @@ function fakePrisma(polls: Array<{ events: EventRow[]; run: RunRow | null }>) {
 async function collect(
   prisma: PrismaClient,
   cursor: number,
+  openRunId?: string,
 ): Promise<InAppAgentWatchFrame[]> {
   const frames: InAppAgentWatchFrame[] = [];
 
@@ -71,6 +72,7 @@ async function collect(
     projectId: "project-1",
     conversationId: "conversation-1",
     cursor,
+    openRunId,
     now: () => 0,
     sleep: async () => undefined,
   })) {
@@ -183,6 +185,24 @@ describe("watchConversationFrames", () => {
 
     // A drop right after the synthetic frame must re-read event 1, not skip it.
     expect(eventFrames(frames)[0]?.sequenceNumber).toBe(0);
+  });
+
+  it("continues an already-open run without synthesizing another start", async () => {
+    const frames = await collect(
+      fakePrisma([
+        {
+          events: [textMessage("run-1", 1), runFinished("run-1", 2)],
+          run: succeeded,
+        },
+      ]),
+      0,
+      "run-1",
+    );
+
+    expect(eventTypes(frames)).toEqual([
+      EventType.TEXT_MESSAGE_START,
+      EventType.RUN_FINISHED,
+    ]);
   });
 
   it("hands off from cursor to tail with no duplicated and no missed event", async () => {

@@ -44,7 +44,8 @@
   `@langfuse/shared/in-app-agent` is the client-safe contracts entry;
   `@langfuse/shared/in-app-agent/server` (and per-module subpaths) is
   server-only. Web keeps only the thin adapters in
-  `src/features/in-app-agent/` (handler, router, UI).
+  `src/features/in-app-agent/` (router and UI), plus the authenticated watch
+  route in `src/app/api/in-app-agent/watch/`.
 - See `../packages/shared/AGENTS.md` for the full shared export map and what
   each entrypoint contains.
 - For the higher-level platform topology across web, worker, Postgres,

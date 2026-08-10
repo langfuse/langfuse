@@ -680,8 +680,8 @@ export const traceRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         traceId: z.string(),
-        minStartTime: z.string(),
-        maxStartTime: z.string(),
+        minStartTime: z.iso.datetime({ offset: true }),
+        maxStartTime: z.iso.datetime({ offset: true }),
         // Optional fields for enforceTraceAccess middleware (supports public traces)
         timestamp: z.date().nullish(),
         fromTimestamp: z.date().nullish(),

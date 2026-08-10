@@ -326,8 +326,8 @@ export const eventsRouter = createTRPCRouter({
       zodSchema.object({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
-        minStartTime: zodSchema.string(),
-        maxStartTime: zodSchema.string(),
+        minStartTime: zodSchema.iso.datetime({ offset: true }),
+        maxStartTime: zodSchema.iso.datetime({ offset: true }),
       }),
     )
     .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {
