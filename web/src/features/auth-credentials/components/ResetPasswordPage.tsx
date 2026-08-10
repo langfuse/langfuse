@@ -40,6 +40,12 @@ const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
+const getDemoTargetPath = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const targetPath = stripBasePath(getSafeRedirectPath(value));
+  return targetPath === "/demo" ? targetPath : undefined;
+};
+
 export function ResetPasswordPage({
   passwordResetAvailable,
 }: {
@@ -51,12 +57,8 @@ export function ResetPasswordPage({
 
   // Detect set mode: user exists but has no password (signup email verification flow)
   const isSetMode = session.data?.user?.hasPassword === false;
-  const queryTargetPath =
-    isSetMode && typeof router.query.targetPath === "string"
-      ? router.query.targetPath
-      : undefined;
-  const targetPath = queryTargetPath
-    ? stripBasePath(getSafeRedirectPath(queryTargetPath))
+  const targetPath = isSetMode
+    ? getDemoTargetPath(router.query.targetPath)
     : undefined;
   const setupPasswordPath = targetPath
     ? `/auth/setup-password?targetPath=${encodeURIComponent(targetPath)}`
