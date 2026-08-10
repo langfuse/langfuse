@@ -151,6 +151,9 @@ function SuggestingInput({
       // Stop here: the sidebar may live in a Sheet that also closes on Escape.
       event.stopPropagation();
       setDismissed(true);
+      // Same reset as onBlur — a highlight kept across a dismissal would let a
+      // later ArrowDown-then-Enter accept it without the user re-picking.
+      setActiveIndex(-1);
       return;
     }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {

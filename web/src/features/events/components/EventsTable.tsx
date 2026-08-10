@@ -890,10 +890,15 @@ export default function ObservationsEventsTable({
 
   // Record the visible rows' metadata paths into the persisted per-project
   // suggestions map (read above into observedMetadataPaths). Same sampling as
-  // the AI context below; runs once per fetch (rows identity). Not gated on
-  // the search bar: the sidebar facet feeds from this map too, and every
-  // surface that loads rows should contribute to it.
-  useObservedMetadataRecorder({ projectId, rows: observations.rows });
+  // the AI context below; runs once per fetch (rows identity). Not gated on the
+  // search bar — the sidebar facet feeds from this map too — but embedded
+  // PREVIEW tables (`hideControls`: 10 rows under an arbitrary external filter)
+  // stay out: the per-key caps are drop-new-when-full, so a narrow preview's
+  // keys would crowd out the ones the project actually browses.
+  useObservedMetadataRecorder({
+    projectId,
+    rows: hideControls ? undefined : observations.rows,
+  });
 
   // Project data context for the AI filter prompt: observed values (from
   // filterOptions) + metadata keys sampled from the visible rows + the current

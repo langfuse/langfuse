@@ -130,14 +130,28 @@ describe("metadata suggestions in the filter sidebar", () => {
     fireEvent.keyDown(key, { key: "Enter" });
     expect(key).toHaveValue("scope");
 
-    // Blur clears the highlight: coming back to the field must not let Enter
-    // accept a suggestion the user never picked in this visit.
-    fireEvent.change(key, { target: { value: "re" } });
-    fireEvent.keyDown(key, { key: "ArrowDown" });
-    fireEvent.blur(key);
-    fireEvent.focus(key);
-    fireEvent.keyDown(key, { key: "Enter" });
-    expect(key).toHaveValue("re");
+    // Dismissing clears the highlight, by blur or by Escape: reopening the list
+    // must not let Enter accept a suggestion highlighted before the dismissal.
+    // The two dismissals reopen differently — blur reopens on focus, Escape
+    // keeps the list closed until an arrow key.
+    const dismissals = [
+      { typed: "re", dismiss: () => fireEvent.blur(key), reopen: () => {} },
+      {
+        typed: "reg",
+        dismiss: () => fireEvent.keyDown(key, { key: "Escape" }),
+        reopen: () => fireEvent.keyDown(key, { key: "ArrowDown" }),
+      },
+    ];
+    for (const { typed, dismiss, reopen } of dismissals) {
+      fireEvent.focus(key);
+      fireEvent.change(key, { target: { value: typed } });
+      fireEvent.keyDown(key, { key: "ArrowDown" });
+      dismiss();
+      fireEvent.focus(key);
+      reopen();
+      fireEvent.keyDown(key, { key: "Enter" });
+      expect(key).toHaveValue(typed);
+    }
   });
 
   it("still accepts a key and value the observed map has never seen", () => {
