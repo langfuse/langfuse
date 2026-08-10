@@ -1,6 +1,6 @@
 # Lazy JSON renderer (`lazy/react/`)
 
-The React layer over the lazy JSON seam (`../rowModel.ts`). Built **once**
+The React layer over the lazy JSON seam (`../lazy/rowModel.ts`). Built **once**
 against the async `RowModel`, so it renders an in-memory value today and a
 Worker-backed ~1 GB stream tomorrow with no change. See
 `./LAZY_TREE_DESIGN.md` for the full engine→source→model→renderer picture.
