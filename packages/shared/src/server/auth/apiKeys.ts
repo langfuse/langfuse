@@ -45,7 +45,6 @@ export async function createAndAddApiKeysToDb(p: {
   entityId: string;
   scope: ApiKeyScope;
   note?: string;
-  // Internal-only API keys may set this because they bypass Public API rate limits.
   isInAppAgentKey?: boolean;
   /** User who created the key, e.g. via the UI. */
   createdByUserId?: string;
