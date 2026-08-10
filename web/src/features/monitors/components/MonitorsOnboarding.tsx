@@ -67,7 +67,7 @@ export function MonitorsOnboarding({
                       href={automationCreateHref(
                         projectId,
                         channel.actionType,
-                        `/project/${projectId}/monitors`,
+                        `/project/${projectId}/alerts`,
                       )}
                     >
                       <span className="flex items-center gap-2">
@@ -84,16 +84,16 @@ export function MonitorsOnboarding({
           {
             title: "Decide what to monitor",
             description:
-              "Create monitors for sudden cost spikes, quality drops, latency changes, or other important changes.",
+              "Create alerts for sudden cost spikes, quality drops, latency changes, or other important changes.",
             content: (
               <ActionButton
                 hasAccess={hasCUDAccess}
                 icon={<Plus className="h-4 w-4" aria-hidden="true" />}
-                href={`/project/${projectId}/monitors/new`}
+                href={`/project/${projectId}/alerts/new`}
                 variant="default"
                 size="lg"
               >
-                Create Monitor
+                Create Alert
               </ActionButton>
             ),
           },
