@@ -159,18 +159,17 @@ export function isLangfuseSdkTraffic(params: {
 export function batchContainsLangfuseScope(
   resourceSpans: ResourceSpan[],
 ): boolean {
-  // Malformed OTLP shapes reach this code (non-array scopeSpans and the like);
-  // scanning is best-effort and must not fail the batch.
-  try {
-    return resourceSpans.some((resourceSpan) =>
-      (resourceSpan?.scopeSpans ?? []).some((scopeSpan) =>
+  // Malformed OTLP shapes reach this code (non-array scopeSpans and the like).
+  // Guard per resource so a malformed one reads as scope-less rather than
+  // aborting the scan — it must not hide a Langfuse scope on a later resource,
+  // nor fail the batch.
+  return resourceSpans.some(
+    (resourceSpan) =>
+      Array.isArray(resourceSpan?.scopeSpans) &&
+      resourceSpan.scopeSpans.some((scopeSpan) =>
         isLangfuseSdkTraffic({ scopeName: scopeSpan?.scope?.name ?? null }),
       ),
-    );
-  } catch (error) {
-    logger.warn("Failed to scan batch scopes for Langfuse SDK spans", error);
-    return false;
-  }
+  );
 }
 
 /**

@@ -120,6 +120,15 @@ describe("batchContainsLangfuseScope", () => {
     ).toBe(true);
   });
 
+  it("keeps scanning past a malformed resource to a later Langfuse scope", () => {
+    expect(
+      batchContainsLangfuseScope([
+        { scopeSpans: {} } as never,
+        scoped("langfuse-sdk"),
+      ]),
+    ).toBe(true);
+  });
+
   it("rejects batches with only third-party scopes", () => {
     expect(
       batchContainsLangfuseScope([scoped("openlit", "openinference")]),
