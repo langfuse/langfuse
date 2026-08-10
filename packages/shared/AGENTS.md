@@ -56,7 +56,9 @@
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
   client-safe contracts (AG-UI schemas, constants, id helpers) of the
-  EE-licensed in-app-agent module. Never re-export server code here.
+  EE-licensed in-app-agent module. `AgUiRunAgentInput` is a compile-time-only
+  execution contract; there is no runtime input or browser runtime-state
+  schema. Never re-export server code here.
 - `@langfuse/shared/in-app-agent/server` (plus per-module subpaths via the
   `./in-app-agent/server/*` wildcard) via `src/in-app-agent/server/`:
   the EE-licensed in-app-agent runtime (Mastra/Bedrock/MCP loop, tools,

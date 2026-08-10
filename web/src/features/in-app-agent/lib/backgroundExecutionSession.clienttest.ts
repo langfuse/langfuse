@@ -36,7 +36,7 @@ const runningView = {
   pendingToolApprovals: [],
 } satisfies Omit<
   BackgroundExecutionView,
-  "attachment" | "cancelStatus" | "liveMessageRevision"
+  "attachment" | "cancelStatus" | "liveMessageRevision" | "error"
 >;
 
 const userMessage = {
@@ -417,8 +417,8 @@ describe("BackgroundExecutionSessionController", () => {
       },
       attachment: {
         status: "error",
-        error: refreshError,
       },
+      error: refreshError,
     });
   });
 
@@ -461,8 +461,8 @@ describe("BackgroundExecutionSessionController", () => {
       pendingToolApprovals: [],
       attachment: {
         status: "error",
-        error: refreshError,
       },
+      error: refreshError,
     });
   });
 
@@ -800,16 +800,15 @@ describe("BackgroundExecutionSessionController", () => {
   });
 
   it("keeps the server run active and can retry when observation fails", async () => {
-    const onError = vi.fn();
+    const connectionError = new BackgroundExecutionConnectionError(
+      "watch failed",
+      { retryable: true },
+    );
     const agent = {
       ...createAgent(),
       connectAgent: vi
         .fn()
-        .mockRejectedValueOnce(
-          new BackgroundExecutionConnectionError("watch failed", {
-            retryable: true,
-          }),
-        )
+        .mockRejectedValueOnce(connectionError)
         .mockImplementationOnce(() => new Promise<unknown>(() => undefined)),
     };
     const session = new BackgroundExecutionSessionController({
@@ -817,12 +816,11 @@ describe("BackgroundExecutionSessionController", () => {
       hydrate: vi.fn().mockResolvedValue(runningView),
       cancelRun: vi.fn(),
       decideApproval: vi.fn(),
-      onError,
     });
 
     await session.hydrateAndAttach();
     await vi.waitFor(() => {
-      expect(onError).toHaveBeenCalledOnce();
+      expect(session.getSnapshot().attachment.status).toBe("error");
     });
 
     expect(session.getSnapshot()).toMatchObject({
@@ -832,6 +830,7 @@ describe("BackgroundExecutionSessionController", () => {
       },
       currentRun: runningView.currentRun,
     });
+    expect(session.getSnapshot().error).toBe(connectionError);
 
     await session.hydrateAndAttach();
 

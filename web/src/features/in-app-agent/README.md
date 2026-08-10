@@ -26,10 +26,10 @@ Closing the drawer detaches observation without cancelling the worker run.
 - `schema.ts`: runtime-neutral AG-UI schemas and types shared by browser, server, persistence, replay, and rendering, including Langfuse-owned human-in-the-loop wire contracts.
 - `server/agent.ts`: Mastra/Bedrock/MCP runtime setup, custom tool wiring, human-in-the-loop approval gates, AG-UI event normalization, and cleanup.
 - `server/human-in-the-loop.ts`: interrupt parsing and worker continuation
-  compatibility, plus unused request-scoped pending-approval helpers retained
-  until the shared-runtime cleanup.
+  compatibility.
 - `server/tools.ts`: custom agent tools with strict schemas and scoped, user-visible behavior.
-- `server/persistence.ts`: conversations, runs, events, canonical accumulation, replay, active-run locking, and stale-run recovery. Knows nothing about rendering.
+- `server/persistence.ts`: conversations, events, canonical accumulation, and replay. Knows nothing about rendering.
+- `server/runLifecycle.ts`: durable run creation, claiming, cancellation, terminal transitions, active-run locking, and reconciliation.
 - `lib/display.ts`: display-state recording, the render-time projection, and its
   wire serialization. Web-only; used by the browser and by the web server when
   it builds a conversation snapshot.
@@ -212,9 +212,8 @@ Human approval is separate from the MCP tool override. Shared `server/tools.ts` 
 
 `IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES` is generated from that map by prefixing Langfuse MCP tools with `langfuse_` and adding local tools such as `IN_APP_AGENT_REDIRECT_TOOL_NAME`; docs MCP tools are auto-approved by the `langfuseDocs_` prefix. `server/agent.ts` marks every other tool with Mastra `requireApproval: true`. Mastra emits an interrupt, the browser asks the user, and the router records the decision for a durable worker continuation. `server/human-in-the-loop.ts` adapts Mastra's runtime interrupt payload into the Langfuse-owned `tool_approval_request` contract from `schema.ts`; the browser stores and forwards only that runtime-neutral shape.
 
-The request-scoped pending-approval persistence helpers and their table are not
-used by background execution. The helpers remain temporarily for the following
-shared-runtime cleanup; the table remains for historical data compatibility.
+The `InAppAgentPendingToolApproval` table is not used by background execution.
+It remains temporarily so existing rows and Prisma relations stay valid.
 
 Sandbox tools are separate from MCP authorization. When a sandbox provider is enabled, `server/tools.ts` adds local `read`, `write`, `edit`, and `bash` tools backed by the sandbox provider contract rather than the MCP registry.
 

@@ -4,7 +4,6 @@ import { EventType } from "@ag-ui/core";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
-  LangfuseConflictError,
   LangfuseNotFoundError,
 } from "../../index";
 import {
@@ -169,99 +168,6 @@ export async function ensureOwnedConversation(params: {
       title: getDefaultConversationTitle(new Date()),
     },
   });
-}
-
-export async function createRun(params: {
-  prisma: PrismaClient;
-  runId: string;
-  projectId: string;
-  conversationId: string;
-  triggeredByUserId: string;
-  model?: string;
-  mcpApiKeyId?: string;
-}) {
-  return params.prisma.$transaction(async (tx) => {
-    await lockConversation(tx, params.projectId, params.conversationId);
-
-    const activeRun = await tx.inAppAgentRun.findFirst({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        finishedAt: null,
-      },
-      select: { id: true },
-    });
-
-    if (activeRun) {
-      throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
-    }
-
-    try {
-      return await tx.inAppAgentRun.create({
-        data: {
-          id: params.runId,
-          projectId: params.projectId,
-          conversationId: params.conversationId,
-          triggeredByUserId: params.triggeredByUserId,
-          model: params.model,
-          mcpApiKeyId: params.mcpApiKeyId,
-          status: InAppAgentRunStatus.RUNNING,
-        },
-      });
-    } catch (error) {
-      // Backstop: the partial unique index on active runs. The conversation
-      // lock above should make this unreachable; surface it as the same
-      // conflict as the primary check instead of a 500. The insert can also
-      // violate the (id, project_id) primary key (a replayed runId), so only
-      // map the active-run index — Prisma reports it via its column names.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002" &&
-        Array.isArray(error.meta?.target) &&
-        error.meta.target.includes("conversation_id")
-      ) {
-        throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
-      }
-      throw error;
-    }
-  });
-}
-
-export async function finishRun(params: {
-  prisma: PrismaClient;
-  runId: string;
-  projectId: string;
-  errorCode?: InAppAgentRunErrorCode | null;
-  errorMessage?: string | null;
-}) {
-  const errorCode = params.errorCode ?? null;
-  const status =
-    errorCode == null
-      ? InAppAgentRunStatus.SUCCEEDED
-      : errorCode === InAppAgentRunErrorCode.CANCELLED
-        ? InAppAgentRunStatus.CANCELLED
-        : InAppAgentRunStatus.FAILED;
-  await params.prisma.inAppAgentRun
-    .updateMany({
-      where: {
-        id: params.runId,
-        projectId: params.projectId,
-        finishedAt: null,
-      },
-      data: {
-        status,
-        finishedAt: new Date(),
-        errorCode,
-        errorMessage: params.errorMessage ?? null,
-      },
-    })
-    .catch((error: unknown) =>
-      logger.error("Failed to finish in-app agent run", {
-        error,
-        runId: params.runId,
-        projectId: params.projectId,
-      }),
-    );
 }
 
 export async function appendRunEvents(params: {

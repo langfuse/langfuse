@@ -40,7 +40,7 @@ export type BackgroundExecutionAttachment =
   | { status: "detached" }
   | { status: "attaching" }
   | { status: "attached" }
-  | { status: "error"; error: unknown; retryable: boolean };
+  | { status: "error"; retryable: boolean };
 
 export type BackgroundExecutionView = {
   messages: AgUiMessage[];
@@ -56,6 +56,7 @@ export type BackgroundExecutionView = {
   pendingToolApprovals: BackgroundExecutionApprovalView[];
   cancelStatus: "idle" | "submitting";
   attachment: BackgroundExecutionAttachment;
+  error: unknown | null;
 };
 
 export type BackgroundExecutionSession = {
@@ -63,6 +64,7 @@ export type BackgroundExecutionSession = {
   run(input: AgentInput): Promise<void>;
   cancel(): Promise<void>;
   decide(input: ApprovalDecision): Promise<void>;
+  clearError(): void;
   detach(): void;
   dispose(): void;
   getSnapshot(): BackgroundExecutionView;
@@ -90,7 +92,7 @@ type BackgroundExecutionAgent = {
 
 type BackgroundExecutionHydration = Omit<
   BackgroundExecutionView,
-  "attachment" | "cancelStatus" | "liveMessageRevision"
+  "attachment" | "cancelStatus" | "liveMessageRevision" | "error"
 >;
 
 type BackgroundExecutionAgentSubscriber = Pick<
@@ -114,7 +116,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
   private readonly onHydratedSnapshot?: (
     snapshot: BackgroundExecutionHydration,
   ) => void;
-  private readonly onError?: (error: unknown) => void;
   private readonly agentSubscription: { unsubscribe(): void };
   private readonly listeners = new Set<() => void>();
   private view: BackgroundExecutionView;
@@ -134,7 +135,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
      * status. Fires on every hydration, so the consumer must be idempotent.
      */
     onHydratedSnapshot?: (snapshot: BackgroundExecutionHydration) => void;
-    onError?: (error: unknown) => void;
     initialView?: Partial<BackgroundExecutionView>;
   }) {
     this.agent = config.agent;
@@ -143,7 +143,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     this.decideApproval = config.decideApproval;
     this.onSettled = config.onSettled;
     this.onHydratedSnapshot = config.onHydratedSnapshot;
-    this.onError = config.onError;
     this.view = {
       messages: [],
       displayState: createInAppAgentDisplayState(),
@@ -153,6 +152,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       pendingToolApprovals: [],
       cancelStatus: "idle",
       attachment: { status: "detached" },
+      error: null,
       ...config.initialView,
     };
     this.agent.setStatusListener?.((status) => {
@@ -207,6 +207,10 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
         this.resolveApproval(params.event.toolCallId);
         return config.subscriber?.onToolCallResultEvent?.(params);
       },
+      onRunErrorEvent: (params) => {
+        this.setView({ ...this.view, error: params.event });
+        return config.subscriber?.onRunErrorEvent?.(params);
+      },
     });
   }
 
@@ -219,7 +223,11 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     }
 
     const generation = ++this.attachGeneration;
-    this.setView({ ...this.view, attachment: { status: "attaching" } });
+    this.setView({
+      ...this.view,
+      attachment: { status: "attaching" },
+      error: null,
+    });
 
     try {
       const replaced = await this.replaceWithHydratedSnapshot(generation);
@@ -256,6 +264,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       ...this.view,
       currentRun: null,
       attachment: { status: "attached" },
+      error: null,
     });
 
     try {
@@ -271,9 +280,9 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
         this.setView({
           ...this.view,
           attachment: { status: "detached" },
+          error,
         });
       }
-      this.onError?.(error);
       this.onSettled?.();
       throw error;
     }
@@ -320,6 +329,12 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     }
     this.resolveApproval(input.toolCallId);
     await this.refreshAttachmentAfterCommand(attachmentGeneration);
+  }
+
+  clearError(): void {
+    if (this.view.error !== null) {
+      this.setView({ ...this.view, error: null });
+    }
   }
 
   detach(): void {
@@ -423,7 +438,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
         }
 
         this.setAttachmentError(error);
-        this.onError?.(error);
       },
     );
   }
@@ -448,7 +462,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
               { retryable: true, cause: error },
             );
       this.setAttachmentError(connectionError);
-      this.onError?.(connectionError);
     } finally {
       if (generation === this.attachGeneration) {
         this.onSettled?.();
@@ -477,6 +490,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       liveMessageRevision: this.view.liveMessageRevision,
       cancelStatus: "idle",
       attachment: { status: "detached" },
+      error: this.view.error,
     });
 
     this.onHydratedSnapshot?.(hydrated);
@@ -510,11 +524,11 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       ...this.view,
       attachment: {
         status: "error",
-        error,
         retryable:
           error instanceof BackgroundExecutionConnectionError &&
           error.retryable,
       },
+      error,
     });
   }
 
