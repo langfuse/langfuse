@@ -197,7 +197,6 @@ export async function applyMcpPublicApiRateLimit(
 
   addTagsToCurrentSpan({
     "mcp.is_in_app_agent": isInAppAgent,
-    "mcp.public_api_rate_limit_exempt": isInAppAgent,
   });
 
   // Assistant runs have separate limits; trust only the authenticated key flag for this exemption.
