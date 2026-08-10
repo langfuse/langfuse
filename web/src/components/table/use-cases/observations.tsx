@@ -26,6 +26,7 @@ import {
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
   type ObservationsOmittableFilterColumn,
 } from "@/src/features/filters/config/observations-config";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
@@ -514,9 +515,19 @@ export default function ObservationsTable({
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        promptName ? "prompt" : modelId ? "model" : undefined,
+      ),
     };
-  }, [hideControls, isSidebarFilterLoading, peekContext, projectId]);
+  }, [
+    hideControls,
+    isSidebarFilterLoading,
+    peekContext,
+    projectId,
+    promptName,
+    modelId,
+  ]);
 
   const queryFilter = useSidebarFilterState(
     observationsFilterConfig,

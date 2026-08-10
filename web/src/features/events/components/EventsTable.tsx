@@ -17,6 +17,7 @@ import {
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
@@ -551,12 +552,17 @@ export default function ObservationsEventsTable({
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        userId ? "user" : sessionId ? "session" : undefined,
+      ),
     };
   }, [
     tableStatePolicy.filterStateLocation,
     peekContext,
     projectId,
+    userId,
+    sessionId,
     appRootDefault.defaultExplicitFilterState,
     onExplicitFilterStateChange,
   ]);
