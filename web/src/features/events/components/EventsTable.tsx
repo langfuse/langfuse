@@ -17,6 +17,7 @@ import {
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
@@ -67,7 +68,7 @@ import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/features/traces/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -551,12 +552,17 @@ export default function ObservationsEventsTable({
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        userId ? "user" : sessionId ? "session" : undefined,
+      ),
     };
   }, [
     tableStatePolicy.filterStateLocation,
     peekContext,
     projectId,
+    userId,
+    sessionId,
     appRootDefault.defaultExplicitFilterState,
     onExplicitFilterStateChange,
   ]);

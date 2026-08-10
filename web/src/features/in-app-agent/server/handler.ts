@@ -117,7 +117,6 @@ export default async function handler(request: Request) {
 
     addUserToSpan({
       userId,
-      email: user.email ?? undefined,
     });
 
     const bodyResult = await readBoundedJsonBody(
@@ -232,7 +231,6 @@ export default async function handler(request: Request) {
 
     addUserToSpan({
       userId,
-      email: user.email ?? undefined,
       projectId: rateLimitScope.projectId ?? undefined,
       orgId: rateLimitScope.orgId,
       plan: rateLimitScope.plan,

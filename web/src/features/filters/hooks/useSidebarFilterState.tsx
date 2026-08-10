@@ -558,6 +558,19 @@ export function useSidebarFilterStateCore(
   );
   const [memoryFilterState, setMemoryFilterState] = useState<FilterState>([]);
 
+  // A column without a facet on this surface is bounded by the page itself
+  // (user-detail traces table). Persisted, deep-linked or saved-view filters on
+  // it are dropped on both boundaries — read and write — so the applied filters
+  // never exceed what the sidebar can show (LFE-14824).
+  const omittedColumns = config.omittedFilterColumns;
+  const stripOmittedColumns = useCallback(
+    (filters: FilterState): FilterState =>
+      !omittedColumns?.length
+        ? filters
+        : filters.filter((filter) => !omittedColumns.includes(filter.column)),
+    [omittedColumns],
+  );
+
   const urlFilterState: FilterState = useMemo(() => {
     if (
       stateLocationType !== "url" &&
@@ -582,10 +595,12 @@ export function useSidebarFilterStateCore(
       return "";
     })();
 
-    return decodeAndNormalizeFilters(
-      rawQuery,
-      config.columnDefinitions,
-      config.migrateFilterState,
+    return stripOmittedColumns(
+      decodeAndNormalizeFilters(
+        rawQuery,
+        config.columnDefinitions,
+        config.migrateFilterState,
+      ),
     );
   }, [
     config.columnDefinitions,
@@ -594,6 +609,7 @@ export function useSidebarFilterStateCore(
     pendingFiltersQuery,
     urlFiltersQuery,
     storedFiltersQuery,
+    stripOmittedColumns,
   ]);
 
   const canonicalFiltersQuery = useMemo(
@@ -732,10 +748,12 @@ export function useSidebarFilterStateCore(
         origin?: "user" | "saved_view" | "system";
       },
     ) => {
-      const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
-        explicitFilters: newFilters,
-        config: managedEnvironmentPolicyConfig,
-      });
+      const explicitFilters = stripOmittedColumns(
+        stripImplicitEnvironmentFilterFromExplicitState({
+          explicitFilters: newFilters,
+          config: managedEnvironmentPolicyConfig,
+        }),
+      );
 
       onExplicitFilterStateChange?.({
         previousFilters: explicitFilterState,
@@ -787,6 +805,7 @@ export function useSidebarFilterStateCore(
       managedEnvironmentPolicyConfig,
       explicitFilterState,
       onExplicitFilterStateChange,
+      stripOmittedColumns,
     ],
   );
 
