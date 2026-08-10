@@ -89,6 +89,10 @@ export const BatchIOInput = zodSchema.object({
   minStartTime: zodSchema.date(),
   maxStartTime: zodSchema.date(),
   truncated: zodSchema.boolean().optional(), // Defaults to true for performance
+  // Caps the chars of I/O (and of each metadata value) an untruncated read
+  // ships. Bounded by the char limit above which the table cell stops
+  // rendering anyway (IO_TABLE_CHAR_LIMIT).
+  ioCharLimit: zodSchema.number().int().positive().max(10_000).optional(),
   includeToolCalls: zodSchema.boolean().optional(), // Defaults to false; tool-call arrays can be large
   // Opts into trace-level auth (public traces) in protectedGetEventsTraceProcedure
   traceId: zodSchema.string().optional(),
@@ -214,6 +218,7 @@ export const eventsRouter = createTRPCRouter({
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
+            ioCharLimit: input.ioCharLimit,
             includeToolCallFields: input.includeToolCalls,
           });
 
@@ -236,6 +241,7 @@ export const eventsRouter = createTRPCRouter({
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
+            ioCharLimit: input.ioCharLimit,
             includeExperimentFields: true,
             includeToolCallFields: input.includeToolCalls,
           });
@@ -320,8 +326,8 @@ export const eventsRouter = createTRPCRouter({
       zodSchema.object({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
-        minStartTime: zodSchema.string(),
-        maxStartTime: zodSchema.string(),
+        minStartTime: zodSchema.iso.datetime({ offset: true }),
+        maxStartTime: zodSchema.iso.datetime({ offset: true }),
       }),
     )
     .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {

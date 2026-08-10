@@ -1,7 +1,7 @@
 import { disconnectQueues } from "@/src/__tests__/test-utils";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   EntityChangeQueue,
@@ -95,6 +95,39 @@ describe("prompts trpc", () => {
   afterAll(async () => {
     await disconnectQueues();
   });
+  describe("prompts.create", () => {
+    it("returns CONFLICT when concurrent requests allocate the same prompt version", async () => {
+      const { project, caller } = await prepare();
+      const transactionSpy = vi
+        .spyOn(prisma, "$transaction")
+        .mockRejectedValueOnce(
+          new Prisma.PrismaClientKnownRequestError(
+            "Unique constraint failed on the fields: (`project_id`,`name`,`version`)",
+            {
+              code: "P2002",
+              clientVersion: "test",
+              meta: { target: ["project_id", "name", "version"] },
+            },
+          ),
+        );
+
+      try {
+        await expect(
+          caller.prompts.create({
+            projectId: project.id,
+            name: `concurrent-${v4()}`,
+            prompt: "test",
+            type: PromptType.Text,
+            labels: [],
+            config: {},
+          }),
+        ).rejects.toMatchObject({ code: "CONFLICT" });
+      } finally {
+        transactionSpy.mockRestore();
+      }
+    });
+  });
+
   describe("prompts.all input validation", () => {
     it.each([
       {

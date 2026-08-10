@@ -8,7 +8,7 @@ const { copyTextToClipboard } = vi.hoisted(() => ({
 vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard }));
 
 import { ChatMessage } from "./ChatMessage";
-import { type ChatMlMessage } from "./chat-message-utils";
+import { type ChatMlMessage } from "../../../fns/chatMessageUtils";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { type IOPreviewContentMode } from "../IOPreview";
 

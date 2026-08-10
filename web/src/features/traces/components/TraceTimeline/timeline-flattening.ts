@@ -3,13 +3,13 @@
  * Extends base tree flattening to include timeline positioning calculations.
  */
 
-import { type TreeNode } from "../../fns/types";
+import { type TreeNode } from "../../types/treeNode";
 import { type FlatTimelineItem, type TimelineMetrics } from "./types";
 import {
   calculateTimelineOffset,
   calculateTimelineWidth,
   SCALE_WIDTH,
-} from "./timeline-calculations";
+} from "../../fns/timelineCalculations";
 
 /**
  * Flattens tree into list for timeline virtualized rendering.

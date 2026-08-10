@@ -6,11 +6,15 @@
 //   scores_avg / trace_scores_avg   → numeric score NAMES
 //   score_categories[.<name>]       → categorical score names / their values
 //   (metadata key paths are not enumerated by the API — they are merged in
-//   client-side from the observed-metadata store; see lib/metadata-paths.ts
-//   withMetadataPathOptions, which fills the `metadata` key)
+//   client-side from the observed-metadata store by withMetadataPathOptions
+//   below; see fns/observedMetadata/metadataPaths.ts)
 
 import type { ScoreTypeContext } from "./adapter";
 import { SCORE_COLUMNS } from "./fields";
+import {
+  observedMetadataOptions,
+  type StoredKeyInfo,
+} from "../../../fns/observedMetadata/metadataPaths";
 
 export type ObservedValue = {
   value: string;
@@ -99,6 +103,23 @@ export function toObservedOptions(
   }
   normalizeScoreTypes(out);
   return out;
+}
+
+/**
+ * Merge the observed-metadata suggestions into the map the completion planner
+ * reads (see fns/observedMetadata/metadataPaths.ts). `undefined` observed
+ * (filter options still loading) stays `undefined` so the planner's loading
+ * semantics are untouched.
+ */
+export function withMetadataPathOptions(
+  observed: ObservedOptions | undefined,
+  paths: Record<string, StoredKeyInfo> | undefined,
+): ObservedOptions | undefined {
+  if (observed === undefined) return observed;
+  const suggestions = observedMetadataOptions(paths);
+  return Object.keys(suggestions).length === 0
+    ? observed
+    : { ...observed, ...suggestions };
 }
 
 /**

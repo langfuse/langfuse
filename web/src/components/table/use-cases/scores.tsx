@@ -38,6 +38,7 @@ import {
   type TimeFilter,
 } from "@langfuse/shared";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -198,6 +199,13 @@ export default function ScoresTable({
       ]
     : [];
 
+  // Scoped to a single trace (trace/observation detail): a time window can only
+  // hide that trace's own scores — the trace id already bounds the query — so the
+  // rows are unwindowed and the picker is not offered. The window still bounds the
+  // filter-option queries, which are project-wide either way.
+  const isTraceScoped = Boolean(traceId);
+  const rowDateRangeFilter: FilterState = isTraceScoped ? [] : dateRangeFilter;
+
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
       {
@@ -337,7 +345,8 @@ export default function ScoresTable({
           value: u.value,
           count: u.count !== undefined ? Number(u.count) : undefined,
         })) ?? undefined,
-      tags: filterOptions.data?.tags?.map((t) => t.value) ?? undefined, // tags don't have counts
+      // tags don't have counts; they read A→Z
+      tags: sortOptionValues(filterOptions.data?.tags?.map((t) => t.value)),
       environment: environmentOptions,
     }),
     [filterOptions.data, environmentOptions],
@@ -391,7 +400,7 @@ export default function ScoresTable({
 
   const filterState = createFilterState(
     queryFilter.effectiveFilterState.concat(
-      dateRangeFilter,
+      rowDateRangeFilter,
       observationScopeFilter(observationId, includeTraceLevelScores),
     ),
     [
@@ -1008,8 +1017,12 @@ export default function ScoresTable({
           ]}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
-          timeRange={showControlsInPageHeader ? undefined : timeRange}
-          setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+          timeRange={
+            showControlsInPageHeader || isTraceScoped ? undefined : timeRange
+          }
+          setTimeRange={
+            showControlsInPageHeader || isTraceScoped ? undefined : setTimeRange
+          }
           multiSelect={{
             selectAll,
             setSelectAll,

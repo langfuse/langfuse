@@ -50,20 +50,19 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useParsedObservation } from "@/src/hooks/useParsedObservation";
+import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
 
 // Extracted components
 import { ObservationDetailViewHeader } from "./components/ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
-import { TRACE_VIEW_CONFIG } from "@/src/features/traces/config/trace-view-config";
+import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import {
   aggregateTraceMetrics,
   getDescendantIds,
-} from "@/src/features/traces/fns/trace-aggregation";
-import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/node-scores";
+} from "@/src/features/traces/fns/traceAggregation";
 import TagList from "@/src/features/tag/components/TagList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
@@ -88,7 +87,8 @@ export function ObservationDetailView({
 
   // V4 beta mode and observations for log tab
   const { isBetaEnabled: isV4Enabled } = useV4Beta();
-  const { observations, roots, nodeMap } = useTraceData();
+  const { observations, roots, nodeMap, traceLevelScoreOwnerIds } =
+    useTraceData();
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
@@ -118,9 +118,7 @@ export function ObservationDetailView({
 
   // Without a TRACE row (v4) this span stands in for the trace, so its badge and
   // its Scores tab both cover the trace-level scores.
-  const ownsTraceLevelScores = traceLevelScoreOwnerIds(roots).has(
-    observation.id,
-  );
+  const ownsTraceLevelScores = traceLevelScoreOwnerIds.has(observation.id);
 
   // For root observations, compute subtree metrics for badge tooltips.
   // We compute this lazily here rather than in tree-building.ts because:

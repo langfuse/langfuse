@@ -1,6 +1,6 @@
 import preview from "../../../../../.storybook/preview";
 import { TimelineBar } from "./TimelineBar";
-import { makeTreeNode, makeMetrics, cost } from "./timeline.fixtures";
+import { makeTreeNode, makeMetrics, cost } from "./__tests__/timeline.fixtures";
 
 const meta = preview.meta({
   component: TimelineBar,
