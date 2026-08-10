@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
@@ -10,7 +11,7 @@ import {
   DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type AnnotationQueueObjectType } from "@langfuse/shared";
 import { ChevronDown, ExternalLink, ListPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -85,7 +86,7 @@ export const CreateNewAnnotationQueueItem = ({
           objectType,
         });
       } catch (error) {
-        console.error("Error toggling queue item:", error);
+        reportNonTrpcError(error, "annotation-queues");
       }
     },
     [

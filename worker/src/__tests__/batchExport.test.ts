@@ -5030,8 +5030,8 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(row.release).toBe("");
     // parent_span_id is non-nullable String; createEvent sets it to null → stored as ""
     expect(row.parent_observation_id).toBe("");
-    // trace_name is non-nullable String; not populated (no trace inserted) → ""
-    expect(row.trace_name).toBe("");
+    // With no stored trace name, exports use the semantic root's observation name.
+    expect(row.trace_name).toBe("column-contract-event");
 
     // --- Nullable columns (NULL when unset) ---
     // usage_pricing_tier_id is Nullable(String) in events_core

@@ -102,7 +102,7 @@ export const viewDeclaration = z.object({
     .object({
       // The column used to match root entities between outer query and subquery (e.g., "trace_id").
       column: z.string(),
-      // SQL condition identifying root events (e.g., "parent_span_id = ''").
+      // Fully qualified, self-contained SQL condition identifying root events.
       condition: z.string(),
     })
     .optional(),
@@ -128,6 +128,20 @@ export const viewsV2 = z.enum([
   "scores-categorical",
   "scores-boolean",
 ]);
+
+/**
+ * Persisted dashboard-widget view ids → query view ids. Lives here (not with
+ * the server-only DashboardService types) so client code can classify a stored
+ * widget; DashboardService's Prisma-keyed map is this constant, so the two
+ * cannot drift.
+ */
+export const persistedWidgetViewToQueryView = {
+  TRACES: "traces",
+  OBSERVATIONS: "observations",
+  SCORES_NUMERIC: "scores-numeric",
+  SCORES_BOOLEAN: "scores-boolean",
+  SCORES_CATEGORICAL: "scores-categorical",
+} as const satisfies Record<string, z.infer<typeof views>>;
 
 export const viewVersions = z.enum(["v1", "v2"]);
 export type ViewVersion = z.infer<typeof viewVersions>;

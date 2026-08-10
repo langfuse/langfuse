@@ -13,7 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { useCopyMigrationPrompt } from "@/src/features/v4-migration/V4MigrationContent";
+import {
+  useCopyMigrationPrompt,
+  V4_MIGRATION_DEADLINE,
+} from "@/src/features/v4-migration/V4MigrationContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
@@ -26,6 +29,7 @@ import {
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
   getProjectMigrationReadiness,
+  type MigrationActionState,
   type MigrationCountState,
   type ProjectMigrationReadiness,
   type ProjectMigrationStatus,
@@ -65,6 +69,22 @@ function AffectedCell({ count }: { count: MigrationCountState }) {
   return <span>{count.count}</span>;
 }
 
+function MigrationActionCell({ state }: { state: MigrationActionState }) {
+  if (state.status === "loading") {
+    return <span className="text-foreground-tertiary">Checking…</span>;
+  }
+  if (state.status === "error") {
+    return <span className="text-foreground-tertiary">Unavailable</span>;
+  }
+  return state.result === "required" ? (
+    <span>Update required</span>
+  ) : state.result === "sdk_usage_inconclusive" ? (
+    <span>Needs review</span>
+  ) : (
+    <span className="text-foreground-tertiary">Up to date</span>
+  );
+}
+
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
   const label =
     readiness === "ready"
@@ -96,6 +116,7 @@ type SortKey =
   | "status"
   | "sdk"
   | "evals"
+  | "experiments"
   | "apis"
   | "exports"
   | "lastTrace";
@@ -224,6 +245,12 @@ function OrgStatusSection({
                       : 0;
       case "evals":
         return row.status?.evals.count ?? 0;
+      case "experiments":
+        return row.status?.experiments.result === "required"
+          ? 2
+          : row.status?.experiments.result === "sdk_usage_inconclusive"
+            ? 1
+            : 0;
       case "apis":
         return row.status?.apis.count ?? 0;
       case "exports":
@@ -278,6 +305,12 @@ function OrgStatusSection({
                 <SortableHead
                   label="Affected Evals"
                   column="evals"
+                  orderBy={orderBy}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  label="Affected Experiments"
+                  column="experiments"
                   orderBy={orderBy}
                   onSort={handleSort}
                 />
@@ -371,6 +404,9 @@ function OrgStatusSection({
                       <AffectedCell count={row.status.evals} />
                     </TableCell>
                     <TableCell density="comfortable">
+                      <MigrationActionCell state={row.status.experiments} />
+                    </TableCell>
+                    <TableCell density="comfortable">
                       <AffectedCell count={row.status.apis} />
                     </TableCell>
                     <TableCell density="comfortable">
@@ -458,8 +494,8 @@ function V4MigrationStatusPageContent() {
           Yes, eventually. The{" "}
           <FaqLink href={SDK_UPGRADE_URL}>old SDKs</FaqLink>, trace-level evals,
           and APIs are frozen and stop working{" "}
-          <span className="underline">soon</span>. They keep running until then,
-          but we&apos;re no longer fixing bugs in them.
+          <span className="underline">on {V4_MIGRATION_DEADLINE}</span>. They
+          keep running until then, but we&apos;re no longer fixing bugs in them.
         </>
       ),
     },
@@ -484,8 +520,8 @@ function V4MigrationStatusPageContent() {
       q: "What if I do nothing?",
       a: (
         <>
-          <span className="underline">Soon</span>, old SDKs stop sending data,
-          and the{" "}
+          <span className="underline">On {V4_MIGRATION_DEADLINE}</span>, old
+          SDKs stop sending data, and the{" "}
           <FaqLink href={API_REFERENCE_URL}>
             deprecated evals and endpoints
           </FaqLink>{" "}

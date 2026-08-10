@@ -123,6 +123,8 @@ export const events = {
     "new_form_open",
     "update_form_open",
     "update_form_submit",
+    "bulk_export",
+    "bulk_import_submit",
   ],
   prompt_detail: [
     "test_in_playground_button_click",
@@ -307,6 +309,7 @@ export const events = {
     "new_chat_started",
     "new_chat_turn",
     "quick_action_started",
+    "tool_approval_decided",
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],

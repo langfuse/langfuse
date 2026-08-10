@@ -6,6 +6,7 @@ import {
   aggregateLegacyApiUsage,
   createV4MigrationDetectionRange,
   getLegacyIntegrationLabels,
+  getMigrationActionState,
   getMigrationCountState,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
@@ -109,6 +110,12 @@ export function useAccountV4MigrationData(params: {
               ?.traceLevelEvalCount ?? 0
           );
         }),
+        experiments: getMigrationActionState(
+          sdkQuery,
+          (rows) =>
+            rows.find((row) => row.projectId === project.id)
+              ?.experimentInstrumentationMigration.status ?? "not_required",
+        ),
         apis: getMigrationCountState(apiQuery, (rows) => {
           return countLegacyApiEntrypoints(
             rows.filter((row) => row.projectId === project.id),
@@ -127,7 +134,7 @@ export function useAccountV4MigrationData(params: {
   return statusByProjectId;
 }
 
-export function useProjectV4SdkData(params: {
+function useProjectV4SdkSummary(params: {
   projectId: string | undefined;
   orgId: string | undefined;
   enabled: boolean;
@@ -147,6 +154,16 @@ export function useProjectV4SdkData(params: {
     },
   );
   const summary = sdkQuery.data?.find((row) => row.projectId === projectId);
+
+  return { sdkQuery, summary };
+}
+
+export function useProjectV4SdkData(params: {
+  projectId: string | undefined;
+  orgId: string | undefined;
+  enabled: boolean;
+}) {
+  const { sdkQuery, summary } = useProjectV4SdkSummary(params);
 
   return getV4MigrationSdkState({
     summary,
@@ -177,7 +194,7 @@ export function useProjectV4MigrationData(params: {
   const { projectId, orgId, enabled } = params;
   const queryEnabled = enabled && Boolean(projectId);
   const [detectionRange] = useState(createV4MigrationDetectionRange);
-  const sdk = useProjectV4SdkData({
+  const { sdkQuery, summary: sdkSummary } = useProjectV4SdkSummary({
     projectId,
     orgId,
     enabled,
@@ -209,11 +226,23 @@ export function useProjectV4MigrationData(params: {
   );
 
   return {
-    sdk,
+    sdk: getV4MigrationSdkState({
+      summary: sdkSummary,
+      isLoading: sdkQuery.data === undefined && !sdkQuery.isError,
+      isError: sdkQuery.isError,
+    }),
     evals: getMigrationCountState(
       evalQuery,
       (data) => data.traceLevelEvalCount,
     ),
+    experiments: getMigrationActionState(
+      sdkQuery,
+      (rows) =>
+        rows.find((row) => row.projectId === projectId)
+          ?.experimentInstrumentationMigration.status ?? "not_required",
+    ),
+    experimentInstrumentationUpgradePath:
+      sdkSummary?.experimentInstrumentationMigration.upgradePath ?? null,
     apis: getMigrationCountState(apiQuery, () => apiUsage.length),
     exports: getMigrationCountState(
       integrationQuery,

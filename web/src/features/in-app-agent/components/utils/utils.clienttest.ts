@@ -1,11 +1,23 @@
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
   extractLangfuseDocsSources,
+  getInAppAgentToolDisplayName,
   getDrawerMessages,
   getInAppAgentError,
   isInAppAgentRateLimited,
   type InAppAiAgentMessage,
 } from "./utils";
+
+describe("getInAppAgentToolDisplayName", () => {
+  it.each([
+    ["docs_search", "search"],
+    ["langfuse_getTraces", "getTraces"],
+    ["langfuseDocs_search", "search"],
+    ["read", "read"],
+  ])("strips a display-only namespace from %s", (toolName, expected) => {
+    expect(getInAppAgentToolDisplayName(toolName)).toBe(expected);
+  });
+});
 
 describe("getInAppAgentError", () => {
   const now = new Date("2026-07-08T20:00:54.997Z").getTime();

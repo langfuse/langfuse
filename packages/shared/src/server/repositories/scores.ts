@@ -11,7 +11,11 @@ import {
   ScoreDataTypeEnum,
 } from "../../domain/scores";
 import { InvalidRequestError, InternalServerError } from "../../errors";
-import { eventsTableIsRootObservationSql } from "../../eventsTable";
+import {
+  eventsTableIsRootObservationSql,
+  eventsTableTraceNameSql,
+  eventsTableTraceNameAggregationSql,
+} from "../../eventsTable";
 import type { APIScoreV3 } from "../../features/scores/interfaces/api/v3/schemas";
 import type { ScoreFieldGroupV3 } from "../../features/scores/interfaces/api/v3/endpoints";
 import { filterAndValidateV3GetScoreList } from "../../features/scores/interfaces/api/v3/validation";
@@ -1407,16 +1411,15 @@ const getScoresUiGeneric = async <T>(props: {
 
 /**
  * Trace column mapping for building WHERE filters inside the flat events CTE.
- * References actual events_core columns (trace_name, user_id, tags) with the
- * "e" prefix used by EventsQueryBuilder.
+ * References actual events_core columns with the "e" prefix used by
+ * EventsQueryBuilder.
  */
 const scoresTraceFilterEventsMapping = [
   {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
     clickhouseTableName: "traces",
-    clickhouseSelect: "trace_name",
-    queryPrefix: "e",
+    clickhouseSelect: eventsTableTraceNameSql,
   },
   {
     uiTableName: "User ID",
@@ -2390,14 +2393,11 @@ const buildAnalyticsScoreTraceAttributesCte = (
 // lookback mirrors the legacy CTE so delayed scores stay enriched.
 //
 // Hand-written rather than eventsTracesAggregation: aggregating only
-// root-span rows keeps the GROUP BY state ~one row per trace (the full-span
-// aggregation OOMed the largest tenants), and the field expressions carry
+// semantic-root rows keeps the GROUP BY state ~one row per trace (the
+// full-span aggregation OOMed the largest tenants). Trace-name selection is
+// shared with eventsTracesAggregation; the remaining field expressions keep
 // the parity fixes byte-verified against prod dual-write data in the
-// LFE-14383 benchmark — NULL semantics via nullIf, trace-name fallback
-// strictly from parent_span_id = '' rows, tags as sorted union across
-// writes, release latest-write-wins, metadata keys via indexOf instead of
-// per-row map construction. eventsTracesAggregation lacks all five
-// (tracked in LFE-11009).
+// LFE-14383 benchmark (tracked in LFE-11009).
 const buildAnalyticsScoreTraceAttributesFromEventsCte = (
   projectId: string,
   minTimestamp: Date,
@@ -2407,7 +2407,7 @@ const buildAnalyticsScoreTraceAttributesFromEventsCte = (
       SELECT
         e.project_id as project_id,
         e.trace_id as id,
-        coalesce(nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name <> ''), ''), nullIf(argMaxIf(e.name, e.event_ts, e.parent_span_id = '' AND e.name <> ''), ''), '') as name,
+        coalesce(${eventsTableTraceNameAggregationSql}, '') as name,
         nullIf(argMaxIf(e.session_id, e.event_ts, e.session_id <> ''), '') as session_id,
         nullIf(argMaxIf(e.user_id, e.event_ts, e.user_id <> ''), '') as user_id,
         nullIf(argMax(e.release, e.event_ts), '') as release,

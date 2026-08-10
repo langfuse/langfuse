@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
 
 import type { InAppAgentPendingToolApproval } from "./InAppAiAgentProvider";
@@ -149,6 +149,9 @@ function TestConsumer({
       </span>
       <span data-testid="tool-call-ids">{toolCallIds.join(",")}</span>
       <span data-testid="tool-result-ids">{toolResultIds.join(",")}</span>
+      <button type="button" onClick={smoothStreaming.finishAnimation}>
+        Stop display
+      </button>
     </>
   );
 }
@@ -246,6 +249,41 @@ describe("useSmoothStreamingMessages", () => {
     expect(screen.getByTestId("animating")).toHaveTextContent("false");
   });
 
+  it("shows cached history immediately when switching conversations", () => {
+    const firstConversationText = "a".repeat(80);
+    const cachedConversationText = "b".repeat(80);
+    const { rerender } = render(
+      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+    );
+
+    rerender(
+      <TestConsumer
+        liveMessageVersion={1}
+        messages={[userMessage, assistantMessage(firstConversationText)]}
+      />,
+    );
+    runAllAnimationFrames();
+
+    rerender(
+      <TestConsumer
+        liveMessageVersion={0}
+        messages={[
+          { id: "cached-user", role: "user", content: "Cached conversation" },
+          {
+            id: "cached-assistant",
+            role: "assistant",
+            content: cachedConversationText,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("content")).toHaveTextContent(
+      cachedConversationText,
+    );
+    expect(screen.getByTestId("animating")).toHaveTextContent("false");
+  });
+
   it("animates a live message that completes in one update", () => {
     const content =
       "This final response arrived atomically but should still be displayed smoothly.";
@@ -276,39 +314,9 @@ describe("useSmoothStreamingMessages", () => {
     expect(screen.getByTestId("animating")).toHaveTextContent("false");
   });
 
-  it("matches the observed generation rate for the next text chunk", () => {
-    const { rerender } = render(
-      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
-    );
-    const emptyAssistantMessage = assistantMessage("");
-
-    rerender(
-      <TestConsumer
-        liveMessageVersion={1}
-        messages={[userMessage, emptyAssistantMessage]}
-      />,
-    );
-    act(() => {
-      vi.advanceTimersByTime(2_000);
-    });
-
-    const generatedContent = "x".repeat(200);
-    rerender(
-      <TestConsumer
-        liveMessageVersion={2}
-        messages={[userMessage, assistantMessage(generatedContent)]}
-      />,
-    );
-    advanceAnimationFrames(25);
-
-    const displayedLength =
-      screen.getByTestId("content-assistant").textContent?.length ?? 0;
-    expect(displayedLength).toBeGreaterThanOrEqual(75);
-    expect(displayedLength).toBeLessThanOrEqual(85);
-    runAllAnimationFrames();
-  });
-
-  it("keeps pacing headroom when the next chunk arrives late", () => {
+  it("finishes the local reveal immediately when the user stops a completed server run", () => {
+    const content =
+      "The server has already completed this response while the drawer is still revealing it.";
     const { rerender } = render(
       <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
     );
@@ -316,31 +324,34 @@ describe("useSmoothStreamingMessages", () => {
     rerender(
       <TestConsumer
         liveMessageVersion={1}
-        messages={[userMessage, assistantMessage("")]}
+        messages={[userMessage, assistantMessage(content)]}
       />,
     );
-    act(() => {
-      vi.advanceTimersByTime(2_000);
-    });
 
-    const generatedContent = "x".repeat(200);
-    rerender(
-      <TestConsumer
-        liveMessageVersion={2}
-        messages={[userMessage, assistantMessage(generatedContent)]}
-      />,
-    );
-    advanceAnimationFrames(50);
-
-    const displayedLength =
-      screen.getByTestId("content-assistant").textContent?.length ?? 0;
-    expect(displayedLength).toBeGreaterThanOrEqual(155);
-    expect(displayedLength).toBeLessThanOrEqual(165);
+    expect(screen.getByTestId("content")).not.toHaveTextContent(content);
     expect(screen.getByTestId("animating")).toHaveTextContent("true");
-    runAllAnimationFrames();
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop display" }));
+
+    expect(screen.getByTestId("content")).toHaveTextContent(content);
+    expect(screen.getByTestId("animating")).toHaveTextContent("false");
   });
 
-  it("limits acceleration from one unusually fast chunk", () => {
+  /**
+   * Replaces three earlier cases that pinned the EMA-only ceiling (observed
+   * rate, late-chunk headroom, single-fast-chunk clamp). Those bounds were
+   * derived from a *generation* rate, which is meaningless once text arrives in
+   * whole compacted blocks: the backlog-aware floor dominates there, so
+   * re-asserting the old ceilings would only restate the implementation.
+   *
+   * What is worth protecting is the user-visible regression the floor fixes. A
+   * ~800-grapheme block at the 40 graphemes/second default crawled for ~20s,
+   * which is what the background path publishes on every flush. The floor
+   * recomputes from the remaining backlog each frame, so it eases out rather
+   * than finishing on a hard deadline — hence a generous bound here. It is
+   * still an order of magnitude away from the old behavior, which is the point.
+   */
+  it("reveals a whole compacted block progressively, not at the default crawl", () => {
     const { rerender } = render(
       <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
     );
@@ -354,34 +365,38 @@ describe("useSmoothStreamingMessages", () => {
     act(() => {
       vi.advanceTimersByTime(2_000);
     });
+
+    const generatedContent = "x".repeat(800);
     rerender(
       <TestConsumer
         liveMessageVersion={2}
-        messages={[userMessage, assistantMessage("x".repeat(100))]}
+        messages={[userMessage, assistantMessage(generatedContent)]}
       />,
     );
-    act(() => {
-      vi.advanceTimersByTime(100);
-    });
 
-    rerender(
-      <TestConsumer
-        liveMessageVersion={3}
-        messages={[userMessage, assistantMessage("x".repeat(200))]}
-      />,
+    advanceAnimationFrames(1);
+    const afterFirstFrame =
+      screen.getByTestId("content-assistant").textContent?.length ?? 0;
+    // Smoothed, not dumped.
+    expect(afterFirstFrame).toBeGreaterThan(0);
+    expect(afterFirstFrame).toBeLessThan(generatedContent.length);
+
+    let frames = 1;
+    const maxFrames = Math.ceil(5_000 / 40);
+    while (
+      frames < maxFrames &&
+      (screen.getByTestId("content-assistant").textContent?.length ?? 0) <
+        generatedContent.length
+    ) {
+      advanceAnimationFrames(1);
+      frames += 1;
+    }
+
+    expect(screen.getByTestId("content-assistant")).toHaveTextContent(
+      generatedContent,
     );
-    const displayedBeforeFastChunk =
-      screen.getByTestId("content-assistant").textContent?.length ?? 0;
-    advanceAnimationFrames(25);
-
-    const displayedAfterOneSecond =
-      screen.getByTestId("content-assistant").textContent?.length ?? 0;
-    expect(
-      displayedAfterOneSecond - displayedBeforeFastChunk,
-    ).toBeGreaterThanOrEqual(45);
-    expect(
-      displayedAfterOneSecond - displayedBeforeFastChunk,
-    ).toBeLessThanOrEqual(51);
+    // 800 graphemes at the 40/s default would have needed ~500 frames (~20s).
+    expect(frames).toBeLessThan(maxFrames);
     runAllAnimationFrames();
   });
 
@@ -683,6 +698,36 @@ describe("useSmoothStreamingMessages", () => {
     expect(screen.getByTestId("approval-ids")).toHaveTextContent(
       "approval-1,approval-2",
     );
+  });
+
+  it("shows an approval restored from history without pacing the restored tools", () => {
+    // A pending approval survives a refresh, so hydration delivers it with no
+    // live publication. Pacing that schedules an appearance transition for every
+    // tool call in the restored history at 2/second, and the approval card sorts
+    // last — so it waited behind the whole backlog while `isAnimating` kept the
+    // drawer looking like the run was still executing.
+    const { rerender } = render(
+      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+    );
+
+    rerender(
+      <TestConsumer
+        liveMessageVersion={0}
+        messages={[
+          userMessage,
+          assistantToolMessage(["tool-1", "tool-2", "tool-3"], true),
+        ]}
+        pendingToolApprovals={[pendingToolApproval("approval-1", "pending")]}
+      />,
+    );
+
+    // Hydration is applied whole: the restored tools and the approval are all
+    // visible on the first render, with nothing left animating.
+    expect(screen.getByTestId("tool-call-ids")).toHaveTextContent(
+      "tool-1,tool-2,tool-3",
+    );
+    expect(screen.getByTestId("approval-ids")).toHaveTextContent("approval-1");
+    expect(screen.getByTestId("animating")).toHaveTextContent("false");
   });
 
   it("does not animate for reduced-motion users", () => {

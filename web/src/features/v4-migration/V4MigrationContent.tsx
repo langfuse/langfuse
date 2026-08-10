@@ -33,6 +33,7 @@ import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/use
 import {
   getProjectMigrationReadiness,
   V4_MIGRATION_LOOKBACK_DAYS,
+  type MigrationActionState,
   type MigrationCountState,
 } from "@/src/features/v4-migration/migrationData";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -45,12 +46,13 @@ import {
   V4_CODING_AGENT_PROMPT,
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+export const V4_MIGRATION_DEADLINE = "Oct 9";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -67,6 +69,8 @@ const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
   "Blob Storage":
     "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path",
 };
+const EXPERIMENT_OTEL_INGESTION_URL =
+  "https://langfuse.com/integrations/native/opentelemetry/experiments";
 
 // Copies the agent migration prompt to the clipboard with toast + analytics;
 // shared by the panel/modal header CTA and the status page.
@@ -196,6 +200,22 @@ function MigrationCountChip({
     <Chip variant="warning">
       {state.count} {affectedLabel}
     </Chip>
+  );
+}
+
+function MigrationActionChip({ state }: { state: MigrationActionState }) {
+  if (state.status === "loading") {
+    return <Chip variant="warning">Checking</Chip>;
+  }
+  if (state.status === "error") {
+    return <Chip variant="warning">Check failed</Chip>;
+  }
+  return state.result === "required" ? (
+    <Chip variant="warning">Update required</Chip>
+  ) : state.result === "sdk_usage_inconclusive" ? (
+    <Chip variant="warning">Needs review</Chip>
+  ) : (
+    <Chip variant="success">Up to date</Chip>
   );
 }
 
@@ -380,9 +400,7 @@ export function V4MigrationHeaderContent({
         });
         capture(`project_settings:api_key_create`);
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportNonTrpcError(error, "v4-migration"));
   };
 
   return (
@@ -393,7 +411,10 @@ export function V4MigrationHeaderContent({
           titleRowClassName,
         )}
       >
-        <p className="min-w-0 text-lg font-bold">
+        <p
+          className="min-w-0 flex-1 truncate text-lg font-bold"
+          title={projectName ? `Migrate ${projectName} to v4` : "Migrate to v4"}
+        >
           {projectName ? <>Migrate {projectName} to v4</> : "Migrate to v4"}
         </p>
         <Link
@@ -404,7 +425,7 @@ export function V4MigrationHeaderContent({
           }}
           className="shrink-0 text-sm underline"
         >
-          View Status
+          View Org status
         </Link>
       </div>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
@@ -414,7 +435,7 @@ export function V4MigrationHeaderContent({
         is here: real-time, up to 165× faster, plus new dashboards, alerting,
         sessions, and trace view.
         {needsMigration &&
-          " This project still uses the previous setup, which stops working soon."}
+          ` This project still uses the previous setup, which stops working on ${V4_MIGRATION_DEADLINE}.`}
       </p>
       <div className="flex flex-col gap-2">
         {promptVisible && (
@@ -572,7 +593,7 @@ export function V4MigrationDetailsContent({
           </a>
         </div>
         <p className="text-muted-foreground text-sm">
-          Some features will stop working soon.
+          Some features will stop working on {V4_MIGRATION_DEADLINE}.
         </p>
         <div>
           <V4MigrationSdkSection sdk={migrationData.sdk} />
@@ -604,7 +625,7 @@ export function V4MigrationDetailsContent({
                   trace input/output, which{" "}
                   <span className="text-dark-yellow">
                     {migrationData.evals.count === 1 ? "stops" : "stop"} running
-                    soon
+                    on {V4_MIGRATION_DEADLINE}
                   </span>
                   . Repointing {migrationData.evals.count === 1 ? "it" : "them"}{" "}
                   at observations or experiments requires minimal changes
@@ -645,6 +666,69 @@ export function V4MigrationDetailsContent({
           </Section>
 
           <Section
+            title="Experiments"
+            chip={<MigrationActionChip state={migrationData.experiments} />}
+          >
+            {migrationData.experiments.status === "loading" ? (
+              <p className="text-muted-foreground text-sm">
+                Checking experiment instrumentation…
+              </p>
+            ) : migrationData.experiments.status === "error" ? (
+              <p className="text-muted-foreground text-sm">
+                We could not check experiment instrumentation. Try again later.
+              </p>
+            ) : migrationData.experiments.result !== "not_required" ? (
+              <p className="text-muted-foreground text-sm">
+                {migrationData.experimentInstrumentationUpgradePath ===
+                "api" ? (
+                  <>
+                    This project called the deprecated{" "}
+                    <MonoValue>POST /dataset-run-items</MonoValue>. Replace this
+                    direct API call with OTel experiment instrumentation. See
+                    the{" "}
+                    <ExternalLink href={EXPERIMENT_OTEL_INGESTION_URL}>
+                      OTel experiment instrumentation guide
+                    </ExternalLink>{" "}
+                    for more details.
+                  </>
+                ) : migrationData.experiments.result ===
+                  "sdk_usage_inconclusive" ? (
+                  <>
+                    This project called{" "}
+                    <MonoValue>POST /dataset-run-items</MonoValue> with an SDK
+                    version that supports the experiment runner. Review that you
+                    are using the experiment runner SDK and not the deprecated{" "}
+                    <>
+                      <>
+                        <code className="bg-muted px-1 font-mono text-sm">
+                          .link()
+                        </code>{" "}
+                        method. This warning will{" "}
+                      </>
+                      disappear once you{" "}
+                    </>
+                    upgrade to latest SDK version.
+                  </>
+                ) : (
+                  <>
+                    This project called{" "}
+                    <MonoValue>POST /dataset-run-items</MonoValue> with an
+                    outdated SDK.{" "}
+                    <ExternalLink href={SDK_UPGRADE_URL}>
+                      Upgrade the SDK
+                    </ExternalLink>{" "}
+                    and use the experiment runner method.
+                  </>
+                )}
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No experiment instrumentation updates required.
+              </p>
+            )}
+          </Section>
+
+          <Section
             title="Deprecated APIs"
             chip={
               <MigrationCountChip
@@ -665,7 +749,8 @@ export function V4MigrationDetailsContent({
               <>
                 <p className="text-muted-foreground mb-2 text-sm">
                   You&apos;ve called these deprecated endpoints in the last{" "}
-                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working soon; the{" "}
+                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working on{" "}
+                  {V4_MIGRATION_DEADLINE}; the{" "}
                   <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
                     migration guide
                   </ExternalLink>{" "}

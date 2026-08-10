@@ -19,7 +19,9 @@ type SessionUser = NonNullable<Session["user"]>;
  * Shared by the foreground route and the background `startRun` mutation so a
  * user cannot bypass the cap by submitting through the other path.
  *
- * TODO: this is org-scoped only; there is no per-user cap yet.
+ * TODO: this bucket is org-scoped only; a per-user submission cap needs the
+ * rate-limit service to support non-org keys. Concurrency is capped per user by
+ * `assertInAppAgentRunCapacity`.
  */
 export function getInAppAgentApiAccessScope(
   user: SessionUser,

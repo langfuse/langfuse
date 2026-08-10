@@ -1,6 +1,5 @@
 import { EventType } from "@ag-ui/core";
 import { type Session } from "next-auth";
-import { getServerSession } from "next-auth";
 
 import { env } from "@/src/env.mjs";
 import {
@@ -16,6 +15,8 @@ import {
   checkInAppAgentRateLimit,
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
+import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
+import { reconcileConversationRuns } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { getInAppAgentInstrumentationTraceId } from "@langfuse/shared/in-app-agent";
 import {
   AgUiRunAgentInputSchema,
@@ -42,6 +43,7 @@ import {
 } from "@langfuse/shared/in-app-agent/server/tools";
 import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import {
+  createSandboxToolCallFileAccumulator,
   createRun,
   ensureOwnedConversation,
   finishRun,
@@ -49,7 +51,6 @@ import {
   getConversationMessagesForReplay,
   isInAppAgentConversationWriteLocked,
   maybeInferAndPersistConversationTitle,
-  getSandboxToolCallFiles,
   flushPendingRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
@@ -60,7 +61,7 @@ import {
   getDefaultInAppAgentSandboxProviderType,
 } from "@langfuse/shared/in-app-agent/server/sandbox/config";
 import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
-import { getAuthOptions } from "@/src/server/auth";
+import { getServerAuthSessionForRequest } from "@/src/server/auth";
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
 import { createHttpHeaderFromRateLimit } from "@/src/features/public-api/server/RateLimitService";
 import type { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -104,8 +105,7 @@ const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
 
 export default async function handler(request: Request) {
   try {
-    const authOptions = await getAuthOptions();
-    const session = await getServerSession(authOptions);
+    const session = await getServerAuthSessionForRequest(request);
 
     if (!session?.user) {
       throw new UnauthorizedError("Unauthenticated");
@@ -116,7 +116,6 @@ export default async function handler(request: Request) {
 
     addUserToSpan({
       userId,
-      email: user.email ?? undefined,
     });
 
     const bodyResult = await readBoundedJsonBody(
@@ -231,13 +230,13 @@ export default async function handler(request: Request) {
 
     addUserToSpan({
       userId,
-      email: user.email ?? undefined,
       projectId: rateLimitScope.projectId ?? undefined,
       orgId: rateLimitScope.orgId,
       plan: rateLimitScope.plan,
     });
 
-    // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
+    // TODO: Add a per-user submission bucket once the rate-limit service
+    // supports non-org keys; the concurrency ceiling below is per user already.
     const rateLimitResponse = await rateLimitInAppAgentRequest(
       rateLimitScope,
       "in-app-agent-run",
@@ -252,6 +251,24 @@ export default async function handler(request: Request) {
       projectId,
       conversationId,
       userId: userId,
+    });
+
+    // Reconcile, then count, in the order `startBackgroundRun` uses: this turn
+    // is allowed to replace a run of its own conversation that `createRun`
+    // would stale-close below, so counting that row would reject the
+    // replacement with a ceiling error instead. The ceiling is applied on this
+    // route at all so it cannot be bypassed by submitting through the
+    // foreground path, exactly as the shared rate-limit scope cannot be.
+    await reconcileConversationRuns({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+    });
+    await assertInAppAgentRunCapacity({
+      prisma,
+      orgId: rateLimitScope.orgId,
+      plan: rateLimitScope.plan,
+      userId,
     });
     const conversationEvents = await getConversationEvents({
       prisma,
@@ -293,6 +310,8 @@ export default async function handler(request: Request) {
     const resumeApprovalRequest = isResumeAgentInput(sanitizedInput)
       ? sanitizedInput.forwardedProps.command.resume.approvalRequest
       : undefined;
+    const sandboxToolCallFiles =
+      createSandboxToolCallFileAccumulator(conversationEvents);
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
     const sandboxProvider =
       await getInAppAgentSandboxProvider(sandboxProviderType);
@@ -302,8 +321,7 @@ export default async function handler(request: Request) {
           projectId,
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
-          getToolCallFiles: async () =>
-            getSandboxToolCallFiles(conversationEvents),
+          getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),
           saveState: async (state) => {
             await prisma.inAppAgentConversation.update({
               where: {
@@ -446,6 +464,11 @@ export default async function handler(request: Request) {
                 }
 
                 pendingPersistedEvents.push(persistedEvent);
+                sandboxToolCallFiles.processEvent({
+                  event: persistedEvent,
+                  runId: sanitizedInput.runId,
+                  createdAt: new Date(),
+                });
 
                 if (!shouldFlushPersistedEvent(persistedEvent)) {
                   return;
@@ -453,6 +476,7 @@ export default async function handler(request: Request) {
 
                 return flushPersistedRunEvents();
               },
+              onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
               onApprovedToolCallExecuted: () => {
                 approvedToolResultPersisted = true;
               },
@@ -619,7 +643,7 @@ export default async function handler(request: Request) {
 async function getInAppAgentSandboxProvider(
   providerType: ReturnType<typeof getDefaultInAppAgentSandboxProviderType>,
 ) {
-  if (providerType === null || env.NODE_ENV === "test") {
+  if (providerType === null) {
     return undefined;
   }
 

@@ -12,7 +12,7 @@ export const VARIABLE_REGEX = /^\p{L}[\p{L}\p{N}_]*$/u;
 export const MUSTACHE_REGEX = /{{([^{}]*)}}/g;
 
 // Regex to find multiline variables
-export const MULTILINE_VARIABLE_REGEX = /{{[^{}]*\n[^{}]*}}/g;
+export const MULTILINE_VARIABLE_REGEX = /{{[^{}\n]*\n[^{}]*}}/g;
 
 // Regex to find unclosed variables
 export const UNCLOSED_VARIABLE_REGEX = /{{(?!{)(?![^{]*}})/g;

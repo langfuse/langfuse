@@ -37,6 +37,10 @@
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
   helpers, eval/model-pricing helpers, and other frontend-safe utilities.
+  Includes the unicode-decoding JSON serialization helpers (`stringify`,
+  `stringifyForCsv` in `src/utils/stringify.ts`) used by both the server
+  trace-download route and client-side download/copy paths; the server barrel
+  re-exports them for compatibility.
 - `@langfuse/shared/src/server` via `src/server/index.ts`: server-only barrel
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,

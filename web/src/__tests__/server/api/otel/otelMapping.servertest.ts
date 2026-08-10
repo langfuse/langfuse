@@ -4727,6 +4727,136 @@ describe("OTel Resource Span Mapping", () => {
       );
     });
 
+    // TraceLoop flattens prompt arrays into gen_ai.prompt.<index>.* attributes.
+    // An unsafe message must not prevent a valid sibling from being ingested.
+    it("should ignore out-of-range OTEL message indices without dropping valid messages", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.prompt.0.content",
+                    value: { stringValue: "valid message" },
+                  },
+                  {
+                    key: "gen_ai.prompt.10001.content",
+                    value: { stringValue: "unsafe message" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toEqual([{ content: "valid message" }]);
+    });
+
+    // OpenInference may place array indices deeper in llm.input_messages paths,
+    // so every numeric segment must be checked, not only the first one.
+    it("should ignore out-of-range nested OTEL indices", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "llm.input_messages.0.message.10001.content",
+                    value: { stringValue: "unsafe content" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.role",
+                    value: { stringValue: "user" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+      const input = observation?.body.input as Array<{
+        message: Record<string, unknown>;
+      }>;
+
+      expect(input).toHaveLength(1);
+      expect(Array.isArray(input[0].message)).toBe(false);
+      expect(input[0].message).toEqual({ role: "user" });
+    });
+
+    it("should cap total array-slot expansion across nested OTEL paths", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "llm.input_messages.0.safe",
+                    value: { stringValue: "preserved sibling" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.9999.content",
+                    value: { stringValue: "accepted content" },
+                  },
+                  {
+                    key: "llm.input_messages.1.message.9999.content",
+                    value: { stringValue: "over budget content" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+      const input = observation?.body.input as Array<{
+        safe?: string;
+        message?: Array<{ content: string }>;
+      }>;
+
+      expect(input).toHaveLength(1);
+      expect(input[0].safe).toBe("preserved sibling");
+      expect(input[0].message).toHaveLength(10_000);
+      expect(input[0].message?.[9_999]).toEqual({
+        content: "accepted content",
+      });
+    });
+
     // GenAI semantic conventions v1.37+ record prompts/completions on a
     // gen_ai.client.inference.operation.details span event (e.g. Hindsight)
     it("should extract input/output from gen_ai.client.inference.operation.details span event", async () => {

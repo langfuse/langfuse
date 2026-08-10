@@ -26,6 +26,14 @@ const SDK_VERSION_CAPABILITIES = {
     javascript: [5, 4, 0],
     python: [4, 7, 0],
   },
+  experimentRunner: {
+    javascript: [4, 1, 0],
+    python: [3, 4, 0],
+  },
+  experimentLinkDeprecation: {
+    javascript: [5, 10, 0],
+    python: [4, 0, 0],
+  },
 } as const;
 
 type SdkVersionCapability = keyof typeof SDK_VERSION_CAPABILITIES;

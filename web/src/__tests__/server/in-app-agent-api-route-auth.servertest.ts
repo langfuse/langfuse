@@ -8,7 +8,8 @@ import type {
 } from "@langfuse/shared/in-app-agent";
 import { appendRunEvents } from "@langfuse/shared/in-app-agent/server/persistence";
 import { env } from "@/src/env.mjs";
-import { InAppAgentRunStatus } from "@langfuse/shared";
+import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   createAndAddApiKeysToDb,
@@ -24,8 +25,7 @@ import { beforeEach, vi } from "vitest";
 import { z } from "zod";
 
 const authMocks = vi.hoisted(() => ({
-  getServerSession: vi.fn(),
-  getAuthOptions: vi.fn().mockResolvedValue({}),
+  getServerAuthSessionForRequest: vi.fn(),
 }));
 
 const entitlementMocks = vi.hoisted(() => ({
@@ -51,12 +51,15 @@ const langfuseClientMocks = vi.hoisted(() => ({
   getLangfuseClient: vi.fn(() => ({})),
 }));
 
-vi.mock("next-auth", () => ({
-  getServerSession: authMocks.getServerSession,
-}));
+vi.hoisted(() => {
+  // This suite mocks the agent stream and does not exercise a sandbox
+  // provider. Keep its provider selection explicit rather than inheriting the
+  // developer's root .env.
+  delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
+});
 
 vi.mock("@/src/server/auth", () => ({
-  getAuthOptions: authMocks.getAuthOptions,
+  getServerAuthSessionForRequest: authMocks.getServerAuthSessionForRequest,
 }));
 
 vi.mock("@/src/features/entitlements/server/hasEntitlement", () => ({
@@ -196,7 +199,7 @@ describe("in-app agent public API route auth", () => {
   });
 
   it("adds the authenticated user to the request span", async () => {
-    authMocks.getServerSession.mockResolvedValue(
+    authMocks.getServerAuthSessionForRequest.mockResolvedValue(
       createInAppAgentSession({ orgId: "org-1", projectId: "project-1" }),
     );
 
@@ -206,7 +209,6 @@ describe("in-app agent public API route auth", () => {
 
     expect(instrumentationMocks.addUserToSpan).toHaveBeenCalledWith({
       userId: "user-1",
-      email: "test@example.com",
     });
   });
 
@@ -251,7 +253,7 @@ describe("in-app agent public API route auth", () => {
           name: "In-app Agent User",
         },
       });
-      authMocks.getServerSession.mockResolvedValue(
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(
         createInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
@@ -391,7 +393,7 @@ describe("in-app agent public API route auth", () => {
       await withInAppAgentCloudEnv(async () => {
         const { conversationId, org, project, userId } =
           await setupWatchConversation();
-        authMocks.getServerSession.mockResolvedValue(
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
           createInAppAgentSession({
             orgId: org.id,
             projectId: project.id,
@@ -415,7 +417,7 @@ describe("in-app agent public API route auth", () => {
     it("rejects an unauthenticated watch", async () => {
       await withInAppAgentCloudEnv(async () => {
         const { conversationId, project } = await setupWatchConversation();
-        authMocks.getServerSession.mockResolvedValue(null);
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(null);
 
         const response = await callWatchRoute({
           projectId: project.id,
@@ -430,7 +432,7 @@ describe("in-app agent public API route auth", () => {
       await withInAppAgentCloudEnv(async () => {
         const { conversationId, org, project, userId } =
           await setupWatchConversation();
-        authMocks.getServerSession.mockResolvedValue(
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
           createInAppAgentSession({
             orgId: org.id,
             projectId: project.id,
@@ -452,7 +454,7 @@ describe("in-app agent public API route auth", () => {
       await withInAppAgentCloudEnv(async () => {
         const { conversationId, org, project, userId } =
           await setupWatchConversation();
-        authMocks.getServerSession.mockResolvedValue(
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
           createInAppAgentSession({
             orgId: org.id,
             projectId: project.id,
@@ -474,7 +476,7 @@ describe("in-app agent public API route auth", () => {
       await withInAppAgentCloudEnv(async () => {
         const { conversationId, org, project, userId } =
           await setupWatchConversation();
-        authMocks.getServerSession.mockResolvedValue(
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
           createInAppAgentSession({
             orgId: org.id,
             projectId: project.id,
@@ -505,7 +507,7 @@ describe("in-app agent public API route auth", () => {
             email: `${otherUserId}@example.com`,
           },
         });
-        authMocks.getServerSession.mockResolvedValue(
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
           createInAppAgentSession({
             orgId: org.id,
             projectId: project.id,
@@ -530,7 +532,7 @@ describe("in-app agent public API route auth", () => {
           where: { id: other.org.id },
           data: { aiFeaturesEnabled: true },
         });
-        authMocks.getServerSession.mockResolvedValue(
+        authMocks.getServerAuthSessionForRequest.mockResolvedValue(
           createInAppAgentSession({
             orgId: other.org.id,
             projectId: other.project.id,
@@ -1026,7 +1028,7 @@ describe("in-app agent public API route auth", () => {
       if (!sessionUser) {
         throw new Error("Expected an authenticated session user");
       }
-      authMocks.getServerSession.mockResolvedValue(session);
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(session);
       rateLimitMocks.rateLimitRequest.mockResolvedValue({
         isRateLimited: () => true,
         res: {
@@ -1087,7 +1089,6 @@ describe("in-app agent public API route auth", () => {
       );
       expect(instrumentationMocks.addUserToSpan).toHaveBeenLastCalledWith({
         userId: sessionUser.id,
-        email: sessionUser.email,
         projectId: project.id,
         orgId: org.id,
         plan: "cloud:team",
@@ -1126,7 +1127,7 @@ describe("in-app agent public API route auth", () => {
         admin: true,
         includeProjectMembership: false,
       });
-      authMocks.getServerSession.mockResolvedValue(session);
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(session);
       rateLimitMocks.rateLimitRequest.mockResolvedValue({
         isRateLimited: () => true,
         res: {
@@ -1189,6 +1190,84 @@ describe("in-app agent public API route auth", () => {
     }
   });
 
+  it("sweeps the conversation's own stale run before applying the active-run ceiling", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const originalMaxActiveRunsPerUser =
+        sharedEnv.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER;
+
+      await prisma.inAppAgentConversation.create({
+        data: {
+          id: conversationId,
+          projectId: project.id,
+          createdByUserId: userId,
+        },
+      });
+
+      // A foreground stream that died before finishRun ran: `createRun`
+      // stale-closes exactly this row further down, so the ceiling must not
+      // count it and reject the replacement first. This route is the rollback
+      // path, where leaked rows and users at their ceiling coincide.
+      const abandonedRun = await prisma.inAppAgentRun.create({
+        data: {
+          id: `run-${randomUUID()}`,
+          projectId: project.id,
+          conversationId,
+          triggeredByUserId: userId,
+          status: InAppAgentRunStatus.RUNNING,
+          createdAt: new Date(Date.now() - 5 * 60_000),
+        },
+      });
+
+      (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+
+      try {
+        const { default: handler } =
+          await import("@/src/features/in-app-agent/server/handler");
+        const response = await handler(
+          new Request("http://localhost/api/in-app-agent", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              threadId: conversationId,
+              runId: `client-run-${randomUUID()}`,
+              messages: [
+                {
+                  id: `message-${randomUUID()}`,
+                  role: "user",
+                  content: "my run died, let me retry",
+                },
+              ],
+              tools: [],
+              context: [],
+              state: {
+                type: "existingConversation",
+                projectId: project.id,
+                conversationId,
+              },
+              forwardedProps: {},
+            }),
+          }),
+        );
+
+        expect(response.status).toBe(200);
+        expect(agentMocks.createAgUiStream).toHaveBeenCalled();
+        await expect(
+          prisma.inAppAgentRun.findFirstOrThrow({
+            where: { id: abandonedRun.id, projectId: project.id },
+          }),
+        ).resolves.toMatchObject({
+          status: InAppAgentRunStatus.FAILED,
+          errorCode: InAppAgentRunErrorCode.STALE,
+        });
+      } finally {
+        (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
+          originalMaxActiveRunsPerUser;
+      }
+    });
+  });
+
   it("passes malicious current_url search params as bounded screen context data", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
@@ -1207,7 +1286,7 @@ describe("in-app agent public API route auth", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true },
       });
-      authMocks.getServerSession.mockResolvedValue(
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(
         await createPersistedInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
@@ -1326,7 +1405,7 @@ describe("in-app agent public API route auth", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true },
       });
-      authMocks.getServerSession.mockResolvedValue(
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(
         await createPersistedInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
@@ -1462,7 +1541,7 @@ describe("in-app agent public API route auth", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true },
       });
-      authMocks.getServerSession.mockResolvedValue(
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(
         await createPersistedInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
@@ -1547,7 +1626,7 @@ describe("in-app agent public API route auth", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true },
       });
-      authMocks.getServerSession.mockResolvedValue(
+      authMocks.getServerAuthSessionForRequest.mockResolvedValue(
         await createPersistedInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
@@ -1705,7 +1784,7 @@ async function setupInAppAgentProjectSession() {
       name: "In-app Agent User",
     },
   });
-  authMocks.getServerSession.mockResolvedValue(
+  authMocks.getServerAuthSessionForRequest.mockResolvedValue(
     createInAppAgentSession({ orgId: org.id, projectId: project.id, userId }),
   );
 

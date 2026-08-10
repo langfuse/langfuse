@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -16,6 +17,7 @@ import {
   AnalyticsIntegrationExportSource,
   areLegacyWritesActive,
   InvalidRequestError,
+  LangfuseNotFoundError,
   validateExportSource,
 } from "@langfuse/shared";
 
@@ -207,29 +209,30 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
   delete: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "integrations:CRUD",
-        });
-        await auditLog({
-          session: ctx.session,
-          action: "delete",
-          resourceType: "mixpanelIntegration",
-          resourceId: input.projectId,
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "integrations:CRUD",
+      });
+      await auditLog({
+        session: ctx.session,
+        action: "delete",
+        resourceType: "mixpanelIntegration",
+        resourceId: input.projectId,
+      });
 
+      try {
         await ctx.prisma.mixpanelIntegration.delete({
           where: {
             projectId: input.projectId,
           },
         });
-      } catch (e) {
-        console.log("mixpanel integration delete", e);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-        });
+      } catch (error) {
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("Mixpanel integration not found");
+        }
+
+        throw error;
       }
     }),
 });
