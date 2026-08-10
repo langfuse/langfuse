@@ -1,7 +1,7 @@
 import { EventType } from "@ag-ui/core";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
@@ -19,12 +19,16 @@ import {
   type SandboxProvider,
   type SandboxSession,
 } from "@langfuse/shared/in-app-agent/server/sandbox";
-import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@langfuse/shared/in-app-agent/server/tools";
+import {
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
+  type InAppAgentLangfuseMcpToolName,
+} from "@langfuse/shared/in-app-agent/server/tools";
 import {
   DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
   decodeFiltersGeneric,
 } from "@langfuse/shared";
 import "@/src/features/mcp/server/bootstrap";
+import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import type { Langfuse } from "langfuse";
 import type { InAppAgentTracingConfig } from "@langfuse/shared/in-app-agent/server/instrumentation";
@@ -425,13 +429,15 @@ describe("patchMastraApprovalChunks", () => {
   });
 });
 
-describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS", () => {
+describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
   const getRegisteredLangfuseMcpTools = () =>
     toolRegistry
       .getFeatures()
       .flatMap((feature) => feature.tools.map((tool) => tool.definition));
 
   it("classifies every Langfuse MCP tool exactly once", () => {
+    expectTypeOf<InAppAgentLangfuseMcpToolName>().toEqualTypeOf<McpToolName>();
+
     const tools = getRegisteredLangfuseMcpTools();
     const registeredToolNames = tools.map((tool) => tool.name).sort();
     const classifiedToolNames = Object.keys(

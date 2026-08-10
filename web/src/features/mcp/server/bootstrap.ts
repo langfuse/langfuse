@@ -27,7 +27,6 @@ import { dashboardWidgetsFeature } from "../features/dashboardWidgets";
 import { feedbackFeature } from "../features/feedback";
 import { experimentsFeature } from "../features/experiments";
 import { monitorsFeature } from "../features/monitors";
-import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/tools";
 
 const MCP_FEATURES = [
   promptsFeature,
@@ -49,18 +48,6 @@ const MCP_FEATURES = [
 
 export type McpFeature = (typeof MCP_FEATURES)[number];
 export type McpToolName = McpFeature["tools"][number]["definition"]["name"];
-
-// Keep the shared in-app-agent policy keys exactly aligned with the web MCP
-// registry without loading the in-app-agent tools module at runtime.
-type AssertRegistryToolsHavePolicies<
-  T extends InAppAgentLangfuseMcpToolName = McpToolName,
-> = T;
-type AssertPolicyKeysInRegistry<
-  T extends McpToolName = InAppAgentLangfuseMcpToolName,
-> = T;
-export type _InAppAgentRegistryToolsHavePolicies =
-  AssertRegistryToolsHavePolicies;
-export type _InAppAgentPolicyKeysAreRegistryTools = AssertPolicyKeysInRegistry;
 
 /**
  * Bootstrap all MCP features

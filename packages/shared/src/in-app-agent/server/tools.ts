@@ -54,10 +54,9 @@ type InAppAgentMcpToolPolicy = {
 
 // Exhaustive approval policy for Langfuse MCP tools. Keys use the unprefixed
 // MCP registry names and are the source of truth for the tool-name type below.
-// Exhaustiveness against web's MCP toolRegistry is enforced by a compile-time
-// assertion in web (src/features/mcp/server/bootstrap.ts) plus
-// the registry-comparison servertest, so new MCP tools must be classified
-// before the in-app agent can auto/approval-gate them.
+// Exhaustiveness against web's MCP toolRegistry is enforced by type and runtime
+// assertions in web's in-app-agent stream servertest, so new MCP tools must be
+// classified before the in-app agent can auto/approval-gate them.
 export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   listAnnotationQueues: {
     approval: "auto",
