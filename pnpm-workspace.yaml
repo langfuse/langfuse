@@ -102,6 +102,8 @@ overrides:
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^9.
   "next-auth>nodemailer": "^9.0.3"
+  # CVE-2026-69207/-71848/-71850 (MEDIUM) fixed in 4.12.34
+  "hono@4.12.27": 4.12.34
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
