@@ -46,12 +46,13 @@ import {
   V4_CODING_AGENT_PROMPT,
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+export const V4_MIGRATION_DEADLINE = "Oct 9";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -399,9 +400,7 @@ export function V4MigrationHeaderContent({
         });
         capture(`project_settings:api_key_create`);
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportNonTrpcError(error, "v4-migration"));
   };
 
   return (
@@ -412,7 +411,10 @@ export function V4MigrationHeaderContent({
           titleRowClassName,
         )}
       >
-        <p className="min-w-0 text-lg font-bold">
+        <p
+          className="min-w-0 flex-1 truncate text-lg font-bold"
+          title={projectName ? `Migrate ${projectName} to v4` : "Migrate to v4"}
+        >
           {projectName ? <>Migrate {projectName} to v4</> : "Migrate to v4"}
         </p>
         <Link
@@ -423,7 +425,7 @@ export function V4MigrationHeaderContent({
           }}
           className="shrink-0 text-sm underline"
         >
-          View Status
+          View Org status
         </Link>
       </div>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
@@ -433,7 +435,7 @@ export function V4MigrationHeaderContent({
         is here: real-time, up to 165× faster, plus new dashboards, alerting,
         sessions, and trace view.
         {needsMigration &&
-          " This project still uses the previous setup, which stops working soon."}
+          ` This project still uses the previous setup, which stops working on ${V4_MIGRATION_DEADLINE}.`}
       </p>
       <div className="flex flex-col gap-2">
         {promptVisible && (
@@ -591,7 +593,7 @@ export function V4MigrationDetailsContent({
           </a>
         </div>
         <p className="text-muted-foreground text-sm">
-          Some features will stop working soon.
+          Some features will stop working on {V4_MIGRATION_DEADLINE}.
         </p>
         <div>
           <V4MigrationSdkSection sdk={migrationData.sdk} />
@@ -623,7 +625,7 @@ export function V4MigrationDetailsContent({
                   trace input/output, which{" "}
                   <span className="text-dark-yellow">
                     {migrationData.evals.count === 1 ? "stops" : "stop"} running
-                    soon
+                    on {V4_MIGRATION_DEADLINE}
                   </span>
                   . Repointing {migrationData.evals.count === 1 ? "it" : "them"}{" "}
                   at observations or experiments requires minimal changes
@@ -747,7 +749,8 @@ export function V4MigrationDetailsContent({
               <>
                 <p className="text-muted-foreground mb-2 text-sm">
                   You&apos;ve called these deprecated endpoints in the last{" "}
-                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working soon; the{" "}
+                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working on{" "}
+                  {V4_MIGRATION_DEADLINE}; the{" "}
                   <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
                     migration guide
                   </ExternalLink>{" "}

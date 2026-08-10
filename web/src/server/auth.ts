@@ -47,7 +47,10 @@ import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
-import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
+import {
+  ENTERPRISE_SSO_REQUIRED_MESSAGE,
+  MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
+} from "@/src/features/auth/constants";
 import { z } from "zod";
 import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
 import {
@@ -841,7 +844,6 @@ export async function getAuthOptions(signupAttribution?: {
             },
           });
 
-          span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
           // V4 preview availability is governed by the write mode:
           // - events_only: the legacy traces/observations tables are no longer
@@ -990,7 +992,7 @@ export async function getAuthOptions(signupAttribution?: {
         });
       },
       async signIn({ user, account, profile }) {
-        return instrumentAsync({ name: "next-auth-sign-in" }, async (span) => {
+        return instrumentAsync({ name: "next-auth-sign-in" }, async () => {
           // Block sign in without valid user.email
           const email = user.email?.toLowerCase();
           if (!email) {
@@ -1002,9 +1004,6 @@ export async function getAuthOptions(signupAttribution?: {
             throw new Error("Invalid email found in user object");
           }
 
-          span.setAttributes({
-            "auth.email": email,
-          });
           // EE: Check custom SSO enforcement, enforce the specific SSO provider on email domain
           // This also blocks setting a password for an email that is enforced to use SSO via password reset flow
           const userDomain = email.split("@")[1].toLowerCase();
@@ -1037,9 +1036,15 @@ export async function getAuthOptions(signupAttribution?: {
               isMultiTenantSsoProvider &&
               ssoDomain.toLowerCase() !== userDomain.toLowerCase()
             ) {
-              throw new Error(
-                `This domain is not associated with this SSO provider.`,
+              // warn: the ONLY server-side signal for this rejection — the
+              // client render of the resulting /auth/error page is classified
+              // as expected and not captured (expectedAuthErrors.ts), and
+              // next-auth does not log signIn-callback throws itself.
+              logger.warn(
+                "Multi-tenant SSO provider used with a non-matching email domain",
+                { email, attemptedProvider: account.provider },
               );
+              throw new Error(MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE);
             }
           }
 

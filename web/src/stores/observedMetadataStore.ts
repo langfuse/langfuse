@@ -1,6 +1,7 @@
 // Persisted per-project map of observed metadata paths → types, feeding the
-// search bar's `metadata.<path>` key suggestions (lib/metadata-paths.ts owns
-// the analysis; hooks/useObservedMetadata.ts is the bridge).
+// `metadata.<path>` key/value suggestions of every filter surface
+// (fns/observedMetadata/metadataPaths.ts owns the analysis;
+// hooks/useObservedMetadata.ts is the bridge).
 //
 // Same shape rationale as globalDateRangeStore: one global store holding a
 // `Record<projectId, …>` map, so switching projects selects a different field
@@ -26,7 +27,7 @@ import {
   MAX_VALUES_PER_PROJECT,
   mergePathType,
   type StoredKeyInfo,
-} from "../lib/metadata-paths";
+} from "@/src/fns/observedMetadata/metadataPaths";
 
 export const OBSERVED_METADATA_STORAGE_KEY = "langfuse-observed-metadata";
 

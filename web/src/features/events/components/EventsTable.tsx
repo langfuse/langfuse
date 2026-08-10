@@ -48,7 +48,10 @@ import {
   usdFormatter,
 } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  getRowHeightIOCharLimit,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import {
   toAbsoluteTimeRange,
@@ -129,6 +132,7 @@ import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
   observedScoreNamesFromOptions,
   toObservedOptions,
+  withMetadataPathOptions,
 } from "@/src/features/search-bar/lib/observed-options";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
@@ -141,12 +145,11 @@ import {
   chartSearchFieldReason,
   CHART_SEARCH_QUERY_REASON,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
-import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
 import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
 import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
-} from "@/src/features/search-bar/hooks/useObservedMetadata";
+} from "@/src/hooks/useObservedMetadata";
 
 export type EventsTableRow = {
   // Identity fields
@@ -840,6 +843,7 @@ export default function ObservationsEventsTable({
     // In chart mode the table is hidden and the chart runs its own aggregate
     // query — don't also run the expensive row + batched-I/O fetches.
     rowsEnabled: !chartActive,
+    ioCharLimit: getRowHeightIOCharLimit(rowHeight),
   });
 
   useApplyAppRootFallback({

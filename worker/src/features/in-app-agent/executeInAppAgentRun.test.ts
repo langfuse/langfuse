@@ -401,6 +401,39 @@ describe("executeInAppAgentRun", () => {
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
   });
 
+  it("finishes cancellation after its conversation is soft-deleted", async () => {
+    const { projectId, conversation, run } = await seedBackgroundRun();
+
+    scenarioRef.current = async ({ signal, options }) => {
+      await prisma.$transaction([
+        prisma.inAppAgentRun.update({
+          where: { id_projectId: { id: run.id, projectId } },
+          data: { cancelRequestedAt: new Date() },
+        }),
+        prisma.inAppAgentConversation.update({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          data: { deletedAt: new Date() },
+        }),
+      ]);
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) return resolve();
+        signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+      await options.onAbort();
+      await options.onFinish();
+    };
+
+    await expect(
+      executeInAppAgentRun({ projectId, runId: run.id }),
+    ).resolves.toBeUndefined();
+
+    const cancelled = await getRun(projectId, run.id);
+    expect(cancelled.status).toBe("CANCELLED");
+    expect(cancelled.finishedAt).not.toBeNull();
+    expect(cancelled.errorCode).toBe("cancelled");
+    expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+  });
+
   it("stops writing when fenced: an externally reconciled run keeps its recorded outcome", async () => {
     const { projectId, run } = await seedBackgroundRun();
 

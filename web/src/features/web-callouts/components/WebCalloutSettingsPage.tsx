@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus, Trash2, Webhook, X } from "lucide-react";
 import type { ReactNode } from "react";

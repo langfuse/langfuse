@@ -1,13 +1,14 @@
 import { EventType } from "@ag-ui/core";
 
 import { InAppAgentRunStatus, InAppAgentRunStatusSchema } from "../../index";
-import { Prisma, type PrismaClient } from "../../db";
+import { type PrismaClient } from "../../db";
 import {
   isActiveInAppAgentRunStatus,
   type InAppAgentWatchFrame,
 } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
 import { reconcileConversationRuns } from "./runLifecycle";
+import { getPublicInAppAgentMcpToolResultContent } from "./tools";
 import {
   IN_APP_AGENT_HEARTBEAT_STALE_MS,
   IN_APP_AGENT_WATCH_KEEPALIVE_MS,
@@ -61,15 +62,31 @@ export async function* watchConversationFrames(params: {
   await reconcile();
 
   while (!params.signal?.aborted) {
-    // Read status first: terminal CAS happens after the worker appends events.
-    const { latestRun, events } = await params.prisma.$transaction(
-      async (tx) => ({
-        latestRun: await tx.inAppAgentRun.findFirst({
-          where: {
-            projectId: params.projectId,
-            conversationId: params.conversationId,
-          },
+    // Status and events must come from one version of the database: the worker
+    // commits its final events and the terminal CAS atomically, so two
+    // independent reads can straddle that commit and pair a terminal run with
+    // an older event prefix — the drawer would settle as finished with its tail
+    // missing (PR #15661, self-review step 4).
+    //
+    // A single statement takes a single snapshot, so this holds without an
+    // isolation level to configure. Keep it one statement: at a 1 Hz poll per
+    // attached viewer, the interactive transaction this replaces cost five
+    // statements per second and held a pooled connection across two round
+    // trips (LFE-14629). Rooted at the conversation, not the latest run,
+    // because the tail spans runs — a continuation's events sit above a parked
+    // parent's in the same cursor window.
+    const conversation = await params.prisma.inAppAgentConversation.findUnique({
+      where: {
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
+      },
+      relationLoadStrategy: "join",
+      select: {
+        runs: {
           orderBy: { createdAt: "desc" },
+          take: 1,
           select: {
             id: true,
             status: true,
@@ -80,19 +97,17 @@ export async function* watchConversationFrames(params: {
             claimedAt: true,
             heartbeatAt: true,
           },
-        }),
-        events: await tx.inAppAgentEvent.findMany({
-          where: {
-            projectId: params.projectId,
-            conversationId: params.conversationId,
-            sequenceNumber: { gt: cursor },
-          },
+        },
+        events: {
+          where: { sequenceNumber: { gt: cursor } },
           orderBy: { sequenceNumber: "asc" },
           select: { sequenceNumber: true, runId: true, event: true },
-        }),
-      }),
-      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
-    );
+        },
+      },
+    });
+
+    const latestRun = conversation?.runs[0] ?? null;
+    const events = conversation?.events ?? [];
 
     for (const row of events) {
       const event = row.event as unknown as AgUiEvent;
@@ -227,16 +242,27 @@ function isStaleClaimedRun(
   return now - lastSign.getTime() > IN_APP_AGENT_HEARTBEAT_STALE_MS;
 }
 
-/** Match foreground streaming by withholding persisted replay input. */
-function toPublicEvent(event: AgUiEvent): AgUiEvent {
-  if (event.type !== EventType.RUN_STARTED || event.input === undefined) {
-    return event;
+/** Match foreground streaming by withholding private persisted event payloads. */
+export function toPublicEvent(event: AgUiEvent): AgUiEvent {
+  if (event.type === EventType.RUN_STARTED && event.input !== undefined) {
+    const publicEvent = { ...event };
+    delete publicEvent.input;
+
+    return publicEvent;
   }
 
-  const publicEvent = { ...event };
-  delete publicEvent.input;
+  if (event.type === EventType.TOOL_CALL_RESULT) {
+    if (typeof event.content !== "string") {
+      return event;
+    }
 
-  return publicEvent;
+    return {
+      ...event,
+      content: getPublicInAppAgentMcpToolResultContent(event.content),
+    };
+  }
+
+  return event;
 }
 
 function syntheticFrame(
