@@ -24,6 +24,7 @@ import {
   SESSION_COLUMN_TO_BACKEND_KEY,
   type SessionOmittableFilterColumn,
 } from "@/src/features/filters/config/sessions-config";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type FilterState,
@@ -270,12 +271,15 @@ export default function SessionsTable({
     () => ({
       loading: isSidebarFilterLoading,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        userId ? "user" : undefined,
+      ),
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
       isV4: isBetaEnabled,
     }),
-    [isBetaEnabled, isSidebarFilterLoading, projectId],
+    [isBetaEnabled, isSidebarFilterLoading, projectId, userId],
   );
 
   const queryFilter = useSidebarFilterState(

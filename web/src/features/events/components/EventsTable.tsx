@@ -17,6 +17,7 @@ import {
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type ObservationLevelType,
@@ -147,6 +148,7 @@ import {
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
 import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
 import {
+  useFacetOptionsWithObservedMetadata,
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
@@ -551,12 +553,17 @@ export default function ObservationsEventsTable({
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        userId ? "user" : sessionId ? "session" : undefined,
+      ),
     };
   }, [
     tableStatePolicy.filterStateLocation,
     peekContext,
     projectId,
+    userId,
+    sessionId,
     appRootDefault.defaultExplicitFilterState,
     onExplicitFilterStateChange,
   ]);
@@ -653,10 +660,17 @@ export default function ObservationsEventsTable({
     approxTotalCountIsPartialScope ||
     Boolean(searchQuery && searchQuery.trim().length > 0);
 
+  // The sidebar's Metadata facet suggests the same observed keys/values the
+  // search bar does — one store, one projection (LFE-11030).
+  const facetOptions = useFacetOptionsWithObservedMetadata(
+    projectId,
+    filterOptions,
+  );
+
   const queryFilter = useSidebarFilterPresentation(
     filterCore,
     eventsFilterConfig,
-    filterOptions,
+    facetOptions,
     {
       loading: isFilterOptionsPending,
       loadingColumns,
@@ -714,11 +728,9 @@ export default function ObservationsEventsTable({
   // Metadata key paths are not server-enumerated: merge the persisted
   // per-project map of paths observed on previously loaded rows (recorded
   // below, once the table data hook provides the rows) into the observed
-  // options, so `metadata.` completes with real keys and their types.
-  const observedMetadataPaths = useObservedMetadataPaths(
-    projectId,
-    searchBarMode,
-  );
+  // options, so `metadata.` completes with real keys and their types. The
+  // sidebar's Metadata facet reads the same map (see facetOptions above).
+  const observedMetadataPaths = useObservedMetadataPaths(projectId);
 
   const observedOptions = useMemo(
     () =>
@@ -878,11 +890,14 @@ export default function ObservationsEventsTable({
 
   // Record the visible rows' metadata paths into the persisted per-project
   // suggestions map (read above into observedMetadataPaths). Same sampling as
-  // the AI context below; runs once per fetch (rows identity).
+  // the AI context below; runs once per fetch (rows identity). Not gated on the
+  // search bar — the sidebar facet feeds from this map too — but embedded
+  // PREVIEW tables (`hideControls`: 10 rows under an arbitrary external filter)
+  // stay out: the per-key caps are drop-new-when-full, so a narrow preview's
+  // keys would crowd out the ones the project actually browses.
   useObservedMetadataRecorder({
     projectId,
-    rows: observations.rows,
-    enabled: searchBarMode,
+    rows: hideControls ? undefined : observations.rows,
   });
 
   // Project data context for the AI filter prompt: observed values (from

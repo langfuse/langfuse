@@ -35,6 +35,9 @@ export {
   useChatMLParser,
   type ChatMLParserResult,
 } from "@/src/features/traces/hooks/useChatMLParser";
+// The session view resolves observation media the same way trace detail does,
+// so a media-bearing message renders identically on both surfaces (LFE-14815).
+export { useMedia } from "@/src/features/traces/hooks/useMedia";
 
 // The JSON viewer's comment-range contract. It cannot be promoted to
 // `src/fns` — it depends on the viewer's own path and row types — so the

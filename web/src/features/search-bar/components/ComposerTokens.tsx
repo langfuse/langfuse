@@ -18,6 +18,7 @@ import {
   type FilterSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
 import { indexOfOutsideQuotes } from "@/src/features/search-bar/lib/langQ";
+import { deactivationReason } from "@/src/features/search-bar/components/presentation";
 import { FilterToken } from "@/src/features/filters/components/FilterToken";
 
 // Word joiner around pills: gives the DOM caret boundaries between tokens
@@ -46,10 +47,13 @@ export const composerTokenVariants = cva("max-w-full", {
     },
     // A filter that the current surface can't apply (e.g. the chart view can't
     // filter on this column). Dimmed + dashed so it reads as "shown but not
-    // applied"; the reason is on hover (`title`).
+    // applied"; the reason is in the explanation tooltip.
     deactivated: { true: "opacity-50 line-through decoration-1", false: "" },
+    // The token whose explanation is showing. Mirrors the hover treatment, so
+    // the caret (keyboard) path highlights exactly like the pointer does.
+    highlighted: { true: "border-border bg-accent", false: "" },
   },
-  defaultVariants: { kind: "freeText", deactivated: false },
+  defaultVariants: { kind: "freeText", deactivated: false, highlighted: false },
 });
 
 type TokenKind = "filter" | "freeText" | "operator" | "paren" | "invalid";
@@ -113,10 +117,13 @@ export function ComposerTokens({
   scoreTypes,
   fieldReason,
   freeTextReason,
+  highlightedSegmentId,
 }: {
   draft: string;
   showDiagnostics: boolean;
   scoreTypes?: ScoreTypeContext;
+  /** Segment whose explanation tooltip is open — rendered highlighted. */
+  highlightedSegmentId?: string | null;
   /**
    * Given a filter token's field name, the reason it is NOT applied on the
    * current surface, or `null` if it is. When it returns a reason the pill
@@ -142,27 +149,13 @@ export function ComposerTokens({
         ? "freeText"
         : segment.kind;
     // "Not applied on this surface" — a filter column the chart can't honour,
-    // or free text a chart ignores. Only filter/free-text tokens can deactivate
-    // (operators/parens/invalid never do).
-    const deactivatedReason =
-      segment.kind === "filter"
-        ? (fieldReason?.(segment.displayField) ?? null)
-        : segment.kind === "freeText"
-          ? (freeTextReason ?? null)
-          : null;
-    const deactivated = deactivatedReason !== null;
-    // Invalid tokens get the styled per-token error tooltip (a positioned
-    // overlay in SearchComposer), not the native browser title. A deactivated
-    // token explains why it is ignored. Free text is a full-text search — say so
-    // on hover so a standalone text chip explains itself instead of looking like
-    // a stray block.
-    const title = deactivated
-      ? deactivatedReason
-      : segment.kind === "invalid"
-        ? undefined
-        : segment.kind === "freeText"
-          ? `Full-text search — matches results containing "${segment.raw}". Searches ids, names, input and output by default; use input: or output: to search one payload, or name:/id: to narrow.`
-          : segment.raw;
+    // or free text a chart ignores.
+    const deactivated =
+      deactivationReason(segment, fieldReason, freeTextReason) !== null;
+    const highlighted = segment.id === highlightedSegmentId;
+    // No native `title`: hover copy is the styled per-token tooltip that
+    // SearchComposer positions (explanation, or the error once diagnostics are
+    // revealed). A second, slower browser tooltip on top of it just doubles up.
     const content = (
       <>
         {segment.kind === "filter" ? (
@@ -186,8 +179,8 @@ export function ComposerTokens({
           data-testid="search-bar-token"
           data-kind={visibleKind}
           data-segment-id={segment.id}
-          title={title}
           deactivated={deactivated}
+          highlighted={highlighted}
         >
           {content}
         </FilterToken>
@@ -198,8 +191,11 @@ export function ComposerTokens({
           data-kind={visibleKind}
           data-deactivated={deactivated || undefined}
           data-segment-id={segment.id}
-          title={title}
-          className={composerTokenVariants({ kind: visibleKind, deactivated })}
+          className={composerTokenVariants({
+            kind: visibleKind,
+            deactivated,
+            highlighted,
+          })}
         >
           {content}
         </span>

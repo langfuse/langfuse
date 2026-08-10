@@ -9,6 +9,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const fullIOQuery = vi.fn();
 const downloadJsonFile = vi.fn();
 const capture = vi.fn();
+const useMediaMock = vi.fn(
+  (_args: Record<string, unknown>): { data: unknown } => ({ data: undefined }),
+);
 
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -29,7 +32,13 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 // The component imports IOPreview through the traces feature surface, so the
 // mock has to intercept the surface — mocking the module behind it does nothing.
 vi.mock("@/src/features/traces", () => ({
-  IOPreview: () => <div data-testid="io-preview" />,
+  IOPreview: ({ media }: { media?: { mediaId: string }[] }) => (
+    <div
+      data-testid="io-preview"
+      data-media-ids={(media ?? []).map((m) => m.mediaId).join(",")}
+    />
+  ),
+  useMedia: (args: Record<string, unknown>) => useMediaMock(args),
 }));
 
 vi.mock("@/src/components/session/actions/downloadSessionAsJson", () => ({
@@ -160,6 +169,31 @@ describe("SessionObservationIO", () => {
 
     expect(screen.getByText("Metadata")).toBeInTheDocument();
     expect(screen.getByText(/"key":"value"/)).toBeInTheDocument();
+  });
+
+  // LFE-14815: trace detail resolved observation media, the session view did
+  // not, so a media-bearing message had no thumbnail here.
+  it("forwards observation media to IOPreview, and only looks it up when referenced", () => {
+    useMediaMock.mockReturnValue({ data: [{ mediaId: "media-1" }] });
+    renderComponent({
+      ...baseObservation,
+      input: `{"content":"@@@langfuseMedia:type=image/png|id=media-1|source=base64_data_uri@@@"}`,
+    } as SessionTraceObservation);
+
+    expect(screen.getByTestId("io-preview")).toHaveAttribute(
+      "data-media-ids",
+      "media-1",
+    );
+    expect(useMediaMock).toHaveBeenCalledWith(
+      expect.objectContaining({ observationId: "obs-1", enabled: true }),
+    );
+
+    useMediaMock.mockClear();
+    renderComponent(baseObservation);
+
+    expect(useMediaMock).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
   });
 
   it("keeps IOPreview but points to the trace view when only metadata was truncated", () => {

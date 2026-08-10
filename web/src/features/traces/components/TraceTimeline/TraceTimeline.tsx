@@ -230,6 +230,7 @@ export function TraceTimeline() {
   const {
     roots,
     serverScores: scores,
+    traceLevelScoreOwnerIds,
     comments,
     traceStartTime,
     traceDuration,
@@ -461,26 +462,28 @@ export function TraceTimeline() {
   // duration label dark red.
   const parentTotalDuration = traceDuration * 1000;
 
-  // Score lookup: one pass over the scores instead of an O(scores) filter per
-  // row per render. Two maps preserve the exact TRACE-vs-observation keying:
-  // trace rows show every score of the trace, observation rows only their own.
-  const { scoresByObservationId, scoresByTraceId } = useMemo(() => {
-    const byObservation = new Map<string, typeof scores>();
-    const byTrace = new Map<string, typeof scores>();
+  // Score lookup keyed by tree-node id: one pass over the scores instead of an
+  // O(scores) filter per row per render. Trace-level scores land on their owner
+  // node(s) — the TRACE row, or every top-level span when there is none — so the
+  // timeline badge matches the tree badge and the node's Scores tab.
+  const scoresByNodeId = useMemo(() => {
+    const byNode = new Map<string, typeof scores>();
+    const pushTo = (key: string, score: (typeof scores)[number]) => {
+      const arr = byNode.get(key);
+      if (arr) arr.push(score);
+      else byNode.set(key, [score]);
+    };
     for (const score of scores) {
       if (score.observationId) {
-        const arr = byObservation.get(score.observationId);
-        if (arr) arr.push(score);
-        else byObservation.set(score.observationId, [score]);
-      }
-      if (score.traceId) {
-        const arr = byTrace.get(score.traceId);
-        if (arr) arr.push(score);
-        else byTrace.set(score.traceId, [score]);
+        pushTo(score.observationId, score);
+      } else {
+        for (const ownerId of traceLevelScoreOwnerIds) {
+          pushTo(ownerId, score);
+        }
       }
     }
-    return { scoresByObservationId: byObservation, scoresByTraceId: byTrace };
-  }, [scores]);
+    return byNode;
+  }, [scores, traceLevelScoreOwnerIds]);
 
   const totalSize = rowVirtualizer.getTotalSize();
   const virtualItems = rowVirtualizer.getVirtualItems();
@@ -707,11 +710,7 @@ export function TraceTimeline() {
                   parentTotalCost={parentTotalCost}
                   parentTotalDuration={parentTotalDuration}
                   commentCount={comments.get(nodeId) ?? 0}
-                  nodeScores={
-                    (item.node.type === "TRACE"
-                      ? scoresByTraceId.get(nodeId)
-                      : scoresByObservationId.get(nodeId)) ?? EMPTY_SCORES
-                  }
+                  nodeScores={scoresByNodeId.get(nodeId) ?? EMPTY_SCORES}
                   onSelect={handleSelectNode}
                   onHover={handleHoverNode}
                 />

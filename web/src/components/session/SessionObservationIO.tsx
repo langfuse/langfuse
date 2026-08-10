@@ -3,6 +3,7 @@ import { Download, ExternalLinkIcon, Loader2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
   IOPreview,
+  useMedia,
   type ChatMLParserResult,
   type IOPreviewContentMode,
   type ViewMode,
@@ -19,6 +20,19 @@ export type SessionTraceObservation =
 
 /** Display cap of a preview section — matches the server's preview head. */
 const PREVIEW_DISPLAY_CHARS = 4_000;
+
+const MEDIA_REFERENCE_PREFIX = "@@@langfuseMedia:";
+
+/**
+ * A card renders up to 50 observations, so the media-link lookup is gated on
+ * the payload actually carrying a reference. This path ships I/O as raw
+ * strings (see `sessions.observationsForTraceFromEvents`).
+ */
+const referencesMedia = (observation: SessionTraceObservation): boolean =>
+  [observation.input, observation.output, observation.metadata].some(
+    (value) =>
+      typeof value === "string" && value.includes(MEDIA_REFERENCE_PREFIX),
+  );
 
 /**
  * One field of an over-limit observation: a bounded, non-interactive preview
@@ -111,6 +125,15 @@ export const SessionObservationIO = ({
     observation.inputTruncated || observation.outputTruncated,
   );
 
+  // Same media source as trace detail, so a media-bearing message renders
+  // identically on both surfaces (LFE-14815).
+  const observationMedia = useMedia({
+    projectId,
+    traceId,
+    observationId: observation.id,
+    enabled: !isIOTruncated && referencesMedia(observation),
+  });
+
   const onDownload = async () => {
     capture("session_detail:truncated_observation_download_click");
     setIsDownloading(true);
@@ -160,6 +183,7 @@ export const SessionObservationIO = ({
       metadata={observation.metadata ?? undefined}
       observationName={observation.name ?? undefined}
       hideIfNull
+      media={observationMedia.data}
       projectId={projectId}
       traceId={traceId}
       observationId={observation.id}
