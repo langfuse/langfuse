@@ -221,7 +221,17 @@ export const resolveOnboardingRedirectTargetWithFallback = async ({
     redirectTo: canCreateOrganizations ? "/setup" : "/",
   };
 
-export const getCloudSignupOnboardingStatus = async ({
+/**
+ * Whether new users see the post-signup onboarding step at all.
+ *
+ * Operators switch this off with `LANGFUSE_DISABLE_SIGNUP_ONBOARDING=true`,
+ * typically on self-hosted instances that provision users centrally and do not
+ * want an interstitial between signup and the workspace.
+ */
+export const isSignupOnboardingEnabled = () =>
+  env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING !== "true";
+
+export const getSignupOnboardingStatus = async ({
   prisma,
   userId,
   canCreateOrganizations,
@@ -230,6 +240,22 @@ export const getCloudSignupOnboardingStatus = async ({
   userId: string;
   canCreateOrganizations: boolean;
 }) => {
+  // A disabled flow behaves exactly like an already-completed one: resolve where
+  // this user belongs and send them there, without recording a survey response.
+  // Checked before the survey lookup so a disabled instance skips that query.
+  if (!isSignupOnboardingEnabled()) {
+    const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
+      prisma,
+      userId,
+      canCreateOrganizations,
+    });
+
+    return {
+      completed: true as const,
+      redirectTo: redirectTarget.redirectTo,
+    };
+  }
+
   const completedSurvey = await prisma.survey.findFirst({
     where: {
       userId,
@@ -258,18 +284,20 @@ export const getCloudSignupOnboardingStatus = async ({
   };
 };
 
-export const completeCloudSignupOnboarding = async ({
+export const completeSignupOnboarding = async ({
   prisma,
   userId,
   userEmail,
   canCreateOrganizations,
   referralSource,
+  newsletterOptIn,
 }: {
   prisma: PrismaClient;
   userId: string;
   userEmail?: string | null;
   canCreateOrganizations: boolean;
   referralSource?: string;
+  newsletterOptIn?: boolean;
 }) =>
   prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
@@ -295,17 +323,21 @@ export const completeCloudSignupOnboarding = async ({
       canCreateOrganizations,
     });
 
-    if (!existingSurvey) {
+    // A disabled flow renders no step, so there is no response to record. Guard
+    // anyway so a client that was already open when the flag flipped cannot
+    // start writing survey rows on an instance that opted out.
+    if (!existingSurvey && isSignupOnboardingEnabled()) {
       const normalizedReferralSource = referralSource?.trim();
 
       await tx.survey.create({
         data: {
           surveyName: SurveyName.USER_ONBOARDING,
-          response: normalizedReferralSource
-            ? {
-                referralSource: normalizedReferralSource,
-              }
-            : {},
+          response: {
+            ...(normalizedReferralSource
+              ? { referralSource: normalizedReferralSource }
+              : {}),
+            ...(newsletterOptIn === undefined ? {} : { newsletterOptIn }),
+          },
           userId,
           userEmail: userEmail ?? undefined,
           orgId: redirectTarget.orgId,

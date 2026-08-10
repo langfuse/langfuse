@@ -78,7 +78,6 @@ export default function SignUp({
 function StandardSignupFlow({
   authProviders,
 }: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const router = useRouter();
   const capture = usePostHogClientCapture();
 
@@ -211,11 +210,10 @@ function StandardSignupFlow({
       await signIn<"credentials">("credentials", {
         email: values.email,
         password: values.password,
+        // Onboarding runs on both deployment types; the page picks the cloud
+        // attribution question or the self-hosting newsletter step.
         callbackUrl:
-          targetPath ??
-          (isLangfuseCloud
-            ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
-            : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`),
+          targetPath ?? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`,
       });
     } catch {
       setFormError("An error occurred. Please try again.");

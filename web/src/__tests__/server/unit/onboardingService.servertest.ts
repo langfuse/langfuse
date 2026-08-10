@@ -1,29 +1,45 @@
-const { auditLogMock } = vi.hoisted(() => ({
+const { auditLogMock, envMock } = vi.hoisted(() => ({
   auditLogMock: vi.fn(),
+  envMock: {} as Record<string, unknown>,
 }));
 
 vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: auditLogMock,
 }));
 
+// Seeded from the real env so only the flag under test differs; the service also
+// reads NEXT_PUBLIC_DEMO_ORG_ID.
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = (await importOriginal()) as { env: Record<string, unknown> };
+  Object.assign(envMock, actual.env);
+  return { env: envMock };
+});
+
 import { type Prisma, Role, SurveyName } from "@langfuse/shared/src/db";
 import {
-  completeCloudSignupOnboarding,
-  getCloudSignupOnboardingStatus,
+  completeSignupOnboarding,
+  getSignupOnboardingStatus,
+  isSignupOnboardingEnabled,
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
 } from "@/src/features/onboarding/server/onboardingService";
 
+const disableSignupOnboarding = () => {
+  envMock.LANGFUSE_DISABLE_SIGNUP_ONBOARDING = "true";
+};
+
+afterEach(() => {
+  envMock.LANGFUSE_DISABLE_SIGNUP_ONBOARDING = "false";
+});
+
 type CompletionPrisma = Parameters<
-  typeof completeCloudSignupOnboarding
+  typeof completeSignupOnboarding
 >[0]["prisma"];
 type RedirectPrisma = Parameters<
   typeof resolveOnboardingRedirectTarget
 >[0]["prisma"];
-type StatusPrisma = Parameters<
-  typeof getCloudSignupOnboardingStatus
->[0]["prisma"];
+type StatusPrisma = Parameters<typeof getSignupOnboardingStatus>[0]["prisma"];
 
 const makeMembership = ({
   orgId,
@@ -126,9 +142,9 @@ describe("resolveOnboardingRedirectTarget", () => {
   });
 });
 
-describe("getCloudSignupOnboardingStatus", () => {
+describe("getSignupOnboardingStatus", () => {
   const getStatus = (prisma: StatusPrisma) =>
-    getCloudSignupOnboardingStatus({
+    getSignupOnboardingStatus({
       prisma,
       userId: "user-1",
       canCreateOrganizations: true,
@@ -159,9 +175,52 @@ describe("getCloudSignupOnboardingStatus", () => {
       redirectTo: "/project/project-1",
     });
   });
+
+  it("reports completed without touching surveys when onboarding is disabled", async () => {
+    disableSignupOnboarding();
+
+    const disabled = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await expect(
+      getStatus(disabled.tx as unknown as StatusPrisma),
+    ).resolves.toEqual({
+      completed: true,
+      redirectTo: "/project/project-1",
+    });
+
+    // Short-circuits ahead of the completion-marker lookup, so a disabled
+    // instance pays for no extra query.
+    expect(disabled.tx.survey.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("still resolves a target for a user with no organization yet", async () => {
+    disableSignupOnboarding();
+
+    const disabled = makeCompletionPrisma();
+
+    await expect(
+      getStatus(disabled.tx as unknown as StatusPrisma),
+    ).resolves.toEqual({
+      completed: true,
+      redirectTo: "/setup",
+    });
+  });
 });
 
-describe("completeCloudSignupOnboarding", () => {
+describe("isSignupOnboardingEnabled", () => {
+  it("is enabled by default and disabled by the opt-out flag", () => {
+    expect(isSignupOnboardingEnabled()).toBe(true);
+
+    disableSignupOnboarding();
+    expect(isSignupOnboardingEnabled()).toBe(false);
+  });
+});
+
+describe("completeSignupOnboarding", () => {
   it("locks the user row and writes one trimmed onboarding survey once", async () => {
     const { prisma, tx } = makeCompletionPrisma({
       memberships: [
@@ -178,7 +237,7 @@ describe("completeCloudSignupOnboarding", () => {
     });
 
     await expect(
-      completeCloudSignupOnboarding({
+      completeSignupOnboarding({
         prisma,
         userId: "user-1",
         userEmail: "user@example.com",
@@ -216,7 +275,7 @@ describe("completeCloudSignupOnboarding", () => {
 
     tx.survey.findFirst.mockResolvedValue({ id: "survey-1" });
 
-    await completeCloudSignupOnboarding({
+    await completeSignupOnboarding({
       prisma,
       userId: "user-1",
       userEmail: "user@example.com",
@@ -225,6 +284,98 @@ describe("completeCloudSignupOnboarding", () => {
     });
 
     expect(tx.survey.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("records the self-hosting newsletter decision alongside the survey", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({
+          orgId: "org-1",
+          projects: [{ id: "project-1" }],
+        }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      userEmail: "user@example.com",
+      canCreateOrganizations: true,
+      newsletterOptIn: true,
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          response: { newsletterOptIn: true },
+        }),
+      }),
+    );
+  });
+
+  it("distinguishes declining the newsletter from never being asked", async () => {
+    const declined = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma: declined.prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+      newsletterOptIn: false,
+    });
+
+    expect(declined.tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          response: { newsletterOptIn: false },
+        }),
+      }),
+    );
+
+    const notAsked = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await completeSignupOnboarding({
+      prisma: notAsked.prisma,
+      userId: "user-2",
+      canCreateOrganizations: true,
+      referralSource: "Reddit",
+    });
+
+    expect(notAsked.tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          response: { referralSource: "Reddit" },
+        }),
+      }),
+    );
+  });
+
+  it("records nothing but still redirects when onboarding is disabled", async () => {
+    disableSignupOnboarding();
+
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({ orgId: "org-1", projects: [{ id: "project-1" }] }),
+      ],
+    });
+
+    await expect(
+      completeSignupOnboarding({
+        prisma,
+        userId: "user-1",
+        canCreateOrganizations: true,
+        newsletterOptIn: true,
+      }),
+    ).resolves.toEqual({ redirectTo: "/project/project-1" });
+
+    expect(tx.survey.create).not.toHaveBeenCalled();
   });
 });
 

@@ -482,6 +482,13 @@ export const env = createEnv({
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH: z
       .enum(["true", "false"])
       .default("false"),
+    // Skips the post-signup onboarding step, sending new users straight to
+    // their workspace. Deliberately a runtime server variable rather than a
+    // NEXT_PUBLIC_ one: self-hosters run the prebuilt Docker image, where
+    // NEXT_PUBLIC_ values are baked at build time and could not be set.
+    LANGFUSE_DISABLE_SIGNUP_ONBOARDING: z
+      .enum(["true", "false"])
+      .default("false"),
     // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
     // public API routes that rely on the legacy traces/observations tables.
     // The worker owns the writes; the web only needs to know whether legacy
@@ -1005,6 +1012,8 @@ export const env = createEnv({
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
+    LANGFUSE_DISABLE_SIGNUP_ONBOARDING:
+      process.env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING,
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
       process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
     LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY:
