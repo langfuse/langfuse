@@ -38,6 +38,11 @@ const getQueryRedirectPath = (value: unknown): string | undefined => {
   return stripBasePath(getSafeRedirectPath(sameOriginPath ?? value));
 };
 
+const getDemoCallbackRedirectPath = (value: unknown): string | undefined => {
+  const redirectPath = getQueryRedirectPath(value);
+  return redirectPath === "/demo" ? redirectPath : undefined;
+};
+
 export function OnboardingSurvey() {
   const router = useRouter();
   const { update: updateSession } = useSession();
@@ -49,7 +54,9 @@ export function OnboardingSurvey() {
   });
   const onboardingStatus = api.onboarding.status.useQuery();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
-  const queryRedirectPath = getQueryRedirectPath(router.query.targetPath);
+  const queryRedirectPath =
+    getQueryRedirectPath(router.query.targetPath) ??
+    getDemoCallbackRedirectPath(router.query.callbackUrl);
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
 

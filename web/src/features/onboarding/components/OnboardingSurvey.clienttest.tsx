@@ -111,4 +111,46 @@ describe("OnboardingSurvey", () => {
     expect(screen.getByText("Setting up your project")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
+
+  it("preserves the demo callback URL for new OAuth users after onboarding", async () => {
+    mocks.routerMock.query = {
+      callbackUrl: `${window.location.origin}/demo`,
+    };
+
+    render(<OnboardingSurvey />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    await waitFor(() => {
+      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith({
+        targetPath: "/demo",
+      });
+      expect(mocks.statusSetDataMock).toHaveBeenCalledWith(undefined, {
+        completed: true,
+        redirectTo: "/demo",
+      });
+      expect(mocks.routerMock.replace).toHaveBeenCalledWith("/demo");
+    });
+  });
+
+  it("ignores non-demo callback URLs after onboarding", async () => {
+    mocks.routerMock.query = {
+      callbackUrl: `${window.location.origin}/project/project-2`,
+    };
+
+    render(<OnboardingSurvey />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    await waitFor(() => {
+      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith(undefined);
+      expect(mocks.statusSetDataMock).toHaveBeenCalledWith(undefined, {
+        completed: true,
+        redirectTo: "/project/project-1/traces",
+      });
+      expect(mocks.routerMock.replace).toHaveBeenCalledWith(
+        "/project/project-1/traces",
+      );
+    });
+  });
 });
