@@ -33,13 +33,7 @@ import {
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import {
-  addTagsToCurrentSpan,
-  addUserToSpan,
-  logger,
-  redis,
-  type ApiAccessScope,
-} from "@langfuse/shared/src/server";
+import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
@@ -126,8 +120,15 @@ export default async function handler(
       );
     }
 
-    if (await applyMcpPublicApiRateLimit(authCheck.scope, res)) {
-      return;
+    // Rate limit MCP requests
+    const rateLimitCheck =
+      await RateLimitService.getInstance().rateLimitRequest(
+        authCheck.scope,
+        "public-api",
+      );
+
+    if (rateLimitCheck?.isRateLimited()) {
+      return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
     // Build ServerContext from authenticated scope. In-app-agent keys need a
@@ -187,34 +188,6 @@ export default async function handler(
       });
     }
   }
-}
-
-export async function applyMcpPublicApiRateLimit(
-  scope: ApiAccessScope,
-  res: NextApiResponse,
-): Promise<boolean> {
-  const isInAppAgent = scope.isInAppAgentKey === true;
-
-  addTagsToCurrentSpan({
-    "mcp.is_in_app_agent": isInAppAgent,
-  });
-
-  // Assistant runs have separate limits; trust only the authenticated key flag for this exemption.
-  if (isInAppAgent) {
-    return false;
-  }
-
-  const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
-    scope,
-    "public-api",
-  );
-
-  if (!rateLimitCheck?.isRateLimited()) {
-    return false;
-  }
-
-  rateLimitCheck.sendRestResponseIfLimited(res);
-  return true;
 }
 
 export function getInAppAgentContext(

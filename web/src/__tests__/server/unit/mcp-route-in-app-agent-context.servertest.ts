@@ -3,26 +3,9 @@ import {
   createInAppAgentMcpRunOverride,
   InAppAgentMcpRunOverrideSchema,
 } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
-import {
-  applyMcpPublicApiRateLimit,
-  getInAppAgentContext,
-} from "@/src/pages/api/public/mcp";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import type { ApiAccessScope } from "@langfuse/shared/src/server";
+import { getInAppAgentContext } from "@/src/pages/api/public/mcp";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
-
-const createApiAccessScope = (isInAppAgentKey: boolean): ApiAccessScope => ({
-  projectId: "project-id",
-  orgId: "org-id",
-  apiKeyId: "api-key-id",
-  publicKey: "pk-lf-test",
-  accessLevel: "project",
-  plan: "oss",
-  rateLimitOverrides: [],
-  isIngestionSuspended: false,
-  isInAppAgentKey,
-});
 
 describe("MCP route in-app-agent context", () => {
   const createRequest = (overrideHeader?: string) => {
@@ -79,53 +62,5 @@ describe("MCP route in-app-agent context", () => {
       permissions: "single-tool-override",
       allowedToolName: "upsertDataset",
     });
-  });
-});
-
-describe("MCP route public API rate limiting", () => {
-  const rateLimitRequest = vi.fn();
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    rateLimitRequest.mockReset();
-    vi.spyOn(RateLimitService, "getInstance").mockReturnValue({
-      rateLimitRequest,
-    } as unknown as RateLimitService);
-  });
-
-  it("exempts authenticated in-app-agent keys", async () => {
-    const { res } = createMocks<NextApiRequest, NextApiResponse>();
-
-    const responseSent = await applyMcpPublicApiRateLimit(
-      createApiAccessScope(true),
-      res,
-    );
-
-    expect(responseSent).toBe(false);
-    expect(rateLimitRequest).not.toHaveBeenCalled();
-  });
-
-  it("rate limits normal keys based only on authenticated scope", async () => {
-    const { res } = createMocks<NextApiRequest, NextApiResponse>();
-    const sendRestResponseIfLimited = vi.fn((response: NextApiResponse) =>
-      response.status(429).end(),
-    );
-    rateLimitRequest.mockResolvedValue({
-      isRateLimited: () => true,
-      sendRestResponseIfLimited,
-    });
-
-    const responseSent = await applyMcpPublicApiRateLimit(
-      createApiAccessScope(false),
-      res,
-    );
-
-    expect(responseSent).toBe(true);
-    expect(rateLimitRequest).toHaveBeenCalledWith(
-      createApiAccessScope(false),
-      "public-api",
-    );
-    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res);
-    expect(res.statusCode).toBe(429);
   });
 });
