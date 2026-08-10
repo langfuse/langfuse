@@ -471,17 +471,17 @@ export const getDatasetByNameForApi = async ({
       name,
       projectId,
     },
-    ...(shouldReadLegacyDatasetRuns
-      ? {
-          include: {
+    include: {
+      ...(shouldReadLegacyDatasetRuns
+        ? {
             datasetRuns: {
               select: {
                 name: true,
               },
             },
-          },
-        }
-      : {}),
+          }
+        : {}),
+    },
   });
 
   if (!dataset) {
