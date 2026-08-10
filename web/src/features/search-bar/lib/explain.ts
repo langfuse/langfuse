@@ -119,10 +119,6 @@ function defaultOpPredicate(ref: FieldRef, seg: FilterSegment): string {
         : `is not ${quote(values[0] ?? "")}`;
     return `is ${joinValues(values, "or")}`;
   }
-  if (ref.type === "field" && ref.field.kind === "number") {
-    const value = amount(values[0] ?? "", ref.field);
-    return negated ? `is not ${value}` : `is ${value}`;
-  }
   if (ref.type === "field" && ref.field.syncMode === "arrayOption") {
     if (valueOp === "and") return `include all of ${joinValues(values, "and")}`;
     if (negated)
@@ -153,6 +149,14 @@ function predicateOf(ref: FieldRef, seg: FilterSegment): string {
   const { op, values, negated } = seg;
 
   if (isComparison(op)) return comparisonPredicate(op, ref, values, negated);
+
+  // Number equality, before the string-operator switch: `latency:2` and
+  // `latency:=2` lower to the SAME numeric filter, so both must read "is 2
+  // seconds" — not a quoted, unitless "is exactly "2"" for the `:=` spelling.
+  if (ref.type === "field" && ref.field.kind === "number") {
+    const value = amount(values[0] ?? "", ref.field);
+    return negated ? `is not ${value}` : `is ${value}`;
+  }
 
   switch (op) {
     case "exact":

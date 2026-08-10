@@ -33,6 +33,10 @@ describe("explainSegment", () => {
     expect(explain("statusMessage:chat*")).toBe(
       'Status message starts with "chat".',
     );
+    // `:=` and the bare form lower to the same numeric filter, so a number
+    // never reads as a quoted string.
+    expect(explain("latency:=2")).toBe(explain("latency:2"));
+    expect(explain("latency:=2")).toBe("Latency is 2 seconds.");
   });
 
   it("reads a negated comparison as its flipped operator, like the lowering", () => {

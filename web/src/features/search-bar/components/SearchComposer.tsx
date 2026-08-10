@@ -65,6 +65,11 @@ const LISTBOX_ID = "search-bar-listbox";
 // reaches the model or clipboard.
 const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 
+// Shared by the visible tooltip and its screen-reader description, so a
+// deactivated token reads the same either way.
+const notAppliedNote = (reason: string) =>
+  `Not applied on this view: ${reason}`;
+
 // Stable empty recents reference so the plan memo doesn't churn when recents
 // are intentionally suppressed (popover closed, or a non-empty draft — recents
 // show only on an empty bar; see the recents memo).
@@ -1169,15 +1174,17 @@ export function SearchComposer({
   };
 
   const segments = deriveComposerSegments(draft, scoreTypes);
-  // The remove affordance targets the hovered token, or — while the editor is
-  // focused — the token holding a collapsed caret. Not at the trailing
-  // insertion point, where the user is appending, not editing.
-  const focusSegment =
+  // The token holding a collapsed caret — the keyboard counterpart to hover.
+  // Not at the trailing insertion point, where the user is appending, not
+  // editing. Every segment kind qualifies: an operator explains itself on the
+  // caret path exactly as it does on hover (it just can't be removed, below).
+  const caretSegment =
     editorFocused && selectionCollapsed && caret < draft.length
-      ? (segments.find((s) => s.editable && s.from <= caret && caret <= s.to) ??
-        null)
+      ? (segments.find((s) => s.from <= caret && caret <= s.to) ?? null)
       : null;
-  const focusTokenId = focusSegment?.id ?? null;
+  // The remove affordance targets the hovered token, or the caret token — but
+  // only an editable one, since operators/parens have nothing to remove.
+  const focusTokenId = caretSegment?.editable === true ? caretSegment.id : null;
   const removeTargetId = hoveredTokenId ?? focusTokenId;
   const removeTarget =
     segments.find((s) => s.editable && s.id === removeTargetId) ?? null;
@@ -1194,30 +1201,46 @@ export function SearchComposer({
   // Plain-language explanation of a token (LFE-14447), in the same slot — an
   // error wins it. Hover always explains; the caret path only while the popover
   // is closed, so it never stacks a tooltip over the suggestions you are typing
-  // against. Resolved over ALL segments, not `removeTarget`: operators aren't
-  // editable (no remove affordance) but do explain themselves.
-  const explainTargetId =
+  // against.
+  const explainTarget =
     errorTarget !== null
       ? null
-      : (hoveredTokenId ?? (plan === null ? focusTokenId : null));
-  const explainTarget =
-    explainTargetId === null
-      ? null
-      : (segments.find((s) => s.id === explainTargetId) ?? null);
+      : hoveredTokenId !== null
+        ? (segments.find((s) => s.id === hoveredTokenId) ?? null)
+        : plan === null
+          ? caretSegment
+          : null;
+  const explainTargetId = explainTarget?.id ?? null;
   const explanation =
     explainTarget === null ? null : explainSegment(explainTarget);
   const explainDeactivatedReason =
     explainTarget === null
       ? null
       : deactivationReason(explainTarget, fieldReason, freeTextReason);
-  // Keyboard/AT path: the caret token's explanation, read through the
-  // combobox's description regardless of the popover.
+  // Keyboard/AT path: the caret token's explanation, read through the combobox's
+  // description regardless of the popover — including the "not applied" note,
+  // which the visible tooltip also carries.
   const caretExplanation =
-    focusSegment === null ? null : explainSegment(focusSegment);
+    caretSegment === null ? null : explainSegment(caretSegment);
+  const caretDeactivatedReason =
+    caretSegment === null
+      ? null
+      : deactivationReason(caretSegment, fieldReason, freeTextReason);
+  const caretHelp =
+    caretExplanation === null
+      ? null
+      : [
+          `${caretExplanation.subject} ${caretExplanation.predicate}`.trim(),
+          caretDeactivatedReason === null
+            ? null
+            : notAppliedNote(caretDeactivatedReason),
+        ]
+          .filter((part) => part !== null)
+          .join(" ");
   const describedBy =
     [
       visibleDiagnostics.length > 0 ? "search-bar-diagnostics" : null,
-      caretExplanation !== null ? "search-bar-token-help" : null,
+      caretHelp !== null ? "search-bar-token-help" : null,
     ]
       .filter((id) => id !== null)
       .join(" ") || undefined;
@@ -1484,9 +1507,9 @@ export function SearchComposer({
         </div>
       )}
 
-      {caretExplanation !== null && (
+      {caretHelp !== null && (
         <div id="search-bar-token-help" className="sr-only">
-          {`${caretExplanation.subject} ${caretExplanation.predicate}`.trim()}
+          {caretHelp}
         </div>
       )}
 
@@ -1548,7 +1571,7 @@ export function SearchComposer({
                   )}
                   {explainDeactivatedReason !== null && (
                     <span className="text-muted-foreground block pt-0.5">
-                      Not applied on this view: {explainDeactivatedReason}
+                      {notAppliedNote(explainDeactivatedReason)}
                     </span>
                   )}
                 </>
