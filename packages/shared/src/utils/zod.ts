@@ -59,7 +59,7 @@ export const paginationZod = {
 export const publicApiPaginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().gt(0).default(1),
+    z.coerce.number().int().gt(0).default(1),
   ),
   limit: publicApiPaginationLimitZod,
 };
@@ -176,16 +176,43 @@ export const noUrlCheck = (value: string) => !urlRegex.test(value);
 
 export const NonEmptyString = z.string().min(1);
 
-export const htmlRegex = /<[^>]*>/g;
+export const htmlRegex = /<[^<>]*>/g;
+const containsHtmlRegex = /<[^<>]*>/;
 
-export const StringNoHTML = z.string().refine((val) => !htmlRegex.test(val), {
-  message: "Text cannot contain HTML tags",
-});
+function removeHtmlTags(input: string): string {
+  const parts: string[] = [];
+  let cursor = 0;
+
+  while (cursor < input.length) {
+    const tagStart = input.indexOf("<", cursor);
+    if (tagStart === -1) {
+      parts.push(input.slice(cursor));
+      break;
+    }
+
+    const tagEnd = input.indexOf(">", tagStart + 1);
+    if (tagEnd === -1) {
+      parts.push(input.slice(cursor));
+      break;
+    }
+
+    parts.push(input.slice(cursor, tagStart));
+    cursor = tagEnd + 1;
+  }
+
+  return parts.join("");
+}
+
+export const StringNoHTML = z
+  .string()
+  .refine((val) => !containsHtmlRegex.test(val), {
+    message: "Text cannot contain HTML tags",
+  });
 
 export const StringNoHTMLNonEmpty = z
   .string()
   .min(1, "Text cannot be empty")
-  .refine((val) => !htmlRegex.test(val), {
+  .refine((val) => !containsHtmlRegex.test(val), {
     message: "Text cannot contain HTML tags",
   });
 
@@ -246,18 +273,14 @@ export type JSONArray = z.infer<typeof JSONArraySchema>;
  * sanitizeEmailSubject("Test<script>alert(1)</script>") // Returns "Testscriptalert(1)/script"
  */
 export function sanitizeEmailSubject(input: string): string {
-  return (
-    input
-      // Remove carriage return and line feed (CRLF injection prevention)
-      .replace(/[\r\n]/g, "")
-      // Remove all control characters (ASCII 0-31 and 127)
-      // eslint-disable-next-line no-control-regex
-      .replace(/[\x00-\x1F\x7F]/g, "")
-      // Remove HTML tags (defensive layer)
-      .replace(htmlRegex, "")
-      // Trim whitespace
-      .trim()
-  );
+  const withoutControlCharacters = input
+    // Remove carriage return and line feed (CRLF injection prevention)
+    .replace(/[\r\n]/g, "")
+    // Remove all control characters (ASCII 0-31 and 127)
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1F\x7F]/g, "");
+
+  return removeHtmlTags(withoutControlCharacters).trim();
 }
 
 /**

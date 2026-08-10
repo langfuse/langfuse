@@ -545,30 +545,33 @@ jobs:
           pnpm install
       - name: Load default env
         run: |
-          cp .env.dev${{ matrix.deploy-mode }}.example .env
-          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.deploy-mode }}.example > .env
-          echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
-          echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
-          echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
-          echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1" >> .env
-          echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
-          echo "ADMIN_API_KEY=admin-api-key" >> .env
-          echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
-          echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true" >> .env
-          echo "LANGFUSE_ENABLE_SCORES_V3_API=true" >> .env
+          write_test_env() {
+            {
+              grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' "$1"
+              echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1"
+              echo "LANGFUSE_CACHE_PROMPT_ENABLED=false"
+              echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1"
+              echo "LANGFUSE_TRACE_DELETE_DELAY_MS=1"
+              echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100"
+              echo "ADMIN_API_KEY=admin-api-key"
+              echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test"
+              echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true"
+              echo "LANGFUSE_ENABLE_SCORES_V3_API=true"
+            } > "$2"
+          }
+
+          # Compile once under the default test environment. Next's generate
+          # phase below reapplies the mode-specific config and prerendering.
+          write_test_env .env.dev.example .env
+          write_test_env .env.dev${{ matrix.deploy-mode }}.example .env.runtime
       - name: Setup Turbo cache
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
-          # Turbo hashes the whole .env (turbo.json globalDependencies) and
-          # each deploy-mode writes a different .env, so keys must be
-          # mode-scoped for every matrix job to replay its own builds. The
-          # default mode gets an explicit "-default" segment so its restore
-          # prefix cannot match the other modes' keys.
-          key: ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode == '' && '-default' || matrix.deploy-mode }}-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-tests-web-compile-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode == '' && '-default' || matrix.deploy-mode }}-
+            ${{ runner.os }}-turbo-tests-web-compile-
       # No Next.js build cache here on purpose: its ~30s/job restore+save cost
       # roughly cancels the build speedup, and the Turbo cache above already
       # replays unchanged builds.
@@ -576,22 +579,29 @@ jobs:
         # Independent of the build, so let the build overlap the ~15-20s
         # container startup. "Wait for dev containers" collects the result.
         run: |
-          (set +e; docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+          (set +e; docker compose --env-file .env.runtime -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Build
-        run: pnpm run build
+        run: pnpm turbo run build:test
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
+          NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Finalize build for runtime environment
+        run: |
+          cp .env.runtime .env
+          pnpm --filter web exec dotenv -e ../.env -- next build --experimental-build-mode generate
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
           NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Wait for dev containers
         run: |
           timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
             || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
           cat /tmp/compose-up.log
-          docker compose ps
+          docker compose --env-file .env.runtime -f docker-compose.dev${{ matrix.deploy-mode }}.yml ps
           exit "$(cat /tmp/compose-up.exit)"
       - name: Migrate DB
         run: |
@@ -1028,6 +1038,14 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
+      - name: Setup Turbo cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] server e2e build cache only; publish jobs rebuild artifacts without restoring this cache
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-server-e2e-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-server-e2e-
       # The next two downloads/startups have no dependency on the build, so
       # they run in the background and the build overlaps them. Later steps
       # wait on their marker files.
@@ -1076,6 +1094,9 @@ jobs:
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
+      - name: Prune stale turbo cache entries
+        if: env.CI_CACHE_ALLOWED == 'true'
+        run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
