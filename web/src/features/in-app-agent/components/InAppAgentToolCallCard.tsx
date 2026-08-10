@@ -116,7 +116,7 @@ export function InAppAgentToolCallCard({
             {approval.status === "retry" && onRetryToolApprovals ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-destructive text-xs">
-                  Couldn&apos;t submit these decisions.
+                  Unable to submit these decisions.
                 </span>
                 <Button
                   type="button"

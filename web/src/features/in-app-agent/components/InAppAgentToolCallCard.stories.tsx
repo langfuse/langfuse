@@ -222,10 +222,10 @@ export const ReviewsParallelApprovals = meta.story({
               cancelRequested: false,
             },
             pendingToolApprovals: [
-              ["approval-1", "langfuse_createDashboard"],
+              ["approval-1", "langfuse_createDashboardWidget"],
               ["approval-2", "langfuse_createDashboardWidget"],
               ["approval-3", "langfuse_createDashboardWidget"],
-              ["approval-4", "langfuse_createDashboardWidget"],
+              ["approval-4", "langfuse_createDashboard"],
             ].map(([toolCallId, toolName]) => ({
               runId: "run-1",
               status: "pending" as const,
@@ -249,7 +249,6 @@ export const ReviewsParallelApprovals = meta.story({
         candidate.status === "submitting" ||
         candidate.status === "retry",
     );
-
     return (
       <div className="flex max-w-lg flex-col gap-2">
         {approval ? (
@@ -296,20 +295,19 @@ export const ReviewsParallelApprovals = meta.story({
     await expect(canvas.getByText("1 of 4")).toBeVisible();
     await expect(canvas.queryByText("2 of 4")).toBeNull();
     await expect(canvas.getAllByText("Arguments")).toHaveLength(1);
-    await userEvent.click(canvas.getByRole("button", { name: "Reject" }));
-    await expect(canvas.queryByText("Rejected createDashboard")).toBeNull();
-    await expect(canvas.queryByText("1 of 4")).toBeNull();
-    await expect(canvas.getByText("2 of 4")).toBeVisible();
-
     await userEvent.click(canvas.getByRole("button", { name: "Always allow" }));
     await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledOnce();
-    await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledWith("approval-2");
-    await expect(canvas.getByText("Submitting")).toBeVisible();
+    await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledWith("approval-1");
+    await expect(canvas.getByText("4 of 4")).toBeVisible();
+    await expect(canvas.getAllByText("Arguments")).toHaveLength(1);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Reject" }));
+    await expect(canvas.getByText("Rejected createDashboard")).toBeVisible();
     await expect(canvas.getAllByText("Arguments")).toHaveLength(1);
     await expect(canvas.queryByRole("button", { name: "Confirm" })).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Reject" })).toBeNull();
     await expect(args.onApproveToolCall).toHaveBeenCalledOnce();
     await expect(args.onRejectToolCall).toHaveBeenCalledOnce();
-    await expect(args.onRejectToolCall).toHaveBeenCalledWith("approval-1");
+    await expect(args.onRejectToolCall).toHaveBeenCalledWith("approval-4");
   },
 });

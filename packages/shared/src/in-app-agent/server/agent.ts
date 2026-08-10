@@ -163,6 +163,7 @@ export function getBedrockReasoningProviderOptions(modelId: string) {
 
 type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
+  emitInterruptOutcome?: boolean;
   approvalRequests?: InAppAgentToolApprovalRequest[];
   onMcpToolCallCompleted?: (toolCall: CompletedInAppAgentMcpToolCall) => void;
   onApprovedToolCallExecuted?: () => void | Promise<void>;
@@ -895,7 +896,7 @@ async function createMastraAdapter(params: {
     const adapter = new MastraAgent({
       agent,
       resourceId: params.input.threadId,
-      emitInterruptOutcome: true,
+      emitInterruptOutcome: params.options.emitInterruptOutcome ?? false,
     });
     patchMastraApprovalChunks(
       adapter,

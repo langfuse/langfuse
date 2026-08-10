@@ -41,6 +41,7 @@ import {
   decideBackgroundApproval,
   decideBackgroundApprovalBatch,
   deleteBackgroundConversation,
+  getBackgroundApprovalBatchReplay,
   getBackgroundConversationSnapshot,
   startBackgroundRun,
 } from "@/src/features/in-app-agent/server/backgroundRunService";
@@ -268,16 +269,28 @@ export const inAppAgentRouter = createTRPCRouter({
         projectAvailability,
       );
 
-      await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
-      // A continuation is a fresh run that occupies a worker slot, and parked
-      // approvals accumulate without holding one, so this path needs the
-      // ceiling for the same reason it already needs the daily bucket.
-      await assertInAppAgentRunCapacity({
-        prisma: ctx.prisma,
-        orgId: rateLimitScope.orgId,
-        plan: rateLimitScope.plan,
-        userId: ctx.session.user.id,
-      });
+      const batchReplay =
+        "resume" in input &&
+        (await getBackgroundApprovalBatchReplay({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          conversationId: input.conversationId,
+          runId: input.runId,
+          resume: input.resume,
+          userId: ctx.session.user.id,
+        }));
+
+      if (!batchReplay) {
+        await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
+      }
+      if (!batchReplay || batchReplay.requiresCapacity) {
+        await assertInAppAgentRunCapacity({
+          prisma: ctx.prisma,
+          orgId: rateLimitScope.orgId,
+          plan: rateLimitScope.plan,
+          userId: ctx.session.user.id,
+        });
+      }
 
       if ("resume" in input) {
         return decideBackgroundApprovalBatch({

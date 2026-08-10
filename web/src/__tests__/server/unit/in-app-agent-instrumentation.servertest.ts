@@ -211,7 +211,6 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(mocks.trace.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: expectedAgentRunInput,
         output: {
           messages: [
             { role: "assistant", content: "hi there" },
@@ -230,6 +229,9 @@ describe("InAppAgentInstrumentation", () => {
           tool_calls: [toolCall],
         },
       }),
+    );
+    expect(mocks.trace.update.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+      "input",
     );
   });
 
@@ -520,7 +522,7 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
-  it("writes trace input and output", () => {
+  it("preserves the root trace input when writing output", () => {
     const instrumentation = createInstrumentation();
 
     instrumentation.recordEvents([
@@ -546,12 +548,14 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(mocks.trace.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: expectedAgentRunInput,
         output: {
           messages: [{ role: "assistant", content: "second turn output" }],
           text: "second turn output",
         },
       }),
+    );
+    expect(mocks.trace.update.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+      "input",
     );
   });
 

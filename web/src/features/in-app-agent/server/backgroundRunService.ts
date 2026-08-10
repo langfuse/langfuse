@@ -45,6 +45,8 @@ import {
   createQueuedRun,
   decideToolApproval,
   decideToolApprovalBatch,
+  findToolApprovalBatchContinuation,
+  getInAppAgentApprovalBatchFingerprint,
   reconcileConversationRuns,
   requestRunCancellation,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
@@ -498,6 +500,52 @@ export async function decideBackgroundApprovalBatch(params: {
   }
 
   return { runId: continuationRun.id };
+}
+
+export async function getBackgroundApprovalBatchReplay(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  runId: string;
+  resume: InAppAgentApprovalResumeEntry[];
+  userId: string;
+}) {
+  await getOwnedConversationOrThrow({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    userId: params.userId,
+  });
+  const events = await getConversationEvents({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+  });
+  const { openInterruptIds } = getApprovalRequestsForRun(events, params.runId);
+  if (openInterruptIds.length === 0) {
+    return null;
+  }
+
+  const { batchFingerprint } = getInAppAgentApprovalBatchFingerprint({
+    openInterruptIds,
+    resume: params.resume,
+  });
+  const continuation = await findToolApprovalBatchContinuation({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    interruptedRunId: params.runId,
+    batchFingerprint,
+  });
+  if (!continuation) {
+    return null;
+  }
+
+  return {
+    requiresCapacity:
+      continuation.status === InAppAgentRunStatus.FAILED &&
+      continuation.errorCode === InAppAgentRunErrorCode.ENQUEUE_FAILED,
+  };
 }
 
 function getPendingToolApprovals(

@@ -1,5 +1,6 @@
 import { EventType } from "@ag-ui/core";
 import { HttpAgent } from "@ag-ui/client";
+import { MastraAgent } from "@ag-ui/mastra";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
 import { describe, expect, it, vi } from "vitest";
@@ -1860,6 +1861,144 @@ describe("createAgUiStream", () => {
       });
 
       expect(streamedErrorMessage).toBe(runErrorMessage);
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it("keeps legacy foreground approvals resumable by HttpAgent", async () => {
+    const { createAgUiStream } =
+      await import("@langfuse/shared/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "create a score config",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    } as unknown as Langfuse;
+    const streamOptions = {
+      awsBedrock: { modelId: "test-model" },
+      langfuseMcp: {
+        url: "https://example.com/api/public/mcp",
+        publicKey: "pk",
+        secretKey: "sk",
+        toolPolicy: defaultInAppAgentToolPolicy,
+      },
+      redirectAction: { projectId: "project-1", isV4Enabled: false },
+      langfuseClient,
+      useLocalPrompt: false,
+    };
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.CUSTOM,
+        name: "on_interrupt",
+        value: {
+          type: "mastra_suspend",
+          toolCallId: "tool-call-1",
+          toolName: "langfuse_createScoreConfig",
+          args: {
+            name: "readiness",
+            dataType: "NUMERIC",
+            numericMinValue: 0,
+            numericMaxValue: 1,
+          },
+          runId: input.runId,
+        },
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const serverStream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: streamOptions,
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(serverStream as unknown as BodyInit, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      }),
+    );
+
+    try {
+      const agent = new HttpAgent({
+        url: "https://example.com/api/in-app-agent",
+        threadId: input.threadId,
+        initialMessages: input.messages,
+        initialState: input.state,
+      });
+
+      await expect(agent.runAgent({ runId: input.runId })).resolves.toEqual({
+        result: undefined,
+        newMessages: [],
+      });
+
+      const resumeInput = createToolApprovalResumeInput(true);
+      adapterEvents.items = [
+        {
+          type: EventType.RUN_STARTED,
+          threadId: resumeInput.threadId,
+          runId: resumeInput.runId,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          threadId: resumeInput.threadId,
+          runId: resumeInput.runId,
+        },
+      ];
+      const resumeStream = await createAgUiStream({
+        input: resumeInput,
+        signal: new AbortController().signal,
+        options: streamOptions,
+      });
+      fetchMock.mockResolvedValueOnce(
+        new Response(resumeStream as unknown as BodyInit, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+      );
+
+      await expect(
+        agent.runAgent({
+          runId: resumeInput.runId,
+          forwardedProps: resumeInput.forwardedProps,
+        }),
+      ).resolves.toMatchObject({
+        result: undefined,
+        newMessages: [
+          expect.objectContaining({ role: "assistant" }),
+          expect.objectContaining({
+            role: "tool",
+            toolCallId: "tool-call-1",
+          }),
+        ],
+      });
+      expect(vi.mocked(MastraAgent)).toHaveBeenCalledTimes(2);
+      for (const [options] of vi.mocked(MastraAgent).mock.calls) {
+        expect(options).toEqual(
+          expect.objectContaining({ emitInterruptOutcome: false }),
+        );
+      }
     } finally {
       fetchMock.mockRestore();
     }

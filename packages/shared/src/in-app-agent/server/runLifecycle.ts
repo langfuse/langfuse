@@ -397,23 +397,10 @@ export async function decideToolApprovalBatch(params: {
   decidedByUserId: string;
   model?: string;
 }): Promise<{ run: InAppAgentRun; shouldEnqueue: boolean }> {
-  const resumeById = new Map(
-    params.resume.map((entry) => [entry.interruptId, entry] as const),
-  );
-  const openInterruptIds = new Set(params.openInterruptIds);
-  const hasExactInterruptSet =
-    resumeById.size === openInterruptIds.size &&
-    [...openInterruptIds].every((id) => resumeById.has(id)) &&
-    params.resume.every((entry) => openInterruptIds.has(entry.interruptId));
-
-  if (!hasExactInterruptSet) {
-    throw new LangfuseConflictError(
-      "Every pending approval must be decided before continuing.",
-    );
-  }
-
-  const resume = params.openInterruptIds.map((id) => resumeById.get(id)!);
-  const batchFingerprint = stableJsonStringify(resume);
+  const { resume, batchFingerprint } = getInAppAgentApprovalBatchFingerprint({
+    openInterruptIds: params.openInterruptIds,
+    resume: params.resume,
+  });
   const outcome = await params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
@@ -427,31 +414,12 @@ export async function decideToolApprovalBatch(params: {
     });
 
     if (parentRun?.status !== InAppAgentRunStatus.AWAITING_APPROVAL) {
-      const existing = await tx.inAppAgentRun.findFirst({
-        where: {
-          projectId: params.projectId,
-          conversationId: params.conversationId,
-          AND: [
-            {
-              request: {
-                path: ["kind"],
-                equals: "approvalDecisionBatch",
-              },
-            },
-            {
-              request: {
-                path: ["interruptedRunId"],
-                equals: params.interruptedRunId,
-              },
-            },
-            {
-              request: {
-                path: ["batchFingerprint"],
-                equals: batchFingerprint,
-              },
-            },
-          ],
-        },
+      const existing = await findToolApprovalBatchContinuation({
+        prisma: tx,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        interruptedRunId: params.interruptedRunId,
+        batchFingerprint,
       });
 
       if (existing) {
@@ -644,6 +612,59 @@ export async function decideToolApprovalBatch(params: {
   }
 
   return { run: outcome.run, shouldEnqueue: outcome.shouldEnqueue };
+}
+
+export function getInAppAgentApprovalBatchFingerprint(params: {
+  openInterruptIds: string[];
+  resume: InAppAgentApprovalResumeEntry[];
+}) {
+  const resumeById = new Map(
+    params.resume.map((entry) => [entry.interruptId, entry] as const),
+  );
+  const openInterruptIds = new Set(params.openInterruptIds);
+  const hasExactInterruptSet =
+    resumeById.size === openInterruptIds.size &&
+    [...openInterruptIds].every((id) => resumeById.has(id)) &&
+    params.resume.every((entry) => openInterruptIds.has(entry.interruptId));
+
+  if (!hasExactInterruptSet) {
+    throw new LangfuseConflictError(
+      "Every pending approval must be decided before continuing.",
+    );
+  }
+
+  const resume = params.openInterruptIds.map((id) => resumeById.get(id)!);
+  return { resume, batchFingerprint: stableJsonStringify(resume) };
+}
+
+export async function findToolApprovalBatchContinuation(params: {
+  prisma: PrismaClient | InAppAgentTx;
+  projectId: string;
+  conversationId: string;
+  interruptedRunId: string;
+  batchFingerprint: string;
+}) {
+  return params.prisma.inAppAgentRun.findFirst({
+    where: {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      AND: [
+        { request: { path: ["kind"], equals: "approvalDecisionBatch" } },
+        {
+          request: {
+            path: ["interruptedRunId"],
+            equals: params.interruptedRunId,
+          },
+        },
+        {
+          request: {
+            path: ["batchFingerprint"],
+            equals: params.batchFingerprint,
+          },
+        },
+      ],
+    },
+  });
 }
 
 export type CancelRunResult = {

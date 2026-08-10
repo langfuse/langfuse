@@ -22,6 +22,7 @@ import {
   createInAppAgentRunId,
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
 } from "@langfuse/shared/in-app-agent";
+import { getInAppAgentApprovalInterruptId } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 import { ensureOwnedConversation } from "@langfuse/shared/in-app-agent/server/persistence";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { env } from "@/src/env.mjs";
@@ -763,6 +764,114 @@ describe("in-app agent background runs", () => {
       }),
     ).resolves.toMatchObject({
       status: InAppAgentRunStatus.AWAITING_APPROVAL,
+    });
+    expect(enqueuedJobs).toEqual([]);
+  });
+
+  it("reuses an identical batch when its continuation occupies capacity", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const toolCallId = "idempotent-batch-tool-call";
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId,
+    });
+    const input = {
+      projectId,
+      conversationId: conversation.id,
+      runId: parkedRunId,
+      resume: [
+        {
+          interruptId: getInAppAgentApprovalInterruptId({
+            type: "tool_approval_request",
+            runId: parkedRunId,
+            toolCallId,
+            toolName: "langfuse_createTextPrompt",
+          }),
+          status: "resolved" as const,
+          payload: { approved: true, approvalScope: "once" as const },
+        },
+      ],
+    };
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+    const rateLimitCallsBefore =
+      rateLimitMocks.rateLimitRequest.mock.calls.length;
+
+    const first = await caller.decideToolApproval(input);
+    const second = await caller.decideToolApproval(input);
+
+    expect(second).toEqual(first);
+    expect(
+      rateLimitMocks.rateLimitRequest.mock.calls.length - rateLimitCallsBefore,
+    ).toBe(1);
+    await expect(
+      prisma.inAppAgentRun.count({
+        where: {
+          projectId,
+          conversationId: conversation.id,
+          status: InAppAgentRunStatus.QUEUED,
+        },
+      }),
+    ).resolves.toBe(1);
+  });
+
+  it("checks capacity before reactivating an enqueue-failed batch", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const toolCallId = "enqueue-failed-batch-tool-call";
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId,
+    });
+    const input = {
+      projectId,
+      conversationId: conversation.id,
+      runId: parkedRunId,
+      resume: [
+        {
+          interruptId: getInAppAgentApprovalInterruptId({
+            type: "tool_approval_request",
+            runId: parkedRunId,
+            toolCallId,
+            toolName: "langfuse_createTextPrompt",
+          }),
+          status: "resolved" as const,
+          payload: { approved: true, approvalScope: "once" as const },
+        },
+      ],
+    };
+    enqueueShouldFail = true;
+    await expect(caller.decideToolApproval(input)).rejects.toThrow();
+    const failedContinuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: {
+        projectId,
+        conversationId: conversation.id,
+        errorCode: InAppAgentRunErrorCode.ENQUEUE_FAILED,
+      },
+    });
+    const activeConversation = await createConversation({ projectId, userId });
+    await createActiveRun({
+      projectId,
+      conversationId: activeConversation.id,
+      userId,
+    });
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER = 1;
+    enqueueShouldFail = false;
+
+    await expect(caller.decideToolApproval(input)).rejects.toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+    });
+    await expect(
+      prisma.inAppAgentRun.findFirstOrThrow({
+        where: { id: failedContinuation.id, projectId },
+      }),
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.ENQUEUE_FAILED,
     });
     expect(enqueuedJobs).toEqual([]);
   });

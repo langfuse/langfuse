@@ -452,6 +452,7 @@ export async function executeInAppAgentRun(params: {
       input: agentInput,
       signal: abortController.signal,
       options: {
+        emitInterruptOutcome: true,
         ...(request.kind === "approvalDecisionBatch"
           ? { approvalRequests: batchApprovalRequests }
           : {}),
