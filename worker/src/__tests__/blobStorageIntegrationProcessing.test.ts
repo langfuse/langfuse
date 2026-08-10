@@ -61,6 +61,7 @@ import {
   handleBlobStorageIntegrationProjectJob,
   BLOB_STORAGE_LAG_BUFFER_MS,
 } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+import { BLOB_INTEGRATION_DISABLED_METRIC } from "../features/blobstorage/isCustomerFaultError";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -404,6 +405,105 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(row.enabled).toBe(false);
       expect(row.lastError).toMatch(/connection refused/i);
       expect(row.lastFailureNotificationSentAt).toBeNull();
+    });
+  });
+
+  // LFE-14894: an integration deleted mid-run makes the job obsolete — it must
+  // complete quietly instead of failing on the now-missing row (P2025) and
+  // paging on a config that no longer exists.
+  describe("integration deleted mid-run", () => {
+    // endpoint must be non-null so the handler runs the preflight we stub —
+    // that stub is the seam to delete the row after the initial load.
+    const createIntegration = async (
+      projectId: string,
+      overrides: { exportFrequency?: string; lastSyncAt?: Date } = {},
+    ) => {
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: projectId,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: "https://customer-bucket.s3.example.com",
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: overrides.exportFrequency ?? "daily",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt:
+            overrides.lastSyncAt ??
+            new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+    };
+
+    it("drops the obsolete job instead of failing when the row is gone before the error is persisted", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      await createIntegration(projectId);
+      mockRecordIncrement.mockClear();
+      // Customer fault on the final attempt — normally disable + notify — but
+      // the row vanishes before the catch block can persist anything.
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await prisma.blobStorageIntegration.delete({ where: { projectId } });
+        const err = new Error("Access Denied");
+        err.name = "AccessDenied";
+        Object.assign(err, {
+          Code: "AccessDenied",
+          $metadata: { httpStatusCode: 403 },
+        });
+        throw err;
+      });
+
+      await expect(
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+          attemptsMade: 4,
+          opts: { attempts: 5 },
+        } as Job),
+      ).resolves.toBeUndefined();
+
+      // Give fire-and-forget notification paths time to (not) run.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(mockRecordIncrement).not.toHaveBeenCalledWith(
+        BLOB_INTEGRATION_DISABLED_METRIC,
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it("drops the obsolete job instead of failing when the row is gone after a successful export", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      // Recent lastSyncAt keeps the window non-empty while staying caught up.
+      await createIntegration(projectId, {
+        exportFrequency: "hourly",
+        lastSyncAt: new Date(
+          Date.now() - BLOB_STORAGE_LAG_BUFFER_MS - 30 * 60 * 1000,
+        ),
+      });
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await prisma.blobStorageIntegration.delete({ where: { projectId } });
+      });
+      const getInstanceSpy = vi
+        .spyOn(StorageServiceFactory, "getInstance")
+        .mockReturnValue({
+          uploadFile: vi.fn().mockResolvedValue(undefined),
+          uploadFileBuffered: vi.fn().mockResolvedValue(undefined),
+          deleteFiles: vi.fn().mockResolvedValue(undefined),
+          listFiles: vi.fn().mockResolvedValue([]),
+        } as unknown as StorageService);
+
+      try {
+        await expect(
+          handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job),
+        ).resolves.toBeUndefined();
+      } finally {
+        getInstanceSpy.mockRestore();
+      }
     });
   });
 
