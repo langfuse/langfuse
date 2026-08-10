@@ -12,6 +12,11 @@ import {
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
+import {
+  getCustomInstrumentationSectionState,
+  getOtelSectionState,
+  getSdkSectionState,
+} from "@/src/features/v4-migration/sdkVersionStatus";
 
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
@@ -24,7 +29,22 @@ export function V4MigrationDelayBadge() {
     enabled: v4UpgradeUiEnabled && Boolean(project),
   });
 
-  if (!v4UpgradeUiEnabled || !project || sdk.status !== "legacy") {
+  // Every delayed ingestion path shows the pill, matching the migration
+  // panel's per-path offender detectors (LFE-14861) — not just outdated SDKs.
+  const isTransient = sdk.status === "checking" || sdk.status === "error";
+  const sdkActionable =
+    !isTransient && getSdkSectionState(sdk).status === "legacy";
+  const otelActionable =
+    !isTransient && getOtelSectionState(sdk).delayedCount > 0;
+  const customActionable =
+    !isTransient && getCustomInstrumentationSectionState(sdk).series.length > 0;
+  const actionablePaths = [
+    sdkActionable,
+    otelActionable,
+    customActionable,
+  ].filter(Boolean).length;
+
+  if (!v4UpgradeUiEnabled || !project || actionablePaths === 0) {
     return null;
   }
 
@@ -33,11 +53,22 @@ export function V4MigrationDelayBadge() {
     openMigrationPanel({ id: project.id, name: project.name });
   };
 
+  // The hover's action clause echoes the panel section the click opens;
+  // multiple delayed paths get the generic clause.
+  const description =
+    actionablePaths > 1
+      ? "Your setup is outdated. Upgrade for real-time data"
+      : sdkActionable
+        ? "Your setup is outdated. Update SDK for real-time data"
+        : otelActionable
+          ? "Your setup is outdated. Update OTel instrumentation for real-time data"
+          : "Your setup is outdated. Upgrade instrumentation for real-time data";
+
   return (
     <V4MigrationBadgeContent
       onClick={handleClick}
       title="New data in ~15 min"
-      description="Your setup is outdated. Update SDK for real-time data"
+      description={description}
     />
   );
 }
