@@ -1,16 +1,21 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
 import { singleFilter } from "../../../";
-import { type views } from "../../../features/query";
+import {
+  persistedWidgetViewToQueryView,
+  type views,
+} from "../../../features/query";
 
-/** Maps the persisted Prisma enum to the query model's public view id. */
-export const dashboardWidgetViewToQueryView = {
-  [DashboardWidgetViews.TRACES]: "traces",
-  [DashboardWidgetViews.OBSERVATIONS]: "observations",
-  [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
-  [DashboardWidgetViews.SCORES_BOOLEAN]: "scores-boolean",
-  [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
-} as const satisfies Record<DashboardWidgetViews, z.infer<typeof views>>;
+/**
+ * Maps the persisted Prisma enum to the query model's public view id. The map
+ * itself is client-safe (`persistedWidgetViewToQueryView`); the `satisfies`
+ * here is what keeps it exhaustive against the Prisma enum.
+ */
+export const dashboardWidgetViewToQueryView =
+  persistedWidgetViewToQueryView satisfies Record<
+    DashboardWidgetViews,
+    z.infer<typeof views>
+  >;
 
 /** Maps the query model's public view id to the persisted Prisma enum. */
 export const queryViewToDashboardWidgetView = {

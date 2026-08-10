@@ -727,7 +727,7 @@
     "modelName": "babbage-002",
     "matchPattern": "(?i)^(babbage-002)$",
     "createdAt": "2024-01-26T17:35:21.129Z",
-    "updatedAt": "2024-01-26T17:35:21.129Z",
+    "updatedAt": "2026-08-07T00:00:00.000Z",
     "tokenizerConfig": {
       "tokenizerModel": "babbage-002"
     },
@@ -741,7 +741,7 @@
         "conditions": [],
         "prices": {
           "input": 4e-7,
-          "output": 0.0000016
+          "output": 4e-7
         }
       }
     ]
@@ -751,7 +751,7 @@
     "modelName": "davinci-002",
     "matchPattern": "(?i)^(davinci-002)$",
     "createdAt": "2024-01-26T17:35:21.129Z",
-    "updatedAt": "2024-01-26T17:35:21.129Z",
+    "updatedAt": "2026-08-07T00:00:00.000Z",
     "tokenizerConfig": {
       "tokenizerModel": "davinci-002"
     },
@@ -764,8 +764,8 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.000006,
-          "output": 0.000012
+          "input": 0.000002,
+          "output": 0.000002
         }
       }
     ]

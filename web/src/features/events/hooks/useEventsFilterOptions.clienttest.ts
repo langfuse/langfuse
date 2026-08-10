@@ -132,6 +132,29 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
     expect(envQuery.startTimeFilter).toEqual([START_TIME]);
   });
 
+  it("serves tag options alphabetically, whatever order the server sent (LFE-14382)", () => {
+    mocks.perColumnData.traceTags = {
+      traceTags: [{ value: "urgent" }, { value: "Billing" }, { value: "beta" }],
+    };
+
+    const { result } = renderHook(() =>
+      useEventsFilterOptions({
+        projectId: "p",
+        startTimeFilter: [START_TIME],
+        refiningFilter: [],
+        lazy: true,
+      }),
+    );
+
+    act(() => result.current.requestColumns(["traceTags"]));
+
+    expect(result.current.filterOptions.traceTags).toEqual([
+      { value: "beta" },
+      { value: "Billing" },
+      { value: "urgent" },
+    ]);
+  });
+
   it("loads release options when the Release facet is opened", () => {
     const releaseOptions = [{ value: "181", count: 2 }];
     mocks.perColumnData.release = { release: releaseOptions };

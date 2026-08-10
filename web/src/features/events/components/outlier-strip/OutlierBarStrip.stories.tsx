@@ -126,6 +126,18 @@ export const NoMetricData = meta.story({
   },
 });
 
+/** Nothing in the window at all. The notice centers on the bar canvas, so it
+ * sits in the plot's middle rather than drifting into the time-label band
+ * (LFE-14829). */
+export const EmptyRange = meta.story({
+  args: {
+    ...spikyCount,
+    dense: spikyCount.dense.map((bin) => ({ ...bin, value: null, count: 0 })),
+    maxValue: 0,
+    metric: "count",
+  },
+});
+
 export const MinimalNoLabels = meta.story({
   args: {
     ...spikyCost,

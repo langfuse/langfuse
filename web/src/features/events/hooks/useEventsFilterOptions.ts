@@ -5,6 +5,7 @@ import {
   planEventFacetQueries,
   splitFacetFilter,
 } from "@/src/features/events/lib/facet-query-plan";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 
 type EventFilterOptionColumnsInput =
   RouterInputs["events"]["filterOptions"]["columns"];
@@ -324,7 +325,8 @@ export function useEventsFilterOptions({
       providedModelName: rawData.providedModelName ?? undefined,
       modelId: rawData.modelId ?? undefined,
       promptName: rawData.promptName ?? undefined,
-      traceTags: rawData.traceTags ?? undefined,
+      // Tags read A→Z; every other facet keeps its count-descending order.
+      traceTags: sortOptionValues(rawData.traceTags),
       traceName: rawData.traceName ?? undefined,
       userId: rawData.userId ?? undefined,
       sessionId: rawData.sessionId ?? undefined,
