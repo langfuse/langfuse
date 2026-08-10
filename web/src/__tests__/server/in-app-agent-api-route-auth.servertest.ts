@@ -316,6 +316,7 @@ describe("in-app agent public API route auth", () => {
       expect(
         JSON.parse(createStreamCall.options.langfuseMcp.runOverride),
       ).toEqual({
+        toolName: "upsertDataset",
         toolNames: ["upsertDataset"],
       });
     } finally {

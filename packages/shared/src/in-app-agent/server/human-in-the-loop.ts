@@ -151,6 +151,8 @@ export async function createInAppAgentMcpRunOverride(params: {
   toolNames: InAppAgentLangfuseMcpToolName[];
 }) {
   return JSON.stringify({
+    // Older web pods read the singular field during rolling deploys.
+    toolName: params.toolNames[0],
     toolNames: params.toolNames,
   });
 }

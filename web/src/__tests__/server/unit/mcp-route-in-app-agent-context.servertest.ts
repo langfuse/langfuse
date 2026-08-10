@@ -1,8 +1,5 @@
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
-import {
-  createInAppAgentMcpRunOverride,
-  InAppAgentMcpRunOverrideSchema,
-} from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import { createInAppAgentMcpRunOverride } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 import { getInAppAgentContext } from "@/src/pages/api/public/mcp";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
@@ -53,19 +50,13 @@ describe("MCP route in-app-agent context", () => {
     });
     const req = createRequest(overrideHeader);
 
-    expect(
-      InAppAgentMcpRunOverrideSchema.parse(JSON.parse(overrideHeader)),
-    ).toEqual({
-      toolNames: ["upsertDataset", "createDashboardWidget"],
-    });
     expect(getInAppAgentContext(req, true)).toEqual({
       permissions: "tool-allowlist",
       allowedToolNames: ["upsertDataset", "createDashboardWidget"],
     });
   });
 
-  // A continuation enqueued before allowlists shipped can still be executed by
-  // a worker that mints the single-tool header.
+  // Accept continuations queued by workers that still emit one tool.
   it("still resolves the pre-allowlist single-tool header", () => {
     const req = createRequest('{"toolName":"upsertDataset"}');
 

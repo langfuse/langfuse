@@ -381,7 +381,7 @@ describe("in-app agent execution", () => {
     });
     await waitFor(() => {
       expect(
-        screen.queryByLabelText("createDashboardWidget: failed"),
+        screen.queryByLabelText(/^createDashboardWidget:/),
       ).not.toBeInTheDocument();
     });
   });

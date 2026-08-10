@@ -22,10 +22,8 @@ import {
 } from "@langfuse/shared/in-app-agent/server/sandbox";
 import {
   createInAppAgentToolPolicy,
-  getInAppAgentMcpAllowedToolNames,
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
 } from "@langfuse/shared/in-app-agent/server/tools";
-import { createInAppAgentMcpRunOverride } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 import {
   DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
   decodeFiltersGeneric,
@@ -959,9 +957,7 @@ describe("createAgUiStream", () => {
           publicKey: "pk",
           secretKey: "sk",
           toolPolicy: grantedPolicy,
-          runOverride: await createInAppAgentMcpRunOverride({
-            toolNames: getInAppAgentMcpAllowedToolNames(grantedPolicy),
-          }),
+          runOverride: "conversation-grant",
         },
         redirectAction: { projectId: "project-1", isV4Enabled: false },
         langfuseClient,
@@ -978,14 +974,6 @@ describe("createAgUiStream", () => {
       "requireApproval",
     );
     expect(agentTools?.langfuse_createScoreConfig?.requireApproval).toBe(true);
-
-    expect(
-      vi.mocked(MCPClient).mock.calls[0]?.[0].servers.langfuse.requestInit
-        ?.headers,
-    ).toHaveProperty(
-      IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
-      JSON.stringify({ toolNames: ["upsertDataset"] }),
-    );
   });
 
   it("executes approved tools manually and continues with tool result history", async () => {

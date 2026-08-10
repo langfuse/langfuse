@@ -11,6 +11,7 @@ import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
 } from "./InAppAgentWindowShell";
+import { getDrawerMessages } from "./utils/utils";
 
 function InAppAgentWindowStoryShell({
   children,
@@ -1375,5 +1376,74 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
       value: "thumbs_up",
       comment: null,
     });
+  },
+});
+
+export const AlwaysAllowsConversationWithDeferredSibling = meta.story({
+  name: "(Test) Always Allows Conversation With Deferred Sibling",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAssistantTurnInProgress: true,
+    onAlwaysAllowToolCall: fn(() => new Promise<void>(() => undefined)),
+    messages: getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: [
+        {
+          id: "assistant-approval",
+          role: "assistant",
+          content: "I need approval before creating these resources.",
+          toolCalls: [
+            {
+              id: "approval-1",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: '{"name":"approved-prompt"}',
+              },
+            },
+            {
+              id: "deferred-sibling",
+              type: "function",
+              function: {
+                name: "langfuse_createDashboardWidget",
+                arguments: '{"name":"deferred-widget"}',
+              },
+            },
+          ],
+        },
+      ],
+      pendingToolApprovals: [
+        {
+          id: "approval-1",
+          status: "pending",
+          runId: "run-1",
+          approvalRequest: {
+            type: "tool_approval_request",
+            toolCallId: "approval-1",
+            toolName: "langfuse_createTextPrompt",
+            runId: "run-1",
+          },
+        },
+      ],
+    }),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const confirm = canvas.getByRole("button", { name: "Confirm" });
+    const alwaysAllow = canvas.getByRole("button", { name: "Always allow" });
+    const reject = canvas.getByRole("button", { name: "Reject" });
+
+    await expect(
+      canvas.queryByLabelText(/^createDashboardWidget:/),
+    ).not.toBeInTheDocument();
+    await userEvent.click(alwaysAllow);
+
+    await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledOnce();
+    await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledWith("approval-1");
+    await expect(alwaysAllow).toHaveAttribute("aria-busy", "true");
+    await expect(confirm).toBeDisabled();
+    await expect(alwaysAllow).toBeDisabled();
+    await expect(reject).toBeDisabled();
   },
 });

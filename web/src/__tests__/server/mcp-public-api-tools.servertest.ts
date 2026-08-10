@@ -215,8 +215,6 @@ describe("MCP public API tools", () => {
     await expect(
       toolRegistry.getEnabledTool("createModel", context),
     ).resolves.toBeUndefined();
-    // An allowlist is held for a whole run, not torn down after one call, so
-    // the agent has to keep its read access alongside it.
     await expect(
       toolRegistry.getEnabledTool("listDatasets", context),
     ).resolves.toBeTruthy();

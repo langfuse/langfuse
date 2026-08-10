@@ -503,17 +503,17 @@ export function getInAppAgentMcpAllowedToolNames(
 ): InAppAgentLangfuseMcpToolName[] {
   const allowed = new Set<InAppAgentLangfuseMcpToolName>();
 
+  // Keep the current approval first for legacy web pods that accept one tool.
+  if (oneOffToolName && policy.available.has(oneOffToolName)) {
+    allowed.add(oneOffToolName);
+  }
+
   for (const toolName of policy.autoApproved) {
     if (
       IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[toolName].approval === "approval"
     ) {
       allowed.add(toolName);
     }
-  }
-
-  // Require current role access even when the approval predates a role change.
-  if (oneOffToolName && policy.available.has(oneOffToolName)) {
-    allowed.add(oneOffToolName);
   }
 
   return [...allowed];
