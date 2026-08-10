@@ -202,6 +202,8 @@ export type EventsTableRow = {
     outputCost?: number;
   };
   costDetails: Record<string, number>;
+  providedCostDetails: Record<string, number>;
+  usagePricingTierId?: string | null;
   usagePricingTierName?: string | null;
 
   // Performance metrics
@@ -1364,6 +1366,18 @@ export default function ObservationsEventsTable({
             details={row.original.costDetails}
             isCost
             pricingTierName={row.original.usagePricingTierName ?? undefined}
+            costSource={
+              Object.values(row.original.providedCostDetails).some(
+                (cost) => cost != null,
+              )
+                ? { type: "provided" }
+                : row.original.modelId && row.original.usagePricingTierId
+                  ? {
+                      type: "model",
+                      href: `/project/${projectId}/settings/models/${row.original.modelId}?pricingTier=${row.original.usagePricingTierId}`,
+                    }
+                  : undefined
+            }
           >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
@@ -1847,6 +1861,8 @@ export default function ObservationsEventsTable({
               timestamp: observation.startTime ?? undefined,
               usageDetails: observation.usageDetails ?? {},
               costDetails: observation.costDetails ?? {},
+              providedCostDetails: observation.providedCostDetails ?? {},
+              usagePricingTierId: observation.usagePricingTierId ?? undefined,
               usagePricingTierName:
                 observation.usagePricingTierName ?? undefined,
               environment: observation.environment ?? undefined,
