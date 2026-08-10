@@ -95,6 +95,7 @@ import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApi
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
 import { type Flag } from "@/src/features/feature-flags/types";
+import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
 
 setUpSuperjson();
 
@@ -281,6 +282,14 @@ const inputProjectSchema = z.object({
   projectId: z.string(),
 });
 
+const scheduleBackendActivity = (
+  activity: Parameters<typeof recordBackendActivity>[0],
+) => {
+  recordBackendActivity(activity).catch((error) => {
+    logger.warn("Failed to schedule backend activity", { error });
+  });
+};
+
 /**
  * Protected (authenticated) procedure with project role
  */
@@ -331,6 +340,11 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         projectId,
         orgId: dbProject.orgId,
       });
+      scheduleBackendActivity({
+        userId: ctx.session.user.id,
+        organizationId: dbProject.orgId,
+        projectId,
+      });
       return next({
         ctx: {
           // infers the `session` as non-nullable
@@ -360,6 +374,12 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
       orgId: sessionProject.organization.id,
     });
   }
+
+  scheduleBackendActivity({
+    userId: ctx.session.user.id,
+    organizationId: sessionProject.organization.id,
+    projectId,
+  });
 
   return next({
     ctx: {
@@ -455,6 +475,11 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
       orgId,
     });
   }
+
+  scheduleBackendActivity({
+    userId: ctx.session.user.id,
+    organizationId: orgId,
+  });
 
   return next({
     ctx: {
