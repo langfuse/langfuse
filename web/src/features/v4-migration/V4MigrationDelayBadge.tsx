@@ -15,7 +15,6 @@ import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4Migration
 import {
   getCustomInstrumentationSectionState,
   getOtelSectionState,
-  getSdkSectionState,
 } from "@/src/features/v4-migration/sdkVersionStatus";
 
 export function V4MigrationDelayBadge() {
@@ -31,9 +30,11 @@ export function V4MigrationDelayBadge() {
 
   // Every delayed ingestion path shows the pill, matching the migration
   // panel's per-path offender detectors (LFE-14861) — not just outdated SDKs.
+  // Unlike the panel's Update SDK section, the pill states a factual delay,
+  // so the SDK path needs a confirmed-outdated series: an unparseable version
+  // is grounds for review, not proof the data is delayed.
   const isTransient = sdk.status === "checking" || sdk.status === "error";
-  const sdkActionable =
-    !isTransient && getSdkSectionState(sdk).status === "legacy";
+  const sdkActionable = !isTransient && sdk.upgradeRequiredCount > 0;
   const otelActionable =
     !isTransient && getOtelSectionState(sdk).delayedCount > 0;
   const customActionable =
