@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
@@ -12,6 +13,7 @@ import { type PartialConfig } from "@/src/features/evals/types";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
+import { Callout } from "@/src/components/ui/callout";
 import { Separator } from "@/src/components/ui/separator";
 import {
   DropdownMenu,
@@ -19,9 +21,20 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { ChevronDown } from "lucide-react";
+import { BotMessageSquare, ChevronDown, Zap } from "lucide-react";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
+import { useQueryProject } from "@/src/features/projects/hooks";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
+import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+
+const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+const EVAL_MIGRATION_DOCS_URL =
+  "https://langfuse.com/faq/all/llm-as-a-judge-migration";
 
 type LegacyEvalAction = "keep-active" | "mark-inactive" | "delete";
 
@@ -29,8 +42,18 @@ export default function RemapEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evalConfigId = router.query.evaluator as string;
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const capture = usePostHogClientCapture();
+  const { organization } = useQueryProject();
+  const canUseAssistant = useCanUseInAppAgent();
+  const [assistantDialogOpen, setAssistantDialogOpen] = useState(false);
 
   const evalCapabilities = useEvalCapabilities(projectId);
+  const upgradePlan = useEvalUpgradeAssistantPlan({
+    projectId,
+    orgId: organization?.id,
+    enabled: v4UpgradeUiEnabled && Boolean(projectId),
+  });
 
   const [error, setError] = useState<string | null>(null);
   const [legacyAction, setLegacyAction] =
@@ -135,6 +158,16 @@ export default function RemapEvaluatorPage() {
     }
   };
 
+  const handleUseAssistant = () => {
+    capture("v4_migration:migrate_evals_with_agent_clicked");
+    setAssistantDialogOpen(true);
+  };
+
+  const handleManualUpgrade = () => {
+    setAssistantDialogOpen(false);
+    router.push(buildDeprecatedEvaluatorsUrl(projectId));
+  };
+
   const isLoading = isLoadingConfig || isLoadingTemplate;
 
   return (
@@ -152,6 +185,61 @@ export default function RemapEvaluatorPage() {
       }}
     >
       <div className="space-y-4">
+        {v4UpgradeUiEnabled ? (
+          <Callout
+            id={"v4-evaluator-upgrade:" + evalConfigId}
+            ttlMs={7 * 24 * 60 * 60 * 1000}
+            variant="info"
+            align="top"
+            actions={() => (
+              <>
+                {canUseAssistant ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleUseAssistant}
+                  >
+                    <BotMessageSquare className="mr-1.5 h-4 w-4" />
+                    Use Assistant to help with upgrade
+                  </Button>
+                ) : null}
+                <Button asChild size="sm" variant="secondary">
+                  <Link href="/v4-migration">Check status</Link>
+                </Button>
+                <Button asChild size="sm" variant="secondary">
+                  <a
+                    href={V4_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Docs
+                  </a>
+                </Button>
+              </>
+            )}
+          >
+            <div className="flex items-start gap-2">
+              <Zap className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                <span className="font-bold">
+                  This evaluator needs an upgrade for Langfuse v4.
+                </span>{" "}
+                Legacy trace- and dataset-level evaluators are being replaced by
+                observation- and experiment-level evaluators. Upgrade this
+                configuration to keep its scores aligned with the v4 data model.{" "}
+                <a
+                  href={EVAL_MIGRATION_DOCS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  Learn more about evaluator upgrades
+                </a>
+                .
+              </span>
+            </div>
+          </Callout>
+        ) : null}
         <div>
           <p className="text-muted-foreground text-sm">
             Review your legacy evaluator on the left and configure the new eval
@@ -309,6 +397,16 @@ export default function RemapEvaluatorPage() {
           </Alert>
         )}
       </div>
+      {v4UpgradeUiEnabled && projectId ? (
+        <EvaluatorMigrationDialog
+          open={assistantDialogOpen}
+          onOpenChange={setAssistantDialogOpen}
+          scope={{ type: "all" }}
+          assistantPrompt={upgradePlan.assistantPrompt}
+          onManualUpgrade={handleManualUpgrade}
+          onAssistantStarted={() => undefined}
+        />
+      ) : null}
     </Page>
   );
 }

@@ -9,7 +9,6 @@ import {
   useProjectV4SdkData,
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
-import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import {
@@ -114,7 +113,7 @@ export function V4MigrationUpdateRequiredBadge() {
   );
 }
 
-/** Opens the evaluator migration choices from an individual evaluator peek. */
+/** Opens the manual evaluator upgrade flow from an individual evaluator peek. */
 export function V4MigrationEvaluatorUpdateRequiredBadge({
   projectId,
   evaluatorId,
@@ -123,21 +122,12 @@ export function V4MigrationEvaluatorUpdateRequiredBadge({
   evaluatorId: string;
 }) {
   const router = useRouter();
-  const [dialogOpen, setDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
-  const canUseAssistant = useCanUseInAppAgent();
-  const { organization } = useQueryProject();
-  const upgradePlan = useEvalUpgradeAssistantPlan({
-    projectId,
-    orgId: organization?.id,
-    enabled: true,
-  });
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
 
   if (!v4UpgradeUiEnabled) return null;
 
   const handleManualUpgrade = () => {
-    setDialogOpen(false);
     router.push(buildEvaluatorUpgradeUrl(projectId, evaluatorId));
   };
 
@@ -145,30 +135,16 @@ export function V4MigrationEvaluatorUpdateRequiredBadge({
     capture("v4_migration:update_required_badge_clicked", {
       scope: "single",
     });
-    if (!canUseAssistant) {
-      handleManualUpgrade();
-      return;
-    }
-    setDialogOpen(true);
+    handleManualUpgrade();
   };
 
   return (
-    <>
-      <V4MigrationBadgeContent
-        onClick={handleClick}
-        title="Action required"
-        description={
-          canUseAssistant ? "Choose how to upgrade" : "Start upgrade now"
-        }
-      />
-      <EvaluatorMigrationDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        scope={{ type: "single" }}
-        assistantPrompt={upgradePlan.assistantPrompt}
-        onManualUpgrade={handleManualUpgrade}
-        onAssistantStarted={() => undefined}
-      />
-    </>
+    <button
+      type="button"
+      onClick={handleClick}
+      className="text-dark-blue text-sm font-bold hover:underline"
+    >
+      Upgrade now
+    </button>
   );
 }
