@@ -216,6 +216,8 @@ The supported worker path uses two run-scoped inputs when calling Langfuse MCP:
 
 The API key authenticates the request and scopes it to the project. Without an override, in-app-agent keys are restricted to MCP tools annotated with `readOnlyHint: true`. When the user approves a single Langfuse MCP tool call, the worker continuation creates a JSON override naming that one unprefixed MCP registry tool and passes it to the MCP route through the request header above. The retained POST adapter creates equivalent inputs inside `server/handler.ts`.
 
+Foreground and background runs use the same HTTP MCP route because the background runtime executes in `worker` while the MCP registry and its domain handlers are owned by `web`. Requests authenticated with a temporary in-app-agent key are exempt from the route's customer-facing `public-api` rate-limit bucket; the assistant's run and concurrency limits are enforced before the MCP client starts. The exemption trusts only the authenticated API-key classification, never the user-agent or override header. Direct in-process execution is deferred because it would require moving the web-owned MCP handler dependencies into code shared with the worker.
+
 MCP registry behavior:
 
 - Normal project API keys can call all enabled MCP tools.
