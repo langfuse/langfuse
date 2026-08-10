@@ -759,6 +759,7 @@ export async function createAgUiStream(params: {
 
 type ExecutableInAppAgentTool = {
   execute?: (inputData: unknown, context: unknown) => Promise<unknown>;
+  requireApproval?: boolean;
   toModelOutput?: (output: unknown) => unknown | PromiseLike<unknown>;
 };
 
@@ -896,7 +897,14 @@ async function createMastraAdapter(params: {
       resourceId: params.input.threadId,
       emitInterruptOutcome: true,
     });
-    patchMastraApprovalChunks(adapter);
+    patchMastraApprovalChunks(
+      adapter,
+      new Set(
+        Object.entries(tools).flatMap(([toolName, tool]) =>
+          (tool as ExecutableInAppAgentTool).requireApproval ? [toolName] : [],
+        ),
+      ),
+    );
 
     return {
       adapter,
@@ -1001,18 +1009,21 @@ type MastraApprovalStreamChunk = {
   };
 };
 
-// @ag-ui/mastra handles Mastra's suspend()-based interrupts natively
-// (tool-call-suspended), but not the requireApproval flow used by
-// withInAppAgentToolApproval: Mastra emits a tool-call-approval chunk for
-// those tools and the bridge has no case for it, so approvals would never
-// surface as on_interrupt events. Map approvals onto the suspend protocol.
-// Non-background tool-error chunks are likewise swallowed by the bridge, so
-// convert them to tool results carrying the error message as content. Note:
-// the bridge emits TOOL_CALL_RESULT without a top-level `error` field, so the
-// failure renders with the error message in the result body but a "succeeded"
-// status; the model is unaffected (Mastra's loop feeds it the real error).
-// Status fidelity is tracked as a follow-up.
-export function patchMastraApprovalChunks(adapter: MastraAgent) {
+type MastraToolCall = {
+  runId?: string;
+  payload: {
+    toolCallId: string;
+    toolName: string;
+    args?: unknown;
+  };
+};
+
+// Map requireApproval and tool errors that @ag-ui/mastra does not expose.
+// Buffer gated proposals because Mastra may emit only the first parallel approval.
+export function patchMastraApprovalChunks(
+  adapter: MastraAgent,
+  approvalToolNames?: ReadonlySet<string>,
+) {
   const patchableAdapter = adapter as unknown as PatchableMastraAgent;
   const createChunkProcessor = patchableAdapter.createChunkProcessor;
 
@@ -1026,10 +1037,29 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
     ...rest: unknown[]
   ) {
     const processor = createChunkProcessor.call(this, callbacks, ...rest);
+    const approvalCandidates = new Map<string, MastraToolCall>();
+    let approvalTemplate: MastraApprovalStreamChunk | undefined;
 
     return {
       handleChunk(chunk: unknown) {
         const mastraChunk = chunk as MastraApprovalStreamChunk;
+
+        if (
+          approvalToolNames &&
+          mastraChunk?.type === "tool-call" &&
+          mastraChunk.payload?.toolCallId &&
+          mastraChunk.payload.toolName &&
+          approvalToolNames.has(mastraChunk.payload.toolName)
+        ) {
+          approvalCandidates.set(mastraChunk.payload.toolCallId, {
+            runId: mastraChunk.runId,
+            payload: {
+              toolCallId: mastraChunk.payload.toolCallId,
+              toolName: mastraChunk.payload.toolName,
+              args: mastraChunk.payload.args,
+            },
+          });
+        }
 
         if (mastraChunk?.type === "tool-call-approval") {
           const {
@@ -1044,6 +1074,15 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
               ),
             );
             return true;
+          }
+
+          if (approvalToolNames?.has(toolName)) {
+            approvalCandidates.set(toolCallId, {
+              runId: mastraChunk.runId,
+              payload: { toolCallId, toolName, args: toolArgs },
+            });
+            approvalTemplate ??= mastraChunk;
+            return false;
           }
 
           return processor.handleChunk({
@@ -1096,6 +1135,23 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
       },
       flush() {
         processor.flush();
+        if (approvalTemplate) {
+          for (const candidate of approvalCandidates.values()) {
+            processor.handleChunk({
+              ...approvalTemplate,
+              runId: candidate.runId ?? approvalTemplate.runId,
+              type: "tool-call-suspended",
+              payload: {
+                ...approvalTemplate.payload,
+                ...candidate.payload,
+                suspendPayload: {
+                  type: "approval",
+                  ...candidate.payload,
+                },
+              },
+            });
+          }
+        }
       },
     };
   };

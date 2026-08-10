@@ -6,6 +6,7 @@ import { InAppAgentRunStatus } from "@langfuse/shared";
 import {
   InAppAgentWatchFrameSchema,
   type AgUiMessage,
+  type InAppAgentApprovalResumeEntry,
   type AgUiRunAgentInput,
   type InAppAgentWatchFrame,
 } from "@langfuse/shared/in-app-agent";
@@ -154,6 +155,13 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     this.cursor = cursor;
   }
 
+  resolvePendingInterrupts(resume: InAppAgentApprovalResumeEntry[]): void {
+    const resolvedIds = new Set(resume.map((entry) => entry.interruptId));
+    this.pendingInterrupts = this.pendingInterrupts.filter(
+      (interrupt) => !resolvedIds.has(interrupt.id),
+    );
+  }
+
   setStatusListener(
     listener?: (status: InAppAgentRunStatusUpdate) => void,
   ): void {
@@ -179,13 +187,14 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   ): Promise<void> {
     let consecutiveFailures = 0;
     let consecutiveQuietConnections = 0;
+    const lifecycle = { activeRunId: null as string | null };
 
     while (!signal.aborted) {
       const cursorBeforeRequest = this.cursor;
       let sawDoneFrame: boolean;
 
       try {
-        sawDoneFrame = await this.streamOnce(subscriber, signal);
+        sawDoneFrame = await this.streamOnce(subscriber, signal, lifecycle);
       } catch (error) {
         if (signal.aborted) {
           break;
@@ -243,6 +252,7 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
   private async streamOnce(
     subscriber: { next: (event: BaseEvent) => void },
     signal: AbortSignal,
+    lifecycle: { activeRunId: string | null },
   ): Promise<boolean> {
     const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
     const url = new URL(
@@ -326,7 +336,31 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
 
         this.cursor = frame.data.sequenceNumber;
         this.onCursor?.(this.cursor);
+        const lifecycleEvent = frame.data.event as unknown as {
+          type: string;
+          runId?: string;
+        };
+
+        if (
+          lifecycleEvent.type === "RUN_STARTED" &&
+          lifecycle.activeRunId === lifecycleEvent.runId
+        ) {
+          continue;
+        }
+
+        if (lifecycleEvent.type === "RUN_STARTED") {
+          lifecycle.activeRunId = lifecycleEvent.runId ?? null;
+        }
+
         subscriber.next(frame.data.event as unknown as BaseEvent);
+
+        if (
+          (lifecycleEvent.type === "RUN_FINISHED" ||
+            lifecycleEvent.type === "RUN_ERROR") &&
+          lifecycle.activeRunId === lifecycleEvent.runId
+        ) {
+          lifecycle.activeRunId = null;
+        }
       }
     }
 

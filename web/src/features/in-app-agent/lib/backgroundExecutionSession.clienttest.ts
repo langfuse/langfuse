@@ -108,6 +108,7 @@ function createAgent() {
     messages: [],
     setMessages: vi.fn(),
     setCursor: vi.fn(),
+    resolvePendingInterrupts: vi.fn(),
     runAgent: vi.fn().mockResolvedValue(undefined),
     connectAgent: vi.fn().mockResolvedValue(undefined),
     abortRun: vi.fn(),
@@ -537,8 +538,9 @@ describe("BackgroundExecutionSessionController", () => {
         runId: "run-1",
       },
     }));
+    const agent = createAgent();
     const session = new BackgroundExecutionSessionController({
-      agent: createAgent(),
+      agent,
       hydrate: vi.fn().mockResolvedValue({
         ...runningView,
         currentRun: {
@@ -605,6 +607,10 @@ describe("BackgroundExecutionSessionController", () => {
     await session.retryApprovalBatch();
     expect(decideApproval).toHaveBeenCalledTimes(2);
     expect(decideApproval.mock.calls[1]).toEqual(decideApproval.mock.calls[0]);
+    expect(agent.resolvePendingInterrupts).toHaveBeenCalledOnce();
+    expect(agent.resolvePendingInterrupts).toHaveBeenCalledWith(
+      decideApproval.mock.calls[1]?.[0].resume,
+    );
   });
 
   it("keeps run-start failures outside attachment state", async () => {
@@ -1257,6 +1263,56 @@ describe("BackgroundExecutionSessionController hydration", () => {
 });
 
 describe("InAppAgentBackgroundClient reconnect", () => {
+  it("ignores a synthetic duplicate run start after reconnecting mid-run", async () => {
+    const responses = [
+      new Response(
+        sseFrame({
+          type: "event",
+          sequenceNumber: 0,
+          event: {
+            type: EventType.RUN_STARTED,
+            runId: "run-1",
+            threadId: "conversation-1",
+          },
+        }),
+      ),
+      new Response(
+        [
+          sseFrame({
+            type: "event",
+            sequenceNumber: 0,
+            event: {
+              type: EventType.RUN_STARTED,
+              runId: "run-1",
+              threadId: "conversation-1",
+            },
+          }),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 1,
+            event: {
+              type: EventType.RUN_FINISHED,
+              runId: "run-1",
+              threadId: "conversation-1",
+            },
+          }),
+          sseFrame({ type: "done" }),
+        ].join(""),
+      ),
+    ];
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => responses.shift() ?? new Response(""),
+    );
+    const client = new InAppAgentBackgroundClient({
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      cursor: -1,
+      startRun: vi.fn(),
+    });
+
+    await expect(client.connectAgent()).resolves.toBeDefined();
+  });
+
   it("publishes a cancellable queued run as soon as start succeeds", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(sseFrame({ type: "done" })),

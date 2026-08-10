@@ -22,6 +22,7 @@ import { useRouter } from "next/router";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
+import { InAppAgentRunStatus } from "@langfuse/shared";
 import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
@@ -431,7 +432,16 @@ function InAppAiAgentProviderInner({
           }
         : null,
       pendingToolApprovals: conversationQuery.data.pendingToolApprovals.map(
-        (approval) => ({ ...approval, status: "pending" as const }),
+        (approval, index, approvals) => ({
+          ...approval,
+          status:
+            latestRun?.status === InAppAgentRunStatus.AWAITING_APPROVAL &&
+            index === 0
+              ? ("pending" as const)
+              : ("queued" as const),
+          position: index + 1,
+          total: approvals.length,
+        }),
       ),
       cancelStatus: "idle",
       attachment: { status: "detached" },

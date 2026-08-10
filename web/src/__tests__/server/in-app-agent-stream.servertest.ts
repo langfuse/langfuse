@@ -288,7 +288,9 @@ vi.mock("@langfuse/shared/in-app-agent/server/instrumentation", () => ({
     instrumentationMocks.createInAppAgentInstrumentation,
 }));
 
-const createPatchedChunkProcessor = () => {
+const createPatchedChunkProcessor = (
+  approvalToolNames?: ReadonlySet<string>,
+) => {
   const forwardedChunks: unknown[] = [];
   const onError = vi.fn();
   const flush = vi.fn();
@@ -307,6 +309,7 @@ const createPatchedChunkProcessor = () => {
   // peer instances, which tsc treats as non-identical types.
   patchMastraApprovalChunks(
     adapter as unknown as Parameters<typeof patchMastraApprovalChunks>[0],
+    approvalToolNames,
   );
 
   const processor = adapter.createChunkProcessor({ onError });
@@ -315,6 +318,51 @@ const createPatchedChunkProcessor = () => {
 };
 
 describe("patchMastraApprovalChunks", () => {
+  it("surfaces every parallel approval when Mastra suspends only the first call", () => {
+    const { forwardedChunks, processor, flush } = createPatchedChunkProcessor(
+      new Set(["langfuse_createDashboardWidget"]),
+    );
+
+    for (const toolCallId of ["tool-1", "tool-2", "tool-3"]) {
+      processor.handleChunk({
+        type: "tool-call",
+        runId: "run-1",
+        payload: {
+          toolCallId,
+          toolName: "langfuse_createDashboardWidget",
+          args: { name: toolCallId },
+        },
+      });
+    }
+    processor.handleChunk({
+      type: "tool-call-approval",
+      runId: "run-1",
+      payload: {
+        toolCallId: "tool-1",
+        toolName: "langfuse_createDashboardWidget",
+        args: { name: "tool-1" },
+      },
+    });
+    processor.flush();
+
+    expect(
+      forwardedChunks.filter(
+        (chunk) => (chunk as { type?: string }).type === "tool-call-suspended",
+      ),
+    ).toMatchObject(
+      ["tool-1", "tool-2", "tool-3"].map((toolCallId) => ({
+        type: "tool-call-suspended",
+        runId: "run-1",
+        payload: {
+          toolCallId,
+          toolName: "langfuse_createDashboardWidget",
+          args: { name: toolCallId },
+        },
+      })),
+    );
+    expect(flush).toHaveBeenCalledOnce();
+  });
+
   it("converts tool-call approval chunks to suspended tool calls", () => {
     const { forwardedChunks, onError, processor } =
       createPatchedChunkProcessor();

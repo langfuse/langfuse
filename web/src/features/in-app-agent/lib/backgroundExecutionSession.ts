@@ -92,6 +92,7 @@ type BackgroundExecutionAgent = {
   connectAgent(): Promise<unknown>;
   abortRun(): void;
   setCursor(cursor: number): void;
+  resolvePendingInterrupts(resume: InAppAgentApprovalResumeEntry[]): void;
   setStatusListener?(
     listener?: (status: {
       runId: string;
@@ -402,22 +403,24 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       ...approval,
       status: "submitting" as const,
     }));
+    const resume = submitting.map((approval) => {
+      if (!approval.decision) {
+        throw new Error("Approval batch contains an undecided call");
+      }
+      return {
+        interruptId: `${approval.runId}::${approval.approvalRequest.toolCallId}`,
+        status: "resolved" as const,
+        payload: approval.decision,
+      };
+    });
     this.setView({ ...this.view, pendingToolApprovals: submitting });
 
     try {
       await this.decideApproval({
         runId,
-        resume: submitting.map((approval) => {
-          if (!approval.decision) {
-            throw new Error("Approval batch contains an undecided call");
-          }
-          return {
-            interruptId: `${approval.runId}::${approval.approvalRequest.toolCallId}`,
-            status: "resolved" as const,
-            payload: approval.decision,
-          };
-        }),
+        resume,
       });
+      this.agent.resolvePendingInterrupts(resume);
     } catch (error) {
       this.setView({
         ...this.view,
