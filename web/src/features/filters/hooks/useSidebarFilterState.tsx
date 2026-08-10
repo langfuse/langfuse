@@ -280,6 +280,10 @@ export interface StringKeyValueUIFilter extends BaseUIFilter {
   type: "stringKeyValue";
   value: StringKeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
+  /** Offered key → display-only type hint ("number", "object", …). */
+  keyDetails?: Record<string, string>;
+  /** Offered key → its observed values, for the value input's suggestions. */
+  valueOptions?: Record<string, string[]>;
   onChange: (filters: StringKeyValueFilterEntry[]) => void;
 }
 
@@ -293,6 +297,24 @@ export type UIFilter =
   | StringKeyValueUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
+
+/**
+ * One offered facet option. `type` is the display-only hint client-side
+ * suggestion sources carry (observed metadata keys: "number", "object", …);
+ * server-enumerated options never set it.
+ */
+export type FacetOptionValue = SingleValueOption & { type?: string };
+
+/**
+ * The facet option payload a view hands the sidebar: `filterOptions` per
+ * column, plus whatever client-side suggestion source it opted into. Keyed
+ * lookups (`<column>.<key>`) carry a key's own values — that is how the
+ * metadata facet gets value suggestions (LFE-11030).
+ */
+export type FacetOptions = Record<
+  string,
+  (string | FacetOptionValue)[] | Record<string, string[]> | undefined
+>;
 
 const mergeUniqueStrings = (...lists: (string[] | undefined)[]): string[] =>
   Array.from(
@@ -313,10 +335,7 @@ const SCORE_LEVEL_TAGGED_COLUMNS: Readonly<Record<string, string>> = {
 
 const resolveKeyScoreLevels = (
   column: string,
-  options: Record<
-    string,
-    (string | SingleValueOption)[] | Record<string, string[]> | undefined
-  >,
+  options: FacetOptions,
 ): KeyScoreLevels | undefined => {
   const levelsKey = SCORE_LEVEL_TAGGED_COLUMNS[column];
   const scoreNameLevels = levelsKey ? options[levelsKey] : undefined;
@@ -337,7 +356,7 @@ const resolveKeyScoreLevels = (
 const resolveKnownKeyOptions = (
   facetKeyOptions: string[] | undefined,
   availableKeys:
-    | (string | SingleValueOption)[]
+    | (string | FacetOptionValue)[]
     | Record<string, string[]>
     | undefined,
   activeKeys: string[],
@@ -356,6 +375,43 @@ const resolveKnownKeyOptions = (
     ),
     activeKeys,
   );
+};
+
+/** The display-only type hints an offered key list carries, if any. */
+const resolveKeyDetails = (
+  availableKeys:
+    | (string | FacetOptionValue)[]
+    | Record<string, string[]>
+    | undefined,
+): Record<string, string> | undefined => {
+  if (!Array.isArray(availableKeys)) return undefined;
+  const out: Record<string, string> = {};
+  for (const option of availableKeys) {
+    if (typeof option !== "string" && option.type !== undefined) {
+      out[option.value] = option.type;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+};
+
+/**
+ * Per-key value suggestions for a keyed facet, read from the `<column>.<key>`
+ * entries of the option map (the shape the observed-metadata projection and the
+ * search bar's completion planner both use).
+ */
+const resolveKeyedValueOptions = (
+  column: string,
+  keyOptions: string[] | undefined,
+  options: FacetOptions,
+): Record<string, string[]> | undefined => {
+  if (keyOptions === undefined) return undefined;
+  const out: Record<string, string[]> = {};
+  for (const key of keyOptions) {
+    const values = options[`${column}.${key}`];
+    if (!Array.isArray(values) || values.length === 0) continue;
+    out[key] = values.map((v) => (typeof v === "string" ? v : v.value));
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 };
 
 const mergeAvailableValuesWithActiveFilters = (
@@ -938,10 +994,7 @@ export type SidebarFilterPresentationOptions = Pick<
 export function useSidebarFilterPresentation(
   core: SidebarFilterStateCore,
   config: FilterConfig,
-  options: Record<
-    string,
-    (string | SingleValueOption)[] | Record<string, string[]> | undefined
-  >,
+  options: FacetOptions,
   presentationOptions: SidebarFilterPresentationOptions = {},
 ) {
   const { loading, loadingColumns } = presentationOptions;
@@ -1592,6 +1645,12 @@ export function useSidebarFilterPresentation(
 
             value: activeFilters,
             keyOptions,
+            keyDetails: resolveKeyDetails(availableKeys),
+            valueOptions: resolveKeyedValueOptions(
+              facet.column,
+              keyOptions,
+              options,
+            ),
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
@@ -1931,10 +1990,7 @@ export function useSidebarFilterPresentation(
  */
 export function useSidebarFilterState(
   config: FilterConfig,
-  options: Record<
-    string,
-    (string | SingleValueOption)[] | Record<string, string[]> | undefined
-  >,
+  options: FacetOptions,
   hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
   const core = useSidebarFilterStateCore(config, hookOptions);
