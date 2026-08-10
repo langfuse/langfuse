@@ -5,6 +5,8 @@ import {
   paginationZod,
   parseJsonPrioritised,
   publicApiPaginationLimitZod,
+  sanitizeEmailSubject,
+  StringNoHTML,
 } from "@langfuse/shared";
 import { ZodError } from "zod";
 
@@ -127,5 +129,27 @@ describe("isJsonNumberLiteral", () => {
     expect(isJsonNumberLiteral("-1.23e+4")).toBe(true);
     expect(isJsonNumberLiteral("plain107505301260286111")).toBe(false);
     expect(isJsonNumberLiteral("01")).toBe(false);
+  });
+});
+
+describe("StringNoHTML", () => {
+  it("rejects HTML consistently across validation calls", () => {
+    expect(StringNoHTML.safeParse("<b>").success).toBe(false);
+    expect(StringNoHTML.safeParse("<i>").success).toBe(false);
+  });
+
+  it("handles long unterminated tags without excessive backtracking", () => {
+    const input = "<".repeat(50_000);
+    const startedAt = performance.now();
+
+    expect(StringNoHTML.safeParse(input).success).toBe(true);
+    expect(performance.now() - startedAt).toBeLessThan(100);
+  });
+
+  it("removes every HTML tag from email subjects", () => {
+    expect(sanitizeEmailSubject("Project <b>one</b> <i>two</i>")).toBe(
+      "Project one two",
+    );
+    expect(sanitizeEmailSubject("Project <script<script>>")).toBe("Project >");
   });
 });

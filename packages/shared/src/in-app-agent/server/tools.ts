@@ -549,6 +549,26 @@ export type CompletedInAppAgentMcpToolCall = {
   createdAt: Date;
 };
 
+type WrappableMcpTool = Pick<
+  Tool,
+  "execute" | "inputSchema" | "toModelOutput"
+> &
+  Required<Pick<Tool, "execute" | "inputSchema">>;
+
+function isWrappableMcpTool(tool: unknown): tool is WrappableMcpTool {
+  return (
+    typeof tool === "object" &&
+    tool !== null &&
+    "execute" in tool &&
+    typeof tool.execute === "function" &&
+    "inputSchema" in tool &&
+    tool.inputSchema !== undefined &&
+    (!("toModelOutput" in tool) ||
+      tool.toModelOutput === undefined ||
+      typeof tool.toModelOutput === "function")
+  );
+}
+
 export function withOptionalSilentMcpOutput(params: {
   tools: Record<string, unknown> | undefined;
   sandbox?: InAppAgentSandbox;
@@ -560,14 +580,13 @@ export function withOptionalSilentMcpOutput(params: {
         return [toolName, tool];
       }
 
-      if (!(tool instanceof Tool)) {
+      // MCPClient may construct tools with a different @mastra/core module
+      // instance, so instanceof Tool is not reliable across package realms.
+      if (!isWrappableMcpTool(tool)) {
         return [toolName, tool];
       }
 
       const { execute, inputSchema, toModelOutput } = tool;
-      if (!execute || !inputSchema) {
-        return [toolName, tool];
-      }
 
       if (inputSchema instanceof z.ZodObject) {
         tool.inputSchema = inputSchema.extend({

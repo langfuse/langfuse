@@ -26,7 +26,7 @@ export default async function watchHandler(request: Request) {
 
     const user = session.user;
 
-    addUserToSpan({ userId: user.id, email: user.email ?? undefined });
+    addUserToSpan({ userId: user.id });
 
     const url = new URL(request.url);
     const query = WatchQuerySchema.safeParse({

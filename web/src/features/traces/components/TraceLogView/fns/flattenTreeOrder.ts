@@ -1,4 +1,4 @@
-import type { TreeNode } from "@/src/features/traces/fns/types";
+import type { TreeNode } from "@/src/features/traces/types/treeNode";
 import type { FlatLogItem } from "@/src/features/traces/components/TraceLogView/log-view-types";
 
 /**

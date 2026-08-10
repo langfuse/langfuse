@@ -46,6 +46,8 @@ import {
 import * as serverBarrel from "../index";
 
 const METRIC = "langfuse.ingestion.metadata_dropped";
+const ARRAY_ATTRIBUTE_DROPPED_METRIC =
+  "langfuse.ingestion.otel.array_attribute_dropped";
 const PROJECT_ID = "test-project-lfe-14342";
 
 const createProcessor = () =>
@@ -646,5 +648,79 @@ describe("OTel metadata_dropped metric (LFE-14342)", () => {
         }
       });
     });
+  });
+});
+
+describe("OTel reconstructed array drop telemetry", () => {
+  beforeEach(() => {
+    recordIncrementMock.mockClear();
+  });
+
+  const arrayDropCalls = () =>
+    recordIncrementMock.mock.calls.filter(
+      ([stat]) => stat === ARRAY_ATTRIBUTE_DROPPED_METRIC,
+    );
+
+  it("reports an out-of-range array attribute", async () => {
+    const processor = createProcessor();
+    const batch = buildBatch([
+      {
+        key: "llm.input_messages.10001.content",
+        value: { stringValue: "dropped" },
+      },
+    ]);
+
+    await processor.processToIngestionEvents(batch);
+
+    expect(arrayDropCalls()).toContainEqual([
+      ARRAY_ATTRIBUTE_DROPPED_METRIC,
+      1,
+      {
+        reason: "reconstruction_budget_exceeded",
+        prefix: "llm.input_messages",
+      },
+    ]);
+  });
+
+  it("caps warnings without logging rejected attribute keys or values", async () => {
+    const warnSpy = vi
+      .spyOn(serverBarrel.logger, "warn")
+      .mockImplementation(() => serverBarrel.logger);
+
+    try {
+      const batches = Array.from(
+        { length: 12 },
+        (_, index) =>
+          buildBatch([
+            {
+              key: `llm.input_messages.${10_001 + index}.secret-content`,
+              value: { stringValue: `customer-secret-${index}` },
+            },
+          ])[0],
+      );
+
+      await createProcessor().processToIngestionEvents(batches);
+
+      expect(arrayDropCalls().length).toBeGreaterThan(0);
+      const arrayDropWarnings = warnSpy.mock.calls.filter(
+        ([message]) => String(message) === "OTEL array attribute dropped",
+      );
+      expect(arrayDropWarnings).toHaveLength(10);
+      for (const warning of arrayDropWarnings) {
+        expect(warning).toEqual([
+          "OTEL array attribute dropped",
+          {
+            projectId: PROJECT_ID,
+            prefix: "llm.input_messages",
+            reason: "reconstruction_budget_exceeded",
+            droppedAttributeCount: 1,
+          },
+        ]);
+        expect(JSON.stringify(warning)).not.toContain("customer-secret");
+        expect(JSON.stringify(warning)).not.toContain("secret-content");
+      }
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

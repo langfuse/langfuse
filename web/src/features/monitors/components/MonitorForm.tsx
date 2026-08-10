@@ -54,6 +54,7 @@ import {
   getWidgetFilterColumns,
 } from "@/src/features/widgets/components/widgetFilterColumns";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -185,7 +186,7 @@ const buildFilterColumnsParams = ({
     environmentOptions: filterOptions?.environment ?? [],
     nameOptions: normalizeSingleValueOptions(filterOptions?.traceName),
     observationNameOptions: normalizeSingleValueOptions(filterOptions?.name),
-    tagsOptions: filterOptions?.traceTags ?? [],
+    tagsOptions: sortOptionValues(filterOptions?.traceTags ?? []),
     modelOptions: filterOptions?.providedModelName ?? [],
     toolNamesOptions: filterOptions?.toolNames ?? [],
     calledToolNamesOptions: filterOptions?.calledToolNames ?? [],

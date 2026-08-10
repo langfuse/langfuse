@@ -5,7 +5,7 @@
 
 import { type ObservationType, isGenerationLike } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
-import { BreakdownTooltip } from "@/src/features/traces/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
 import { InfoIcon } from "lucide-react";
 
