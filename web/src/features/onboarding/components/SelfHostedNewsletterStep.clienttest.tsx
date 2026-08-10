@@ -133,7 +133,7 @@ describe("SelfHostedNewsletterStep", () => {
     // Onboarding must not be blocked by an unreachable signup endpoint.
     expect(screen.getByRole("link", { name: "langfuse.com" })).toHaveAttribute(
       "href",
-      "https://langfuse.com/self-hosting/upgrade",
+      "https://langfuse.com/self-hosting/oss-newsletter",
     );
     expect(mocks.completeMutateAsyncMock).not.toHaveBeenCalled();
 

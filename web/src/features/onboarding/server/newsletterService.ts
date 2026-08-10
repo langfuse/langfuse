@@ -12,9 +12,9 @@ import { logger } from "@langfuse/shared/src/server";
  * instance only sends an email address and a source label.
  *
  * `list: "oss"` resolves to the "Langfuse OSS updates" mailing list, the same
- * one the signup form on langfuse.com/self-hosting/upgrade writes to. The list
- * is referenced by name rather than by id so an instance cannot inject an
- * arbitrary Loops list, and no Loops identifier needs to live in this repo.
+ * one the hosted signup page at langfuse.com/self-hosting/oss-newsletter writes
+ * to. The list is referenced by name rather than by id so an instance cannot
+ * inject an arbitrary Loops list, and no Loops identifier lives in this repo.
  *
  * Posting from the server (not the browser) is required: the proxy sends no
  * CORS headers, so a cross-origin request from a self-hosted origin is blocked.
