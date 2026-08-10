@@ -3928,6 +3928,100 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    it("normalizes environment on the direct events write path (LFE-14403)", () => {
+      const buildSpan = (environment: string) =>
+        ({
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "langfuse.environment",
+                      value: { stringValue: environment },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }) as unknown as ResourceSpan;
+
+      // Public processors apply the public ingestion-schema rules; previously
+      // the raw attribute was written to events_full ("PROD" in events_core
+      // vs "prod" in the legacy tables).
+      expect(
+        createTestOtelProcessor().processToEvent([buildSpan("PROD")])[0]
+          .environment,
+      ).toBe("prod");
+
+      // The reserved namespace cannot be entered via repeated "langfuse"
+      // prefixes surviving a single-pass strip.
+      expect(
+        createTestOtelProcessor().processToEvent([
+          buildSpan("langfuselangfuse-prompt-experiment"),
+        ])[0].environment,
+      ).toBe("prompt-experiment");
+
+      // Internal processors keep the "langfuse-*" namespace so internal
+      // traces stay excluded from user views and the eval-recursion guard.
+      expect(
+        createTestOtelProcessor({ isLangfuseInternal: true }).processToEvent([
+          buildSpan("langfuse-prompt-experiment"),
+        ])[0].environment,
+      ).toBe("langfuse-prompt-experiment");
+    });
+
+    it("normalizes foreign observation-level vocabularies at the OTel seam (LFE-14547)", async () => {
+      const buildSpan = (level: string, status: Record<string, any> = {}) =>
+        ({
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "langfuse.observation.level",
+                      value: { stringValue: level },
+                    },
+                  ],
+                  status,
+                },
+              ],
+            },
+          ],
+        }) as unknown as ResourceSpan;
+
+      const eventLevel = (level: string, status?: Record<string, any>) =>
+        createTestOtelProcessor().processToEvent([buildSpan(level, status)])[0]
+          .level;
+
+      // OTel severity names, python logging, and loguru vocabularies map onto
+      // the Langfuse enum instead of landing raw in events_full.
+      expect(eventLevel("warning")).toBe("WARNING");
+      expect(eventLevel("INFO")).toBe("DEFAULT");
+      expect(eventLevel("FATAL")).toBe("ERROR");
+
+      // Unknown values defer to the status-derived fallback rather than
+      // masking it with DEFAULT.
+      expect(eventLevel("[REDACTED]", { code: 2 })).toBe("ERROR");
+      expect(eventLevel("[REDACTED]")).toBe("DEFAULT");
+
+      // The legacy observation body gets the same canonical value, so the
+      // ingestion-schema enum parse passes and the observation is no longer
+      // dropped from the legacy tables.
+      const ingestionEvents = await convertOtelSpanToIngestionEvent(
+        buildSpan("warning"),
+        new Set(),
+      );
+      const observation = ingestionEvents.find(
+        (e) => e.type !== "trace-create",
+      );
+      expect(observation?.body.level).toBe("WARNING");
+    });
+
     describe("prompt linking gated to GENERATION observations", () => {
       const buildResourceSpan = (attributes: Record<string, any>[]) =>
         ({
@@ -4631,6 +4725,136 @@ describe("OTel Resource Span Mapping", () => {
       expect(observation?.body.metadata?.attributes?.custom_attribute).toBe(
         "should_be_preserved",
       );
+    });
+
+    // TraceLoop flattens prompt arrays into gen_ai.prompt.<index>.* attributes.
+    // An unsafe message must not prevent a valid sibling from being ingested.
+    it("should ignore out-of-range OTEL message indices without dropping valid messages", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "gen_ai.prompt.0.content",
+                    value: { stringValue: "valid message" },
+                  },
+                  {
+                    key: "gen_ai.prompt.10001.content",
+                    value: { stringValue: "unsafe message" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toEqual([{ content: "valid message" }]);
+    });
+
+    // OpenInference may place array indices deeper in llm.input_messages paths,
+    // so every numeric segment must be checked, not only the first one.
+    it("should ignore out-of-range nested OTEL indices", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "llm.input_messages.0.message.10001.content",
+                    value: { stringValue: "unsafe content" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.role",
+                    value: { stringValue: "user" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+      const input = observation?.body.input as Array<{
+        message: Record<string, unknown>;
+      }>;
+
+      expect(input).toHaveLength(1);
+      expect(Array.isArray(input[0].message)).toBe(false);
+      expect(input[0].message).toEqual({ role: "user" });
+    });
+
+    it("should cap total array-slot expansion across nested OTEL paths", async () => {
+      const resourceSpan = {
+        resource: {},
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "llm.input_messages.0.safe",
+                    value: { stringValue: "preserved sibling" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.9999.content",
+                    value: { stringValue: "accepted content" },
+                  },
+                  {
+                    key: "llm.input_messages.1.message.9999.content",
+                    value: { stringValue: "over budget content" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      const observation = events.find(
+        (event) =>
+          event.type.endsWith("-create") && event.type !== "trace-create",
+      );
+      const input = observation?.body.input as Array<{
+        safe?: string;
+        message?: Array<{ content: string }>;
+      }>;
+
+      expect(input).toHaveLength(1);
+      expect(input[0].safe).toBe("preserved sibling");
+      expect(input[0].message).toHaveLength(10_000);
+      expect(input[0].message?.[9_999]).toEqual({
+        content: "accepted content",
+      });
     });
 
     // GenAI semantic conventions v1.37+ record prompts/completions on a

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import {
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
@@ -83,7 +84,6 @@ export function MarkdownJsonView({
   title,
   titleIcon,
   className,
-  customCodeHeaderVariant,
   audio,
   media,
   controlButtons,
@@ -94,7 +94,6 @@ export function MarkdownJsonView({
   title?: string;
   titleIcon?: React.ReactNode;
   className?: string;
-  customCodeHeaderVariant?: "card";
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   controlButtons?: React.ReactNode;
@@ -123,7 +122,6 @@ export function MarkdownJsonView({
           }
           title={title}
           titleIcon={titleIcon}
-          customCodeHeaderVariant={customCodeHeaderVariant}
           audio={audio}
           media={media}
           controlButtons={controlButtons}

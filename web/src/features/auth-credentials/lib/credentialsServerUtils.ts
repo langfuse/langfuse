@@ -15,6 +15,10 @@ export async function createUserEmailPassword(
   email: string,
   password: string,
   name: string,
+  options?: {
+    /** Google Ads click id, see getGclidFromRequest */
+    gclid?: string;
+  },
 ) {
   if (!isValidPassword(password))
     throw new Error("Password needs to be at least 8 characters long.");
@@ -42,7 +46,10 @@ export async function createUserEmailPassword(
     },
   });
 
-  await createProjectMembershipsOnSignup(newUser, { userWasJustCreated: true });
+  await createProjectMembershipsOnSignup(newUser, {
+    userWasJustCreated: true,
+    gclid: options?.gclid,
+  });
 
   return newUser.id;
 }

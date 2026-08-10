@@ -1,14 +1,9 @@
 ---
 name: posthog-instrumentation
 description: |
-  Instrument Langfuse with PostHog product analytics, and decide whether new
-  frontend work should be instrumented. Use when (1) adding a meaningful user
-  action to the frontend — a button, onClick/onSubmit handler, form, dialog,
-  toggle, tRPC mutation call, or a new feature surface in `web/**` — pause and
-  propose instrumentation before finishing; (2) asked to instrument a feature,
-  add analytics or usage tracking, or answer "how do people use X"; (3) adding
-  or reviewing `capture()` events, `usePostHogClientCapture`, or any code that
-  touches `posthog`.
+  Product analytics with posthog.
+  Use when adding a meaningful user action or feature in `web/**`, touching PostHog capture code,
+  or answering product-usage questions.
 ---
 
 # PostHog Instrumentation

@@ -24,6 +24,9 @@ export abstract class PeriodicRunner {
 
   protected abstract get name(): string;
   protected abstract get defaultIntervalMs(): number;
+  protected get initialDelayMs(): number {
+    return 0;
+  }
   protected abstract execute(): Promise<number | void>;
 
   protected constructor(
@@ -37,7 +40,11 @@ export abstract class PeriodicRunner {
     }
     this.isRunning = true;
     if (!this.activeRun) {
-      this.runAndScheduleNext();
+      if (this.initialDelayMs > 0) {
+        this.scheduleNext(this.initialDelayMs);
+      } else {
+        this.runAndScheduleNext();
+      }
     }
   }
 

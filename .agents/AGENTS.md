@@ -7,23 +7,19 @@ evaluating, and debugging AI applications.
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
-- If you are about to write a `useEffect` — or sync fetched data into state, or
-  wire form initial values from loaded data — read
-  `.agents/skills/frontend-large-feature-architecture/SKILL.md` first. Most
-  such effects should not exist.
-- For bug fixes, write the failing test first, confirm it fails, then fix the
-  bug. If the bug depends on a data shape, pause and ask: can
+- For bug fixes, first write the smallest failing test that proves the reported
+  behavior and confirm it fails against the buggy behavior before changing
+  production code. Add another test only when it exercises a distinct adapter,
+  contract, or execution path. Extend the closest existing test suite; do not
+  create a standalone constant test when an existing feature suite owns the
+  behavior. If the bug depends on a data shape, pause and ask: can
   `pnpm run seed` prefill that shape locally? If not, consider extending a
   seeder scenario so the bug stays cheaply reproducible
   (`packages/shared/scripts/seeder/AGENTS.md`), or note why a seed cannot
   express it.
-- For user-visible frontend changes in `web/**`, review the affected flow in a
-  real browser before signoff. Prefill the data the flow needs with the seed
-  CLI (`pnpm run seed -- list` shows scenarios; runs print UI deep links) —
-  never with ad-hoc scripts or raw ClickHouse inserts.
-- When fixing an isolated styling issue in an individual component, read
-  `.agents/skills/storybook/SKILL.md` create or update a component story following its
-  guidance first.
+- Prefill local test data with the seed CLI (`pnpm run seed -- list` shows
+  scenarios; runs print UI deep links) — never with ad-hoc scripts or raw
+  ClickHouse inserts.
 - Every PR auto-builds (via GitHub Actions) a disposable, full-stack preview at
   `pr-<N>.preview.langfuse.com` — nothing to spin up. Use the `langfuse-previews`
   skill to use or debug one, e.g. read a preview's web/worker error logs with
@@ -31,16 +27,6 @@ evaluating, and debugging AI applications.
 - For documentation screenshots in Markdown, avoid fixed `height` on `<img>`
   tags; prefer Markdown images or width-only HTML so previews preserve aspect
   ratio.
-- When working on the search bar or any filtering UI/grammar, read
-  `web/src/features/search-bar/README.md` first. It owns the grammar ↔
-  `FilterState` contract, the validate/lower parity invariants, and the
-  cross-view extension playbook — the bar is intended to become the primary
-  filter interface for every filterable view, so new filtering work extends it
-  through that contract rather than forking it.
-- When adding or modifying any chart, dashboard, or chart formatter, read
-  `web/src/features/widgets/chart-library/ARCHITECTURE.md` first — the charts
-  manifesto. It owns the data → preparer → visualiser contract: presentation
-  decisions live in the preparer, not the chart components.
 - Do not add or widen ESLint disable comments or config overrides
   without explicit user approval for the exact rule and scope.
 - Always quote file paths in shell commands, or use `noglob` for path-heavy
@@ -152,11 +138,16 @@ regenerated outputs. Never hand-edit `generated/**`.
 - `.agents/AGENTS.md` is the canonical root guide.
 - Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
 - Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
+- After changing skills / AGENTS.md, run `pnpm run agents:sync` and
+  `pnpm run agents:check`.
+- **Write agent guidance only in `AGENTS.md`, never in a `CLAUDE.md`.** Every
+  `AGENTS.md` in the tree gets a generated sibling `CLAUDE.md` symlink when running
+  `pnpm run agents:sync`.
+- Put package-local guidance in the narrowest `AGENTS.md` that owns it so that it's only
+  loaded into context when needed.
 - When creating or editing `.agents/skills/**`, use
   `.agents/skills/skill-creator/SKILL.md`; keep skills concise with
   progressive disclosure.
-- After changing shared agent setup, run `pnpm run agents:sync` and
-  `pnpm run agents:check`.
 - Generated provider config and shim outputs under `.claude/`, `.cursor/`,
   `.codex/`, `.vscode/`, or `.mcp.json` are local artifacts, not source of
   truth files.

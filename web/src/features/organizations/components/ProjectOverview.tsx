@@ -34,6 +34,7 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { type Session } from "next-auth";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
+import { V4MigrationBanner } from "@/src/features/v4-migration/V4MigrationBanner";
 import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
@@ -48,11 +49,10 @@ const OrganizationProjectTiles = ({
   search?: string;
 }) => {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const { data: lastTraceTimes } =
-    api.organizations.lastTraceByProject.useQuery(
-      { orgId: org.id },
-      { enabled: v4UpgradeUiEnabled },
-    );
+  const lastTraceQuery = api.organizations.lastTraceByProject.useQuery(
+    { orgId: org.id },
+    { enabled: v4UpgradeUiEnabled },
+  );
   const migrationStatusByProjectId = useAccountV4MigrationData({
     organizations: [
       {
@@ -100,17 +100,19 @@ const OrganizationProjectTiles = ({
                   )}
                 </div>
               </CardHeader>
-              {!project.deletedAt && lastTraceTimes && (
-                <CardContent className="pb-3">
+              {!project.deletedAt && (
+                <CardContent className="min-h-7 pb-3">
                   <p className="text-muted-foreground text-xs">
-                    {(() => {
-                      const lastTraceAt = lastTraceTimes.find(
-                        (t) => t.projectId === project.id,
-                      )?.lastTraceAt;
-                      return lastTraceAt
-                        ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
-                        : "No traces in the last 30d";
-                    })()}
+                    {lastTraceQuery.isSuccess
+                      ? (() => {
+                          const lastTraceAt = lastTraceQuery.data?.find(
+                            (t) => t.projectId === project.id,
+                          )?.lastTraceAt;
+                          return lastTraceAt
+                            ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
+                            : "No traces in the last 30d";
+                        })()
+                      : null}
                   </p>
                 </CardContent>
               )}
@@ -300,7 +302,9 @@ const SingleOrganizationProjectOverviewTile = ({
       <Header
         title={org.name}
         className="truncate"
-        status={orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
+        labelBadge={
+          orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
+        }
         label={
           isCloudPlan(org.plan)
             ? {
@@ -325,6 +329,7 @@ export const OrganizationProjectOverview = () => {
   const router = useRouter();
   const queryOrgId = router.query.organizationId;
   const session = useSession();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
@@ -383,7 +388,7 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      <AgentToolsBanner />
+      {v4UpgradeUiEnabled ? <V4MigrationBanner /> : <AgentToolsBanner />}
       {showOnboarding && <Onboarding />}
       {organizations
         .map((org) => {

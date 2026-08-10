@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createAppSettledGate } from "./useAppSettled";
+import { createAppSettledGate, APP_SETTLE_DELAY_MS } from "./useAppSettled";
+
+describe("APP_SETTLE_DELAY_MS", () => {
+  // Post-load grace: no reload prompt in the first minute of a session so a
+  // deploy that was in flight at page load can settle first (LFE-14537).
+  it("holds the banner back for one minute after load", () => {
+    expect(APP_SETTLE_DELAY_MS).toBe(60 * 1000);
+  });
+});
 
 describe("createAppSettledGate", () => {
   beforeEach(() => {

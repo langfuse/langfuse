@@ -8,17 +8,14 @@ const mocks = vi.hoisted(() => ({
   openAssistant: vi.fn().mockReturnValue(true),
 }));
 
-vi.mock(
-  "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider",
-  () => ({
-    useCanUseInAppAgent: () => true,
-    useInAppAiAgent: () => ({
-      open: mocks.open,
-      setOpen: mocks.setOpen,
-      openAssistant: mocks.openAssistant,
-    }),
+vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
+  useCanUseInAppAgent: () => true,
+  useInAppAiAgent: () => ({
+    open: mocks.open,
+    setOpen: mocks.setOpen,
+    openAssistant: mocks.openAssistant,
   }),
-);
+}));
 
 describe("InAppAiAgentButton", () => {
   beforeEach(() => {

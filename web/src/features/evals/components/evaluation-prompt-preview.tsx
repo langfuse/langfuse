@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useExtractVariables } from "@/src/features/evals/hooks/useExtractVariables";

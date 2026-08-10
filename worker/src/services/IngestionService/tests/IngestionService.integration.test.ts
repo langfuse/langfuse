@@ -173,7 +173,9 @@ describe("Ingestion end-to-end tests", () => {
       true,
     );
 
-    eventRecords.forEach((record) => ingestionService.writeEventRecord(record));
+    await Promise.all(
+      eventRecords.map((record) => ingestionService.writeEventRecord(record)),
+    );
     await clickhouseWriter.flushAll(true);
 
     await waitForExpect(async () => {

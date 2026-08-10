@@ -26,7 +26,9 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
 }));
 
-vi.mock("@/src/components/trace/components/IOPreview/IOPreview", () => ({
+// The component imports IOPreview through the traces feature surface, so the
+// mock has to intercept the surface — mocking the module behind it does nothing.
+vi.mock("@/src/features/traces", () => ({
   IOPreview: () => <div data-testid="io-preview" />,
 }));
 
@@ -45,7 +47,7 @@ const baseObservation = {
   startTime: new Date("2026-07-15T10:00:00Z"),
   input: '{"messages":[{"role":"user","content":"hi"}]}',
   output: "hello",
-  metadata: {},
+  metadata: "{}",
   inputLength: 45,
   outputLength: 5,
   inputTruncated: false,
@@ -119,7 +121,7 @@ describe("SessionObservationIO", () => {
       id: "obs-1",
       input: "full-input",
       output: "full-output",
-      metadata: {},
+      metadata: JSON.stringify({ constructor: "test" }),
     });
     renderComponent({
       ...baseObservation,
@@ -139,7 +141,10 @@ describe("SessionObservationIO", () => {
     expect(downloadJsonFile).toHaveBeenCalledWith(
       expect.objectContaining({
         fileName: "observation-obs-1.json",
-        data: expect.objectContaining({ input: "full-input" }),
+        data: expect.objectContaining({
+          input: "full-input",
+          metadata: { constructor: "test" },
+        }),
       }),
     );
   });
@@ -148,7 +153,7 @@ describe("SessionObservationIO", () => {
     renderComponent({
       ...baseObservation,
       inputTruncated: true,
-      metadata: { key: "value" },
+      metadata: JSON.stringify({ key: "value" }),
       metadataLength: 15,
       metadataTruncated: false,
     } as SessionTraceObservation);

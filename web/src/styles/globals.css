@@ -60,11 +60,17 @@
   --color-primary-accent: hsl(var(--primary-accent));
   --color-link: hsl(var(--link));
   --color-link-hover: hsl(var(--link-hover));
+  --color-preview-banner: hsl(var(--preview-banner));
+  --color-preview-banner-foreground: hsl(var(--preview-banner-foreground));
+  --color-preview-banner-border: hsl(var(--preview-banner-border));
+  --color-preview-banner-link: hsl(var(--preview-banner-link));
+  --color-preview-banner-link-hover: hsl(var(--preview-banner-link-hover));
   --color-control-fill: hsl(var(--control-fill));
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
   --color-foreground-tertiary: hsl(var(--foreground-tertiary));
   --color-surface-code: hsl(var(--surface-code));
+  --color-surface-code-header: hsl(var(--surface-code-header));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
@@ -243,8 +249,9 @@
        on white — flagged in review, kept per design preference for now. */
     --foreground-tertiary: 215 12% 62%;
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
-       well"), matching the docs site's --surface-code convention. */
-    --surface-code: 0 0% 98%;
+         well"), matching the docs site's --surface-code convention. */
+    --surface-code: 0 0% 92%;
+    --surface-code-header: 0 0% 86%;
 
     --popover: 0 0% 100%;
     --popover-foreground: var(--foreground);
@@ -290,6 +297,14 @@
        loudest thing on a light page — with a clearly darker hover step. */
     --link: 246 40% 50%;
     --link-hover: 246 55% 36%;
+    /* Preview-deployment strip (PR previews only): soft blue tint with text
+       darker than the fill, links a step brighter than body text. Values are
+       the blue-100/950/200/700/800 ramp. */
+    --preview-banner: 214 95% 93%;
+    --preview-banner-foreground: 226 57% 21%;
+    --preview-banner-border: 213 97% 87%;
+    --preview-banner-link: 224 76% 48%;
+    --preview-banner-link-hover: 226 71% 40%;
     /* Checked selection controls (checkbox/switch): monochrome in BOTH
        modes — dark fill + light glyph in light, muted-white fill + dark
        glyph in dark. Deliberately dimmer than --primary in dark so checked
@@ -411,6 +426,7 @@
     --muted-foreground: 0 0% 54%;
     --foreground-tertiary: 0 0% 40%;
     --surface-code: 0 0% 2.3%;
+    --surface-code-header: 0 0% 8.2%;
 
     --popover: 0 0% 12%;
     --popover-foreground: var(--foreground);
@@ -451,6 +467,15 @@
     --primary-accent: 246 55% 70%;
     --link: 246 55% 70%;
     --link-hover: 246 95% 85%;
+    /* Preview-deployment strip: fill is blue-500/25 precomposed over the 6%
+       canvas, border is blue-300/20 precomposed over that fill — the strip
+       needs opaque colors. Body text stays on the neutral foreground tier;
+       links are blue-400/300. */
+    --preview-banner: 217 47% 19%;
+    --preview-banner-foreground: 0 0% 70%;
+    --preview-banner-border: 215 37% 31%;
+    --preview-banner-link: 213 94% 68%;
+    --preview-banner-link-hover: 212 96% 78%;
     --control-fill: 0 0% 78%;
     --control-track: 0 0% 24%;
     /* Matches --border-contrast: unchecked checkboxes/radios read by their

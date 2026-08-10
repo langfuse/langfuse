@@ -15,10 +15,9 @@ spans.
 - Worker consumer env vars:
   `worker/src/env.ts` (`QUEUE_CONSUMER_*_IS_ENABLED` plus feature-specific
   gates).
-- Worker registration, request/error counters, wait/processing time, and
-  sampled old-style depth metrics:
+- Worker registration, request/error/stalled rates, and wait/processing time:
   `worker/src/queues/workerManager.ts`.
-- Queue depth background reporter:
+- Queue depth and DLQ oldest-age background reporter:
   `worker/src/features/queue-metrics-runner/index.ts`.
 - Metric name conversion:
   `packages/shared/src/server/instrumentation/index.ts`
@@ -185,7 +184,7 @@ Examples:
 | `trace-upsert` | `langfuse.queue.trace_upsert` |
 | `batch-export-queue` | `langfuse.queue.batch_export` |
 
-Prefer the newer tagged metrics:
+Use the tagged queue metrics:
 
 ```text
 <metric_base>.depth{env:<env>,type:waiting}
@@ -194,36 +193,39 @@ Prefer the newer tagged metrics:
 <metric_base>.rate{env:<env>,type:request}
 <metric_base>.rate{env:<env>,type:failed}
 <metric_base>.rate{env:<env>,type:error}
+<metric_base>.rate{env:<env>,type:stalled}
 <metric_base>.time_distribution{env:<env>,type:wait}
 <metric_base>.time_distribution{env:<env>,type:processing}
+<metric_base>.dlq_oldest_age{env:<env>}
 ```
 
-For sharded queues, use the `shard` tag when present. `shard:all` is emitted by
-the depth runner for aggregate depth across shards.
+Metric emission and shard handling differ by source:
 
-Backward-compatible metrics may still appear:
+- `WorkerManager` emits `.rate` and `.time_distribution`. A non-sharded queue
+  has no `shard` tag. A sharded worker uses the base queue's metric name and
+  sets `shard` to the full physical queue name. It does not emit `shard:all`.
+- `QueueMetricsRunner` emits `.depth` and `.dlq_oldest_age` only for queue
+  instances with a worker registered in the current process. It does not add a
+  `shard` tag for a non-sharded queue. For a sharded queue, it emits one series
+  per registered physical shard plus `shard:all`.
 
-```text
-<metric_base>.length
-<metric_base>.dlq_length
-<metric_base>.active
-<metric_base>.request
-<metric_base>.failed
-<metric_base>.error
-<metric_base>.wait_time
-<metric_base>.processing_time
-```
+For `.depth`, `shard:all` is the sum across registered shards when every poll
+succeeds. If only some shard polls succeed, the runner estimates the total by
+scaling the successful sum by `registered shard count / successful poll count`.
+For `.dlq_oldest_age`, `shard:all` is the maximum age returned by the successful
+shard polls; failed polls are omitted and are not extrapolated.
 
-For non-BullMQ internal write buffering, `ClickhouseWriter` emits
-`langfuse.queue.clickhouse_writer.*` metrics, but it is not a `QueueName`
-consumer.
+Exclude `langfuse.queue.clickhouse_writer.*` from BullMQ consumer checks.
+Despite the metric prefix, those metrics come from
+`worker/src/services/ClickhouseWriter/index.ts` and describe its in-memory
+buffers and ClickHouse flushes, not a BullMQ queue.
 
 ## Consumer Running Checklist
 
 To establish whether a consumer is running in production:
 
 1. Check queue depth metrics for waiting, failed, and active counts.
-2. Check `rate{type:request}` or old `.request` metrics for recent processing.
+2. Check `rate{type:request}` for recent processing.
 3. Search BullMQ processor spans on `worker` and `worker-cpu`.
 4. Search worker logs for the queue name or processor-specific log prefix.
 5. If all signals are empty, verify the relevant `QUEUE_CONSUMER_*_IS_ENABLED`

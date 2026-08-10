@@ -511,6 +511,9 @@ describe("llmApiKey.all RPC", () => {
 
     expect(result).toEqual({ success: true });
     expect(mockGenerateLLMText).toHaveBeenCalledTimes(1);
+    expect(mockGenerateLLMText).toHaveBeenCalledWith(
+      expect.objectContaining({ timeout: 95_000 }),
+    );
   });
 
   it("should allow testUpdate without a new secret key when the base URL is unchanged", async () => {

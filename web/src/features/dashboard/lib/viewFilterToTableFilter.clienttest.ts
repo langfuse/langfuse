@@ -1,9 +1,10 @@
 import {
   type FilterState,
+  eventsTableCols,
   observationsTableCols,
   tracesTableCols,
 } from "@langfuse/shared";
-import { type views } from "@langfuse/shared/query";
+import { getViewDeclaration, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import {
   classifyViewFiltersForTable,
@@ -16,6 +17,7 @@ const tableColIds = {
   traces: new Set(tracesTableCols.map((c) => c.id)),
   observations: new Set(observationsTableCols.map((c) => c.id)),
 } as const;
+const v4TableColIds = new Set<string>(eventsTableCols.map((c) => c.id));
 
 const stringFilter = (column: string): FilterState[number] => ({
   column,
@@ -37,6 +39,13 @@ const arrayOptionsFilter = (column: string): FilterState[number] => ({
   operator: "any of",
   value: ["a"],
 });
+
+const rootFilter = {
+  column: "isRootObservation",
+  type: "boolean" as const,
+  operator: "=" as const,
+  value: true,
+};
 
 describe("tableTargetForView", () => {
   it("routes observations to the observations table", () => {
@@ -113,6 +122,75 @@ describe("classifyViewFiltersForTable", () => {
     expect(applicable).toHaveLength(0);
     expect(notApplicable.get("sessionId")).toMatch(/session/i);
   });
+
+  it("drops semantic roots for the v3 observations table with a disclosed reason", () => {
+    const { applicable, notApplicable } = classifyViewFiltersForTable(
+      "observations",
+      [rootFilter],
+      "v3",
+    );
+
+    expect(applicable).toHaveLength(0);
+    expect(notApplicable.get("isRootObservation")).toMatch(/v4/i);
+  });
+
+  it("maps semantic roots and observation ids to the v4 events table", () => {
+    const filters: FilterState = [
+      stringFilter("sessionId"),
+      arrayOptionsFilter("tags"),
+      stringOptionsFilter("providedModelName"),
+      stringOptionsFilter("traceName"),
+      stringFilter("traceVersion"),
+      stringFilter("promptVersion"),
+      rootFilter,
+    ];
+    const { applicable, notApplicable } = classifyViewFiltersForTable(
+      "observations",
+      filters,
+      "v4",
+    );
+
+    expect(applicable.map((f) => f.column)).toEqual([
+      "sessionId",
+      "traceTags",
+      "providedModelName",
+      "traceName",
+      "version",
+      "isRootObservation",
+    ]);
+    expect(applicable.at(-1)).toEqual(rootFilter);
+    expect(notApplicable.get("promptVersion")).toMatch(/numeric/i);
+  });
+
+  it.each([
+    ["traces", "name", "traceName"],
+    ["traces", "id", "traceId"],
+    ["scores-numeric", "tags", "traceTags"],
+    ["traces", "metadata", null],
+    ["traces", "release", null],
+    ["scores-numeric", "traceRelease", null],
+    ["scores-boolean", "traceRelease", null],
+    ["scores-categorical", "traceRelease", null],
+  ] as const)(
+    "applies the v4 $2 mapping for $1",
+    (view, dimension, expectedColumn) => {
+      const { applicable, notApplicable } = classifyViewFiltersForTable(
+        view,
+        [stringFilter(dimension)],
+        "v4",
+      );
+
+      if (expectedColumn) {
+        expect(applicable.map((filter) => filter.column)).toEqual([
+          expectedColumn,
+        ]);
+        expect(notApplicable.size).toBe(0);
+      } else {
+        expect(applicable).toHaveLength(0);
+        expect(notApplicable.has(dimension)).toBe(true);
+      }
+    },
+  );
 
   it("maps only trace-derived score dimensions to the traces table, dropping score-specific ones", () => {
     const filters: FilterState = [
@@ -249,6 +327,19 @@ describe("classifyViewFiltersForTable", () => {
       );
       applicable.forEach((f) => {
         expect(tableColIds[target].has(f.column)).toBe(true);
+      });
+    });
+
+    (Object.keys(probesByView) as ViewName[]).forEach((view) => {
+      const { applicable } = classifyViewFiltersForTable(
+        view,
+        Object.keys(getViewDeclaration(view, "v2").dimensions).map(
+          stringFilter,
+        ),
+        "v4",
+      );
+      applicable.forEach((f) => {
+        expect(v4TableColIds.has(f.column)).toBe(true);
       });
     });
   });

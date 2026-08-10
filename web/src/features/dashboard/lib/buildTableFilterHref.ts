@@ -1,15 +1,16 @@
-import { type FilterState } from "@langfuse/shared";
+import {
+  type FilterState,
+  encodeFiltersGeneric,
+  MAX_URL_FILTER_QUERY_LENGTH,
+} from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
   classifyViewFiltersForTable,
   tableTargetForView,
+  type TableVersion,
 } from "@/src/features/dashboard/lib/viewFilterToTableFilter";
-import {
-  encodeFiltersGeneric,
-  MAX_URL_FILTER_QUERY_LENGTH,
-} from "@/src/features/filters/lib/filter-query-encoding";
 import { rangeToString } from "@/src/utils/date-range-utils";
 
 type ViewName = z.infer<typeof views>;
@@ -80,12 +81,16 @@ function encodeFiltersWithinBudget(filters: FilterState): {
  * widget maps to `traceVersion` (which the observations table correctly drops)
  * under the stored variant, but to the observation `version` column under the
  * editor variant — which would filter a different field than the chart did.
+ * `tableVersion` identifies the actual destination table generation. It is
+ * intentionally independent from the widget query version: a v2 widget can
+ * still land on the legacy v3 table when the v4 table toggle is off.
  */
 export function buildTableFilterHref(
   projectId: string,
   view: ViewName,
   filters: FilterState,
   dateRange: { from: Date; to: Date } | undefined,
+  tableVersion: TableVersion = "v3",
 ): TableFilterHrefResult {
   const table = tableTargetForView(view);
 
@@ -93,6 +98,7 @@ export function buildTableFilterHref(
   const { applicable, notApplicable } = classifyViewFiltersForTable(
     view,
     viewFilters,
+    tableVersion,
   );
 
   const { encoded, droppedForLength } = encodeFiltersWithinBudget(applicable);

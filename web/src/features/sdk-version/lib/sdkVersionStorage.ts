@@ -24,6 +24,10 @@ export const persistProjectSdkVersionInfo = (
 
     writeStorageValue(keys.language, sdkVersion.language);
     writeStorageValue(keys.version, sdkVersion.version);
+    writeStorageValue(
+      keys.isOtel,
+      typeof sdkVersion.isOtel === "boolean" ? String(sdkVersion.isOtel) : null,
+    );
     writeStorageValue(keys.checkedAt, checkedAt);
   } catch {
     // Storage can be unavailable in hardened/private browser contexts.
@@ -37,6 +41,7 @@ export const clearProjectSdkVersionInfo = (projectId: string) => {
   try {
     writeStorageValue(keys.language, null);
     writeStorageValue(keys.version, null);
+    writeStorageValue(keys.isOtel, null);
     writeStorageValue(keys.checkedAt, null);
   } catch {
     // Storage can be unavailable in hardened/private browser contexts.

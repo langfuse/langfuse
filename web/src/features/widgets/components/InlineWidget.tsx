@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo, useState, useCallback } from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type OrderByState } from "@langfuse/shared";

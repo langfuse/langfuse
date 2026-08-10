@@ -12,12 +12,3 @@ export const Default = meta.story({
     theme: "light",
   },
 });
-
-export const CardHeader = meta.story({
-  args: {
-    language: "typescript",
-    value: 'const greeting = "Hello, Langfuse!";',
-    theme: "light",
-    variant: "card",
-  },
-});

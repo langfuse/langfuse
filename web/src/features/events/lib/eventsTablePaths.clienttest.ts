@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type FilterState } from "@langfuse/shared";
 import {
+  type FilterState,
   decodeFiltersGeneric,
   encodeFiltersGeneric,
-} from "@/src/features/filters/lib/filter-query-encoding";
+} from "@langfuse/shared";
 import { buildEventsTablePathForMetadataFilter } from "./eventsTablePaths";
 
 const PROJECT = "p1";

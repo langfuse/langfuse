@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   ForbiddenError,
   ObservationLevel,
+  type ObservationLevelType,
   ObservationType,
   ObservationTypeDomain,
 } from "../../";
@@ -21,6 +22,8 @@ import {
   UsageDetails,
   normalizeToolsForObservation,
   normalizeToolMetadataForObservation,
+  normalizeEnvironment,
+  DEFAULT_TRACE_ENVIRONMENT,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -29,6 +32,35 @@ import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+
+// Foreign level vocabularies observed from OTel senders (OTel severity
+// names, python logging, loguru, console) mapped onto the Langfuse enum.
+//  The classic ingestion API keeps its strict enum; only the
+// OTel adapter translates. Unknown values return undefined so the caller's
+// status-derived fallback applies instead of masking it with DEFAULT.
+const OBSERVATION_LEVEL_ALIASES: Record<string, ObservationLevelType> = {
+  DEBUG: ObservationLevel.DEBUG,
+  TRACE: ObservationLevel.DEBUG,
+  VERBOSE: ObservationLevel.DEBUG,
+  DEFAULT: ObservationLevel.DEFAULT,
+  INFO: ObservationLevel.DEFAULT,
+  LOG: ObservationLevel.DEFAULT,
+  NOTICE: ObservationLevel.DEFAULT,
+  OK: ObservationLevel.DEFAULT,
+  SUCCESS: ObservationLevel.DEFAULT,
+  WARNING: ObservationLevel.WARNING,
+  WARN: ObservationLevel.WARNING,
+  ERROR: ObservationLevel.ERROR,
+  FATAL: ObservationLevel.ERROR,
+  CRITICAL: ObservationLevel.ERROR,
+};
+
+function parseObservationLevel(
+  value: unknown,
+): ObservationLevelType | undefined {
+  if (typeof value !== "string") return undefined;
+  return OBSERVATION_LEVEL_ALIASES[value.trim().toUpperCase()];
+}
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -64,6 +96,50 @@ interface MetadataDropContext {
   domain: string;
   attributeKey: string;
   dropScope: object;
+}
+
+/**
+ * Tracks the total number of array slots that dotted attribute paths would
+ * materialize. A path is reserved transactionally: when it would exceed the
+ * limit, none of its array lengths are committed.
+ *
+ * Multiple attributes can point into the same array, so only growth beyond
+ * that array's previously reserved length consumes budget. For example,
+ * `0.role` and `0.content` together reserve one slot, while `9999.content`
+ * reserves 10,000 slots even though it is only one attribute.
+ */
+class ArraySlotBudget {
+  private usedSlots = 0;
+  private readonly lengthsByPath = new Map<string, number>();
+
+  constructor(private readonly maxSlots: number) {}
+
+  tryReserve(pathParts: readonly string[]): boolean {
+    const pendingLengths = new Map<string, number>();
+    let additionalSlots = 0;
+
+    for (let index = 0; index < pathParts.length; index++) {
+      const segment = pathParts[index];
+      if (!/^\d+$/.test(segment)) continue;
+
+      const arrayPath = pathParts.slice(0, index).join(".");
+      const previousLength =
+        pendingLengths.get(arrayPath) ?? this.lengthsByPath.get(arrayPath) ?? 0;
+      const requiredLength = Number(segment) + 1;
+      if (requiredLength > previousLength) {
+        additionalSlots += requiredLength - previousLength;
+        pendingLengths.set(arrayPath, requiredLength);
+      }
+    }
+
+    if (this.usedSlots + additionalSlots > this.maxSlots) return false;
+
+    this.usedSlots += additionalSlots;
+    pendingLengths.forEach((length, path) =>
+      this.lengthsByPath.set(path, length),
+    );
+    return true;
+  }
 }
 
 interface CreateTraceEventParams {
@@ -164,12 +240,20 @@ const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
 export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
+  private static readonly OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC =
+    "langfuse.ingestion.otel.array_attribute_dropped";
+
+  // Flattened OTel message attributes name array slots directly, so cap the
+  // total logical array length before reconstructing the value.
+  private static readonly MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS = 10_001;
 
   private static readonly METADATA_DROP_WARN_CAP = 10;
+  private static readonly ARRAY_ATTRIBUTE_DROP_WARN_CAP = 10;
 
   private seenTraces: Set<string> = new Set();
   private reportedMetadataDrops = new WeakMap<object, Set<string>>();
   private metadataDropWarnCount = 0;
+  private arrayAttributeDropWarnCount = 0;
   private isInitialized = false;
   private traceEventCounts = {
     shallow: 0,
@@ -457,9 +541,11 @@ export class OtelIngestionProcessor {
                   endTimeISO,
 
                   level:
-                    spanAttributes[
-                      LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
-                    ] ??
+                    parseObservationLevel(
+                      spanAttributes[
+                        LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
+                      ],
+                    ) ??
                     (span.status?.code === 2
                       ? ObservationLevel.ERROR
                       : scopeSpan?.scope?.name === "livekit-agents" &&
@@ -1092,7 +1178,9 @@ export class OtelIngestionProcessor {
       ),
       metadata: normalizedToolMetadata.metadata,
       level:
-        attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
+        parseObservationLevel(
+          attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL],
+        ) ??
         (span.status?.code === 2
           ? ObservationLevel.ERROR
           : scopeSpan?.scope?.name === "livekit-agents" &&
@@ -1436,6 +1524,15 @@ export class OtelIngestionProcessor {
     return undefined;
   }
 
+  /**
+   * Rebuilds observation input/output from flattened adapter attributes.
+   *
+   * TraceLoop and OpenInference encode structured messages in attribute names;
+   * for example, `gen_ai.prompt.0.content` becomes `[{ content: value }]`.
+   * Numeric path segments therefore become JavaScript array indices. The total
+   * logical slots across all nested arrays are bounded, since dimensions can
+   * otherwise multiply into a huge sparse structure during serialization.
+   */
   private convertKeyPathToNestedObject(
     input: Record<string, unknown>,
     prefix: string,
@@ -1444,7 +1541,21 @@ export class OtelIngestionProcessor {
       return input[prefix];
     }
 
-    const keys = Object.keys(input).map((key) => key.replace(`${prefix}.`, ""));
+    const keys: string[] = [];
+    const overBudgetKeys: string[] = [];
+    const arraySlotBudget = new ArraySlotBudget(
+      OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS,
+    );
+    for (const inputKey of Object.keys(input)) {
+      const key = inputKey.replace(`${prefix}.`, "");
+      if (!arraySlotBudget.tryReserve(key.split("."))) {
+        overBudgetKeys.push(key);
+        continue;
+      }
+
+      keys.push(key);
+    }
+    this.recordArrayAttributesDropped(prefix, overBudgetKeys);
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
     // Blocklist to prevent prototype pollution via crafted OTel attribute keys
@@ -1472,7 +1583,8 @@ export class OtelIngestionProcessor {
       const result: any[] = [];
       for (const key of keys) {
         const pathParts = key.split(".");
-        const index = parseInt(pathParts[0], 10);
+        const indexSegment = pathParts[0];
+        const index = Number(indexSegment);
         if (!result[index]) {
           result[index] = Object.create(null);
         }
@@ -1501,6 +1613,28 @@ export class OtelIngestionProcessor {
       }
     }
     return result;
+  }
+
+  private recordArrayAttributesDropped(prefix: string, keys: string[]): void {
+    if (keys.length === 0) return;
+
+    recordIncrement(
+      OtelIngestionProcessor.OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC,
+      keys.length,
+      { reason: "reconstruction_budget_exceeded", prefix },
+    );
+    if (
+      this.arrayAttributeDropWarnCount <
+      OtelIngestionProcessor.ARRAY_ATTRIBUTE_DROP_WARN_CAP
+    ) {
+      this.arrayAttributeDropWarnCount += 1;
+      logger.warn("OTEL array attribute dropped", {
+        projectId: this.projectId,
+        prefix,
+        reason: "reconstruction_budget_exceeded",
+        droppedAttributeCount: keys.length,
+      });
+    }
   }
 
   private extractInputAndOutput(params: {
@@ -2108,14 +2242,18 @@ export class OtelIngestionProcessor {
 
     for (const key of environmentAttributeKeys) {
       if (attributes[key]) {
-        return attributes[key] as string;
+        return normalizeEnvironment(attributes[key], {
+          isLangfuseInternal: this.isLangfuseInternal,
+        });
       }
       if (resourceAttributes[key]) {
-        return resourceAttributes[key] as string;
+        return normalizeEnvironment(resourceAttributes[key], {
+          isLangfuseInternal: this.isLangfuseInternal,
+        });
       }
     }
 
-    return "default";
+    return DEFAULT_TRACE_ENVIRONMENT;
   }
 
   private extractName(

@@ -21,6 +21,7 @@ import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQue
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { monitorQueueProcessor } from "./queues/monitorQueue";
+import { inAppAgentRunQueueProcessor } from "./queues/inAppAgentRunQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
@@ -46,6 +47,7 @@ import {
   CodeEvalExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
+import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server";
 import { env, v4WritesToEventsTable } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
@@ -419,6 +421,21 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
     lockDuration: monitorProcessorTtl + 60_000,
     maxStalledCount: 0,
   });
+}
+
+if (env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.InAppAgentRunQueue,
+    inAppAgentRunQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_IN_APP_AGENT_RUN_QUEUE_PROCESSING_CONCURRENCY,
+      // Postgres owns run correctness (claim CAS, heartbeat, reconcile);
+      // BullMQ must never redeliver on its own, so stalled recovery is off
+      // and the lock outlives the run-duration backstop.
+      lockDuration: IN_APP_AGENT_RUN_MAX_DURATION_MS + 60_000,
+      maxStalledCount: 0,
+    },
+  );
 }
 
 // Cloud Spend Alert Queue: Only enable in cloud environment with Stripe

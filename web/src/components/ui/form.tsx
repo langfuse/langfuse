@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import type * as LabelPrimitive from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";

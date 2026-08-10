@@ -21,6 +21,7 @@ This is the canonical shared review checklist for Langfuse.
 
 - Most `schema.prisma` changes should produce a change in `packages/shared/prisma/migrations`.
 - All Prisma queries on project-scoped tables must include `projectId` in the WHERE clause (e.g., `where: { id: traceId, projectId }`) to ensure proper tenant isolation and that queries only access data from the intended project.
+- Raw SQL that references the `datasets` table, including joins and CTEs, must not use `SELECT *` or `table.*`; use an explicit safe column projection. Aggregate expressions such as `COUNT(*)` are fine. Access secret-bearing dataset fields only through the centralized remote experiment delivery helper.
 
 ### Environment Variables
 

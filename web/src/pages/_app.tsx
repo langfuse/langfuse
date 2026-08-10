@@ -13,7 +13,7 @@ import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuPr
 
 import { api } from "@/src/utils/api";
 
-import NextAdapterPages from "next-query-params/pages";
+import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWithReadyGuard";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
@@ -81,7 +81,7 @@ import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { InAppAiAgentProvider } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
@@ -145,7 +145,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   return (
     <QueryParamProvider
-      adapter={NextAdapterPages}
+      adapter={NextAdapterPagesWithReadyGuard}
       options={{ enableBatching: true }}
     >
       <TooltipProvider>

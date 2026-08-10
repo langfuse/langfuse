@@ -185,6 +185,14 @@ export function createAiSdkTelemetryCapture(params: {
       }
     : undefined;
 
+  const childSpanMetadata = traceSinkParams.metadata
+    ? Object.fromEntries(
+        Object.entries(traceSinkParams.metadata).filter(
+          ([key]) => key !== "structured_output_schema",
+        ),
+      )
+    : undefined;
+
   const otelIntegration = createGenerationSpanTelemetry({
     tracer,
     attributes: {
@@ -197,6 +205,14 @@ export function createAiSdkTelemetryCapture(params: {
       ...(traceSinkParams.userId
         ? {
             [LangfuseOtelSpanAttributes.TRACE_USER_ID]: traceSinkParams.userId,
+          }
+        : {}),
+      // Keep useful trace context on child spans, but leave the potentially
+      // large output schema on the root trace only.
+      ...(childSpanMetadata
+        ? {
+            [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]:
+              JSON.stringify(childSpanMetadata),
           }
         : {}),
     },

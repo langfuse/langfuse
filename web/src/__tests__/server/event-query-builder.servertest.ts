@@ -2,10 +2,13 @@ import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
   CTEQueryBuilder,
+  createFilterFromFilterState,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  eventsTableUiColumnDefinitions,
   ExperimentsAggregationQueryBuilder,
 } from "@langfuse/shared/src/server";
+import { eventsTableCols } from "@langfuse/shared";
 
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
   it("builds one events_core scan for multiple filter option columns", () => {
@@ -96,6 +99,38 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.params).not.toHaveProperty("optionReserved");
   });
 
+  it("reuses row-selection score dependencies and full-table routing", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [
+        {
+          column: "metadata",
+          operator: "=",
+          key: "region",
+          value: "eu",
+          type: "stringObject",
+        },
+        {
+          column: "scores_avg",
+          operator: ">",
+          key: "quality",
+          value: 0.5,
+          type: "numberObject",
+        },
+      ],
+      columns: ["name"],
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("LEFT JOIN scores_agg AS s");
+    expect(built.query).toContain("LEFT JOIN trace_scores_agg AS ts");
+    expect(built.query).toContain("FROM events_full e");
+    expect(Object.values(built.params)).toContain("quality");
+  });
+
   it("applies the scored traces scope without caller-provided raw SQL", () => {
     const built = buildEventsFilterOptionColumnQuery({
       projectId: "test-project",
@@ -110,6 +145,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
 
     expect(built.query).toContain(
       "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})",
+    );
+    expect(built.query).toContain(
+      "COALESCE(nullIf(e.trace_name, ''), if((e.parent_span_id = '' OR e.is_app_root = true), nullIf(e.name, ''), NULL))",
     );
     expect(built.query).toContain("GROUP BY value");
     expect(built.params).toMatchObject({
@@ -154,6 +192,102 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       limit: 10,
       offset: 20,
     });
+  });
+
+  it("builds release filter options from the observation release column", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "release",
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("'release' AS column");
+    expect(built.query).toContain("toString(e.release) AS value");
+    expect(built.query).toContain("e.release IS NOT NULL");
+  });
+
+  it("builds API key filter options from ingestion attribution", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "ingestionApiKey",
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("'ingestionApiKey' AS column");
+    expect(built.query).toContain("toString(e.ingestion_api_key) AS value");
+    expect(built.query).toContain("length(e.ingestion_api_key) > 0");
+    expect(built.query).not.toContain("FINAL");
+  });
+
+  it("maps API key filters to the ingestion attribution column", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "ingestionApiKey",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["pk-lf-test"],
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    const applied = filter.apply();
+    expect(applied.query).toContain('e."ingestion_api_key" IN');
+    expect(Object.values(applied.params)).toContainEqual(["pk-lf-test"]);
+  });
+
+  it("maps release filters to the observation release column", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "release",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["181"],
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    const applied = filter.apply();
+    expect(applied.query).toContain("e.release IN");
+    expect(Object.values(applied.params)).toContainEqual(["181"]);
+  });
+
+  it("treats an empty observation release as null", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "release",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    expect(filter.apply().query).toContain(
+      `(e.release = '' OR e.release IS NULL)`,
+    );
   });
 
   it("builds a direct grouped query for one boolean filter option column", () => {

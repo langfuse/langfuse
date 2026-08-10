@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";

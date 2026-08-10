@@ -5,15 +5,15 @@ import {
   HoverCardPortal,
 } from "@/src/components/ui/hover-card";
 import { SelectItem } from "@/src/components/ui/select";
-import { Role } from "@langfuse/shared";
+import {
+  Role,
+  projectNoneRoleComment,
+  projectRoleAccessRights,
+} from "@langfuse/shared";
 import {
   organizationRoleAccessRights,
   orgNoneRoleComment,
 } from "@/src/features/rbac/constants/organizationAccessRights";
-import {
-  projectNoneRoleComment,
-  projectRoleAccessRights,
-} from "@/src/features/rbac/constants/projectAccessRights";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 
 export const RoleSelectItem = ({

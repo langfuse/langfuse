@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
 import { Archive, ChevronDown, Component, Search } from "lucide-react";
 
