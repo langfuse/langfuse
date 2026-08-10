@@ -1,23 +1,9 @@
-import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  V4_CODING_AGENT_PROMPT,
-  useCanUseAgentForMigration,
-} from "./useV4UpgradeAssistantSupport";
-
-const mocks = vi.hoisted(() => ({
-  organization: { aiFeaturesEnabled: false },
-}));
+import { V4_CODING_AGENT_PROMPT } from "./useV4UpgradeAssistantSupport";
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useCanUseInAppAgent: () => true,
-}));
-
-vi.mock("@/src/features/projects/hooks", () => ({
-  useQueryProjectOrOrganization: () => ({
-    organization: mocks.organization,
-  }),
 }));
 
 describe("V4_CODING_AGENT_PROMPT", () => {
@@ -30,13 +16,5 @@ describe("V4_CODING_AGENT_PROMPT", () => {
       "Do not stop to install the Langfuse CLI or request credentials.",
     );
     expect(V4_CODING_AGENT_PROMPT).toContain("seven-row readiness report");
-  });
-});
-
-describe("useCanUseAgentForMigration", () => {
-  it("requires AI features to be enabled", () => {
-    const { result } = renderHook(() => useCanUseAgentForMigration());
-
-    expect(result.current).toBe(false);
   });
 });

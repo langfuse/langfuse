@@ -10,7 +10,7 @@ import {
   LifeBuoy,
   TriangleAlert,
 } from "lucide-react";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
@@ -47,6 +47,8 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
+import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
+import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -520,25 +522,25 @@ export function V4MigrationDetailsContent({
     onNavigate?.();
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
-  const { setOpen: setAgentOpen, submit: submitAgentMessage } =
-    useInAppAiAgent();
+  const canUseAssistant = useCanUseInAppAgent();
+  const [evalMigrationDialogOpen, setEvalMigrationDialogOpen] = useState(false);
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId,
     orgId: organization?.id,
     enabled: Boolean(projectId),
   });
   const evalsUrl =
-    typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
-  const handleMigrateEvalsWithAgent = async () => {
+    typeof projectId === "string"
+      ? buildDeprecatedEvaluatorsUrl(projectId)
+      : undefined;
+  const handleMigrateEvalsWithAgent = () => {
     capture("v4_migration:migrate_evals_with_agent_clicked");
+    setEvalMigrationDialogOpen(true);
+  };
+  const handleManualEvalMigration = () => {
+    setEvalMigrationDialogOpen(false);
     onNavigate?.();
-    if (evalsUrl) {
-      await router.push(evalsUrl).catch(() => undefined);
-    }
-    setAgentOpen(true);
-    await submitAgentMessage(upgradePlan.assistantPrompt, {
-      newConversation: true,
-    });
+    if (evalsUrl) void router.push(evalsUrl);
   };
   const integrationsUrl =
     typeof projectId === "string"
@@ -629,7 +631,7 @@ export function V4MigrationDetailsContent({
                   </span>
                   . Repointing {migrationData.evals.count === 1 ? "it" : "them"}{" "}
                   at observations or experiments requires minimal changes
-                  {upgradePlan.showAssistantButton
+                  {canUseAssistant
                     ? upgradePlan.mode === "evals-ready"
                       ? " — the assistant can do it for you"
                       : " — the assistant can help you choose the upgrade order"
@@ -637,14 +639,14 @@ export function V4MigrationDetailsContent({
                   .
                 </p>
                 <div className="flex items-center gap-3">
-                  {upgradePlan.showAssistantButton && (
+                  {canUseAssistant && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={handleMigrateEvalsWithAgent}
                     >
                       <BotMessageSquare className="mr-1.5 h-4 w-4" />
-                      Migrate with assistant
+                      Use Assistant
                     </Button>
                   )}
                   {evalsUrl ? (
@@ -884,6 +886,16 @@ export function V4MigrationDetailsContent({
           </Button>
         </div>
       </div>
+      {projectId ? (
+        <EvaluatorMigrationDialog
+          open={evalMigrationDialogOpen}
+          onOpenChange={setEvalMigrationDialogOpen}
+          scope={{ type: "all" }}
+          assistantPrompt={upgradePlan.assistantPrompt}
+          onManualMigration={handleManualEvalMigration}
+          onAssistantStarted={() => onNavigate?.()}
+        />
+      ) : null}
     </>
   );
 }

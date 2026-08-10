@@ -9,7 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { V4MigrationEvaluatorUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
@@ -27,7 +27,6 @@ import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
-import { useCanUseAgentForMigration } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -48,7 +47,6 @@ const PeekViewEvaluatorConfigDetail = ({
     evaluatorId: evalConfig?.id,
     evaluator: evalConfig,
   });
-  const canUseAgent = useCanUseAgentForMigration();
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
   if (!evalConfig) {
@@ -120,8 +118,11 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
       </div>
 
-      {evaluatorRequiresMigration && evalConfig.evalTemplate && canUseAgent && (
-        <V4MigrationUpdateRequiredBadge />
+      {evaluatorRequiresMigration && evalConfig.evalTemplate && (
+        <V4MigrationEvaluatorUpdateRequiredBadge
+          projectId={projectId}
+          evaluatorId={evalConfig.id}
+        />
       )}
 
       <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />

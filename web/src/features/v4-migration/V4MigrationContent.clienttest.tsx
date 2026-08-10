@@ -19,7 +19,7 @@ import { type V4MigrationSdkState } from "./sdkVersionStatus";
 
 const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
-  setAgentOpen: vi.fn(),
+  openAssistant: vi.fn(),
   submitAgentMessage: vi.fn(),
   upgradePlan: {
     canUseAssistant: true,
@@ -89,6 +89,9 @@ vi.mock("@/src/utils/api", () => ({
 
 vi.mock("@/src/features/projects/hooks", () => ({
   useProject: () => ({ organization: { id: "org-1" } }),
+  useQueryProjectOrOrganization: () => ({
+    organization: { id: "org-1", aiFeaturesEnabled: true },
+  }),
 }));
 
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
@@ -110,7 +113,7 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeAssistantSupport", () => ({
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useCanUseInAppAgent: () => true,
   useInAppAiAgent: () => ({
-    setOpen: mocks.setAgentOpen,
+    openAssistant: mocks.openAssistant,
     submit: mocks.submitAgentMessage,
   }),
 }));
@@ -305,39 +308,25 @@ describe("V4MigrationDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("navigates to evals when migrating with the assistant", async () => {
+  it("starts the assistant only after confirmation", async () => {
     mocks.migrationData.evals = { status: "loaded", count: 1 };
+    mocks.openAssistant.mockReturnValue(true);
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
+    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
-      screen.getByRole("button", { name: "Migrate with assistant" }),
+      within(migrationDialog).getByRole("button", { name: "Use Assistant" }),
+    );
+    fireEvent.click(
+      within(migrationDialog).getByRole("button", {
+        name: "Start upgrade now",
+      }),
     );
 
     await waitFor(() => {
-      expect(mocks.routerPush).toHaveBeenCalledWith("/project/project-1/evals");
-    });
-    expect(mocks.setAgentOpen).toHaveBeenCalledWith(true);
-    expect(mocks.submitAgentMessage).toHaveBeenCalledWith(
-      "eval-upgrade-prompt",
-      { newConversation: true },
-    );
-  });
-
-  it("opens the assistant when navigation to evals is interrupted", async () => {
-    mocks.migrationData.evals = { status: "loaded", count: 1 };
-    mocks.routerPush.mockRejectedValueOnce(
-      new Error("Abort fetching component for route"),
-    );
-
-    render(<V4MigrationDetailsContent projectId="project-1" />);
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Migrate with assistant" }),
-    );
-
-    await waitFor(() => {
-      expect(mocks.setAgentOpen).toHaveBeenCalledWith(true);
+      expect(mocks.openAssistant).toHaveBeenCalledWith("v4_migration");
     });
     expect(mocks.submitAgentMessage).toHaveBeenCalledWith(
       "eval-upgrade-prompt",
