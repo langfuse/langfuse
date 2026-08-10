@@ -8,8 +8,9 @@
 // a full-stack feature needs a second, server-side surface, which the RFC does
 // not have a rule for yet.
 
+// TracePage is deliberately absent: a Next.js page imports its feature's Page
+// component directly, which is what the RFC's own example does.
 export { Trace } from "@/src/features/traces/components/Trace";
-export { TracePage } from "@/src/features/traces/TracePage";
 export { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 export { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 export { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";

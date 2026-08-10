@@ -3,6 +3,7 @@ import { Download, ExternalLinkIcon, Loader2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
   IOPreview,
+  type ChatMLParserResult,
   type IOPreviewContentMode,
   type ViewMode,
 } from "@/src/features/traces";
@@ -11,7 +12,6 @@ import { downloadJsonFile } from "@/src/components/session/actions/downloadSessi
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { type ChatMLParserResult } from "@/src/features/traces";
 import { parseJsonIfString } from "@langfuse/shared";
 
 export type SessionTraceObservation =
