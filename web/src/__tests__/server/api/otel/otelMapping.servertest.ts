@@ -7646,6 +7646,526 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
       expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(5);
     });
+
+    it("should extract OpenInference llm.token_count.completion_details.reasoning/audio into output detail buckets without double counting", async () => {
+      // OpenInference emits reasoning/audio completion details under
+      // llm.token_count.completion_details.*. The completion count includes
+      // these details (mirroring OpenAI's completion_tokens_details), so they
+      // must be subtracted from output — otherwise the UI, which sums all
+      // output* buckets, double-counts them
+      // (github.com/langfuse/langfuse/issues/12057).
+      const traceId = "abcdef1234567890abcdef1234567894";
+
+      const openinferenceCompletionDetailsSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.openai",
+              version: "0.1.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde3", "hex"),
+                name: "openinference-completion-details",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "llm.token_count.prompt",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.completion",
+                    value: { intValue: { low: 50, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.completion_details.reasoning",
+                    value: { intValue: { low: 30, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.completion_details.audio",
+                    value: { intValue: { low: 5, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        openinferenceCompletionDetailsSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      expect(usageDetails.input).toBe(100);
+      // output must be the remainder: 50 - 30 - 5 = 15
+      expect(usageDetails.output).toBe(15);
+      expect(usageDetails.output_reasoning_tokens).toBe(30);
+      expect(usageDetails.output_audio_tokens).toBe(5);
+      // No double count: the sum of all output* buckets must equal the
+      // reported completion token count.
+      const outputSum = Object.entries(usageDetails)
+        .filter(([key]) => key.startsWith("output"))
+        .reduce((acc, [, value]) => acc + value, 0);
+      expect(outputSum).toBe(50);
+      // The raw OpenInference keys must NOT be passed through
+      expect(usageDetails["completion_details.reasoning"]).toBeUndefined();
+      expect(usageDetails["completion_details.audio"]).toBeUndefined();
+    });
+
+    it("should subtract gen_ai.usage.reasoning.output_tokens from inclusive output tokens (Google ADK)", async () => {
+      // Google ADK reports gen_ai.usage.output_tokens as candidates + thoughts,
+      // i.e. inclusive of reasoning. The reasoning share arrives separately as
+      // gen_ai.usage.reasoning.output_tokens and must be subtracted from
+      // output, otherwise the UI (summing all output* buckets) shows more
+      // output tokens than the model produced.
+      const traceId = "abcdef1234567890abcdef1234567895";
+
+      const adkReasoningSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "gcp.vertex.agent",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde4", "hex"),
+                name: "adk-reasoning-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 60, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.total_tokens",
+                    value: { intValue: { low: 160, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.reasoning.output_tokens",
+                    value: { intValue: { low: 25, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        adkReasoningSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      expect(usageDetails.input).toBe(100);
+      // output must be the non-reasoning remainder: 60 - 25 = 35
+      expect(usageDetails.output).toBe(35);
+      expect(usageDetails.output_reasoning_tokens).toBe(25);
+      expect(usageDetails.total).toBe(160);
+      // No double count: the sum of all output* buckets must equal the
+      // reported (inclusive) output token count.
+      const outputSum = Object.entries(usageDetails)
+        .filter(([key]) => key.startsWith("output"))
+        .reduce((acc, [, value]) => acc + value, 0);
+      expect(outputSum).toBe(60);
+      // The raw ADK key must NOT be passed through
+      expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
+    });
+
+    it("should clamp output at 0 when reasoning details exceed the emitted output count", async () => {
+      // Reasoning > output must floor output at 0 (negatives are dropped downstream); breaks the output-sum invariant by design.
+      const traceId = "abcdef1234567890abcdef1234567896";
+
+      const clampSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.openai",
+              version: "0.1.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde5", "hex"),
+                name: "openinference-reasoning-exceeds-output",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "llm.token_count.completion",
+                    value: { intValue: { low: 50, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "llm.token_count.completion_details.reasoning",
+                    value: { intValue: { low: 60, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        clampSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      // 50 - 60 must clamp to 0, never go negative
+      expect(usageDetails.output).toBe(0);
+      expect(usageDetails.output_reasoning_tokens).toBe(60);
+      expect(usageDetails["completion_details.reasoning"]).toBeUndefined();
+    });
+
+    it("should keep output absent when only a reasoning detail is emitted", async () => {
+      // A lone reasoning detail must not synthesize an output bucket: output stays absent (not 0).
+      const traceId = "abcdef1234567890abcdef1234567897";
+
+      const reasoningOnlySpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "gcp.vertex.agent",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde6", "hex"),
+                name: "adk-reasoning-only",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.reasoning.output_tokens",
+                    value: { intValue: { low: 25, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        reasoningOnlySpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      expect(usageDetails.output).toBeUndefined();
+      expect(usageDetails.output_reasoning_tokens).toBe(25);
+      expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
+    });
+  });
+
+  describe("Google ADK blob-derived cache usage", () => {
+    const createAdkSpan = ({
+      scopeName = "gcp.vertex.agent",
+      inputTokens = 1000,
+      llmResponse,
+      extraAttributes = [],
+    }: {
+      scopeName?: string;
+      inputTokens?: number;
+      llmResponse: string;
+      extraAttributes?: { key: string; value: Record<string, unknown> }[];
+    }) => ({
+      resource: {
+        attributes: [
+          {
+            key: "service.name",
+            value: { stringValue: "test-service" },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: {
+            name: scopeName,
+            version: "1.0.0",
+          },
+          spans: [
+            {
+              traceId: Buffer.from("abcdef1234567890abcdef1234567893", "hex"),
+              spanId: Buffer.from("1234567890abcde2", "hex"),
+              name: "call_llm",
+              kind: 1,
+              startTimeUnixNano: {
+                low: 1000000,
+                high: 406528574,
+                unsigned: true,
+              },
+              endTimeUnixNano: {
+                low: 2000000,
+                high: 406528574,
+                unsigned: true,
+              },
+              attributes: [
+                {
+                  key: "gen_ai.usage.input_tokens",
+                  value: {
+                    intValue: { low: inputTokens, high: 0, unsigned: false },
+                  },
+                },
+                {
+                  key: "gen_ai.usage.output_tokens",
+                  value: { intValue: { low: 200, high: 0, unsigned: false } },
+                },
+                {
+                  key: "gcp.vertex.agent.llm_response",
+                  value: { stringValue: llmResponse },
+                },
+                ...extraAttributes,
+              ],
+              status: {},
+            },
+          ],
+        },
+      ],
+    });
+
+    const adkLlmResponseBlob = JSON.stringify({
+      model_version: "gemini-2.5-flash",
+      content: {
+        parts: [{ text: "Hello! How can I help you today?" }],
+        role: "model",
+      },
+      partial: false,
+      finish_reason: "STOP",
+      usage_metadata: {
+        cached_content_token_count: 800,
+        candidates_token_count: 200,
+        prompt_token_count: 1000,
+        total_token_count: 1200,
+      },
+    });
+
+    it("should derive input_cached_tokens from the llm_response blob and subtract from input (ADK v1.x)", async () => {
+      const adkSpan = createAdkSpan({ llmResponse: adkLlmResponseBlob });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(200);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(800);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+
+      const inputBucketSum = Object.entries(
+        observationEvent?.body.usageDetails ?? {},
+      )
+        .filter(([key]) => key.startsWith("input"))
+        .reduce((sum, [, value]) => sum + (value ?? 0), 0);
+      expect(inputBucketSum).toBe(1000);
+
+      expect(
+        observationEvent?.body.usageDetails.cached_content_token_count,
+      ).toBeUndefined();
+    });
+
+    it("should not subtract twice when gen_ai.usage.cache_read.input_tokens is also present (ADK >= 2.3)", async () => {
+      const adkSpan = createAdkSpan({
+        llmResponse: adkLlmResponseBlob,
+        extraAttributes: [
+          {
+            key: "gen_ai.usage.cache_read.input_tokens",
+            value: { intValue: { low: 800, high: 0, unsigned: false } },
+          },
+        ],
+      });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(200);
+      expect(observationEvent?.body.usageDetails.input).not.toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(800);
+    });
+
+    it("should keep generic usage untouched when content capture is off and the blob is '{}'", async () => {
+      const adkSpan = createAdkSpan({ llmResponse: "{}" });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(1000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(
+        observationEvent?.body.usageDetails.input_cached_tokens,
+      ).toBeUndefined();
+    });
+
+    it("should keep generic usage untouched when the blob is malformed JSON", async () => {
+      const adkSpan = createAdkSpan({ llmResponse: "not-json{{{" });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(1000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(
+        observationEvent?.body.usageDetails.input_cached_tokens,
+      ).toBeUndefined();
+    });
+
+    it("should ignore the blob for spans from other instrumentation scopes", async () => {
+      const adkSpan = createAdkSpan({
+        scopeName: "some.other.scope",
+        llmResponse: adkLlmResponseBlob,
+      });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(1000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(
+        observationEvent?.body.usageDetails.input_cached_tokens,
+      ).toBeUndefined();
+    });
+
+    it("should clamp input to zero when the blob cache count exceeds input tokens", async () => {
+      const adkSpan = createAdkSpan({
+        inputTokens: 500,
+        llmResponse: adkLlmResponseBlob,
+      });
+
+      const events = await convertOtelSpanToIngestionEvent(adkSpan, new Set());
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(800);
+    });
   });
 
   describe("Vercel AI SDK Usage details", () => {

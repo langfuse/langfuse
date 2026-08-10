@@ -33,6 +33,7 @@ export async function* watchConversationFrames(params: {
   projectId: string;
   conversationId: string;
   cursor: number;
+  openRunId?: string;
   signal?: AbortSignal;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
@@ -45,7 +46,7 @@ export async function* watchConversationFrames(params: {
   const startedAt = now();
   let cursor = params.cursor;
   let lastKeepaliveAt = startedAt;
-  let openRunId: string | null = null;
+  let openRunId: string | null = params.openRunId ?? null;
   let lastStatusKey: string | null = null;
   let reconciledStaleRun = false;
 

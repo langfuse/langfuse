@@ -5,7 +5,7 @@
  * containing the TreeNode and metadata for visual rendering.
  */
 
-import { type TreeNode } from "@/src/features/traces/fns/types";
+import { type TreeNode } from "@/src/features/traces/types/treeNode";
 
 /**
  * Flattened log item for virtualized rendering.

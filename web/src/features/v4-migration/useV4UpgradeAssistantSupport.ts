@@ -80,7 +80,7 @@ export function useEvalUpgradeAssistantPlan(params: {
   return {
     canUseAssistant,
     mode,
-    /** Show the "Migrate with assistant" CTA in the migration panel. */
+    /** Whether the migration panel may show the Assistant CTA. */
     showAssistantButton: canUseAssistant && mode !== "outside",
     assistantPrompt:
       mode === "evals-ready"

@@ -2766,6 +2766,39 @@ export class OtelIngestionProcessor {
       if (Object.keys(usageDetails).length > 0) return usageDetails;
     }
 
+    if (
+      instrumentationScopeName === "gcp.vertex.agent" &&
+      "gcp.vertex.agent.llm_response" in attributes
+    ) {
+      const usageDetails: Record<string, number | undefined> =
+        this.extractGenericGenAiUsageDetails(attributes);
+
+      // prompt tokens include cached tokens, so the blob cache-read count is subtracted from input
+      if (usageDetails["input_cached_tokens"] === undefined) {
+        const llmResponse = this.parseJsonPayload(
+          attributes["gcp.vertex.agent.llm_response"],
+        );
+        const cachedTokens =
+          llmResponse?.usage_metadata?.cached_content_token_count;
+
+        if (
+          typeof cachedTokens === "number" &&
+          !Number.isNaN(cachedTokens) &&
+          cachedTokens > 0
+        ) {
+          usageDetails["input_cached_tokens"] = cachedTokens;
+          if (usageDetails["input"] !== undefined) {
+            usageDetails["input"] = Math.max(
+              usageDetails["input"] - cachedTokens,
+              0,
+            );
+          }
+        }
+      }
+
+      return usageDetails;
+    }
+
     return this.extractGenericGenAiUsageDetails(attributes);
   }
 
@@ -2820,6 +2853,12 @@ export class OtelIngestionProcessor {
       rawUsageDetails["details.cache_creation_input_tokens"] ??
       rawUsageDetails["prompt_details.cache_write"] ??
       rawUsageDetails["input_cache_creation"];
+    // Reasoning/audio details are included in the emitted output token count
+    // and are therefore subtracted from output below to avoid double counting.
+    const outputReasoningTokens =
+      rawUsageDetails["reasoning.output_tokens"] ??
+      rawUsageDetails["completion_details.reasoning"];
+    const outputAudioTokens = rawUsageDetails["completion_details.audio"];
 
     const normalizedUsageDetails = Object.entries(rawUsageDetails).reduce(
       (acc: Record<string, number>, [key, value]) => {
@@ -2845,6 +2884,9 @@ export class OtelIngestionProcessor {
             "details.cache_creation_input_tokens",
             "prompt_details.cache_write",
             "input_cache_creation",
+            "reasoning.output_tokens",
+            "completion_details.reasoning",
+            "completion_details.audio",
           ].includes(key)
         ) {
           return acc;
@@ -2868,7 +2910,10 @@ export class OtelIngestionProcessor {
     }
 
     if (outputTokens !== undefined) {
-      normalizedUsageDetails.output = outputTokens;
+      normalizedUsageDetails.output = Math.max(
+        outputTokens - (outputReasoningTokens ?? 0) - (outputAudioTokens ?? 0),
+        0,
+      );
     }
 
     if (totalTokens !== undefined) {
@@ -2881,6 +2926,14 @@ export class OtelIngestionProcessor {
 
     if (cacheCreationTokens !== undefined) {
       normalizedUsageDetails.input_cache_creation = cacheCreationTokens;
+    }
+
+    if (outputReasoningTokens !== undefined) {
+      normalizedUsageDetails.output_reasoning_tokens = outputReasoningTokens;
+    }
+
+    if (outputAudioTokens !== undefined) {
+      normalizedUsageDetails.output_audio_tokens = outputAudioTokens;
     }
 
     return normalizedUsageDetails;
