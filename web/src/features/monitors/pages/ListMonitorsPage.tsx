@@ -16,10 +16,10 @@ import { api } from "@/src/utils/api";
 
 /** headerProps are shared by all of the ListMonitorPage headers */
 const headerProps = {
-  title: "Monitors",
+  title: "Alerts",
   help: {
     description:
-      "Monitors notify your team and automated workflows of sudden cost spikes, quality drops, latency changes, and other important changes on the system.",
+      "Alerts notify your team and automated workflows of sudden cost spikes, quality drops, latency changes, and other important changes on the system.",
   },
 };
 
@@ -110,10 +110,10 @@ const MainPage = ({ projectId }: { projectId: string }) => {
                       }
                     : undefined
                 }
-                href={`/project/${projectId}/monitors/new`}
+                href={`/project/${projectId}/alerts/new`}
                 variant="default"
               >
-                New Monitor
+                New Alert
               </ActionButton>
             </>
           ),

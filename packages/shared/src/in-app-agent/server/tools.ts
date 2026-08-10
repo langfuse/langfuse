@@ -267,11 +267,11 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "prompts:read" },
   },
-  listMonitors: {
+  listAlerts: {
     approval: "auto",
     availability: { scope: "monitors:read" },
   },
-  getMonitor: {
+  getAlert: {
     approval: "auto",
     availability: { scope: "monitors:read" },
   },
@@ -713,13 +713,13 @@ function isSilentMcpToolOutput(value: unknown): value is SilentMcpToolOutput {
 }
 
 const InAppAgentRedirectDestinationSchema = z.enum([
+  "alerts",
   "dashboardWidget",
   "dashboards",
   "datasets",
   "evals",
   "experiments",
   "models",
-  "monitors",
   "playground",
   "projectMembers",
   "projectSettings",
@@ -818,6 +818,7 @@ const InAppAgentProjectSettingsPageSchema = z.enum([
 const InAppAgentRedirectToolInputStrictSchema = z.discriminatedUnion(
   "destination",
   [
+    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("alerts") }),
     InAppAgentRedirectBaseSchema.extend({
       destination: z.literal("dashboardWidget"),
       params: z.object({ widgetId: z.string().min(1).max(200) }),
@@ -836,7 +837,6 @@ const InAppAgentRedirectToolInputStrictSchema = z.discriminatedUnion(
       destination: z.literal("experiments"),
     }),
     InAppAgentRedirectBaseSchema.extend({ destination: z.literal("models") }),
-    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("monitors") }),
     InAppAgentRedirectBaseSchema.extend({
       destination: z.literal("playground"),
     }),
@@ -952,6 +952,10 @@ function getRedirectHref(
   projectId: string,
   isV4Enabled: boolean,
 ): string {
+  if (input.destination === "alerts") {
+    return buildMonitorsPath({ projectId });
+  }
+
   if (input.destination === "dashboardWidget") {
     return buildDashboardWidgetPath({
       projectId,
@@ -980,10 +984,6 @@ function getRedirectHref(
 
   if (input.destination === "models") {
     return buildModelsPath({ projectId });
-  }
-
-  if (input.destination === "monitors") {
-    return buildMonitorsPath({ projectId });
   }
 
   if (input.destination === "playground") {

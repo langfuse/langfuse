@@ -59,14 +59,14 @@ const GetMonitorErrorPage = ({ error }: { error: APIError }) => {
   if (error?.data?.code == "NOT_FOUND") {
     return (
       <ErrorPage
-        title="Monitor not found"
-        message="This monitor doesn't exist or has been deleted."
+        title="Alert not found"
+        message="This alert doesn't exist or has been deleted."
       />
     );
   }
 
   return (
-    <ErrorPage title="Monitor could not be edited" message={error.message} />
+    <ErrorPage title="Alert could not be edited" message={error.message} />
   );
 };
 
@@ -79,6 +79,6 @@ const EditMonitorLoadingPage = ({ projectId }: { projectId: string }) => (
 
 /** getHeaderProps returns the page header properties for the EditMonitors page */
 const getHeaderProps = (projectId: string, monitorName?: string) => ({
-  title: `Edit Monitor${monitorName ? " - " + monitorName : ""}`,
-  breadcrumb: [{ name: "Monitors", href: `/project/${projectId}/monitors` }],
+  title: `Edit Alert${monitorName ? " - " + monitorName : ""}`,
+  breadcrumb: [{ name: "Alerts", href: `/project/${projectId}/alerts` }],
 });

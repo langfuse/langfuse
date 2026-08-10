@@ -14,9 +14,9 @@ export default function NewMonitorPage() {
       <Page
         withPadding
         headerProps={{
-          title: "New Monitor",
+          title: "New Alert",
           breadcrumb: [
-            { name: "Monitors", href: `/project/${projectId}/monitors` },
+            { name: "Alerts", href: `/project/${projectId}/alerts` },
           ],
         }}
       >
