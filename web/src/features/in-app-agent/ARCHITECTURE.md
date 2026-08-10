@@ -1,8 +1,7 @@
 # In-App Agent Architecture
 
-Why the drawer is built the way it is, how durable worker execution keeps the
-browser coherent, and why the unused request-scoped adapter remains isolated
-during the rollout observation gate.
+Why the drawer is built the way it is and how durable worker execution keeps the
+browser, persisted transcript, and run lifecycle coherent.
 
 `README.md` is the operational guide: what each file owns, how a run flows, how
 the sandbox and MCP authorization work. This document covers the parts you
@@ -70,7 +69,7 @@ The two message-pruning helpers are the deliberate exception: they prune
 from the worker, so they sit in `packages/shared/src/in-app-agent/messages.ts`
 and are used by both replay sanitization and render-time settling.
 
-## Current state: one browser path, one retained adapter
+## Durable execution path
 
 ```mermaid
 flowchart LR
@@ -79,7 +78,6 @@ flowchart LR
     R["project → smooth → drawer"]
   end
   subgraph WebServer["web server"]
-    H["handler.ts (legacy POST adapter)"]
     RT["router.ts / backgroundRunService.ts"]
     WR["watch/route.ts"]
   end
@@ -88,9 +86,6 @@ flowchart LR
     A["agent runtime"]
   end
   W["worker: executeInAppAgentRun"]
-
-  H --> A
-  H --> L
 
   S -->|"tRPC start + snapshot"| RT
   RT -->|"enqueue"| W
@@ -103,46 +98,10 @@ flowchart LR
   S -.->|"canonical + displayState"| R
 ```
 
-The browser has no edge to `handler.ts`: it always uses the background session.
-The authenticated POST adapter remains callable only while rollout observation
-confirms that production sends it no traffic. It is not an execution mode or an
-operational rollback lever.
-
-Closing the drawer detaches observation without cancelling the worker run, and
-reopening hydrates one snapshot and resumes the tail above the persisted cursor.
-
-## Target state: background only
-
-```mermaid
-flowchart LR
-  subgraph Browser
-    S["BackgroundExecutionSessionController"]
-    R["project → smooth → drawer"]
-  end
-  RT["web server: snapshot + watch"]
-  L[("in_app_agent_events")]
-  W["worker: executeInAppAgentRun"]
-
-  S -->|"startRun"| RT
-  RT -->|"enqueue"| W
-  W --> L
-  S -->|"1. snapshot: canonical + displayState @ cursor"| RT
-  S -->|"2. SSE tail, cursor-exclusive"| RT
-  RT --> L
-  S --> R
-```
-
-The remaining execution-path change is deleting the isolated streaming route
-and its request-scoped adapter after the observation gate. The browser and its
-session contract are already in their final shape; separate dead-code cleanup
-can follow without changing that contract.
-
-### The quarantine rule
-
-Until the POST adapter is deleted, do not reconnect it to the browser or add an
-abstraction that makes it interchangeable with the durable session. Shared
-runtime contracts must remain independent of how a server run is driven so the
-adapter can be removed without redesigning the worker path.
+Closing the drawer detaches observation without cancelling the run. Reopening
+hydrates one snapshot and resumes the tail above the persisted cursor. The
+session is the sole browser owner of the canonical transcript, approvals,
+attachment, cancellation, and current run state.
 
 ## Change rules
 

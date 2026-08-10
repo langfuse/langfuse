@@ -60,8 +60,8 @@
 - `@langfuse/shared/in-app-agent/server` (plus per-module subpaths via the
   `./in-app-agent/server/*` wildcard) via `src/in-app-agent/server/`:
   the EE-licensed in-app-agent runtime (Mastra/Bedrock/MCP loop, tools,
-  persistence, sandbox), consumed by web's foreground adapter and the future
-  worker background-execution processor.
+  persistence, sandbox), consumed by web's router/watch adapters and the worker
+  execution processor.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/ee/ingestionMasking`, and
