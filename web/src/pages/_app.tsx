@@ -113,6 +113,8 @@ if (
   });
 }
 
+import { setupChunkLoadResilience } from "@/src/utils/chunkLoadResilience";
+
 const MyApp: AppType<{ session: Session | null }> = ({
   Component,
   pageProps: { session, ...pageProps },
@@ -120,6 +122,11 @@ const MyApp: AppType<{ session: Session | null }> = ({
   const router = useRouter();
   const skipAppLayout =
     "skipAppLayout" in Component && Component.skipAppLayout === true;
+
+  useEffect(() => {
+    const cleanup = setupChunkLoadResilience();
+    return () => cleanup();
+  }, []);
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
