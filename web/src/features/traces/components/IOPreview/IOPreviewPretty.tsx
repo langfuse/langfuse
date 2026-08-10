@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
-import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
+import { env } from "@/src/env.mjs";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import {
   type ChatMLParserResult,
@@ -233,7 +233,8 @@ export function IOPreviewPretty({
     const messagesSize = estimateSize(allMessages);
     const totalSize = inputSize + outputSize + messagesSize;
 
-    const shouldRender = totalSize <= MARKDOWN_RENDER_CHARACTER_LIMIT;
+    const shouldRender =
+      totalSize <= env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT;
 
     return shouldRender;
   }, [parsedInput, parsedOutput, allMessages]);
