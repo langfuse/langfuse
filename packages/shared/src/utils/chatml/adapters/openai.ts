@@ -40,6 +40,68 @@ const OpenAIInputMessagesSchema = z
     { message: "Messages with top-level parts are not OpenAI format" },
   );
 
+// Role-less item types normalizeMessage converts. Role-less items with other
+// types (e.g. LangChain's "human"/"ai") are not Responses API items.
+const RESPONSES_ITEM_TYPES = new Set([
+  "reasoning",
+  "function_call",
+  "tool_call",
+  "function_call_output",
+]);
+
+/**
+ * Check that a Responses API request `input` array holds role-based messages
+ * or typed items normalizeMessage handles. Rejects string items
+ * (embeddings-style input) and messages with top-level parts (Microsoft
+ * Agent/Gemini format).
+ */
+function isResponsesApiInputArray(value: unknown): value is unknown[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => {
+      if (!item || typeof item !== "object") return false;
+      const msg = item as Record<string, unknown>;
+      if (Array.isArray(msg.parts)) return false;
+      if (typeof msg.role === "string") return true;
+      return typeof msg.type === "string" && RESPONSES_ITEM_TYPES.has(msg.type);
+    })
+  );
+}
+
+// Bare {input: "..."} is too generic to claim; a string input needs a
+// distinctive Responses API request sibling.
+const RESPONSES_REQUEST_SIBLINGS = [
+  "tools",
+  "tool_choice",
+  "parallel_tool_calls",
+  "instructions",
+];
+
+/**
+ * Responses API request: {input: [...] | "...", tools?, instructions?, ...}
+ * Shared by detect() and preprocessData so detection cannot drift from what
+ * preprocessing consumes. Also used by extractAdditionalInput to hide `input`
+ * from additional input only when it holds the conversation.
+ */
+export function isOpenAIResponsesRequest(
+  data: unknown,
+): data is Record<string, unknown> {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  if ("messages" in data || "output" in data) return false;
+  const obj = data as Record<string, unknown>;
+  if (isResponsesApiInputArray(obj.input)) return true;
+  return (
+    typeof obj.input === "string" &&
+    obj.input.length > 0 &&
+    RESPONSES_REQUEST_SIBLINGS.some((key) => key in obj)
+  );
+}
+
+const OpenAIInputResponsesSchema = z.custom<Record<string, unknown>>(
+  isOpenAIResponsesRequest,
+);
+
 // OUTPUT SCHEMAS (responses)
 const OpenAIOutputResponsesSchema = z.looseObject({
   output: z.array(z.any()),
@@ -325,6 +387,25 @@ function preprocessData(data: unknown): unknown {
     }
   }
 
+  // Responses API request: {input: [...] | "...", tools?, instructions?, ...}
+  // Reference: https://platform.openai.com/docs/api-reference/responses/create
+  if (isOpenAIResponsesRequest(data)) {
+    const items =
+      typeof data.input === "string"
+        ? [{ role: "user", content: data.input }]
+        : (data.input as unknown[]);
+    const messages =
+      typeof data.instructions === "string" && data.instructions !== ""
+        ? [{ role: "system", content: data.instructions }, ...items]
+        : items;
+    if (Array.isArray(data.tools)) {
+      // Attach tools to all messages
+      const tools = (data.tools as unknown[]).map(flattenToolDefinition);
+      return messages.map((msg) => ({ ...normalizeMessage(msg), tools }));
+    }
+    return messages.map(normalizeMessage);
+  }
+
   // Chat Completions response: {choices: [{message: {...}}]}
   if (typeof data === "object" && !Array.isArray(data) && "choices" in data) {
     const obj = data as Record<string, unknown>;
@@ -482,6 +563,7 @@ export const openAIAdapter: ProviderAdapter = {
     if (OpenAIInputChatCompletionsSchema.safeParse(ctx.metadata).success)
       return true;
     if (OpenAIInputMessagesSchema.safeParse(ctx.metadata).success) return true;
+    if (OpenAIInputResponsesSchema.safeParse(ctx.metadata).success) return true;
     if (OpenAIOutputResponsesSchema.safeParse(ctx.metadata).success)
       return true;
     if (OpenAIOutputChoicesSchema.safeParse(ctx.metadata).success) return true;
@@ -493,6 +575,7 @@ export const openAIAdapter: ProviderAdapter = {
     if (OpenAIInputChatCompletionsSchema.safeParse(ctx.data).success)
       return true;
     if (OpenAIInputMessagesSchema.safeParse(ctx.data).success) return true;
+    if (OpenAIInputResponsesSchema.safeParse(ctx.data).success) return true;
     if (OpenAIOutputResponsesSchema.safeParse(ctx.data).success) return true;
     if (OpenAIOutputChoicesSchema.safeParse(ctx.data).success) return true;
     if (OpenAIOutputSingleMessageSchema.safeParse(ctx.data).success)

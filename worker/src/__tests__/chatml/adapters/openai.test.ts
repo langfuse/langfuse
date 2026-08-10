@@ -3,6 +3,7 @@ import {
   openAIAdapter,
   normalizeInput,
   normalizeOutput,
+  extractAdditionalInput,
 } from "@langfuse/shared";
 
 describe("OpenAI Adapter", () => {
@@ -312,6 +313,241 @@ describe("OpenAI Adapter", () => {
       const result = normalizeOutput(output, { framework: "openai" });
 
       expect(result.data?.[0].content).toBe("Hello");
+    });
+  });
+
+  describe("Responses API request format", () => {
+    // Shape logged by SDK wrappers for Responses API calls,
+    // e.g. langfuse.openai (langfuse-python >= 4.9.1)
+    const responsesRequestInput = {
+      input: [
+        {
+          role: "system",
+          content: "# Expense Policy Assistant\nAnswer using policy documents.",
+        },
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: "Can I expense a $50 team lunch?" },
+          ],
+        },
+        {
+          id: "rs_123",
+          summary: [],
+          type: "reasoning",
+          content: [],
+          encrypted_content: "gAAAAA...",
+        },
+        {
+          arguments: '{"query":"team lunch limit"}',
+          call_id: "call_123",
+          name: "SearchExpensePolicy",
+          type: "function_call",
+          id: "fc_123",
+          status: "completed",
+        },
+        {
+          call_id: "call_123",
+          output: "Meals with clients are capped at $75 per person.",
+          type: "function_call_output",
+        },
+      ],
+      tools: [
+        {
+          name: "SearchExpensePolicy",
+          parameters: {
+            type: "object",
+            properties: { query: { type: "string" } },
+            required: ["query"],
+          },
+          strict: true,
+          type: "function",
+          description: "Search the expense policy",
+        },
+      ],
+      // Junk value logged by an SDK bug; must not break parsing
+      tool_choice: "<openai.Omit object at 0x104f0e900>",
+      parallel_tool_calls: false,
+    };
+
+    it("should detect Responses API request format structurally", () => {
+      expect(
+        openAIAdapter.detect({ metadata: {}, data: responsesRequestInput }),
+      ).toBe(true);
+
+      expect(openAIAdapter.detect({ metadata: responsesRequestInput })).toBe(
+        true,
+      );
+
+      // Embeddings-style {input: [...strings]} is not a chat request
+      expect(
+        openAIAdapter.detect({
+          metadata: {},
+          data: {
+            input: ["some text", "other text"],
+            model: "text-embedding-3-small",
+          },
+        }),
+      ).toBe(false);
+
+      // Top-level parts identify Microsoft Agent/Gemini, not OpenAI
+      expect(
+        openAIAdapter.detect({
+          metadata: {},
+          data: {
+            input: [{ role: "user", parts: [{ type: "text", content: "Hi" }] }],
+          },
+        }),
+      ).toBe(false);
+
+      // Role-less items with LangChain types are not Responses API items
+      expect(
+        openAIAdapter.detect({
+          metadata: {},
+          data: {
+            input: [
+              { type: "human", content: "hi" },
+              { type: "ai", content: "hello" },
+            ],
+          },
+        }),
+      ).toBe(false);
+    });
+
+    it("should treat input array as messages and attach tools (real-world SDK payload)", () => {
+      // No framework/name hints: exercises structural detection end-to-end
+      const result = normalizeInput(responsesRequestInput, {});
+
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(5);
+
+      expect(result.data?.[0].role).toBe("system");
+      expect(result.data?.[1].role).toBe("user");
+      expect(Array.isArray(result.data?.[1].content)).toBe(true);
+
+      // function_call item converted to assistant message with tool_calls
+      expect(result.data?.[3].role).toBe("assistant");
+      expect(result.data?.[3].tool_calls?.[0]).toEqual({
+        id: "call_123",
+        name: "SearchExpensePolicy",
+        arguments: '{"query":"team lunch limit"}',
+        type: "function",
+      });
+
+      // function_call_output item converted to tool message
+      expect(result.data?.[4].role).toBe("tool");
+      expect(result.data?.[4].tool_call_id).toBe("call_123");
+      expect(result.data?.[4].content).toBe(
+        "Meals with clients are capped at $75 per person.",
+      );
+
+      // Tool definitions attached to all messages
+      expect(result.data?.[0].tools).toHaveLength(1);
+      expect(result.data?.[0].tools?.[0].name).toBe("SearchExpensePolicy");
+      expect(result.data?.[0].tools?.[0].description).toBe(
+        "Search the expense policy",
+      );
+    });
+
+    it("should not duplicate the conversation in additional input", () => {
+      const additionalInput = extractAdditionalInput(responsesRequestInput);
+
+      expect(additionalInput?.input).toBeUndefined();
+      expect(additionalInput?.tool_choice).toBe(
+        "<openai.Omit object at 0x104f0e900>",
+      );
+      expect(additionalInput?.parallel_tool_calls).toBe(false);
+    });
+
+    it("should keep an unconsumed input sibling in additional input", () => {
+      // e.g. LangGraph state: `messages` holds the conversation, not `input`
+      const additionalInput = extractAdditionalInput({
+        messages: [{ role: "user", content: "Hi" }],
+        input: "user question",
+      });
+
+      expect(additionalInput?.input).toBe("user question");
+      expect(additionalInput?.messages).toBeUndefined();
+    });
+
+    it("should handle input array without tools", () => {
+      const input = {
+        input: [
+          { role: "user", content: "What is the meaning of life?" },
+          {
+            type: "reasoning",
+            summary: [{ type: "summary_text", text: "Considering philosophy" }],
+            content: [],
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, { framework: "openai" });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].role).toBe("user");
+      expect(result.data?.[1].role).toBe("assistant");
+      expect(result.data?.[1].thinking?.[0].content).toBe(
+        "Considering philosophy",
+      );
+    });
+
+    it("should map string input with a tools sibling to a user message", () => {
+      // langfuse-python logs {input: "...", tools, ...} when tool fields are set
+      const input = {
+        input: "Can I expense a $50 team lunch?",
+        tools: [{ name: "get_weather", type: "function", description: "" }],
+        tool_choice: "auto",
+      };
+
+      expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(true);
+
+      const result = normalizeInput(input, {});
+
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(1);
+      expect(result.data?.[0].role).toBe("user");
+      expect(result.data?.[0].content).toBe("Can I expense a $50 team lunch?");
+      expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
+    });
+
+    it("should prepend instructions as a system message for string input", () => {
+      const input = {
+        instructions: "You are an expense policy assistant.",
+        input: "Can I expense a $50 team lunch?",
+      };
+
+      expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(true);
+
+      const result = normalizeInput(input, {});
+
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(2);
+      expect(result.data?.[0].role).toBe("system");
+      expect(result.data?.[0].content).toBe(
+        "You are an expense policy assistant.",
+      );
+      expect(result.data?.[1].role).toBe("user");
+      expect(result.data?.[1].content).toBe("Can I expense a $50 team lunch?");
+    });
+
+    it("should not claim bare string input without request siblings", () => {
+      const input = { input: "just some text" };
+
+      expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(false);
+
+      const result = normalizeInput(input, { framework: "openai" });
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should not treat embeddings-style string input as chat", () => {
+      const result = normalizeInput(
+        { input: ["some text", "other text"], model: "text-embedding-3-small" },
+        { framework: "openai" },
+      );
+
+      expect(result.success).toBe(false);
     });
   });
 

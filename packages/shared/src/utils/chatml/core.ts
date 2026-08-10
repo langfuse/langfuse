@@ -11,6 +11,7 @@ import {
   ChatMlMessageSchema,
 } from "../IORepresentation/chatML/types";
 import { selectAdapter, type NormalizerContext } from "./adapters";
+import { isOpenAIResponsesRequest } from "./adapters/openai";
 
 type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
@@ -87,7 +88,12 @@ export function extractAdditionalInput(
   const additionalInput =
     typeof input === "object" && input !== null && !Array.isArray(input)
       ? Object.fromEntries(
-          Object.entries(input as object).filter(([key]) => key !== "messages"),
+          Object.entries(input as object).filter(
+            ([key]) =>
+              key !== "messages" &&
+              // `input` holds the conversation only in Responses API requests
+              !(key === "input" && isOpenAIResponsesRequest(input)),
+          ),
         )
       : undefined;
 
