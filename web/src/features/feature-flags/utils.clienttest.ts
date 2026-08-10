@@ -10,7 +10,7 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(true);
-    expect(flags.searchBar).toBe(true);
+    expect(flags.v4UpgradeUi).toBe(true);
   });
 
   it("enables feature previews by default for ClickHouse team members", () => {
@@ -20,7 +20,7 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(true);
-    expect(flags.searchBar).toBe(true);
+    expect(flags.v4UpgradeUi).toBe(true);
   });
 
   it("does not enable feature previews by default for other users", () => {
@@ -30,7 +30,7 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(false);
-    expect(flags.searchBar).toBe(false);
+    expect(flags.v4UpgradeUi).toBe(false);
   });
 
   it("honors a Langfuse team member's explicit opt-out", () => {
@@ -40,6 +40,6 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(false);
-    expect(flags.searchBar).toBe(true);
+    expect(flags.v4UpgradeUi).toBe(true);
   });
 });
