@@ -55,7 +55,7 @@ export function OnboardingSurvey() {
   const onboardingStatus = api.onboarding.status.useQuery();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
   const queryRedirectPath =
-    getQueryRedirectPath(router.query.targetPath) ??
+    getDemoCallbackRedirectPath(router.query.targetPath) ??
     getDemoCallbackRedirectPath(router.query.callbackUrl);
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
@@ -66,13 +66,9 @@ export function OnboardingSurvey() {
 
       try {
         const referralSource = data?.referralSource?.trim();
-        const onboardingPayload =
-          referralSource || queryRedirectPath
-            ? {
-                ...(referralSource ? { referralSource } : {}),
-                ...(queryRedirectPath ? { targetPath: queryRedirectPath } : {}),
-              }
-            : undefined;
+        const onboardingPayload = referralSource
+          ? { referralSource }
+          : undefined;
         const onboardingResult =
           await completeOnboardingMutation.mutateAsync(onboardingPayload);
         utils.onboarding.status.setData(undefined, {

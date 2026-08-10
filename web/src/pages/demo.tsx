@@ -1,15 +1,26 @@
 import { type GetServerSideProps, type GetServerSidePropsResult } from "next";
 
 import { env } from "@/src/env.mjs";
-import { getConfiguredDemoProject } from "@/src/features/auth/lib/demoProjectAccess";
 import { getServerAuthSession } from "@/src/server/auth";
+import { prisma } from "@langfuse/shared/src/db";
 
 const DemoRedirectPage = () => null;
 
 export default DemoRedirectPage;
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const demoProject = await getConfiguredDemoProject();
+  const demoProject =
+    env.NEXT_PUBLIC_DEMO_ORG_ID && env.NEXT_PUBLIC_DEMO_PROJECT_ID
+      ? await prisma.project.findUnique({
+          where: {
+            orgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+            id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+          },
+          select: {
+            id: true,
+          },
+        })
+      : null;
 
   if (!demoProject) {
     return redirect("/");

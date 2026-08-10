@@ -13,7 +13,6 @@ import {
 } from "@/src/features/rbac/constants/organizationAccessRights";
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
-import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 
 const DEFAULT_STARTER_PROJECT_NAME = "My Project";
 const STARTER_ORGANIZATION_METADATA = {
@@ -265,14 +264,12 @@ export const completeCloudSignupOnboarding = async ({
   userEmail,
   canCreateOrganizations,
   referralSource,
-  targetPath,
 }: {
   prisma: PrismaClient;
   userId: string;
   userEmail?: string | null;
   canCreateOrganizations: boolean;
   referralSource?: string;
-  targetPath?: string;
 }) =>
   prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
@@ -297,9 +294,6 @@ export const completeCloudSignupOnboarding = async ({
       userId,
       canCreateOrganizations,
     });
-    const requestedRedirectTo = targetPath
-      ? stripBasePath(getSafeRedirectPath(targetPath))
-      : undefined;
 
     if (!existingSurvey) {
       const normalizedReferralSource = referralSource?.trim();
@@ -320,7 +314,7 @@ export const completeCloudSignupOnboarding = async ({
     }
 
     return {
-      redirectTo: requestedRedirectTo ?? redirectTarget.redirectTo,
+      redirectTo: redirectTarget.redirectTo,
     };
   });
 

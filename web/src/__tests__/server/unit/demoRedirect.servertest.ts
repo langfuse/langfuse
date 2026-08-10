@@ -72,7 +72,6 @@ describe("demo redirect page", () => {
       },
       select: {
         id: true,
-        orgId: true,
       },
     });
     expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();

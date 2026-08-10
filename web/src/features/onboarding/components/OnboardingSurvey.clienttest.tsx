@@ -122,9 +122,7 @@ describe("OnboardingSurvey", () => {
     fireEvent.click(screen.getByRole("button", { name: "Skip" }));
 
     await waitFor(() => {
-      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith({
-        targetPath: "/demo",
-      });
+      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith(undefined);
       expect(mocks.statusSetDataMock).toHaveBeenCalledWith(undefined, {
         completed: true,
         redirectTo: "/demo",

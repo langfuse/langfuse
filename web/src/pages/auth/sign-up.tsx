@@ -29,7 +29,7 @@ import {
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
-import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -91,6 +91,10 @@ function StandardSignupFlow({
   const targetPath = queryTargetPath
     ? getSafeRedirectPath(queryTargetPath)
     : undefined;
+  const ssoCallbackUrl =
+    targetPath && stripBasePath(targetPath) === "/demo"
+      ? targetPath
+      : undefined;
 
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -166,7 +170,7 @@ function StandardSignupFlow({
 
         signIn(
           providerId,
-          targetPath ? { callbackUrl: targetPath } : undefined,
+          ssoCallbackUrl ? { callbackUrl: ssoCallbackUrl } : undefined,
         );
         return; // stop further execution – page redirect expected
       }
@@ -309,7 +313,7 @@ function StandardSignupFlow({
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
-        callbackUrl={targetPath}
+        callbackUrl={ssoCallbackUrl}
         lastUsedMethod={lastUsedAuthMethod}
         onProviderSelect={setLastUsedAuthMethod}
       />
@@ -326,7 +330,9 @@ function VerifiedSignupFlow({
   const emailParam = router.query.email as string | undefined;
   const queryTargetPath = router.query.targetPath as string | undefined;
   const targetPath = queryTargetPath
-    ? getSafeRedirectPath(queryTargetPath)
+    ? stripBasePath(getSafeRedirectPath(queryTargetPath)) === "/demo"
+      ? "/demo"
+      : undefined
     : undefined;
   const setupPasswordPath = targetPath
     ? `/auth/setup-password?targetPath=${encodeURIComponent(targetPath)}`

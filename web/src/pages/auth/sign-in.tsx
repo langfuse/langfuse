@@ -46,7 +46,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import { Spinner } from "@/src/components/layouts/spinner";
 
 // The shared, intentionally-public demo identity created by the seed script
@@ -641,6 +641,10 @@ export default function SignIn({
   const targetPath = queryTargetPath
     ? getSafeRedirectPath(queryTargetPath)
     : undefined;
+  const ssoCallbackUrl =
+    targetPath && stripBasePath(targetPath) === "/demo"
+      ? targetPath
+      : undefined;
 
   // Credentials
   const credentialsForm = useForm({
@@ -797,7 +801,7 @@ export default function SignIn({
 
         signIn(
           providerId,
-          targetPath ? { callbackUrl: targetPath } : undefined,
+          ssoCallbackUrl ? { callbackUrl: ssoCallbackUrl } : undefined,
         );
         return; // stop further execution – page redirect expected
       }
@@ -975,7 +979,7 @@ export default function SignIn({
             ) : null}
             <SSOButtons
               authProviders={authProviders}
-              callbackUrl={targetPath}
+              callbackUrl={ssoCallbackUrl}
               lastUsedMethod={lastUsedAuthMethod}
               onProviderSelect={setLastUsedAuthMethod}
             />
