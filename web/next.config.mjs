@@ -118,6 +118,9 @@ const nextConfig = {
   },
   experimental: {
     turbopackFileSystemCacheForBuild: true,
+    // Next.js 16.3 defaults this to true, but the workspace intentionally uses
+    // the TypeScript 6 API package without its CLI so package scripts resolve to ts7.
+    useTypeScriptCli: false,
   },
 
   /**

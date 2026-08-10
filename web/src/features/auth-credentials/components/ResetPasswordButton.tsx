@@ -6,6 +6,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
+import { useRouter } from "next/router";
 
 export function RequestResetPasswordEmailButton({
   email,
@@ -23,6 +24,7 @@ export function RequestResetPasswordEmailButton({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const session = useSession();
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const isValidEmail = z.email().safeParse(email).success;
 
@@ -69,7 +71,7 @@ export function RequestResetPasswordEmailButton({
         : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`;
       const callback = encodeURIComponent(targetCb);
       const url = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
-      window.location.href = url;
+      await router.push(url);
     } catch (error) {
       console.error("Error verifying code:", error);
       setErrorMessage("An unexpected error occurred. Please try again.");
