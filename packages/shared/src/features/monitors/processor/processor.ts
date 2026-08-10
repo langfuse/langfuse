@@ -409,7 +409,7 @@ export function buildPermalink(
 ): string | undefined {
   if (!env.NEXTAUTH_URL) return undefined;
   const base = env.NEXTAUTH_URL.replace(/\/$/, "");
-  return `${base}/project/${projectId}/monitors/${monitorId}`;
+  return `${base}/project/${projectId}/alerts/${monitorId}`;
 }
 
 /** isBreaching returns true for the threshold-cross severities (ALERT/WARNING) whose alert should deep-link to the breaching data window; OK (recovery) and the lifecycle states (NO_DATA/UNKNOWN/PAUSED) return false. */

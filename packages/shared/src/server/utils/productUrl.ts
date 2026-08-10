@@ -202,7 +202,7 @@ export const buildModelsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/models`;
 
 export const buildMonitorsPath = (params: { projectId: string }) =>
-  `${buildProjectPath(params)}/monitors`;
+  `${buildProjectPath(params)}/alerts`;
 
 export const buildPlaygroundPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/playground`;
