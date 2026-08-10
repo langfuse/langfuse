@@ -37,6 +37,12 @@ type PeekHeaderProps = {
   actions?: React.ReactNode;
   /** The same actions as labeled rows for the overflow "…" menu. */
   actionsMenu?: React.ReactNode;
+  /**
+   * Assistant launcher, pinned in the chrome so it stays reachable while the
+   * slide-in covers the page-header launcher. Fixed width, so it needs no
+   * planning of its own. Callers pass `undefined` when unavailable.
+   */
+  assistant?: React.ReactNode;
   /** Expand-to-max-width toggle. Desktop only; hidden on mobile. */
   expand?: { isExpanded: boolean; onToggle: () => void };
   /** Open the standalone detail page in a new browser tab. Optional. */
@@ -115,6 +121,7 @@ export function PeekHeader({
   resolveDetailNavigationPath,
   actions,
   actionsMenu,
+  assistant,
   expand,
   openInNewTab,
   onClose,
@@ -144,6 +151,10 @@ export function PeekHeader({
   const hasActions = Boolean(actions);
   const hasOpenInTab = Boolean(openInNewTab);
   const hasNav = Boolean(detailNavigationKey && resolveDetailNavigationPath);
+  // A dependency of the layout effect: the assistant appearing (its
+  // entitlement resolving in the caller) must replan before paint, not on the
+  // post-paint cluster resize.
+  const hasAssistant = Boolean(assistant);
 
   // Measure + plan in a layout effect (before paint), reading width from the
   // ref directly — useElementSize's state lands post-paint, which would flash
@@ -197,6 +208,7 @@ export function PeekHeader({
     hasActions,
     hasOpenInTab,
     hasNav,
+    hasAssistant,
     plan,
   ]);
 
@@ -275,11 +287,14 @@ export function PeekHeader({
             </div>
           ) : null}
 
-          {/* Pinned block: nav (keeps K/J live), expand, close. */}
+          {/* Pinned block: assistant (when wired), nav (keeps K/J live),
+              expand, close. The assistant never folds, so the slide-in
+              entrypoint stays reachable however narrow the peek gets. */}
           <div
             ref={pinnedRef}
             className="flex h-full flex-row items-center gap-1"
           >
+            {assistant}
             {hasNav && (
               <div ref={navRef} className="flex flex-row items-center">
                 <DetailPageNav

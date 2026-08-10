@@ -84,6 +84,11 @@ type TablePeekViewProps = Pick<
    * overflow "…" menu when the peek is too narrow for the inline icon row.
    */
   actionsMenu?: React.ReactNode;
+  /**
+   * Assistant launcher pinned in peek chrome, for peeks whose item the
+   * assistant can reason about. The caller owns the availability check.
+   */
+  assistant?: React.ReactNode;
   // Content
   /**
    * The content to display in the peek view.
@@ -244,6 +249,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}
       actions={props.actions}
       actionsMenu={props.actionsMenu}
+      assistant={props.assistant}
       expand={
         isMobile
           ? undefined
