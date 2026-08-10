@@ -290,7 +290,7 @@ export async function executeInAppAgentRun(params: {
     // Rebuild each run so grants invalidated by role changes drop out.
     const toolPolicy = createInAppAgentToolPolicy({
       userAccess,
-      additionalAutoApproved: conversation.alwaysAllowedTools,
+      alwaysAllowedTools: conversation.alwaysAllowedTools,
     });
 
     const allowedToolNames = getInAppAgentMcpAllowedToolNames(

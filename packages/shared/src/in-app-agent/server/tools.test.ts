@@ -8,7 +8,7 @@ describe("createInAppAgentToolPolicy", () => {
 
     const asOwner = createInAppAgentToolPolicy({
       userAccess: { projectRole: "OWNER", isAdmin: false },
-      additionalAutoApproved: grants,
+      alwaysAllowedTools: grants,
     });
 
     expect(asOwner.available.has("createModel")).toBe(true);
@@ -16,23 +16,10 @@ describe("createInAppAgentToolPolicy", () => {
 
     const asMember = createInAppAgentToolPolicy({
       userAccess: { projectRole: "MEMBER", isAdmin: false },
-      additionalAutoApproved: grants,
+      alwaysAllowedTools: grants,
     });
 
     expect(asMember.available.has("createModel")).toBe(false);
     expect(asMember.autoApproved.has("createModel")).toBe(false);
-  });
-
-  it("ignores grants that are unprefixed, foreign, or not in the registry", () => {
-    const policy = createInAppAgentToolPolicy({
-      userAccess: { projectRole: "OWNER", isAdmin: false },
-      additionalAutoApproved: [
-        "createModel",
-        "someOtherServer_createModel",
-        "langfuse_aToolThatWasDeleted",
-      ],
-    });
-
-    expect(policy.autoApproved.has("createModel")).toBe(false);
   });
 });

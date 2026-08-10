@@ -23,7 +23,6 @@ export function InAppAgentToolCallCard({
   isCompact?: boolean;
   isDisabled?: boolean;
   onApproveToolCall?: (approvalId: string) => Promise<void>;
-  /** Omit this callback when conversation grants do not apply. */
   onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall?: (approvalId: string) => Promise<void>;
 }) {

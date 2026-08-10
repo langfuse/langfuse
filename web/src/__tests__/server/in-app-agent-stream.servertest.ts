@@ -946,7 +946,7 @@ describe("createAgUiStream", () => {
 
     const grantedPolicy = createInAppAgentToolPolicy({
       userAccess: defaultInAppAgentUserAccess,
-      additionalAutoApproved: ["langfuse_upsertDataset"],
+      alwaysAllowedTools: ["langfuse_upsertDataset"],
     });
 
     const stream = await createAgUiStream({

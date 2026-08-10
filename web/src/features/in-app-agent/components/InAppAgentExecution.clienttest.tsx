@@ -291,12 +291,30 @@ describe("in-app agent execution", () => {
           id: "persisted-assistant",
           role: "assistant",
           content: "I need approval.",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: "{}",
+              },
+            },
+            {
+              id: "tool-call-2",
+              type: "function",
+              function: {
+                name: "langfuse_createDashboardWidget",
+                arguments: "{}",
+              },
+            },
+          ],
         },
       ],
       eventCursor: 12,
       latestRun: {
-        id: "run-1",
-        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        id: "run-2",
+        status: InAppAgentRunStatus.RUNNING,
         errorCode: null,
         cancelRequested: false,
       },
@@ -304,6 +322,12 @@ describe("in-app agent execution", () => {
     } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
     providerMocks.conversationQuery.data = {
       ...approvedSnapshot,
+      latestRun: {
+        id: "run-1",
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        errorCode: null,
+        cancelRequested: false,
+      },
       pendingToolApprovals: [
         {
           runId: "run-1",
@@ -354,6 +378,11 @@ describe("in-app agent execution", () => {
           approvalScope: "conversation",
         },
       );
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText("createDashboardWidget: failed"),
+      ).not.toBeInTheDocument();
     });
   });
 

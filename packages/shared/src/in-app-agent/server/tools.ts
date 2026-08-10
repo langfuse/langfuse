@@ -416,7 +416,6 @@ export function isMcpToolName(
 export type InAppAgentPrefixedLangfuseMcpToolName =
   `langfuse_${InAppAgentLangfuseMcpToolName}`;
 
-/** Resolve only valid `langfuse_`-prefixed registry tool names. */
 export function getInAppAgentRegistryToolName(
   toolName: string | undefined,
 ): InAppAgentLangfuseMcpToolName | undefined {
@@ -429,7 +428,6 @@ export function getInAppAgentRegistryToolName(
   return isMcpToolName(registryToolName) ? registryToolName : undefined;
 }
 
-/** Return the canonical prefixed name accepted for durable grants. */
 export function getInAppAgentPrefixedToolName(
   toolName: string | undefined,
 ): InAppAgentPrefixedLangfuseMcpToolName | undefined {
@@ -459,28 +457,19 @@ export function isInAppAgentLangfuseMcpToolAvailable(params: {
   });
 }
 
-/** Per-run role-filtered tool availability and auto-approval policy. */
 export type InAppAgentToolPolicy = {
   readonly available: ReadonlySet<InAppAgentLangfuseMcpToolName>;
-  /** Available tools that execute without suspension. */
   readonly autoApproved: ReadonlySet<InAppAgentLangfuseMcpToolName>;
 };
 
 export function createInAppAgentToolPolicy(params: {
-  /** Tools to consider at all. Defaults to every classified Langfuse MCP tool. */
-  toolNames?: Iterable<InAppAgentLangfuseMcpToolName>;
-  /** Role gate. Omit to deny everything, matching isInAppAgentLangfuseMcpToolAvailable. */
   userAccess?: InAppAgentUserAccess;
-  /** Prefixed grants; invalid, stale, or unauthorized entries are ignored. */
-  additionalAutoApproved?: Iterable<string>;
+  alwaysAllowedTools?: Iterable<string>;
 }): InAppAgentToolPolicy {
-  const candidates =
-    params.toolNames ?? IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.values();
-
   const available = new Set<InAppAgentLangfuseMcpToolName>();
   const autoApproved = new Set<InAppAgentLangfuseMcpToolName>();
 
-  for (const toolName of candidates) {
+  for (const toolName of IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES) {
     if (
       !isInAppAgentLangfuseMcpToolAvailable({
         toolName,
@@ -497,7 +486,7 @@ export function createInAppAgentToolPolicy(params: {
     }
   }
 
-  for (const prefixedToolName of params.additionalAutoApproved ?? []) {
+  for (const prefixedToolName of params.alwaysAllowedTools ?? []) {
     const toolName = getInAppAgentRegistryToolName(prefixedToolName);
 
     if (toolName && available.has(toolName)) {
@@ -508,7 +497,6 @@ export function createInAppAgentToolPolicy(params: {
   return { available, autoApproved };
 }
 
-/** Return the mutating MCP tools authorized for this run. */
 export function getInAppAgentMcpAllowedToolNames(
   policy: InAppAgentToolPolicy,
   oneOffToolName?: InAppAgentLangfuseMcpToolName,

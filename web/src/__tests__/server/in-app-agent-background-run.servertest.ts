@@ -553,7 +553,6 @@ describe("in-app agent background runs", () => {
       approvalScope: "conversation",
     });
 
-    // The persisted interrupt determines the tool; the client sends only ids and scope.
     await expect(
       prisma.inAppAgentConversation.findFirstOrThrow({
         where: { id: grantConversation.id, projectId },

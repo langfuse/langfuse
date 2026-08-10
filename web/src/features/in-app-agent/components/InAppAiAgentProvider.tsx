@@ -1869,7 +1869,6 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
-  // Conversation grants exist only on the background execution path.
   const alwaysAllowToolCall = useMemo(
     () =>
       backgroundExecutionEnabled
