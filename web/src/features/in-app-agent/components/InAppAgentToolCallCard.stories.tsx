@@ -201,6 +201,7 @@ export const ReviewsParallelApprovals = meta.story({
             connectAgent: async () => undefined,
             abortRun: () => undefined,
             setCursor: () => undefined,
+            resolvePendingInterrupts: () => undefined,
           },
           hydrate: async () => ({
             messages: [],
@@ -242,18 +243,23 @@ export const ReviewsParallelApprovals = meta.story({
       (listener) => controller.subscribe(listener),
       () => controller.getSnapshot(),
     );
+    const approval = snapshot.pendingToolApprovals.find(
+      (candidate) =>
+        candidate.status === "pending" ||
+        candidate.status === "submitting" ||
+        candidate.status === "retry",
+    );
 
     return (
       <div className="flex max-w-lg flex-col gap-2">
-        {snapshot.pendingToolApprovals.map((approval, index) => (
+        {approval ? (
           <InAppAgentToolCallCard
             {...args}
-            key={approval.approvalRequest.toolCallId}
             tool={{
               type: "tool",
               name: approval.approvalRequest.toolName,
               status: "running",
-              args: JSON.stringify({ widget: index + 1 }),
+              args: JSON.stringify({ widget: approval.position }),
               approval: {
                 id: approval.approvalRequest.toolCallId,
                 status: approval.status,
@@ -280,7 +286,7 @@ export const ReviewsParallelApprovals = meta.story({
               });
             }}
           />
-        ))}
+        ) : null}
       </div>
     );
   },
@@ -288,14 +294,18 @@ export const ReviewsParallelApprovals = meta.story({
     const canvas = within(canvasElement);
 
     await expect(canvas.getByText("1 of 4")).toBeVisible();
+    await expect(canvas.queryByText("2 of 4")).toBeNull();
+    await expect(canvas.getAllByText("Arguments")).toHaveLength(1);
     await userEvent.click(canvas.getByRole("button", { name: "Reject" }));
-    await expect(canvas.getByText("Rejected createDashboard")).toBeVisible();
+    await expect(canvas.queryByText("Rejected createDashboard")).toBeNull();
+    await expect(canvas.queryByText("1 of 4")).toBeNull();
     await expect(canvas.getByText("2 of 4")).toBeVisible();
 
     await userEvent.click(canvas.getByRole("button", { name: "Always allow" }));
     await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledOnce();
     await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledWith("approval-2");
-    await expect(canvas.getAllByText("Submitting")).toHaveLength(3);
+    await expect(canvas.getByText("Submitting")).toBeVisible();
+    await expect(canvas.getAllByText("Arguments")).toHaveLength(1);
     await expect(canvas.queryByRole("button", { name: "Confirm" })).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Reject" })).toBeNull();
     await expect(args.onApproveToolCall).toHaveBeenCalledOnce();

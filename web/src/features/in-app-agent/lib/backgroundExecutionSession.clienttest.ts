@@ -599,9 +599,9 @@ describe("BackgroundExecutionSessionController", () => {
     });
     expect(session.getSnapshot().pendingToolApprovals).toMatchObject([
       { status: "reviewed", decision: { approved: false } },
-      { status: "reviewed", decision: { approved: true } },
-      { status: "reviewed", decision: { approved: true } },
       { status: "retry", decision: { approved: true } },
+      { status: "reviewed", decision: { approved: true } },
+      { status: "reviewed", decision: { approved: true } },
     ]);
 
     await session.retryApprovalBatch();

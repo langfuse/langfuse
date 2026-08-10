@@ -222,6 +222,12 @@ export function getDrawerMessages({
   const pendingApprovalsByToolCallId = new Map(
     pendingToolApprovals.map((approval) => [approval.id, approval]),
   );
+  const visibleApprovalId = pendingToolApprovals.find(
+    (approval) =>
+      approval.status === "pending" ||
+      approval.status === "submitting" ||
+      approval.status === "retry",
+  )?.id;
   const runningToolCallIdSet = runningToolCallIds
     ? new Set(runningToolCallIds)
     : null;
@@ -370,6 +376,10 @@ export function getDrawerMessages({
                     mappedPendingApprovalIds,
                   });
 
+              if (pendingApproval && pendingApproval.id !== visibleApprovalId) {
+                return [];
+              }
+
               if (pendingApproval) {
                 mappedPendingApprovalIds.add(pendingApproval.id);
               }
@@ -506,6 +516,7 @@ export function getDrawerMessages({
 
   for (const approval of pendingToolApprovals) {
     if (
+      approval.id !== visibleApprovalId ||
       mappedPendingApprovalIds.has(approval.id) ||
       resolvedToolCallIds.has(approval.id) ||
       resolvedToolCallIds.has(approval.approvalRequest.toolCallId)

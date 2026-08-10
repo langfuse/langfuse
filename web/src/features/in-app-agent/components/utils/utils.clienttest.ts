@@ -968,6 +968,66 @@ describe("getDrawerMessages", () => {
     ).toBe(false);
   });
 
+  it("shows only the current approval from a parallel batch", () => {
+    const toolCallIds = [
+      "tool-call-1",
+      "tool-call-2",
+      "tool-call-3",
+      "tool-call-4",
+    ];
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          toolCalls: toolCallIds.map((id) => ({
+            id,
+            type: "function" as const,
+            function: {
+              name: "langfuse_createDashboardWidget",
+              arguments: JSON.stringify({ name: id }),
+            },
+          })),
+        },
+      ] satisfies AgUiMessage[],
+      pendingToolApprovals: toolCallIds.map((id, index) => ({
+        id,
+        approvalRequest: {
+          type: "tool_approval_request" as const,
+          toolCallId: id,
+          toolName: "langfuse_createDashboardWidget",
+          args: { name: id },
+          runId: "run-1",
+        },
+        status: index === 0 ? ("pending" as const) : ("queued" as const),
+        position: index + 1,
+        total: toolCallIds.length,
+      })),
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              approval: {
+                id: "tool-call-1",
+                status: "pending",
+                position: 1,
+                total: 4,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(1);
+  });
+
   it("does not show a stale pending approval for an errored tool result", () => {
     const toolError =
       "MCP error -32602: Validation failed: categories: Category must be an array of objects with label value pairs, where labels and values are unique.";

@@ -375,7 +375,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     if (approvals.some((approval) => !approval.decision)) {
       return;
     }
-    await this.submitApprovalBatch(approvals);
+    await this.submitApprovalBatch(approvals, input.toolCallId);
   }
 
   async retryApprovalBatch(): Promise<void> {
@@ -387,11 +387,22 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
       return;
     }
 
-    await this.submitApprovalBatch(approvals);
+    const retryApproval = approvals.find(
+      (approval) => approval.status === "retry",
+    );
+    if (!retryApproval) {
+      return;
+    }
+
+    await this.submitApprovalBatch(
+      approvals,
+      retryApproval.approvalRequest.toolCallId,
+    );
   }
 
   private async submitApprovalBatch(
     approvals: BackgroundExecutionApprovalView[],
+    activeToolCallId: string,
   ): Promise<void> {
     const runId = approvals[0]?.runId;
     if (!runId || approvals.some((approval) => approval.runId !== runId)) {
@@ -401,7 +412,10 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     const attachmentGeneration = this.attachGeneration;
     const submitting = approvals.map((approval) => ({
       ...approval,
-      status: "submitting" as const,
+      status:
+        approval.approvalRequest.toolCallId === activeToolCallId
+          ? ("submitting" as const)
+          : ("reviewed" as const),
     }));
     const resume = submitting.map((approval) => {
       if (!approval.decision) {
@@ -424,10 +438,10 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     } catch (error) {
       this.setView({
         ...this.view,
-        pendingToolApprovals: submitting.map((approval, index) => ({
+        pendingToolApprovals: submitting.map((approval) => ({
           ...approval,
           status:
-            index === submitting.length - 1
+            approval.approvalRequest.toolCallId === activeToolCallId
               ? ("retry" as const)
               : ("reviewed" as const),
         })),
