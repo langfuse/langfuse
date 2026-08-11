@@ -430,14 +430,19 @@ export function DataTable<TData extends object, TValue>({
           className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
           style={{ ...columnSizeVars }}
         >
-          {/* Zero-height so an arriving refetch never shifts the table. */}
+          {/* Zero-height so an arriving refetch never shifts the table. The bar
+              stays mounted and pauses when idle: mounting it per fetch restarted
+              the sweep from zero, which read as a second animation. */}
           <div className="sticky top-0 z-30 h-0">
-            {showRefetchBar && !data.isLoading ? (
-              <div
-                aria-hidden="true"
-                className="from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat"
-              />
-            ) : null}
+            <div
+              aria-hidden="true"
+              className={cn(
+                "from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat transition-opacity duration-200",
+                showRefetchBar && !data.isLoading
+                  ? "opacity-100"
+                  : "opacity-0 [animation-play-state:paused]",
+              )}
+            />
           </div>
           <Table>
             <TableHeader className="sticky top-0 z-20">

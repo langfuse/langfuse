@@ -49,4 +49,37 @@ describe("useAnimatedBusy", () => {
     });
     expect(result.current).toBe(false);
   });
+
+  it("stays on across the gap between a refresh's stages", () => {
+    const { result, rerender } = renderHook(
+      ({ busy }: { busy: boolean }) => useAnimatedBusy(busy, 1000, 400),
+      { initialProps: { busy: false } },
+    );
+
+    // Rows land, then their batched I/O starts a moment later: one refresh, so
+    // the flag must not drop in between (it would restart the animation).
+    rerender({ busy: true });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    rerender({ busy: false });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(result.current).toBe(true);
+
+    rerender({ busy: true });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    rerender({ busy: false });
+    expect(result.current).toBe(true);
+
+    // Released a settle window later, rounded up to a whole cycle (900 + 400
+    // settle -> two cycles from the original start).
+    act(() => {
+      vi.advanceTimersByTime(1100);
+    });
+    expect(result.current).toBe(false);
+  });
 });

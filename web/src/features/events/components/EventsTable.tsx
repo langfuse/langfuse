@@ -6,6 +6,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { startOfMinute } from "date-fns";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
   type UseSidebarFilterStateOptions,
@@ -406,16 +407,19 @@ export default function ObservationsEventsTable({
   );
 
   // Upper bound of the chart/outlier-strip window (below), which — unlike the
-  // table — needs a closed range. Re-stamped on every refresh; the table's own
-  // window is anchored and ignores it.
-  const [chartWindowEnd, setChartWindowEnd] = useState(() => new Date());
+  // table — needs a closed range. Re-stamped on refresh but truncated to the
+  // minute: a to-the-millisecond bound re-keyed the chart query on every tick,
+  // and that cold load is what faded the strip out mid-refresh.
+  const [chartWindowEndMs, setChartWindowEnd] = useState(() =>
+    startOfMinute(new Date()).getTime(),
+  );
 
   // A refresh is invalidation only: rows, counts and facet options share one
   // anchored window (see useLiveTableDateRange), so every refetch reuses its
   // query key and updates in place instead of re-keying into a cold load. The
   // chart runs dashboard.executeQuery, which is invalidated alongside.
   const handleRefresh = useCallback(() => {
-    setChartWindowEnd(new Date());
+    setChartWindowEnd(startOfMinute(new Date()).getTime());
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
@@ -453,12 +457,10 @@ export default function ObservationsEventsTable({
   // theirs still ends at "now" and advances on every refresh tick.
   const chartTimeWindow = useMemo(
     () => ({
-      from:
-        dateRange?.from ??
-        new Date(chartWindowEnd.getTime() - 24 * 60 * 60 * 1000),
-      to: dateRange?.to ?? chartWindowEnd,
+      from: dateRange?.from ?? new Date(chartWindowEndMs - 24 * 60 * 60 * 1000),
+      to: dateRange?.to ?? new Date(chartWindowEndMs),
     }),
-    [dateRange, chartWindowEnd],
+    [dateRange, chartWindowEndMs],
   );
 
   // Drill-in writes the clicked bucket as an absolute range. URL-only
