@@ -9,7 +9,8 @@ import { getMaxDecimals } from "@/src/features/models/utils";
 export function PricePreview({
   prices,
 }: {
-  prices: { usageType: string; price: number }[];
+  // `key` is the usage type's row identity: names can collide while editing.
+  prices: { key: string; usageType: string; price: number }[];
 }) {
   const decimalsFor = (multiplier: number) =>
     prices.length === 0
@@ -35,9 +36,9 @@ export function PricePreview({
             <span className="text-right">per 1M</span>
           </div>
 
-          {prices.map(({ usageType, price }) => (
+          {prices.map(({ key, usageType, price }) => (
             <div
-              key={usageType}
+              key={key}
               className="text-muted-foreground grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 rounded px-1 py-0.5 text-xs"
             >
               <span className="font-bold break-all">{usageType}</span>

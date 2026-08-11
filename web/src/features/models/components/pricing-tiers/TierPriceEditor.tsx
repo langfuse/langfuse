@@ -54,7 +54,9 @@ export function TierPriceEditor({
   const previewPrices = usageTypeRows.flatMap((row, index) => {
     const price = parsePriceInput(tierPrices?.[row.key]);
     const usageType = nameOf(index).trim();
-    return price === null || !usageType ? [] : [{ usageType, price }];
+    return price === null || !usageType
+      ? []
+      : [{ key: row.key, usageType, price }];
   });
 
   return (
