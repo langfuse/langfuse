@@ -74,7 +74,6 @@ export {
 export {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
-  buildEventsMetadataKeysQuery,
   buildEventsMetadataValuesQuery,
   EVENTS_FILTER_OPTION_TOP_N,
   EVENTS_APPROX_TOTAL_COUNT_MARKER,

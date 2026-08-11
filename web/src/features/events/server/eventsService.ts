@@ -11,7 +11,6 @@ import {
   getCategoricalScoresGroupedByName,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
-  getEventsMetadataKeys,
   getEventsMetadataValues,
   getEventsNumericStatsByFilterColumn,
   getNumericScoresGroupedByName,
@@ -148,6 +147,7 @@ const EVENT_FILTER_OPTION_COLUMNS = [
   "isRootObservation",
   "toolNames",
   "calledToolNames",
+  "metadataKeys",
 ] as const satisfies readonly EventFilterOptionColumn[];
 
 const EVENT_SCORE_FILTER_OPTION_COLUMNS = [
@@ -159,13 +159,9 @@ const EVENT_SCORE_FILTER_OPTION_COLUMNS = [
   "trace_score_booleans",
 ] as const;
 
-// Metadata keys come from a distinct ClickHouse query, so they load lazily as their own group.
-const EVENT_METADATA_FILTER_OPTION_COLUMNS = ["metadataKeys"] as const;
-
 export const EVENT_FILTER_OPTIONS_COLUMNS = [
   ...EVENT_FILTER_OPTION_COLUMNS,
   ...EVENT_SCORE_FILTER_OPTION_COLUMNS,
-  ...EVENT_METADATA_FILTER_OPTION_COLUMNS,
 ] as const;
 
 type EventFilterOptionsColumn = (typeof EVENT_FILTER_OPTIONS_COLUMNS)[number];
@@ -651,7 +647,6 @@ export async function getEventFilterOptions(
   const shouldLoadTraceScoreBooleans = requestedColumns.has(
     "trace_score_booleans",
   );
-  const shouldLoadMetadataKeys = requestedColumns.has("metadataKeys");
   // Level provenance for the level-agnostic "Scores" groups: which level(s)
   // each offered score name exists at, so the UI can tag every score option
   // with its level (ScoreTag, LFE-10596). Loaded with the agnostic groups.
@@ -676,7 +671,6 @@ export async function getEventFilterOptions(
     observationLevelScoreNames,
     traceLevelScoreNames,
     eventFilterOptions,
-    metadataKeyRows,
   ] = await Promise.all([
     shouldLoadScoresAvg
       ? getNumericScoresGroupedByName(projectId, [
@@ -739,9 +733,6 @@ export async function getEventFilterOptions(
           // facet. uniq(span_id) over this scan already honors refinedEventsFilter.
           includeApproxCount: scopedParams.includeApproxCount,
         })
-      : Promise.resolve([]),
-    shouldLoadMetadataKeys
-      ? getEventsMetadataKeys({ projectId, filter: eventsFilter })
       : Promise.resolve([]),
   ]);
   const traceNumericScoreNames = Array.from(
@@ -840,14 +831,6 @@ export async function getEventFilterOptions(
           trace_score_booleans: traceBooleanScoreColumns.map(
             (score) => score.name,
           ),
-        }
-      : {}),
-    ...(shouldLoadMetadataKeys
-      ? {
-          metadataKeys: metadataKeyRows.map((row) => ({
-            value: row.value,
-            count: row.count,
-          })),
         }
       : {}),
     ...(shouldLoadScoreNameLevels

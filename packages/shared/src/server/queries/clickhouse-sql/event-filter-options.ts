@@ -190,6 +190,12 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     expression: "e.tool_call_names",
     sort: "countDesc",
   },
+  metadataKeys: {
+    kind: "array",
+    expression: "e.metadata_names",
+    sort: "countDesc",
+    distinct: true,
+  },
 } satisfies Record<string, EventFilterOptionDefinition>;
 
 export type EventFilterOptionColumn =
@@ -484,40 +490,6 @@ ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
       optionLimit,
     },
   };
-};
-
-/** buildEventsMetadataKeysQuery builds the top-N distinct metadata key names query for the events table. */
-export const buildEventsMetadataKeysQuery = (params: {
-  projectId: string;
-  filter: FilterState;
-  limit: number;
-  sampleRows?: number;
-}): { query: string; params: Record<string, unknown> } | null => {
-  if (params.limit <= 0) {
-    return null;
-  }
-
-  const sampleRows = params.sampleRows ?? 0;
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      params.filter,
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const queryBuilder = new EventsAggQueryBuilder({
-    projectId: params.projectId,
-    groupByColumn: "value",
-    selectExpression: `arrayJoin(arrayFilter(name -> length(name) > 0, arrayDistinct(e.metadata_names))) AS value, ${eventFilterOptionCountExpression(sampleRows)} AS count`,
-  })
-    .where(eventsFilter.apply())
-    .whereRaw("length(e.metadata_names) > 0")
-    .orderBy("ORDER BY count() DESC, value ASC")
-    .limit(params.limit, 0)
-    .sampleRows(sampleRows);
-
-  return queryBuilder.buildWithParams();
 };
 
 /** buildEventsMetadataValuesQuery builds the top-N distinct value query for one metadata key on the events table. */

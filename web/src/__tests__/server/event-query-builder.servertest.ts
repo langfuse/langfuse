@@ -1,7 +1,6 @@
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
-  buildEventsMetadataKeysQuery,
   buildEventsMetadataValuesQuery,
   CTEQueryBuilder,
   createFilterFromFilterState,
@@ -447,6 +446,29 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
   });
 
+  it("folds distinct metadata key names into the bulk facet scan", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [],
+      columns: ["metadataKeys"],
+      limit: 100,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
+    expect(built.query).toContain("e.project_id = {projectId: String}");
+    expect(built.query).toContain("arrayDistinct(e.metadata_names)");
+    expect(built.query).toContain("approx_top_kArray");
+    expect(built.query).toContain("tuple('metadataKeys'");
+    expect(built.query).not.toMatch(/\bJOIN\b/i);
+    expect(built.params).toMatchObject({
+      projectId: "test-project",
+      optionLimit: 100,
+    });
+  });
+
   it("rejects runtime values outside the filter option column registry", () => {
     expect(() =>
       buildEventsFilterOptionsForColumnsQuery({
@@ -465,77 +487,6 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
         limit: 1000,
       }),
     ).toThrow("Unsupported events filter option column");
-  });
-});
-
-describe("buildEventsMetadataKeysQuery", () => {
-  it("aggregates distinct metadata key names from the events table", () => {
-    const built = buildEventsMetadataKeysQuery({
-      projectId: "test-project",
-      filter: [],
-      limit: 100,
-    });
-
-    expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
-
-    expect(built.query).toContain("FROM events_core e");
-    expect(built.query).toContain("e.project_id = {projectId: String}");
-    expect(built.query).toContain("arrayDistinct(e.metadata_names)");
-    expect(built.query).toContain("GROUP BY value");
-    expect(built.query).toContain("ORDER BY count() DESC, value ASC");
-    expect(built.query).not.toMatch(/\bJOIN\b/i);
-    expect(built.params).toMatchObject({
-      projectId: "test-project",
-      limit: 100,
-    });
-  });
-
-  it("applies events filters to the key scan", () => {
-    const built = buildEventsMetadataKeysQuery({
-      projectId: "test-project",
-      filter: [
-        {
-          column: "startTime",
-          operator: ">=",
-          value: new Date("2026-01-01T00:00:00.000Z"),
-          type: "datetime",
-        },
-      ],
-      limit: 10,
-    });
-
-    expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
-
-    expect(built.query).toContain("start_time");
-  });
-
-  it("samples the key scan and scales its counts", () => {
-    const built = buildEventsMetadataKeysQuery({
-      projectId: "test-project",
-      filter: [],
-      limit: 100,
-      sampleRows: 6_000_000,
-    });
-
-    expect(built).not.toBeNull();
-    if (!built) throw new Error("expected query");
-
-    expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
-    expect(built.query).toContain(
-      "toUInt64(round(count() * any(e._sample_factor))) AS count",
-    );
-  });
-
-  it("returns null for a non-positive limit", () => {
-    expect(
-      buildEventsMetadataKeysQuery({
-        projectId: "test-project",
-        filter: [],
-        limit: 0,
-      }),
-    ).toBeNull();
   });
 });
 
