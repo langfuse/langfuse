@@ -22,7 +22,7 @@ const createRequest = ({
   method = "GET",
   projectId = "project-1",
 }: {
-  method?: string;
+  method?: "GET" | "POST";
   projectId?: string | string[];
 } = {}) =>
   createMocks<NextApiRequest, NextApiResponse>({

@@ -13,6 +13,7 @@ export async function getProjectMemberNames({
     projectId,
     orgId,
     filterCondition: [],
+    searchFilter: Prisma.empty,
     orderBy: Prisma.sql`ORDER BY all_eligible_users.name ASC NULLS LAST, all_eligible_users.email ASC NULLS LAST`,
   });
 
