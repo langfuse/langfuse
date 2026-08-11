@@ -1,7 +1,11 @@
-import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
+import {
+  makeZodVerifiedAPICall,
+  makeAPICall,
+} from "@/src/__tests__/test-utils";
 import {
   GetCommentsV1Response,
   GetCommentV1Response,
+  PatchCommentV1Response,
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { prisma } from "@langfuse/shared/src/db";
@@ -383,5 +387,161 @@ describe("Public API does NOT process mentions", () => {
     expect(response.body.content).toBe(
       "Hey @[FakeAdmin](user:user-1) and @[InvalidUser](user:invalid-id), check this!",
     );
+  });
+});
+
+describe("PATCH /api/public/comments/:commentId", () => {
+  beforeAll(async () => {
+    const traces = [
+      createTrace({
+        name: "trace-name",
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        id: "patch-comment-trace",
+      }),
+    ];
+
+    await createTracesCh(traces);
+  });
+
+  it("should update a comment's content", async () => {
+    // Create a comment to update
+    const createResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "original content",
+        objectId: "patch-comment-trace",
+        objectType: "TRACE",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        authorUserId: "user-1",
+      },
+    );
+    const { id: commentId } = createResponse.body;
+
+    const response = await makeZodVerifiedAPICall(
+      PatchCommentV1Response,
+      "PATCH",
+      `/api/public/comments/${commentId}`,
+      { content: "updated content" },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.id).toBe(commentId);
+    expect(response.body.content).toBe("updated content");
+
+    // Confirm via GET that the persisted content is the updated value
+    const getResponse = await makeZodVerifiedAPICall(
+      GetCommentV1Response,
+      "GET",
+      `/api/public/comments/${commentId}`,
+    );
+    expect(getResponse.status).toBe(200);
+    expect(getResponse.body.content).toBe("updated content");
+  });
+
+  it("should return 404 for non-existent comment", async () => {
+    const nonExistentId = "00000000-0000-0000-0000-000000000000";
+    const response = await makeAPICall(
+      "PATCH",
+      `/api/public/comments/${nonExistentId}`,
+      { content: "anything" },
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it("should return 404 when patching a comment from a different project", async () => {
+    // The default seed project already has comments; create a comment in a
+    // DIFFERENT project by spinning up a new org/project/api key.
+    const { createOrgProjectAndApiKey } =
+      await import("@langfuse/shared/src/server");
+    const { auth: otherAuth, projectId: otherProjectId } =
+      await createOrgProjectAndApiKey();
+
+    // Create a trace in the OTHER project so the comment has a valid object
+    const otherTraces = [
+      createTrace({
+        name: "other-project-trace",
+        project_id: otherProjectId,
+        id: "patch-comment-other-trace",
+      }),
+    ];
+    await createTracesCh(otherTraces);
+
+    const createResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "in another project",
+        objectId: "patch-comment-other-trace",
+        objectType: "TRACE",
+        projectId: otherProjectId,
+        authorUserId: "user-1",
+      },
+      otherAuth,
+    );
+    const { id: otherCommentId } = createResponse.body;
+
+    // Attempt to patch with the SEED project's auth
+    const response = await makeAPICall(
+      "PATCH",
+      `/api/public/comments/${otherCommentId}`,
+      { content: "should not work" },
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it("should return 400 when content is empty", async () => {
+    // Create a comment to update
+    const createResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "original content",
+        objectId: "patch-comment-trace",
+        objectType: "TRACE",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        authorUserId: "user-1",
+      },
+    );
+    const { id: commentId } = createResponse.body;
+
+    const response = await makeAPICall(
+      "PATCH",
+      `/api/public/comments/${commentId}`,
+      { content: "" },
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("should return 400 when content exceeds 5000 characters", async () => {
+    // Create a comment to update
+    const createResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "original content",
+        objectId: "patch-comment-trace",
+        objectType: "TRACE",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        authorUserId: "user-1",
+      },
+    );
+    const { id: commentId } = createResponse.body;
+
+    const tooLong = "a".repeat(5001);
+    const response = await makeAPICall(
+      "PATCH",
+      `/api/public/comments/${commentId}`,
+      { content: tooLong },
+    );
+
+    expect(response.status).toBe(400);
   });
 });
