@@ -7969,6 +7969,105 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails.output_reasoning_tokens).toBe(25);
       expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
     });
+
+    it("should keep normalized OpenInference buckets summing to an explicit llm.token_count.total", async () => {
+      // completion (1746) is inclusive of reasoning (1680); total (3219) =
+      // prompt (1473) + completion. Normalized buckets must stay mutually
+      // exclusive so the non-total sum equals the explicit total (else
+      // ingestion fires the total-mismatch warning).
+      const traceId = "abcdef1234567890abcdef1234567898";
+
+      const openinferenceTotalSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.google_genai",
+              version: "0.1.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde7", "hex"),
+                name: "openinference-reasoning-with-total",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "llm.token_count.prompt",
+                    value: {
+                      intValue: { low: 1473, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "llm.token_count.completion",
+                    value: {
+                      intValue: { low: 1746, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "llm.token_count.completion_details.reasoning",
+                    value: {
+                      intValue: { low: 1680, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "llm.token_count.total",
+                    value: {
+                      intValue: { low: 3219, high: 0, unsigned: false },
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        openinferenceTotalSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      expect(usageDetails.input).toBe(1473);
+      // output must be the non-reasoning remainder: 1746 - 1680 = 66
+      expect(usageDetails.output).toBe(66);
+      expect(usageDetails.output_reasoning_tokens).toBe(1680);
+      // The explicit total must be preserved as-is
+      expect(usageDetails.total).toBe(3219);
+      // The invariant checked by IngestionService.warnOnUsageTotalMismatch:
+      // non-total buckets must not sum to more than the provided total.
+      const nonTotalBucketSum = Object.entries(usageDetails)
+        .filter(([key]) => key !== "total")
+        .reduce((acc, [, value]) => acc + value, 0);
+      expect(nonTotalBucketSum).toBe(3219);
+      expect(usageDetails["completion_details.reasoning"]).toBeUndefined();
+    });
   });
 
   describe("Google ADK blob-derived cache usage", () => {
