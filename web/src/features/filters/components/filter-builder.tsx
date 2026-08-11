@@ -674,6 +674,7 @@ function FilterBuilderForm({
           </Button>
         </PopoverTrigger>
         <PopoverContent
+          align="start"
           className="max-w-fit p-0"
           onWheel={(e) => {
             e.stopPropagation();
@@ -710,7 +711,13 @@ function FilterBuilderForm({
                             column: col?.[columnIdentifier],
                             type: col?.type,
                             operator: defaultOperator,
-                            value: col?.type === "null" ? "" : undefined,
+                            value:
+                              col?.type === "null"
+                                ? ""
+                                : col?.type === "boolean" ||
+                                    col?.type === "booleanObject"
+                                  ? true
+                                  : undefined,
                             key:
                               col?.type === "positionInTrace"
                                 ? "last"

@@ -25,6 +25,9 @@ import { Input } from "@/src/components/ui/input";
 import { useRef, useState, useMemo, useCallback } from "react";
 import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 
+/** compactSelectAllLimit is the most options a compact select shows Select All for. */
+const compactSelectAllLimit = 100;
+
 const getFreeTextInput = (
   isCustomSelectEnabled: boolean,
   values: string[],
@@ -81,6 +84,10 @@ export function MultiSelect({
     () => mergedOptions.filter((option) => option.value.length > 0),
     [mergedOptions],
   );
+
+  const showSelectAll =
+    selectableOptions.length > 0 &&
+    !(chipsOnly && selectableOptions.length > compactSelectAllLimit);
 
   const allSelectedState = useMemo(() => {
     if (selectableOptions.length === 0) return false;
@@ -216,7 +223,7 @@ export function MultiSelect({
               <InputCommandEmpty>No results found.</InputCommandEmpty>
             )}
             <InputCommandGroup>
-              {selectableOptions.length > 0 && (
+              {showSelectAll && (
                 <>
                   <InputCommandItem key="select-all" onSelect={handleSelectAll}>
                     <div

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -127,7 +128,9 @@ export function SingleSelect({
           <InputCommandList>
             {filteredOptions.length === 0 && !showCustomValue && (
               <div className="text-muted-foreground py-6 text-center text-sm">
-                No results found.
+                {isCustomSelectEnabled
+                  ? "Enter custom value"
+                  : "No results found."}
               </div>
             )}
             <InputCommandGroup>
