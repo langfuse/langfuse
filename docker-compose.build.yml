@@ -87,7 +87,7 @@ services:
       start_interval: 2s
 
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server:25.12
+    image: docker.io/clickhouse/clickhouse-server
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
