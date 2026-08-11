@@ -21,6 +21,7 @@ import {
 import {
   type ChartProps,
   type ChartThreshold,
+  type ChartThresholdColor,
 } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
@@ -57,6 +58,22 @@ const computeMetricExtent = (
   }
   return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : null;
 };
+
+/**
+ * SVG text props for a threshold annotation label ("Alert" / "Warning").
+ * Darker than the reference-line stroke, bold, and haloed with the chart
+ * background so the text stays legible on the tinted violation band.
+ */
+const thresholdAnnotationLabelProps = (color: ChartThresholdColor) => ({
+  fill: `var(--color-${color}-800)`,
+  fontSize: 12,
+  className: "font-bold",
+  // paintOrder draws the background stroke under the fill (text halo).
+  paintOrder: "stroke fill" as const,
+  stroke: "var(--color-background)",
+  strokeWidth: 3,
+  strokeLinejoin: "round" as const,
+});
 
 /** ThresholdOverlay returns the ReferenceLine + (operator-derived) ReferenceArea recharts elements for a single ChartThreshold. */
 const ThresholdOverlay = ({
@@ -164,8 +181,7 @@ const ThresholdOverlay = ({
         <Label
           value={threshold.label}
           position="insideTopRight"
-          fill={stroke}
-          fontSize={11}
+          {...thresholdAnnotationLabelProps(threshold.color)}
         />
       )}
     </ReferenceLine>,
@@ -173,6 +189,8 @@ const ThresholdOverlay = ({
 
   return <>{elements}</>;
 };
+
+export const __test = { thresholdAnnotationLabelProps };
 
 /**
  * LineChartTimeSeries component

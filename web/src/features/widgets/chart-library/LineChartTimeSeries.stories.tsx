@@ -227,6 +227,32 @@ export const WithLongSeriesNames = meta.story({
   },
 });
 
+// ── Threshold annotations ────────────────────────────────────────────────────
+// Monitor live preview (and any chart that passes `thresholds`) draws a tinted
+// violation band with an "Alert" / "Warning" label. The label must stay
+// legible on that tint — use the theme toggle to check both modes.
+
+export const WithAlertAndWarningThresholds = meta.story({
+  args: {
+    data: singleSeriesData,
+    legendPosition: "none",
+    thresholds: [
+      {
+        value: 90_000,
+        operator: "GT",
+        color: "yellow",
+        label: "Warning",
+      },
+      {
+        value: 120_000,
+        operator: "GT",
+        color: "red",
+        label: "Alert",
+      },
+    ],
+  },
+});
+
 export const SyncedTimeline = meta.story({
   parameters: { controls: { disable: true } },
   render: () => (
