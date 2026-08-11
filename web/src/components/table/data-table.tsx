@@ -414,7 +414,7 @@ export function DataTable<TData extends object, TValue>({
   // Held for whole sweeps of the bar's animation: a 200ms refetch would
   // otherwise flash a single frame.
   // Cycle length matches the sweep, so a held refresh ends on a whole sweep.
-  const refetchBar = useAnimatedBusy(isFetching, 1400);
+  const refetchBar = useAnimatedBusy(isFetching, REFETCH_SWEEP_MS);
 
   const tableHeaders = shouldRenderGroupHeaders
     ? table.getHeaderGroups()
@@ -437,10 +437,12 @@ export function DataTable<TData extends object, TValue>({
           className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
           style={{ ...columnSizeVars }}
         >
-          {/* Zero-height so an arriving refetch never shifts the table. Keyed
-              per busy period, not per fetch: one sweep from the left per
+          {/* Zero-height so an arriving refetch never shifts the table. Sticky on
+              BOTH axes: this box is only as wide as the visible area, so without
+              `left-0` it scrolls out of view on a table wider than the viewport.
+              Keyed per busy period, not per fetch: one sweep from the left per
               refresh, and no restart between a refresh's stages. */}
-          <div className="sticky top-0 z-30 h-0">
+          <div className="sticky top-0 left-0 z-30 h-0">
             <TableRefetchBar
               key={refetchBar.epoch}
               active={refetchBar.active && !data.isLoading}
@@ -646,6 +648,14 @@ export function DataTable<TData extends object, TValue>({
 }
 
 /**
+ * One sweep of the refetch bar. The single source of truth for the cycle: it is
+ * handed to the CSS animation as `--table-refetch-cycle` (see
+ * `--animate-table-refetch` in globals.css, which reads it with a fallback), and
+ * to `useAnimatedBusy` so the busy flag is only released on a whole sweep.
+ */
+const REFETCH_SWEEP_MS = 1400;
+
+/**
  * The thin bar shown while a fetch runs over rows that are already on screen.
  * Both edges are soft: the sweep is already running when the bar fades in (a
  * one-shot fade rides on the sweep animation), and on the way out it fades
@@ -676,6 +686,9 @@ function TableRefetchBar({ active }: { active: boolean }) {
           two `bg-*` utilities into one and would drop it. */}
       <div className="bg-primary-accent/20 absolute inset-0" />
       <div
+        style={
+          { "--table-refetch-cycle": `${REFETCH_SWEEP_MS}ms` } as CSSProperties
+        }
         className={cn(
           "animate-table-refetch from-primary-accent/0 via-primary-accent to-primary-accent/0 absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r",
           stopped && "[animation-play-state:paused]",

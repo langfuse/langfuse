@@ -298,11 +298,12 @@ export function useEventsTableData({
 
   return {
     observations: joinedData,
-    /** Any table query in flight — drives the progress bar, not a skeleton. */
-    isFetching:
-      activeObservations.isFetching ||
-      ioDataQuery.isFetching ||
-      totalCountQuery.isFetching,
+    /**
+     * A fetch over the visible rows — drives the progress bar, not a skeleton.
+     * Deliberately excludes the select-all count query: it touches no row on
+     * screen, and `isTotalCountLoading` already covers its own UI.
+     */
+    isFetching: activeObservations.isFetching || ioDataQuery.isFetching,
     totalCount,
     uniqueTraceCount,
     isTotalCountLoading,

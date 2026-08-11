@@ -173,7 +173,11 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-appear: appear 0.2s ease-out forwards;
-  --animate-table-refetch: table-refetch 1.4s linear infinite;
+  /* Cycle length comes from REFETCH_SWEEP_MS in components/table/data-table.tsx,
+     which sets --table-refetch-cycle on the element: the same number also
+     releases the busy flag on a whole sweep, so the two must not drift. */
+  --animate-table-refetch: table-refetch var(--table-refetch-cycle, 1.4s) linear
+    infinite;
   --animate-table-refetch-in: table-refetch-fade-in 200ms ease-out;
 
   /* Sweeps the highlight of the table's refetch bar across its track. It starts
