@@ -12,9 +12,15 @@ const authErrorFallback = "Configuration";
 
 type AuthErrorSource = "query" | "path";
 
-const getAuthAction = (req: NextApiRequest) => {
+// Single parse of the [...nextauth] catch-all: [action, provider], e.g.
+// /api/auth/callback/credentials -> ["callback", "credentials"].
+const getNextAuthSegments = (
+  req: NextApiRequest,
+): [string | undefined, string | undefined] => {
   const nextauth = req.query.nextauth;
-  return Array.isArray(nextauth) ? nextauth[0] : nextauth;
+  return Array.isArray(nextauth)
+    ? [nextauth[0], nextauth[1]]
+    : [nextauth, undefined];
 };
 
 const logAuthErrorFallback = (
@@ -53,6 +59,8 @@ const encodeAuthError = (error: unknown, source: AuthErrorSource) => {
 };
 
 export default async function auth(req: NextApiRequest, res: NextApiResponse) {
+  const [nextAuthAction, nextAuthProvider] = getNextAuthSegments(req);
+
   // Workaround for corporate email link checkers (e.g., Outlook SafeLink)
   // https://next-auth.js.org/tutorials/avoid-corporate-link-checking-email-provider
   if (req.method === "HEAD") {
@@ -63,9 +71,7 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // bare, unlogged 500, so scanners probing this URL page our error-rate
   // monitors. Reject them with a 405 before next-auth sees them.
   const isCredentialsCallback =
-    Array.isArray(req.query.nextauth) &&
-    req.query.nextauth[0] === "callback" &&
-    req.query.nextauth[1] === "credentials";
+    nextAuthAction === "callback" && nextAuthProvider === "credentials";
   if (isCredentialsCallback && req.method !== "POST") {
     logger.warn(
       `[NEXT_AUTH] Rejected ${req.method} to credentials callback with 405`,
@@ -81,9 +87,6 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // falsy values are treated as absent (assertConfig checks truthiness), and
   // GET requests to next-auth's HTML page actions are exempt — those never
   // 500; next-auth redirects them to the configured error page.
-  const nextAuthAction = Array.isArray(req.query.nextauth)
-    ? req.query.nextauth[0]
-    : req.query.nextauth;
   const rendersHtmlErrorPage =
     req.method === "GET" &&
     ["signin", "signout", "error", "verify-request"].includes(
@@ -111,10 +114,7 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // This happens before NextAuth processes the callback, allowing us to preserve
   // the IdP's error_description which NextAuth would otherwise strip
   // Only intercept if this is an OAuth callback request (path starts with 'callback')
-  const isCallbackRequest =
-    Array.isArray(req.query.nextauth) &&
-    req.query.nextauth.length > 0 &&
-    req.query.nextauth[0] === "callback";
+  const isCallbackRequest = nextAuthAction === "callback";
 
   if (
     isCallbackRequest &&
@@ -153,10 +153,8 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // NextAuth interpolates unknown error values directly into a Location
   // header. Encode user-controlled text before it reaches that code path so
   // control characters cannot make Node throw ERR_INVALID_CHAR.
-  if (getAuthAction(req) === "error") {
-    const nextauth = req.query.nextauth;
-    const error =
-      req.query.error ?? (Array.isArray(nextauth) ? nextauth[1] : undefined);
+  if (nextAuthAction === "error") {
+    const error = req.query.error ?? nextAuthProvider;
     if (error !== undefined) {
       const source = req.query.error !== undefined ? "query" : "path";
       req.query.error = encodeAuthError(error, source);
