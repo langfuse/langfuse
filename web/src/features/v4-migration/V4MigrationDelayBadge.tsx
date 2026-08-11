@@ -139,12 +139,10 @@ export function V4MigrationEvaluatorUpdateRequiredBadge({
   };
 
   return (
-    <button
-      type="button"
+    <V4MigrationBadgeContent
       onClick={handleClick}
-      className="text-dark-blue text-sm font-bold hover:underline"
-    >
-      Upgrade now
-    </button>
+      title="Upgrade now"
+      showChevron={false}
+    />
   );
 }

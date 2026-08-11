@@ -3,13 +3,15 @@ import { ChevronRight } from "lucide-react";
 type V4MigrationBadgeContentProps = {
   onClick: () => void;
   title: string;
-  description: string;
+  description?: string;
+  showChevron?: boolean;
 };
 
 export function V4MigrationBadgeContent({
   onClick,
   title,
   description,
+  showChevron = true,
 }: V4MigrationBadgeContentProps) {
   return (
     <span className="inline-grid flex-none shrink-0">
@@ -19,8 +21,11 @@ export function V4MigrationBadgeContent({
       >
         <span className="size-1.75 shrink-0 rounded-full" />
         <span className="flex items-center">
-          {title}.&nbsp;{description}.
-          <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+          {title}
+          {description ? <>&nbsp;{description}.</> : null}
+          {showChevron ? (
+            <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+          ) : null}
         </span>
       </span>
 
@@ -35,10 +40,14 @@ export function V4MigrationBadgeContent({
         />
         <span className="flex items-center">
           {title}
-          <span className="flex max-w-0 items-center overflow-hidden transition-[max-width] duration-300 ease-out group-hover:max-w-96 group-focus-visible:max-w-96">
-            <span className="whitespace-nowrap">.&nbsp;{description}.</span>
-          </span>
-          <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+          {description ? (
+            <span className="flex max-w-0 items-center overflow-hidden transition-[max-width] duration-300 ease-out group-hover:max-w-96 group-focus-visible:max-w-96">
+              <span className="whitespace-nowrap">.&nbsp;{description}.</span>
+            </span>
+          ) : null}
+          {showChevron ? (
+            <ChevronRight className="ml-1 h-3 w-3 shrink-0" />
+          ) : null}
         </span>
       </button>
     </span>

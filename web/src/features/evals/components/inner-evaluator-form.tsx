@@ -337,6 +337,7 @@ export const InnerEvaluatorForm = (props: {
   hideTargetSelection?: boolean;
   hidePreviewTable?: boolean;
   hideRootObservationFilter?: boolean;
+  showPreviewTargetBadge?: boolean;
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
@@ -1351,6 +1352,7 @@ export const InnerEvaluatorForm = (props: {
           compatibilityCheckWasPerformed={
             props.evalCapabilities.compatibilityCheckWasPerformed
           }
+          showPreviewTargetBadge={props.showPreviewTargetBadge}
         />
       )}
     </div>

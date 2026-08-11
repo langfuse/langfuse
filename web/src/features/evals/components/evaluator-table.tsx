@@ -54,6 +54,7 @@ import {
 } from "@/src/components/table/loading-cells";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { buildEvaluatorUpgradeUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
 function DeprecatedChipCell() {
@@ -179,13 +180,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           <div className="flex min-w-0 items-center gap-2">
             <TableIdOrName value={scoreName} className="min-w-[15ch] flex-1" />
             {v4UpgradeUiEnabled && row.row.original.isLegacy ? (
-              <button
-                type="button"
-                className="text-dark-blue flex-none text-xs font-bold whitespace-nowrap hover:underline"
+              <V4MigrationBadgeContent
                 onClick={() => openEvaluatorUpgrade(row.row.original.id)}
-              >
-                Upgrade now
-              </button>
+                title="Upgrade now"
+                showChevron={false}
+              />
             ) : null}
           </div>
         );

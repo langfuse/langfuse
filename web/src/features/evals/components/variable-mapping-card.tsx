@@ -73,6 +73,7 @@ export const VariableMappingCard = ({
   hideAdvancedSettings = false,
   isNewCompatible = true,
   compatibilityCheckWasPerformed = false,
+  showPreviewTargetBadge = true,
 }: {
   projectId: string;
   availableVariables:
@@ -86,6 +87,7 @@ export const VariableMappingCard = ({
   hideAdvancedSettings?: boolean;
   isNewCompatible?: boolean;
   compatibilityCheckWasPerformed?: boolean;
+  showPreviewTargetBadge?: boolean;
 }) => {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedPreviewPointer, setSelectedPreviewPointer] =
@@ -270,6 +272,7 @@ export const VariableMappingCard = ({
                         !shouldWrapVariables && "lg:w-2/3",
                       )}
                       controlButtons={mappingControlButtons}
+                      showTargetBadge={showPreviewTargetBadge}
                     />
                   ) : (
                     <div className="bg-muted/50 flex max-h-full min-h-48 w-full flex-col gap-1 lg:w-2/3">

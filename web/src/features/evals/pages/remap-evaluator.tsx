@@ -306,6 +306,7 @@ export default function RemapEvaluatorPage() {
                   preventRedirect={true}
                   renderFooter={() => null}
                   evalCapabilities={evalCapabilities}
+                  showPreviewTargetBadge={false}
                 />
               </div>
 
@@ -331,6 +332,7 @@ export default function RemapEvaluatorPage() {
                   preventRedirect={true}
                   hideAdvancedSettings={true}
                   evalCapabilities={evalCapabilities}
+                  showPreviewTargetBadge={false}
                   oldConfigId={evalConfigId}
                   hideRootObservationFilter={sdk.status === "legacy"}
                   renderFooter={({ isLoading, isSaveDisabled }) => (
