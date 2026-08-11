@@ -1,6 +1,7 @@
 import preview from "../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
@@ -8,9 +9,14 @@ import {
 } from "./InAppAgentWindow";
 import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/quickActions";
 import {
+  createInAppAgentDisplayState,
+  projectInAppAgentMessagesForDisplay,
+} from "@/src/features/in-app-agent/lib/display";
+import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
 } from "./InAppAgentWindowShell";
+import { getDrawerMessages } from "./utils/utils";
 
 function InAppAgentWindowStoryShell({
   children,
@@ -601,6 +607,7 @@ const meta = preview.meta({
     onOpenConversationHistory: fn(),
     onNewConversation: fn(),
     onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
     onRejectToolCall: fn(),
     onSelectConversation: fn(),
     onClose: fn(),
@@ -1153,9 +1160,16 @@ export const RateLimited = meta.story({
       canvas.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeEnabled();
     await expect(
-      canvas.getByRole("button", { name: "Confirm" }),
+      canvas.getByRole("button", { name: "Approve" }),
     ).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", {
+        name: "Always approve for this conversation",
+      }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Decline" }),
+    ).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Start new conversation" }),
     ).toBeDisabled();
@@ -1373,5 +1387,144 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
       value: "thumbs_up",
       comment: null,
     });
+  },
+});
+
+export const AlwaysApprovesWithHiddenParallelCall = meta.story({
+  name: "(Test) Always Approves With Hidden Parallel Call",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAssistantTurnInProgress: true,
+    onAlwaysAllowToolCall: fn(() => new Promise<void>(() => undefined)),
+    messages: getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: [
+        {
+          id: "assistant-approval",
+          role: "assistant",
+          content: "I need approval before creating these resources.",
+          toolCalls: [
+            {
+              id: "approval-1",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: '{"name":"approved-prompt"}',
+              },
+            },
+            {
+              id: "deferred-sibling",
+              type: "function",
+              function: {
+                name: "langfuse_createDashboardWidget",
+                arguments: '{"name":"deferred-widget"}',
+              },
+            },
+          ],
+        },
+      ],
+      pendingToolApprovals: [
+        {
+          id: "approval-1",
+          status: "pending",
+          runId: "run-1",
+          approvalRequest: {
+            type: "tool_approval_request",
+            toolCallId: "approval-1",
+            toolName: "langfuse_createTextPrompt",
+            runId: "run-1",
+          },
+        },
+      ],
+    }),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const approve = canvas.getByRole("button", { name: "Approve" });
+    const alwaysApprove = canvas.getByRole("button", {
+      name: "Always approve for this conversation",
+    });
+    const decline = canvas.getByRole("button", { name: "Decline" });
+
+    await expect(
+      canvas.queryByLabelText(/^createDashboardWidget:/),
+    ).not.toBeInTheDocument();
+    await userEvent.click(alwaysApprove);
+
+    await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledOnce();
+    await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledWith("approval-1");
+    await expect(alwaysApprove).toHaveAttribute("aria-busy", "true");
+    await expect(approve).toBeDisabled();
+    await expect(alwaysApprove).toBeDisabled();
+    await expect(decline).toBeDisabled();
+  },
+});
+
+export const ContinuedToolResultRendersOnce = meta.story({
+  name: "(Test) Continued Tool Result Renders Once",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAssistantTurnInProgress: false,
+    messages: getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: projectInAppAgentMessagesForDisplay(
+        [
+          {
+            id: "assistant-proposal",
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "tool-call-1",
+                type: "function",
+                function: {
+                  name: "langfuse_createDashboardWidget",
+                  arguments: '{"name":"Cost over time"}',
+                },
+              },
+            ],
+          },
+          {
+            id: "tool-call-1-approval-tool-call",
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "tool-call-1",
+                type: "function",
+                function: {
+                  name: "langfuse_createDashboardWidget",
+                  arguments: '{"name":"Changed by continuation"}',
+                },
+              },
+            ],
+          },
+          {
+            id: "tool-call-1-approval-tool-result",
+            role: "tool",
+            toolCallId: "tool-call-1",
+            content: '{"id":"widget-1"}',
+          },
+        ] satisfies AgUiMessage[],
+        createInAppAgentDisplayState(),
+      ),
+    }),
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.queryByText("Called 2 tools")).not.toBeInTheDocument();
+    await expect(
+      canvas.getAllByLabelText("createDashboardWidget: succeeded"),
+    ).toHaveLength(1);
+    await userEvent.click(
+      canvas.getByLabelText("createDashboardWidget: succeeded"),
+    );
+    await expect(canvas.getByText(/Cost over time/)).toBeInTheDocument();
+    await expect(
+      canvas.queryByText(/Changed by continuation/),
+    ).not.toBeInTheDocument();
   },
 });

@@ -210,8 +210,8 @@ export function getInAppAgentContext(
 
   return parsedOverride.success
     ? {
-        permissions: "single-tool-override",
-        allowedToolName: parsedOverride.data.toolName,
+        permissions: "tool-allowlist",
+        allowedToolNames: parsedOverride.data.toolNames,
       }
     : { permissions: "read" };
 }

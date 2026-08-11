@@ -376,7 +376,11 @@ export const InnerEvaluatorForm = (props: {
     observationEvalFilterOptions,
     experimentEvalFilterOptions,
     datasetFilterOptions,
-  } = useEvalConfigFilterOptions({ projectId: props.projectId });
+  } = useEvalConfigFilterOptions({
+    projectId: props.projectId,
+    useEventsTable: isBetaEnabled,
+    includeLegacyTraceOptions: showLegacyTargetOptions,
+  });
 
   const targetState = useEvaluatorTargetState();
 
