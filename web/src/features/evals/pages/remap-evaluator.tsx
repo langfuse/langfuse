@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
@@ -35,6 +34,7 @@ import {
   DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING_V3,
   DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
 } from "@/src/features/evals/utils/evaluator-constants";
+import { buildModernEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const EVAL_MIGRATION_DOCS_URL =
@@ -68,6 +68,11 @@ export default function RemapEvaluatorPage() {
   const [legacyAction, setLegacyAction] =
     useState<LegacyEvalAction>("mark-inactive");
 
+  const returnFilter =
+    typeof router.query.returnFilter === "string"
+      ? router.query.returnFilter
+      : undefined;
+
   // Fetch old eval config
   const { data: oldConfig, isLoading: isLoadingConfig } =
     api.evals.configById.useQuery(
@@ -87,11 +92,34 @@ export default function RemapEvaluatorPage() {
 
   const utils = api.useUtils();
 
+  const traceLevelEvalSummary = api.v4Transition.traceLevelEvalSummary.useQuery(
+    { projectId },
+    {
+      enabled: v4UpgradeUiEnabled && Boolean(projectId),
+      refetchOnWindowFocus: false,
+    },
+  );
+
+  const redirectAfterSave = async () => {
+    utils.evals.invalidate();
+    const { data } = await traceLevelEvalSummary.refetch();
+    const remainingCount = data?.traceLevelEvalCount;
+
+    if (remainingCount === 0) {
+      await router.push(buildModernEvaluatorsUrl(projectId));
+      return;
+    }
+
+    const filterQuery = returnFilter
+      ? `?filter=${encodeURIComponent(returnFilter)}`
+      : "";
+    await router.push(`/project/${projectId}/evals${filterQuery}`);
+  };
+
   // Update mutation to set old eval to INACTIVE
   const updateJobMutation = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
       utils.evals.invalidate();
-      router.push(`/project/${projectId}/evals`);
     },
     onError: (err) => {
       setError(err.message ?? "Failed to update old eval configuration");
@@ -102,7 +130,6 @@ export default function RemapEvaluatorPage() {
   const deleteJobMutation = api.evals.deleteEvalJob.useMutation({
     onSuccess: () => {
       utils.evals.invalidate();
-      router.push(`/project/${projectId}/evals`);
     },
     onError: (err) => {
       setError(err.message ?? "Failed to delete old eval configuration");
@@ -142,8 +169,7 @@ export default function RemapEvaluatorPage() {
       switch (legacyAction) {
         case "keep-active":
           // Do nothing - both old and new evals will be active
-          utils.evals.invalidate();
-          router.push(`/project/${projectId}/evals`);
+          await redirectAfterSave();
           break;
         case "mark-inactive":
           // Set old eval to INACTIVE
@@ -154,6 +180,7 @@ export default function RemapEvaluatorPage() {
               status: "INACTIVE",
             },
           });
+          await redirectAfterSave();
           break;
         case "delete":
           // Delete old eval
@@ -161,6 +188,7 @@ export default function RemapEvaluatorPage() {
             projectId,
             evalConfigId,
           });
+          await redirectAfterSave();
           break;
       }
     } catch (err) {
@@ -214,9 +242,6 @@ export default function RemapEvaluatorPage() {
                     Use Assistant to help with upgrade
                   </Button>
                 ) : null}
-                <Button asChild size="sm" variant="secondary">
-                  <Link href="/v4-migration">Check status</Link>
-                </Button>
                 <Button asChild size="sm" variant="secondary">
                   <a
                     href={V4_DOCS_URL}
