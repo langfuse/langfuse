@@ -15,6 +15,7 @@ export const RateLimitResource = z.enum([
   "annotation-queues",
   "trace-delete",
   "score-delete",
+  "comment-delete",
   "in-app-agent-run",
   "feedback",
 ]);
