@@ -1,33 +1,87 @@
 import { PlusCircle } from "lucide-react";
+import { useFieldArray } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { FormDescription, FormLabel } from "@/src/components/ui/form";
 import { Accordion } from "@/src/components/ui/accordion";
+import {
+  derivePriorities,
+  makeUsageTypeKeys,
+} from "@/src/features/models/formValues";
 import { TierAccordionItem } from "./TierAccordionItem";
 import { TierPriceEditor } from "./TierPriceEditor";
 import { TierPrefillButtons } from "./TierPrefillButtons";
-import type { UseFormReturn, UseFieldArrayReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import type { FormUpsertModel } from "../../validation";
 
 type PricingSectionProps = {
-  fields: UseFieldArrayReturn<FormUpsertModel, "pricingTiers">["fields"];
   form: UseFormReturn<FormUpsertModel>;
-  remove: UseFieldArrayReturn<FormUpsertModel, "pricingTiers">["remove"];
-  addTier: () => void;
 };
 
 export type { PricingSectionProps };
 
-export function PricingSection({
-  fields,
-  form,
-  remove,
-  addTier,
-}: PricingSectionProps) {
-  const hasMultipleTiers = fields.length > 1;
-  const defaultTierIndex = fields.findIndex((f) => f.isDefault);
+const NEW_TIER_CONDITION = {
+  usageDetailPattern: "^input",
+  operator: "gt" as const,
+  value: 0,
+  caseSensitive: false,
+};
 
-  if (!hasMultipleTiers) {
+export function PricingSection({ form }: PricingSectionProps) {
+  const tiers = useFieldArray({ control: form.control, name: "pricingTiers" });
+  const usageTypes = useFieldArray({
+    control: form.control,
+    name: "usageTypes",
+  });
+
+  // Usage types are shared by every tier, so adding one adds a price row to
+  // each tier. Renaming or removing touches no other tier's prices at all.
+  const addUsageTypes = (names: string[]) => {
+    const existing = form.getValues("usageTypes");
+    const keys = makeUsageTypeKeys(existing, names.length);
+    const rows = names.map((name, index) => ({ key: keys[index], name }));
+
+    usageTypes.append(rows);
+    form.getValues("pricingTiers").forEach((_, tierIndex) => {
+      rows.forEach((row) =>
+        form.setValue(`pricingTiers.${tierIndex}.prices.${row.key}`, "0"),
+      );
+    });
+  };
+
+  const prefillUsageTypes = (names: string[]) => {
+    const existing = new Set(
+      form.getValues("usageTypes").map((row) => row.name.trim()),
+    );
+    const missing = names.filter((name) => !existing.has(name));
+    if (missing.length > 0) addUsageTypes(missing);
+  };
+
+  const addTier = () => {
+    const existing = form.getValues("pricingTiers");
+    const takenNames = new Set(existing.map((tier) => tier.name));
+    let suffix = 1;
+    while (takenNames.has(`Custom Tier ${suffix}`)) suffix++;
+
+    tiers.append({
+      name: `Custom Tier ${suffix}`,
+      isDefault: false,
+      conditions: [NEW_TIER_CONDITION],
+      // Prices are keyed by usage type row key, so this copies by identity.
+      prices: { ...(existing.find((tier) => tier.isDefault)?.prices ?? {}) },
+    });
+  };
+
+  const priceEditorProps = {
+    form,
+    usageTypeRows: usageTypes.fields,
+    onAddUsageType: () => addUsageTypes([""]),
+    onRemoveUsageType: usageTypes.remove,
+  };
+
+  if (tiers.fields.length <= 1) {
     // SIMPLE VIEW: Just show prices for the single default tier
+    const defaultTierIndex = tiers.fields.findIndex((tier) => tier.isDefault);
+
     return (
       <div className="space-y-4">
         <div>
@@ -38,10 +92,10 @@ export function PricingSection({
           </FormDescription>
         </div>
 
-        <TierPrefillButtons tierIndex={defaultTierIndex} form={form} />
+        <TierPrefillButtons onPrefill={prefillUsageTypes} />
         <TierPriceEditor
+          {...priceEditorProps}
           tierIndex={defaultTierIndex}
-          form={form}
           isDefault={true}
         />
 
@@ -52,6 +106,8 @@ export function PricingSection({
       </div>
     );
   }
+
+  const priorities = derivePriorities(tiers.fields);
 
   // ACCORDION VIEW: Multiple tiers
   return (
@@ -66,18 +122,28 @@ export function PricingSection({
 
       <Accordion
         type="multiple"
-        defaultValue={fields.map((_, i) => `tier-${i}`)} // All expanded
+        defaultValue={tiers.fields.map((_, i) => `tier-${i}`)} // All expanded
         className="space-y-2"
       >
-        {fields.map((field, index) => (
+        {tiers.fields.map((field, index) => (
           <TierAccordionItem
             key={field.id}
             tier={field}
             index={index}
+            priority={priorities[index]}
             form={form}
-            remove={remove}
+            remove={tiers.remove}
             isDefault={field.isDefault}
-          />
+          >
+            {field.isDefault && (
+              <TierPrefillButtons onPrefill={prefillUsageTypes} />
+            )}
+            <TierPriceEditor
+              {...priceEditorProps}
+              tierIndex={index}
+              isDefault={field.isDefault}
+            />
+          </TierAccordionItem>
         ))}
       </Accordion>
 
