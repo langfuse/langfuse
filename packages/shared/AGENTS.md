@@ -55,13 +55,15 @@
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
-  client-safe contracts (AG-UI schemas, constants, id helpers) of the
-  EE-licensed in-app-agent module. Never re-export server code here.
+  client-safe in-app-agent contracts (AG-UI schemas, constants, id helpers).
+  `AgUiRunAgentInput` is a compile-time-only execution contract; there is no
+  runtime input or browser runtime-state schema. Never re-export server code
+  here.
 - `@langfuse/shared/in-app-agent/server` (plus per-module subpaths via the
   `./in-app-agent/server/*` wildcard) via `src/in-app-agent/server/`:
-  the EE-licensed in-app-agent runtime (Mastra/Bedrock/MCP loop, tools,
-  persistence, sandbox), consumed by web's router/watch adapters and the worker
-  execution processor.
+  the in-app-agent runtime (Mastra/Bedrock/MCP loop, tools, persistence,
+  sandbox), consumed by web's router/watch adapters and the worker execution
+  processor.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/ee/ingestionMasking`, and
