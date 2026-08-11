@@ -175,7 +175,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "string",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Experiment Name",
@@ -185,7 +185,7 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Experiment Dataset",
@@ -195,7 +195,7 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Experiment ID",
@@ -203,8 +203,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "null",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
-            // Observations-page filters exposed on the v2 form (LFE-10751).
+            },
             {
               column: {
                 name: "Prompt Name",
@@ -214,7 +213,7 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Trace ID",
@@ -222,7 +221,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "string",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Model ID",
@@ -232,7 +231,7 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Status Message",
@@ -240,7 +239,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "string",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Is Root Observation",
@@ -248,7 +247,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "boolean",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Latency (s)",
@@ -256,7 +255,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "number",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Time To First Token (s)",
@@ -264,7 +263,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "number",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Input Tokens",
@@ -272,7 +271,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "number",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Output Tokens",
@@ -280,7 +279,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "number",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Total Tokens",
@@ -288,7 +287,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "number",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Input Cost ($)",
@@ -296,7 +295,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "number",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Output Cost ($)",
@@ -304,7 +303,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "number",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Total Cost ($)",
@@ -312,7 +311,7 @@ const getWidgetFilterColumnSpecs = ({
                 type: "number",
                 internal: "internalValue",
               },
-            } satisfies WidgetFilterColumnSpec,
+            },
             {
               column: {
                 name: "Available Tools",

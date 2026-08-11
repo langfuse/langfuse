@@ -670,7 +670,9 @@ function FilterBuilderForm({
                                             value:
                                               col?.type === "null"
                                                 ? ""
-                                                : undefined,
+                                                : col?.type === "boolean"
+                                                  ? true
+                                                  : undefined,
                                             key:
                                               col?.type === "positionInTrace"
                                                 ? "last"
@@ -820,39 +822,45 @@ function FilterBuilderForm({
                       ) : null}
                     </td>
                     <td className="p-1">
-                      <Select
-                        disabled={!filter.column || disabled}
-                        onValueChange={(value) => {
-                          // protect against invalid empty operator values
-                          if (value === "") return;
-                          handleFilterChange(
-                            {
-                              ...filter,
-                              operator: value as any,
-                              // Ensure null filters always have empty string value
-                              value:
-                                filter.type === "null"
-                                  ? ""
-                                  : (filter.value as any),
-                            },
-                            i,
-                          );
-                        }}
-                        value={filter.operator ?? ""}
-                      >
-                        <SelectTrigger className="min-w-[60px]">
-                          <SelectValue placeholder="" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {filter.type !== undefined
-                            ? filterOperators[filter.type].map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))
-                            : null}
-                        </SelectContent>
-                      </Select>
+                      {filter.type === "boolean" ? (
+                        <span className="border-input bg-background flex h-8 min-w-[60px] items-center justify-center rounded-md border px-3 py-2 text-sm">
+                          =
+                        </span>
+                      ) : (
+                        <Select
+                          disabled={!filter.column || disabled}
+                          onValueChange={(value) => {
+                            // protect against invalid empty operator values
+                            if (value === "") return;
+                            handleFilterChange(
+                              {
+                                ...filter,
+                                operator: value as any,
+                                // Ensure null filters always have empty string value
+                                value:
+                                  filter.type === "null"
+                                    ? ""
+                                    : (filter.value as any),
+                              },
+                              i,
+                            );
+                          }}
+                          value={filter.operator ?? ""}
+                        >
+                          <SelectTrigger className="min-w-[60px]">
+                            <SelectValue placeholder="" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {filter.type !== undefined
+                              ? filterOperators[filter.type].map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))
+                              : null}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </td>
                     <td className="p-1">
                       {filter.type === "string" ||
@@ -886,9 +894,11 @@ function FilterBuilderForm({
                             handleFilterChange(
                               {
                                 ...filter,
-                                value: isNaN(Number(e.target.value))
-                                  ? e.target.value
-                                  : Number(e.target.value),
+                                value:
+                                  e.target.value === "" ||
+                                  isNaN(Number(e.target.value))
+                                    ? e.target.value
+                                    : Number(e.target.value),
                               },
                               i,
                             )
