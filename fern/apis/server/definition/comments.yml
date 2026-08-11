@@ -34,6 +34,12 @@ service:
           authorUserId:
             type: optional<string>
             docs: Filter comments by author user id.
+          content:
+            type: optional<string>
+            docs: Filter comments by case-insensitive full-text search on comment content (PostgreSQL plainto_tsquery). Empty strings are rejected.
+            validation:
+              minLength: 1
+              maxLength: 200
       response: GetCommentsResponse
     get-by-id:
       docs: Get a comment by id
