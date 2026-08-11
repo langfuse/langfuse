@@ -1,4 +1,8 @@
 #!/bin/bash
+#!/usr/bin/env bash
+set -e
+
+bash "$(dirname "$0")/check-requirements.sh"
 
 # Load environment variables
 [ -f ../../.env ] && source ../../.env
