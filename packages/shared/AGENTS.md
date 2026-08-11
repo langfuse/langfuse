@@ -55,7 +55,8 @@
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
-  client-safe in-app-agent contracts (AG-UI schemas, constants, id helpers).
+  client-safe in-app-agent contracts (AG-UI schemas, constants, id helpers,
+  and durable interrupt parsing shared by browser and server runtimes).
   `AgUiRunAgentInput` is a compile-time-only execution contract; there is no
   runtime input or browser runtime-state schema. Never re-export server code
   here.

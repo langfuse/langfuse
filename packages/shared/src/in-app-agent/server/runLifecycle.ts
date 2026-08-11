@@ -12,7 +12,7 @@ import {
   IN_APP_AGENT_UNSETTLED_RUN_STATUSES,
 } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
-import type { InAppAgentPrefixedLangfuseMcpToolName } from "./tools";
+import type { InAppAgentPrefixedLangfuseMcpToolName } from "./mcpPolicy";
 import {
   InAppAgentRunRequestSchema,
   type InAppAgentRunRequest,

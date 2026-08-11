@@ -5,4 +5,5 @@ export * from "./schema";
 export * from "./backgroundWatch";
 export * from "./constants";
 export * from "./ids";
+export * from "./interrupts";
 export * from "./messages";

@@ -21,10 +21,10 @@ import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
   parseInAppAgentApprovalDecisionEvent,
+  parseInAppAgentInterruptEvent,
   type AgUiRunAgentInput,
 } from "@langfuse/shared/in-app-agent";
-import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
-import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/tools";
+import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import {
   ensureOwnedConversation,
   getConversationEvents,

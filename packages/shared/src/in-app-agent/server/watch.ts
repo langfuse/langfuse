@@ -8,7 +8,7 @@ import {
 } from "../backgroundWatch";
 import type { AgUiEvent } from "../schema";
 import { reconcileConversationRuns } from "./runLifecycle";
-import { getPublicInAppAgentMcpToolResultContent } from "./tools";
+import { getPublicInAppAgentMcpToolResultContent } from "./toolResults";
 import {
   IN_APP_AGENT_HEARTBEAT_STALE_MS,
   IN_APP_AGENT_WATCH_KEEPALIVE_MS,

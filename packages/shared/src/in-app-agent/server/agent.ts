@@ -30,16 +30,18 @@ import { getToolFailureMessage } from "./toolErrors";
 import {
   createSandboxTools,
   createRedirectActionTool,
+  getToolCallId,
+  hasCallableExecute,
+  withOptionalSilentMcpOutput,
+} from "./tools";
+import type { CompletedInAppAgentMcpToolCall } from "./toolResults";
+import {
   filterInAppAgentAvailableLangfuseMcpTools,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
-  getToolCallId,
-  hasCallableExecute,
-  type CompletedInAppAgentMcpToolCall,
   type InAppAgentToolPolicy,
-  withOptionalSilentMcpOutput,
   withInAppAgentToolApproval,
-} from "./tools";
+} from "./mcpPolicy";
 import { toPublicEvent } from "./watch";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
