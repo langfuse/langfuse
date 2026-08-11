@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useRouter } from "next/router";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -11,10 +10,7 @@ import {
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
-import {
-  buildDeprecatedEvaluatorsUrl,
-  buildEvaluatorUpgradeUrl,
-} from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
@@ -110,40 +106,5 @@ export function V4MigrationUpdateRequiredBadge() {
         onAssistantStarted={() => undefined}
       />
     </>
-  );
-}
-
-/** Opens the manual evaluator upgrade flow from an individual evaluator peek. */
-export function V4MigrationEvaluatorUpdateRequiredBadge({
-  projectId,
-  evaluatorId,
-}: {
-  projectId: string;
-  evaluatorId: string;
-}) {
-  const router = useRouter();
-  const capture = usePostHogClientCapture();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-
-  if (!v4UpgradeUiEnabled) return null;
-
-  const handleManualUpgrade = () => {
-    router.push(buildEvaluatorUpgradeUrl(projectId, evaluatorId));
-  };
-
-  const handleClick = () => {
-    capture("v4_migration:update_required_badge_clicked", {
-      scope: "single",
-    });
-    handleManualUpgrade();
-  };
-
-  return (
-    <V4MigrationBadgeContent
-      onClick={handleClick}
-      title="Upgrade now"
-      showChevron={false}
-      compact
-    />
   );
 }

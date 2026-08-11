@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { encodeFiltersGeneric } from "@langfuse/shared";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -131,16 +132,22 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   const openEvaluatorUpgrade = useCallback(
     (evaluatorId: string) => {
+      if (!v4UpgradeUiEnabled) return;
+
       capture("v4_migration:update_required_badge_clicked", {
         scope: "single",
       });
       window.open(
-        buildEvaluatorUpgradeUrl(projectId, evaluatorId),
+        buildEvaluatorUpgradeUrl(
+          projectId,
+          evaluatorId,
+          encodeFiltersGeneric(queryFilter.filterState),
+        ),
         "_blank",
         "noopener,noreferrer",
       );
     },
-    [capture, projectId],
+    [capture, projectId, queryFilter.filterState, v4UpgradeUiEnabled],
   );
 
   const handleRowClick = useCallback(
