@@ -21,7 +21,8 @@ import {
   type V4MigrationSdkUsageSeries,
 } from "./sdkVersionStatus";
 import { V4_MIGRATION_LOOKBACK_DAYS } from "./migrationData";
-import { TIME_RANGES } from "@langfuse/shared";
+import { TABLE_AGGREGATION_OPTIONS } from "@langfuse/shared";
+import { rangeFromString } from "@/src/utils/date-range-utils";
 
 const makeSdkUsageSeries = (
   overrides: Partial<V4MigrationSdkUsageSeries>,
@@ -49,7 +50,7 @@ const cleanSdkState = (): V4MigrationSdkState => ({
 
 const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
-  setAgentOpen: vi.fn(),
+  openAssistant: vi.fn(),
   submitAgentMessage: vi.fn(),
   upgradePlan: {
     canUseAssistant: true,
@@ -84,6 +85,8 @@ const mocks = vi.hoisted(() => ({
   canToggleV4: true,
   isBetaEnabled: true,
   hasApiKeyCreateAccess: true,
+  canUpdateOrgSettings: true,
+  aiFeaturesEnabled: true,
   createProjectApiKey: vi.fn(),
 }));
 
@@ -120,10 +123,20 @@ vi.mock("@/src/utils/api", () => ({
 
 vi.mock("@/src/features/projects/hooks", () => ({
   useProject: () => ({ organization: { id: "org-1" } }),
+  useQueryProjectOrOrganization: () => ({
+    organization: {
+      id: "org-1",
+      aiFeaturesEnabled: mocks.aiFeaturesEnabled,
+    },
+  }),
 }));
 
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => mocks.hasApiKeyCreateAccess,
+}));
+
+vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+  useHasOrganizationAccess: () => mocks.canUpdateOrgSettings,
 }));
 
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
@@ -141,7 +154,7 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeAssistantSupport", () => ({
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useCanUseInAppAgent: () => true,
   useInAppAiAgent: () => ({
-    setOpen: mocks.setAgentOpen,
+    openAssistant: mocks.openAssistant,
     submit: mocks.submitAgentMessage,
   }),
 }));
@@ -185,6 +198,8 @@ describe("V4MigrationDetailsContent", () => {
     mocks.migrationData.experimentInstrumentationUpgradePath = null;
     mocks.canToggleV4 = true;
     mocks.isBetaEnabled = true;
+    mocks.canUpdateOrgSettings = true;
+    mocks.aiFeaturesEnabled = true;
     mocks.migrationData.sdk = cleanSdkState();
     mocks.migrationData.apis = { status: "loaded", count: 1 };
     mocks.migrationData.exports = { status: "loaded", count: 3 };
@@ -438,7 +453,7 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
   });
 
-  it("keeps Update SDK visible for a recognized SDK with an unparseable version", () => {
+  it("keeps Update SDK visible for a recognized SDK with an unparsable version", () => {
     mocks.migrationData.sdk = {
       status: "unknown",
       sdkUsageSeries: [
@@ -465,11 +480,16 @@ describe("V4MigrationDetailsContent", () => {
   });
 
   it("keeps the evidence-link date range expressible as a table range", () => {
-    // rangeFromString falls back to the page default when the abbreviation is
-    // unknown, which would silently unscope the evidence links.
+    // The events table resolves ?dateRange= through rangeFromString against
+    // TABLE_AGGREGATION_OPTIONS; an unknown abbreviation silently falls back
+    // to the page default and unscopes the evidence links.
     expect(
-      Object.values(TIME_RANGES).map((range) => range.abbreviation),
-    ).toContain(`${V4_MIGRATION_LOOKBACK_DAYS}d`);
+      rangeFromString(
+        `${V4_MIGRATION_LOOKBACK_DAYS}d`,
+        TABLE_AGGREGATION_OPTIONS,
+        "last1Day",
+      ),
+    ).toEqual({ range: `last${V4_MIGRATION_LOOKBACK_DAYS}Days` });
   });
 
   it("renders the public key as plain text when the v4 preview is off", () => {
@@ -574,44 +594,60 @@ describe("V4MigrationDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("navigates to evals when migrating with the assistant", async () => {
+  it("starts the assistant only after confirmation", async () => {
     mocks.migrationData.evals = { status: "loaded", count: 1 };
+    mocks.openAssistant.mockReturnValue(true);
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
+    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
-      screen.getByRole("button", { name: "Migrate with assistant" }),
+      within(migrationDialog).getByRole("button", {
+        name: /^Use Assistant/,
+      }),
+    );
+    fireEvent.click(
+      within(migrationDialog).getByRole("button", {
+        name: "Start upgrade now",
+      }),
     );
 
     await waitFor(() => {
-      expect(mocks.routerPush).toHaveBeenCalledWith("/project/project-1/evals");
+      expect(mocks.openAssistant).toHaveBeenCalledWith("v4_migration");
     });
-    expect(mocks.setAgentOpen).toHaveBeenCalledWith(true);
     expect(mocks.submitAgentMessage).toHaveBeenCalledWith(
       "eval-upgrade-prompt",
       { newConversation: true },
     );
   });
 
-  it("opens the assistant when navigation to evals is interrupted", async () => {
+  it("shows the admin handoff after a non-admin chooses the Assistant", () => {
     mocks.migrationData.evals = { status: "loaded", count: 1 };
-    mocks.routerPush.mockRejectedValueOnce(
-      new Error("Abort fetching component for route"),
-    );
+    mocks.canUpdateOrgSettings = false;
+    mocks.aiFeaturesEnabled = false;
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
+    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
-      screen.getByRole("button", { name: "Migrate with assistant" }),
+      within(migrationDialog).getByRole("button", {
+        name: /^Use Assistant/,
+      }),
     );
 
-    await waitFor(() => {
-      expect(mocks.setAgentOpen).toHaveBeenCalledWith(true);
-    });
-    expect(mocks.submitAgentMessage).toHaveBeenCalledWith(
-      "eval-upgrade-prompt",
-      { newConversation: true },
-    );
+    expect(
+      screen.getByRole("heading", {
+        name: "Ask your organization admin to enable AI features",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/enable AI features for our Langfuse organization/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue with manual upgrade" }),
+    ).not.toBeInTheDocument();
   });
 });
 

@@ -19,5 +19,8 @@ describe("omitFilterFacets", () => {
 
     expect(result.facets.map((facet) => facet.column)).toEqual(["name"]);
     expect(result.defaultExpanded).toEqual(["name"]);
+    // Recorded so the state hook can refuse to apply what the sidebar cannot
+    // show (LFE-14824).
+    expect(result.omittedFilterColumns).toEqual(["userId"]);
   });
 });

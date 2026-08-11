@@ -18,19 +18,18 @@
  * - Preview cards (modal/panel)
  */
 
-import { type TreeNode } from "../fns/types";
+import { type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { getLevelColors } from "@/src/components/level-colors";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import {
-  heatMapTextColor,
-  getSubtreeDurationOverflowMs,
-} from "@/src/features/traces/fns/helpers";
+import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
+import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 import type Decimal from "decimal.js";
 
 // How many distinct score groups to show inline on a tree/search row before
@@ -57,7 +56,7 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const { mergedScores, roots } = useTraceData();
+  const { mergedScores, traceLevelScoreOwnerIds } = useTraceData();
   const {
     showDuration,
     showCostTokens,
@@ -99,21 +98,11 @@ export function SpanContent({
 
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
-  const hasTraceNode = roots.some((r) => r.type === "TRACE");
-
-  // Filter scores for this node
-  // - TRACE nodes: show trace-level scores (observationId === null)
-  // - Top-level observations in rendered v4 tree (no TRACE node): show trace-level + observation-level scores
-  // - All other observations: show only observation-level scores
-  const isTopLevelTreeNode = roots.some((root) => root.id === node.id);
-  const nodeScores =
-    node.type === "TRACE"
-      ? mergedScores.filter((s) => s.observationId === null)
-      : isTopLevelTreeNode && !hasTraceNode
-        ? mergedScores.filter(
-            (s) => s.observationId === node.id || s.observationId === null,
-          )
-        : mergedScores.filter((s) => s.observationId === node.id);
+  const nodeScores = selectNodeScores(
+    mergedScores,
+    node.id,
+    traceLevelScoreOwnerIds,
+  );
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 

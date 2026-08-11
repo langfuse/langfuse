@@ -844,7 +844,6 @@ export async function getAuthOptions(signupAttribution?: {
             },
           });
 
-          span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
           // V4 preview availability is governed by the write mode:
           // - events_only: the legacy traces/observations tables are no longer
@@ -993,7 +992,7 @@ export async function getAuthOptions(signupAttribution?: {
         });
       },
       async signIn({ user, account, profile }) {
-        return instrumentAsync({ name: "next-auth-sign-in" }, async (span) => {
+        return instrumentAsync({ name: "next-auth-sign-in" }, async () => {
           // Block sign in without valid user.email
           const email = user.email?.toLowerCase();
           if (!email) {
@@ -1005,9 +1004,6 @@ export async function getAuthOptions(signupAttribution?: {
             throw new Error("Invalid email found in user object");
           }
 
-          span.setAttributes({
-            "auth.email": email,
-          });
           // EE: Check custom SSO enforcement, enforce the specific SSO provider on email domain
           // This also blocks setting a password for an email that is enforced to use SSO via password reset flow
           const userDomain = email.split("@")[1].toLowerCase();

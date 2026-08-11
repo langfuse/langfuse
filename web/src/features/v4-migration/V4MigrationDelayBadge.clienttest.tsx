@@ -169,6 +169,19 @@ describe("V4MigrationDelayBadge", () => {
     );
   });
 
+  it("stays hidden when an SDK version is merely unrecognized", () => {
+    // An unparsable version puts the series in the panel's Update SDK
+    // section for review, but is no proof of delayed ingestion.
+    setSdk("unknown", [
+      makeSdkUsageSeries({
+        sdkVersion: "not-semver",
+        v4MigrationStatus: "unknown",
+      }),
+    ]);
+    render(<V4MigrationDelayBadge />);
+    expect(screen.queryByText("New data in ~15 min")).not.toBeInTheDocument();
+  });
+
   it("stays hidden while the check is still running", () => {
     setSdk("checking", []);
     render(<V4MigrationDelayBadge />);

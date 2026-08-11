@@ -11,7 +11,6 @@ import {
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
@@ -62,9 +61,8 @@ const RenameConversationInput = ConversationIdInput.extend({
 const StartRunInput = ConversationIdInput.extend({
   message: z.string().trim().min(1).max(MAX_IN_APP_AGENT_MESSAGE_LENGTH),
   /**
-   * The same AG-UI context array the foreground path sends (current page, the
-   * quick action and entry point that triggered the turn); resolved and
-   * sanitized server-side, then stored on the run for the worker to replay.
+   * The AG-UI context for the current page, quick action, and entry point;
+   * resolved and sanitized server-side, then stored for the worker to replay.
    */
   context: z.array(AgUiContextSchema).default([]),
 });
@@ -90,14 +88,6 @@ const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
 const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
-  // Deployment config, not agent access, so no availability assert: an org
-  // without the entitlement should get an answer rather than an error.
-  getExecutionMode: protectedProjectProcedureWithoutTracing
-    .input(z.object({ projectId: z.string() }))
-    .query(() => ({
-      mode: sharedEnv.LANGFUSE_IN_APP_AGENT_EXECUTION_MODE,
-    })),
-
   listConversations: protectedProjectProcedure
     .input(
       z.object({
@@ -171,8 +161,8 @@ export const inAppAgentRouter = createTRPCRouter({
   /**
    * Submit a turn for background execution.
    *
-   * Runs the same validation chain as the foreground route, then commits the
-   * run as QUEUED with its user message already appended — the events table is
+   * Validates the request, then commits the run as QUEUED with its user message
+   * already appended — the events table is
    * the render source from the instant of submit, so there is no optimistic UI
    * state to survive a refresh. The BullMQ enqueue happens after commit; a
    * failure there marks the run FAILED immediately rather than leaving a

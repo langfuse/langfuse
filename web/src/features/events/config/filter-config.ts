@@ -98,26 +98,6 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "ingestionApiKey",
-      label: getEventsColumnName("ingestionApiKey"),
-    },
-    {
-      type: "categorical" as const,
-      column: "ingestionSdkName",
-      label: getEventsColumnName("ingestionSdkName"),
-    },
-    {
-      type: "categorical" as const,
-      column: "ingestionSdkVersion",
-      label: getEventsColumnName("ingestionSdkVersion"),
-    },
-    {
-      type: "categorical" as const,
-      column: "ingestionSource",
-      label: getEventsColumnName("ingestionSource"),
-    },
-    {
-      type: "categorical" as const,
       column: "type",
       label: getEventsColumnName("type"),
       help: {
@@ -208,6 +188,26 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "userId",
       label: getEventsColumnName("userId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionApiKey",
+      label: getEventsColumnName("ingestionApiKey"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionSdkName",
+      label: getEventsColumnName("ingestionSdkName"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionSdkVersion",
+      label: getEventsColumnName("ingestionSdkVersion"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionSource",
+      label: getEventsColumnName("ingestionSource"),
     },
     {
       type: "categorical" as const,

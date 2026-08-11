@@ -1183,6 +1183,96 @@ describe("InAppAgentBackgroundClient reconnect", () => {
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("cursor=0");
   });
 
+  it("preserves an open run across watch reconnects", async () => {
+    const requestUrls: URL[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      requestUrls.push(url);
+
+      if (requestUrls.length === 1) {
+        return new Response(
+          [
+            sseFrame({
+              type: "event",
+              sequenceNumber: 0,
+              event: {
+                type: EventType.RUN_STARTED,
+                runId: "run-1",
+                threadId: "conversation-1",
+              },
+            }),
+            sseFrame({
+              type: "event",
+              sequenceNumber: 1,
+              event: {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: "message-1",
+                role: "assistant",
+              },
+            }),
+            sseFrame({
+              type: "event",
+              sequenceNumber: 2,
+              event: {
+                type: EventType.TEXT_MESSAGE_CONTENT,
+                messageId: "message-1",
+                delta: "Still working",
+              },
+            }),
+            sseFrame({
+              type: "event",
+              sequenceNumber: 3,
+              event: {
+                type: EventType.TEXT_MESSAGE_END,
+                messageId: "message-1",
+              },
+            }),
+          ].join(""),
+        );
+      }
+
+      return new Response(
+        [
+          ...(url.searchParams.get("openRunId")
+            ? []
+            : [
+                sseFrame({
+                  type: "event",
+                  sequenceNumber: 3,
+                  event: {
+                    type: EventType.RUN_STARTED,
+                    runId: "run-1",
+                    threadId: "conversation-1",
+                  },
+                }),
+              ]),
+          sseFrame({
+            type: "event",
+            sequenceNumber: 4,
+            event: {
+              type: EventType.RUN_FINISHED,
+              runId: "run-1",
+              threadId: "conversation-1",
+            },
+          }),
+          sseFrame({ type: "done" }),
+        ].join(""),
+      );
+    });
+    const client = new InAppAgentBackgroundClient({
+      projectId: "project-1",
+      conversationId: "conversation-1",
+      cursor: -1,
+      startRun: vi.fn(),
+    });
+
+    await client.connectAgent();
+
+    expect(requestUrls).toHaveLength(2);
+    expect(requestUrls[0]?.searchParams.has("openRunId")).toBe(false);
+    expect(requestUrls[1]?.searchParams.get("openRunId")).toBe("run-1");
+  });
+
   it("keeps watching across repeated quiet connection rotations", async () => {
     vi.useFakeTimers();
     const responses = [

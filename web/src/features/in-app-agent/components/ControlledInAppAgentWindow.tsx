@@ -88,10 +88,8 @@ export function ControlledInAppAgentWindow(
     submit,
     submitFeedback,
   } = useInAppAiAgent();
-  const isCancellingRun =
-    execution.type === "background" && execution.isCancelling;
-  const shouldFlushCancelledRun =
-    execution.type === "background" && execution.run?.cancelRequested === true;
+  const isCancellingRun = execution.isCancelling;
+  const shouldFlushCancelledRun = execution.run?.cancelRequested === true;
   const {
     finishAnimation,
     isAnimating,
@@ -107,23 +105,19 @@ export function ControlledInAppAgentWindow(
     // `isCancelling` has cleared, and must not restart the reveal after Stop.
     shouldFlush: error !== null || isCancellingRun || shouldFlushCancelledRun,
   });
-  const windowExecutionUi: InAppAgentWindowExecutionUi =
-    execution.type === "foreground"
-      ? execution
-      : {
-          type: "background",
-          notice: getBackgroundRunNotice(execution.run),
-          stop:
-            execution.run && isCancellableBackgroundRun(execution.run.status)
-              ? {
-                  status: execution.isCancelling ? "stopping" : "available",
-                  onStop: () => {
-                    finishAnimation();
-                    execution.cancel();
-                  },
-                }
-              : null,
-        };
+  const windowExecutionUi: InAppAgentWindowExecutionUi = {
+    notice: getBackgroundRunNotice(execution.run),
+    stop:
+      execution.run && isCancellableBackgroundRun(execution.run.status)
+        ? {
+            status: execution.isCancelling ? "stopping" : "available",
+            onStop: () => {
+              finishAnimation();
+              execution.cancel();
+            },
+          }
+        : null,
+  };
   // Only a read-only conversation disables the composer outright. An assistant
   // turn -- including one paused on an approval -- blocks submission but leaves
   // the draft editable.
