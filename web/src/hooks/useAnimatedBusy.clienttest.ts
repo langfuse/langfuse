@@ -15,7 +15,7 @@ describe("useAnimatedBusy", () => {
 
   it("holds a fast finish for a whole cycle, and a slow one to its next cycle", () => {
     const { result, rerender } = renderHook(
-      ({ busy }: { busy: boolean }) => useAnimatedBusy(busy, 1000),
+      ({ busy }: { busy: boolean }) => useAnimatedBusy(busy, 1000).active,
       { initialProps: { busy: false } },
     );
 
@@ -52,7 +52,7 @@ describe("useAnimatedBusy", () => {
 
   it("stays on across the gap between a refresh's stages", () => {
     const { result, rerender } = renderHook(
-      ({ busy }: { busy: boolean }) => useAnimatedBusy(busy, 1000, 400),
+      ({ busy }: { busy: boolean }) => useAnimatedBusy(busy, 1000, 400).active,
       { initialProps: { busy: false } },
     );
 
@@ -81,5 +81,35 @@ describe("useAnimatedBusy", () => {
       vi.advanceTimersByTime(1100);
     });
     expect(result.current).toBe(false);
+  });
+
+  it("counts one epoch per busy period, so the animation restarts only between refreshes", () => {
+    const { result, rerender } = renderHook(
+      ({ busy }: { busy: boolean }) => useAnimatedBusy(busy, 1000, 400),
+      { initialProps: { busy: false } },
+    );
+    expect(result.current.epoch).toBe(0);
+
+    // One refresh, two stages: same epoch throughout.
+    rerender({ busy: true });
+    const first = result.current.epoch;
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    rerender({ busy: false });
+    rerender({ busy: true });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(result.current.epoch).toBe(first);
+
+    rerender({ busy: false });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(result.current.active).toBe(false);
+
+    rerender({ busy: true });
+    expect(result.current.epoch).toBe(first + 1);
   });
 });

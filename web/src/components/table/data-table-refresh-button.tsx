@@ -47,7 +47,7 @@ export function DataTableRefreshButton({
   // A fast refresh would otherwise show a single frame of spinner. Not disabled
   // while it spins either: the flash of the disabled state read as a glitch, and
   // refreshing again mid-flight is harmless.
-  const isSpinning = useAnimatedBusy(isRefreshing);
+  const { active: isSpinning } = useAnimatedBusy(isRefreshing);
 
   return (
     <div className="flex items-center">

@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
+export type AnimatedBusy = {
+  active: boolean;
+  /**
+   * Increments once per busy period. Key an animated element on it so each
+   * period plays the animation from its start, without remounting (and
+   * restarting) it while the period is still running.
+   */
+  epoch: number;
+};
+
 /**
  * Holds a short-lived busy flag on for whole animation cycles.
  *
@@ -14,14 +24,19 @@ export function useAnimatedBusy(
   busy: boolean,
   cycleMs = 1000,
   settleMs = 400,
-): boolean {
-  const [held, setHeld] = useState(busy);
+): AnimatedBusy {
+  const [state, setState] = useState<AnimatedBusy>({
+    active: busy,
+    epoch: 0,
+  });
   const startedAt = useRef<number | null>(null);
 
   useEffect(() => {
     if (busy) {
       startedAt.current ??= Date.now();
-      setHeld(true);
+      setState((prev) =>
+        prev.active ? prev : { active: true, epoch: prev.epoch + 1 },
+      );
       return;
     }
 
@@ -29,7 +44,7 @@ export function useAnimatedBusy(
 
     const stop = () => {
       startedAt.current = null;
-      setHeld(false);
+      setState((prev) => (prev.active ? { ...prev, active: false } : prev));
     };
 
     const settledAt = Date.now() + settleMs;
@@ -48,5 +63,5 @@ export function useAnimatedBusy(
     return () => clearTimeout(id);
   }, [busy, cycleMs, settleMs]);
 
-  return held;
+  return state;
 }

@@ -407,7 +407,7 @@ export function DataTable<TData extends object, TValue>({
 
   // Held for whole sweeps of the bar's animation: a 200ms refetch would
   // otherwise flash a single frame.
-  const showRefetchBar = useAnimatedBusy(isFetching, 1100);
+  const refetchBar = useAnimatedBusy(isFetching, 1100);
 
   const tableHeaders = shouldRenderGroupHeaders
     ? table.getHeaderGroups()
@@ -430,18 +430,19 @@ export function DataTable<TData extends object, TValue>({
           className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
           style={{ ...columnSizeVars }}
         >
-          {/* Zero-height so an arriving refetch never shifts the table. The bar
-              stays mounted and pauses when idle: mounting it per fetch restarted
-              the sweep from zero, which read as a second animation. */}
+          {/* Zero-height so an arriving refetch never shifts the table. Keyed
+              per busy period, not per fetch: one sweep from the left per
+              refresh, and no restart between a refresh's stages. */}
           <div className="sticky top-0 z-30 h-0">
             <div
+              key={refetchBar.epoch}
               aria-hidden="true"
               className={cn(
                 // The fade uses an arbitrary transition, not `duration-*`:
                 // that utility sets --tw-duration, which `animate-*` reads as
                 // its animation-duration too, and turned the sweep into a strobe.
                 "from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat [transition:opacity_200ms_ease-out]",
-                showRefetchBar && !data.isLoading
+                refetchBar.active && !data.isLoading
                   ? "opacity-100"
                   : "opacity-0 [animation-play-state:paused]",
               )}
