@@ -572,6 +572,11 @@
   body {
     /* Prevent pull-to-refresh and rubber-banding on the page level only */
     overscroll-behavior-y: none;
+    /* Omitting `pinch-zoom` blocks pinch and double-tap zoom at the engine
+       level, which modern iOS honors where it ignores `user-scalable=no`
+       (viewport meta lives in pages/_app.tsx). Elements that own their own
+       gestures set their own `touch-action`. */
+    touch-action: pan-x pan-y;
   }
 
   body {
