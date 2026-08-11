@@ -16,6 +16,7 @@ import {
   buildEventsBlobExportStreamQuery,
   buildEventsStreamQuery,
   getDistinctScoreNames,
+  parseMetadataCHRecordToDomain,
   queryClickhouseStream,
   logger,
 } from "@langfuse/shared/src/server";
@@ -356,7 +357,11 @@ export const getEventsStreamForDataset = async (props: {
           traceId: row.trace_id,
           input: row.input,
           output: row.output,
-          metadata: row.metadata,
+          metadata: row.metadata
+            ? parseMetadataCHRecordToDomain(
+                row.metadata as Record<string, string>,
+              )
+            : row.metadata,
         };
       }
     })(),
