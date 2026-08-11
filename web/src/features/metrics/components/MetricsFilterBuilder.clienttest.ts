@@ -92,6 +92,17 @@ describe("resolvesToColumn", () => {
   it("unmapped column: does not resolve", () => {
     expect(resolves("totallyUnknownColumn", "observations")).toBe(false);
   });
+
+  it("saved trace-spelling rows: resolve onto the v2 observations pair", () => {
+    for (const column of [
+      "traceRelease",
+      "Trace Release",
+      "traceVersion",
+      "Trace Version",
+    ]) {
+      expect(resolves(column, "observations")).toBe(true);
+    }
+  });
 });
 
 describe("buildV2FilterColumnsParams", () => {
@@ -253,6 +264,23 @@ describe("buildV2FilterColumnsParams", () => {
         (column) => column.id === "booleanValue",
       ),
     ).toBe(false);
+  });
+
+  it("trace-level release/version pair: offered on v1 only", () => {
+    expect(getColumn("observations", "traceRelease", "v1")).toMatchObject({
+      name: "Trace Release",
+    });
+    expect(getColumn("observations", "traceVersion", "v1")).toMatchObject({
+      name: "Trace Version",
+    });
+    expect(getColumn("observations", "traceRelease")).toBeUndefined();
+    expect(getColumn("observations", "traceVersion")).toBeUndefined();
+    expect(getColumn("observations", "release")).toMatchObject({
+      name: "Release",
+    });
+    expect(getColumn("observations", "version")).toMatchObject({
+      name: "Version",
+    });
   });
 
   it("semantic-root filtering: offered for v2 observations only", () => {

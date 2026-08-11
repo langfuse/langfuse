@@ -220,11 +220,31 @@ describe("dashboard widget minVersion", () => {
       ]);
     });
 
-    it("maps Observation Release to the v2-only release field", () => {
+    it("keeps the retired Observation Release label on the release field", () => {
+      expect(
+        mapLegacyUiTableFilterToView("observations", [
+          {
+            column: "Observation Release",
+            operator: "=",
+            value: "2026.04",
+            type: "string",
+          },
+        ]),
+      ).toEqual([
+        {
+          column: "release",
+          operator: "=",
+          value: "2026.04",
+          type: "string",
+        },
+      ]);
+    });
+
+    it("maps an editor Release row to the v2 release field", () => {
       expect(
         mapWidgetUiTableFilterToView("observations", [
           {
-            column: "Observation Release",
+            column: "Release",
             operator: "=",
             value: "2026.04",
             type: "string",

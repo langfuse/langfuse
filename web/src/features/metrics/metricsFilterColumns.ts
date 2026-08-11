@@ -25,8 +25,6 @@ export type GetMetricsFilterColumnsParams = {
   sessionOptions: SingleValueOption[];
   versionOptions: SingleValueOption[];
   releaseOptions: SingleValueOption[];
-  traceReleaseOptions: SingleValueOption[];
-  traceVersionOptions: SingleValueOption[];
   scoreNameOptions: SingleValueOption[];
   experimentIdOptions: SingleValueOption[];
   metadataKeyOptions: string[];
@@ -55,8 +53,6 @@ const getMetricsFilterColumnSpecs = ({
   sessionOptions,
   versionOptions,
   releaseOptions,
-  traceReleaseOptions,
-  traceVersionOptions,
   scoreNameOptions,
   experimentIdOptions,
   metadataKeyOptions,
@@ -67,6 +63,7 @@ const getMetricsFilterColumnSpecs = ({
     name: string,
     id: string,
     options: SingleValueOption[],
+    aliases?: string[],
   ): MetricsFilterColumnSpec =>
     viewVersion === "v2"
       ? {
@@ -76,12 +73,18 @@ const getMetricsFilterColumnSpecs = ({
             type: "stringOptions",
             options,
             internal: "internalValue",
+            ...(aliases ? { aliases } : {}),
           },
           customSelect: true,
         }
       : {
           column: { name, id, type: "string", internal: "internalValue" },
         };
+  // v4 events hold one column per pair (e.version / e.release), so the v2
+  // observations view offers a single Version / Release and the "Trace"
+  // spellings of saved widgets alias onto it.
+  const aliasesTraceSpelling =
+    viewVersion === "v2" && selectedView === "observations";
   const metadataSuggest = viewVersion === "v2";
   const filterColumns: MetricsFilterColumnSpec[] = [
     {
@@ -131,11 +134,24 @@ const getMetricsFilterColumnSpecs = ({
       },
       customSelect: metadataSuggest,
     },
-    suggestString("Version", "version", versionOptions),
+    suggestString(
+      "Version",
+      "version",
+      versionOptions,
+      aliasesTraceSpelling ? ["traceVersion", "Trace Version"] : undefined,
+    ),
   ];
 
-  if (selectedView !== "observations") {
-    filterColumns.push(suggestString("Release", "release", releaseOptions));
+  // v1 observationsView has no release dimension; only traceRelease.
+  if (viewVersion === "v2" || selectedView !== "observations") {
+    filterColumns.push(
+      suggestString(
+        "Release",
+        "release",
+        releaseOptions,
+        aliasesTraceSpelling ? ["traceRelease", "Trace Release"] : undefined,
+      ),
+    );
   }
 
   if (selectedView === "observations") {
@@ -179,16 +195,6 @@ const getMetricsFilterColumnSpecs = ({
       // v2-only filter columns (experiment data only exists in events table)
       ...(viewVersion === "v2"
         ? [
-            {
-              column: {
-                name: "Observation Release",
-                id: "release",
-                type: "stringOptions",
-                options: releaseOptions,
-                internal: "internalValue",
-              },
-              customSelect: true,
-            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Experiment Name",
@@ -249,26 +255,13 @@ const getMetricsFilterColumnSpecs = ({
         },
         customSelect: true,
       },
-      {
-        column: {
-          name: "Trace Release",
-          id: "traceRelease",
-          type: "stringOptions",
-          options: traceReleaseOptions,
-          internal: "internalValue",
-        },
-        customSelect: true,
-      },
-      {
-        column: {
-          name: "Trace Version",
-          id: "traceVersion",
-          type: "stringOptions",
-          options: traceVersionOptions,
-          internal: "internalValue",
-        },
-        customSelect: true,
-      },
+      // v1 joins traces for these; v4 has no separate trace-level pair.
+      ...(viewVersion === "v1"
+        ? [
+            suggestString("Trace Release", "traceRelease", []),
+            suggestString("Trace Version", "traceVersion", []),
+          ]
+        : []),
       {
         column: {
           name: "Model",

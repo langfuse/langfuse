@@ -283,8 +283,6 @@ const buildV1FilterColumnsParams = ({
   sessionOptions: [],
   versionOptions: [],
   releaseOptions: [],
-  traceReleaseOptions: [],
-  traceVersionOptions: [],
   scoreNameOptions: [],
   experimentIdOptions: [],
   metadataKeyOptions: [],
@@ -325,11 +323,7 @@ const buildV2FilterColumnsParams = ({
     userOptions: normalizeSingleValueOptions(filterOptions?.userId),
     sessionOptions: normalizeSingleValueOptions(filterOptions?.sessionId),
     versionOptions: normalizeSingleValueOptions(filterOptions?.version),
-    // Events denormalize trace release into e.release and conflate observation
-    // and trace version into e.version, so each pair shares one source.
     releaseOptions: normalizeSingleValueOptions(filterOptions?.release),
-    traceReleaseOptions: normalizeSingleValueOptions(filterOptions?.release),
-    traceVersionOptions: normalizeSingleValueOptions(filterOptions?.version),
     scoreNameOptions: scoreNameOptionsForView(view, filterOptions),
     experimentIdOptions: normalizeSingleValueOptions(
       filterOptions?.experimentId,

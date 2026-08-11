@@ -146,7 +146,10 @@ const viewFilterDefinitions: Record<
     ),
     defineField(
       "release",
-      sourceSpec("Observation Release", { uiTableId: "release" }),
+      sourceSpec("Release", {
+        uiTableId: "release",
+        aliases: ["Observation Release"],
+      }),
     ),
     defineField("version", sourceSpec("Version", { uiTableId: "version" })),
     // Experiment fields (v2 only - experiment data only exists in events table)
