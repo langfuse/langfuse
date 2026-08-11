@@ -122,6 +122,19 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
   // status omitted: the pause/resume toolbar owns it.
 });
 
+/** resolveViewChangePatch returns the form fields that must change when the view changes. */
+const resolveViewChangePatch = (
+  nextView: keyof (typeof viewDeclarations)["v2"],
+  currentMeasure: string,
+): Partial<Pick<CreateMonitor, "metric">> => {
+  const measures = viewDeclarations.v2[nextView]?.measures ?? {};
+  // Filters are never patched; MetricsFilterBuilder banners now-invalid rows.
+  // A measure missing from the new view leaves the form unsubmittable.
+  return currentMeasure in measures
+    ? {}
+    : { metric: { measure: "count", aggregation: "count" } };
+};
+
 /** nameOrPlaceholder falls back to the placeholder when the name is blank. */
 const nameOrPlaceholder = (
   name: string | undefined,
@@ -342,29 +355,15 @@ export const MonitorForm = ({
                         value={field.value}
                         onValueChange={(next) => {
                           field.onChange(next);
-                          // Reset the metric whenever the view changes: the
-                          // selected measure may not exist on the new view,
-                          // which would leave the form in an unsubmittable
-                          // state until the user manually picks one. "count"
-                          // is always present and is the safe default.
-                          const view =
-                            next as keyof (typeof viewDeclarations)["v2"];
-                          const measures =
-                            viewDeclarations.v2[view]?.measures ?? {};
-                          const currentMeasure =
-                            form.getValues("metric.measure");
-                          if (!(currentMeasure in measures)) {
-                            form.setValue(
-                              "metric",
-                              { measure: "count", aggregation: "count" },
-                              { shouldValidate: true },
-                            );
+                          const patch = resolveViewChangePatch(
+                            next as keyof (typeof viewDeclarations)["v2"],
+                            form.getValues("metric.measure"),
+                          );
+                          if (patch.metric) {
+                            form.setValue("metric", patch.metric, {
+                              shouldValidate: true,
+                            });
                           }
-                          // Clear filters too — UI-cased column ids only resolve
-                          // against the view that's currently selected.
-                          form.setValue("filters", [], {
-                            shouldValidate: true,
-                          });
                         }}
                         disabled={!hasAccess}
                       >
@@ -1018,4 +1017,5 @@ export const __test = {
   createDefaults,
   monitorToDefaults,
   nameOrPlaceholder,
+  resolveViewChangePatch,
 };
