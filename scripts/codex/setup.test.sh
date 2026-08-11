@@ -14,13 +14,14 @@ trap cleanup EXIT
 repo_copy="$tmpdir/repo"
 pnpm_log="$tmpdir/pnpm.log"
 
-mkdir -p "$tmpdir/bin" "$repo_copy/scripts/codex"
+mkdir -p "$tmpdir/bin" "$repo_copy/scripts/agents" "$repo_copy/scripts/codex"
 
+cp "$repo_root/scripts/agents/setup.sh" "$repo_copy/scripts/agents/setup.sh"
 cp "$repo_root/scripts/codex/setup.sh" "$repo_copy/scripts/codex/setup.sh"
 cp "$repo_root/.env.dev.example" "$repo_copy/.env.dev.example"
 cp "$repo_root/.env.test.example" "$repo_copy/.env.test.example"
 
-chmod +x "$repo_copy/scripts/codex/setup.sh"
+chmod +x "$repo_copy/scripts/agents/setup.sh" "$repo_copy/scripts/codex/setup.sh"
 
 cat <<'EOF' > "$tmpdir/bin/corepack"
 #!/usr/bin/env bash
@@ -33,7 +34,12 @@ printf '%s\n' "\$*" >> "$pnpm_log"
 exit 0
 EOF
 
-chmod +x "$tmpdir/bin/corepack" "$tmpdir/bin/pnpm"
+cat <<'EOF' > "$tmpdir/bin/uname"
+#!/usr/bin/env bash
+echo Linux
+EOF
+
+chmod +x "$tmpdir/bin/corepack" "$tmpdir/bin/pnpm" "$tmpdir/bin/uname"
 
 assert_file_contains() {
   local file_path="$1"
@@ -89,8 +95,8 @@ assert_file_contains \
 
 assert_file_contains \
   "$pnpm_log" \
-  "run playwright:install" \
-  "setup.sh should install Playwright browsers for frontend review"
+  "--filter web exec playwright install --with-deps chromium" \
+  "setup.sh should install Playwright and its Linux dependencies for frontend review"
 
 assert_file_contains \
   "$pnpm_log" \
