@@ -45,6 +45,10 @@ type InAppAgentDisplayMessage = AgUiMessage & {
   feedbackMessageId?: string;
 };
 
+type InAppAgentToolCall = NonNullable<
+  Extract<AgUiMessage, { role: "assistant" }>["toolCalls"]
+>[number];
+
 const InAppAgentDisplayPlacementSchema = z.object({
   anchorMessageId: z.string(),
   order: z.number(),
@@ -356,6 +360,13 @@ export function projectInAppAgentMessagesForDisplay(
     }
   }
 
+  const isDuplicateToolCallForMessage = (
+    toolCall: InAppAgentToolCall,
+    messageId: string,
+  ) =>
+    toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+    firstToolCallMessageIds.get(toolCall.id) !== messageId;
+
   return messages.flatMap<InAppAgentDisplayMessage>((message) => {
     const projectedMessage =
       message.role === "assistant"
@@ -365,12 +376,12 @@ export function projectInAppAgentMessagesForDisplay(
               state.textByMessageId[message.id]?.nativeContent ??
               message.content,
             toolCalls: message.toolCalls?.filter((toolCall) => {
-              if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
-                return true;
+              if (isDuplicateToolCallForMessage(toolCall, message.id)) {
+                return false;
               }
 
-              if (firstToolCallMessageIds.get(toolCall.id) !== message.id) {
-                return false;
+              if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+                return true;
               }
 
               const placement = state.toolCallPlacements[toolCall.id];
@@ -383,10 +394,8 @@ export function projectInAppAgentMessagesForDisplay(
       projectedMessage.role === "assistant" &&
       !projectedMessage.content?.trim() &&
       Boolean(message.toolCalls?.length) &&
-      message.toolCalls?.every(
-        (toolCall) =>
-          toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
-          firstToolCallMessageIds.get(toolCall.id) !== message.id,
+      message.toolCalls?.every((toolCall) =>
+        isDuplicateToolCallForMessage(toolCall, message.id),
       );
     const projectedMessages = isEmptyDuplicateToolCallMessage
       ? []

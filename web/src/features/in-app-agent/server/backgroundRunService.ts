@@ -366,12 +366,18 @@ export async function decideBackgroundApproval(params: {
     );
   }
 
-  const approvalRequest = events.find(
-    (persisted) =>
-      persisted.runId === params.runId &&
-      parseInAppAgentInterruptEvent(persisted.event)?.toolCallId ===
-        params.toolCallId,
-  );
+  let approvalRequest: ReturnType<typeof parseInAppAgentInterruptEvent>;
+  for (const persisted of events) {
+    if (persisted.runId !== params.runId) {
+      continue;
+    }
+
+    const parsedRequest = parseInAppAgentInterruptEvent(persisted.event);
+    if (parsedRequest?.toolCallId === params.toolCallId) {
+      approvalRequest = parsedRequest;
+      break;
+    }
+  }
 
   if (!approvalRequest) {
     throw new LangfuseNotFoundError("Approval request not found");
@@ -380,9 +386,7 @@ export async function decideBackgroundApproval(params: {
   // Resolve the granted tool from the persisted interrupt, never client input.
   const alwaysAllowToolName =
     params.approvalScope === "conversation" && params.approved
-      ? getInAppAgentPrefixedToolName(
-          parseInAppAgentInterruptEvent(approvalRequest.event)?.toolName,
-        )
+      ? getInAppAgentPrefixedToolName(approvalRequest.toolName)
       : undefined;
 
   const continuationRun = await decideToolApproval({
