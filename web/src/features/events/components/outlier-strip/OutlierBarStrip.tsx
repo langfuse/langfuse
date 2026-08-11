@@ -539,7 +539,12 @@ export function OutlierBarStrip({
       </svg>
 
       {!hasData && (
-        <span className="text-muted-foreground/70 pointer-events-none absolute inset-0 flex items-center justify-center text-[10px]">
+        // Centered on the bar canvas, not the svg: inset-0 would include the
+        // time-label band and push the notice below the plot's middle.
+        <span
+          className="text-muted-foreground/70 pointer-events-none absolute inset-x-0 top-0 flex items-center justify-center text-[10px]"
+          style={{ height: heightPx }}
+        >
           {hasActivity
             ? `No ${metricSpec.shortLabel.toLowerCase()} data in range`
             : "No observations in range"}

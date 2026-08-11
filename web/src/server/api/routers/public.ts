@@ -18,6 +18,9 @@ const ReleaseApiRes = z.array(
 );
 
 export const publicRouter = createTRPCRouter({
+  traceReadConfig: publicProcedure.query(() => ({
+    v4WriteMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+  })),
   tracingSearchConfig: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(() => ({

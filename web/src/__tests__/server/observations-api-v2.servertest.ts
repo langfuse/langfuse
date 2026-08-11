@@ -1499,6 +1499,40 @@ describe("/api/public/v2/observations API Endpoint", () => {
     }
   });
 
+  maybe("trace_context group: unresolvable trace name", () => {
+    // The events table ships "no resolvable trace name" as '' on the wire
+    // (eventsTableTraceNameSelectSql, LFE-14924). The API contract is null, so
+    // the partial (field-group) converter must map it back.
+    it("returns null traceName for a child span without a stored trace name", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          parent_span_id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          type: "SPAN",
+          name: "child-without-trace-name",
+          trace_name: "",
+        }),
+      ]);
+
+      const response = await getObservations(
+        `/api/public/v2/observations?fields=trace_context&traceId=${traceId}`,
+      );
+
+      expect(response.status).toBe(200);
+      const observation = response.body.data.find(
+        (candidate: { id: string }) => candidate.id === observationId,
+      );
+      expect(observation).toBeDefined();
+      expect(observation?.traceName).toBeNull();
+    });
+  });
+
   maybe("Metadata expansion with expandMetadata parameter", () => {
     it("should return full metadata values when expandMetadata is specified", async () => {
       const traceId = randomUUID();

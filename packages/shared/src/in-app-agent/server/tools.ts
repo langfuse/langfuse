@@ -1,4 +1,8 @@
-import { createTool } from "@mastra/core/tools";
+import {
+  standardSchemaToJSONSchema,
+  toStandardSchema,
+} from "@mastra/core/schema";
+import { createTool, Tool } from "@mastra/core/tools";
 import type { InAppAgentSandbox } from "./sandbox";
 import {
   hasProjectAccessByRole,
@@ -27,7 +31,11 @@ import z from "zod";
 import { TABLE_AGGREGATION_OPTIONS } from "../../utils/dateRanges";
 import { ObservationLevelDomain, TracingSearchType } from "../../index";
 import { Role } from "../../db";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
+import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
+  IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
+} from "../constants";
 
 type InAppAgentMcpToolApproval = "auto" | "approval";
 
@@ -46,10 +54,9 @@ type InAppAgentMcpToolPolicy = {
 
 // Exhaustive approval policy for Langfuse MCP tools. Keys use the unprefixed
 // MCP registry names and are the source of truth for the tool-name type below.
-// Exhaustiveness against web's MCP toolRegistry is enforced by a compile-time
-// assertion in web (src/features/in-app-agent/server/handler.ts) plus
-// the registry-comparison servertest, so new MCP tools must be classified
-// before the in-app agent can auto/approval-gate them.
+// Exhaustiveness against web's MCP toolRegistry is enforced by type and runtime
+// assertions in web's in-app-agent stream servertest, so new MCP tools must be
+// classified before the in-app agent can auto/approval-gate them.
 export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   listAnnotationQueues: {
     approval: "auto",
@@ -259,13 +266,13 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "prompts:read" },
   },
-  listMonitors: {
+  listAlerts: {
     approval: "auto",
-    availability: { scope: "monitors:read" },
+    availability: { scope: "alerts:read" },
   },
-  getMonitor: {
+  getAlert: {
     approval: "auto",
-    availability: { scope: "monitors:read" },
+    availability: { scope: "alerts:read" },
   },
   listPrompts: {
     approval: "auto",
@@ -390,13 +397,8 @@ export const IN_APP_AGENT_SANDBOX_TOOL_NAMES = new Set([
   "bash",
 ]);
 
-// Tools in this set can run without a human-in-the-loop approval prompt. Every
-// other MCP tool is still exposed to the model, but Mastra suspends execution
-// until the user explicitly approves the exact call.
-export const IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES = new Set([
-  ...Object.entries(IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES)
-    .filter(([, policy]) => policy.approval === "auto")
-    .map(([toolName]) => `langfuse_${toolName}`),
+// Runtime-owned tools never suspend; documentation tools are approved by prefix.
+const IN_APP_AGENT_LOCAL_AUTO_APPROVED_TOOL_NAMES = new Set<string>([
   ...IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES,
   ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
 ]);
@@ -407,6 +409,30 @@ export function isMcpToolName(
   return IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.has(
     input as InAppAgentLangfuseMcpToolName,
   );
+}
+
+/** Durable grants retain the MCP surface prefix to avoid cross-surface collisions. */
+export type InAppAgentPrefixedLangfuseMcpToolName =
+  `langfuse_${InAppAgentLangfuseMcpToolName}`;
+
+export function getInAppAgentRegistryToolName(
+  toolName: string | undefined,
+): InAppAgentLangfuseMcpToolName | undefined {
+  if (!toolName?.startsWith("langfuse_")) {
+    return undefined;
+  }
+
+  const registryToolName = toolName.slice("langfuse_".length);
+
+  return isMcpToolName(registryToolName) ? registryToolName : undefined;
+}
+
+export function getInAppAgentPrefixedToolName(
+  toolName: string | undefined,
+): InAppAgentPrefixedLangfuseMcpToolName | undefined {
+  const registryToolName = getInAppAgentRegistryToolName(toolName);
+
+  return registryToolName ? `langfuse_${registryToolName}` : undefined;
 }
 
 export function isInAppAgentLangfuseMcpToolAvailable(params: {
@@ -430,22 +456,75 @@ export function isInAppAgentLangfuseMcpToolAvailable(params: {
   });
 }
 
+export type InAppAgentToolPolicy = {
+  readonly available: ReadonlySet<InAppAgentLangfuseMcpToolName>;
+  readonly autoApproved: ReadonlySet<InAppAgentLangfuseMcpToolName>;
+};
+
+export function createInAppAgentToolPolicy(params: {
+  userAccess?: InAppAgentUserAccess;
+  alwaysAllowedTools?: Iterable<string>;
+}): InAppAgentToolPolicy {
+  const available = new Set<InAppAgentLangfuseMcpToolName>();
+  const autoApproved = new Set<InAppAgentLangfuseMcpToolName>();
+
+  for (const toolName of IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES) {
+    if (
+      !isInAppAgentLangfuseMcpToolAvailable({
+        toolName,
+        userAccess: params.userAccess,
+      })
+    ) {
+      continue;
+    }
+
+    available.add(toolName);
+
+    if (IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[toolName].approval === "auto") {
+      autoApproved.add(toolName);
+    }
+  }
+
+  for (const prefixedToolName of params.alwaysAllowedTools ?? []) {
+    const toolName = getInAppAgentRegistryToolName(prefixedToolName);
+
+    if (toolName && available.has(toolName)) {
+      autoApproved.add(toolName);
+    }
+  }
+
+  return { available, autoApproved };
+}
+
+export function getInAppAgentMcpAllowedToolNames(
+  policy: InAppAgentToolPolicy,
+  oneOffToolName?: InAppAgentLangfuseMcpToolName,
+): InAppAgentLangfuseMcpToolName[] {
+  const allowed = new Set<InAppAgentLangfuseMcpToolName>();
+
+  // Keep the current approval first for legacy web pods that accept one tool.
+  if (oneOffToolName && policy.available.has(oneOffToolName)) {
+    allowed.add(oneOffToolName);
+  }
+
+  for (const toolName of policy.autoApproved) {
+    if (
+      IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[toolName].approval === "approval"
+    ) {
+      allowed.add(toolName);
+    }
+  }
+
+  return [...allowed];
+}
+
 export function filterInAppAgentAvailableLangfuseMcpTools<TTool>(params: {
   tools: Partial<Record<InAppAgentLangfuseMcpToolName, TTool>> | undefined;
-  userAccess?: InAppAgentUserAccess;
+  policy: InAppAgentToolPolicy;
 }): Partial<Record<InAppAgentLangfuseMcpToolName, TTool>> {
   return Object.fromEntries(
     Object.entries(params.tools ?? {}).flatMap(([toolName, tool]) => {
-      if (!isMcpToolName(toolName)) {
-        return [];
-      }
-
-      if (
-        !isInAppAgentLangfuseMcpToolAvailable({
-          toolName,
-          userAccess: params.userAccess,
-        })
-      ) {
+      if (!isMcpToolName(toolName) || !params.policy.available.has(toolName)) {
         return [];
       }
 
@@ -458,21 +537,33 @@ type InAppAgentTool = object;
 
 export function withInAppAgentToolApproval<TTool extends InAppAgentTool>(
   tools: Record<string, TTool>,
+  policy: InAppAgentToolPolicy,
 ): Record<string, TTool | (TTool & { requireApproval: true })> {
   return Object.fromEntries(
     Object.entries(tools).map(([toolName, tool]) => [
       toolName,
-      isInAppAgentAutoApprovedToolName(toolName)
+      isInAppAgentAutoApprovedToolName(toolName, policy)
         ? tool
         : { ...tool, requireApproval: true },
     ]),
   ) as Record<string, TTool | (TTool & { requireApproval: true })>;
 }
 
-function isInAppAgentAutoApprovedToolName(toolName: string): boolean {
-  return (
+function isInAppAgentAutoApprovedToolName(
+  toolName: string,
+  policy: InAppAgentToolPolicy,
+): boolean {
+  if (
     toolName.startsWith("langfuseDocs_") ||
-    IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES.has(toolName)
+    IN_APP_AGENT_LOCAL_AUTO_APPROVED_TOOL_NAMES.has(toolName)
+  ) {
+    return true;
+  }
+
+  const registryToolName = getInAppAgentRegistryToolName(toolName);
+
+  return (
+    registryToolName !== undefined && policy.autoApproved.has(registryToolName)
   );
 }
 
@@ -517,14 +608,201 @@ export function createSandboxTools(sandbox: InAppAgentSandbox) {
   };
 }
 
+const SILENT_MCP_TOOL_PARAMETER_DESCRIPTION =
+  "Suppress the tool output from the conversation and save the full result to /workspace/tool_calls.";
+
+const SilentMcpToolInputSchema = z.looseObject({
+  silent: z
+    .boolean()
+    .optional()
+    .describe(SILENT_MCP_TOOL_PARAMETER_DESCRIPTION),
+});
+
+type SilentMcpToolOutput = {
+  type: typeof IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE;
+  output: unknown;
+};
+
+export type CompletedInAppAgentMcpToolCall = {
+  toolCallId: string;
+  toolName: string;
+  request: unknown;
+  response: unknown;
+  error: string | null;
+  createdAt: Date;
+};
+
+type WrappableMcpTool = Pick<
+  Tool,
+  "execute" | "inputSchema" | "toModelOutput"
+> &
+  Required<Pick<Tool, "execute" | "inputSchema">>;
+
+function isWrappableMcpTool(tool: unknown): tool is WrappableMcpTool {
+  return (
+    typeof tool === "object" &&
+    tool !== null &&
+    "execute" in tool &&
+    typeof tool.execute === "function" &&
+    "inputSchema" in tool &&
+    tool.inputSchema !== undefined &&
+    (!("toModelOutput" in tool) ||
+      tool.toModelOutput === undefined ||
+      typeof tool.toModelOutput === "function")
+  );
+}
+
+export function withOptionalSilentMcpOutput(params: {
+  tools: Record<string, unknown> | undefined;
+  sandbox?: InAppAgentSandbox;
+  onToolCallCompleted?: (toolCall: CompletedInAppAgentMcpToolCall) => void;
+}): Record<string, Tool> {
+  return Object.fromEntries(
+    Object.entries(params.tools ?? {}).map(([toolName, tool]) => {
+      if (!params.sandbox) {
+        return [toolName, tool];
+      }
+
+      // MCPClient may construct tools with a different @mastra/core module
+      // instance, so instanceof Tool is not reliable across package realms.
+      if (!isWrappableMcpTool(tool)) {
+        return [toolName, tool];
+      }
+
+      const { execute, inputSchema, toModelOutput } = tool;
+
+      if (inputSchema instanceof z.ZodObject) {
+        tool.inputSchema = inputSchema.extend({
+          silent: z
+            .boolean()
+            .optional()
+            .describe(SILENT_MCP_TOOL_PARAMETER_DESCRIPTION),
+        });
+      } else {
+        const jsonInputSchema = standardSchemaToJSONSchema(inputSchema);
+        if (jsonInputSchema.type !== "object") {
+          return [toolName, tool];
+        }
+
+        tool.inputSchema = toStandardSchema({
+          ...jsonInputSchema,
+          properties: {
+            ...jsonInputSchema.properties,
+            silent: {
+              type: "boolean",
+              description: SILENT_MCP_TOOL_PARAMETER_DESCRIPTION,
+            },
+          },
+        });
+      }
+
+      tool.execute = async (input, context) => {
+        const { silent, ...toolInput } = SilentMcpToolInputSchema.parse(input);
+        const toolCallId = getToolCallId(context);
+        const createdAt = new Date();
+        let result: unknown;
+
+        try {
+          result = await execute(toolInput, context);
+        } catch (error) {
+          if (toolCallId) {
+            params.onToolCallCompleted?.({
+              toolCallId,
+              toolName,
+              request: input,
+              response: null,
+              error: error instanceof Error ? error.message : String(error),
+              createdAt,
+            });
+          }
+
+          throw error;
+        }
+
+        if (toolCallId) {
+          params.onToolCallCompleted?.({
+            toolCallId,
+            toolName,
+            request: input,
+            response: result,
+            error: null,
+            createdAt,
+          });
+        }
+
+        if (!silent) {
+          return result;
+        }
+
+        // Preserve the raw result for the existing tool_calls persistence flow.
+        return {
+          type: IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
+          output: result,
+        } satisfies SilentMcpToolOutput;
+      };
+      tool.toModelOutput = (output) => {
+        if (isSilentMcpToolOutput(output)) {
+          return IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE;
+        }
+
+        return toModelOutput ? toModelOutput(output) : output;
+      };
+
+      return [toolName, tool];
+    }),
+  ) as Record<string, Tool>;
+}
+
+function getToolCallId(context: unknown) {
+  if (
+    typeof context !== "object" ||
+    context === null ||
+    !("agent" in context) ||
+    typeof context.agent !== "object" ||
+    context.agent === null ||
+    !("toolCallId" in context.agent) ||
+    typeof context.agent.toolCallId !== "string"
+  ) {
+    return undefined;
+  }
+
+  return context.agent.toolCallId;
+}
+
+export function getPublicInAppAgentMcpToolResultContent(content: string) {
+  try {
+    return isSilentMcpToolOutput(JSON.parse(content) as unknown)
+      ? IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE
+      : content;
+  } catch {
+    return content;
+  }
+}
+
+export function getSandboxInAppAgentMcpToolResultContent(content: string) {
+  const parsed = JSON.parse(content) as unknown;
+
+  return isSilentMcpToolOutput(parsed) ? parsed.output : parsed;
+}
+
+function isSilentMcpToolOutput(value: unknown): value is SilentMcpToolOutput {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE &&
+    "output" in value
+  );
+}
+
 const InAppAgentRedirectDestinationSchema = z.enum([
+  "alerts",
   "dashboardWidget",
   "dashboards",
   "datasets",
   "evals",
   "experiments",
   "models",
-  "monitors",
   "playground",
   "projectMembers",
   "projectSettings",
@@ -623,6 +901,7 @@ const InAppAgentProjectSettingsPageSchema = z.enum([
 const InAppAgentRedirectToolInputStrictSchema = z.discriminatedUnion(
   "destination",
   [
+    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("alerts") }),
     InAppAgentRedirectBaseSchema.extend({
       destination: z.literal("dashboardWidget"),
       params: z.object({ widgetId: z.string().min(1).max(200) }),
@@ -641,7 +920,6 @@ const InAppAgentRedirectToolInputStrictSchema = z.discriminatedUnion(
       destination: z.literal("experiments"),
     }),
     InAppAgentRedirectBaseSchema.extend({ destination: z.literal("models") }),
-    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("monitors") }),
     InAppAgentRedirectBaseSchema.extend({
       destination: z.literal("playground"),
     }),
@@ -757,6 +1035,10 @@ function getRedirectHref(
   projectId: string,
   isV4Enabled: boolean,
 ): string {
+  if (input.destination === "alerts") {
+    return buildMonitorsPath({ projectId });
+  }
+
   if (input.destination === "dashboardWidget") {
     return buildDashboardWidgetPath({
       projectId,
@@ -785,10 +1067,6 @@ function getRedirectHref(
 
   if (input.destination === "models") {
     return buildModelsPath({ projectId });
-  }
-
-  if (input.destination === "monitors") {
-    return buildMonitorsPath({ projectId });
   }
 
   if (input.destination === "playground") {

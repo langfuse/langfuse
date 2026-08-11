@@ -6,6 +6,7 @@ import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   LangfuseNotFoundError,
+  type Plan,
 } from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
@@ -22,6 +23,7 @@ import {
   type AgUiRunAgentInput,
 } from "@langfuse/shared/in-app-agent";
 import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/tools";
 import {
   ensureOwnedConversation,
   getConversationEvents,
@@ -32,6 +34,7 @@ import {
   type PersistedConversationEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import {
+  cancelConversationRunsInTransaction,
   cleanupTerminalRunMcpApiKeys,
   createQueuedRun,
   decideToolApproval,
@@ -40,6 +43,7 @@ import {
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 
 import { serializeInAppAgentDisplayState } from "@/src/features/in-app-agent/lib/display";
+import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
 import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
 
@@ -148,6 +152,8 @@ export async function getBackgroundConversationSnapshot(params: {
 export async function startBackgroundRun(params: {
   prisma: PrismaClient;
   projectId: string;
+  orgId: string;
+  plan: Plan;
   conversationId: string;
   userId: string;
   message: string;
@@ -162,6 +168,24 @@ export async function startBackgroundRun(params: {
     conversationId: params.conversationId,
     userId: params.userId,
   });
+
+  // Reconcile before counting capacity: this turn is allowed to replace a run
+  // of its own conversation that already lost its worker or timed out, which
+  // `createQueuedRun` does under the lock further down. Counting that row would
+  // reject the replacement with a ceiling error instead. Ownership is verified
+  // above first, because reconciliation writes.
+  await reconcileConversationRuns({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: conversation.id,
+  });
+  await assertInAppAgentRunCapacity({
+    prisma: params.prisma,
+    orgId: params.orgId,
+    plan: params.plan,
+    userId: params.userId,
+  });
+
   const events = await getConversationEvents({
     prisma: params.prisma,
     projectId: params.projectId,
@@ -238,6 +262,49 @@ export async function startBackgroundRun(params: {
   return { runId: run.id };
 }
 
+/** Soft-delete a conversation and cancel its unsettled runs atomically. */
+export async function deleteBackgroundConversation(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  userId: string;
+}) {
+  await getOwnedConversationOrThrow({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    userId: params.userId,
+  });
+
+  const cancelledRunIds = await params.prisma.$transaction(async (tx) => {
+    const cancelledImmediately = await cancelConversationRunsInTransaction({
+      tx,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+    });
+
+    await tx.inAppAgentConversation.update({
+      where: {
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
+      },
+      data: {
+        providerSessionId: null,
+        deletedAt: new Date(),
+      },
+    });
+
+    return cancelledImmediately;
+  });
+
+  // Avoid spending a worker slot on jobs whose runs are already cancelled.
+  await Promise.all(cancelledRunIds.map(removeInAppAgentRunJob));
+
+  return { success: true };
+}
+
 export async function cancelBackgroundRun(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -273,6 +340,7 @@ export async function decideBackgroundApproval(params: {
   runId: string;
   toolCallId: string;
   approved: boolean;
+  approvalScope?: "once" | "conversation";
   userId: string;
   model: string | undefined;
 }) {
@@ -298,16 +366,28 @@ export async function decideBackgroundApproval(params: {
     );
   }
 
-  const approvalRequest = events.find(
-    (persisted) =>
-      persisted.runId === params.runId &&
-      parseInAppAgentInterruptEvent(persisted.event)?.toolCallId ===
-        params.toolCallId,
-  );
+  let approvalRequest: ReturnType<typeof parseInAppAgentInterruptEvent>;
+  for (const persisted of events) {
+    if (persisted.runId !== params.runId) {
+      continue;
+    }
+
+    const parsedRequest = parseInAppAgentInterruptEvent(persisted.event);
+    if (parsedRequest?.toolCallId === params.toolCallId) {
+      approvalRequest = parsedRequest;
+      break;
+    }
+  }
 
   if (!approvalRequest) {
     throw new LangfuseNotFoundError("Approval request not found");
   }
+
+  // Resolve the granted tool from the persisted interrupt, never client input.
+  const alwaysAllowToolName =
+    params.approvalScope === "conversation" && params.approved
+      ? getInAppAgentPrefixedToolName(approvalRequest.toolName)
+      : undefined;
 
   const continuationRun = await decideToolApproval({
     prisma: params.prisma,
@@ -317,6 +397,7 @@ export async function decideBackgroundApproval(params: {
     continuationRunId: createInAppAgentRunId(),
     toolCallId: params.toolCallId,
     approved: params.approved,
+    alwaysAllowToolName,
     decidedByUserId: params.userId,
     model: params.model,
   });

@@ -1,8 +1,9 @@
 import { EventType } from "@ag-ui/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { InAppAgentRunStatus } from "../../index";
 import type { PrismaClient } from "../../db";
+import { IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE } from "../constants";
 import type { InAppAgentWatchFrame } from "../backgroundWatch";
 import { watchConversationFrames } from "./watch";
 
@@ -23,44 +24,46 @@ type RunRow = {
   status: InAppAgentRunStatus;
   errorCode: string | null;
   cancelRequestedAt?: Date | null;
+  claimedAt?: Date | null;
+  heartbeatAt?: Date | null;
 };
 
 function fakePrisma(polls: Array<{ events: EventRow[]; run: RunRow | null }>) {
   let pollIndex = 0;
+  // Reconciliation is the only thing still reaching for a transaction; the poll
+  // itself is one conversation-rooted read.
   const inAppAgentRun = {
     findMany: async () => [],
     updateMany: async () => ({ count: 0 }),
-    findFirst: async () =>
-      polls[Math.min(pollIndex, polls.length - 1)]?.run ?? null,
-  };
-  const inAppAgentEvent = {
-    findMany: async ({
-      where,
-    }: {
-      where: { sequenceNumber: { gt: number } };
-    }) => {
-      const poll = polls[Math.min(pollIndex, polls.length - 1)];
-      pollIndex += 1;
-
-      return (poll?.events ?? []).filter(
-        (row) => row.sequenceNumber > where.sequenceNumber.gt,
-      );
-    },
   };
   return {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
-      fn({
-        inAppAgentRun,
-        inAppAgentEvent,
-      }),
+      fn({ inAppAgentRun }),
     inAppAgentRun,
-    inAppAgentEvent,
+    inAppAgentConversation: {
+      findUnique: async ({
+        select,
+      }: {
+        select: { events: { where: { sequenceNumber: { gt: number } } } };
+      }) => {
+        const poll = polls[Math.min(pollIndex, polls.length - 1)];
+        pollIndex += 1;
+
+        return {
+          runs: poll?.run ? [poll.run] : [],
+          events: (poll?.events ?? []).filter(
+            (row) => row.sequenceNumber > select.events.where.sequenceNumber.gt,
+          ),
+        };
+      },
+    },
   } as unknown as PrismaClient;
 }
 
 async function collect(
   prisma: PrismaClient,
   cursor: number,
+  openRunId?: string,
 ): Promise<InAppAgentWatchFrame[]> {
   const frames: InAppAgentWatchFrame[] = [];
 
@@ -69,6 +72,7 @@ async function collect(
     projectId: "project-1",
     conversationId: "conversation-1",
     cursor,
+    openRunId,
     now: () => 0,
     sleep: async () => undefined,
   })) {
@@ -183,6 +187,24 @@ describe("watchConversationFrames", () => {
     expect(eventFrames(frames)[0]?.sequenceNumber).toBe(0);
   });
 
+  it("continues an already-open run without synthesizing another start", async () => {
+    const frames = await collect(
+      fakePrisma([
+        {
+          events: [textMessage("run-1", 1), runFinished("run-1", 2)],
+          run: succeeded,
+        },
+      ]),
+      0,
+      "run-1",
+    );
+
+    expect(eventTypes(frames)).toEqual([
+      EventType.TEXT_MESSAGE_START,
+      EventType.RUN_FINISHED,
+    ]);
+  });
+
   it("hands off from cursor to tail with no duplicated and no missed event", async () => {
     const frames = await collect(
       fakePrisma([
@@ -289,6 +311,44 @@ describe("watchConversationFrames", () => {
     });
   });
 
+  it("redacts silent MCP tool outputs from relayed tool result events", async () => {
+    const frames = await collect(
+      fakePrisma([
+        {
+          events: [
+            runStarted("run-1", 0),
+            {
+              sequenceNumber: 1,
+              runId: "run-1",
+              event: {
+                type: EventType.TOOL_CALL_RESULT,
+                messageId: "tool-result-1",
+                toolCallId: "tool-call-1",
+                role: "tool",
+                content: JSON.stringify({
+                  type: "silent-mcp-output",
+                  output: { data: [{ id: "observation-1" }] },
+                }),
+              },
+            },
+            runFinished("run-1", 2),
+          ],
+          run: succeeded,
+        },
+      ]),
+      -1,
+    );
+
+    const relayedToolResult = eventFrames(frames).find(
+      (frame) => frame.event.type === EventType.TOOL_CALL_RESULT,
+    );
+
+    expect(relayedToolResult?.event).toMatchObject({
+      type: EventType.TOOL_CALL_RESULT,
+      content: IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
+    });
+  });
+
   it("closes immediately when the conversation has no run with a readable status", async () => {
     // Legacy rows predate the status column, and the column is deliberately
     // still nullable. Polling such a conversation forever would reconnect in a
@@ -324,5 +384,56 @@ describe("watchConversationFrames", () => {
       EventType.TEXT_MESSAGE_START,
       EventType.RUN_FINISHED,
     ]);
+  });
+
+  it("reconciles once on attach and never again while the run stays healthy", async () => {
+    // The watch used to open a write-capable transaction every few seconds for
+    // every attached viewer. A healthy stream must now be pure reads after the
+    // one reconcile that covers a run dying while nothing watched it.
+    const healthy: RunRow = {
+      id: "run-1",
+      status: InAppAgentRunStatus.RUNNING,
+      errorCode: null,
+      claimedAt: new Date(-5_000),
+      heartbeatAt: new Date(0),
+    };
+    const prisma = fakePrisma([
+      { events: [], run: healthy },
+      { events: [], run: healthy },
+      { events: [], run: { ...succeeded, id: "run-1" } },
+    ]);
+    const reconcileReads = vi.spyOn(prisma.inAppAgentRun, "findMany");
+
+    await collect(prisma, -1);
+
+    expect(reconcileReads).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconciles again, once, when it observes a heartbeat that already went stale", async () => {
+    // Without this the stream would poll a dead run to the connection cap and
+    // reconnect into the same state, leaving the drawer thinking indefinitely.
+    const abandoned: RunRow = {
+      id: "run-1",
+      status: InAppAgentRunStatus.RUNNING,
+      errorCode: null,
+      claimedAt: new Date(-600_000),
+      heartbeatAt: new Date(-120_000),
+    };
+    const prisma = fakePrisma([
+      { events: [], run: abandoned },
+      { events: [], run: abandoned },
+      { events: [], run: abandoned },
+      {
+        events: [],
+        run: { ...succeeded, id: "run-1", errorCode: "worker_lost" },
+      },
+    ]);
+    const reconcileReads = vi.spyOn(prisma.inAppAgentRun, "findMany");
+
+    await collect(prisma, -1);
+
+    // Attach plus exactly one staleness-triggered reconcile, however many
+    // polls observe the same dead run.
+    expect(reconcileReads).toHaveBeenCalledTimes(2);
   });
 });

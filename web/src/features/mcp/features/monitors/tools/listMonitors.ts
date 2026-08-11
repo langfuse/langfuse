@@ -22,7 +22,7 @@ const ListMonitorsBaseSchema = z.object({
   filter: z
     .array(McpAdvancedFilterBaseSchema)
     .optional()
-    .describe("Filter monitors by severity or tags."),
+    .describe("Filter alerts by severity or tags."),
 });
 
 const ListMonitorsInputSchema = ListMonitorsSchema.omit({
@@ -32,9 +32,9 @@ const ListMonitorsInputSchema = ListMonitorsSchema.omit({
 });
 
 export const [listMonitorsTool, handleListMonitors] = defineTool({
-  name: "listMonitors",
+  name: "listAlerts",
   description:
-    "List monitors, optionally filtered by severity or tags and ordered by monitor properties.",
+    "List alerts, optionally filtered by severity or tags and ordered by alert properties.",
   baseSchema: ListMonitorsBaseSchema,
   inputSchema: ListMonitorsInputSchema,
   handler: async (input, context) =>

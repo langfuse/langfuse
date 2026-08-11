@@ -8,25 +8,17 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { X, Plus, RefreshCw, Lock, LockOpen } from "lucide-react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 import {
   type ActionDomain,
   type ActionDomainWithSecrets,
-  AvailableWebhookApiSchema,
   type SafeWebhookActionConfig,
   WebhookDefaultHeaders,
   WebhookProtectedHeaders,
 } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { useState } from "react";
 import {
   Dialog,
@@ -66,7 +58,6 @@ export const webhookSchema = z.object({
       wasSecret: z.boolean(),
     }),
   ),
-  apiVersion: AvailableWebhookApiSchema,
 });
 
 export type WebhookFormValues = z.infer<typeof webhookSchema>;
@@ -137,35 +128,6 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
             <FormDescription>
               The HTTP URL to call when the trigger fires. We will send a POST
               request to this URL. Only HTTPS URLs are allowed for security.
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="webhook.apiVersion.prompt"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>API Version</FormLabel>
-            <Select
-              onValueChange={field.onChange}
-              value={field.value}
-              disabled={disabled}
-            >
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select API version" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                <SelectItem value="v1">v1</SelectItem>
-              </SelectContent>
-            </Select>
-            <FormDescription>
-              The API version to use for the webhook payload format when prompt
-              events are triggered.
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -383,7 +345,7 @@ export const RegenerateWebhookSecretButton = ({
       });
       setShowConfirmPopover(false);
     } catch (error) {
-      console.error("Failed to regenerate webhook secret:", error);
+      reportNonTrpcError(error, "automations");
     }
   };
 

@@ -38,7 +38,8 @@ import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
-import { captureException } from "@sentry/nextjs";
+import { reportError } from "@/src/utils/reportError";
+import { isExpectedSignInError } from "@/src/features/auth/lib/expectedAuthErrors";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -191,6 +192,30 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
       ).endsWith(".hf.space"),
     },
   };
+};
+
+// A client-side navigation whose props fetch fails (e.g. deploy skew) can
+// mount the page with empty props despite the PageProps contract — fall back
+// to "no providers" instead of crashing on `authProviders.sso`.
+// Also used in src/pages/auth/sign-up.tsx
+export const FALLBACK_AUTH_PROVIDERS: PageProps["authProviders"] = {
+  credentials: false,
+  google: false,
+  github: false,
+  githubEnterprise: false,
+  gitlab: false,
+  okta: false,
+  authentik: false,
+  onelogin: false,
+  azureAd: false,
+  auth0: false,
+  clickhouseCloud: false,
+  cognito: false,
+  keycloak: false,
+  workos: false,
+  wordpress: false,
+  custom: false,
+  sso: false,
 };
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
@@ -541,7 +566,7 @@ const signInErrors = [
 ];
 
 export default function SignIn({
-  authProviders,
+  authProviders = FALLBACK_AUTH_PROVIDERS,
   signUpDisabled,
   runningOnHuggingFaceSpaces,
 }: PageProps) {
@@ -565,15 +590,20 @@ export default function SignIn({
       nextAuthError);
 
   useEffect(() => {
-    // log unexpected sign in errors to Sentry
-    // An error is unexpected if it's not in our mapped errors and has no IdP error_description
-    if (
-      nextAuthError &&
-      !nextAuthErrorDescription &&
-      !signInErrors.find((e) => e.code === nextAuthError)
-    ) {
-      captureException(new Error(`Sign in error: ${nextAuthError}`));
-    }
+    if (!nextAuthError) return;
+    // Expected = user-caused or provider-transient outcomes the form already
+    // renders: mapped codes, allowlisted codes (expectedAuthErrors.ts), and
+    // IdP-described errors. They breadcrumb instead of capturing; anything
+    // else (unknown codes, misconfig codes) is a real Sentry error.
+    const expected =
+      Boolean(nextAuthErrorDescription) ||
+      signInErrors.some((e) => e.code === nextAuthError) ||
+      isExpectedSignInError(nextAuthError);
+    reportError(new Error(`Sign in error: ${nextAuthError}`), {
+      area: "auth.signIn",
+      expected,
+      extra: { code: nextAuthError },
+    });
   }, [nextAuthError, nextAuthErrorDescription]);
 
   const [credentialsFormError, setCredentialsFormError] = useState<
@@ -634,14 +664,23 @@ export default function SignIn({
         redirect: false,
       });
       if (result === undefined) {
+        // next-auth's signIn() returns undefined when its providers fetch
+        // failed (network drop, or the auth API unreachable/5xx — a transport
+        // or server state the server owns, not an app failure here). It then
+        // navigates to the error page itself; when the server is up, that
+        // lands on /auth/error?error=undefined, which still captures.
         setCredentialsFormError("An unexpected error occurred.");
-        captureException(new Error("Sign in result is undefined"));
+        reportError(new Error("Sign in result is undefined"), {
+          area: "auth.signIn.credentials",
+          expected: true,
+        });
       } else if (!result.ok) {
         if (!result.error) {
-          captureException(
+          reportError(
             new Error(
               `Sign in result error is falsy, result: ${JSON.stringify(result)}`,
             ),
+            { area: "auth.signIn.credentials" },
           );
         }
         setCredentialsFormError(

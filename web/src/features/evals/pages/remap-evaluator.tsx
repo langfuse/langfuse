@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
 import {
   mapLegacyToModernTarget,
@@ -130,8 +130,8 @@ export default function RemapEvaluatorPage() {
           break;
       }
     } catch (err) {
-      // Error already handled in mutation onError
-      console.error(`Failed to ${legacyAction} old eval:`, err);
+      // The mutations' local onError owns the UX; this owns classification + capture.
+      reportTrpcErrorWithoutToast(err, "evals");
     }
   };
 

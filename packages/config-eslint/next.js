@@ -145,6 +145,7 @@ export default [
       },
     },
     rules: {
+      "@repo/no-abstracted-overlay-trigger": "warn",
       "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [

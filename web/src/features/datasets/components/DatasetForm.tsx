@@ -12,7 +12,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   useMemo,
   useState,
@@ -287,7 +287,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
             // System error (not validation)
             setFormError(error.message);
             setServerSideSchemaValidationErrors(null);
-            console.error(error);
+            reportNonTrpcError(error, "datasets");
           });
       } else if (props.mode === "update") {
         capture("datasets:update_form_submit");
@@ -313,7 +313,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
             // System error (not validation)
             setFormError(error.message);
             setServerSideSchemaValidationErrors(null);
-            console.error(error);
+            reportNonTrpcError(error, "datasets");
           });
       }
     }

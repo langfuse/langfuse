@@ -42,9 +42,11 @@
   dependency.
 - The in-app-agent runtime lives in shared:
   `@langfuse/shared/in-app-agent` is the client-safe contracts entry;
+  its `AgUiRunAgentInput` is a compile-time-only execution contract;
   `@langfuse/shared/in-app-agent/server` (and per-module subpaths) is
   server-only. Web keeps only the thin adapters in
-  `src/features/in-app-agent/` (handler, router, UI).
+  `src/features/in-app-agent/` (router and UI), plus the authenticated watch
+  route in `src/app/api/in-app-agent/watch/`.
 - See `../packages/shared/AGENTS.md` for the full shared export map and what
   each entrypoint contains.
 - For the higher-level platform topology across web, worker, Postgres,
@@ -200,6 +202,18 @@ Sentry instrumentation skill first and decide whether it should capture at all
   unique test data over global reset helpers.
 - Put pure server unit tests that do not need Postgres bootstrap under
   `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
+- Preserve the server-test project split in `vitest.config.mts`. Most tests
+  consume the built `@langfuse/shared` package; only tests importing
+  `@langfuse/shared/in-app-agent` or `@langfuse/shared/src/env` use the
+  `server-shared-source*` projects. Do not move `sharedSourceResolve` back to
+  the root config: applying those aliases globally increased server-test
+  transforms/imports and made Vitest about 27–30% slower. The integration and
+  unit source projects stay separate because only integration tests run the
+  database `globalSetup`.
+- Keep CI web server tests at eight workers on an eight-vCPU runner unless a
+  new benchmark supports changing both together. With the current 4,237-test
+  suite, median Vitest duration was 82s at 8 workers/8 vCPUs, 115s at
+  4 workers/8 vCPUs, and 145s at 8 workers/4 vCPUs (measured 2026-08-06).
 - For small utility functions, prefer Vitest in-source tests when colocated
   coverage is the simplest option, especially when the test needs access to
   private implementation details without widening the module API.
@@ -219,6 +233,11 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - E2E tests: `pnpm --filter web run test:e2e`
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
+- Structure-RFC violation counts: `pnpm --filter web run structure:stats`
+- Move files/folders with every importer rewritten:
+  `pnpm --filter web run structure:move <from...> <to-dir>` — never hand-edit
+  import specifiers for a move, and never `mv` a source file without it
+  (see `web/scripts/structure/README.md`)
 
 ## Playbooks
 

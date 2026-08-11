@@ -256,16 +256,13 @@ type InAppAgentWindowCloseButtonProps =
       onClose: () => void;
     };
 
-export type InAppAgentWindowExecutionUi =
-  | { type: "foreground" }
-  | {
-      type: "background";
-      notice: string | null;
-      stop: {
-        status: "available" | "stopping";
-        onStop: () => void;
-      } | null;
-    };
+export type InAppAgentWindowExecutionUi = {
+  notice: string | null;
+  stop: {
+    status: "available" | "stopping";
+    onStop: () => void;
+  } | null;
+};
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
@@ -284,6 +281,7 @@ export type InAppAgentWindowProps = {
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
+  onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
@@ -386,6 +384,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onLoadMoreConversations,
     onNewConversation,
     onApproveToolCall,
+    onAlwaysAllowToolCall,
     onRejectToolCall,
     onOpenConversationHistory,
     onSelectConversation,
@@ -407,10 +406,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isComposerDisabled = isConversationInteractionDisabled;
   const isSubmitDisabled =
     isComposerDisabled || isRateLimited || isAssistantTurnInProgress;
-  const backgroundNotice =
-    executionUi.type === "background" ? executionUi.notice : null;
-  const executionStop =
-    executionUi.type === "background" ? executionUi.stop : null;
+  const backgroundNotice = executionUi.notice;
+  const executionStop = executionUi.stop;
   const canStopRun = executionStop !== null && isAssistantTurnInProgress;
   const isCancellingRun = executionStop?.status === "stopping";
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -858,6 +855,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     isRateLimited || disablePendingToolApprovalActions
                   }
                   onApproveToolCall={onApproveToolCall}
+                  onAlwaysAllowToolCall={onAlwaysAllowToolCall}
                   onRejectToolCall={onRejectToolCall}
                 />
               ))}

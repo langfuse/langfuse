@@ -18,19 +18,16 @@ const controlledAgent = vi.hoisted(() => ({
     isRunning: true,
     isSelectedConversationHydrating: false,
     isSubmitting: false,
-    execution: { type: "foreground" } as
-      | { type: "foreground" }
-      | {
-          type: "background";
-          run: {
-            id: string;
-            status: InAppAgentRunStatus;
-            errorCode: string | null;
-            cancelRequested: boolean;
-          } | null;
-          isCancelling: boolean;
-          cancel: () => void;
-        },
+    execution: {
+      run: null as {
+        id: string;
+        status: InAppAgentRunStatus;
+        errorCode: string | null;
+        cancelRequested: boolean;
+      } | null,
+      isCancelling: false,
+      cancel: vi.fn(),
+    },
     invalidateConversations: vi.fn(),
     liveMessageVersion: 0,
     loadMoreConversations: vi.fn(),
@@ -80,7 +77,7 @@ function windowElement(
   const props: InAppAgentWindowProps = {
     conversations: [],
     error: null,
-    executionUi: { type: "foreground" },
+    executionUi: { notice: null, stop: null },
     hasMoreConversations: false,
     isAssistantTurnInProgress: false,
     isExpanded: false,
@@ -303,7 +300,6 @@ describe("ControlledInAppAgentWindow stop", () => {
     controlledAgent.value.isRunning = true;
     controlledAgent.value.pendingToolApprovals = [];
     controlledAgent.value.execution = {
-      type: "background",
       run: {
         id: "run-1",
         status: InAppAgentRunStatus.RUNNING,
