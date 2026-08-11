@@ -437,7 +437,10 @@ export function DataTable<TData extends object, TValue>({
             <div
               aria-hidden="true"
               className={cn(
-                "from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat transition-opacity duration-200",
+                // The fade uses an arbitrary transition, not `duration-*`:
+                // that utility sets --tw-duration, which `animate-*` reads as
+                // its animation-duration too, and turned the sweep into a strobe.
+                "from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat [transition:opacity_200ms_ease-out]",
                 showRefetchBar && !data.isLoading
                   ? "opacity-100"
                   : "opacity-0 [animation-play-state:paused]",
