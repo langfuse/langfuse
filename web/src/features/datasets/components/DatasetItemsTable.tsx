@@ -218,7 +218,9 @@ export function DatasetItemsTable({
       cell: ({ row }) => {
         const input = row.getValue("input") as RowData["input"];
         return input !== null ? (
-          <IOTableCell data={input} singleLine={rowHeight === "s"} />
+          <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
+            <IOTableCell data={input} singleLine={rowHeight === "s"} />
+          </div>
         ) : null;
       },
     },
@@ -233,11 +235,13 @@ export function DatasetItemsTable({
           "expectedOutput",
         ) as RowData["expectedOutput"];
         return expectedOutput !== null ? (
-          <IOTableCell
-            data={expectedOutput}
-            className="bg-accent-light-green"
-            singleLine={rowHeight === "s"}
-          />
+          <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
+            <IOTableCell
+              data={expectedOutput}
+              className="bg-accent-light-green"
+              singleLine={rowHeight === "s"}
+            />
+          </div>
         ) : null;
       },
     },
@@ -250,7 +254,9 @@ export function DatasetItemsTable({
       cell: ({ row }) => {
         const metadata = row.getValue("metadata") as RowData["metadata"];
         return metadata !== null ? (
-          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
+          <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
+            <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
+          </div>
         ) : null;
       },
     },
