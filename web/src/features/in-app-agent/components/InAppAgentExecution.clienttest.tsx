@@ -288,7 +288,7 @@ describe("in-app agent execution", () => {
     expect(screen.getByText("I need approval.")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Always allow",
+        name: "Always approve for this conversation",
       }),
     );
 

@@ -607,6 +607,7 @@ const meta = preview.meta({
     onOpenConversationHistory: fn(),
     onNewConversation: fn(),
     onApproveToolCall: fn(),
+    onAlwaysAllowToolCall: fn(),
     onRejectToolCall: fn(),
     onSelectConversation: fn(),
     onClose: fn(),
@@ -1159,9 +1160,16 @@ export const RateLimited = meta.story({
       canvas.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeEnabled();
     await expect(
-      canvas.getByRole("button", { name: "Confirm" }),
+      canvas.getByRole("button", { name: "Approve" }),
     ).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", {
+        name: "Always approve for this conversation",
+      }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Decline" }),
+    ).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Start new conversation" }),
     ).toBeDisabled();
@@ -1382,8 +1390,8 @@ export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
   },
 });
 
-export const AlwaysAllowsConversationWithDeferredSibling = meta.story({
-  name: "(Test) Always Allows Conversation With Deferred Sibling",
+export const AlwaysApprovesWithHiddenParallelCall = meta.story({
+  name: "(Test) Always Approves With Hidden Parallel Call",
   args: {
     selectedConversationId: "conversation-1",
     isAssistantTurnInProgress: true,
@@ -1433,21 +1441,23 @@ export const AlwaysAllowsConversationWithDeferredSibling = meta.story({
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const confirm = canvas.getByRole("button", { name: "Confirm" });
-    const alwaysAllow = canvas.getByRole("button", { name: "Always allow" });
-    const reject = canvas.getByRole("button", { name: "Reject" });
+    const approve = canvas.getByRole("button", { name: "Approve" });
+    const alwaysApprove = canvas.getByRole("button", {
+      name: "Always approve for this conversation",
+    });
+    const decline = canvas.getByRole("button", { name: "Decline" });
 
     await expect(
       canvas.queryByLabelText(/^createDashboardWidget:/),
     ).not.toBeInTheDocument();
-    await userEvent.click(alwaysAllow);
+    await userEvent.click(alwaysApprove);
 
     await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledOnce();
     await expect(args.onAlwaysAllowToolCall).toHaveBeenCalledWith("approval-1");
-    await expect(alwaysAllow).toHaveAttribute("aria-busy", "true");
-    await expect(confirm).toBeDisabled();
-    await expect(alwaysAllow).toBeDisabled();
-    await expect(reject).toBeDisabled();
+    await expect(alwaysApprove).toHaveAttribute("aria-busy", "true");
+    await expect(approve).toBeDisabled();
+    await expect(alwaysApprove).toBeDisabled();
+    await expect(decline).toBeDisabled();
   },
 });
 

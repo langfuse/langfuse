@@ -98,7 +98,7 @@ export function InAppAgentToolCallCard({
                 ) : (
                   <Check className="mr-1 size-3" />
                 )}
-                Confirm
+                Approve
               </Button>
               {onAlwaysAllowToolCall ? (
                 <Button
@@ -106,7 +106,8 @@ export function InAppAgentToolCallCard({
                   size="sm"
                   variant="outline"
                   className="h-7"
-                  title={`Always allow ${tool.name} for this conversation`}
+                  title={`Always approve ${displayName} for this conversation`}
+                  aria-label="Always approve for this conversation"
                   disabled={isDisabled || isDecisionSubmitting}
                   aria-busy={activeDecision === "conversation"}
                   onClick={() => {
@@ -118,7 +119,7 @@ export function InAppAgentToolCallCard({
                   {activeDecision === "conversation" ? (
                     <Loader2 className="mr-1 size-3 animate-spin" />
                   ) : null}
-                  Always allow
+                  Always approve*
                 </Button>
               ) : null}
               <Button
@@ -137,9 +138,14 @@ export function InAppAgentToolCallCard({
                 {activeDecision === "reject" ? (
                   <Loader2 className="mr-1 size-3 animate-spin" />
                 ) : null}
-                Reject
+                Decline
               </Button>
             </div>
+            {onAlwaysAllowToolCall ? (
+              <p className="text-muted-foreground text-xs">
+                * Approves every use of this tool in this conversation.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : (
