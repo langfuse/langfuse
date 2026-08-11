@@ -235,6 +235,12 @@ worker health endpoints. The default Cursor VM is accepted only after three
 successful starts without OOMs or restart loops; otherwise use a larger
 Enterprise resource profile.
 
+The script deliberately prevents the workspace `.env` and exported application
+variables from participating in Compose interpolation. That file configures
+host processes with `localhost` service URLs, while containers must use Compose
+service names such as `postgres`, `clickhouse`, and `redis`. Only Docker client,
+host-port, and public build controls are passed into Compose.
+
 ### Cursor team tools
 
 Repository files cannot publish or authenticate Cursor Team Marketplace MCPs.
