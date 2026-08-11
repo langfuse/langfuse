@@ -223,6 +223,8 @@ describe("SCIM API", () => {
         "urn:ietf:params:scim:api:messages:2.0:ListResponse",
       );
       expect(response.body.Resources.length).toBeGreaterThan(0);
+      // RFC 7644 3.4.2: `totalResults` must match what was actually returned.
+      expect(response.body.totalResults).toBe(response.body.Resources.length);
       expect(response.body.Resources[0].id).toContain(
         "urn:ietf:params:scim:schemas:core:2.0:User",
       );

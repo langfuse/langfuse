@@ -62,9 +62,6 @@ service:
             active:
               docs: Whether the user is active
               type: optional<boolean>
-            password:
-              docs: Initial password for the user
-              type: optional<string>
       response: ScimUser
 
     getUser:
