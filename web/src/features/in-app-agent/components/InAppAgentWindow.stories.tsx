@@ -1182,10 +1182,10 @@ export const RateLimited = meta.story({
     ).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Start new conversation" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await expect(
       canvas.getByRole("button", { name: "Conversation history" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   },
 });
 
