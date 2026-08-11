@@ -39,39 +39,42 @@ vi.mock("@/src/components/editor", () => ({
 
 import { UpsertModelFormDialog } from "./UpsertModelFormDialog";
 
-const modelData: GetModelResult = {
+const defaultTier = {
+  id: "tier-default",
+  name: "Standard",
+  isDefault: true,
+  priority: 0,
+  conditions: [],
+  prices: { text_input: 0.000004, text_output: 0.000016, audio: 0.00003 },
+};
+
+const longContextTier = {
+  id: "tier-long",
+  name: "Long context",
+  isDefault: false,
+  priority: 1,
+  conditions: [
+    {
+      usageDetailPattern: "^text_input",
+      operator: "gt" as const,
+      value: 128000,
+      caseSensitive: false,
+    },
+  ],
+  prices: { text_input: 0.000008, text_output: 0.000032, audio: 0.00006 },
+};
+
+const modelData = (
+  pricingTiers: GetModelResult["pricingTiers"],
+): GetModelResult => ({
   id: "model-1",
   projectId: "p1",
   modelName: "gpt-realtime-2.1",
   matchPattern: "(?i)^(gpt-realtime-2.1)$",
   tokenizerConfig: null,
   tokenizerId: null,
-  pricingTiers: [
-    {
-      id: "tier-default",
-      name: "Standard",
-      isDefault: true,
-      priority: 0,
-      conditions: [],
-      prices: { text_input: 0.000004, text_output: 0.000016, audio: 0.00003 },
-    },
-    {
-      id: "tier-long",
-      name: "Long context",
-      isDefault: false,
-      priority: 1,
-      conditions: [
-        {
-          usageDetailPattern: "^text_input",
-          operator: "gt",
-          value: 128000,
-          caseSensitive: false,
-        },
-      ],
-      prices: { text_input: 0.000008, text_output: 0.000032, audio: 0.00006 },
-    },
-  ],
-};
+  pricingTiers,
+});
 
 /** Types character by character, as a user does — one change event per key. */
 const typeInto = (input: HTMLInputElement, text: string) => {
@@ -80,21 +83,34 @@ const typeInto = (input: HTMLInputElement, text: string) => {
   }
 };
 
-const openEditDialog = () => {
+const retype = (input: HTMLInputElement, text: string) => {
+  fireEvent.change(input, { target: { value: "" } });
+  typeInto(input, text);
+};
+
+// Queried by placeholder, so these tests do not depend on the editor's markup.
+const usageTypeInputs = () =>
+  screen.getAllByPlaceholderText(
+    "Key (e.g. input, output)",
+  ) as HTMLInputElement[];
+const priceInputs = () =>
+  screen.getAllByPlaceholderText("Price per unit") as HTMLInputElement[];
+
+const openEditDialog = (pricingTiers: GetModelResult["pricingTiers"]) => {
   render(
-    <UpsertModelFormDialog action="edit" projectId="p1" modelData={modelData}>
+    <UpsertModelFormDialog
+      action="edit"
+      projectId="p1"
+      modelData={modelData(pricingTiers)}
+    >
       <button>Open editor</button>
     </UpsertModelFormDialog>,
   );
   fireEvent.click(screen.getByRole("button", { name: "Open editor" }));
 };
 
-const usageTypeInput = (name: string) =>
-  screen
-    .getAllByLabelText(/^Usage type \d+$/)
-    .find((input): input is HTMLInputElement => {
-      return (input as HTMLInputElement).value === name;
-    })!;
+const submit = () =>
+  fireEvent.click(screen.getByRole("button", { name: /^(Save|Submit)$/ }));
 
 describe("UpsertModelFormDialog price editor", () => {
   beforeAll(() => {
@@ -114,33 +130,26 @@ describe("UpsertModelFormDialog price editor", () => {
     upsertMutateAsync.mockClear();
   });
 
-  it("keeps every keystroke when a usage type extends an existing one", () => {
-    openEditDialog();
+  it("keeps every keystroke of a usage type that extends an existing one", () => {
+    openEditDialog([defaultTier]);
 
-    // `text_input_cached` passes through the existing key `text_input`.
-    typeInto(usageTypeInput("text_input"), "_cached");
-    const priceInput = screen.getByLabelText(
-      "Standard price for text_input_cached",
-    ) as HTMLInputElement;
-    fireEvent.change(priceInput, { target: { value: "" } });
-    typeInto(priceInput, "0.0000025");
+    // Typing `text_input_cached` passes through the existing key `text_input`.
+    retype(usageTypeInputs()[2], "text_input_cached");
+    retype(priceInputs()[2], "0.0000025");
 
-    expect(
-      screen.getAllByLabelText(/^Usage type \d+$/).map((input) => {
-        return (input as HTMLInputElement).value;
-      }),
-    ).toEqual(["text_input_cached", "text_output", "audio"]);
-    expect(priceInput.value).toBe("0.0000025");
+    expect(usageTypeInputs().map((input) => input.value)).toEqual([
+      "text_input",
+      "text_output",
+      "text_input_cached",
+    ]);
+    expect(priceInputs()[2].value).toBe("0.0000025");
   });
 
   it("renaming a usage type keeps the other rows and the custom tier's price", async () => {
-    openEditDialog();
+    openEditDialog([defaultTier, longContextTier]);
 
-    const firstUsageType = usageTypeInput("text_input");
-    fireEvent.change(firstUsageType, { target: { value: "" } });
-    typeInto(firstUsageType, "text_input_cached");
-
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    retype(usageTypeInputs()[0], "text_input_cached");
+    submit();
 
     await waitFor(() => expect(upsertMutateAsync).toHaveBeenCalledTimes(1));
     expect(upsertMutateAsync.mock.calls[0][0].pricingTiers).toEqual([
@@ -159,7 +168,7 @@ describe("UpsertModelFormDialog price editor", () => {
         name: "Long context",
         isDefault: false,
         priority: 1,
-        conditions: modelData.pricingTiers[1].conditions,
+        conditions: longContextTier.conditions,
         // The rename must not zero this tier's price for the renamed key.
         prices: {
           text_input_cached: 0.000008,
@@ -171,16 +180,11 @@ describe("UpsertModelFormDialog price editor", () => {
   });
 
   it("shows inline errors instead of silently refusing to submit", async () => {
-    openEditDialog();
+    openEditDialog([defaultTier]);
 
-    const firstUsageType = usageTypeInput("text_input");
-    fireEvent.change(firstUsageType, { target: { value: "audio" } });
-    fireEvent.change(
-      screen.getByLabelText("Standard price for text_output") as HTMLElement,
-      { target: { value: "" } },
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.change(usageTypeInputs()[0], { target: { value: "audio" } });
+    fireEvent.change(priceInputs()[1], { target: { value: "" } });
+    submit();
 
     expect(
       await screen.findByText('Duplicate usage type "audio"'),
