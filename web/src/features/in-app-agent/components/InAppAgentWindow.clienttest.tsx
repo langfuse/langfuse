@@ -176,26 +176,6 @@ describe("InAppAgentWindow quick actions", () => {
     expect(capture).toHaveBeenCalledTimes(1);
   });
 
-  it("does not offer quick actions while a conversation is still loading", () => {
-    // Switching conversations empties the transcript before the next one
-    // arrives. Showing the welcome screen there flashes the wrong thing and
-    // invites a click that would start a turn in the conversation being left.
-    render(
-      windowElement({
-        messages: [],
-        selectedConversationId: "conversation-1",
-        isSelectedConversationHydrating: true,
-      }),
-    );
-
-    expect(
-      screen.queryByText("Welcome to the Langfuse Assistant"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /^Create a prompt/ }),
-    ).not.toBeInTheDocument();
-  });
-
   it("shows focused actions on the initial tab and coarse actions elsewhere", () => {
     render(
       windowElement({
@@ -225,31 +205,13 @@ describe("InAppAgentWindow quick actions", () => {
 });
 
 describe("ControlledInAppAgentWindow composer", () => {
-  it("keeps a draft editable but prevents submitting it while rate limited", () => {
-    const onSubmit = vi.fn().mockResolvedValue(true);
-    render(
-      windowElement({
-        error: { type: "rate_limit", retryAt: Date.now() + 60_000 },
-        onSubmit,
-      }),
-    );
-
-    const input = screen.getByRole("textbox", {
-      name: "Message the assistant",
-    });
-    fireEvent.change(input, { target: { value: "Follow up" } });
-
-    expect(input).toHaveValue("Follow up");
-    expect(input).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
-
-    const form = input.closest("form");
-    if (!form) {
-      throw new Error("Expected the assistant composer to render a form");
-    }
-
-    fireEvent.submit(form);
-    expect(onSubmit).not.toHaveBeenCalled();
+  beforeEach(() => {
+    controlledAgent.value.error = null;
+    controlledAgent.value.isRunning = true;
+    controlledAgent.value.isSelectedConversationHydrating = false;
+    controlledAgent.value.isSubmitting = false;
+    controlledAgent.value.pendingToolApprovals = [];
+    controlledAgent.value.selectedConversationIsWriteLocked = false;
   });
 
   it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {
@@ -315,6 +277,32 @@ describe("ControlledInAppAgentWindow composer", () => {
       screen.getByRole("button", { name: "Conversation history" }),
     ).toBeEnabled();
   });
+
+  it("lets you leave a read-only conversation", () => {
+    controlledAgent.value.isRunning = false;
+    controlledAgent.value.selectedConversationIsWriteLocked = true;
+
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Conversation history" }),
+    ).toBeEnabled();
+  });
 });
 
 describe("ControlledInAppAgentWindow stop", () => {
@@ -350,30 +338,5 @@ describe("ControlledInAppAgentWindow stop", () => {
     // buffered block keeps typing out, which reads as "stop did nothing".
     expect(cancel).toHaveBeenCalledOnce();
     expect(finishAnimation).toHaveBeenCalledOnce();
-  });
-});
-
-describe("InAppAgentWindow focus", () => {
-  it("refocuses the composer when an active turn completes", () => {
-    const { rerender } = render(
-      <>
-        <button type="button">Other control</button>
-        {windowElement({ isAssistantTurnInProgress: true })}
-      </>,
-    );
-
-    screen.getByRole("button", { name: "Other control" }).focus();
-    expect(screen.getByRole("button", { name: "Other control" })).toHaveFocus();
-
-    rerender(
-      <>
-        <button type="button">Other control</button>
-        {windowElement({ isAssistantTurnInProgress: false })}
-      </>,
-    );
-
-    expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
-    ).toHaveFocus();
   });
 });

@@ -765,35 +765,22 @@ function InAppAiAgentProviderInner({
         initialMessages,
         cursor: initialCursor,
         startRun: async (params) => {
-          try {
-            const started = await startRunMutation.mutateAsync({
-              projectId,
-              conversationId,
-              message: params.message,
-              context: [...params.context],
-            });
-            setUnpersistedConversationIds((current) => {
-              if (!current.has(started.conversationId)) {
-                return current;
-              }
+          const started = await startRunMutation.mutateAsync({
+            projectId,
+            conversationId,
+            message: params.message,
+            context: [...params.context],
+          });
+          setUnpersistedConversationIds((current) => {
+            if (!current.has(started.conversationId)) {
+              return current;
+            }
 
-              const next = new Set(current);
-              next.delete(started.conversationId);
-              return next;
-            });
-            return started;
-          } catch (error) {
-            setUnpersistedConversationIds((current) => {
-              if (!current.has(conversationId)) {
-                return current;
-              }
-
-              const next = new Set(current);
-              next.delete(conversationId);
-              return next;
-            });
-            throw error;
-          }
+            const next = new Set(current);
+            next.delete(started.conversationId);
+            return next;
+          });
+          return started;
         },
       });
 
@@ -936,10 +923,16 @@ function InAppAiAgentProviderInner({
       setError((currentError) =>
         isInAppAgentRateLimited(currentError) ? currentError : null,
       );
+      releaseSubmitLock(_selectedConversationId);
       resetAgent();
       setSelectedConversationId(conversationId);
     },
-    [_selectedConversationId, resetAgent, setSelectedConversationId],
+    [
+      _selectedConversationId,
+      releaseSubmitLock,
+      resetAgent,
+      setSelectedConversationId,
+    ],
   );
 
   const deleteConversation = useCallback(

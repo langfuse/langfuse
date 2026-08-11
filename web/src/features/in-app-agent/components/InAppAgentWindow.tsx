@@ -566,7 +566,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6 shrink-0"
                 onClick={onNewConversation}
-                disabled={isConversationInteractionDisabled}
                 aria-label="Start new conversation"
               >
                 <Plus className="size-3" />
@@ -592,7 +591,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     variant="ghost"
                     size="icon"
                     className="size-6 shrink-0"
-                    disabled={isConversationInteractionDisabled}
                     aria-label="Conversation history"
                   >
                     <History className="size-3" />

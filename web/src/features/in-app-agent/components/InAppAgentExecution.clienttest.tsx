@@ -165,6 +165,53 @@ function ReopenAssistantButton() {
   );
 }
 
+function ConcurrentConversationProbe({
+  conversationId,
+}: {
+  conversationId: string | null;
+}) {
+  const { isSubmitting, selectConversation, submit } = useInAppAiAgent();
+
+  return (
+    <>
+      <p>{isSubmitting ? "Submitting" : "Ready"}</p>
+      <button
+        type="button"
+        onClick={() => {
+          submit("First question").catch(() => undefined);
+        }}
+      >
+        Submit
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          selectConversation(null);
+        }}
+      >
+        Leave conversation
+      </button>
+      <button
+        type="button"
+        disabled={!conversationId}
+        onClick={() => {
+          selectConversation(conversationId);
+        }}
+      >
+        Return to conversation
+      </button>
+    </>
+  );
+}
+
+function providerProbe(conversationId: string | null) {
+  return (
+    <InAppAiAgentProvider defaultOpen>
+      <ConcurrentConversationProbe conversationId={conversationId} />
+    </InAppAiAgentProvider>
+  );
+}
+
 function renderExecutionUi({
   defaultOpen = true,
   includeReopenButton = false,
@@ -951,6 +998,11 @@ describe("in-app agent concurrent conversations", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+    providerMocks.conversationQuery.data = undefined;
+    providerMocks.conversationQuery.error = null;
+    providerMocks.conversationQuery.isLoading = false;
     window.sessionStorage.clear();
     window.localStorage.clear();
   });
@@ -1056,5 +1108,66 @@ describe("in-app agent concurrent conversations", () => {
         expect.objectContaining({ enabled: true }),
       );
     });
+  });
+
+  it("releases a conversation submit lock when switching away", async () => {
+    providerMocks.startRun.mockImplementation(
+      async (input: { conversationId: string }) => ({
+        conversationId: input.conversationId,
+        runId: "run-1",
+      }),
+    );
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        }),
+    );
+
+    const { rerender } = render(providerProbe(null));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledOnce();
+    });
+    const conversationId = providerMocks.startRun.mock.calls[0]?.[0]
+      ?.conversationId as string;
+    rerender(providerProbe(conversationId));
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave conversation" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to conversation" }),
+    );
+
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+  });
+
+  it("keeps a failed new conversation unqueryable until persistence is acknowledged", async () => {
+    providerMocks.getConversation.mockClear();
+    providerMocks.startRun.mockRejectedValueOnce(new Error("Rate limited"));
+
+    renderExecutionUi();
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    fireEvent.change(input, { target: { value: "First question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledOnce();
+    });
+    const conversationId = providerMocks.startRun.mock.calls[0]?.[0]
+      ?.conversationId as string;
+
+    await waitFor(() => {
+      expect(providerMocks.getConversation).toHaveBeenLastCalledWith(
+        expect.objectContaining({ conversationId }),
+        expect.objectContaining({ enabled: false }),
+      );
+    });
+    expect(screen.getByText("First question")).toBeVisible();
   });
 });

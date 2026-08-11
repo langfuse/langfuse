@@ -626,7 +626,6 @@ const meta = preview.meta({
 export const ToolApprovalRequired = meta.story({
   args: {
     isAssistantTurnInProgress: true,
-    isConversationInteractionDisabled: true,
     selectedConversationId: "conversation-1",
     messages: [
       {
@@ -666,15 +665,6 @@ export const ToolApprovalRequired = meta.story({
 export const Empty = meta.story({
   args: {
     messages: [],
-  },
-});
-
-/** Mid-switch: no transcript yet, and deliberately no welcome screen either. */
-export const LoadingConversation = meta.story({
-  args: {
-    messages: [],
-    selectedConversationId: "conversation-1",
-    isSelectedConversationHydrating: true,
   },
 });
 
@@ -1120,6 +1110,36 @@ export const BackgroundRunStops = meta.story({
   },
 });
 
+/** Mid-switch: no transcript yet, and deliberately no welcome screen either. */
+export const LoadingConversation = meta.story({
+  name: "(Test) Loading Conversation",
+  args: {
+    isConversationInteractionDisabled: true,
+    messages: [],
+    selectedConversationId: "conversation-1",
+    isSelectedConversationHydrating: true,
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.queryByText("Welcome to the Langfuse Assistant"),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: /^Create a prompt/ }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Conversation history" }),
+    ).toBeEnabled();
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeDisabled();
+  },
+});
+
 export const RateLimited = meta.story({
   name: "(Test) Rate Limited",
   args: {
@@ -1158,17 +1178,25 @@ export const RateLimited = meta.story({
       />
     );
   },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const alert = canvas.getByRole("alert");
+    const textarea = canvas.getByRole("textbox", {
+      name: "Message the assistant",
+    });
 
     await expect(alert).toHaveTextContent(
       "You've reached the assistant request limit",
     );
     await expect(alert).toHaveTextContent("Try again in about");
+    await expect(textarea).toBeEnabled();
+    await userEvent.type(textarea, "Follow up");
+    await expect(textarea).toHaveValue("Follow up");
     await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeEnabled();
+      canvas.getByRole("button", { name: "Send message" }),
+    ).toBeDisabled();
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onSubmit).not.toHaveBeenCalled();
     await expect(
       canvas.getByRole("button", { name: "Approve" }),
     ).toBeDisabled();
