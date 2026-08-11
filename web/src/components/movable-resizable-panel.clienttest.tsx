@@ -356,6 +356,44 @@ describe("MovableResizablePanel", () => {
     );
   });
 
+  it("keeps clamping clear of the safe-area insets", () => {
+    // Silent-failure guard: a wrong var name would just read 0 and place the
+    // panel under the home indicator with nothing to notice.
+    document.documentElement.style.setProperty(
+      "--safe-area-inset-right",
+      "20px",
+    );
+    document.documentElement.style.setProperty(
+      "--safe-area-inset-bottom",
+      "34px",
+    );
+
+    render(<TestPanel />);
+
+    const panel = screen.getByTestId("movable-resizable-panel");
+    const handle = screen.getByTestId("drag-handle");
+
+    firePointerEvent(handle, "pointerdown", {
+      pointerId: 1,
+      clientX: 140,
+      clientY: 150,
+    });
+    firePointerEvent(panel, "pointermove", {
+      pointerId: 1,
+      clientX: 5000,
+      clientY: 5000,
+    });
+    firePointerEvent(panel, "pointerup", { pointerId: 1 });
+
+    // 1024 - 10 padding - 20 inset - 300 wide, 768 - 10 - 34 - 240 tall.
+    expect(screen.getByTestId("panel-state")).toHaveTextContent(
+      "694,484,300,240",
+    );
+
+    document.documentElement.style.removeProperty("--safe-area-inset-right");
+    document.documentElement.style.removeProperty("--safe-area-inset-bottom");
+  });
+
   it("does not start dragging from explicitly ignored elements inside a handle", () => {
     const onActionClick = vi.fn();
 

@@ -233,6 +233,18 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+// The OS reserves the safe-area edges (home indicator, notch), and
+// `viewport-fit=cover` means innerWidth/innerHeight now span them, so bounds
+// have to subtract them or the panel places and clamps under system UI.
+// globals.css mirrors each `env()` inset into a var for this; 0 without a notch.
+function getSafeAreaInset(edge: "top" | "right" | "bottom" | "left"): number {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(
+    `--safe-area-inset-${edge}`,
+  );
+
+  return Number.parseFloat(value) || 0;
+}
+
 function getViewportBounds(
   boundsPadding: number,
 ): MovableResizablePanelViewportBounds {
@@ -246,10 +258,10 @@ function getViewportBounds(
   }
 
   return {
-    minLeft: boundsPadding,
-    minTop: boundsPadding,
-    maxRight: window.innerWidth - boundsPadding,
-    maxBottom: window.innerHeight - boundsPadding,
+    minLeft: boundsPadding + getSafeAreaInset("left"),
+    minTop: boundsPadding + getSafeAreaInset("top"),
+    maxRight: window.innerWidth - boundsPadding - getSafeAreaInset("right"),
+    maxBottom: window.innerHeight - boundsPadding - getSafeAreaInset("bottom"),
   };
 }
 
