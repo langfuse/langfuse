@@ -14,18 +14,19 @@ test(
 
     try {
       const result = await runCommand(
-        "(sleep 0.2; touch descendant-survived) & wait",
-        50,
+        "setsid sh -c 'touch escaped-descendant-started; sleep 0.5; touch escaped-descendant-survived' & wait",
+        250,
         "timeout-test",
         cwd,
       );
 
       assert.equal(result.exitCode, 124);
-      assert.match(result.stderr, /timed out after 50ms/);
+      assert.match(result.stderr, /timed out after 250ms/);
+      await access(path.join(cwd, "escaped-descendant-started"));
 
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 400));
       await assert.rejects(
-        access(path.join(cwd, "descendant-survived")),
+        access(path.join(cwd, "escaped-descendant-survived")),
         (error) => error?.code === "ENOENT",
       );
     } finally {

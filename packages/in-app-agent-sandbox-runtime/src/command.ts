@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
 
 export function runCommand(
   command: string,
@@ -60,7 +61,7 @@ export function runCommand(
             }
 
             settled = true;
-            killProcessGroup(child);
+            killProcessTree(child);
             resolve({
               stdout,
               stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
@@ -100,6 +101,96 @@ export function runCommand(
   });
 }
 
+function killProcessTree(child: ReturnType<typeof spawn>) {
+  if (child.pid === undefined) {
+    child.kill("SIGKILL");
+    return;
+  }
+
+  stopProcessGroup(child.pid);
+  const descendantPids = getDescendantProcessIds(child.pid);
+  for (const pid of descendantPids.reverse()) {
+    killProcess(pid);
+  }
+  killProcessGroup(child);
+}
+
+function stopProcessGroup(pid: number) {
+  try {
+    process.kill(-pid, "SIGSTOP");
+  } catch (error) {
+    if (!isNoSuchProcessError(error)) {
+      logSignalError("bash.stopProcessGroupError", pid, error);
+    }
+  }
+}
+
+function getDescendantProcessIds(rootPid: number) {
+  const childrenByParent = new Map<number, number[]>();
+  const entries = readProcessEntries();
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) {
+      continue;
+    }
+
+    const pid = Number(entry.name);
+    try {
+      const status = readFileSync(`/proc/${pid}/status`, "utf8");
+      const parentPid = Number(/^PPid:\s+(\d+)$/m.exec(status)?.[1]);
+      if (!Number.isInteger(parentPid)) {
+        continue;
+      }
+
+      const children = childrenByParent.get(parentPid) ?? [];
+      children.push(pid);
+      childrenByParent.set(parentPid, children);
+    } catch {
+      // Processes can exit while /proc is being scanned.
+    }
+  }
+
+  const descendantPids: number[] = [];
+  const pendingParentPids = [rootPid];
+  const seenPids = new Set(pendingParentPids);
+  while (pendingParentPids.length > 0) {
+    const parentPid = pendingParentPids.pop();
+    if (parentPid === undefined) {
+      break;
+    }
+
+    for (const childPid of childrenByParent.get(parentPid) ?? []) {
+      if (seenPids.has(childPid)) {
+        continue;
+      }
+
+      seenPids.add(childPid);
+      descendantPids.push(childPid);
+      pendingParentPids.push(childPid);
+    }
+  }
+
+  return descendantPids;
+}
+
+function readProcessEntries() {
+  try {
+    return readdirSync("/proc", { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+function killProcess(pid: number) {
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch (error) {
+    if (!isNoSuchProcessError(error)) {
+      logSignalError("bash.killDescendantError", pid, error);
+    }
+  }
+}
+
 function killProcessGroup(child: ReturnType<typeof spawn>) {
   if (child.pid === undefined) {
     child.kill("SIGKILL");
@@ -113,6 +204,13 @@ function killProcessGroup(child: ReturnType<typeof spawn>) {
       child.kill("SIGKILL");
     }
   }
+}
+
+function logSignalError(event: string, pid: number, error: unknown) {
+  logSandboxServer(event, {
+    pid,
+    error: error instanceof Error ? error.message : String(error),
+  });
 }
 
 function isNoSuchProcessError(error: unknown): error is NodeJS.ErrnoException {
