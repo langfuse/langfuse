@@ -48,6 +48,16 @@ export function PricingSection({ form }: PricingSectionProps) {
     });
   };
 
+  // Drop the removed row's prices too, so a later row cannot inherit them.
+  const removeUsageType = (index: number) => {
+    const removedKey = form.getValues(`usageTypes.${index}.key`);
+    usageTypes.remove(index);
+    form.getValues("pricingTiers").forEach((tier, tierIndex) => {
+      const { [removedKey]: _removed, ...rest } = tier.prices;
+      form.setValue(`pricingTiers.${tierIndex}.prices`, rest);
+    });
+  };
+
   const prefillUsageTypes = (names: string[]) => {
     const existing = new Set(
       form.getValues("usageTypes").map((row) => row.name.trim()),
@@ -75,12 +85,15 @@ export function PricingSection({ form }: PricingSectionProps) {
     form,
     usageTypeRows: usageTypes.fields,
     onAddUsageType: () => addUsageTypes([""]),
-    onRemoveUsageType: usageTypes.remove,
+    onRemoveUsageType: removeUsageType,
   };
 
   if (tiers.fields.length <= 1) {
     // SIMPLE VIEW: Just show prices for the single default tier
-    const defaultTierIndex = tiers.fields.findIndex((tier) => tier.isDefault);
+    const defaultTierIndex = Math.max(
+      0,
+      tiers.fields.findIndex((tier) => tier.isDefault),
+    );
 
     return (
       <div className="space-y-4">
