@@ -3371,21 +3371,18 @@ const getEvaluatorCostMetricsByIds = async <
 ) => {
   if (evaluatorIds.length === 0) return [];
 
-  // Evaluator metadata lives on the parent span while cost lives on child
-  // events, so rebuild complete trace totals before filtering evaluators.
-  // Keep this compatibility path until 2026-08-07, when the seven-day reporting
-  // window contains only spans written with evaluator metadata on their children.
+  const evaluatorId =
+    "arrayElement(e.metadata_values, indexOf(e.metadata_names, 'evaluator_id'))";
   const traceCostsBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.trace_id",
     selectExpression: [
       "e.trace_id as trace_id",
-      "anyIf(arrayElement(e.metadata_values, indexOf(e.metadata_names, 'job_configuration_id')), has(e.metadata_names, 'job_configuration_id')) as evaluator_id",
+      `anyIf(${evaluatorId}, has(e.metadata_names, 'evaluator_id')) as evaluator_id`,
       "sum(e.total_cost) as trace_total_cost",
     ].join(", "),
   })
-    .whereRaw("e.start_time > today() - 7")
-    .whereRaw("e.is_deleted = 0")
+    .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
     .havingRaw("evaluator_id IN ({evaluatorIds: Array(String)})", {
       evaluatorIds,
     });
@@ -3436,6 +3433,51 @@ export const getTotalCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],
 ) => getEvaluatorCostMetricsByIds(projectId, evaluatorIds, ["totalCost"]);
+
+export const getRecentEvaluatorExecutionTraces = async (
+  projectId: string,
+  evaluatorIds: string[],
+) => {
+  if (evaluatorIds.length === 0) return [];
+
+  const builder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.trace_id, evaluator_id",
+    selectExpression: [
+      "e.trace_id as id",
+      "arrayElement(e.metadata_values, indexOf(e.metadata_names, 'evaluator_id')) as evaluator_id",
+      "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
+      "min(e.start_time) as timestamp",
+    ].join(", "),
+  })
+    .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
+    .whereRaw("has(e.metadata_names, 'evaluator_id')")
+    .whereRaw("evaluator_id IN ({evaluatorIds: Array(String)})", {
+      evaluatorIds,
+    })
+    .orderBy("ORDER BY timestamp DESC, id DESC")
+    .limitByCount(5, "evaluator_id");
+
+  const { query, params } = builder.buildWithParams();
+  const rows = await queryClickhouse<{
+    id: string;
+    evaluator_id: string;
+    level: string;
+    timestamp: string;
+  }>({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    evaluatorId: row.evaluator_id,
+    level: row.level,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  }));
+};
 
 export const getSessionMetricsFromEvents = async (props: {
   projectId: string;

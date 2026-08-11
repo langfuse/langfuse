@@ -15,6 +15,8 @@ import {
   getTracesIdentifierForSessionFromEvents,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
+  getRecentEvaluatorExecutionTraces,
+  getTotalCostByEvaluatorIds,
   createScoresCh,
   createTraceScore,
   type EventFilterOptionColumn,
@@ -60,6 +62,59 @@ describe("Clickhouse Events Repository Test", () => {
   it("should kill redis connection", () => {
     // we need at least one test case to avoid hanging
     // redis connection when everything else is skipped.
+  });
+
+  maybe("evaluator execution metrics", () => {
+    it("returns only the last seven days by evaluator ID", async () => {
+      const traceId = randomUUID();
+      const evaluatorId = randomUUID();
+      const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          metadata_names: ["evaluator_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 1.5 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          level: "ERROR",
+          metadata_names: ["evaluator_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 0 },
+        }),
+        createEvent({
+          project_id: projectId,
+          start_time: eightDaysAgo,
+          metadata_names: ["evaluator_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 20 },
+        }),
+        createEvent({
+          project_id: projectId,
+          metadata_names: ["job_configuration_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 30 },
+        }),
+      ]);
+
+      await expect(
+        getRecentEvaluatorExecutionTraces(projectId, [evaluatorId]),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: traceId,
+          evaluatorId,
+          level: "ERROR",
+        }),
+      ]);
+      await expect(
+        getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
+    });
   });
 
   maybe("getObservationsWithModelDataFromEventsTable", () => {

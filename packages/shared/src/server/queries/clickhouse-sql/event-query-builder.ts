@@ -725,6 +725,18 @@ abstract class AbstractQueryBuilder {
   }
 
   /**
+   * Keep up to `limit` rows per unique combination of columns.
+   */
+  limitByCount(limit: number, ...columns: string[]): this {
+    if (columns.length > 0) {
+      this.limitByClause = `LIMIT {limitByCount: Int32} BY ${columns.join(", ")}`;
+      this.params.limitByCount = limit;
+    }
+
+    return this;
+  }
+
+  /**
    * Conditionally apply builder operations
    */
   when<T extends AbstractQueryBuilder>(

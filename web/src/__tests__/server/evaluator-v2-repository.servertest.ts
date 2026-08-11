@@ -1,0 +1,698 @@
+import { randomUUID } from "crypto";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
+import { EvaluatorVersionConflictError } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
+import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+
+const orgIds: string[] = [];
+let projectId = "";
+let otherProjectId = "";
+let creatorUserId = "";
+
+const codeDefinition = (
+  sourceCode = "return 1;",
+): Extract<EvaluatorDefinition, { type: "CODE" }> => ({
+  type: "CODE",
+  sourceCode,
+  sourceCodeLanguage: "TYPESCRIPT",
+  variableMapping: null,
+});
+
+const llmDefinition = (
+  overrides: Partial<
+    Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
+  > = {},
+): Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }> => ({
+  type: "LLM_AS_JUDGE",
+  prompt: "Judge {{output}}",
+  provider: null,
+  model: null,
+  modelParams: null,
+  vars: ["output"],
+  variableMapping: null,
+  outputDefinition: {
+    version: 2,
+    dataType: "NUMERIC",
+    score: { description: "Quality" },
+    reasoning: { description: "Reasoning" },
+  },
+  ...overrides,
+});
+
+const createEvaluator = ({
+  targetProjectId = projectId,
+  name = `evaluator-${randomUUID()}`,
+  description = null,
+  definition = codeDefinition(),
+  createdByUserId = null,
+}: {
+  targetProjectId?: string;
+  name?: string;
+  description?: string | null;
+  definition?: EvaluatorDefinition;
+  createdByUserId?: string | null;
+} = {}) =>
+  evaluatorRepository.createEvaluator({
+    prisma,
+    input: {
+      projectId: targetProjectId,
+      name,
+      description,
+      definition,
+    },
+    createdByUserId,
+  });
+
+const createRuleAssignment = async ({
+  targetProjectId = projectId,
+  evaluatorId,
+  status = "ACTIVE",
+  assignmentId = `assignment-${randomUUID()}`,
+}: {
+  targetProjectId?: string;
+  evaluatorId: string;
+  status?: "ACTIVE" | "INACTIVE";
+  assignmentId?: string;
+}) => {
+  const rule = await prisma.evaluationRule.create({
+    data: {
+      projectId: targetProjectId,
+      name: `rule-${randomUUID()}`,
+      status,
+      targetObject: "EVENT",
+      filter: [],
+      sampling: 1,
+      delay: 0,
+      assignments: {
+        create: {
+          id: assignmentId,
+          projectId: targetProjectId,
+          evaluatorId,
+          variableMapping: {},
+        },
+      },
+    },
+  });
+
+  return { rule, assignmentId };
+};
+
+const createEvaluatorWithThreeVersions = async () => {
+  const evaluator = await createEvaluator();
+  await prisma.$transaction(async (tx) => {
+    await evaluatorRepository.appendEvaluatorVersion({
+      tx,
+      evaluatorId: evaluator.id,
+      version: 2,
+      definition: codeDefinition("return 2;"),
+      createdByUserId: null,
+    });
+    await evaluatorRepository.appendEvaluatorVersion({
+      tx,
+      evaluatorId: evaluator.id,
+      version: 3,
+      definition: codeDefinition("return 3;"),
+      createdByUserId: null,
+    });
+  });
+  return evaluator;
+};
+
+beforeAll(async () => {
+  const [first, second, creator] = await Promise.all([
+    createOrgProjectAndApiKey(),
+    createOrgProjectAndApiKey(),
+    prisma.user.create({
+      data: {
+        name: "Evaluator creator",
+        email: `${randomUUID()}@example.com`,
+      },
+    }),
+  ]);
+  projectId = first.project.id;
+  otherProjectId = second.project.id;
+  creatorUserId = creator.id;
+  orgIds.push(first.org.id, second.org.id);
+});
+
+afterEach(async () => {
+  await prisma.evaluationRule.deleteMany({
+    where: { projectId: { in: [projectId, otherProjectId] } },
+  });
+  await prisma.evaluator.deleteMany({
+    where: { projectId: { in: [projectId, otherProjectId] } },
+  });
+});
+
+afterAll(async () => {
+  await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
+  await prisma.user.delete({ where: { id: creatorUserId } });
+});
+
+describe("evaluator v2 repository", () => {
+  describe("listEvaluators", () => {
+    it("returns an empty list", async () => {
+      await expect(
+        evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 50,
+        }),
+      ).resolves.toEqual({ evaluators: [], totalItems: 0 });
+    });
+
+    it("returns matching project evaluators with their list data", async () => {
+      const matching = await createEvaluator({
+        name: "Quality match",
+        createdByUserId: creatorUserId,
+      });
+      await Promise.all([
+        createEvaluator({ name: "Unrelated" }),
+        createEvaluator({
+          targetProjectId: otherProjectId,
+          name: "Other project match",
+        }),
+      ]);
+      await prisma.$transaction((tx) =>
+        evaluatorRepository.appendEvaluatorVersion({
+          tx,
+          evaluatorId: matching.id,
+          version: 2,
+          definition: codeDefinition("return 2;"),
+          createdByUserId: null,
+        }),
+      );
+      await Promise.all([
+        createRuleAssignment({ evaluatorId: matching.id, status: "ACTIVE" }),
+        createRuleAssignment({ evaluatorId: matching.id, status: "INACTIVE" }),
+      ]);
+      await createRuleAssignment({
+        targetProjectId: otherProjectId,
+        evaluatorId: matching.id,
+        status: "ACTIVE",
+      });
+
+      const result = await evaluatorRepository.listEvaluators({
+        prisma,
+        projectId,
+        page: 1,
+        limit: 50,
+        search: "MATCH",
+      });
+
+      expect(result).toMatchObject({
+        evaluators: [
+          {
+            id: matching.id,
+            projectId,
+            name: "Quality match",
+            createdByUser: {
+              name: "Evaluator creator",
+              email: expect.any(String),
+            },
+            versions: [{ version: 2, sourceCode: "return 2;" }],
+            _count: { assignments: 2 },
+            hasActiveRules: true,
+          },
+        ],
+        totalItems: 1,
+      });
+    });
+
+    it("paginates evaluators in descending creation order", async () => {
+      const [older, newer] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+      ]);
+
+      await Promise.all([
+        prisma.evaluator.update({
+          where: { id: older.id },
+          data: { createdAt: new Date("2026-01-01T00:00:00.000Z") },
+        }),
+        prisma.evaluator.update({
+          where: { id: newer.id },
+          data: { createdAt: new Date("2026-01-02T00:00:00.000Z") },
+        }),
+      ]);
+
+      await expect(
+        evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 1,
+        }),
+      ).resolves.toEqual({
+        evaluators: [expect.objectContaining({ id: newer.id })],
+        totalItems: 2,
+      });
+
+      await expect(
+        evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 2,
+          limit: 1,
+        }),
+      ).resolves.toEqual({
+        evaluators: [expect.objectContaining({ id: older.id })],
+        totalItems: 2,
+      });
+    });
+  });
+
+  describe("listEvaluatorIds", () => {
+    it("returns all evaluator IDs from the requested project", async () => {
+      const [first, second] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+        createEvaluator({ targetProjectId: otherProjectId }),
+      ]);
+
+      const ids = await evaluatorRepository.listEvaluatorIds({
+        prisma,
+        projectId,
+      });
+
+      expect(new Set(ids)).toEqual(new Set([first.id, second.id]));
+    });
+
+    it("filters IDs by name case-insensitively", async () => {
+      const [first, second] = await Promise.all([
+        createEvaluator({ name: "Quality Judge" }),
+        createEvaluator({ name: "quality checker" }),
+        createEvaluator({ name: "Toxicity" }),
+        createEvaluator({
+          targetProjectId: otherProjectId,
+          name: "quality from another project",
+        }),
+      ]);
+
+      const ids = await evaluatorRepository.listEvaluatorIds({
+        prisma,
+        projectId,
+        search: "QUALITY",
+      });
+
+      expect(new Set(ids)).toEqual(new Set([first.id, second.id]));
+    });
+
+    it("returns an empty list", async () => {
+      await expect(
+        evaluatorRepository.listEvaluatorIds({
+          prisma,
+          projectId,
+        }),
+      ).resolves.toEqual([]);
+    });
+  });
+
+  describe("findEvaluator", () => {
+    it("returns only the latest version", async () => {
+      const evaluator = await createEvaluator();
+      await prisma.$transaction((tx) =>
+        evaluatorRepository.appendEvaluatorVersion({
+          tx,
+          evaluatorId: evaluator.id,
+          version: 2,
+          definition: codeDefinition("return 2;"),
+          createdByUserId: null,
+        }),
+      );
+
+      await expect(
+        evaluatorRepository.findEvaluator({
+          prisma,
+          projectId,
+          evaluatorId: evaluator.id,
+        }),
+      ).resolves.toMatchObject({
+        id: evaluator.id,
+        versions: [{ version: 2, sourceCode: "return 2;" }],
+      });
+    });
+
+    it("returns null when the evaluator is unavailable", async () => {
+      const evaluator = await createEvaluator();
+
+      await expect(
+        evaluatorRepository.findEvaluator({
+          prisma,
+          projectId: otherProjectId,
+          evaluatorId: evaluator.id,
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        evaluatorRepository.findEvaluator({
+          prisma,
+          projectId,
+          evaluatorId: "missing-evaluator",
+        }),
+      ).resolves.toBeNull();
+    });
+  });
+
+  describe("listEvaluatorVersions", () => {
+    it("returns an empty list", async () => {
+      await expect(
+        evaluatorRepository.listEvaluatorVersions({
+          prisma,
+          projectId,
+          evaluatorId: "missing-evaluator",
+          limit: 2,
+        }),
+      ).resolves.toEqual({ data: [], nextCursor: undefined });
+    });
+
+    it("paginates versions in descending order", async () => {
+      const evaluator = await createEvaluatorWithThreeVersions();
+
+      await expect(
+        evaluatorRepository.listEvaluatorVersions({
+          prisma,
+          projectId,
+          evaluatorId: evaluator.id,
+          limit: 2,
+        }),
+      ).resolves.toMatchObject({
+        data: [{ version: 3 }, { version: 2 }],
+        nextCursor: 2,
+      });
+      await expect(
+        evaluatorRepository.listEvaluatorVersions({
+          prisma,
+          projectId,
+          evaluatorId: evaluator.id,
+          cursor: 2,
+          limit: 2,
+        }),
+      ).resolves.toMatchObject({
+        data: [{ version: 1 }],
+        nextCursor: undefined,
+      });
+      await expect(
+        evaluatorRepository.listEvaluatorVersions({
+          prisma,
+          projectId,
+          evaluatorId: evaluator.id,
+          cursor: 1,
+          limit: 2,
+        }),
+      ).resolves.toEqual({ data: [], nextCursor: undefined });
+      await expect(
+        evaluatorRepository.listEvaluatorVersions({
+          prisma,
+          projectId: otherProjectId,
+          evaluatorId: evaluator.id,
+          limit: 2,
+        }),
+      ).resolves.toEqual({ data: [], nextCursor: undefined });
+    });
+  });
+
+  describe("findEvaluatorsByName", () => {
+    it("returns an empty list", async () => {
+      await expect(
+        evaluatorRepository.findEvaluatorsByName({
+          prisma,
+          projectId,
+          name: "missing",
+        }),
+      ).resolves.toEqual([]);
+    });
+
+    it("returns at most two exact-name matches from the requested project", async () => {
+      await Promise.all([
+        createEvaluator({ name: "Duplicate name" }),
+        createEvaluator({ name: "Duplicate name" }),
+        createEvaluator({ name: "Duplicate name" }),
+        createEvaluator({ name: "duplicate name" }),
+        createEvaluator({
+          targetProjectId: otherProjectId,
+          name: "Duplicate name",
+        }),
+      ]);
+
+      const matches = await evaluatorRepository.findEvaluatorsByName({
+        prisma,
+        projectId,
+        name: "Duplicate name",
+      });
+      expect(matches).toHaveLength(2);
+      expect(matches).toEqual([
+        expect.objectContaining({
+          projectId,
+          name: "Duplicate name",
+          versions: [expect.objectContaining({ version: 1 })],
+        }),
+        expect.objectContaining({
+          projectId,
+          name: "Duplicate name",
+          versions: [expect.objectContaining({ version: 1 })],
+        }),
+      ]);
+    });
+  });
+
+  describe("createEvaluator", () => {
+    it("persists a code evaluator", async () => {
+      const codeEvaluator = await createEvaluator({
+        name: "Code evaluator",
+        description: "Runs code",
+        definition: codeDefinition("return input.value;"),
+      });
+      expect(codeEvaluator).toMatchObject({
+        projectId,
+        name: "Code evaluator",
+        description: "Runs code",
+        type: "CODE",
+        createdByUserId: null,
+        versions: [
+          {
+            version: 1,
+            sourceCode: "return input.value;",
+            sourceCodeLanguage: "TYPESCRIPT",
+            variableMapping: null,
+            prompt: null,
+          },
+        ],
+      });
+    });
+
+    it("persists LLM evaluator fields", async () => {
+      const [nullableLlmEvaluator, configuredLlmEvaluator] = await Promise.all([
+        createEvaluator({
+          name: "Nullable LLM evaluator",
+          definition: llmDefinition(),
+          createdByUserId: creatorUserId,
+        }),
+        createEvaluator({
+          name: "Configured LLM evaluator",
+          definition: llmDefinition({
+            provider: "openai",
+            model: "gpt-test",
+            modelParams: { temperature: 0.2 },
+            variableMapping: [
+              { templateVariable: "output", selectedColumnId: "output" },
+            ],
+          }),
+        }),
+      ]);
+
+      expect(nullableLlmEvaluator).toMatchObject({
+        type: "LLM_AS_JUDGE",
+        createdByUserId: creatorUserId,
+        versions: [
+          {
+            version: 1,
+            createdByUserId: creatorUserId,
+            prompt: "Judge {{output}}",
+            modelParams: null,
+            variableMapping: null,
+            sourceCode: null,
+          },
+        ],
+      });
+
+      const [nullStorage] = await prisma.$queryRaw<
+        Array<{
+          variable_mapping_is_null: boolean;
+          model_params_is_null: boolean;
+        }>
+      >(Prisma.sql`
+        SELECT
+          variable_mapping IS NULL AS variable_mapping_is_null,
+          model_params IS NULL AS model_params_is_null
+        FROM evaluator_versions
+        WHERE id = ${nullableLlmEvaluator.versions[0].id}
+      `);
+      expect(nullStorage).toEqual({
+        variable_mapping_is_null: true,
+        model_params_is_null: true,
+      });
+
+      expect(configuredLlmEvaluator.versions[0]).toMatchObject({
+        provider: "openai",
+        model: "gpt-test",
+        modelParams: { temperature: 0.2 },
+        variableMapping: [
+          { templateVariable: "output", selectedColumnId: "output" },
+        ],
+        outputDefinition: expect.objectContaining({ dataType: "NUMERIC" }),
+      });
+    });
+  });
+
+  describe("updateEvaluatorMetadata", () => {
+    it("updates evaluator metadata without changing versions", async () => {
+      const evaluator = await createEvaluator({
+        name: "Before",
+        description: "Old description",
+      });
+
+      await prisma.$transaction((tx) =>
+        evaluatorRepository.updateEvaluatorMetadata({
+          tx,
+          projectId,
+          evaluatorId: evaluator.id,
+          name: "After",
+          description: null,
+        }),
+      );
+      await expect(
+        evaluatorRepository.findEvaluator({
+          prisma,
+          projectId,
+          evaluatorId: evaluator.id,
+        }),
+      ).resolves.toMatchObject({
+        name: "After",
+        description: null,
+        versions: [{ version: 1 }],
+      });
+    });
+
+    it("rejects updates through another project", async () => {
+      const evaluator = await createEvaluator({ name: "Before" });
+
+      await expect(
+        prisma.$transaction((tx) =>
+          evaluatorRepository.updateEvaluatorMetadata({
+            tx,
+            projectId: otherProjectId,
+            evaluatorId: evaluator.id,
+            name: "Cross-project rename",
+            description: null,
+          }),
+        ),
+      ).rejects.toMatchObject({ code: "P2025" });
+      await expect(
+        prisma.evaluator.findUniqueOrThrow({ where: { id: evaluator.id } }),
+      ).resolves.toMatchObject({ name: "Before" });
+    });
+  });
+
+  describe("appendEvaluatorVersion", () => {
+    it("persists the requested version", async () => {
+      const evaluator = await createEvaluator();
+      const appended = await prisma.$transaction((tx) =>
+        evaluatorRepository.appendEvaluatorVersion({
+          tx,
+          evaluatorId: evaluator.id,
+          version: 2,
+          definition: codeDefinition("return 2;"),
+          createdByUserId: creatorUserId,
+        }),
+      );
+      expect(appended).toMatchObject({
+        evaluatorId: evaluator.id,
+        version: 2,
+        sourceCode: "return 2;",
+        createdByUserId: creatorUserId,
+      });
+    });
+
+    it("translates a duplicate version into a conflict", async () => {
+      const evaluator = await createEvaluator();
+      await prisma.$transaction((tx) =>
+        evaluatorRepository.appendEvaluatorVersion({
+          tx,
+          evaluatorId: evaluator.id,
+          version: 2,
+          definition: codeDefinition("return 2;"),
+          createdByUserId: null,
+        }),
+      );
+
+      await expect(
+        prisma.$transaction((tx) =>
+          evaluatorRepository.appendEvaluatorVersion({
+            tx,
+            evaluatorId: evaluator.id,
+            version: 2,
+            definition: codeDefinition("return duplicate;"),
+            createdByUserId: null,
+          }),
+        ),
+      ).rejects.toBeInstanceOf(EvaluatorVersionConflictError);
+      await expect(
+        prisma.evaluatorVersion.count({
+          where: { evaluatorId: evaluator.id },
+        }),
+      ).resolves.toBe(2);
+    });
+  });
+
+  describe("deleteEvaluator", () => {
+    it("returns false without deleting unavailable evaluators", async () => {
+      const evaluator = await createEvaluator();
+
+      await expect(
+        evaluatorRepository.deleteEvaluator({
+          prisma,
+          projectId: otherProjectId,
+          evaluatorId: evaluator.id,
+        }),
+      ).resolves.toBe(false);
+      await expect(
+        prisma.evaluator.findUnique({ where: { id: evaluator.id } }),
+      ).resolves.not.toBeNull();
+      await expect(
+        evaluatorRepository.deleteEvaluator({
+          prisma,
+          projectId,
+          evaluatorId: "missing-evaluator",
+        }),
+      ).resolves.toBe(false);
+    });
+
+    it("deletes the evaluator and cascades owned records", async () => {
+      const evaluator = await createEvaluator();
+      const { assignmentId } = await createRuleAssignment({
+        evaluatorId: evaluator.id,
+      });
+
+      await expect(
+        evaluatorRepository.deleteEvaluator({
+          prisma,
+          projectId,
+          evaluatorId: evaluator.id,
+        }),
+      ).resolves.toBe(true);
+      await expect(
+        prisma.evaluatorVersion.count({
+          where: { evaluatorId: evaluator.id },
+        }),
+      ).resolves.toBe(0);
+      await expect(
+        prisma.evaluationRuleEvaluatorAssignment.findUnique({
+          where: { id: assignmentId },
+        }),
+      ).resolves.toBeNull();
+    });
+  });
+});

@@ -7,10 +7,12 @@ function VariableMappingCardHeaderContent({
   variable,
   mapping,
   isUnmapped,
+  warningMessage,
 }: {
   variable: string;
   mapping: React.ReactNode;
   isUnmapped: boolean;
+  warningMessage?: string | null;
 }) {
   return (
     <>
@@ -22,7 +24,18 @@ function VariableMappingCardHeaderContent({
           <span>nothing yet</span>
         </span>
       ) : (
-        <span className="@container min-w-0 flex-1">{mapping}</span>
+        <span className="@container flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="min-w-0">{mapping}</span>
+          {warningMessage ? (
+            <span
+              className="text-dark-yellow relative -top-px h-4 w-4 shrink-0 self-center"
+              aria-label={`Warning: ${warningMessage}`}
+              title={warningMessage}
+            >
+              <TriangleAlert className="h-4 w-4" aria-hidden="true" />
+            </span>
+          ) : null}
+        </span>
       )}
     </>
   );
@@ -33,6 +46,7 @@ function VariableMappingCardShell({
   variable,
   mapping,
   isUnmapped,
+  warningMessage,
   isExpanded,
   isEditing,
   onExpandedChange,
@@ -43,6 +57,7 @@ function VariableMappingCardShell({
   variable: string;
   mapping?: React.ReactNode;
   isUnmapped: boolean;
+  warningMessage?: string | null;
   isExpanded: boolean;
   isEditing: boolean;
   onExpandedChange: (expanded: boolean) => void;
@@ -70,6 +85,7 @@ function VariableMappingCardShell({
           variable={variable}
           mapping={mapping}
           isUnmapped={isUnmapped}
+          warningMessage={warningMessage}
         />
       }
       actions={

@@ -3,11 +3,11 @@ import type { VariableFieldState } from "./types";
 import {
   EditableVariableMapping,
   type EditableVariableMappingProps,
-} from "./components/EditableVariableMapping";
-import { VariableMappingBinding } from "./components/VariableMappingBinding";
+} from "./components/EditableVariableMapping/EditableVariableMapping";
+import { VariableMappingBinding } from "./components/VariableMappingBinding/VariableMappingBinding";
 import { ReadOnlyVariableMappingCardShell } from "./components/VariableMappingCardShell";
 
-export type { ActiveVariableMapping } from "./components/EditableVariableMapping";
+export type { ActiveVariableMapping } from "./components/EditableVariableMapping/EditableVariableMapping";
 
 type VariableMappingProps = {
   mappings: Array<{ variable: string; fieldState: VariableFieldState }>;

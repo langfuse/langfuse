@@ -8,6 +8,7 @@ import React, {
   useRef,
   useEffect,
   type CSSProperties,
+  type UIEventHandler,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
@@ -60,6 +61,7 @@ import {
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
+  onScroll?: UIEventHandler<HTMLDivElement>;
   data: AsyncTableData<TData[]>;
   pagination?: {
     totalCount: number | null; // null if loading or intentionally unknown
@@ -197,6 +199,7 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
 
 export function DataTable<TData extends object, TValue>({
   columns,
+  onScroll,
   data,
   pagination,
   rowSelection,
@@ -417,6 +420,7 @@ export function DataTable<TData extends object, TValue>({
           // to the right, not a complete fix.
           className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
           style={{ ...columnSizeVars }}
+          onScroll={onScroll}
         >
           <Table>
             <TableHeader className="sticky top-0 z-20">

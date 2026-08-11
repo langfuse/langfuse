@@ -1,0 +1,415 @@
+import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
+import { TRPCClientError } from "@trpc/client";
+import { History, Trash2 } from "lucide-react";
+import { supportedModels, type EvalTemplateType } from "@langfuse/shared";
+import { useStore } from "zustand";
+import Page from "@/src/components/layouts/page";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { Button } from "@/src/components/ui/button";
+import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
+import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
+import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
+import { EvaluatorSetupEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/EvaluatorSetupEditor";
+import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/EvaluatorSetupFooter/EvaluatorSetupFooter";
+import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
+import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
+import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/prepareEvaluatorDraft";
+import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
+import { api } from "@/src/utils/api";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+
+type InitialEvaluator = {
+  id: string;
+  name: string;
+  description: string | null;
+  type: EvalTemplateType;
+  definition: EvaluatorDefinition;
+};
+
+export function EvaluatorSetupPage({
+  projectId,
+  initialEvaluator,
+}: {
+  projectId: string;
+  initialEvaluator: InitialEvaluator | null;
+}) {
+  const router = useRouter();
+  const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const [evaluatorSetupStore] = useState(() =>
+    createEvaluatorSetupStore({ initialEvaluator }),
+  );
+  const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
+    JSON.stringify({
+      name: state.name.trim(),
+      description: state.description.trim() || null,
+      definition: prepareEvaluatorDraft(state).definition,
+    });
+  const initialSnapshot = useRef(getCurrentSnapshot());
+  const testPanelOpen = useStore(
+    evaluatorSetupStore,
+    (state) => state.testPanelOpen,
+  );
+  const [testResult, setTestResult] = useState<unknown>(null);
+  const [rawResultOpen, setRawResultOpen] = useState(false);
+  const hasRequestedName = useRef(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [expandedVersionId, setExpandedVersionId] = useState<string | null>(
+    null,
+  );
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [versionConflictOpen, setVersionConflictOpen] = useState(false);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+  // Keep relative ranges stable across unrelated renders so the observations
+  // query only changes when the selected range changes.
+  const absoluteTimeRange = useMemo(
+    () => toAbsoluteTimeRange(timeRange),
+    [timeRange],
+  );
+  const sampleTracePeekNavigation = usePeekNavigation({
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+      reader: "trace",
+    },
+  });
+  const sampleTracePeekConfig = {
+    itemType: "TRACE" as const,
+    detailNavigationKey: detailPageListKeys.traces,
+    ...sampleTracePeekNavigation,
+  };
+  const versionHistory = api.evalsV2.versions.useInfiniteQuery(
+    {
+      projectId,
+      evaluatorId: initialEvaluator?.id ?? "",
+      limit: 50,
+    },
+    {
+      enabled: Boolean(initialEvaluator && historyOpen),
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    },
+  );
+  const versions: EvaluatorVersion[] = (
+    versionHistory.data?.pages.flatMap((page) => page.data) ?? []
+  ).map((version) => ({
+    id: version.id,
+    version: version.version,
+    createdAt: version.createdAt,
+    type: initialEvaluator?.type ?? "LLM_AS_JUDGE",
+    sourceCode: version.sourceCode,
+    sourceCodeLanguage: version.sourceCodeLanguage,
+    prompt: version.prompt,
+    provider: version.provider,
+    model: version.model,
+    outputDefinition: version.outputDefinition,
+  }));
+
+  const defaultModel = api.defaultLlmModel.fetchDefaultModel.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId) },
+  );
+  const llmApiKeys = api.llmApiKey.all.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId) },
+  );
+  const providerGroups: Array<[string, string[]]> =
+    llmApiKeys.data?.data.map((connection) => [
+      connection.provider,
+      Array.from(
+        new Set([
+          ...connection.customModels,
+          ...(connection.withDefaultModels
+            ? supportedModels[connection.adapter]
+            : []),
+        ]),
+      ),
+    ]) ?? [];
+
+  const create = api.evalsV2.create.useMutation();
+  const update = api.evalsV2.update.useMutation();
+  const deleteEvaluator = api.evalsV2.delete.useMutation({
+    onError: trpcErrorToast,
+    onSuccess: async () => {
+      capture("evaluators:delete", {
+        source: "detail",
+        evaluatorCount: 1,
+        isAllMatching: false,
+      });
+      showSuccessToast({
+        title: "Evaluator deleted",
+        description: "The evaluator and all of its versions were deleted.",
+      });
+      await router.push(`/project/${projectId}/evals/v2`);
+    },
+  });
+  const testEvaluator = api.evalsV2.test.useMutation({
+    onSuccess: setTestResult,
+    onError: (error) => {
+      setTestResult({ requestError: error.message });
+      trpcErrorToast(error);
+    },
+  });
+  const suggestName = api.evalsV2.suggestName.useMutation({
+    onSuccess: (suggested) => {
+      const state = evaluatorSetupStore.getState();
+      if (suggested && !state.name) state.actions.setName(suggested);
+    },
+  });
+
+  const setStepOpen = (step: number, open: boolean) => {
+    const state = evaluatorSetupStore.getState();
+    state.actions.setStepOpen(step, open);
+    const isNameStep = step === (state.type === "LLM_AS_JUDGE" ? 3 : 2);
+    if (open && isNameStep && !state.name && !hasRequestedName.current) {
+      hasRequestedName.current = true;
+      const nameDefinition =
+        state.type === "LLM_AS_JUDGE"
+          ? { type: state.type, prompt: state.prompt }
+          : { type: state.type, sourceCode: state.sourceCode };
+      suggestName.mutate({ projectId, definition: nameDefinition });
+    }
+  };
+
+  const close = async () => {
+    await router.push(`/project/${projectId}/evals/v2`);
+  };
+  const requestClose = () => {
+    const currentSnapshot = getCurrentSnapshot();
+    if (currentSnapshot !== initialSnapshot.current) setDiscardOpen(true);
+    else close().catch(trpcErrorToast);
+  };
+
+  const save = async () => {
+    const state = evaluatorSetupStore.getState();
+    const { definition } = prepareEvaluatorDraft(state);
+    if (!definition || !state.name.trim()) return;
+    try {
+      const evaluator = initialEvaluator
+        ? await update.mutateAsync({
+            projectId,
+            evaluatorId: initialEvaluator.id,
+            name: state.name,
+            description: state.description || null,
+            definition,
+          })
+        : await create.mutateAsync({
+            projectId,
+            name: state.name,
+            description: state.description || null,
+            definition,
+          });
+      capture(initialEvaluator ? "evaluators:update" : "evaluators:create", {
+        evaluatorType: state.type,
+      });
+      showSuccessToast({
+        title: initialEvaluator ? "Evaluator saved" : "Evaluator created",
+        description: initialEvaluator
+          ? "Your evaluator changes are saved."
+          : "Evaluator was saved successfully.",
+      });
+      initialSnapshot.current = getCurrentSnapshot(state);
+      await router.push(`/project/${projectId}/evals/v2/${evaluator.id}`);
+    } catch (error) {
+      if (
+        initialEvaluator &&
+        error instanceof TRPCClientError &&
+        error.data?.code === "CONFLICT"
+      ) {
+        setVersionConflictOpen(true);
+      } else {
+        trpcErrorToast(error);
+      }
+    }
+  };
+
+  const discardConflictingChanges = async () => {
+    if (!initialEvaluator) return;
+    setVersionConflictOpen(false);
+    await utils.evalsV2.get.invalidate({
+      projectId,
+      evaluatorId: initialEvaluator.id,
+    });
+  };
+
+  const overrideConflictingChanges = async () => {
+    setVersionConflictOpen(false);
+    await save();
+  };
+
+  const runTest = () => {
+    const state = evaluatorSetupStore.getState();
+    const { definition } = prepareEvaluatorDraft(state);
+    const selectedObservation = state.selectedObservation;
+    if (!definition || !selectedObservation?.traceId) return;
+    capture("evaluators:test", {
+      evaluatorType: state.type,
+      isEditing: Boolean(initialEvaluator),
+    });
+    testEvaluator.mutate({
+      projectId,
+      evaluatorId: initialEvaluator?.id,
+      definition,
+      observationId: selectedObservation.id,
+      traceId: selectedObservation.traceId,
+      startTime: selectedObservation.startTime,
+    });
+  };
+
+  return (
+    <Page
+      headerProps={{
+        title: initialEvaluator ? "Configure evaluator" : "New evaluator",
+        breadcrumb: [
+          { name: "Evaluators", href: `/project/${projectId}/evals/v2` },
+        ],
+        actionButtonsRight: initialEvaluator ? (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setHistoryOpen(true)}
+            >
+              <History className="mr-2 h-4 w-4" />
+              Version history
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="text-destructive h-4 w-4" />
+            </Button>
+          </div>
+        ) : undefined,
+      }}
+    >
+      <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
+      <div
+        className={
+          testPanelOpen
+            ? "grid min-h-0 flex-1 grid-cols-[minmax(0,3fr)_minmax(360px,2fr)] divide-x"
+            : "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_48px] divide-x"
+        }
+      >
+        <EvaluatorSetupEditor
+          projectId={projectId}
+          store={evaluatorSetupStore}
+          isEditing={Boolean(initialEvaluator)}
+          defaultModel={defaultModel.data ?? null}
+          providerGroups={providerGroups}
+          onConfigureProviders={() => {
+            router
+              .push(`/project/${projectId}/settings/llm-connections`)
+              .catch(trpcErrorToast);
+          }}
+          onConfigureDefault={() => {
+            router
+              .push(`/project/${projectId}/evals/default-model`)
+              .catch(trpcErrorToast);
+          }}
+          onStepOpenChange={setStepOpen}
+          isSuggestingName={suggestName.isPending}
+        />
+
+        <EvaluatorTestPanelContainer
+          projectId={projectId}
+          store={evaluatorSetupStore}
+          sampleSelector={
+            <SampleObservationSelectorContainer
+              store={evaluatorSetupStore}
+              projectId={projectId}
+              timeRange={absoluteTimeRange}
+              onOpenTrace={(observation) => {
+                if (observation.traceId) {
+                  sampleTracePeekNavigation.openPeek(observation.traceId);
+                }
+              }}
+            />
+          }
+          onOpenSampleTrace={(observation) => {
+            if (observation.traceId) {
+              sampleTracePeekNavigation.openPeek(observation.traceId);
+            }
+          }}
+          testResult={testResult}
+          testPending={testEvaluator.isPending}
+          rawResultOpen={rawResultOpen}
+          onRawResultOpenChange={setRawResultOpen}
+          onRunTest={runTest}
+          onOpenExecutionTrace={(traceId) =>
+            sampleTracePeekNavigation.openPeek(traceId)
+          }
+        />
+      </div>
+      <EvaluatorSetupFooter
+        store={evaluatorSetupStore}
+        initialSnapshot={initialSnapshot.current}
+        isEditing={Boolean(initialEvaluator)}
+        isSaving={create.isPending || update.isPending}
+        onClose={requestClose}
+        onSave={save}
+      />
+      {initialEvaluator ? (
+        <EvaluatorVersionHistorySheet
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          evaluatorName={initialEvaluator.name}
+          versions={versions}
+          currentVersionId={versions[0]?.id ?? ""}
+          defaultModel={null}
+          expandedVersionId={expandedVersionId}
+          onExpandedVersionChange={setExpandedVersionId}
+          isLoading={versionHistory.isPending}
+          hasMore={versionHistory.hasNextPage}
+          isLoadingMore={versionHistory.isFetchingNextPage}
+          onLoadMore={() => versionHistory.fetchNextPage()}
+        />
+      ) : null}
+      {initialEvaluator ? (
+        <ConfirmDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          title="Delete evaluator?"
+          description="This deletes the evaluator and its complete version history. This action cannot be undone."
+          confirmLabel="Delete evaluator"
+          onConfirm={() =>
+            deleteEvaluator.mutate({
+              projectId,
+              evaluatorId: initialEvaluator.id,
+            })
+          }
+        />
+      ) : null}
+      <TablePeekViewTraceDetail
+        {...sampleTracePeekConfig}
+        projectId={projectId}
+      />
+      <ConfirmDialog
+        open={discardOpen}
+        onOpenChange={setDiscardOpen}
+        title="Discard unsaved changes?"
+        description="Your evaluator changes will be lost."
+        confirmLabel="Discard changes"
+        onConfirm={close}
+      />
+      <EvaluatorVersionConflictDialog
+        open={versionConflictOpen}
+        onOpenChange={setVersionConflictOpen}
+        isOverriding={update.isPending}
+        onDiscard={discardConflictingChanges}
+        onOverride={overrideConflictingChanges}
+      />
+    </Page>
+  );
+}

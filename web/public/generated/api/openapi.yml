@@ -8031,9 +8031,10 @@ paths:
         - If the name already exists in your project, Langfuse creates the next
         version and returns it.
 
-        - When a new project version is created, existing evaluation rules in
-        that project automatically move to the newest version for that evaluator
-        name.
+        - The evaluator `id` remains stable across versions.
+
+        - Existing evaluation rules automatically use the latest evaluator
+        version; no rule update is required.
 
 
         Recommended workflow:
@@ -8234,9 +8235,10 @@ paths:
         Get one evaluator by `id`.
 
 
-        Use this endpoint when you want the prompt, output definition, model
-        configuration, and derived variables for the evaluator you plan to use
-        in an evaluation rule.
+        This endpoint always returns the evaluator's latest version. Use it when
+        you want the current prompt, output definition, model configuration, and
+        derived variables for the evaluator you plan to use in an evaluation
+        rule.
       operationId: unstable_evaluators_get
       tags:
         - UnstableEvaluators
@@ -8299,11 +8301,10 @@ paths:
 
         Important behavior:
 
-        - This deletes the evaluator including all of its stored versions;
-        `evaluatorId` may reference any version.
+        - This deletes the evaluator including all of its stored versions.
 
-        - The API returns `409` while evaluation rules still reference the
-        evaluator. Delete those evaluation rules first.
+        - Evaluation rule assignments referencing the evaluator are also
+        deleted.
 
         - Langfuse-managed evaluators (`scope=managed`) cannot be deleted; the
         API returns `403`.
@@ -8351,12 +8352,6 @@ paths:
           content:
             application/json:
               schema: {}
-        '409':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/unstablePublicApiError'
         '429':
           description: ''
           content:
@@ -15943,12 +15938,10 @@ components:
             Evaluator currently used by this rule.
 
 
-            `name` and `scope` identify the evaluator family conceptually.
+            `id` identifies the evaluator family. The rule automatically uses
+            the
 
-            `id` is the currently active evaluator version in that family.
-
-            If you create a newer project version with the same evaluator name
-            later, existing evaluation rules are moved to it automatically.
+            latest available version of that evaluator.
         enabled:
           type: boolean
           description: Desired enabled state configured by the client.
@@ -16462,8 +16455,8 @@ components:
       description: |-
         Resolved evaluator currently used by the evaluation rule.
 
-        `id` is the exact active evaluator version.
-        `name`, `scope`, and `type` identify the evaluator family conceptually.
+        `id` identifies the evaluator family. Evaluation runs automatically use
+        the latest available evaluator version.
       properties:
         id:
           type: string
@@ -16545,7 +16538,10 @@ components:
         - `GET /evaluators` returns the latest version of each available
         evaluator.
 
-        - `GET /evaluators/{id}` can return an older version.
+        - `GET /evaluators/{id}` returns the latest version.
+
+        - `id` identifies the evaluator family and remains stable when a new
+        version is created.
 
         - Evaluation rules always run against the latest version for the
         selected evaluator name within the same source (`project` or `managed`).
@@ -16555,7 +16551,7 @@ components:
       properties:
         id:
           type: string
-          description: Identifier of this evaluator.
+          description: Stable identifier of this evaluator across all versions.
         name:
           type: string
           description: Evaluator name.
@@ -16582,7 +16578,7 @@ components:
           type: integer
           description: >-
             Number of evaluation rules in the project that currently use this
-            evaluator version.
+            evaluator.
         createdAt:
           type: string
           format: date-time
@@ -16689,8 +16685,8 @@ components:
         If the same `name` already exists in your project, Langfuse creates the
         next version and returns it.
 
-        Existing evaluation rules in the same project are then moved to that new
-        latest version automatically.
+        Existing evaluation rules automatically use the latest evaluator
+        version.
 
         If `type` is omitted, Langfuse defaults it to `llm_as_judge` for
         backwards compatibility.

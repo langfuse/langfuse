@@ -4,6 +4,7 @@ import {
   ObservationType,
   variableMappingList,
   EvalTargetObject,
+  compileTemplateString,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
@@ -24,7 +25,6 @@ import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { afterEach } from "node:test";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
-import { compileTemplateString } from "../features/utils/utilities";
 import { OpenAIServer } from "./network";
 import {
   createEvalJobs,

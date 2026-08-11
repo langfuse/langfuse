@@ -593,5 +593,5 @@ export const buildEvaluatorUrl = (params: {
   evaluatorId: string;
 }) =>
   buildProductUrl(
-    `/project/${encodeURIComponent(params.projectId)}/evals/templates/${encodeURIComponent(params.evaluatorId)}`,
+    `/project/${encodeURIComponent(params.projectId)}/evals/v2/${encodeURIComponent(params.evaluatorId)}`,
   );

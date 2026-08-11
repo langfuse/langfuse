@@ -5,14 +5,14 @@ import { cn } from "@/src/utils/tailwind";
 
 /** Displays whether an evaluator is active, inactive, or blocked. */
 export function EvaluatorStatusBadge({
-  activeRuleCount,
+  ruleCount,
+  active,
   blocked = false,
 }: {
-  activeRuleCount: number;
+  ruleCount: number;
+  active: boolean;
   blocked?: boolean;
 }) {
-  const active = activeRuleCount > 0;
-
   return (
     <Badge
       variant={blocked ? "warning" : active ? "default" : "secondary"}
@@ -24,7 +24,7 @@ export function EvaluatorStatusBadge({
       )}
     >
       <Circle className="h-2 w-2 fill-current" />
-      {blocked ? "Blocked" : active ? "Active" : "Inactive"} · {activeRuleCount}
+      {blocked ? "Blocked" : active ? "Active" : "Inactive"} · {ruleCount}
     </Badge>
   );
 }

@@ -159,6 +159,27 @@ export const JsonPreview = meta.story({
   render: StatefulVariableMapping,
 });
 
+export const EmptySampleWarning = meta.story({
+  args: {
+    mode: "editable",
+    mappings: [
+      {
+        variable: "input",
+        fieldState: {
+          selectedColumnId: "metadata",
+          jsonSelector: "$.source",
+        },
+      },
+    ],
+    activeMapping: { variable: "input", state: "preview" },
+    onActiveMappingChange: fn(),
+    onChangeField: fn(),
+    sourceObject: { metadata: { source: "" } },
+    hasMatchingObservations: true,
+  },
+  render: StatefulVariableMapping,
+});
+
 export const NoMatchingSample = meta.story({
   args: {
     mode: "editable",

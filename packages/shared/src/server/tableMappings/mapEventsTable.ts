@@ -182,6 +182,13 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "e",
   },
   {
+    uiTableName: "Evaluator ID",
+    uiTableId: "evaluatorId",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect:
+      "arrayElement(e.metadata_values, indexOf(e.metadata_names, 'evaluator_id'))",
+  },
+  {
     uiTableName: "Version",
     uiTableId: "version",
     clickhouseTableName: "events_proto",

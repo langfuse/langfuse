@@ -2027,14 +2027,14 @@ const getEvaluatorCostMetricsByIds = async <
   const rows = await queryClickhouse<Record<string, string>>({
     query: `
       SELECT
-        metadata['job_configuration_id'] as evaluator_id,
+        metadata['evaluator_id'] as evaluator_id,
         ${fields.map((field) => evaluatorCostFields[field].select).join(",\n        ")}
       FROM observations FINAL
       WHERE project_id = {projectId: String}
-        AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
+        AND metadata['evaluator_id'] IN ({evaluatorIds: Array(String)})
         AND type = 'GENERATION'
-        AND start_time > today() - 7
-      GROUP BY metadata['job_configuration_id']
+        AND start_time > now() - INTERVAL 7 DAY
+      GROUP BY metadata['evaluator_id']
     `,
     params: {
       projectId,
@@ -2059,6 +2059,48 @@ export const getCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],
 ) => getEvaluatorCostMetricsByIds(projectId, evaluatorIds, ["totalCost"]);
+
+export const getRecentEvaluatorExecutionTracesFromObservations = async (
+  projectId: string,
+  evaluatorIds: string[],
+) => {
+  if (evaluatorIds.length === 0) return [];
+
+  const rows = await queryClickhouse<{
+    id: string;
+    evaluator_id: string;
+    level: string;
+    timestamp: string;
+  }>({
+    query: `
+      SELECT
+        trace_id as id,
+        metadata['evaluator_id'] as evaluator_id,
+        multiIf(
+          countIf(level = 'ERROR') > 0, 'ERROR',
+          countIf(level = 'WARNING') > 0, 'WARNING',
+          'DEFAULT'
+        ) as level,
+        min(start_time) as timestamp
+      FROM observations FINAL
+      WHERE project_id = {projectId: String}
+        AND metadata['evaluator_id'] IN ({evaluatorIds: Array(String)})
+        AND start_time > now() - INTERVAL 7 DAY
+      GROUP BY trace_id, evaluator_id
+      ORDER BY timestamp DESC, id DESC
+      LIMIT 5 BY evaluator_id
+    `,
+    params: { projectId, evaluatorIds },
+    tags: { projectId },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    evaluatorId: row.evaluator_id,
+    level: row.level,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  }));
+};
 
 export const getAvgCostByEvaluatorIdsFromObservations = async (
   projectId: string,

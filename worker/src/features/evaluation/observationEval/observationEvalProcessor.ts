@@ -23,7 +23,7 @@ import {
 } from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import { buildEvalExecutionMetadata } from "../evalRuntime";
+import { buildEvalExecutionMetadata } from "@langfuse/shared/src/server";
 import {
   completeEvalExecution,
   type EvalExecutionResult,
@@ -258,6 +258,7 @@ export async function processObservationEval(
     hasExperimentContext: Boolean(observationData.experiment_id),
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
     executionMetadata: buildEvalExecutionMetadata({
+      type: "JOB",
       jobExecutionId: event.jobExecutionId,
       jobConfigurationId: job.jobConfigurationId,
       targetTraceId: job.jobInputTraceId,

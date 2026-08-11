@@ -4,13 +4,13 @@ import { EvaluatorStatusBadge } from "./EvaluatorStatusBadge";
 const meta = preview.meta({ component: EvaluatorStatusBadge });
 
 export const Active = meta.story({
-  args: { activeRuleCount: 1 },
+  args: { ruleCount: 2, active: true },
 });
 
 export const Inactive = meta.story({
-  args: { activeRuleCount: 0 },
+  args: { ruleCount: 1, active: false },
 });
 
 export const Blocked = meta.story({
-  args: { activeRuleCount: 1, blocked: true },
+  args: { ruleCount: 1, active: true, blocked: true },
 });

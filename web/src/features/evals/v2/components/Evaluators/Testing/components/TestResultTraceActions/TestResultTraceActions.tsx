@@ -1,0 +1,48 @@
+import { ExternalLink, MoreVertical } from "lucide-react";
+
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+
+export function TestResultTraceActions({
+  onOpenSampleTrace,
+  executionTraceId,
+  onOpenExecutionTrace,
+}: {
+  onOpenSampleTrace: (() => void) | null;
+  executionTraceId: string | null;
+  onOpenExecutionTrace: ((executionTraceId: string) => void) | null;
+}) {
+  const openExecutionTrace =
+    executionTraceId && onOpenExecutionTrace
+      ? () => onOpenExecutionTrace(executionTraceId)
+      : null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-xs" title="More">
+          <MoreVertical className="h-3.5 w-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {onOpenSampleTrace ? (
+          <DropdownMenuItem onClick={onOpenSampleTrace}>
+            <ExternalLink className="mr-2 h-3.5 w-3.5" />
+            Open sample trace
+          </DropdownMenuItem>
+        ) : null}
+        {openExecutionTrace ? (
+          <DropdownMenuItem onClick={openExecutionTrace}>
+            <ExternalLink className="mr-2 h-3.5 w-3.5" />
+            Open execution trace
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

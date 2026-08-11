@@ -5,19 +5,6 @@ import {
 } from "@langfuse/shared";
 
 import { type ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
-import { shouldReplaceDefaultOutputDefinitionField } from "@/src/features/evals/utils/template-form-defaults";
-
-function normalizeDescription(
-  value: string,
-  field: "scoreDescription" | "reasoningDescription",
-) {
-  return shouldReplaceDefaultOutputDefinitionField({
-    currentValue: value,
-    field,
-  })
-    ? ""
-    : value;
-}
 
 export function toScoreOutputFormState(
   outputDefinition: unknown,
@@ -38,14 +25,8 @@ export function toScoreOutputFormState(
   const resolved = resolvePersistedEvalOutputDefinition(parsed.data);
   return {
     dataType: resolved.dataType,
-    scoreDescription: normalizeDescription(
-      resolved.scoreDescription,
-      "scoreDescription",
-    ),
-    reasoningDescription: normalizeDescription(
-      resolved.reasoningDescription,
-      "reasoningDescription",
-    ),
+    scoreDescription: resolved.scoreDescription,
+    reasoningDescription: resolved.reasoningDescription,
     choices:
       "categories" in resolved
         ? resolved.categories.map((label) => ({

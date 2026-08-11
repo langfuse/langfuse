@@ -420,7 +420,6 @@ function toCodeEvalJobConfigTRPCError(error: CodeEvalJobConfigError) {
 function toCodeEvalTRPCError(error: CodeEvalTestRunSetupError) {
   switch (error.code) {
     case "TEMPLATE_NOT_FOUND":
-    case "OBSERVATION_NOT_FOUND":
       return new TRPCError({
         code: "NOT_FOUND",
         message: error.message,

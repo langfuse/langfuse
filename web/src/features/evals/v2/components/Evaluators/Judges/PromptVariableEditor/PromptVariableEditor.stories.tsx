@@ -77,6 +77,23 @@ export const Preview = meta.story({
   },
 });
 
+export const PreviewUnavailable = meta.story({
+  args: {
+    value: "Input: {{input}}\nResponse: {{output}}",
+    onChange: fn(),
+    showPreviewToggle: true,
+    previewEnabled: false,
+    onPreviewEnabledChange: fn(),
+    previewDisabledReason:
+      "Select a sample observation in the test panel to preview the interpolated prompt.",
+    preview: {
+      status: "unavailable",
+      message:
+        "Select a sample observation in the test panel to preview the interpolated prompt.",
+    },
+  },
+});
+
 export const ReadOnly = meta.story({
   args: {
     value: "Return a score for {{output}} and explain the evidence behind it.",

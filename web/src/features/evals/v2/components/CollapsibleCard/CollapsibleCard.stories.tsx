@@ -25,7 +25,7 @@ function StatefulCollapsibleCard(args: CollapsibleCardProps) {
 
 const content = (
   <div className="p-3 text-sm">
-    Content and header markup remain owned by the caller.
+    Persistent card content sits below the secondary header surface.
   </div>
 );
 

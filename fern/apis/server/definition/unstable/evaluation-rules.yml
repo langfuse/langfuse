@@ -349,9 +349,8 @@ types:
         docs: |
           Evaluator currently used by this rule.
 
-          `name` and `scope` identify the evaluator family conceptually.
-          `id` is the currently active evaluator version in that family.
-          If you create a newer project version with the same evaluator name later, existing evaluation rules are moved to it automatically.
+          `id` identifies the evaluator family. The rule automatically uses the
+          latest available version of that evaluator.
       enabled:
         type: boolean
         docs: Desired enabled state configured by the client.
@@ -688,8 +687,8 @@ types:
     docs: |
       Resolved evaluator currently used by the evaluation rule.
 
-      `id` is the exact active evaluator version.
-      `name`, `scope`, and `type` identify the evaluator family conceptually.
+      `id` identifies the evaluator family. Evaluation runs automatically use
+      the latest available evaluator version.
     properties:
       id:
         type: string

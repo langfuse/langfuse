@@ -14,7 +14,7 @@ import { EvaluationTypeConfiguration } from "@/src/features/evals/v2/components/
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
-} from "@/src/features/evals/v2/components/ModelPicker/JudgeModelPicker/JudgeModelPicker";
+} from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
 import { ScoreOutputConfiguration } from "@/src/features/evals/v2/components/Evaluators/Judges/ScoreOutputConfiguration/ScoreOutputConfiguration";
 import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
@@ -80,6 +80,7 @@ function CodeEvaluatorDefinitionView({
           }
           value={sourceCode ?? ""}
           showLanguage={false}
+          variant="read-only"
         />
       </section>
     </div>
@@ -142,6 +143,7 @@ function LlmEvaluatorDefinitionView({
           onChange={noop}
           variableMappings={variableLabels}
           readOnly
+          validateVariableMappings={false}
         />
       </section>
       {variableMappings.state === "visible" ? (

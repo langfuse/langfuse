@@ -291,6 +291,14 @@ const eventsTableColsDefinition = [
     internal: "e.metadata",
   },
   {
+    name: "Evaluator ID",
+    id: "evaluatorId",
+    type: "stringOptions",
+    internal:
+      "arrayElement(e.metadata_values, indexOf(e.metadata_names, 'evaluator_id'))",
+    options: [],
+  },
+  {
     name: "Trace Tags",
     id: "traceTags",
     type: "arrayOptions",

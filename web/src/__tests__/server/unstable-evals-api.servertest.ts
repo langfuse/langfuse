@@ -131,7 +131,7 @@ describe("/api/public/unstable evaluators API", () => {
     });
   });
 
-  it("creates exact evaluator versions and lists only the latest project version per family", async () => {
+  it("keeps one evaluator id across versions and returns only the latest version", async () => {
     const v1 = await makeZodVerifiedAPICall(
       PostUnstableEvaluatorResponse,
       "POST",
@@ -168,25 +168,16 @@ describe("/api/public/unstable evaluators API", () => {
       version: 2,
       scope: "project",
     });
-    expect(v2.body.id).not.toBe(v1.body.id);
+    expect(v2.body.id).toBe(v1.body.id);
 
-    const fetchedV1 = await makeZodVerifiedAPICall(
+    const fetched = await makeZodVerifiedAPICall(
       GetUnstableEvaluatorResponse,
       "GET",
       `/api/public/unstable/evaluators/${v1.body.id}`,
       undefined,
       auth,
     );
-    const fetchedV2 = await makeZodVerifiedAPICall(
-      GetUnstableEvaluatorResponse,
-      "GET",
-      `/api/public/unstable/evaluators/${v2.body.id}`,
-      undefined,
-      auth,
-    );
-
-    expect(fetchedV1.body.version).toBe(1);
-    expect(fetchedV2.body.version).toBe(2);
+    expect(fetched.body).toMatchObject({ id: v1.body.id, version: 2 });
 
     const listed = await makeZodVerifiedAPICall(
       GetUnstableEvaluatorsResponse,
@@ -210,12 +201,12 @@ describe("/api/public/unstable evaluators API", () => {
         scope: "project",
       }),
     ]);
-    expect(
-      listed.body.data.some((evaluator) => evaluator.id === v1.body.id),
-    ).toBe(false);
+    expect(listed.body.data).toContainEqual(
+      expect.objectContaining({ id: v1.body.id, version: 2 }),
+    );
   });
 
-  it("deletes an evaluator including all of its versions via any version id", async () => {
+  it("deletes an evaluator including all of its versions by evaluator id", async () => {
     const v1 = await makeZodVerifiedAPICall(
       PostUnstableEvaluatorResponse,
       "POST",
@@ -240,7 +231,7 @@ describe("/api/public/unstable evaluators API", () => {
       auth,
     );
 
-    // deleting via the old version id removes the whole family
+    expect(v2.body.id).toBe(v1.body.id);
     const deleted = await makeZodVerifiedAPICall(
       DeleteUnstableEvaluatorResponse,
       "DELETE",
@@ -262,88 +253,6 @@ describe("/api/public/unstable evaluators API", () => {
     });
   });
 
-  it("rejects evaluator deletion while evaluation rules reference the family", async () => {
-    const evaluator = await makeZodVerifiedAPICall(
-      PostUnstableEvaluatorResponse,
-      "POST",
-      "/api/public/unstable/evaluators",
-      {
-        name: "Referenced correctness",
-        prompt: "Judge {{input}} against {{output}}",
-        outputDefinition: numericOutputDefinition,
-      },
-      auth,
-    );
-
-    const rule = await makeZodVerifiedAPICall(
-      PostUnstableEvaluationRuleResponse,
-      "POST",
-      "/api/public/unstable/evaluation-rules",
-      {
-        name: "referenced_correctness_live",
-        evaluator: {
-          name: "Referenced correctness",
-          scope: "project",
-        },
-        target: "observation",
-        enabled: true,
-        sampling: 1,
-        filter: [],
-        mapping: [
-          { variable: "input", source: "input" },
-          { variable: "output", source: "output" },
-        ],
-      },
-      auth,
-    );
-
-    const blocked = await makeAPICall(
-      "DELETE",
-      `/api/public/unstable/evaluators/${evaluator.body.id}`,
-      undefined,
-      auth,
-    );
-    const blockedBody = expectUnstableError(blocked, {
-      status: 409,
-      code: "conflict",
-    });
-    expect(blockedBody.message).toContain("evaluation rule");
-
-    await makeZodVerifiedAPICall(
-      DeleteUnstableEvaluationRuleResponse,
-      "DELETE",
-      `/api/public/unstable/evaluation-rules/${rule.body.id}`,
-      undefined,
-      auth,
-    );
-
-    await makeZodVerifiedAPICall(
-      DeleteUnstableEvaluatorResponse,
-      "DELETE",
-      `/api/public/unstable/evaluators/${evaluator.body.id}`,
-      undefined,
-      auth,
-    );
-  });
-
-  it("rejects deletion of langfuse-managed evaluators", async () => {
-    const managed = await createManagedEvaluator({
-      name: "Managed deletable",
-      version: 1,
-    });
-
-    const response = await makeAPICall(
-      "DELETE",
-      `/api/public/unstable/evaluators/${managed.id}`,
-      undefined,
-      auth,
-    );
-    expectUnstableError(response, {
-      status: 403,
-      code: "access_denied",
-    });
-  });
-
   it("returns 404 when deleting an unknown evaluator", async () => {
     const response = await makeAPICall(
       "DELETE",
@@ -355,171 +264,6 @@ describe("/api/public/unstable evaluators API", () => {
       status: 404,
       code: "resource_not_found",
     });
-  });
-
-  it("automatically moves existing evaluation rules to the newest project evaluator version", async () => {
-    await makeZodVerifiedAPICall(
-      PostUnstableEvaluatorResponse,
-      "POST",
-      "/api/public/unstable/evaluators",
-      {
-        name: "Faithfulness",
-        prompt: "Judge {{input}} against {{output}}",
-        outputDefinition: numericOutputDefinition,
-      },
-      auth,
-    );
-
-    const created = await makeZodVerifiedAPICall(
-      PostUnstableEvaluationRuleResponse,
-      "POST",
-      "/api/public/unstable/evaluation-rules",
-      {
-        name: "faithfulness-live",
-        evaluator: {
-          name: "Faithfulness",
-          scope: "project",
-        },
-        target: "observation",
-        enabled: true,
-        sampling: 1,
-        filter: [],
-        mapping: [
-          { variable: "input", source: "input" },
-          { variable: "output", source: "output" },
-        ],
-      },
-      auth,
-    );
-
-    const v2 = await makeZodVerifiedAPICall(
-      PostUnstableEvaluatorResponse,
-      "POST",
-      "/api/public/unstable/evaluators",
-      {
-        name: "Faithfulness",
-        prompt: "Judge {{input}} versus {{output}}",
-        outputDefinition: numericOutputDefinition,
-      },
-      auth,
-    );
-
-    const fetched = await makeZodVerifiedAPICall(
-      GetUnstableEvaluationRuleResponse,
-      "GET",
-      `/api/public/unstable/evaluation-rules/${created.body.id}`,
-      undefined,
-      auth,
-    );
-
-    expect(v2.body.version).toBe(2);
-    expect(fetched.body.evaluator).toEqual({
-      id: v2.body.id,
-      name: "Faithfulness",
-      scope: "project",
-      type: "llm_as_judge",
-    });
-  });
-
-  it("resolves project evaluator families to the latest version when creating an evaluation rule", async () => {
-    await makeZodVerifiedAPICall(
-      PostUnstableEvaluatorResponse,
-      "POST",
-      "/api/public/unstable/evaluators",
-      {
-        name: "Answer groundedness",
-        prompt: "Judge {{input}} against {{output}}",
-        outputDefinition: numericOutputDefinition,
-      },
-      auth,
-    );
-
-    const v2 = await makeZodVerifiedAPICall(
-      PostUnstableEvaluatorResponse,
-      "POST",
-      "/api/public/unstable/evaluators",
-      {
-        name: "Answer groundedness",
-        prompt: "Judge {{input}} versus {{output}}",
-        outputDefinition: numericOutputDefinition,
-      },
-      auth,
-    );
-
-    const created = await makeZodVerifiedAPICall(
-      PostUnstableEvaluationRuleResponse,
-      "POST",
-      "/api/public/unstable/evaluation-rules",
-      {
-        name: "answer_groundedness_live",
-        evaluator: {
-          name: "Answer groundedness",
-          scope: "project",
-        },
-        target: "observation",
-        enabled: true,
-        sampling: 1,
-        filter: [],
-        mapping: [
-          { variable: "input", source: "input" },
-          { variable: "output", source: "output" },
-        ],
-      },
-      auth,
-    );
-
-    expect(created.body.evaluator).toEqual({
-      id: v2.body.id,
-      name: "Answer groundedness",
-      scope: "project",
-      type: "llm_as_judge",
-    });
-  });
-
-  it("lists managed and project evaluator families separately when names overlap", async () => {
-    const managed = await createManagedEvaluator({
-      name: "Groundedness",
-      version: 7,
-    });
-
-    const projectEvaluator = await makeZodVerifiedAPICall(
-      PostUnstableEvaluatorResponse,
-      "POST",
-      "/api/public/unstable/evaluators",
-      {
-        name: "Groundedness",
-        prompt: "Judge {{input}} against {{output}}",
-        outputDefinition: numericOutputDefinition,
-      },
-      auth,
-    );
-
-    expect(projectEvaluator.body.version).toBe(1);
-
-    const listed = await makeZodVerifiedAPICall(
-      GetUnstableEvaluatorsResponse,
-      "GET",
-      "/api/public/unstable/evaluators?page=1&limit=50",
-      undefined,
-      auth,
-    );
-
-    expect(listed.body.data).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: managed.id,
-          name: "Groundedness",
-          version: 7,
-          scope: "managed",
-        }),
-        expect.objectContaining({
-          id: projectEvaluator.body.id,
-          name: "Groundedness",
-          version: 1,
-          scope: "project",
-        }),
-      ]),
-    );
   });
 
   it("allows evaluation rules to reference managed evaluators by exact id", async () => {

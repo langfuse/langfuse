@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import {
   Decoration,
   type DecorationSet,
@@ -11,15 +11,19 @@ import { Prec } from "@codemirror/state";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  InterpolatedPromptPreview,
-  type InterpolatedPromptPreviewState,
-} from "./components/InterpolatedPromptPreview/InterpolatedPromptPreview";
 import { cn } from "@/src/utils/tailwind";
 import { isValidVariableName, MUSTACHE_REGEX } from "@langfuse/shared";
 import { truncateEnd } from "@/src/features/evals/v2/fns/segmentsToJsonPath";
 
-export type { InterpolatedPromptPreviewState } from "./components/InterpolatedPromptPreview/InterpolatedPromptPreview";
+export type InterpolatedPromptPreviewState =
+  | {
+      status: "ready";
+      fragments: Array<
+        | { type: "text"; text: string }
+        | { type: "variable"; name: string; value: string }
+      >;
+    }
+  | { status: "unavailable"; message: string };
 
 // Match the text inset of the neighboring form controls (px-3 triggers)
 // instead of the editor's narrow code gutter padding.
@@ -31,13 +35,13 @@ const promptFontTheme = EditorView.theme({
   ".cm-line": { padding: "0 12px" },
 });
 
-// A saved prompt is a static surface, so it gets the same muted fill as the
-// interpolated preview (bg-muted/30). This has to go through CodeMirror's own
-// theming at matching selector specificity: createTheme paints the editor
-// background from an injected stylesheet that a Tailwind class cannot outrank.
+// A saved prompt is a static surface, so use the muted read-only fill. This has
+// to go through CodeMirror's own theming at matching selector specificity:
+// createTheme paints the editor background from an injected stylesheet that a
+// Tailwind class cannot outrank.
 const readOnlySurfaceTheme = EditorView.theme({
   "&.cm-editor, &.cm-editor .cm-gutters": {
-    backgroundColor: "color-mix(in srgb, hsl(var(--muted)) 30%, transparent)",
+    backgroundColor: "hsl(var(--muted))",
   },
 });
 
@@ -60,27 +64,38 @@ const MAX_LABEL_LENGTH = 36;
 function createVariableHighlighter(
   getStatus: (variable: string) => VariableMappingStatus | undefined,
   getMappingLabel: (variable: string) => string | undefined,
+  validateVariableMappings: boolean,
 ) {
   const decorator = new MatchDecorator({
     regexp: new RegExp(MUSTACHE_REGEX.source, MUSTACHE_REGEX.flags),
     decorate: (add, from, to, match) => {
-      if (!isValidVariableName(match[1])) return;
-      const status = getStatus(match[1]);
+      const hasValidName = isValidVariableName(match[1]);
+      const mappingLabel = hasValidName ? getMappingLabel(match[1]) : undefined;
+      const status = !hasValidName
+        ? {
+            status: "invalid" as const,
+            message:
+              "Variable must start with a letter and can only contain letters and underscores",
+          }
+        : (getStatus(match[1]) ??
+          (mappingLabel
+            ? { status: "valid" as const }
+            : validateVariableMappings
+              ? { status: "invalid" as const }
+              : undefined));
       const invalid = status?.status === "invalid";
-      const label = truncateEnd(
-        getMappingLabel(match[1]) ?? "map data",
-        MAX_LABEL_LENGTH,
-      );
+      const label = truncateEnd(mappingLabel || "map data", MAX_LABEL_LENGTH);
+      const title = invalid
+        ? (status.message ?? "Not connected to the sample data")
+        : mappingLabel
+          ? `Pulls from ${label}`
+          : undefined;
       add(
         from,
         to,
         Decoration.mark({
           class: `cm-eval-variable${status ? ` cm-eval-variable-${status.status}` : ""}`,
-          attributes: {
-            title: invalid
-              ? (status.message ?? "Not connected to the sample data")
-              : `Pulls from ${label}`,
-          },
+          attributes: title ? { title } : undefined,
         }),
       );
     },
@@ -99,6 +114,16 @@ function createVariableHighlighter(
   );
 }
 
+const invalidVariableTextStyle = {
+  color: "hsl(var(--primary-accent)) !important",
+  textDecorationLine: "underline",
+  textDecorationStyle: "wavy",
+  textDecorationColor:
+    "color-mix(in srgb, var(--dark-yellow) 80%, transparent)",
+  textDecorationThickness: "1px",
+  textUnderlineOffset: "3px",
+};
+
 const variableTheme = EditorView.baseTheme({
   // Syntax-highlighted token, not a widget: accent text that stays in the
   // prose flow while mappings are managed in the dedicated panel.
@@ -108,16 +133,11 @@ const variableTheme = EditorView.baseTheme({
     color: "hsl(var(--primary-accent))",
   },
   // Broken mapping (unmapped, errors, or resolves empty against the sample):
-  // amber with a wavy underline, like a linter warning. The error text
-  // itself is in the mark's title attribute, shown on hover.
-  ".cm-eval-variable-invalid": {
-    color: "var(--dark-yellow)",
-    textDecorationLine: "underline",
-    textDecorationStyle: "wavy",
-    textDecorationColor:
-      "color-mix(in srgb, var(--dark-yellow) 80%, transparent)",
-    textDecorationThickness: "1px",
-    textUnderlineOffset: "3px",
+  // keep the variable accent text and add an amber wavy underline, like a
+  // linter warning. The error text is in the hover title.
+  ".cm-eval-variable.cm-eval-variable-invalid": invalidVariableTextStyle,
+  ".cm-eval-variable.cm-eval-variable-invalid *": {
+    color: "hsl(var(--primary-accent)) !important",
   },
   ".cm-eval-variable-invalid:hover": {
     backgroundColor: "color-mix(in srgb, var(--dark-yellow) 10%, transparent)",
@@ -126,9 +146,9 @@ const variableTheme = EditorView.baseTheme({
 
 /**
  * Prompt editor with syntax-highlighted {{variable}} tokens: healthy
- * variables render as accent text, broken ones as linter-style amber
- * wavy underlines. Mapping remains an explicit card action rather than a
- * hidden navigation affordance in the prompt text.
+ * variables render as accent text, with broken ones receiving a linter-style
+ * amber wavy underline. Mapping remains an explicit card action rather than
+ * a hidden navigation affordance in the prompt text.
  */
 export function PromptVariableEditor({
   value,
@@ -141,6 +161,7 @@ export function PromptVariableEditor({
   previewDisabledReason = null,
   preview,
   readOnly = false,
+  validateVariableMappings = true,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -160,6 +181,8 @@ export function PromptVariableEditor({
   preview?: InterpolatedPromptPreviewState;
   /** Preserve variable syntax highlighting without exposing editor controls. */
   readOnly?: boolean;
+  /** Whether variables without a known mapping should receive a warning. */
+  validateVariableMappings?: boolean;
 }) {
   // Statuses and labels travel as serialized keys and are parsed back inside
   // the memo, so the memo depends on their content rather than their identity.
@@ -176,43 +199,63 @@ export function PromptVariableEditor({
       createVariableHighlighter(
         (variable) => status[variable],
         (variable) => mappingLabels[variable],
+        validateVariableMappings,
       ),
       variableTheme,
       Prec.highest(promptFontTheme),
       ...(readOnly ? [Prec.highest(readOnlySurfaceTheme)] : []),
     ];
-  }, [statusKey, mappingsKey, readOnly]);
+  }, [statusKey, mappingsKey, readOnly, validateVariableMappings]);
 
   return (
     <div className="flex flex-col">
       {/* Toolbar attached above the prompt; the editor's (or preview's) own
           top border draws the seam. */}
-      {!readOnly ? (
-        <div className="bg-muted/50 flex items-center justify-end gap-1 rounded-t-md border border-b-0 px-1.5 py-1">
-          {showPreviewToggle && (
-            <label
-              className={cn(
-                "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs leading-none font-normal",
-                previewDisabledReason
-                  ? "cursor-not-allowed opacity-60"
-                  : "cursor-pointer",
-              )}
-              title={previewDisabledReason ?? undefined}
-            >
-              <Switch
-                size="sm"
-                checked={previewEnabled}
-                disabled={Boolean(previewDisabledReason)}
-                onCheckedChange={(checked) => onPreviewEnabledChange?.(checked)}
-              />
-              Preview
-            </label>
-          )}
+      {!readOnly && showPreviewToggle ? (
+        <div className="bg-secondary text-secondary-foreground flex items-center justify-end gap-1 rounded-t-md border border-b-0 px-1.5 py-1">
+          <label
+            className={cn(
+              "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs leading-none font-normal",
+              previewDisabledReason
+                ? "cursor-not-allowed opacity-60"
+                : "cursor-pointer",
+            )}
+            title={previewDisabledReason ?? undefined}
+          >
+            <Switch
+              size="sm"
+              checked={previewEnabled}
+              disabled={Boolean(previewDisabledReason)}
+              onCheckedChange={(checked) => onPreviewEnabledChange?.(checked)}
+            />
+            Preview
+          </label>
         </div>
       ) : null}
 
       {previewEnabled && preview ? (
-        <InterpolatedPromptPreview state={preview} />
+        preview.status === "unavailable" ? (
+          <p className="bg-card text-muted-foreground rounded-b-md border p-3 text-sm">
+            {preview.message}
+          </p>
+        ) : (
+          <pre className="bg-card text-card-foreground max-h-[60dvh] overflow-y-auto rounded-b-md border p-3 font-sans text-sm whitespace-pre-wrap">
+            {preview.fragments.map((fragment, index) => (
+              <Fragment key={index}>
+                {fragment.type === "text" ? (
+                  fragment.text
+                ) : (
+                  <span
+                    className="bg-primary-accent/10 rounded px-0.5"
+                    title={`{{${fragment.name}}}`}
+                  >
+                    {fragment.value}
+                  </span>
+                )}
+              </Fragment>
+            ))}
+          </pre>
+        )
       ) : (
         <CodeMirrorEditor
           value={value}

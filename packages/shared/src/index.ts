@@ -17,7 +17,12 @@ export * from "./utils/json";
 export * from "./utils/stringChecks";
 export * from "./utils/objects";
 export * from "./utils/typeChecks";
-export * from "./utils/prompts";
+export {
+  compileEvalPrompt,
+  compileTemplateString,
+  extractPlaceholderNames,
+  type PromptMessage,
+} from "./utils/prompts";
 export * from "./utils/jsonSchemaValidation";
 export * from "./utils/chatml";
 export * from "./utils/math";
@@ -37,7 +42,10 @@ export * from "./server/llm/promptToolConfig";
 // evals
 export * from "./features/evals/types";
 export * from "./features/evals/outputDefinition";
-export * from "./features/evals/utilities";
+export {
+  extractValueFromObject,
+  extractValueFromObjectAsString,
+} from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
 export * from "./features/evals/evalConfigBlocking";
 export * from "./features/evals/validateEvaluatorFilters";

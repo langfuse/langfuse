@@ -43,6 +43,7 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   confirmVariant = "destructive",
   cancelLabel = "Cancel",
+  onCancel,
   onConfirm,
   loading = false,
   confirmDisabled = false,
@@ -57,6 +58,7 @@ export function ConfirmDialog({
   confirmLabel?: string;
   confirmVariant?: ButtonProps["variant"];
   cancelLabel?: string;
+  onCancel?: () => void | Promise<void>;
   onConfirm: () => void | Promise<void>;
   loading?: boolean;
   confirmDisabled?: boolean;
@@ -83,7 +85,7 @@ export function ConfirmDialog({
         <Button
           variant="outline"
           disabled={loading}
-          onClick={() => onOpenChange(false)}
+          onClick={onCancel ?? (() => onOpenChange(false))}
         >
           {cancelLabel}
         </Button>

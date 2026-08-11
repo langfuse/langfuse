@@ -4,7 +4,7 @@ import { syntaxTree } from "@codemirror/language";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
-import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
+import { EvalTemplateSourceCodeLanguageEnum } from "@langfuse/shared";
 import { useTheme } from "next-themes";
 import {
   type ReactNode,
@@ -132,7 +132,7 @@ export function CodeEvalTemplateFormBody({
   const [isFormatting, setIsFormatting] = useState(false);
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
   const languageLabel =
-    sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+    sourceCodeLanguage === EvalTemplateSourceCodeLanguageEnum.PYTHON
       ? "Python"
       : "TypeScript";
   const shouldShowFormatButton = editable;
@@ -167,7 +167,7 @@ export function CodeEvalTemplateFormBody({
     setIsFormatting(true);
     try {
       const formatted =
-        sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+        sourceCodeLanguage === EvalTemplateSourceCodeLanguageEnum.PYTHON
           ? await formatPythonCodeEvalSourceWithRuff(sourceCodeRef.current)
           : await formatTypeScriptSource(sourceCodeRef.current);
       // Prettier and Ruff always emit a trailing newline, which CodeMirror
@@ -222,7 +222,7 @@ export function CodeEvalTemplateFormBody({
   );
   const languageExtension = useMemo(
     () =>
-      sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+      sourceCodeLanguage === EvalTemplateSourceCodeLanguageEnum.PYTHON
         ? python()
         : javascript({ typescript: true }),
     [sourceCodeLanguage],

@@ -5,9 +5,13 @@ import {
 } from "./tools/listEvaluators";
 import { getEvaluatorTool, handleGetEvaluator } from "./tools/getEvaluator";
 import {
-  upsertEvaluatorTool,
-  handleUpsertEvaluator,
-} from "./tools/upsertEvaluator";
+  createEvaluatorTool,
+  handleCreateEvaluator,
+} from "./tools/createEvaluator";
+import {
+  updateEvaluatorTool,
+  handleUpdateEvaluator,
+} from "./tools/updateEvaluator";
 import {
   deleteEvaluatorTool,
   handleDeleteEvaluator,
@@ -36,7 +40,7 @@ import {
 export const evalsFeature = {
   name: "evals",
   description:
-    "Manage evaluators and evaluation rules in the current Langfuse project (unstable API)",
+    "Manage evaluators and evaluation rules in the current Langfuse project",
   tools: [
     {
       definition: listEvaluatorsTool,
@@ -46,7 +50,8 @@ export const evalsFeature = {
       definition: getEvaluatorTool,
       handler: handleGetEvaluator,
     },
-    { definition: upsertEvaluatorTool, handler: handleUpsertEvaluator },
+    { definition: createEvaluatorTool, handler: handleCreateEvaluator },
+    { definition: updateEvaluatorTool, handler: handleUpdateEvaluator },
     {
       definition: deleteEvaluatorTool,
       handler: handleDeleteEvaluator,

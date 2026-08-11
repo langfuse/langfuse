@@ -13,8 +13,8 @@ import {
   QueueJobs,
   ScoreEventType,
   UNKNOWN_INGESTION_SDK_VALUE,
+  type ChatMessage,
 } from "@langfuse/shared/src/server";
-import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
@@ -47,7 +47,7 @@ export type ModelConfigResult =
  * Parameters for calling the LLM.
  */
 export interface LLMCallParams {
-  messages: ReturnType<typeof buildEvalMessages>;
+  messages: ChatMessage[];
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
   structuredOutputSchema: StructuredOutputSchema;
   traceSinkParams: {

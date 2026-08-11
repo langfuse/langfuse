@@ -72,6 +72,12 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "t",
   },
   {
+    uiTableName: "Evaluator ID",
+    uiTableId: "evaluatorId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "t.metadata['evaluator_id']",
+  },
+  {
     uiTableName: "Version",
     uiTableId: "version",
     clickhouseTableName: "traces",

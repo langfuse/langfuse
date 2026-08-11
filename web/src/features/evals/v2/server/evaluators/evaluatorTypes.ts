@@ -1,0 +1,127 @@
+import {
+  EvalTemplateType,
+  EvaluatorSourceCodeLanguage,
+  InvalidRequestError,
+  PersistedEvalOutputDefinitionSchema,
+  ZodModelConfig,
+  jsonSchema,
+  paginationLimitZod,
+} from "@langfuse/shared";
+import { z } from "zod";
+
+const EvaluatorMetadataSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2_000).nullable(),
+});
+
+const EvaluatorVersionBaseSchema = z.object({
+  variableMapping: jsonSchema.nullable(),
+});
+
+const decodeEvaluatorVersionCursor = (value: string) => {
+  try {
+    return JSON.parse(Buffer.from(value, "base64url").toString("utf-8"));
+  } catch (_error) {
+    throw new InvalidRequestError("Invalid cursor format");
+  }
+};
+
+export const EvaluatorVersionCursorSchema = z
+  .string()
+  .describe("Base64url-encoded cursor for pagination")
+  .transform(decodeEvaluatorVersionCursor)
+  .pipe(
+    z.object({
+      v: z.literal(1),
+      version: z.number().int().positive(),
+    }),
+  );
+
+export type EvaluatorVersionCursor = z.infer<
+  typeof EvaluatorVersionCursorSchema
+>;
+
+export const encodeEvaluatorVersionCursor = (cursor: EvaluatorVersionCursor) =>
+  Buffer.from(JSON.stringify(cursor)).toString("base64url");
+
+export const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
+  type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
+  prompt: z.string().min(1),
+  provider: z.string().nullable(),
+  model: z.string().nullable(),
+  modelParams: ZodModelConfig.nullable(),
+  vars: z.array(z.string()),
+  outputDefinition: PersistedEvalOutputDefinitionSchema,
+});
+
+export const CodeEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
+  type: z.literal(EvalTemplateType.CODE),
+  sourceCode: z.string().min(1).max(262_144),
+  sourceCodeLanguage: z.enum(EvaluatorSourceCodeLanguage),
+});
+
+export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
+  LlmEvaluatorDefinitionSchema,
+  CodeEvaluatorDefinitionSchema,
+]);
+
+export const CreateEvaluatorSchema = EvaluatorMetadataSchema.extend({
+  projectId: z.string(),
+  definition: EvaluatorDefinitionSchema,
+});
+
+export const UpdateEvaluatorSchema = EvaluatorMetadataSchema.extend({
+  projectId: z.string(),
+  evaluatorId: z.string(),
+  definition: EvaluatorDefinitionSchema,
+});
+
+export const EvaluatorIdSchema = z.object({
+  projectId: z.string(),
+  evaluatorId: z.string(),
+});
+
+export const EvaluatorVersionsSchema = EvaluatorIdSchema.extend({
+  cursor: EvaluatorVersionCursorSchema.optional(),
+  limit: paginationLimitZod.optional().default(50),
+});
+
+export const EvaluatorIdsSchema = z.object({
+  projectId: z.string(),
+  evaluatorIds: z.array(z.string()).min(1).max(100),
+});
+
+export const DeleteEvaluatorsSchema = z.union([
+  EvaluatorIdsSchema,
+  z.object({
+    projectId: z.string(),
+    isBatchAction: z.literal(true),
+    search: z.string().trim().max(200).optional(),
+  }),
+]);
+
+export const ListEvaluatorsSchema = z.object({
+  projectId: z.string(),
+  page: z.number().int().positive().default(1),
+  limit: paginationLimitZod.optional().default(50),
+  search: z.string().trim().max(200).optional(),
+});
+
+export const SuggestEvaluatorNameSchema = z.object({
+  projectId: z.string(),
+  definition: z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
+      prompt: z.string().min(1),
+    }),
+    z.object({
+      type: z.literal(EvalTemplateType.CODE),
+      sourceCode: z.string().min(1),
+    }),
+  ]),
+});
+
+export type EvaluatorDefinition = z.infer<typeof EvaluatorDefinitionSchema>;
+export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;
+export type UpdateEvaluatorInput = z.infer<typeof UpdateEvaluatorSchema>;
+export type DeleteEvaluatorsInput = z.infer<typeof DeleteEvaluatorsSchema>;

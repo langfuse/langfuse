@@ -57,6 +57,13 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     internal: 't."metadata"',
   },
   {
+    name: "Evaluator ID",
+    id: "evaluatorId",
+    type: "stringOptions",
+    internal: "t.metadata['evaluator_id']",
+    options: [],
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",

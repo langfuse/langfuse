@@ -1,0 +1,211 @@
+import { randomUUID } from "node:crypto";
+import type { Session } from "next-auth";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  createEvent,
+  createEventsCh,
+  createOrgProjectAndApiKey,
+} from "@langfuse/shared/src/server";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+
+vi.mock(
+  "@/src/features/evals/v2/server/evaluators/evaluatorValidation",
+  () => ({ assertEvaluatorConfigurationValid: vi.fn() }),
+);
+
+const orgIds: string[] = [];
+let projectId = "";
+let otherProjectId = "";
+let userId = "";
+let caller: ReturnType<typeof appRouter.createCaller>;
+let session: Session & { user: NonNullable<Session["user"]> };
+
+const definition = {
+  type: "LLM_AS_JUDGE" as const,
+  prompt: "Judge {{output}}",
+  provider: null,
+  model: null,
+  modelParams: null,
+  vars: ["output"],
+  variableMapping: [{ templateVariable: "output", selectedColumnId: "output" }],
+  outputDefinition: {
+    version: 2 as const,
+    dataType: "NUMERIC" as const,
+    score: { description: "Quality" },
+    reasoning: { description: "Reasoning" },
+  },
+};
+
+beforeAll(async () => {
+  const [first, second] = await Promise.all([
+    createOrgProjectAndApiKey(),
+    createOrgProjectAndApiKey(),
+  ]);
+  projectId = first.project.id;
+  otherProjectId = second.project.id;
+  orgIds.push(first.org.id, second.org.id);
+  userId = randomUUID();
+  await prisma.user.create({
+    data: { id: userId, name: "Evaluator tester", email: `${userId}@test.dev` },
+  });
+
+  session = {
+    expires: "1",
+    user: {
+      id: userId,
+      name: "Evaluator tester",
+      admin: false,
+      canCreateOrganizations: false,
+      organizations: [
+        {
+          id: first.org.id,
+          name: first.org.name,
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: true,
+          aiTelemetryEnabled: false,
+          projects: [
+            {
+              id: projectId,
+              name: first.project.name,
+              role: "ADMIN",
+              retentionDays: 30,
+              deletedAt: null,
+              hasTraces: false,
+              metadata: {},
+              createdAt: first.project.createdAt.toISOString(),
+            },
+          ],
+        },
+      ],
+      featureFlags: {
+        excludeClickhouseRead: false,
+        templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
+      },
+      v4BetaEnabled: false,
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:hobby",
+    },
+  } satisfies Session;
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  caller = appRouter.createCaller({ ...ctx, prisma });
+});
+
+afterAll(async () => {
+  await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
+  await prisma.user.deleteMany({ where: { id: userId } });
+});
+
+describe("evalsV2 tRPC", () => {
+  it("supports the evaluator management flow", async () => {
+    const created = await caller.evalsV2.create({
+      projectId,
+      name: "Transport evaluator",
+      description: null,
+      definition,
+    });
+
+    const updated = await caller.evalsV2.update({
+      projectId,
+      evaluatorId: created.id,
+      name: "Renamed transport evaluator",
+      description: "Updated through tRPC",
+      definition: { ...definition, prompt: "Judge this carefully: {{output}}" },
+    });
+
+    const [listed, versions] = await Promise.all([
+      caller.evalsV2.list({ projectId, search: "Renamed transport" }),
+      caller.evalsV2.versions({
+        projectId,
+        evaluatorId: created.id,
+        limit: 50,
+      }),
+    ]);
+
+    expect(updated).toMatchObject({
+      id: created.id,
+      projectId,
+      name: "Renamed transport evaluator",
+      description: "Updated through tRPC",
+    });
+    expect(listed).toMatchObject({
+      evaluators: [
+        expect.objectContaining({
+          id: created.id,
+          name: "Renamed transport evaluator",
+          versions: [expect.objectContaining({ version: 2 })],
+        }),
+      ],
+      totalItems: 1,
+    });
+    expect(versions).toEqual({
+      data: [
+        expect.objectContaining({ version: 2 }),
+        expect.objectContaining({ version: 1 }),
+      ],
+      nextCursor: undefined,
+    });
+
+    await expect(
+      caller.evalsV2.delete({ projectId, evaluatorId: created.id }),
+    ).resolves.toEqual({ success: true });
+    await expect(
+      caller.evalsV2.get({ projectId, evaluatorId: created.id }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("rejects access to another project", async () => {
+    await expect(
+      caller.evalsV2.list({ projectId: otherProjectId }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      caller.evalsV2.create({
+        projectId: otherProjectId,
+        name: "Unauthorized evaluator",
+        description: null,
+        definition,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("returns evaluator costs through the tRPC contract", async () => {
+    const evaluator = await caller.evalsV2.create({
+      projectId,
+      name: "Cost evaluator",
+      description: null,
+      definition: {
+        type: "CODE",
+        sourceCode: "return 1;",
+        sourceCodeLanguage: "TYPESCRIPT",
+        variableMapping: null,
+      },
+    });
+    await createEventsCh([
+      createEvent({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        metadata_names: ["evaluator_id"],
+        metadata_values: [evaluator.id],
+        cost_details: { total: 0.02 },
+      }),
+    ]);
+
+    const costs = await caller.evalsV2.costByEvaluatorIds({
+      projectId,
+      evaluatorIds: [evaluator.id],
+    });
+
+    expect(costs).toEqual({ [evaluator.id]: 0.02 });
+  });
+});

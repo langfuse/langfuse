@@ -32,7 +32,9 @@ import {
   DatasetRunItemUpsertEventType,
   classifyEvaluatorLlmError,
   blockEvaluatorConfigs,
+  buildEvalExecutionMetadata,
   EvaluatorBlockSource,
+  executeLlmEvaluator,
   type CodeEvalScoreWithName,
   type EvaluatorLlmErrorClassification,
 } from "@langfuse/shared/src/server";
@@ -43,7 +45,6 @@ import {
 } from "./traceFilterUtils";
 import {
   Prisma,
-  compilePersistedEvalOutputDefinition,
   singleFilter,
   variableMappingList,
   evalDatasetFormFilterCols,
@@ -60,7 +61,6 @@ import {
   type EvalTemplateLlmAsAJudge,
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
-  validateEvalOutputResult,
   type EvalOutputResult,
   extractValueFromObject,
   validateEvaluatorFiltersForTarget,
@@ -70,12 +70,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
-import {
-  compileEvalPrompt,
-  buildEvalMessages,
-  buildEvalExecutionMetadata,
-  getEnvironmentFromVariables,
-} from "./evalRuntime";
 import {
   completeEvalExecution,
   type EvalExecutionResult,
@@ -817,25 +811,6 @@ export async function runLLMAsJudgeEvaluation({
         `Executing LLM-as-judge evaluation for job ${jobExecutionId} in project ${projectId}`,
       );
 
-      // Compile the prompt with extracted variables
-      let prompt: string;
-      try {
-        prompt = compileEvalPrompt({
-          templatePrompt: template.prompt,
-          variables: extractedVariables,
-        });
-      } catch (e) {
-        span.setAttribute("eval.prompt.compilation_fallback", true);
-        logger.error(
-          `Failed to compile prompt for job ${jobExecutionId}. Eval will fail. ${e}`,
-        );
-        prompt = template.prompt;
-      }
-
-      logger.debug(
-        `Compiled prompt for job ${jobExecutionId}: ${prompt.slice(0, 200)}...`,
-      );
-
       // Parse and validate output definition
       span.setAttribute("eval.execution.stage", "validate_template");
       const parsedOutputDefinition =
@@ -849,15 +824,6 @@ export async function runLLMAsJudgeEvaluation({
           "Output definition not found or invalid in evaluation template",
         );
       }
-
-      const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
-        parsedOutputDefinition.data,
-      );
-
-      span.setAttribute(
-        "eval.score.data_type",
-        compiledOutputDefinition.resolvedOutputDefinition.dataType,
-      );
 
       // Get model configuration
       span.setAttribute("eval.execution.stage", "resolve_model_config");
@@ -903,9 +869,6 @@ export async function runLLMAsJudgeEvaluation({
       span.setAttribute("eval.model.name", modelConfig.config.model);
       span.setAttribute("eval.model.adapter", modelConfig.config.adapter);
 
-      // Prepare LLM call
-      const messages = buildEvalMessages(prompt);
-
       const executionTraceId = createW3CTraceId(jobExecutionId);
       span.setAttributes({
         "eval.execution.trace_id": executionTraceId,
@@ -917,63 +880,90 @@ export async function runLLMAsJudgeEvaluation({
         | EvaluatorLlmErrorClassification
         | null
         | undefined;
-      let llmOutput: unknown;
+      let evaluatorExecution: Awaited<ReturnType<typeof executeLlmEvaluator>>;
       try {
-        llmOutput = await instrumentAsync(
-          { name: "eval.call-llm" },
-          async (llmSpan) => {
-            llmSpan.setAttribute("langfuse.project.id", projectId);
-            llmSpan.setAttribute("eval.job_execution.id", jobExecutionId);
-            llmSpan.setAttribute("eval.execution.trace_id", executionTraceId);
-            llmSpan.setAttribute("eval.job_configuration.id", config.id);
-            llmSpan.setAttribute("eval.template.id", template.id);
-            llmSpan.setAttribute("eval.template.version", template.version);
-            llmSpan.setAttribute("eval.score.name", config.scoreName);
-            llmSpan.setAttribute(
+        evaluatorExecution = await executeLlmEvaluator({
+          templatePrompt: template.prompt,
+          variables: extractedVariables,
+          outputDefinition: parsedOutputDefinition.data,
+          callLlm: async ({
+            messages,
+            compiledOutputDefinition,
+            interpolatedPrompt,
+          }) => {
+            logger.debug(
+              `Compiled prompt for job ${jobExecutionId}: ${interpolatedPrompt.slice(0, 200)}...`,
+            );
+            span.setAttribute(
               "eval.score.data_type",
               compiledOutputDefinition.resolvedOutputDefinition.dataType,
             );
-            llmSpan.setAttribute(
-              "eval.model.provider",
-              modelConfig.config.provider,
-            );
-            llmSpan.setAttribute("eval.model.name", modelConfig.config.model);
-            llmSpan.setAttribute(
-              "eval.model.adapter",
-              modelConfig.config.adapter,
-            );
 
-            try {
-              const output = await deps.callLLM({
-                messages,
-                modelConfig: modelConfig.config,
-                structuredOutputSchema:
-                  compiledOutputDefinition.outputResultSchema,
-                traceSinkParams: {
-                  targetProjectId: projectId,
-                  traceId: executionTraceId,
-                  traceName: `Execute evaluator: ${template.name}`,
-                  environment: LangfuseInternalTraceEnvironment.LLMJudge,
-                  metadata: {
-                    ...executionMetadata,
-                  },
-                },
-              });
-              llmSpan.setAttribute("eval.llm.outcome", "success");
-              return output;
-            } catch (e) {
-              llmErrorClassification = classifyEvaluatorLlmError(e);
-              llmSpan.setAttributes(
-                buildEvaluatorLlmErrorSpanAttributes(llmErrorClassification),
-              );
-              llmSpan.setAttribute(
-                "eval.llm.outcome",
-                llmErrorClassification?.blockReason ? "blocked" : "error",
-              );
-              throw e;
-            }
+            return instrumentAsync(
+              { name: "eval.call-llm" },
+              async (llmSpan) => {
+                llmSpan.setAttribute("langfuse.project.id", projectId);
+                llmSpan.setAttribute("eval.job_execution.id", jobExecutionId);
+                llmSpan.setAttribute(
+                  "eval.execution.trace_id",
+                  executionTraceId,
+                );
+                llmSpan.setAttribute("eval.job_configuration.id", config.id);
+                llmSpan.setAttribute("eval.template.id", template.id);
+                llmSpan.setAttribute("eval.template.version", template.version);
+                llmSpan.setAttribute("eval.score.name", config.scoreName);
+                llmSpan.setAttribute(
+                  "eval.score.data_type",
+                  compiledOutputDefinition.resolvedOutputDefinition.dataType,
+                );
+                llmSpan.setAttribute(
+                  "eval.model.provider",
+                  modelConfig.config.provider,
+                );
+                llmSpan.setAttribute(
+                  "eval.model.name",
+                  modelConfig.config.model,
+                );
+                llmSpan.setAttribute(
+                  "eval.model.adapter",
+                  modelConfig.config.adapter,
+                );
+
+                try {
+                  const output = await deps.callLLM({
+                    messages,
+                    modelConfig: modelConfig.config,
+                    structuredOutputSchema:
+                      compiledOutputDefinition.outputResultSchema,
+                    traceSinkParams: {
+                      targetProjectId: projectId,
+                      traceId: executionTraceId,
+                      traceName: `Execute evaluator: ${template.name}`,
+                      environment: LangfuseInternalTraceEnvironment.LLMJudge,
+                      metadata: {
+                        ...executionMetadata,
+                      },
+                    },
+                  });
+                  llmSpan.setAttribute("eval.llm.outcome", "success");
+                  return output;
+                } catch (e) {
+                  llmErrorClassification = classifyEvaluatorLlmError(e);
+                  llmSpan.setAttributes(
+                    buildEvaluatorLlmErrorSpanAttributes(
+                      llmErrorClassification,
+                    ),
+                  );
+                  llmSpan.setAttribute(
+                    "eval.llm.outcome",
+                    llmErrorClassification?.blockReason ? "blocked" : "error",
+                  );
+                  throw e;
+                }
+              },
+            );
           },
-        );
+        });
       } catch (e) {
         const classification =
           llmErrorClassification ?? classifyEvaluatorLlmError(e);
@@ -1001,10 +991,7 @@ export async function runLLMAsJudgeEvaluation({
       }
 
       span.setAttribute("eval.execution.stage", "validate_llm_output");
-      const parsedLLMOutput = validateEvalOutputResult({
-        response: llmOutput,
-        compiledOutputDefinition,
-      });
+      const parsedLLMOutput = evaluatorExecution.output;
 
       if (!parsedLLMOutput.success) {
         span.setAttribute("eval.execution.outcome", "invalid_model_output");
@@ -1091,6 +1078,7 @@ export async function executeLLMAsJudgeEvaluation(
 ): Promise<void> {
   const deps = params.deps ?? createProductionEvalExecutionDeps();
   const executionMetadata = buildEvalExecutionMetadata({
+    type: "JOB",
     jobExecutionId: params.jobExecutionId,
     jobConfigurationId: params.job.jobConfigurationId,
     targetTraceId: params.job.jobInputTraceId,
@@ -1219,7 +1207,7 @@ export const evaluate = async ({
   );
 
   const environment =
-    getEnvironmentFromVariables(extractedVariables) ??
+    extractedVariables.find((variable) => variable.environment)?.environment ??
     DEFAULT_TRACE_ENVIRONMENT;
 
   // Final fail-closed loop safeguard: never execute an eval whose target
@@ -1473,9 +1461,9 @@ export async function extractVariablesFromTracingData({
 const snakeToCamel = (s: string) =>
   s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 
-// Returns the typed value extracted from a database row. LLM-as-judge
-// stringifies at template-substitution time via `compileEvalPrompt`; code-
-// based evaluators consume the typed value directly.
+// Returns the typed value extracted from a database row. The shared LLM
+// evaluator runtime stringifies it during prompt substitution; code-based
+// evaluators consume the typed value directly.
 export const parseDatabaseRowValue = (
   dbRow: Record<string, unknown>,
   mapping: z.infer<typeof variableMapping>,

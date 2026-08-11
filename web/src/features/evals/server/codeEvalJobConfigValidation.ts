@@ -77,7 +77,6 @@ export async function assertCodeEvalJobConfigCanRun(params: {
         case "UNSUPPORTED_LANGUAGE":
           throw new CodeEvalJobConfigError(error.message, "invalid_request");
         case "DISPATCHER_NOT_CONFIGURED":
-        case "OBSERVATION_NOT_FOUND":
           throw new CodeEvalJobConfigError(error.message);
         default:
           return assertUnreachable(error.code);

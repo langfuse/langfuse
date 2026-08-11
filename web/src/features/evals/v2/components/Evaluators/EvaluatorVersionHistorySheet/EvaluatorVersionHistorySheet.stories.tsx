@@ -31,6 +31,9 @@ const defaultArgs = {
   expandedVersionId: null,
   onExpandedVersionChange: fn(),
   isLoading: false,
+  hasMore: false,
+  isLoadingMore: false,
+  onLoadMore: fn(),
 };
 
 export const VersionList = meta.story({

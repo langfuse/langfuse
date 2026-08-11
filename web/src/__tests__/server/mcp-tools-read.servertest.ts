@@ -23,12 +23,13 @@ vi.mock("@/src/features/media/server/getMediaStorageClient", () => ({
   }),
 }));
 
-// Skip the LLM model preflight so llm_as_judge evaluators don't require a
-// provisioned default eval model.
+// Skip evaluator configuration validation so these tool tests do not require
+// a provisioned default eval model.
 vi.mock(
   "@/src/features/evals/server/evaluator-preflight",
   async (importActual) => ({
     ...(await importActual<object>()),
+    getEvaluatorDefinitionConfigurationError: vi.fn(async () => null),
     getEvaluatorDefinitionPreflightError: vi.fn(async () => null),
   }),
 );
@@ -174,7 +175,7 @@ import {
   listEvaluationRulesTool,
   handleListEvaluationRules,
 } from "@/src/features/mcp/features/evals/tools/listEvaluationRules";
-import { handleUpsertEvaluator } from "@/src/features/mcp/features/evals/tools/upsertEvaluator";
+import { handleCreateEvaluator } from "@/src/features/mcp/features/evals/tools/createEvaluator";
 import { handleCreateEvaluationRule } from "@/src/features/mcp/features/evals/tools/createEvaluationRule";
 import {
   getMonitorTool,
@@ -203,13 +204,12 @@ const createLlmEvaluatorForMcpReadTest = async (
   setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
   name = `mcp-eval-${nanoid()}`,
 ) => {
-  return (await handleUpsertEvaluator(
+  return (await handleCreateEvaluator(
     {
       name,
-      type: "llm_as_judge",
+      type: "LLM_AS_JUDGE",
       prompt: "Judge {{input}} against {{output}}",
-      outputDefinition: mcpEvalOutputDefinition,
-      modelConfig: null,
+      outputDefinition: { version: 2, ...mcpEvalOutputDefinition },
     },
     setup.context,
   )) as { id: string; name: string };
@@ -252,10 +252,17 @@ const createEvaluationRuleForMcpReadTest = async (
   setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
 ) => {
   const evaluatorName = `mcp-eval-${nanoid()}`;
-  const evaluator = await createLlmEvaluatorForMcpReadTest(
-    setup,
-    evaluatorName,
-  );
+  const evaluator = await prisma.evalTemplate.create({
+    data: {
+      projectId: setup.projectId,
+      name: evaluatorName,
+      version: 1,
+      type: "LLM_AS_JUDGE",
+      prompt: "Judge {{input}} against {{output}}",
+      vars: ["input", "output"],
+      outputDefinition: { version: 2, ...mcpEvalOutputDefinition },
+    },
+  });
   const ruleName = `mcp-rule-${nanoid()}`;
   const rule = (await handleCreateEvaluationRule(
     {
