@@ -5,6 +5,7 @@ type V4MigrationBadgeContentProps = {
   title: string;
   description?: string;
   showChevron?: boolean;
+  compact?: boolean;
 };
 
 export function V4MigrationBadgeContent({
@@ -12,7 +13,24 @@ export function V4MigrationBadgeContent({
   title,
   description,
   showChevron = true,
+  compact = false,
 }: V4MigrationBadgeContentProps) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="hover:bg-muted/50 hover:text-foreground inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-bold whitespace-nowrap"
+      >
+        <span
+          aria-hidden
+          className="size-1.75 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
+        />
+        {title}
+      </button>
+    );
+  }
+
   return (
     <span className="inline-grid flex-none shrink-0">
       <span

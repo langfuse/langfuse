@@ -177,14 +177,17 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         if (!scoreName) return undefined;
 
         return (
-          <div className="flex min-w-0 items-center gap-2">
-            <TableIdOrName value={scoreName} className="min-w-[15ch] flex-1" />
+          <div className="flex w-[calc(var(--col-scoreName-size)*1px-0.75rem)] items-center gap-2">
+            <TableIdOrName value={scoreName} className="min-w-[4px] flex-1" />
             {v4UpgradeUiEnabled && row.row.original.isLegacy ? (
-              <V4MigrationBadgeContent
-                onClick={() => openEvaluatorUpgrade(row.row.original.id)}
-                title="Upgrade now"
-                showChevron={false}
-              />
+              <span className="ml-auto justify-self-end">
+                <V4MigrationBadgeContent
+                  onClick={() => openEvaluatorUpgrade(row.row.original.id)}
+                  title="Upgrade now"
+                  showChevron={false}
+                  compact
+                />
+              </span>
             ) : null}
           </div>
         );

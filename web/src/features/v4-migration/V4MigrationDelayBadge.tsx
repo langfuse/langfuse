@@ -143,6 +143,7 @@ export function V4MigrationEvaluatorUpdateRequiredBadge({
       onClick={handleClick}
       title="Upgrade now"
       showChevron={false}
+      compact
     />
   );
 }
