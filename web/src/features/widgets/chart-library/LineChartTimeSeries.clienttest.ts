@@ -14,7 +14,9 @@ describe("thresholdAnnotationChipAppearance", () => {
   it("pairs a solid threshold-color fill with white foreground text", () => {
     const appearance = thresholdAnnotationChipAppearance("red");
     expect(appearance.background).toBe("var(--color-red-600)");
-    expect(appearance.foreground).toBe("#fff");
+    // CSS fill utility — SVG fill attributes lose to ancestor currentColor.
+    expect(appearance.textClassName).toContain("fill-white");
+    expect(appearance.textClassName).toContain("font-bold");
   });
 
   it("keeps the chip compact but bold-readable", () => {

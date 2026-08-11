@@ -63,10 +63,14 @@ const computeMetricExtent = (
  * Appearance for a threshold annotation chip ("Alert" / "Warning").
  * White text on a solid tint of the threshold color — readable on both the
  * translucent violation band and light/dark chart backgrounds.
+ *
+ * Text uses the `fill-white` utility (not an SVG `fill` attribute): chart
+ * ancestors set CSS `fill: currentColor`, which overrides presentation
+ * attributes on `<text>`.
  */
 const thresholdAnnotationChipAppearance = (color: ChartThresholdColor) => ({
   background: `var(--color-${color}-600)`,
-  foreground: "#fff",
+  textClassName: "fill-white font-bold",
   fontSize: 11,
   paddingX: 5,
   paddingY: 2,
@@ -155,9 +159,8 @@ const ThresholdAnnotationChip = ({
         y={layout.textY}
         textAnchor="middle"
         dominantBaseline="central"
-        fill={appearance.foreground}
         fontSize={appearance.fontSize}
-        className="font-bold"
+        className={appearance.textClassName}
       >
         {label}
       </text>
