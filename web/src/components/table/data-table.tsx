@@ -660,10 +660,22 @@ const REFETCH_SWEEP_MS = 1400;
  * Both edges are soft: the sweep is already running when the bar fades in (a
  * one-shot fade rides on the sweep animation), and on the way out it fades
  * first and only stops animating once that fade has finished. Mounted once per
- * busy period — the caller keys it — so the sweep always starts from the left.
+ * busy period — the caller keys it — so the sweep always starts from the left,
+ * and it never leaves an animation running behind an invisible bar.
  */
 function TableRefetchBar({ active }: { active: boolean }) {
-  const [stopped, setStopped] = useState(false);
+  // The sweep runs only while the bar is on screen, plus the fade-out it has to
+  // survive. A bar that mounts idle — every table that passes no `isFetching`,
+  // and any table whose first render has nothing in flight — must never start it,
+  // and one that has faded out must stop. But `active` can also turn on within a
+  // single mount (a cold load holds it off until the skeletons go), so this
+  // cannot simply latch on the first render.
+  const [everActive, setEverActive] = useState(active);
+  const [fadedOut, setFadedOut] = useState(false);
+
+  if (active && !everActive) setEverActive(true);
+
+  const paused = !active && (!everActive || fadedOut);
 
   return (
     // Clipped track: the highlight sweeps out of view at both ends, and
@@ -674,7 +686,7 @@ function TableRefetchBar({ active }: { active: boolean }) {
     <div
       aria-hidden="true"
       onTransitionEnd={(event) => {
-        if (event.propertyName === "opacity" && !active) setStopped(true);
+        if (event.propertyName === "opacity" && !active) setFadedOut(true);
       }}
       className={cn(
         "animate-table-refetch-in absolute inset-x-0 top-0 h-0.5 overflow-hidden [transition:opacity_200ms_ease-out]",
@@ -691,7 +703,7 @@ function TableRefetchBar({ active }: { active: boolean }) {
         }
         className={cn(
           "animate-table-refetch from-primary-accent/0 via-primary-accent to-primary-accent/0 absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r",
-          stopped && "[animation-play-state:paused]",
+          paused && "[animation-play-state:paused]",
         )}
       />
     </div>
