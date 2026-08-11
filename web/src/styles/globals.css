@@ -173,27 +173,21 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-appear: appear 0.2s ease-out forwards;
-  /* The sweep runs from the element's first frame; the one-shot fade rides on
-     top of it, so the bar never appears mid-sweep at full opacity. */
-  --animate-table-refetch:
-    table-refetch 1.4s linear infinite, table-refetch-fade-in 200ms ease-out;
+  --animate-table-refetch: table-refetch 1.4s linear infinite;
+  --animate-table-refetch-in: table-refetch-fade-in 200ms ease-out;
 
-  /* Sweeps a highlight along the table's refetch bar. Animates
-     background-position (not a transform) so the bar can never overflow its
-     scroll container.
-
-     The range runs past both edges: background-position percentages resolve
-     against (container - image), so with a 40%-wide highlight it clears the
-     container at -67%/167%. Ending outside means the jump back to the start is
-     never visible — inside the box it would read as a blink every cycle. Linear,
-     because eased motion makes that wrap even more obvious. */
+  /* Sweeps the highlight of the table's refetch bar across its track. It starts
+     and ends fully outside the (clipped) track, so the jump back to the start is
+     never visible — inside the track it reads as a blink every cycle. Linear,
+     because eased motion makes that wrap even more obvious. The highlight is a
+     third of the track wide, hence -100%/300% of its own width. */
   @keyframes table-refetch {
     from {
-      background-position: -70% 0;
+      transform: translateX(-100%);
     }
 
     to {
-      background-position: 170% 0;
+      transform: translateX(300%);
     }
   }
 

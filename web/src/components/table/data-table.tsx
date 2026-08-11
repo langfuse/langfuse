@@ -648,23 +648,32 @@ function TableRefetchBar({ active }: { active: boolean }) {
   const [stopped, setStopped] = useState(false);
 
   return (
+    // Clipped track: the highlight sweeps out of view at both ends, and
+    // overflow-hidden keeps that from growing the table's scroll width. The fade
+    // uses an arbitrary transition, not `duration-*` — that utility sets
+    // --tw-duration, which `animate-*` reads as its animation-duration too, and
+    // turned the sweep into a strobe.
     <div
       aria-hidden="true"
       onTransitionEnd={(event) => {
         if (event.propertyName === "opacity" && !active) setStopped(true);
       }}
       className={cn(
-        // A faint full-width track under the moving highlight: without it the
-        // bar is invisible whenever the highlight is between sweeps, which is
-        // what made it read as blinking rather than loading.
-        // The fade-out uses an arbitrary transition, not `duration-*`: that
-        // utility sets --tw-duration, which `animate-*` reads as its
-        // animation-duration too, and turned the sweep into a strobe.
-        "bg-primary-accent/20 from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat [transition:opacity_200ms_ease-out]",
+        "animate-table-refetch-in absolute inset-x-0 top-0 h-0.5 overflow-hidden [transition:opacity_200ms_ease-out]",
         active ? "opacity-100" : "opacity-0",
-        stopped && "[animation-play-state:paused]",
       )}
-    />
+    >
+      {/* Faint track, so the bar reads as one continuous element rather than a
+          highlight flashing in and out of nothing. Its own element: `cn` folds
+          two `bg-*` utilities into one and would drop it. */}
+      <div className="bg-primary-accent/20 absolute inset-0" />
+      <div
+        className={cn(
+          "animate-table-refetch from-primary-accent/0 via-primary-accent to-primary-accent/0 absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r",
+          stopped && "[animation-play-state:paused]",
+        )}
+      />
+    </div>
   );
 }
 
