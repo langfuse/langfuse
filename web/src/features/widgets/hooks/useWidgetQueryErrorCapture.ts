@@ -30,16 +30,17 @@ export function useCaptureWidgetHighCardinalityError({
     }
     if (!chartType) return;
 
-    const encounter = `${surface}:${error.code}`;
-    if (lastCapturedEncounter.current === encounter) return;
-    lastCapturedEncounter.current = encounter;
-
-    capture("dashboard:widget_high_cardinality_error", {
+    const properties = {
       surface,
       chartType,
       isV4,
       validationCode: error.code,
       highCardinalityDimensions: error.dimensions,
-    });
+    };
+    const encounter = JSON.stringify(properties);
+    if (lastCapturedEncounter.current === encounter) return;
+    lastCapturedEncounter.current = encounter;
+
+    capture("dashboard:widget_high_cardinality_error", properties);
   }, [capture, chartType, isV4, surface, validation]);
 }
