@@ -8,8 +8,7 @@ import {
 /**
  * A relative window ("past 24h") re-resolved on every refresh tick minted a
  * fresh absolute `from`/`to`, i.e. a new tRPC query key per tick — so every
- * refresh was a cold load with no cached rows (LFE-14954). This anchors the
- * window instead:
+ * refresh was a cold load with no cached rows. This anchors the window instead:
  *
  * - relative ranges stay open-ended at the top (`to: undefined`), so rows that
  *   arrive after the anchor still match without re-resolving the window,
