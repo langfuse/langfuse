@@ -16,8 +16,8 @@ describe("useLiveTableDateRange", () => {
   });
 
   it("keeps one window (and therefore one query key) across refreshes of a relative range", () => {
-    const { result, rerender } = renderHook(() =>
-      useLiveTableDateRange({ range: "last1Day" }),
+    const { result, rerender } = renderHook(
+      () => useLiveTableDateRange({ range: "last1Day" }).range,
     );
 
     const initial = result.current;
@@ -36,8 +36,8 @@ describe("useLiveTableDateRange", () => {
   });
 
   it("re-anchors once the window has drifted past its budget", () => {
-    const { result, rerender } = renderHook(() =>
-      useLiveTableDateRange({ range: "last1Day" }),
+    const { result, rerender } = renderHook(
+      () => useLiveTableDateRange({ range: "last1Day" }).range,
     );
     const initial = result.current;
 
@@ -51,13 +51,35 @@ describe("useLiveTableDateRange", () => {
     expect(result.current?.from).toEqual(new Date("2026-08-10T15:00:00.000Z"));
   });
 
+  it("exposes the anchor as a closed upper bound for consumers that need one", () => {
+    const { result, rerender } = renderHook(
+      ({ range }: { range: string }) => useLiveTableDateRange({ range }),
+      { initialProps: { range: "last1Day" } },
+    );
+
+    // Charts pair `anchoredTo` with `range.from`, so the pair is always exactly
+    // the selected length — it can neither grow nor invert.
+    expect(result.current.anchoredTo).toEqual(START);
+    expect(
+      result.current.anchoredTo!.getTime() -
+        result.current.range!.from.getTime(),
+    ).toBe(24 * 60 * 60 * 1000);
+
+    vi.setSystemTime(new Date(START.getTime() + 10 * 60 * 1000));
+    rerender({ range: "last1Hour" });
+    expect(
+      result.current.anchoredTo!.getTime() -
+        result.current.range!.from.getTime(),
+    ).toBe(60 * 60 * 1000);
+  });
+
   it("passes an absolute range through unchanged and never drifts it", () => {
     const absolute = {
       from: new Date("2026-01-01T00:00:00.000Z"),
       to: new Date("2026-01-02T00:00:00.000Z"),
     };
-    const { result, rerender } = renderHook(() =>
-      useLiveTableDateRange(absolute),
+    const { result, rerender } = renderHook(
+      () => useLiveTableDateRange(absolute).range,
     );
 
     expect(result.current).toEqual(absolute);
@@ -70,7 +92,7 @@ describe("useLiveTableDateRange", () => {
 
   it("re-anchors when the user picks another range, including an equal-by-value one", () => {
     const { result, rerender } = renderHook(
-      ({ range }: { range: string }) => useLiveTableDateRange({ range }),
+      ({ range }: { range: string }) => useLiveTableDateRange({ range }).range,
       { initialProps: { range: "last1Day" } },
     );
     const initial = result.current;

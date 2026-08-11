@@ -70,6 +70,12 @@ interface DataTableProps<TData, TValue> {
   isFetching?: boolean;
   pagination?: {
     totalCount: number | null; // null if loading or intentionally unknown
+    /**
+     * The exact count is still in flight while rows are already on screen (its
+     * query re-keys on a filter change one step behind the rows). Renders the
+     * page count as loading rather than as a result.
+     */
+    isTotalCountLoading?: boolean;
     hasNextPage?: boolean;
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
@@ -620,7 +626,9 @@ export function DataTable<TData extends object, TValue>({
         <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
-            isLoading={data.isLoading}
+            isLoading={
+              data.isLoading || (pagination.isTotalCountLoading ?? false)
+            }
             paginationOptions={pagination.options}
             hideTotalCount={pagination.hideTotalCount}
             canJumpPages={pagination.canJumpPages}

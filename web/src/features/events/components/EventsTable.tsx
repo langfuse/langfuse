@@ -406,11 +406,10 @@ export default function ObservationsEventsTable({
     [allowedValues, setRawRefreshInterval],
   );
 
-  // Upper bound of the chart/outlier-strip window (below), which — unlike the
-  // table — needs a closed range. Re-stamped on refresh but truncated to the
+  // When the chart/outlier-strip window (below) last advanced. Truncated to the
   // minute: a to-the-millisecond bound re-keyed the chart query on every tick,
   // and that cold load is what faded the strip out mid-refresh.
-  const [chartWindowEndMs, setChartWindowEnd] = useState(() =>
+  const [chartRefreshedAtMs, setChartRefreshedAt] = useState(() =>
     startOfMinute(new Date()).getTime(),
   );
 
@@ -419,7 +418,7 @@ export default function ObservationsEventsTable({
   // query key and updates in place instead of re-keying into a cold load. The
   // chart runs dashboard.executeQuery, which is invalidated alongside.
   const handleRefresh = useCallback(() => {
-    setChartWindowEnd(startOfMinute(new Date()).getTime());
+    setChartRefreshedAt(startOfMinute(new Date()).getTime());
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
@@ -435,7 +434,8 @@ export default function ObservationsEventsTable({
     return () => clearInterval(id);
   }, [refreshInterval, handleRefresh]);
 
-  const tableDateRange = useLiveTableDateRange(timeRange);
+  const { range: tableDateRange, anchoredTo } =
+    useLiveTableDateRange(timeRange);
 
   const dateRange = externalDateRange ?? tableDateRange;
 
@@ -453,15 +453,25 @@ export default function ObservationsEventsTable({
     config: chartConfig,
     setConfig: setChartConfig,
   } = useChartViewState();
-  // Unlike the table, the chart and the outlier strip need a closed window, so
-  // theirs still ends at "now" and advances on every refresh tick.
-  const chartTimeWindow = useMemo(
-    () => ({
-      from: dateRange?.from ?? new Date(chartWindowEndMs - 24 * 60 * 60 * 1000),
-      to: dateRange?.to ?? new Date(chartWindowEndMs),
-    }),
-    [dateRange, chartWindowEndMs],
-  );
+  // Unlike the table, the chart and the outlier strip need a CLOSED window. Both
+  // ends are derived from the same length: the end is the later of the window's
+  // anchor and the last refresh, and the start is measured back from that end —
+  // never taken from the table's anchored `from`, which would let the window grow
+  // between anchors, or invert once the user picks a range shorter than the time
+  // since the last refresh.
+  const chartTimeWindow = useMemo(() => {
+    const anchorMs = anchoredTo?.getTime();
+    const fromMs = dateRange?.from.getTime();
+    const lengthMs =
+      anchorMs !== undefined && fromMs !== undefined
+        ? anchorMs - fromMs
+        : 24 * 60 * 60 * 1000;
+    const endMs = dateRange?.to
+      ? dateRange.to.getTime()
+      : Math.max(anchorMs ?? 0, chartRefreshedAtMs);
+
+    return { from: new Date(endMs - lengthMs), to: new Date(endMs) };
+  }, [dateRange, anchoredTo, chartRefreshedAtMs]);
 
   // Drill-in writes the clicked bucket as an absolute range. URL-only
   // (pushIn → browser Back restores the outer window) and deliberately NOT

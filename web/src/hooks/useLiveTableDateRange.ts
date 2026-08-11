@@ -20,12 +20,23 @@ import {
 const DRIFT_BUDGET_FRACTION = 0.1;
 const MIN_DRIFT_BUDGET_MS = 60_000;
 
+export type LiveTableDateRange = {
+  /** What the table queries: open-ended at the top for a relative range. */
+  range: TableDateRange | undefined;
+  /**
+   * The instant the window was anchored — its closed upper bound. Consumers that
+   * need a closed window (charts) pair this with `range.from`; the table's own
+   * filter deliberately leaves the top open so late-arriving rows still match.
+   */
+  anchoredTo: Date | undefined;
+};
+
 type Anchor = {
   timeRange: TimeRange;
   anchoredAt: number;
-  range: TableDateRange | undefined;
   /** Only relative windows drift with wall-clock time. */
   isRelative: boolean;
+  value: LiveTableDateRange;
 };
 
 const isSameTimeRange = (a: TimeRange, b: TimeRange): boolean => {
@@ -45,23 +56,30 @@ export const anchorTimeRange = (timeRange: TimeRange, now: number): Anchor => {
     timeRange,
     anchoredAt: now,
     isRelative,
-    range: absolute
-      ? { from: absolute.from, to: isRelative ? undefined : absolute.to }
-      : undefined,
+    value: {
+      range: absolute
+        ? { from: absolute.from, to: isRelative ? undefined : absolute.to }
+        : undefined,
+      anchoredTo: absolute
+        ? isRelative
+          ? new Date(now)
+          : absolute.to
+        : undefined,
+    },
   };
 };
 
 /** How far the anchor may fall behind wall-clock time before it is replaced. */
 export const driftBudgetMs = (anchor: Anchor): number => {
-  const windowMs = anchor.range
-    ? anchor.anchoredAt - anchor.range.from.getTime()
+  const windowMs = anchor.value.range
+    ? anchor.anchoredAt - anchor.value.range.from.getTime()
     : 0;
   return Math.max(windowMs * DRIFT_BUDGET_FRACTION, MIN_DRIFT_BUDGET_MS);
 };
 
 export const isAnchorStale = (anchor: Anchor, now: number): boolean =>
   anchor.isRelative &&
-  anchor.range !== undefined &&
+  anchor.value.range !== undefined &&
   now - anchor.anchoredAt > driftBudgetMs(anchor);
 
 /**
@@ -71,7 +89,7 @@ export const isAnchorStale = (anchor: Anchor, now: number): boolean =>
  */
 export function useLiveTableDateRange(
   timeRange: TimeRange,
-): TableDateRange | undefined {
+): LiveTableDateRange {
   const [anchor, setAnchor] = useState<Anchor>(() =>
     anchorTimeRange(timeRange, Date.now()),
   );
@@ -83,8 +101,8 @@ export function useLiveTableDateRange(
   ) {
     const next = anchorTimeRange(timeRange, now);
     setAnchor(next);
-    return next.range;
+    return next.value;
   }
 
-  return anchor.range;
+  return anchor.value;
 }

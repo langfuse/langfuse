@@ -9,6 +9,7 @@ import {
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 import {
   removeAppRootDefaultFilter,
@@ -181,16 +182,8 @@ export function useEventsTableData({
     placeholderData: (prev) => prev,
   });
 
-  // I/O lands one query behind the rows: a row that already has its I/O keeps
-  // showing it while the next batch is in flight, and only a row we have no I/O
-  // for yet renders a skeleton cell.
-  const loadedIoIds = useMemo(
-    () => new Set((ioDataQuery.data ?? []).map((io) => io.id)),
-    [ioDataQuery.data],
-  );
-  const isIoPending = (observationId: string) =>
-    (ioDataQuery.isPending || ioDataQuery.isFetching) &&
-    !loadedIoIds.has(observationId);
+  // I/O lands one query behind the rows.
+  const isIoPending = usePendingRowIds(ioDataQuery);
 
   // Extract error information for display (only from observations.all, not batchIO)
   const error = activeObservations.error;
@@ -305,7 +298,6 @@ export function useEventsTableData({
 
   return {
     observations: joinedData,
-    dataUpdatedAt: activeObservations.dataUpdatedAt,
     /** Any table query in flight — drives the progress bar, not a skeleton. */
     isFetching:
       activeObservations.isFetching ||

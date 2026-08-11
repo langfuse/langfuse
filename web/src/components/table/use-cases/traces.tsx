@@ -55,6 +55,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
+import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
@@ -231,7 +232,7 @@ export default function TracesTable({
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
-  const tableDateRange = useLiveTableDateRange(timeRange);
+  const { range: tableDateRange } = useLiveTableDateRange(timeRange);
 
   const dateRange = externalDateRange ?? tableDateRange;
 
@@ -437,9 +438,12 @@ export default function TracesTable({
     orderBy: null,
   };
 
+  // Deliberately NOT placeholder-backed, unlike the row query: its key only
+  // changes when the filter does, and keeping the previous value would pair rows
+  // for the new filter with a count for the old one. It reports as loading
+  // instead until it catches up.
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
     enabled: environmentFilterOptions.data !== undefined,
-    placeholderData: (prev) => prev,
   });
 
   const tracesAllQueryFilter = {
@@ -474,16 +478,8 @@ export default function TracesTable({
     },
   );
 
-  // Metrics arrive per trace id, one query behind the rows. Rows that already
-  // have their metrics keep showing them while the next batch is in flight;
-  // only a row we have no metrics for yet renders a loading cell.
-  const loadedMetricIds = useMemo(
-    () => new Set((traceMetrics.data ?? []).map((metric) => metric.id)),
-    [traceMetrics.data],
-  );
-  const isMetricPending = (traceId: string) =>
-    (traceMetrics.isPending || traceMetrics.isFetching) &&
-    !loadedMetricIds.has(traceId);
+  // Metrics arrive per trace id, one query behind the rows.
+  const isMetricPending = usePendingRowIds(traceMetrics);
 
   type TracesCoreOutput = RouterOutput["traces"]["all"]["traces"][number];
   type TraceMetricOutput = RouterOutput["traces"]["metrics"][number];
@@ -1586,6 +1582,7 @@ export default function TracesTable({
                   ? undefined
                   : {
                       totalCount,
+                      isTotalCountLoading: totalCountQuery.isPending,
                       onChange: setPaginationState,
                       state: paginationState,
                     }
