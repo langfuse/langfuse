@@ -42,6 +42,7 @@ export default function EvaluatorDetailPage() {
 
   return (
     <EvaluatorSetupPage
+      mode="edit"
       key={`${evaluator.data.id}-${latest.id}`}
       projectId={projectId}
       initialEvaluator={{

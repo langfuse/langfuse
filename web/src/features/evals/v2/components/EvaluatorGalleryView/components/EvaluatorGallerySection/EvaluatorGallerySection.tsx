@@ -1,12 +1,10 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { EvaluatorTemplateCard } from "./components/EvaluatorTemplateCard/EvaluatorTemplateCard";
-import {
-  galleryTemplateKey,
-  type GalleryTemplate,
-  type GallerySection,
-} from "../../types";
-
-const MAX_TILES_PER_SECTION = 6;
+import type {
+  GalleryTemplate,
+  GallerySection,
+} from "@/src/features/evals/v2/types/templateGallery";
+import { EVALUATOR_GALLERY_PREVIEW_SIZE } from "@/src/features/evals/v2/constants/evaluatorGallery";
 
 export function EvaluatorGallerySection({
   section,
@@ -23,7 +21,7 @@ export function EvaluatorGallerySection({
 }) {
   const shownTemplates = expanded
     ? section.templates
-    : section.templates.slice(0, MAX_TILES_PER_SECTION);
+    : section.templates.slice(0, EVALUATOR_GALLERY_PREVIEW_SIZE);
   // Sections hold one source at a time: the project's own evaluators or
   // managed examples.
   const noun =
@@ -37,16 +35,17 @@ export function EvaluatorGallerySection({
           {section.description}
         </p>
       </div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(--spacing(64),1fr))] gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
         {shownTemplates.map((template) => (
           <EvaluatorTemplateCard
-            key={galleryTemplateKey(template)}
+            key={template.source === "managed" ? template.key : template.id}
             template={template}
             onSelect={onSelectTemplate}
           />
         ))}
       </div>
-      {section.templates.length > MAX_TILES_PER_SECTION ? (
+      {(section.totalCount ?? section.templates.length) >
+      EVALUATOR_GALLERY_PREVIEW_SIZE ? (
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1.5 text-sm"
@@ -59,7 +58,7 @@ export function EvaluatorGallerySection({
           )}
           {expanded
             ? "Show fewer"
-            : `Show all ${section.templates.length} ${noun}`}
+            : `Show all ${section.totalCount ?? section.templates.length} ${noun}`}
         </button>
       ) : null}
     </section>

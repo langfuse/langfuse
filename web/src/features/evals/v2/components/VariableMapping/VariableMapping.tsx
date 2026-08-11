@@ -1,4 +1,4 @@
-import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/evalVariableColumnLabel";
+import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
 import type { VariableFieldState } from "./types";
 import {
   EditableVariableMapping,

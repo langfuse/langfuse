@@ -16,7 +16,7 @@ import { EvaluatorSetupEditor } from "@/src/features/evals/v2/components/Evaluat
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
-import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/prepareEvaluatorDraft";
+import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -27,6 +27,7 @@ import { TableHeaderControls } from "@/src/components/table/table-header-control
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import type { EvaluatorSetupDraft } from "@/src/features/evals/v2/types/templateGallery";
 
 type InitialEvaluator = {
   id: string;
@@ -36,18 +37,32 @@ type InitialEvaluator = {
   definition: EvaluatorDefinition;
 };
 
-export function EvaluatorSetupPage({
-  projectId,
-  initialEvaluator,
-}: {
-  projectId: string;
-  initialEvaluator: InitialEvaluator | null;
-}) {
+export function EvaluatorSetupPage(
+  props:
+    | {
+        mode: "create";
+        projectId: string;
+        initialDraft: EvaluatorSetupDraft | null;
+        initialType: EvalTemplateType;
+      }
+    | {
+        mode: "edit";
+        projectId: string;
+        initialEvaluator: InitialEvaluator;
+      },
+) {
+  const { projectId } = props;
+  const initialEvaluator =
+    props.mode === "edit" ? props.initialEvaluator : null;
+  const initialDraft = props.mode === "create" ? props.initialDraft : null;
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const [evaluatorSetupStore] = useState(() =>
-    createEvaluatorSetupStore({ initialEvaluator }),
+    createEvaluatorSetupStore({
+      initialEvaluator: initialEvaluator ?? initialDraft,
+      initialType: props.mode === "create" ? props.initialType : undefined,
+    }),
   );
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
     JSON.stringify({

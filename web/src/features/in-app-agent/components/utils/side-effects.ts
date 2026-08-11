@@ -66,6 +66,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getDatasetRun: [],
   langfuse_deleteDatasetRun: ["datasets", "experiments"],
   langfuse_listEvaluators: [],
+  langfuse_listManagedEvaluatorTemplates: [],
   langfuse_getEvaluator: [],
   langfuse_createEvaluator: ["evals", "models"],
   langfuse_updateEvaluator: ["evals", "models"],

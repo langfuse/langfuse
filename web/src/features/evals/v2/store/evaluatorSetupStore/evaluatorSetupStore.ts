@@ -14,7 +14,7 @@ import type { VariableFieldState } from "@/src/features/evals/v2/components/Vari
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
-import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/toScoreOutputFormState";
+import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 
 const DEFAULT_PROMPT = `Evaluate the quality of the response.
 
@@ -103,18 +103,23 @@ export type EvaluatorSetupStore = StoreApi<EvaluatorSetupStoreState>;
 
 export function createEvaluatorSetupStore({
   initialEvaluator,
+  initialType,
 }: {
   initialEvaluator: {
     name: string;
     description: string | null;
     definition: EvaluatorDefinition;
   } | null;
+  initialType?: EvalTemplateType;
 }): EvaluatorSetupStore {
   const initialDefinition = initialEvaluator?.definition;
 
   return createStore<EvaluatorSetupStoreState>((set) => ({
     initialDefinition,
-    type: initialDefinition?.type ?? EvalTemplateTypeEnum.LLM_AS_JUDGE,
+    type:
+      initialDefinition?.type ??
+      initialType ??
+      EvalTemplateTypeEnum.LLM_AS_JUDGE,
     prompt:
       initialDefinition?.type === "LLM_AS_JUDGE"
         ? initialDefinition.prompt

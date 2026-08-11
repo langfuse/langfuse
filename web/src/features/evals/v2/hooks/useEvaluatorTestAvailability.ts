@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 
-import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/prepareEvaluatorDraft";
+import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 

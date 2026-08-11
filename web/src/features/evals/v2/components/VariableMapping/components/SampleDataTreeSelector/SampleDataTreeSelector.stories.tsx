@@ -1,7 +1,7 @@
 import { fn } from "storybook/test";
 
 import preview from "../../../../../../../../.storybook/preview";
-import { WILDCARD } from "@/src/features/evals/v2/fns/segmentsToJsonPath";
+import { WILDCARD } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 import { SampleDataTreeSelector } from "./SampleDataTreeSelector";
 
 const roots = [

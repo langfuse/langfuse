@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useStore } from "zustand";
 
-import { buildSelectedSampleObject } from "@/src/features/evals/v2/fns/buildSelectedSampleObject";
+import { buildSelectedSampleObject } from "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { api, sendAsPostOption } from "@/src/utils/api";
 

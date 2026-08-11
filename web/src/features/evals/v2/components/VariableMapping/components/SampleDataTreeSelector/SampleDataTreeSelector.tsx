@@ -10,7 +10,7 @@ import {
   LAST,
   WILDCARD,
   type PathSegment,
-} from "@/src/features/evals/v2/fns/segmentsToJsonPath";
+} from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 import { cn } from "@/src/utils/tailwind";
 
 const MAX_CONCRETE_ENTRIES = 5;

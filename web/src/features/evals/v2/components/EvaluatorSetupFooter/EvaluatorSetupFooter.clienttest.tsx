@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { numericOutputDefinitionDefaults } from "@/src/features/evals/utils/template-form-defaults";
-import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/prepareEvaluatorDraft";
+import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { EvaluatorSetupFooter } from "./EvaluatorSetupFooter";
 

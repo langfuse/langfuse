@@ -12,6 +12,7 @@ describe("EvaluatorTemplateCard", () => {
       <EvaluatorTemplateCard
         template={{
           source: "managed",
+          key: "hallucination",
           name: "Hallucination",
           category: "quality",
           icon: "alert-triangle",

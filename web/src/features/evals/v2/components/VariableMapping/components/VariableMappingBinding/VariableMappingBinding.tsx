@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 import {
   crumbLabel,
   jsonPathToSegments,
-} from "@/src/features/evals/v2/fns/segmentsToJsonPath";
+} from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 import { cn } from "@/src/utils/tailwind";
 
 /** Mapping path rendered in the header of editable and read-only cards. */

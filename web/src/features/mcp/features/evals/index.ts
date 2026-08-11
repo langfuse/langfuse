@@ -36,12 +36,20 @@ import {
   deleteEvaluationRuleTool,
   handleDeleteEvaluationRule,
 } from "./tools/deleteEvaluationRule";
+import {
+  handleListManagedEvaluatorTemplates,
+  listManagedEvaluatorTemplatesTool,
+} from "./tools/listManagedEvaluatorTemplates";
 
 export const evalsFeature = {
   name: "evals",
   description:
     "Manage evaluators and evaluation rules in the current Langfuse project",
   tools: [
+    {
+      definition: listManagedEvaluatorTemplatesTool,
+      handler: handleListManagedEvaluatorTemplates,
+    },
     {
       definition: listEvaluatorsTool,
       handler: handleListEvaluators,

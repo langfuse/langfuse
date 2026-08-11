@@ -3,7 +3,7 @@ import {
   ScoreDataTypeEnum,
   type PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
-import type { ScoreOutputFormState } from "../scoreOutputTypes";
+import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 
 export function buildScoreOutputDefinition(
   state: ScoreOutputFormState,

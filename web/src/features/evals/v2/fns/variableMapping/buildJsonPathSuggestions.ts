@@ -2,7 +2,7 @@ import {
   WILDCARD,
   segmentsToJsonPath,
   type PathSegment,
-} from "@/src/features/evals/v2/fns/segmentsToJsonPath";
+} from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 
 const MAX_PATHS = 200;
 const MAX_DEPTH = 5;

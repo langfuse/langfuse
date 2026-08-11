@@ -4,8 +4,8 @@ import {
   MUSTACHE_REGEX,
 } from "@langfuse/shared";
 
-import type { InterpolatedPromptPreviewState } from "../components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
-import type { VariableFieldState } from "../components/VariableMapping/types";
+import type { InterpolatedPromptPreviewState } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
+import type { VariableFieldState } from "@/src/features/evals/v2/components/VariableMapping/types";
 
 const SAMPLE_REQUIRED_MESSAGE =
   "Select a sample observation in the test panel to preview the interpolated prompt.";

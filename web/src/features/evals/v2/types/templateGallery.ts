@@ -2,9 +2,40 @@ import type { LucideIcon } from "lucide-react";
 import type {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
+  PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
 
-import type { ManagedTemplate } from "@/src/features/evals/v2/managedTemplatesCatalog";
+import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+
+export type EvaluatorSetupDraft = {
+  name: string;
+  description: string | null;
+  definition: EvaluatorDefinition;
+};
+
+export type ManagedTemplate = {
+  key: string;
+  name: string;
+  category: string;
+  icon: string;
+  description: string;
+  maintainer: string;
+  evaluator:
+    | {
+        type: Extract<EvalTemplateType, "LLM_AS_JUDGE">;
+        prompt: string;
+        variables: Array<{
+          name: string;
+          defaultMapping: { field: string };
+        }>;
+        outputDefinition: PersistedEvalOutputDefinition;
+      }
+    | {
+        type: Extract<EvalTemplateType, "CODE">;
+        language: EvalTemplateSourceCodeLanguage;
+        source: string;
+      };
+};
 
 /** One of the project's own saved evaluators. */
 export type CustomEvaluatorTemplate = {
@@ -28,11 +59,6 @@ export type GalleryTemplate =
   | ({ source: "managed" } & ManagedTemplate)
   | ({ source: "custom" } & CustomEvaluatorTemplate);
 
-/** Stable list key — managed templates are identified by name, not by id. */
-export function galleryTemplateKey(template: GalleryTemplate) {
-  return template.source === "managed" ? template.name : template.id;
-}
-
 export type GalleryNavigationItem = {
   key: string;
   label: string;
@@ -45,4 +71,5 @@ export type GallerySection = {
   label: string;
   description: string;
   templates: GalleryTemplate[];
+  totalCount?: number;
 };

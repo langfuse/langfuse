@@ -5,7 +5,7 @@ import {
   WILDCARD,
   jsonPathToSegments,
   segmentsToJsonPath,
-} from "@/src/features/evals/v2/fns/segmentsToJsonPath";
+} from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 import { extractValueFromObject } from "@langfuse/shared";
 
 describe("JSONPath segments", () => {

@@ -3,10 +3,14 @@ import { fn } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import preview from "../../../../../../.storybook/preview";
 import { EvaluatorGalleryView } from "./EvaluatorGalleryView";
-import type { GallerySection, GalleryTemplate } from "./types";
+import type {
+  GallerySection,
+  GalleryTemplate,
+} from "../../types/templateGallery";
 
 const template = {
   source: "managed",
+  key: "answer-relevance",
   name: "Answer relevance",
   category: "quality",
   icon: "gauge",
@@ -17,8 +21,9 @@ const template = {
     prompt: "Rate the relevance of {{generation}} to {{query}}.",
     variables: [{ name: "query", defaultMapping: { field: "input" } }],
     outputDefinition: {
+      version: 2,
       dataType: "NUMERIC",
-      score: { description: "Relevance.", minValue: 0, maxValue: 1 },
+      score: { description: "Relevance." },
       reasoning: { description: "One sentence." },
     },
   },
@@ -50,6 +55,7 @@ const defaultArgs = {
   onSelectTemplate: fn(),
   onCreateFromScratch: fn(),
   sectionRef: () => fn(),
+  onScroll: fn(),
   isLoading: false,
 };
 

@@ -41,4 +41,13 @@ describe("createEvaluatorSetupStore", () => {
       sourceCodeLanguage: "TYPESCRIPT",
     });
   });
+
+  it("starts a blank code evaluator from the gallery", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "CODE",
+    });
+
+    expect(store.getState().type).toBe("CODE");
+  });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildJsonPathSuggestions } from "./buildJsonPathSuggestions";
-import { parseSampleField } from "./parseSampleField";
+import { parseSampleField } from "@/src/features/evals/v2/fns/variableMapping/parseSampleField";
 
 describe("buildJsonPathSuggestions", () => {
   it("walks nested objects and a bounded sample of array entries", () => {

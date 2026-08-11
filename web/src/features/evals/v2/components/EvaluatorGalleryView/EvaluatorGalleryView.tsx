@@ -11,7 +11,7 @@ import type {
   GalleryTemplate,
   GalleryNavigationItem,
   GallerySection,
-} from "./types";
+} from "../../types/templateGallery";
 
 const FROM_SCRATCH_OPTIONS = [
   {
@@ -34,7 +34,7 @@ function GallerySkeleton() {
   return (
     <div className="flex flex-col gap-3 pt-2">
       <Skeleton className="h-5 w-32" />
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(calc(var(--spacing)*64),1fr))] gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
         {Array.from({ length: 6 }).map((_, index) => (
           <Skeleton key={index} className="h-25 rounded-lg" />
         ))}
@@ -57,6 +57,7 @@ export function EvaluatorGalleryView({
   onCreateFromScratch,
   sectionRef,
   scrollContainerRef,
+  onScroll,
   isLoading,
   errorMessage,
 }: {
@@ -73,6 +74,7 @@ export function EvaluatorGalleryView({
   onCreateFromScratch: (type: EvalTemplateType) => void;
   sectionRef: (key: string) => (element: HTMLElement | null) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
+  onScroll: () => void;
   isLoading: boolean;
   errorMessage?: string;
 }) {
@@ -138,6 +140,7 @@ export function EvaluatorGalleryView({
 
         <div
           ref={scrollContainerRef}
+          onScroll={onScroll}
           className="flex flex-1 flex-col gap-8 overflow-y-auto py-4"
         >
           {isLoading ? <GallerySkeleton /> : null}

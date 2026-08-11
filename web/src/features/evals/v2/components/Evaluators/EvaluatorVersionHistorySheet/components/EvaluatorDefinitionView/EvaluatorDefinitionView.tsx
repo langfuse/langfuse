@@ -18,10 +18,10 @@ import {
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
 import { ScoreOutputConfiguration } from "@/src/features/evals/v2/components/Evaluators/Judges/ScoreOutputConfiguration/ScoreOutputConfiguration";
 import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
-import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/evalVariableColumnLabel";
-import { formatMappingLabel } from "@/src/features/evals/v2/fns/segmentsToJsonPath";
-import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/sourceCodeLanguageLabel";
-import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/toScoreOutputFormState";
+import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
+import { formatMappingLabel } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
+import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
+import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
 export type EvaluatorDefinition =

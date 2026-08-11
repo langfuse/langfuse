@@ -13,6 +13,7 @@ import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EvaluatorActionsCell } from "../components/Evaluators/EvaluatorActionsCell/EvaluatorActionsCell";
 import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBulkDeleteDialog/EvaluatorBulkDeleteDialog";
+import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
 import { EvaluatorExecutionHistory } from "../components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
@@ -34,7 +35,7 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
   evaluatorExecutionsUrl,
   evaluatorScoresUrl,
-} from "../fns/evaluatorUrls";
+} from "../fns/evaluators/evaluatorUrls";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
 
@@ -139,6 +140,7 @@ export default function EvaluatorsPage() {
   const [selectionStore] = useState(() => createEvaluatorsTableStore());
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [deleteAll, setDeleteAll] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const evaluators = api.evalsV2.list.useQuery(
     { projectId, ...pagination, search: searchQuery ?? undefined },
     { enabled: Boolean(projectId) },
@@ -366,9 +368,7 @@ export default function EvaluatorsPage() {
             "Create reusable evaluator definitions and test them before activation.",
         },
         actionButtonsRight: (
-          <Button
-            onClick={() => router.push(`/project/${projectId}/evals/v2/new`)}
-          >
+          <Button onClick={() => setGalleryOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             New evaluator
           </Button>
@@ -482,6 +482,23 @@ export default function EvaluatorsPage() {
               : { projectId, evaluatorIds: deleteIds },
           )
         }
+      />
+      <EvaluatorGalleryDialog
+        projectId={projectId}
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onSelectTemplate={(template) => {
+          router.push(
+            template.source === "managed"
+              ? `/project/${projectId}/evals/v2/new?template=${encodeURIComponent(template.key)}`
+              : `/project/${projectId}/evals/v2/new?evaluatorId=${encodeURIComponent(template.id)}`,
+          );
+        }}
+        onCreateFromScratch={(type) => {
+          router.push(
+            `/project/${projectId}/evals/v2/new?type=${encodeURIComponent(type)}`,
+          );
+        }}
       />
     </Page>
   );

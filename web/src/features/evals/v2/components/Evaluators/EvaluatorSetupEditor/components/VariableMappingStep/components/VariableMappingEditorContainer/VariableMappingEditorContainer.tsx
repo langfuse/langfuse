@@ -3,7 +3,7 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
-import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/buildEvaluatorVariableMappings";
+import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 

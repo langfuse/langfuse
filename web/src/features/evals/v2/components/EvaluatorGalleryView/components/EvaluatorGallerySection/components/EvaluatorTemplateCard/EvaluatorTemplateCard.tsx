@@ -4,13 +4,10 @@ import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/Langfu
 import type {
   CustomEvaluatorTemplate,
   GalleryTemplate,
-} from "@/src/features/evals/v2/components/EvaluatorGalleryView/types";
+  ManagedTemplate,
+} from "@/src/features/evals/v2/types/templateGallery";
 import { EvaluatorTypeBadge } from "@/src/features/evals/v2/components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
-import {
-  LANGFUSE_MAINTAINER,
-  type ManagedTemplate,
-} from "@/src/features/evals/v2/managedTemplatesCatalog";
-import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/sourceCodeLanguageLabel";
+import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
 
 /** What the card shows, resolved from whichever source the entry came from. */
 type TemplateCardContent = {
@@ -25,7 +22,7 @@ function capitalize(value: string) {
 }
 
 function managedCardContent(template: ManagedTemplate): TemplateCardContent {
-  const byLangfuse = template.maintainer === LANGFUSE_MAINTAINER;
+  const byLangfuse = template.maintainer === "langfuse";
 
   return {
     description: template.description,

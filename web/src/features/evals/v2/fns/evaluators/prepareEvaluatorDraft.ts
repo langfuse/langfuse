@@ -1,5 +1,5 @@
-import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/buildScoreOutputDefinition";
-import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/buildEvaluatorVariableMappings";
+import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
+import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import type { EvaluatorSetupStoreState } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 type EvaluatorSetupDraftState = Pick<

@@ -162,6 +162,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "evalTemplate:read" },
   },
+  listManagedEvaluatorTemplates: {
+    approval: "auto",
+    availability: { scope: "evalTemplate:read" },
+  },
   getEvaluator: {
     approval: "auto",
     availability: { scope: "evalTemplate:read" },

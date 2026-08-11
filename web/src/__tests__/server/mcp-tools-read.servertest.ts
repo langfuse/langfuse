@@ -168,6 +168,10 @@ import {
   handleListEvaluators,
 } from "@/src/features/mcp/features/evals/tools/listEvaluators";
 import {
+  handleListManagedEvaluatorTemplates,
+  listManagedEvaluatorTemplatesTool,
+} from "@/src/features/mcp/features/evals/tools/listManagedEvaluatorTemplates";
+import {
   getEvaluationRuleTool,
   handleGetEvaluationRule,
 } from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
@@ -562,6 +566,29 @@ describe("MCP Read Tools", () => {
           evaluatorId: evaluator.id,
         }),
       );
+    });
+  });
+
+  describe("listManagedEvaluatorTemplates tool", () => {
+    it("lists filtered managed templates without database state", async () => {
+      verifyToolAnnotations(listManagedEvaluatorTemplatesTool, {
+        readOnlyHint: true,
+      });
+      const result = (await handleListManagedEvaluatorTemplates(
+        { type: "CODE" },
+        mockServerContext(),
+      )) as {
+        schemaVersion: number;
+        templates: Array<{ key: string; evaluator: { type: string } }>;
+      };
+
+      expect(result.schemaVersion).toBe(1);
+      expect(result.templates).toEqual([
+        expect.objectContaining({
+          key: "exact-match",
+          evaluator: expect.objectContaining({ type: "CODE" }),
+        }),
+      ]);
     });
   });
 

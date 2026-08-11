@@ -7,14 +7,14 @@ import { JsonPathEditor } from "../JsonPathEditor/JsonPathEditor";
 import { SampleDataTreeSelector } from "../SampleDataTreeSelector/SampleDataTreeSelector";
 import { VariableMappingCardShell } from "../VariableMappingCardShell";
 import { VariableMappingBinding } from "../VariableMappingBinding/VariableMappingBinding";
-import { buildJsonPathSuggestions } from "@/src/features/evals/v2/fns/buildJsonPathSuggestions";
-import { parseSampleField } from "@/src/features/evals/v2/fns/parseSampleField";
-import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/evalVariableColumnLabel";
+import { buildJsonPathSuggestions } from "@/src/features/evals/v2/fns/variableMapping/buildJsonPathSuggestions";
+import { parseSampleField } from "@/src/features/evals/v2/fns/variableMapping/parseSampleField";
+import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
 import {
   jsonPathToSegments,
   segmentsToJsonPath,
   type PathSegment,
-} from "@/src/features/evals/v2/fns/segmentsToJsonPath";
+} from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
 import {
   deepParseJsonIterative,
   eventTargetEvalVariableColumns,

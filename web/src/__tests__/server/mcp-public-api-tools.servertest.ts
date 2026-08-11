@@ -153,6 +153,7 @@ describe("MCP public API tools", () => {
         "createAnnotationQueue",
         "createComment",
         "listEvaluators",
+        "listManagedEvaluatorTemplates",
         "getEvaluator",
         "createEvaluator",
         "updateEvaluator",

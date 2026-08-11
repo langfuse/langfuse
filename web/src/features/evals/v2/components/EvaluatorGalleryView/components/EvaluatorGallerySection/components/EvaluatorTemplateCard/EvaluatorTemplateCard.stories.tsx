@@ -6,10 +6,11 @@ import {
 
 import preview from "../../../../../../../../../../.storybook/preview";
 import { EvaluatorTemplateCard } from "./EvaluatorTemplateCard";
-import type { GalleryTemplate } from "../../../../types";
+import type { GalleryTemplate } from "../../../../../../types/templateGallery";
 
 const managedTemplate = {
   source: "managed",
+  key: "hallucination",
   name: "Answer relevance",
   category: "quality",
   icon: "gauge",
@@ -20,8 +21,9 @@ const managedTemplate = {
     prompt: "Rate the relevance of {{generation}} to {{query}}.",
     variables: [{ name: "query", defaultMapping: { field: "input" } }],
     outputDefinition: {
+      version: 2,
       dataType: "NUMERIC",
-      score: { description: "Relevance.", minValue: 0, maxValue: 1 },
+      score: { description: "Relevance." },
       reasoning: { description: "One sentence." },
     },
   },

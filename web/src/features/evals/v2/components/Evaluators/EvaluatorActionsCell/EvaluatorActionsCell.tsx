@@ -1,11 +1,10 @@
-import { MoreVertical } from "lucide-react";
+import { ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 
@@ -49,14 +48,18 @@ export function EvaluatorActionsCell({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Actions</DropdownMenuLabel>
           {canViewExecutions ? (
             <DropdownMenuItem onClick={onViewExecutions}>
+              <ListTree className="mr-2 h-4 w-4" />
               View executions
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive" onClick={onDelete}>
+          <DropdownMenuItem onClick={onEdit}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onDelete}>
+            <Trash2 className="mr-2 h-4 w-4" />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
