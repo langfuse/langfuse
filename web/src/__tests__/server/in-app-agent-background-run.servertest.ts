@@ -244,12 +244,13 @@ describe("in-app agent background runs", () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
-    const { runId } = await caller.startRun({
+    const { conversationId, runId } = await caller.startRun({
       projectId,
       conversationId: conversation.id,
       message: "why did these traces fail?",
       context: [{ description: "current_url", value: "/project/x/traces" }],
     });
+    expect(conversationId).toBe(conversation.id);
 
     const run = await prisma.inAppAgentRun.findFirstOrThrow({
       where: { id: runId, projectId },
@@ -508,6 +509,70 @@ describe("in-app agent background runs", () => {
       InAppAgentRunErrorCode.APPROVAL_SUPERSEDED,
     );
     expect(runId).not.toBe(parkedRunId);
+  });
+
+  it("grants a tool for the conversation only when the scope asks for it", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const onceConversation = await createConversation({ projectId, userId });
+    const grantConversation = await createConversation({ projectId, userId });
+
+    const onceRunId = await parkRunForApproval({
+      projectId,
+      conversationId: onceConversation.id,
+      userId,
+      toolCallId: "tool-call-once",
+    });
+
+    await caller.decideToolApproval({
+      projectId,
+      conversationId: onceConversation.id,
+      runId: onceRunId,
+      toolCallId: "tool-call-once",
+      approved: true,
+    });
+
+    await expect(
+      prisma.inAppAgentConversation.findFirstOrThrow({
+        where: { id: onceConversation.id, projectId },
+        select: { alwaysAllowedTools: true },
+      }),
+    ).resolves.toEqual({ alwaysAllowedTools: [] });
+
+    const grantRunId = await parkRunForApproval({
+      projectId,
+      conversationId: grantConversation.id,
+      userId,
+      toolCallId: "tool-call-grant",
+    });
+
+    await caller.decideToolApproval({
+      projectId,
+      conversationId: grantConversation.id,
+      runId: grantRunId,
+      toolCallId: "tool-call-grant",
+      approved: true,
+      approvalScope: "conversation",
+    });
+
+    await expect(
+      prisma.inAppAgentConversation.findFirstOrThrow({
+        where: { id: grantConversation.id, projectId },
+        select: { alwaysAllowedTools: true },
+      }),
+    ).resolves.toEqual({ alwaysAllowedTools: ["langfuse_createTextPrompt"] });
+
+    const decisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
+      where: {
+        projectId,
+        conversationId: grantConversation.id,
+        runId: grantRunId,
+      },
+      orderBy: { sequenceNumber: "desc" },
+    });
+    expect(decisionEvent.event).toMatchObject({
+      name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+      value: { toolCallId: "tool-call-grant", scope: "conversation" },
+    });
   });
 
   it("decides an approval exactly once and reads the tool args server-side", async () => {

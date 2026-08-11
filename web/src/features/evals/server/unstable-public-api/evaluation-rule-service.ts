@@ -43,6 +43,7 @@ import {
 } from "./validation";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import { assertUnreachable } from "@/src/utils/types";
+import { deleteJobConfigurationWithExecutions } from "@/src/features/evals/server/evaluatorRepository";
 
 const MAX_ACTIVE_EVALUATION_RULES = 500;
 
@@ -473,11 +474,10 @@ export async function deletePublicEvaluationRule(params: {
   const existing = await findPublicEvaluationRuleOrThrow(params);
   const existingPublic = toApiWritableEvaluationRule(existing);
 
-  await prisma.jobConfiguration.delete({
-    where: {
-      id: params.evaluationRuleId,
-      projectId: params.projectId,
-    },
+  await deleteJobConfigurationWithExecutions({
+    prisma,
+    projectId: params.projectId,
+    jobConfigurationId: params.evaluationRuleId,
   });
 
   await invalidateProjectEvalConfigCaches(params.projectId);

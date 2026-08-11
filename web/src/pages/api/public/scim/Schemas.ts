@@ -52,7 +52,10 @@ export default async function handler(
   // Return the schemas
   return res.status(200).json({
     schemas: ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
-    totalResults: 2,
+    // Only the User schema is advertised; `Resources` has one entry, and RFC
+    // 7644 3.4.2 wants `totalResults` to match what was returned. Sibling
+    // `/ResourceTypes` already gets this right.
+    totalResults: 1,
     Resources: [
       // User Schema
       {
@@ -148,17 +151,6 @@ export default async function handler(
             ],
             mutability: "readWrite",
             returned: "default",
-            uniqueness: "none",
-          },
-          {
-            name: "password",
-            type: "string",
-            multiValued: false,
-            description: "The user's password",
-            required: false,
-            caseExact: false,
-            mutability: "writeOnly",
-            returned: "never",
             uniqueness: "none",
           },
           {

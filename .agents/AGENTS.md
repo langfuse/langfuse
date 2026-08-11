@@ -32,6 +32,11 @@ evaluating, and debugging AI applications.
 - Always quote file paths in shell commands, or use `noglob` for path-heavy
   commands, to avoid zsh glob expansion issues with dynamic Next.js routes.
 - Never invoke Node-installed binaries through `./node_modules/.bin/*`. Always run them through `pnpm`.
+- Never put internal ticket ids (`LFE-1234`, `LFINT-1234`, `CLI-Q226-12`) or
+  Linear URLs into anything this repo publishes: code comments, docs prose,
+  commit messages, PR titles and descriptions, or changelog entries. They mean
+  nothing to OSS readers. Describe the problem on its own terms; a
+  ticket-prefixed branch name is the one place the identifier belongs.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
 
