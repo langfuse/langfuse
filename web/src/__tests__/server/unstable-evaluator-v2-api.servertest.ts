@@ -9,11 +9,8 @@ import {
 } from "vitest";
 
 vi.mock(
-  "@/src/features/evals/server/unstable-public-api/validation",
-  async (importActual) => ({
-    ...(await importActual<object>()),
-    assertEvaluatorDefinitionCanRunForPublicApi: vi.fn(),
-  }),
+  "@/src/features/evals/v2/server/evaluators/evaluatorValidation",
+  () => ({ assertEvaluatorConfigurationValid: vi.fn() }),
 );
 
 import { Prisma, prisma } from "@langfuse/shared/src/db";

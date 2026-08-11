@@ -5,17 +5,19 @@ import {
 import {
   getObservationById,
   getObservationsForTrace,
-  getCostByEvaluatorIds,
   getRecentEvaluatorExecutionTracesFromObservations,
+  getTotalCostByEvaluatorIdsFromObservations,
+  getTotalCostByRuleFromObservations,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Clickhouse Observations Repository Test", () => {
-  it("returns only the last seven days by evaluator ID", async () => {
+  it("returns costs separately by evaluator and rule ID", async () => {
     const traceId = v4();
     const evaluatorId = v4();
+    const ruleId = v4();
     const eightDaysAgo = Date.now() - 8 * 24 * 60 * 60 * 1000;
 
     await createObservationsCh([
@@ -34,7 +36,7 @@ describe("Clickhouse Observations Repository Test", () => {
       }),
       createObservation({
         project_id: projectId,
-        metadata: { job_configuration_id: evaluatorId },
+        metadata: { job_configuration_id: ruleId },
         total_cost: 30,
       }),
     ]);
@@ -51,8 +53,11 @@ describe("Clickhouse Observations Repository Test", () => {
       }),
     ]);
     await expect(
-      getCostByEvaluatorIds(projectId, [evaluatorId]),
+      getTotalCostByEvaluatorIdsFromObservations(projectId, [evaluatorId]),
     ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
+    await expect(
+      getTotalCostByRuleFromObservations(projectId, [ruleId]),
+    ).resolves.toEqual([{ ruleId, totalCost: 30 }]);
   });
 
   it("should throw if no observations are found", async () => {

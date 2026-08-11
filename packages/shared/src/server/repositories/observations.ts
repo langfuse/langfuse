@@ -2021,20 +2021,21 @@ const getEvaluatorCostMetricsByIds = async <
   projectId: string,
   evaluatorIds: string[],
   fields: TFields,
+  metadataKey: "job_configuration_id" | "evaluator_id",
 ) => {
   if (evaluatorIds.length === 0) return [];
 
   const rows = await queryClickhouse<Record<string, string>>({
     query: `
       SELECT
-        metadata['evaluator_id'] as evaluator_id,
+        metadata['${metadataKey}'] as evaluator_id,
         ${fields.map((field) => evaluatorCostFields[field].select).join(",\n        ")}
       FROM observations FINAL
       WHERE project_id = {projectId: String}
-        AND metadata['evaluator_id'] IN ({evaluatorIds: Array(String)})
+        AND metadata['${metadataKey}'] IN ({evaluatorIds: Array(String)})
         AND type = 'GENERATION'
         AND start_time > now() - INTERVAL 7 DAY
-      GROUP BY metadata['evaluator_id']
+      GROUP BY metadata['${metadataKey}']
     `,
     params: {
       projectId,
@@ -2055,10 +2056,32 @@ const getEvaluatorCostMetricsByIds = async <
   });
 };
 
-export const getCostByEvaluatorIds = async (
+export const getTotalCostByRuleFromObservations = async (
+  projectId: string,
+  ruleIds: string[],
+) => {
+  const costs = await getEvaluatorCostMetricsByIds(
+    projectId,
+    ruleIds,
+    ["totalCost"],
+    "job_configuration_id",
+  );
+  return costs.map(({ evaluatorId: ruleId, totalCost }) => ({
+    ruleId,
+    totalCost,
+  }));
+};
+
+export const getTotalCostByEvaluatorIdsFromObservations = async (
   projectId: string,
   evaluatorIds: string[],
-) => getEvaluatorCostMetricsByIds(projectId, evaluatorIds, ["totalCost"]);
+) =>
+  getEvaluatorCostMetricsByIds(
+    projectId,
+    evaluatorIds,
+    ["totalCost"],
+    "evaluator_id",
+  );
 
 export const getRecentEvaluatorExecutionTracesFromObservations = async (
   projectId: string,
@@ -2106,10 +2129,12 @@ export const getAvgCostByEvaluatorIdsFromObservations = async (
   projectId: string,
   evaluatorIds: string[],
 ) =>
-  getEvaluatorCostMetricsByIds(projectId, evaluatorIds, [
-    "avgCost",
-    "executionCount",
-  ]);
+  getEvaluatorCostMetricsByIds(
+    projectId,
+    evaluatorIds,
+    ["avgCost", "executionCount"],
+    "job_configuration_id",
+  );
 
 // ─── Public-API observation query helpers ─────────────────────────────────────
 

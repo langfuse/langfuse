@@ -3368,21 +3368,22 @@ const getEvaluatorCostMetricsByIds = async <
   projectId: string,
   evaluatorIds: string[],
   fields: TFields,
+  metadataKey: "job_configuration_id" | "evaluator_id",
 ) => {
   if (evaluatorIds.length === 0) return [];
 
-  const evaluatorId =
-    "arrayElement(e.metadata_values, indexOf(e.metadata_names, 'evaluator_id'))";
+  const evaluatorId = `arrayElement(e.metadata_values, indexOf(e.metadata_names, '${metadataKey}'))`;
   const traceCostsBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.trace_id",
     selectExpression: [
       "e.trace_id as trace_id",
-      `anyIf(${evaluatorId}, has(e.metadata_names, 'evaluator_id')) as evaluator_id`,
+      `anyIf(${evaluatorId}, has(e.metadata_names, '${metadataKey}')) as evaluator_id`,
       "sum(e.total_cost) as trace_total_cost",
     ].join(", "),
   })
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
+    .whereRaw("e.is_deleted = 0")
     .havingRaw("evaluator_id IN ({evaluatorIds: Array(String)})", {
       evaluatorIds,
     });
@@ -3424,15 +3425,39 @@ export const getAvgCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],
 ) =>
-  getEvaluatorCostMetricsByIds(projectId, evaluatorIds, [
-    "avgCost",
-    "executionCount",
-  ]);
+  getEvaluatorCostMetricsByIds(
+    projectId,
+    evaluatorIds,
+    ["avgCost", "executionCount"],
+    "job_configuration_id",
+  );
+
+export const getTotalCostByRule = async (
+  projectId: string,
+  ruleIds: string[],
+) => {
+  const costs = await getEvaluatorCostMetricsByIds(
+    projectId,
+    ruleIds,
+    ["totalCost"],
+    "job_configuration_id",
+  );
+  return costs.map(({ evaluatorId: ruleId, totalCost }) => ({
+    ruleId,
+    totalCost,
+  }));
+};
 
 export const getTotalCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],
-) => getEvaluatorCostMetricsByIds(projectId, evaluatorIds, ["totalCost"]);
+) =>
+  getEvaluatorCostMetricsByIds(
+    projectId,
+    evaluatorIds,
+    ["totalCost"],
+    "evaluator_id",
+  );
 
 export const getRecentEvaluatorExecutionTraces = async (
   projectId: string,

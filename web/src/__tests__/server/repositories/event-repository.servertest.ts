@@ -17,6 +17,7 @@ import {
   getEventsFilterOptionValuesPage,
   getRecentEvaluatorExecutionTraces,
   getTotalCostByEvaluatorIds,
+  getTotalCostByRule,
   createScoresCh,
   createTraceScore,
   type EventFilterOptionColumn,
@@ -65,9 +66,10 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("evaluator execution metrics", () => {
-    it("returns only the last seven days by evaluator ID", async () => {
+    it("returns costs separately by evaluator and rule ID", async () => {
       const traceId = randomUUID();
       const evaluatorId = randomUUID();
+      const ruleId = randomUUID();
       const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
 
       await createEventsCh([
@@ -97,7 +99,7 @@ describe("Clickhouse Events Repository Test", () => {
         createEvent({
           project_id: projectId,
           metadata_names: ["job_configuration_id"],
-          metadata_values: [evaluatorId],
+          metadata_values: [ruleId],
           cost_details: { total: 30 },
         }),
       ]);
@@ -114,6 +116,9 @@ describe("Clickhouse Events Repository Test", () => {
       await expect(
         getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
       ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
+      await expect(getTotalCostByRule(projectId, [ruleId])).resolves.toEqual([
+        { ruleId, totalCost: 30 },
+      ]);
     });
   });
 

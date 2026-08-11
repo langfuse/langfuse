@@ -9,11 +9,11 @@ import {
   ChatMessageRole,
   ChatMessageType,
   generateLangfuseAIText,
-  getCostByEvaluatorIds,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getRecentEvaluatorExecutionTraces,
   getRecentEvaluatorExecutionTracesFromObservations,
   getTotalCostByEvaluatorIds,
+  getTotalCostByEvaluatorIdsFromObservations,
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
@@ -131,7 +131,10 @@ export class EvaluatorService {
   async getTotalCosts(params: { projectId: string; evaluatorIds: string[] }) {
     const costs =
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
-        ? await getCostByEvaluatorIds(params.projectId, params.evaluatorIds)
+        ? await getTotalCostByEvaluatorIdsFromObservations(
+            params.projectId,
+            params.evaluatorIds,
+          )
         : await getTotalCostByEvaluatorIds(
             params.projectId,
             params.evaluatorIds,

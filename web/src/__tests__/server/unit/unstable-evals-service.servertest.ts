@@ -4,9 +4,13 @@ import type { Mock } from "vitest";
 const {
   mockAssertCodeEvalJobConfigCanRun,
   mockAssertEvaluatorConfigurationValid,
+  mockJobConfigurationDelete,
+  mockJobExecutionDeleteMany,
 } = vi.hoisted(() => ({
   mockAssertCodeEvalJobConfigCanRun: vi.fn(),
   mockAssertEvaluatorConfigurationValid: vi.fn(),
+  mockJobConfigurationDelete: vi.fn(),
+  mockJobExecutionDeleteMany: vi.fn(),
 }));
 
 vi.mock(
@@ -21,8 +25,6 @@ const mockEvalTemplateFindFirst = vi.fn();
 const mockEvalTemplateFindMany = vi.fn();
 const mockJobConfigurationFindMany = vi.fn();
 const mockJobConfigurationUpdate = vi.fn();
-const mockJobConfigurationDelete = vi.fn();
-const mockJobExecutionDeleteMany = vi.fn();
 
 vi.mock(
   "../../../features/evals/server/unstable-public-api/validation",
@@ -116,6 +118,10 @@ vi.mock("@langfuse/shared/src/db", async () => {
         findFirst: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        delete: mockJobConfigurationDelete,
+      },
+      jobExecution: {
+        deleteMany: mockJobExecutionDeleteMany,
       },
     },
   };
@@ -216,6 +222,10 @@ const mockedPrisma = prisma as unknown as {
     findFirst: Mock;
     create: Mock;
     update: Mock;
+    delete: Mock;
+  };
+  jobExecution: {
+    deleteMany: Mock;
   };
 };
 const mockAssertEvaluatorDefinitionCanRunForPublicApi = vi.mocked(
@@ -276,22 +286,24 @@ describe("unstable public eval services", () => {
     mockAssertCodeEvalJobConfigCanRun.mockResolvedValue(undefined);
     mockedPrisma.dataset.findMany.mockResolvedValue([]);
 
-    mockedPrisma.$transaction.mockImplementation(async (callback) =>
-      callback({
-        evalTemplate: {
-          create: mockEvalTemplateCreate,
-          findFirst: mockEvalTemplateFindFirst,
-          findMany: mockEvalTemplateFindMany,
-        },
-        jobConfiguration: {
-          findMany: mockJobConfigurationFindMany,
-          update: mockJobConfigurationUpdate,
-          delete: mockJobConfigurationDelete,
-        },
-        jobExecution: {
-          deleteMany: mockJobExecutionDeleteMany,
-        },
-      }),
+    mockedPrisma.$transaction.mockImplementation(async (transaction) =>
+      typeof transaction === "function"
+        ? transaction({
+            evalTemplate: {
+              create: mockEvalTemplateCreate,
+              findFirst: mockEvalTemplateFindFirst,
+              findMany: mockEvalTemplateFindMany,
+            },
+            jobConfiguration: {
+              findMany: mockJobConfigurationFindMany,
+              update: mockJobConfigurationUpdate,
+              delete: mockJobConfigurationDelete,
+            },
+            jobExecution: {
+              deleteMany: mockJobExecutionDeleteMany,
+            },
+          })
+        : Promise.all(transaction),
     );
   });
 
