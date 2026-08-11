@@ -8,7 +8,7 @@ import type {
   GetCommentsV1Query,
   PostCommentsV1Body,
 } from "@/src/features/public-api/types/comments";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 
 type CommentAuditScope = {
@@ -71,10 +71,41 @@ export const getCommentRecordOrThrow = async ({
   return comment;
 };
 
+// The public API accepts a client-supplied authorUserId, so we must verify that
+// the author is a member of the authenticated project's organization. Otherwise
+// any project write key could attribute comments to arbitrary users.
+// The message is identical for unknown and out-of-scope users so that the
+// endpoint does not disclose whether a given user id exists.
+const throwIfAuthorNotInOrganization = async ({
+  authorUserId,
+  orgId,
+}: {
+  authorUserId: string;
+  orgId: string;
+}) => {
+  const membership = await prisma.organizationMembership.findFirst({
+    where: { orgId, userId: authorUserId },
+    select: { id: true },
+  });
+
+  if (!membership) {
+    throw new InvalidRequestError(
+      "authorUserId must belong to a member of the organization that owns the authenticated project.",
+    );
+  }
+};
+
 export const createCommentForApi = async ({
   input,
   auditScope,
 }: CreateCommentInput) => {
+  if (input.authorUserId != null) {
+    await throwIfAuthorNotInOrganization({
+      authorUserId: input.authorUserId,
+      orgId: auditScope.orgId,
+    });
+  }
+
   const result = await validateCommentReferenceObject({
     ctx: { prisma, auth: { scope: { projectId: auditScope.projectId } } },
     input: {
