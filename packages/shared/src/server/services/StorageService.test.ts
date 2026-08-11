@@ -499,6 +499,21 @@ describe("AzureBlobStorageService with a token credential", () => {
     expect(query.get("rsct")).toBe("image/png");
   });
 
+  // On a cold cache the key request is in flight, not yet stored, so concurrent
+  // signing calls must share it instead of each issuing their own fetch.
+  it("shares one delegation key fetch across concurrent signing calls", async () => {
+    const service = makeService();
+    const { getUserDelegationKey } = stubAzureCalls(service);
+
+    await Promise.all([
+      service.getSignedUrl("events/project-1/one.json", 600),
+      service.getSignedUrl("events/project-1/two.json", 600),
+      service.getSignedUrl("events/project-1/three.json", 600),
+    ]);
+
+    expect(getUserDelegationKey).toHaveBeenCalledTimes(1);
+  });
+
   it("reuses the delegation key across signing calls", async () => {
     const service = makeService();
     const { getUserDelegationKey } = stubAzureCalls(service);

@@ -385,6 +385,7 @@ class AzureBlobStorageService implements StorageService {
   private userDelegationKey:
     | { key: UserDelegationKey; expiresOn: Date }
     | undefined;
+  private pendingUserDelegationKey: Promise<UserDelegationKey> | undefined;
 
   constructor(params: {
     accessKeyId: string | undefined;
@@ -468,13 +469,19 @@ class AzureBlobStorageService implements StorageService {
     // Backdated for clock skew between Langfuse and Azure.
     const startsOn = new Date(now - 5 * 60 * 1000);
 
-    const key = await this.blobServiceClient.getUserDelegationKey(
-      startsOn,
-      expiresOn,
-    );
-    this.userDelegationKey = { key, expiresOn };
+    // Memoize the in-flight request, not just the settled key, so concurrent
+    // signing calls on a cold or just-expired cache share one fetch.
+    this.pendingUserDelegationKey ??= this.blobServiceClient
+      .getUserDelegationKey(startsOn, expiresOn)
+      .then((key) => {
+        this.userDelegationKey = { key, expiresOn };
+        return key;
+      })
+      .finally(() => {
+        this.pendingUserDelegationKey = undefined;
+      });
 
-    return key;
+    return this.pendingUserDelegationKey;
   }
 
   /** Signs with the account key when configured, a delegation key otherwise. */
