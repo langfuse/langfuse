@@ -17,10 +17,22 @@ export const EVENTS_FILTER_OPTION_TOP_N = 1000;
 // Sentinel "column" carrying the approx total observation count in the facet result.
 export const EVENTS_APPROX_TOTAL_COUNT_MARKER = "__approxTotalCount__";
 
-// Facet tuple format: (option name, option value, value-occurrence count, sort order).
-const EVENTS_APPROX_TOTAL_COUNT_TUPLE = `tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0))`;
+// Facet tuple format: (option name, option value, value-occurrence count, sort order, display value).
+const EVENTS_APPROX_TOTAL_COUNT_TUPLE = `tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0), '')`;
 
 const EVENTS_FILTER_OPTION_TOP_K_MAX_N = 65_536;
+
+/** EVENTS_FILTER_OPTION_SAMPLE_ROWS caps the events read behind the UI filter option queries. */
+export const EVENTS_FILTER_OPTION_SAMPLE_ROWS = 6_000_000;
+
+// MergeTree virtual column = 1/fraction, exactly 1.0 when unsampled.
+const EVENTS_SAMPLE_FACTOR_SELECT = "any(e._sample_factor) AS sample_factor";
+
+/** eventFilterOptionCountExpression scales a grouped event count back to full-table scale. */
+const eventFilterOptionCountExpression = (sampleRows: number) =>
+  sampleRows > 0
+    ? "toUInt64(round(count() * any(e._sample_factor)))"
+    : "count()";
 
 type EventFilterOptionSort = "countDesc" | "alpha" | "booleanAsc";
 
@@ -349,10 +361,13 @@ export const buildEventsFilterOptionColumnQuery = (params: {
   limit: number;
   offset?: number;
   scope?: EventFilterOptionScope;
+  sampleRows?: number;
 }): { query: string; params: Record<string, unknown> } | null => {
   if (params.limit <= 0) {
     return null;
   }
+
+  const sampleRows = params.sampleRows ?? 0;
 
   const column = normalizeEventFilterOptionColumn(params.column);
   const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
@@ -374,12 +389,13 @@ export const buildEventsFilterOptionColumnQuery = (params: {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: params.projectId,
     groupByColumn: "value",
-    selectExpression: `${eventFilterOptionColumnSqlLiteral(column)} AS column, ${valueExpression} AS value, count() AS count`,
+    selectExpression: `${eventFilterOptionColumnSqlLiteral(column)} AS column, ${valueExpression} AS value, ${eventFilterOptionCountExpression(sampleRows)} AS count`,
   })
     .where(eventsFilter.apply())
     .whereRaw(optionPresenceCondition(column))
     .orderBy(singleColumnOrderBy(column))
-    .limit(params.limit, params.offset ?? 0);
+    .limit(params.limit, params.offset ?? 0)
+    .sampleRows(sampleRows);
 
   if (params.scope) {
     queryBuilder.whereRaw(eventFilterOptionScopeCondition(params.scope));
@@ -396,6 +412,7 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   scope?: EventFilterOptionScope;
   // approx total = uniq(span_id) over the bulk scan's full-filter WHERE; re-verify if the scan ever drops predicates
   includeApproxCount?: boolean;
+  sampleRows?: number;
 }): { query: string; params: Record<string, unknown> } | null => {
   const columns = uniqueEventFilterOptionColumns(params.columns);
   if (columns.length === 0 || params.limit <= 0) {
@@ -410,11 +427,15 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
     });
 
   const includeApproxTotal = params.includeApproxCount === true;
+  const sampleRows = params.sampleRows ?? 0;
+  const sampled = sampleRows > 0;
 
   aggregatedOptionsBuilder.selectRaw(
     ...columns.map(optionTopKSelectExpression),
     ...(includeApproxTotal ? ["uniq(e.span_id) AS approx_total_count"] : []),
+    ...(sampled ? [EVENTS_SAMPLE_FACTOR_SELECT] : []),
   );
+  aggregatedOptionsBuilder.sampleRows(sampleRows);
 
   if (params.scope) {
     aggregatedOptionsBuilder.whereRaw(
@@ -430,6 +451,12 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
     ? `,\n      [${EVENTS_APPROX_TOTAL_COUNT_TUPLE}]`
     : "";
 
+  // approx_top_k counts live inside the tuple, so scale in the outer projection.
+  const sampleFactorRow = sampled ? ",\n    sample_factor" : "";
+  const countExpression = sampled
+    ? "toUInt64(round(tupleElement(option, 3) * sample_factor))"
+    : "tupleElement(option, 3)";
+
   const query = `
 WITH aggregated_options AS (
 ${aggregatedOptionsQuery}
@@ -438,13 +465,13 @@ option_rows AS (
   SELECT
     arrayJoin(arrayConcat(
       ${columns.map(optionRowsArrayExpression).join(",\n      ")}${approxTotalCountRow}
-    )) AS option
+    )) AS option${sampleFactorRow}
   FROM aggregated_options
 )
 SELECT
   tupleElement(option, 1) AS column,
   tupleElement(option, 2) AS value,
-  tupleElement(option, 3) AS count,
+  ${countExpression} AS count,
   tupleElement(option, 5) AS displayValue
 FROM option_rows
 ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
@@ -464,11 +491,13 @@ export const buildEventsMetadataKeysQuery = (params: {
   projectId: string;
   filter: FilterState;
   limit: number;
+  sampleRows?: number;
 }): { query: string; params: Record<string, unknown> } | null => {
   if (params.limit <= 0) {
     return null;
   }
 
+  const sampleRows = params.sampleRows ?? 0;
   const eventsFilter = new FilterList(
     createFilterFromFilterState(
       params.filter,
@@ -480,13 +509,13 @@ export const buildEventsMetadataKeysQuery = (params: {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: params.projectId,
     groupByColumn: "value",
-    selectExpression:
-      "arrayJoin(arrayFilter(name -> length(name) > 0, arrayDistinct(e.metadata_names))) AS value, count() AS count",
+    selectExpression: `arrayJoin(arrayFilter(name -> length(name) > 0, arrayDistinct(e.metadata_names))) AS value, ${eventFilterOptionCountExpression(sampleRows)} AS count`,
   })
     .where(eventsFilter.apply())
     .whereRaw("length(e.metadata_names) > 0")
     .orderBy("ORDER BY count() DESC, value ASC")
-    .limit(params.limit, 0);
+    .limit(params.limit, 0)
+    .sampleRows(sampleRows);
 
   return queryBuilder.buildWithParams();
 };
@@ -497,11 +526,13 @@ export const buildEventsMetadataValuesQuery = (params: {
   filter: FilterState;
   key: string;
   limit: number;
+  sampleRows?: number;
 }): { query: string; params: Record<string, unknown> } | null => {
   if (params.limit <= 0 || params.key.length === 0) {
     return null;
   }
 
+  const sampleRows = params.sampleRows ?? 0;
   const eventsFilter = new FilterList(
     createFilterFromFilterState(
       params.filter,
@@ -515,7 +546,7 @@ export const buildEventsMetadataValuesQuery = (params: {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: params.projectId,
     groupByColumn: "value",
-    selectExpression: `${valueAccessor} AS value, count() AS count`,
+    selectExpression: `${valueAccessor} AS value, ${eventFilterOptionCountExpression(sampleRows)} AS count`,
   })
     .where(eventsFilter.apply())
     .whereRaw("has(e.metadata_names, {metadataKey: String})", {
@@ -523,7 +554,8 @@ export const buildEventsMetadataValuesQuery = (params: {
     })
     .whereRaw(`length(${valueAccessor}) > 0`)
     .orderBy("ORDER BY count() DESC, value ASC")
-    .limit(params.limit, 0);
+    .limit(params.limit, 0)
+    .sampleRows(sampleRows);
 
   return queryBuilder.buildWithParams();
 };

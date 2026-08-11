@@ -47,6 +47,44 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.params).not.toHaveProperty("optionReserved");
   });
 
+  it("samples the base events scan and scales counts by the sample factor", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [],
+      columns: ["name"],
+      limit: 1000,
+      sampleRows: 6_000_000,
+      includeApproxCount: true,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
+    expect(built.query).toContain("any(e._sample_factor) AS sample_factor");
+    expect(built.query).toContain(
+      "toUInt64(round(tupleElement(option, 3) * sample_factor)) AS count",
+    );
+  });
+
+  it("leaves the bulk facet scan exact without a sample size", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [],
+      columns: ["name"],
+      limit: 1000,
+      includeApproxCount: true,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).not.toContain("SAMPLE");
+    expect(built.query).not.toContain("_sample_factor");
+    expect(built.query).not.toContain("sample_factor");
+    expect(built.query).toContain("tupleElement(option, 3) AS count");
+  });
+
   it("orders bulk filter option rows by per-column sort key and value", () => {
     const built = buildEventsFilterOptionsForColumnsQuery({
       projectId: "test-project",
@@ -230,6 +268,40 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       limit: 10,
       offset: 20,
     });
+  });
+
+  it("samples the grouped column scan and scales its counts", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "level",
+      limit: 10,
+      sampleRows: 6_000_000,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
+    expect(built.query).toContain(
+      "toUInt64(round(count() * any(e._sample_factor))) AS count",
+    );
+  });
+
+  it("leaves the grouped column scan exact without a sample size", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "level",
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).not.toContain("SAMPLE");
+    expect(built.query).not.toContain("_sample_factor");
+    expect(built.query).toContain("count() AS count");
   });
 
   it("builds release filter options from the observation release column", () => {
@@ -439,6 +511,23 @@ describe("buildEventsMetadataKeysQuery", () => {
     expect(built.query).toContain("start_time");
   });
 
+  it("samples the key scan and scales its counts", () => {
+    const built = buildEventsMetadataKeysQuery({
+      projectId: "test-project",
+      filter: [],
+      limit: 100,
+      sampleRows: 6_000_000,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
+    expect(built.query).toContain(
+      "toUInt64(round(count() * any(e._sample_factor))) AS count",
+    );
+  });
+
   it("returns null for a non-positive limit", () => {
     expect(
       buildEventsMetadataKeysQuery({
@@ -476,6 +565,24 @@ describe("buildEventsMetadataValuesQuery", () => {
       metadataKey: "region",
       limit: 100,
     });
+  });
+
+  it("samples the value scan and scales its counts", () => {
+    const built = buildEventsMetadataValuesQuery({
+      projectId: "test-project",
+      filter: [],
+      key: "region",
+      limit: 100,
+      sampleRows: 6_000_000,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
+    expect(built.query).toContain(
+      "toUInt64(round(count() * any(e._sample_factor))) AS count",
+    );
   });
 
   it("returns null for an empty key", () => {
