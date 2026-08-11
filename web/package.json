@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.6.0",
+  "version": "4.8.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
+    "build:test": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build --experimental-build-mode compile",
     "build:check": "NEXT_DIST_DIR=.next-check INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
     "typecheck": "dotenv -e ../.env -- tsc -p tsconfig.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- next dev",
@@ -133,7 +134,7 @@
     "langfuse": "3.38.4",
     "lodash": "^4.18.1",
     "lucide-react": "^0.552.0",
-    "nanoid": "^3.3.11",
+    "nanoid": "3.3.16",
     "next": "16.2.11",
     "next-auth": "^4.24.14",
     "next-query-params": "^5.1.0",

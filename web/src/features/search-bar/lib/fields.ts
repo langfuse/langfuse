@@ -29,6 +29,15 @@ export type FieldDef = {
   aliases: string[];
   kind: FieldKind;
   syncMode: SyncMode;
+  /** Human name, used as the subject of a token's explanation ("Total cost is
+   *  above $0.5") — the canonical id is camelCase and does not read as prose.
+   *  On a `boolean` field this is the whole affirmative phrase instead ("Is
+   *  root observation"), since such a token is a yes/no statement, not a
+   *  subject with a value. */
+  label: string;
+  /** Boolean fields only: the phrase for the false case ("Is not root
+   *  observation") — English negates these irregularly (is not / has no). */
+  negatedLabel?: string;
   description: string;
   /** Display unit for numeric suggestion labels (filter-config units). */
   unit?: string;
@@ -45,50 +54,50 @@ export type FieldDef = {
 
 // prettier-ignore
 export const FIELDS: FieldDef[] = [
-  { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, description: "Observation/span identifier" },
-  { id: "traceId", aliases: ["traceid", "trace_id"], kind: "text", syncMode: "textSearch", description: "Trace identifier" },
-  { id: "name", aliases: [], kind: "text", syncMode: "textSearch", suggestObservedValues: true, description: "Observation name", nullable: true },
-  { id: "traceName", aliases: ["tracename", "trace_name"], kind: "text", syncMode: "exactOption", description: "Trace name", nullable: true },
-  { id: "type", aliases: [], kind: "text", syncMode: "exactOption", description: "Observation type" },
-  { id: "environment", aliases: ["env"], kind: "text", syncMode: "exactOption", description: "Environment", nullable: true },
-  { id: "ingestionApiKey", aliases: ["ingestionapikey", "ingestion_api_key", "apikey", "api_key", "publickey", "public_key"], kind: "text", syncMode: "exactOption", description: "Public ingestion API key" },
-  { id: "userId", aliases: ["userid", "user_id", "user"], kind: "text", syncMode: "exactOption", description: "Trace user id", nullable: true },
-  { id: "sessionId", aliases: ["sessionid", "session_id", "session"], kind: "text", syncMode: "exactOption", description: "Trace session id", nullable: true },
-  { id: "level", aliases: [], kind: "text", syncMode: "exactOption", description: "Observation level" },
-  { id: "statusMessage", aliases: ["statusmessage", "status_message", "status"], kind: "text", syncMode: "textSearch", description: "Status message", nullable: true },
-  { id: "modelId", aliases: ["modelid", "model_id"], kind: "text", syncMode: "exactOption", description: "Internal model id", nullable: true },
-  { id: "providedModelName", aliases: ["providedmodelname", "provided_model_name", "model"], kind: "text", syncMode: "exactOption", description: "Provided model name", nullable: true },
-  { id: "promptName", aliases: ["promptname", "prompt_name", "prompt"], kind: "text", syncMode: "exactOption", description: "Prompt name", nullable: true },
-  { id: "promptVersion", aliases: ["promptversion", "prompt_version"], kind: "number", syncMode: "textSearch", description: "Prompt version", nullable: true },
-  { id: "startTime", aliases: ["starttime", "start_time"], kind: "datetime", syncMode: "textSearch", description: "Observation start time" },
-  { id: "endTime", aliases: ["endtime", "end_time"], kind: "datetime", syncMode: "textSearch", description: "Observation end time", nullable: true },
-  { id: "latency", aliases: [], kind: "number", syncMode: "textSearch", description: "Observation latency in seconds", unit: "s", nullable: true },
-  { id: "timeToFirstToken", aliases: ["timetofirsttoken", "time_to_first_token", "ttft"], kind: "number", syncMode: "textSearch", description: "Time to first token in seconds", unit: "s", nullable: true },
-  { id: "tokensPerSecond", aliases: ["tokenspersecond", "tokens_per_second", "tps"], kind: "number", syncMode: "textSearch", description: "Output tokens per second", unit: "tok/s", nullable: true },
-  { id: "inputTokens", aliases: ["inputtokens", "input_tokens"], kind: "number", syncMode: "textSearch", description: "Input token count", nullable: true },
-  { id: "outputTokens", aliases: ["outputtokens", "output_tokens"], kind: "number", syncMode: "textSearch", description: "Output token count", nullable: true },
-  { id: "totalTokens", aliases: ["totaltokens", "total_tokens", "tokens"], kind: "number", syncMode: "textSearch", description: "Total token count", nullable: true },
-  { id: "inputCost", aliases: ["inputcost", "input_cost"], kind: "number", syncMode: "textSearch", description: "Input cost in USD", unit: "$", nullable: true },
-  { id: "outputCost", aliases: ["outputcost", "output_cost"], kind: "number", syncMode: "textSearch", description: "Output cost in USD", unit: "$", nullable: true },
-  { id: "totalCost", aliases: ["totalcost", "total_cost", "cost"], kind: "number", syncMode: "textSearch", description: "Total cost in USD", unit: "$", nullable: true },
-  { id: "version", aliases: [], kind: "text", syncMode: "exactOption", description: "Version tag", nullable: true },
-  { id: "release", aliases: [], kind: "text", syncMode: "exactOption", description: "Release tag", nullable: true },
-  { id: "traceTags", aliases: ["tracetags", "trace_tags", "tags", "tag"], kind: "text", syncMode: "arrayOption", description: "Trace tags" },
-  { id: "isRootObservation", aliases: ["isrootobservation", "is_root_observation", "root"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation is a trace root" },
-  { id: "hasParentObservation", aliases: ["hasparentobservation", "has_parent_observation"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has a parent (inverse of root)" },
-  { id: "hasInput", aliases: ["hasinput", "has_input"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has input" },
-  { id: "hasOutput", aliases: ["hasoutput", "has_output"], kind: "boolean", syncMode: "textSearch", description: "Whether the observation has output" },
-  { id: "toolNames", aliases: ["toolnames", "tool_names"], kind: "text", syncMode: "arrayOption", description: "Available tool names", nullable: true },
-  { id: "calledToolNames", aliases: ["calledtoolnames", "called_tool_names", "calledtools", "called_tools"], kind: "text", syncMode: "arrayOption", description: "Called tool names", nullable: true },
-  { id: "toolDefinitions", aliases: ["tooldefinitions", "tool_definitions"], kind: "number", syncMode: "textSearch", description: "Available tool count", nullable: true },
-  { id: "toolCalls", aliases: ["toolcalls", "tool_calls"], kind: "number", syncMode: "textSearch", description: "Tool call count", nullable: true },
-  { id: "commentCount", aliases: ["commentcount", "comment_count"], kind: "number", syncMode: "textSearch", description: "Comment count" },
-  { id: "commentContent", aliases: ["commentcontent", "comment_content", "comment"], kind: "text", syncMode: "textSearch", description: "Comment text", nullable: true },
-  { id: "experimentDatasetId", aliases: ["experimentdatasetid", "experiment_dataset_id", "dataset"], kind: "text", syncMode: "exactOption", description: "Experiment dataset identifier", nullable: true },
-  { id: "experimentId", aliases: ["experimentid", "experiment_id"], kind: "text", syncMode: "exactOption", description: "Experiment identifier", nullable: true },
-  { id: "experimentName", aliases: ["experimentname", "experiment_name", "experiment"], kind: "text", syncMode: "exactOption", description: "Experiment name", nullable: true },
-  { id: "input", aliases: [], kind: "text", syncMode: "textSearch", description: "Observation input", nullable: true },
-  { id: "output", aliases: [], kind: "text", syncMode: "textSearch", description: "Observation output", nullable: true },
+  { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, label: "Observation ID", description: "Observation/span identifier" },
+  { id: "traceId", aliases: ["traceid", "trace_id"], kind: "text", syncMode: "textSearch", label: "Trace ID", description: "Trace identifier" },
+  { id: "name", aliases: [], kind: "text", syncMode: "textSearch", suggestObservedValues: true, label: "Name", description: "Observation name", nullable: true },
+  { id: "traceName", aliases: ["tracename", "trace_name"], kind: "text", syncMode: "exactOption", label: "Trace name", description: "Trace name", nullable: true },
+  { id: "type", aliases: [], kind: "text", syncMode: "exactOption", label: "Type", description: "Observation type" },
+  { id: "environment", aliases: ["env"], kind: "text", syncMode: "exactOption", label: "Environment", description: "Environment", nullable: true },
+  { id: "ingestionApiKey", aliases: ["ingestionapikey", "ingestion_api_key", "apikey", "api_key", "publickey", "public_key"], kind: "text", syncMode: "exactOption", label: "Ingestion API key", description: "Public ingestion API key" },
+  { id: "userId", aliases: ["userid", "user_id", "user"], kind: "text", syncMode: "exactOption", label: "User ID", description: "Trace user id", nullable: true },
+  { id: "sessionId", aliases: ["sessionid", "session_id", "session"], kind: "text", syncMode: "exactOption", label: "Session ID", description: "Trace session id", nullable: true },
+  { id: "level", aliases: [], kind: "text", syncMode: "exactOption", label: "Level", description: "Observation level" },
+  { id: "statusMessage", aliases: ["statusmessage", "status_message", "status"], kind: "text", syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
+  { id: "modelId", aliases: ["modelid", "model_id"], kind: "text", syncMode: "exactOption", label: "Model ID", description: "Internal model id", nullable: true },
+  { id: "providedModelName", aliases: ["providedmodelname", "provided_model_name", "model"], kind: "text", syncMode: "exactOption", label: "Model name", description: "Provided model name", nullable: true },
+  { id: "promptName", aliases: ["promptname", "prompt_name", "prompt"], kind: "text", syncMode: "exactOption", label: "Prompt name", description: "Prompt name", nullable: true },
+  { id: "promptVersion", aliases: ["promptversion", "prompt_version"], kind: "number", syncMode: "textSearch", label: "Prompt version", description: "Prompt version", nullable: true },
+  { id: "startTime", aliases: ["starttime", "start_time"], kind: "datetime", syncMode: "textSearch", label: "Start time", description: "Observation start time" },
+  { id: "endTime", aliases: ["endtime", "end_time"], kind: "datetime", syncMode: "textSearch", label: "End time", description: "Observation end time", nullable: true },
+  { id: "latency", aliases: [], kind: "number", syncMode: "textSearch", label: "Latency", description: "Observation latency in seconds", unit: "s", nullable: true },
+  { id: "timeToFirstToken", aliases: ["timetofirsttoken", "time_to_first_token", "ttft"], kind: "number", syncMode: "textSearch", label: "Time to first token", description: "Time to first token in seconds", unit: "s", nullable: true },
+  { id: "tokensPerSecond", aliases: ["tokenspersecond", "tokens_per_second", "tps"], kind: "number", syncMode: "textSearch", label: "Tokens per second", description: "Output tokens per second", unit: "tok/s", nullable: true },
+  { id: "inputTokens", aliases: ["inputtokens", "input_tokens"], kind: "number", syncMode: "textSearch", label: "Input token count", description: "Input token count", nullable: true },
+  { id: "outputTokens", aliases: ["outputtokens", "output_tokens"], kind: "number", syncMode: "textSearch", label: "Output token count", description: "Output token count", nullable: true },
+  { id: "totalTokens", aliases: ["totaltokens", "total_tokens", "tokens"], kind: "number", syncMode: "textSearch", label: "Total token count", description: "Total token count", nullable: true },
+  { id: "inputCost", aliases: ["inputcost", "input_cost"], kind: "number", syncMode: "textSearch", label: "Input cost", description: "Input cost in USD", unit: "$", nullable: true },
+  { id: "outputCost", aliases: ["outputcost", "output_cost"], kind: "number", syncMode: "textSearch", label: "Output cost", description: "Output cost in USD", unit: "$", nullable: true },
+  { id: "totalCost", aliases: ["totalcost", "total_cost", "cost"], kind: "number", syncMode: "textSearch", label: "Total cost", description: "Total cost in USD", unit: "$", nullable: true },
+  { id: "version", aliases: [], kind: "text", syncMode: "exactOption", label: "Version", description: "Version tag", nullable: true },
+  { id: "release", aliases: [], kind: "text", syncMode: "exactOption", label: "Release", description: "Release tag", nullable: true },
+  { id: "traceTags", aliases: ["tracetags", "trace_tags", "tags", "tag"], kind: "text", syncMode: "arrayOption", label: "Trace tags", description: "Trace tags" },
+  { id: "isRootObservation", aliases: ["isrootobservation", "is_root_observation", "root"], kind: "boolean", syncMode: "textSearch", label: "Is root observation", negatedLabel: "Is not root observation", description: "Whether the observation is a trace root" },
+  { id: "hasParentObservation", aliases: ["hasparentobservation", "has_parent_observation"], kind: "boolean", syncMode: "textSearch", label: "Has a parent observation", negatedLabel: "Has no parent observation", description: "Whether the observation has a parent (inverse of root)" },
+  { id: "hasInput", aliases: ["hasinput", "has_input"], kind: "boolean", syncMode: "textSearch", label: "Has input", negatedLabel: "Has no input", description: "Whether the observation has input" },
+  { id: "hasOutput", aliases: ["hasoutput", "has_output"], kind: "boolean", syncMode: "textSearch", label: "Has output", negatedLabel: "Has no output", description: "Whether the observation has output" },
+  { id: "toolNames", aliases: ["toolnames", "tool_names"], kind: "text", syncMode: "arrayOption", label: "Available tools", description: "Available tool names", nullable: true },
+  { id: "calledToolNames", aliases: ["calledtoolnames", "called_tool_names", "calledtools", "called_tools"], kind: "text", syncMode: "arrayOption", label: "Called tools", description: "Called tool names", nullable: true },
+  { id: "toolDefinitions", aliases: ["tooldefinitions", "tool_definitions"], kind: "number", syncMode: "textSearch", label: "Available tool count", description: "Available tool count", nullable: true },
+  { id: "toolCalls", aliases: ["toolcalls", "tool_calls"], kind: "number", syncMode: "textSearch", label: "Tool call count", description: "Tool call count", nullable: true },
+  { id: "commentCount", aliases: ["commentcount", "comment_count"], kind: "number", syncMode: "textSearch", label: "Comment count", description: "Comment count" },
+  { id: "commentContent", aliases: ["commentcontent", "comment_content", "comment"], kind: "text", syncMode: "textSearch", label: "Comment text", description: "Comment text", nullable: true },
+  { id: "experimentDatasetId", aliases: ["experimentdatasetid", "experiment_dataset_id", "dataset"], kind: "text", syncMode: "exactOption", label: "Experiment dataset ID", description: "Experiment dataset identifier", nullable: true },
+  { id: "experimentId", aliases: ["experimentid", "experiment_id"], kind: "text", syncMode: "exactOption", label: "Experiment ID", description: "Experiment identifier", nullable: true },
+  { id: "experimentName", aliases: ["experimentname", "experiment_name", "experiment"], kind: "text", syncMode: "exactOption", label: "Experiment name", description: "Experiment name", nullable: true },
+  { id: "input", aliases: [], kind: "text", syncMode: "textSearch", label: "Input", description: "Observation input", nullable: true },
+  { id: "output", aliases: [], kind: "text", syncMode: "textSearch", label: "Output", description: "Observation output", nullable: true },
 ];
 
 const byName = new Map<string, FieldDef>();

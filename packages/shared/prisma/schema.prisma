@@ -239,6 +239,8 @@ model InAppAgentConversation {
   renamedByUserAt   DateTime?                             @map("renamed_by_user_at")
   visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
   providerSessionId String?                               @map("provider_session_id")
+  // Prefixed tool grants are revalidated against the registry and owner's role each run.
+  alwaysAllowedTools String[]                             @default([]) @map("always_allowed_tools")
   deletedAt         DateTime?                             @map("deleted_at")
   createdAt         DateTime                              @default(now()) @map("created_at")
   updatedAt         DateTime                              @default(now()) @updatedAt @map("updated_at")
@@ -305,6 +307,8 @@ model InAppAgentRun {
 }
 
 model InAppAgentPendingToolApproval {
+  // Background execution never reads or writes this table. Retain it
+  // temporarily so existing rows and relations remain valid.
   projectId           String                 @map("project_id")
   project             Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   conversationId      String                 @map("conversation_id")

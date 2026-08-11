@@ -52,6 +52,7 @@ import {
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
 import { randomUUID } from "crypto";
 
 const maybeEvents =
@@ -183,6 +184,81 @@ describe("scores trpc", () => {
       expect(resultFromEvents.scores.map((score) => score.id)).toEqual([
         trueBooleanScore.id,
       ]);
+    });
+  });
+
+  describe("observation scope filter", () => {
+    it("lists trace-level scores for a trace-level owner span and for no other span", async () => {
+      const traceId = randomUUID();
+      const rootObservationId = randomUUID();
+      const childObservationId = randomUUID();
+
+      const traceLevelScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "trace-level-score",
+      });
+      const rootObservationScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: rootObservationId,
+        name: "root-observation-score",
+      });
+      const childObservationScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: childObservationId,
+        name: "child-observation-score",
+      });
+
+      await createScoresCh([
+        traceLevelScore,
+        rootObservationScore,
+        childObservationScore,
+      ]);
+
+      const scoreIdsFor = async (
+        observationId: string,
+        includeTraceLevelScores: boolean,
+      ) => {
+        const payload = {
+          projectId,
+          filter: [
+            {
+              column: "traceId",
+              type: "string" as const,
+              operator: "=" as const,
+              value: traceId,
+            },
+            ...observationScopeFilter(observationId, includeTraceLevelScores),
+          ],
+          orderBy: { column: "timestamp", order: "DESC" as const },
+          page: 0,
+          limit: 50,
+        };
+        const [v3, v4] = await Promise.all([
+          caller.scores.all(payload),
+          caller.scores.allFromEvents(payload),
+        ]);
+        return {
+          v3: v3.scores.map((score) => score.id).sort(),
+          v4: v4.scores.map((score) => score.id).sort(),
+        };
+      };
+
+      // Trace-level owner: its own score plus the trace-level one, each once.
+      const owner = await scoreIdsFor(rootObservationId, true);
+      const expectedOwnerScoreIds = [
+        traceLevelScore.id,
+        rootObservationScore.id,
+      ].sort();
+      expect(owner.v3).toEqual(expectedOwnerScoreIds);
+      expect(owner.v4).toEqual(expectedOwnerScoreIds);
+
+      // Any other span stays observation-scoped.
+      const child = await scoreIdsFor(childObservationId, false);
+      expect(child.v3).toEqual([childObservationScore.id]);
+      expect(child.v4).toEqual([childObservationScore.id]);
     });
   });
 

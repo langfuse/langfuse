@@ -10,7 +10,7 @@ import {
   LifeBuoy,
   TriangleAlert,
 } from "lucide-react";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
@@ -47,11 +47,14 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
+import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
+import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+export const V4_MIGRATION_DEADLINE = "Oct 9";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -410,7 +413,10 @@ export function V4MigrationHeaderContent({
           titleRowClassName,
         )}
       >
-        <p className="min-w-0 text-lg font-bold">
+        <p
+          className="min-w-0 flex-1 truncate text-lg font-bold"
+          title={projectName ? `Migrate ${projectName} to v4` : "Migrate to v4"}
+        >
           {projectName ? <>Migrate {projectName} to v4</> : "Migrate to v4"}
         </p>
         <Link
@@ -421,7 +427,7 @@ export function V4MigrationHeaderContent({
           }}
           className="shrink-0 text-sm underline"
         >
-          View Status
+          View Org status
         </Link>
       </div>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
@@ -431,7 +437,7 @@ export function V4MigrationHeaderContent({
         is here: real-time, up to 165× faster, plus new dashboards, alerting,
         sessions, and trace view.
         {needsMigration &&
-          " This project still uses the previous setup, which stops working soon."}
+          ` This project still uses the previous setup, which stops working on ${V4_MIGRATION_DEADLINE}.`}
       </p>
       <div className="flex flex-col gap-2">
         {promptVisible && (
@@ -516,25 +522,25 @@ export function V4MigrationDetailsContent({
     onNavigate?.();
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
-  const { setOpen: setAgentOpen, submit: submitAgentMessage } =
-    useInAppAiAgent();
+  const canUseAssistant = useCanUseInAppAgent();
+  const [evalMigrationDialogOpen, setEvalMigrationDialogOpen] = useState(false);
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId,
     orgId: organization?.id,
     enabled: Boolean(projectId),
   });
   const evalsUrl =
-    typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
-  const handleMigrateEvalsWithAgent = async () => {
+    typeof projectId === "string"
+      ? buildDeprecatedEvaluatorsUrl(projectId)
+      : undefined;
+  const handleMigrateEvalsWithAgent = () => {
     capture("v4_migration:migrate_evals_with_agent_clicked");
+    setEvalMigrationDialogOpen(true);
+  };
+  const handleManualEvalUpgrade = () => {
+    setEvalMigrationDialogOpen(false);
     onNavigate?.();
-    if (evalsUrl) {
-      await router.push(evalsUrl).catch(() => undefined);
-    }
-    setAgentOpen(true);
-    await submitAgentMessage(upgradePlan.assistantPrompt, {
-      newConversation: true,
-    });
+    if (evalsUrl) router.push(evalsUrl);
   };
   const integrationsUrl =
     typeof projectId === "string"
@@ -589,7 +595,7 @@ export function V4MigrationDetailsContent({
           </a>
         </div>
         <p className="text-muted-foreground text-sm">
-          Some features will stop working soon.
+          Some features will stop working on {V4_MIGRATION_DEADLINE}.
         </p>
         <div>
           <V4MigrationSdkSection sdk={migrationData.sdk} />
@@ -621,11 +627,11 @@ export function V4MigrationDetailsContent({
                   trace input/output, which{" "}
                   <span className="text-dark-yellow">
                     {migrationData.evals.count === 1 ? "stops" : "stop"} running
-                    soon
+                    on {V4_MIGRATION_DEADLINE}
                   </span>
                   . Repointing {migrationData.evals.count === 1 ? "it" : "them"}{" "}
                   at observations or experiments requires minimal changes
-                  {upgradePlan.showAssistantButton
+                  {canUseAssistant
                     ? upgradePlan.mode === "evals-ready"
                       ? " — the assistant can do it for you"
                       : " — the assistant can help you choose the upgrade order"
@@ -633,14 +639,14 @@ export function V4MigrationDetailsContent({
                   .
                 </p>
                 <div className="flex items-center gap-3">
-                  {upgradePlan.showAssistantButton && (
+                  {canUseAssistant && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={handleMigrateEvalsWithAgent}
                     >
                       <BotMessageSquare className="mr-1.5 h-4 w-4" />
-                      Migrate with assistant
+                      Use Assistant
                     </Button>
                   )}
                   {evalsUrl ? (
@@ -745,7 +751,8 @@ export function V4MigrationDetailsContent({
               <>
                 <p className="text-muted-foreground mb-2 text-sm">
                   You&apos;ve called these deprecated endpoints in the last{" "}
-                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working soon; the{" "}
+                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working on{" "}
+                  {V4_MIGRATION_DEADLINE}; the{" "}
                   <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
                     migration guide
                   </ExternalLink>{" "}
@@ -879,6 +886,16 @@ export function V4MigrationDetailsContent({
           </Button>
         </div>
       </div>
+      {projectId ? (
+        <EvaluatorMigrationDialog
+          open={evalMigrationDialogOpen}
+          onOpenChange={setEvalMigrationDialogOpen}
+          scope={{ type: "all" }}
+          assistantPrompt={upgradePlan.assistantPrompt}
+          onManualUpgrade={handleManualEvalUpgrade}
+          onAssistantStarted={() => onNavigate?.()}
+        />
+      ) : null}
     </>
   );
 }

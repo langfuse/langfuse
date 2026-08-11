@@ -5,7 +5,6 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { HttpAgent, type AgentSubscriber } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
@@ -21,7 +20,6 @@ const providerMocks = vi.hoisted(() => {
   const decideToolApproval = vi.fn();
 
   return {
-    backgroundExecutionEnabled: false,
     capture: vi.fn(),
     startRun,
     cancelRun,
@@ -108,11 +106,6 @@ vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
     organization: { aiFeaturesEnabled: true },
   }),
-}));
-
-vi.mock("@/src/features/in-app-agent/lib/executionMode", () => ({
-  useInAppAgentBackgroundExecutionEnabled: () =>
-    providerMocks.backgroundExecutionEnabled,
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -211,72 +204,12 @@ describe("in-app agent execution", () => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
-    providerMocks.backgroundExecutionEnabled = false;
     providerMocks.conversationQuery.data = undefined;
     window.sessionStorage.clear();
   });
 
-  it("keeps foreground submission and approval working when background execution is disabled", async () => {
-    let subscriber: AgentSubscriber | undefined;
-    const runAgent = vi
-      .spyOn(HttpAgent.prototype, "runAgent")
-      .mockResolvedValue({ result: undefined, newMessages: [] });
-    const abortRun = vi.spyOn(HttpAgent.prototype, "abortRun");
-    vi.spyOn(HttpAgent.prototype, "subscribe").mockImplementation(
-      (nextSubscriber: AgentSubscriber) => {
-        subscriber = nextSubscriber;
-        return { unsubscribe: vi.fn() };
-      },
-    );
-
-    const { unmount } = renderExecutionUi();
-
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /stop run/i }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
-      { target: { value: "Investigate this project" } },
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
-
-    await waitFor(() => {
-      expect(runAgent).toHaveBeenCalledOnce();
-    });
-    expect(providerMocks.startRun).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await subscriber?.onCustomEvent?.({
-        event: {
-          name: "on_interrupt",
-          value: {
-            type: "mastra_suspend",
-            toolCallId: "tool-call-1",
-            toolName: "dangerousTool",
-            runId: "run-1",
-          },
-        },
-      } as never);
-    });
-
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Confirm",
-      }),
-    );
-    await waitFor(() => {
-      expect(runAgent).toHaveBeenCalledTimes(2);
-    });
-
-    unmount();
-    expect(abortRun).toHaveBeenCalled();
-  });
-
-  it("renders persisted background messages and approval actions in the drawer", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
-    providerMocks.conversationQuery.data = {
+  it("always allows a persisted background tool for the conversation", async () => {
+    const approvedSnapshot = {
       conversation: {
         id: "conversation-1",
         isWriteLocked: false,
@@ -291,9 +224,37 @@ describe("in-app agent execution", () => {
           id: "persisted-assistant",
           role: "assistant",
           content: "I need approval.",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: "{}",
+              },
+            },
+            {
+              id: "tool-call-2",
+              type: "function",
+              function: {
+                name: "langfuse_createDashboardWidget",
+                arguments: "{}",
+              },
+            },
+          ],
         },
       ],
       eventCursor: 12,
+      latestRun: {
+        id: "run-2",
+        status: InAppAgentRunStatus.RUNNING,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [],
+    } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
+    providerMocks.conversationQuery.data = {
+      ...approvedSnapshot,
       latestRun: {
         id: "run-1",
         status: InAppAgentRunStatus.AWAITING_APPROVAL,
@@ -312,6 +273,10 @@ describe("in-app agent execution", () => {
         },
       ],
     };
+    providerMocks.decideToolApproval.mockResolvedValueOnce({});
+    providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValueOnce(
+      approvedSnapshot,
+    );
     window.sessionStorage.setItem(
       "langfuse:in-app-ai-agent-selected-conversation:project-1",
       JSON.stringify("conversation-1"),
@@ -321,20 +286,40 @@ describe("in-app agent execution", () => {
 
     expect(await screen.findByText("Create the prompt")).toBeInTheDocument();
     expect(screen.getByText("I need approval.")).toBeInTheDocument();
-    expect(
+    fireEvent.click(
       screen.getByRole("button", {
-        name: "Confirm",
+        name: "Always approve for this conversation",
       }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: "Reject",
-      }),
-    ).toBeInTheDocument();
+    );
+
+    await waitFor(() => {
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledOnce();
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledWith({
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        runId: "run-1",
+        toolCallId: "tool-call-1",
+        approved: true,
+        approvalScope: "conversation",
+      });
+      expect(providerMocks.capture).toHaveBeenCalledOnce();
+      expect(providerMocks.capture).toHaveBeenCalledWith(
+        "in_app_agent:tool_approval_decided",
+        {
+          isApproved: true,
+          toolName: "langfuse_createTextPrompt",
+          approvalScope: "conversation",
+        },
+      );
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText(/^createDashboardWidget:/),
+      ).not.toBeInTheDocument();
+    });
   });
 
-  it("replays prompt invalidations after a detached run completes", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
+  it("replays prompt and dashboard invalidations after a detached run completes", async () => {
     const completedSnapshot = {
       conversation: {
         id: "conversation-1",
@@ -383,6 +368,27 @@ describe("in-app agent execution", () => {
           toolCallId: "prompt-tool-call-2",
           content: '{"id":"prompt-2"}',
         },
+        {
+          id: "placement-call",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "placement-tool-call",
+              type: "function",
+              function: {
+                name: "langfuse_addDashboardPlacement",
+                arguments: "{}",
+              },
+            },
+          ],
+        },
+        {
+          id: "placement-result",
+          role: "tool",
+          toolCallId: "placement-tool-call",
+          content: '{"id":"placement-1"}',
+        },
       ],
       eventCursor: 14,
       latestRun: {
@@ -409,18 +415,17 @@ describe("in-app agent execution", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Reopen assistant" }));
 
-    // Two completed prompt tool calls must union into a single invalidation.
+    // Repeated calls union into one invalidation per affected route.
     await waitFor(() => {
       expect(providerMocks.utils.prompts.invalidate).toHaveBeenCalledOnce();
+      expect(providerMocks.utils.dashboard.invalidate).toHaveBeenCalledOnce();
     });
-    expect(providerMocks.utils.dashboard.invalidate).not.toHaveBeenCalled();
     expect(
       providerMocks.utils.dashboardWidgets.invalidate,
     ).not.toHaveBeenCalled();
   });
 
   it("keeps a hydrated in-flight tool call visibly running", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
@@ -472,7 +477,6 @@ describe("in-app agent execution", () => {
   });
 
   it("keeps approval cancellation visibly stopping until hydration settles", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
@@ -529,7 +533,6 @@ describe("in-app agent execution", () => {
   });
 
   it("does not observe a cached active run while the assistant is closed", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     const runningSnapshot = {
       conversation: { id: "conversation-1", isWriteLocked: false },
       messages: [],
@@ -565,7 +568,6 @@ describe("in-app agent execution", () => {
   });
 
   it("settles the drawer without restarting its activity state after Stop", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({
@@ -739,7 +741,6 @@ describe("in-app agent execution", () => {
   });
 
   it("settles a newly submitted run as soon as Stop receives a terminal status", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({

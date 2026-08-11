@@ -32,11 +32,11 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import { TRACE_VIEW_CONFIG } from "@/src/features/traces/config/trace-view-config";
+import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { JSONTableView } from "@/src/features/traces/components/_shared/JSONTableView";
+import { JSONTableView } from "@/src/features/traces/components/JSONTableView";
 import { type FlatLogItem } from "./log-view-types";
 import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";
