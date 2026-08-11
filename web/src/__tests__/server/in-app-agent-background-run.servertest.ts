@@ -510,6 +510,70 @@ describe("in-app agent background runs", () => {
     expect(runId).not.toBe(parkedRunId);
   });
 
+  it("grants a tool for the conversation only when the scope asks for it", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const onceConversation = await createConversation({ projectId, userId });
+    const grantConversation = await createConversation({ projectId, userId });
+
+    const onceRunId = await parkRunForApproval({
+      projectId,
+      conversationId: onceConversation.id,
+      userId,
+      toolCallId: "tool-call-once",
+    });
+
+    await caller.decideToolApproval({
+      projectId,
+      conversationId: onceConversation.id,
+      runId: onceRunId,
+      toolCallId: "tool-call-once",
+      approved: true,
+    });
+
+    await expect(
+      prisma.inAppAgentConversation.findFirstOrThrow({
+        where: { id: onceConversation.id, projectId },
+        select: { alwaysAllowedTools: true },
+      }),
+    ).resolves.toEqual({ alwaysAllowedTools: [] });
+
+    const grantRunId = await parkRunForApproval({
+      projectId,
+      conversationId: grantConversation.id,
+      userId,
+      toolCallId: "tool-call-grant",
+    });
+
+    await caller.decideToolApproval({
+      projectId,
+      conversationId: grantConversation.id,
+      runId: grantRunId,
+      toolCallId: "tool-call-grant",
+      approved: true,
+      approvalScope: "conversation",
+    });
+
+    await expect(
+      prisma.inAppAgentConversation.findFirstOrThrow({
+        where: { id: grantConversation.id, projectId },
+        select: { alwaysAllowedTools: true },
+      }),
+    ).resolves.toEqual({ alwaysAllowedTools: ["langfuse_createTextPrompt"] });
+
+    const decisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
+      where: {
+        projectId,
+        conversationId: grantConversation.id,
+        runId: grantRunId,
+      },
+      orderBy: { sequenceNumber: "desc" },
+    });
+    expect(decisionEvent.event).toMatchObject({
+      name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+      value: { toolCallId: "tool-call-grant", scope: "conversation" },
+    });
+  });
+
   it("decides an approval exactly once and reads the tool args server-side", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -988,12 +1052,6 @@ describe("in-app agent background runs", () => {
       },
     },
     {
-      name: "foreground_stale",
-      expected: InAppAgentRunErrorCode.STALE,
-      data: { status: InAppAgentRunStatus.RUNNING },
-      createdAt: new Date(Date.now() - 3 * 60_000),
-    },
-    {
       name: "queue_timeout",
       expected: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
       data: { status: InAppAgentRunStatus.QUEUED },
@@ -1040,6 +1098,48 @@ describe("in-app agent background runs", () => {
       status: InAppAgentRunStatus.FAILED,
       errorCode: testCase.expected,
     });
+  });
+
+  it("continues a conversation after a timestamp-less run times out", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const previousRunId = createInAppAgentRunId();
+
+    await prisma.inAppAgentRun.create({
+      data: {
+        id: previousRunId,
+        projectId,
+        conversationId: conversation.id,
+        triggeredByUserId: userId,
+        status: InAppAgentRunStatus.RUNNING,
+        request: { kind: "userMessage", context: [] },
+      },
+    });
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: previousRunId, projectId } },
+      data: { createdAt: new Date(Date.now() - 16 * 60_000) },
+    });
+
+    const { runId } = await caller.startRun({
+      projectId,
+      conversationId: conversation.id,
+      message: "continue in background",
+    });
+
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: previousRunId, projectId } },
+      }),
+    ).resolves.toMatchObject({
+      status: InAppAgentRunStatus.FAILED,
+      errorCode: InAppAgentRunErrorCode.RUN_TIMEOUT,
+    });
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: runId, projectId } },
+      }),
+    ).resolves.toMatchObject({ status: InAppAgentRunStatus.QUEUED });
+    expect(enqueuedJobs).toEqual([expect.objectContaining({ jobId: runId })]);
   });
 
   it("fails the committed run when the enqueue fails", async () => {

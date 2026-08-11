@@ -34,6 +34,13 @@ type AgentScenario = (ctx: {
   };
   signal: AbortSignal;
   options: {
+    langfuseMcp: {
+      toolPolicy: {
+        available: ReadonlySet<string>;
+        autoApproved: ReadonlySet<string>;
+      };
+      runOverride?: string;
+    };
     onEvent: (event: unknown) => Promise<void> | void;
     onApprovedToolCallExecuted?: () => Promise<void> | void;
     onComplete: () => Promise<void>;
@@ -141,6 +148,7 @@ async function seedBackgroundRun(opts?: {
   request?: unknown;
   status?: string;
   aiFeaturesEnabled?: boolean;
+  alwaysAllowedTools?: string[];
 }) {
   const { projectId } = await createOrgProjectAndApiKey();
   const project = await prisma.project.findUniqueOrThrow({
@@ -165,6 +173,7 @@ async function seedBackgroundRun(opts?: {
       projectId,
       createdByUserId: user.id,
       title: "background test",
+      alwaysAllowedTools: opts?.alwaysAllowedTools,
     },
   });
   const run = await prisma.inAppAgentRun.create({
@@ -193,8 +202,11 @@ const getInAppAgentApiKeys = (projectId: string) =>
 /** A run resuming an approved tool call whose interrupt event is persisted on a parked parent run. */
 async function seedApprovedContinuation(opts?: {
   context?: Array<{ description: string; value: string }>;
+  alwaysAllowedTools?: string[];
 }) {
-  const seeded = await seedBackgroundRun();
+  const seeded = await seedBackgroundRun({
+    alwaysAllowedTools: opts?.alwaysAllowedTools,
+  });
   const { projectId, conversation, run, user } = seeded;
   const parentRun = await prisma.inAppAgentRun.create({
     data: {
@@ -263,6 +275,26 @@ describe("executeInAppAgentRun", () => {
 
     await executeInAppAgentRun({ projectId, runId: run.id });
     expect((await getRun(projectId, run.id)).status).toBe("SUCCEEDED");
+  });
+
+  it("applies persisted grants to the next continuation's MCP policy", async () => {
+    const { projectId, run } = await seedApprovedContinuation({
+      alwaysAllowedTools: ["langfuse_upsertDataset"],
+    });
+
+    scenarioRef.current = async ({ options }) => {
+      expect(options.langfuseMcp.toolPolicy.autoApproved).toContain(
+        "upsertDataset",
+      );
+      expect(JSON.parse(options.langfuseMcp.runOverride ?? "")).toEqual({
+        toolName: "createTextPrompt",
+        toolNames: ["createTextPrompt", "upsertDataset"],
+      });
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
   });
 
   it("executes a queued run to SUCCEEDED with persisted events and full MCP-key lifecycle", async () => {
