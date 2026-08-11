@@ -6,13 +6,14 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 tmpdir="$(mktemp -d)"
 command_log="$tmpdir/commands.log"
 docker_ready="$tmpdir/docker-ready"
+test_docker_socket="$tmpdir/locked/docker.sock"
 
 cleanup() {
   rm -rf "$tmpdir"
 }
 
 trap cleanup EXIT
-mkdir -p "$tmpdir/bin"
+mkdir -p "$tmpdir/bin" "$tmpdir/locked"
 
 cat <<EOF > "$tmpdir/bin/docker"
 #!/usr/bin/env bash
@@ -43,17 +44,33 @@ cat <<EOF > "$tmpdir/bin/curl"
 printf 'curl %s\n' "\$*" >> "$command_log"
 EOF
 
-cat <<'EOF' > "$tmpdir/bin/sudo"
+cat <<EOF > "$tmpdir/bin/sudo"
 #!/usr/bin/env bash
-exec "$@"
+printf 'sudo %s\n' "\$*" >> "$command_log"
+exec "\$@"
 EOF
 
-chmod +x "$tmpdir/bin/docker" "$tmpdir/bin/service" "$tmpdir/bin/pnpm" "$tmpdir/bin/curl" "$tmpdir/bin/sudo"
+cat <<EOF > "$tmpdir/bin/chmod"
+#!/usr/bin/env bash
+printf 'chmod %s\n' "\$*" >> "$command_log"
+exit 0
+EOF
 
+chmod +x \
+  "$tmpdir/bin/docker" \
+  "$tmpdir/bin/service" \
+  "$tmpdir/bin/pnpm" \
+  "$tmpdir/bin/curl" \
+  "$tmpdir/bin/sudo" \
+  "$tmpdir/bin/chmod"
+
+# Leave $test_docker_socket missing so ensure_docker_socket_reachable must
+# repair the parent directory before the daemon probe loop.
 PATH="$tmpdir/bin:$PATH" \
 DATABASE_URL="postgresql://external.example:5432/production" \
 CLICKHOUSE_URL="https://external.example:8443" \
 CURSOR_COMPOSE_WAIT_TIMEOUT_SECONDS=321 \
+CURSOR_DOCKER_SOCKET="$test_docker_socket" \
   bash "$repo_root/scripts/agents/start-cursor-cloud.sh"
 
 assert_command() {
@@ -65,6 +82,7 @@ assert_command() {
   fi
 }
 
+assert_command "chmod a+rx $tmpdir/locked"
 assert_command "service docker start"
 assert_command "docker compose --env-file /dev/null -f $repo_root/docker-compose.build.yml up -d --build --wait --wait-timeout 321"
 assert_command "compose DATABASE_URL=<unset>"

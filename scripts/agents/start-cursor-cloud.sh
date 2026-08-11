@@ -36,6 +36,39 @@ compose() {
     docker compose --env-file /dev/null -f "$compose_file" "$@"
 }
 
+# Nested Cursor VMs have been observed with /var/run (or /run) mode 0700.
+# The ubuntu agent user is in the docker group and docker.sock may already be
+# group/world accessible, but a non-executable parent directory still makes
+# `docker info` fail with "permission denied" even when dockerd is healthy.
+# Open search/execute on the socket parent dirs (and loosen the socket itself
+# if needed) before probing the daemon.
+ensure_docker_socket_reachable() {
+  local sock="${CURSOR_DOCKER_SOCKET:-/var/run/docker.sock}"
+  local sock_dir
+  sock_dir="$(dirname "$sock")"
+
+  if [ -S "$sock" ] && [ -r "$sock" ] && [ -w "$sock" ]; then
+    return 0
+  fi
+
+  if ! command -v sudo >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Prefer the real runtime dirs; CURSOR_DOCKER_SOCKET is for tests.
+  sudo chmod a+rx "$sock_dir" 2>/dev/null || true
+  if [ "$sock_dir" = "/var/run" ] || [ "$sock_dir" = "/run" ]; then
+    sudo chmod a+rx /var/run /run 2>/dev/null || true
+  fi
+
+  if sudo test -S "$sock" 2>/dev/null; then
+    if ! { [ -r "$sock" ] && [ -w "$sock" ]; } 2>/dev/null; then
+      sudo chgrp docker "$sock" 2>/dev/null || true
+      sudo chmod 666 "$sock" 2>/dev/null || true
+    fi
+  fi
+}
+
 dump_diagnostics() {
   local exit_code=$?
   trap - ERR
@@ -51,11 +84,16 @@ dump_diagnostics() {
 
 trap dump_diagnostics ERR
 
+ensure_docker_socket_reachable
+
 if ! docker info >/dev/null 2>&1; then
   sudo service docker start
+  # service start can recreate /var/run with mode 0700 again.
+  ensure_docker_socket_reachable
 fi
 
 for _ in $(seq 1 60); do
+  ensure_docker_socket_reachable
   if docker info >/dev/null 2>&1; then
     break
   fi

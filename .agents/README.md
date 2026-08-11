@@ -246,6 +246,12 @@ and public build controls are passed into Compose. The seed command also receive
 explicit local connection URLs so an exported secret cannot redirect it to an
 external database.
 
+Nested Cursor VMs sometimes leave `/var/run` mode `0700`, which hides
+`docker.sock` from the `ubuntu` agent user even when that user is in the
+`docker` group. `start-cursor-cloud.sh` opens search/execute on the socket
+parent directories (and loosens the socket if needed) before probing the
+daemon, including again after `service docker start`.
+
 ### Cursor team tools
 
 Repository files cannot publish or authenticate Cursor Team Marketplace MCPs.
