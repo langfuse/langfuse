@@ -48,7 +48,7 @@ const isSameTimeRange = (a: TimeRange, b: TimeRange): boolean => {
   );
 };
 
-export const anchorTimeRange = (timeRange: TimeRange, now: number): Anchor => {
+const anchorTimeRange = (timeRange: TimeRange, now: number): Anchor => {
   const isRelative = "range" in timeRange;
   const absolute = toAbsoluteTimeRange(timeRange);
 
@@ -70,14 +70,14 @@ export const anchorTimeRange = (timeRange: TimeRange, now: number): Anchor => {
 };
 
 /** How far the anchor may fall behind wall-clock time before it is replaced. */
-export const driftBudgetMs = (anchor: Anchor): number => {
+const driftBudgetMs = (anchor: Anchor): number => {
   const windowMs = anchor.value.range
     ? anchor.anchoredAt - anchor.value.range.from.getTime()
     : 0;
   return Math.max(windowMs * DRIFT_BUDGET_FRACTION, MIN_DRIFT_BUDGET_MS);
 };
 
-export const isAnchorStale = (anchor: Anchor, now: number): boolean =>
+const isAnchorStale = (anchor: Anchor, now: number): boolean =>
   anchor.isRelative &&
   anchor.value.range !== undefined &&
   now - anchor.anchoredAt > driftBudgetMs(anchor);
