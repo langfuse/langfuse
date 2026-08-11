@@ -35,7 +35,7 @@ export function V4MigrationDelayBadge() {
   // Every delayed ingestion path shows the pill, matching the migration
   // panel's per-path offender detectors (LFE-14861) — not just outdated SDKs.
   // Unlike the panel's Update SDK section, the pill states a factual delay,
-  // so the SDK path needs a confirmed-outdated series: an unparseable version
+  // so the SDK path needs a confirmed-outdated series: an unparsable version
   // is grounds for review, not proof the data is delayed.
   const isTransient = sdk.status === "checking" || sdk.status === "error";
   const sdkActionable = !isTransient && sdk.upgradeRequiredCount > 0;

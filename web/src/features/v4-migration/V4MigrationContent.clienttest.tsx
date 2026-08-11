@@ -450,7 +450,7 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
   });
 
-  it("keeps Update SDK visible for a recognized SDK with an unparseable version", () => {
+  it("keeps Update SDK visible for a recognized SDK with an unparsable version", () => {
     mocks.migrationData.sdk = {
       status: "unknown",
       sdkUsageSeries: [

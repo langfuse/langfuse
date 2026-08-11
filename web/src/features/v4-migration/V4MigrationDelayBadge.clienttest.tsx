@@ -170,7 +170,7 @@ describe("V4MigrationDelayBadge", () => {
   });
 
   it("stays hidden when an SDK version is merely unrecognized", () => {
-    // An unparseable version puts the series in the panel's Update SDK
+    // An unparsable version puts the series in the panel's Update SDK
     // section for review, but is no proof of delayed ingestion.
     setSdk("unknown", [
       makeSdkUsageSeries({

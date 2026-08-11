@@ -140,7 +140,7 @@ export const isActionableSdkSeries = (
 ): boolean =>
   (series.v4MigrationStatus === "upgrade_required" &&
     !series.upgradeCompleted) ||
-  // A recognized SDK with an unparseable version still needs the user's
+  // A recognized SDK with an unparsable version still needs the user's
   // attention; without it the section would hide while the project-level
   // status keeps reporting action needed.
   series.v4MigrationStatus === "unknown";
