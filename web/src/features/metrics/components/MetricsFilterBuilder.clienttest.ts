@@ -13,7 +13,7 @@ const {
   buildV2FilterColumnsParams,
   viewFiltersToEditorFilters,
   editorFiltersToViewFilters,
-  unsupportedViewFilters,
+  resolvesToColumn,
 } = __test;
 
 const modelFilter = (column: string): FilterState[number] => ({
@@ -54,20 +54,43 @@ describe("editorFiltersToViewFilters", () => {
   });
 });
 
-describe("unsupportedViewFilters", () => {
-  it("invalid-for-view column: surfaced as unsupported, not silently dropped", () => {
-    const unsupported = unsupportedViewFilters("traces", [
-      modelFilter("model"),
-    ]);
-    expect(unsupported.map((f) => f.column)).toContain("model");
+describe("resolvesToColumn", () => {
+  const columnsFor = (
+    view: "observations" | "scores-categorical",
+    viewVersion: "v1" | "v2" = "v2",
+  ) =>
+    getMetricsFilterColumns({
+      ...buildV2FilterColumnsParams({
+        view,
+        filterOptions: undefined,
+        datasets: undefined,
+      }),
+      viewVersion,
+    });
+
+  const resolves = (
+    column: string,
+    view: "observations" | "scores-categorical",
+    viewVersion: "v1" | "v2" = "v2",
+  ) => resolvesToColumn(modelFilter(column), columnsFor(view, viewVersion));
+
+  it("column on the view: resolves by canonical id and by display name", () => {
+    expect(resolves("providedModelName", "observations")).toBe(true);
+    expect(resolves("Model", "observations")).toBe(true);
   });
 
-  it("valid-for-view column: not flagged as unsupported", () => {
-    expect(
-      unsupportedViewFilters("observations", [
-        modelFilter("providedModelName"),
-      ]),
-    ).toEqual([]);
+  it("column absent from the view: does not resolve in either spelling", () => {
+    expect(resolves("providedModelName", "scores-categorical")).toBe(false);
+    expect(resolves("Model", "scores-categorical")).toBe(false);
+  });
+
+  it("v2-only column on v1: does not resolve", () => {
+    expect(resolves("isRootObservation", "observations", "v2")).toBe(true);
+    expect(resolves("isRootObservation", "observations", "v1")).toBe(false);
+  });
+
+  it("unmapped column: does not resolve", () => {
+    expect(resolves("totallyUnknownColumn", "observations")).toBe(false);
   });
 });
 

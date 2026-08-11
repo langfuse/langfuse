@@ -182,30 +182,36 @@ const MetricsFilterView = ({
   onChange: (filters: FilterState) => void;
 }) => {
   const editorFilters = viewFiltersToEditorFilters(view, filters);
-  const unsupported = unsupportedViewFilters(view, filters);
+  const renderable = editorFilters.filter((filter) =>
+    resolvesToColumn(filter, columns),
+  );
   const unsupportedColumns = Array.from(
-    new Set(unsupported.map((filter) => filter.column)),
+    new Set(
+      editorFilters
+        .filter((filter) => !resolvesToColumn(filter, columns))
+        .map((filter) => filter.column),
+    ),
   ).join(", ");
 
   return (
     <div className="space-y-2">
-      {unsupported.length > 0 && (
+      {unsupportedColumns.length > 0 && (
         <Alert
           variant="default"
           className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
         >
           <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
           <AlertTitle className="text-yellow-800 dark:text-yellow-400">
-            Unsupported legacy filters
+            Unsupported filters
           </AlertTitle>
           <AlertDescription className="text-yellow-700 dark:text-yellow-500">
-            {`This still contains filter columns that are not supported for ${startCase(view)}: ${unsupportedColumns}. Remove them or switch to a compatible view before saving.`}
+            {`These filter columns are not supported for ${startCase(view)} and were dropped: ${unsupportedColumns}. Switch back to a compatible view to restore them.`}
           </AlertDescription>
         </Alert>
       )}
       <InlineFilterBuilder
         columns={columns}
-        filterState={editorFilters}
+        filterState={renderable}
         onChange={(next: FilterState) =>
           onChange(editorFiltersToViewFilters(view, next))
         }
@@ -370,17 +376,21 @@ const editorFiltersToViewFilters = (
   return [...mappedFilters, ...unsupportedFilters];
 };
 
-/** unsupportedViewFilters lists rows whose column is known but not valid for the view. */
-const unsupportedViewFilters = (
-  view: z.infer<typeof views>,
-  filters: FilterState,
-): FilterState =>
-  partitionWidgetUiTableFiltersToView(view, filters).unsupportedFilters;
+/** resolvesToColumn reports whether the builder has a column definition able to render the row. */
+const resolvesToColumn = (
+  filter: FilterState[number],
+  columns: ColumnDefinition[],
+): boolean =>
+  columns.some(
+    (column) =>
+      column.id === filter.column ||
+      column.name === filter.column ||
+      column.aliases?.includes(filter.column) === true,
+  );
 
-/** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {
   buildV2FilterColumnsParams,
   viewFiltersToEditorFilters,
   editorFiltersToViewFilters,
-  unsupportedViewFilters,
+  resolvesToColumn,
 };

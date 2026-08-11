@@ -128,8 +128,7 @@ const resolveViewChangePatch = (
   currentMeasure: string,
 ): Partial<Pick<CreateMonitor, "metric">> => {
   const measures = viewDeclarations.v2[nextView]?.measures ?? {};
-  // Filters are never patched; MetricsFilterBuilder banners now-invalid rows.
-  // A measure missing from the new view leaves the form unsubmittable.
+  // Filters are never patched; MetricsFilterBuilder drops rows the view cannot render.
   return currentMeasure in measures
     ? {}
     : { metric: { measure: "count", aggregation: "count" } };
