@@ -6,7 +6,7 @@ import { Accordion } from "@/src/components/ui/accordion";
 import {
   derivePriorities,
   makeUsageTypeKeys,
-} from "@/src/features/models/formValues";
+} from "@/src/features/models/fns/buildFormValues";
 import { TierAccordionItem } from "./components/TierAccordionItem";
 import { TierPriceEditor } from "./components/TierPriceEditor";
 import { TierPrefillButtons } from "./components/TierPrefillButtons";

@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 
-import { getMaxDecimals } from "@/src/features/models/utils";
+import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
 
 /**
  * Preview of the rows that currently hold a valid price. Rows that are

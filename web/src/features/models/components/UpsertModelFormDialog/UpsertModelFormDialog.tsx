@@ -37,7 +37,7 @@ import {
   buildFormValues,
   matchPatternFor,
   toPricingTierInputs,
-} from "@/src/features/models/formValues";
+} from "@/src/features/models/fns/buildFormValues";
 import {
   type FormUpsertModel,
   FormUpsertModelSchema,
