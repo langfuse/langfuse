@@ -148,6 +148,9 @@ const EnvSchema = z.object({
   // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports
   // and avoid overwhelming the target instance (see issue #12786).
   LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
+  // Timeout (ms) for each Mixpanel import request, so an unresponsive endpoint
+  // cannot hold the integration job indefinitely (see issue #15958).
+  LANGFUSE_MIXPANEL_TIMEOUT_MS: z.coerce.number().positive().default(30000),
   // Delay (ms) after each PostHog flush. Together with 1,000-event flushes,
   // this bounds the export rate for fast-acknowledging target instances.
   LANGFUSE_POSTHOG_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
