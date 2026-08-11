@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Check, Loader2, Wrench } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
@@ -15,20 +16,42 @@ export function InAppAgentToolCallCard({
   isCompact = false,
   isDisabled = false,
   onApproveToolCall,
+  onAlwaysAllowToolCall,
   onRejectToolCall,
 }: {
   tool: InAppAgentToolCallContent;
   isCompact?: boolean;
   isDisabled?: boolean;
   onApproveToolCall?: (approvalId: string) => Promise<void>;
+  onAlwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall?: (approvalId: string) => Promise<void>;
 }) {
+  const [activeDecision, setActiveDecision] = useState<
+    "once" | "conversation" | "reject" | null
+  >(null);
   const approval = tool.approval;
   const isApprovalPending = approval?.status === "pending";
   const isApprovalSubmitting = approval?.status === "submitting";
+  const isDecisionSubmitting = isApprovalSubmitting || activeDecision !== null;
   const displayName = getInAppAgentToolDisplayName(tool.name);
   const approveLabel = `Approve ${displayName}?`;
   const usedLabel = `Used ${displayName}`;
+
+  const decide = async (
+    decision: NonNullable<typeof activeDecision>,
+    handler: ((approvalId: string) => Promise<void>) | undefined,
+  ) => {
+    if (!approval || !isApprovalPending || isDecisionSubmitting || !handler) {
+      return;
+    }
+
+    setActiveDecision(decision);
+    try {
+      await handler(approval.id);
+    } finally {
+      setActiveDecision(null);
+    }
+  };
 
   return (
     <div
@@ -63,38 +86,66 @@ export function InAppAgentToolCallCard({
                 variant="outline-success"
                 className="h-7"
                 disabled={
-                  isDisabled || isApprovalSubmitting || !onApproveToolCall
+                  isDisabled || isDecisionSubmitting || !onApproveToolCall
                 }
+                aria-busy={activeDecision === "once"}
                 onClick={() => {
-                  if (isApprovalPending) {
-                    onApproveToolCall?.(approval.id).catch(() => undefined);
-                  }
+                  decide("once", onApproveToolCall).catch(() => undefined);
                 }}
               >
-                {isApprovalSubmitting ? (
+                {activeDecision === "once" ? (
                   <Loader2 className="mr-1 size-3 animate-spin" />
                 ) : (
                   <Check className="mr-1 size-3" />
                 )}
-                Confirm
+                Approve
               </Button>
+              {onAlwaysAllowToolCall ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  title={`Always approve ${displayName} for this conversation`}
+                  aria-label="Always approve for this conversation"
+                  disabled={isDisabled || isDecisionSubmitting}
+                  aria-busy={activeDecision === "conversation"}
+                  onClick={() => {
+                    decide("conversation", onAlwaysAllowToolCall).catch(
+                      () => undefined,
+                    );
+                  }}
+                >
+                  {activeDecision === "conversation" ? (
+                    <Loader2 className="mr-1 size-3 animate-spin" />
+                  ) : null}
+                  Always approve*
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 className="h-7"
                 disabled={
-                  isDisabled || isApprovalSubmitting || !onRejectToolCall
+                  isDisabled || isDecisionSubmitting || !onRejectToolCall
                 }
+                aria-busy={activeDecision === "reject"}
                 onClick={() => {
-                  if (isApprovalPending) {
-                    onRejectToolCall?.(approval.id).catch(() => undefined);
-                  }
+                  decide("reject", onRejectToolCall).catch(() => undefined);
                 }}
               >
-                Reject
+                {activeDecision === "reject" ? (
+                  <Loader2 className="mr-1 size-3 animate-spin" />
+                ) : null}
+                Decline
               </Button>
             </div>
+            {onAlwaysAllowToolCall ? (
+              <p className="text-muted-foreground text-xs">
+                * Approves every use of this tool in this conversation.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : (

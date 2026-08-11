@@ -1,5 +1,6 @@
 import { logger } from "@langfuse/shared/src/server";
 import { gzipSync } from "zlib";
+import { env } from "../../env";
 import type { MixpanelEvent } from "./transformers";
 
 type MixpanelClientConfig = {
@@ -73,6 +74,13 @@ export class MixpanelClient {
     // Create Basic Auth header (token as username, empty password)
     const authHeader = `Basic ${Buffer.from(`${this.config.projectToken}:`).toString("base64")}`;
 
+    // Bound the request so an unresponsive endpoint cannot hold the flush
+    // (and the worker job behind it) indefinitely.
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, env.LANGFUSE_MIXPANEL_TIMEOUT_MS);
+
     try {
       const response = await fetch(url, {
         method: "POST",
@@ -82,6 +90,7 @@ export class MixpanelClient {
           Authorization: authHeader,
         },
         body: compressedBody as unknown as BodyInit,
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -129,8 +138,17 @@ export class MixpanelClient {
         result,
       });
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        const timeoutError = new Error(
+          `Mixpanel request timed out after ${env.LANGFUSE_MIXPANEL_TIMEOUT_MS}ms`,
+        );
+        logger.error("Error sending batch to Mixpanel", timeoutError);
+        throw timeoutError;
+      }
       logger.error("Error sending batch to Mixpanel", error);
       throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
