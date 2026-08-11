@@ -9,18 +9,17 @@ import {
   detectTableEngine,
   runBackfillMigrationCli,
 } from "./utils/backfillBase";
-import { qualifiedClickhouseTableName } from "./utils/clickhouseIdentifiers";
+import {
+  PID_TID_SORTING_TABLE,
+  buildSyncReplicaQuery,
+  pidTidSortingTable,
+} from "./utils/v4BackfillDdl";
 
 // Hard-coded UUID identifying the row in background_migrations. Must match
 // the Prisma migration that registers this row.
 const backgroundMigrationId = "7a3f8d6e-2c91-4b5e-8d72-f4a5b6c7d8e9";
 
 const LOG_PREFIX = "[Backfill Events Observations]";
-const SCRATCH_TABLE = "observations_pid_tid_sorting";
-
-function qualifiedScratchTable(): string {
-  return qualifiedClickhouseTableName(env.CLICKHOUSE_DB, SCRATCH_TABLE);
-}
 
 interface PartChunkTodo extends BaseChunkTodo {
   partId: string;
@@ -35,7 +34,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
   protected readonly migrationId = backgroundMigrationId;
   protected readonly logPrefix = LOG_PREFIX;
   protected readonly requiredTables = [
-    "observations_pid_tid_sorting",
+    PID_TID_SORTING_TABLE,
     "traces",
     "events_full",
     "events_core",
@@ -78,7 +77,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
   private async assertReplicasConverged(
     attempts: number,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
-    const engine = await detectTableEngine("observations_pid_tid_sorting");
+    const engine = await detectTableEngine(PID_TID_SORTING_TABLE);
     if (!engine.startsWith("Replicated")) {
       logger.info(
         `${this.logPrefix} Skipping cross-replica consistency check (engine=${engine || "unknown"} is not replicated)`,
@@ -112,7 +111,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
         `observations_pid_tid_sorting replicas have not converged (${lastSummary}). ` +
         `M2 freezes merges and syncs all replicas on success, so this indicates a replica joined or ` +
         `recovered after M2, or M3 resumed after a topology change. Once replication settles (or after ` +
-        `running SYSTEM SYNC REPLICA ON CLUSTER ${cluster} ${qualifiedScratchTable()} STRICT), clear ` +
+        `running ${buildSyncReplicaQuery()}), clear ` +
         `failedAt and re-run.`,
     };
   }
@@ -148,7 +147,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
           countIf(is_readonly) AS readonly_replicas
         FROM clusterAllReplicas('${cluster}', 'system.replicas')
         WHERE database = currentDatabase()
-          AND table = 'observations_pid_tid_sorting'
+          AND table = '${PID_TID_SORTING_TABLE}'
       `,
       clickhouseSettings: {
         skip_unavailable_shards: 1,
@@ -216,7 +215,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
       query: `
         SELECT partition_id, name
         FROM system.parts
-        WHERE table = 'observations_pid_tid_sorting'
+        WHERE table = '${PID_TID_SORTING_TABLE}'
           AND database = currentDatabase()
           AND active = 1
           AND partition_id NOT LIKE 'patch-%'
@@ -246,7 +245,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
       query: `
         SELECT name
         FROM system.parts
-        WHERE table = 'observations_pid_tid_sorting'
+        WHERE table = '${PID_TID_SORTING_TABLE}'
           AND database = currentDatabase()
           AND active = 1
       `,
@@ -344,7 +343,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
         o.updated_at,
         o.event_ts,
         o.is_deleted
-      FROM ${qualifiedScratchTable()} o
+      FROM ${pidTidSortingTable()} o
       LEFT ANY JOIN (
         SELECT project_id, id, version, release, tags, public, bookmarked, name, user_id, session_id
         FROM traces t
@@ -394,7 +393,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
       query: `
         SELECT count() AS count
         FROM system.parts
-        WHERE table = 'observations_pid_tid_sorting'
+        WHERE table = '${PID_TID_SORTING_TABLE}'
           AND database = currentDatabase()
           AND name = {partId: String}
           AND active = 1

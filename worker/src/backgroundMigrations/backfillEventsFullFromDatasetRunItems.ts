@@ -10,7 +10,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { parseArgs } from "node:util";
-import { env } from "../env";
 import {
   buildSpanMaps,
   convertEnrichedSpansToEventRecords,
@@ -25,16 +24,14 @@ import {
   type TraceProperties,
 } from "../features/eventPropagation/handleExperimentBackfill";
 import { checkPredecessorMigrationFinalized } from "./utils/backfillBase";
-import { qualifiedClickhouseTableName } from "./utils/clickhouseIdentifiers";
+import {
+  PID_TID_SORTING_TABLE,
+  pidTidSortingTable,
+} from "./utils/v4BackfillDdl";
 
 // Hard-coded UUID identifying the row in background_migrations. Must match
 // the Prisma migration that registers this row.
 const backgroundMigrationId = "9d4f8a12-7b35-4e6c-9f48-a2b3c4d5e6f7";
-const SCRATCH_TABLE = "observations_pid_tid_sorting";
-
-function qualifiedScratchTable(): string {
-  return qualifiedClickhouseTableName(env.CLICKHOUSE_DB, SCRATCH_TABLE);
-}
 
 // ============================================================================
 // Types
@@ -297,7 +294,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         '' AS trace_name,
         '' AS user_id,
         '' AS session_id
-      FROM ${qualifiedScratchTable()} o
+      FROM ${pidTidSortingTable()} o
       WHERE (o.project_id, o.trace_id) IN {tracePairs: Array(Tuple(String, String))}
         AND o.start_time >= {minTime: DateTime64(3)}
         AND o.start_time <= {maxTime: DateTime64(3)}
@@ -590,7 +587,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
 
     const requiredTables = [
       "dataset_run_items_rmt",
-      "observations_pid_tid_sorting",
+      PID_TID_SORTING_TABLE,
       "traces",
       "events_full",
       "events_core",
