@@ -12,12 +12,18 @@ export function PricePreview({
   // `key` is the usage type's row identity: names can collide while editing.
   prices: { key: string; usageType: string; price: number }[];
 }) {
+  // One scale per column, shared by every row so the decimal points line up.
   const decimalsFor = (multiplier: number) =>
     prices.length === 0
       ? 0
       : Math.max(
           ...prices.map(({ price }) => getMaxDecimals(price, multiplier)),
         );
+  const decimals = {
+    unit: decimalsFor(1),
+    per1K: decimalsFor(1000),
+    per1M: decimalsFor(1000000),
+  };
 
   return (
     <div className="border-border bg-muted/30 rounded-lg border p-4">
@@ -43,13 +49,13 @@ export function PricePreview({
             >
               <span className="font-bold break-all">{usageType}</span>
               <span className="text-right font-mono">
-                ${new Decimal(price).toFixed(decimalsFor(1))}
+                ${new Decimal(price).toFixed(decimals.unit)}
               </span>
               <span className="text-right font-mono">
-                ${new Decimal(price).mul(1000).toFixed(decimalsFor(1000))}
+                ${new Decimal(price).mul(1000).toFixed(decimals.per1K)}
               </span>
               <span className="text-right font-mono">
-                ${new Decimal(price).mul(1000000).toFixed(decimalsFor(1000000))}
+                ${new Decimal(price).mul(1000000).toFixed(decimals.per1M)}
               </span>
             </div>
           ))}

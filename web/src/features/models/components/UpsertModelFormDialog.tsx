@@ -211,14 +211,21 @@ export const UpsertModelFormDialog = (({
                       <Input
                         {...field}
                         onChange={(e) => {
+                          const previousName = form.getValues("modelName");
+                          const nextName = e.target.value;
                           field.onChange(e);
-                          // Keep the pattern in sync until the user owns it.
-                          if (!form.getFieldState("matchPattern").isDirty) {
+
+                          // Follow the name only while the pattern is still the
+                          // one we generated — a hand-written or cloned pattern
+                          // is the user's, and typing a name must not touch it.
+                          const pattern = form.getValues("matchPattern");
+                          if (
+                            !pattern ||
+                            pattern === matchPatternFor(previousName)
+                          ) {
                             form.setValue(
                               "matchPattern",
-                              e.target.value
-                                ? matchPatternFor(e.target.value)
-                                : "",
+                              nextName ? matchPatternFor(nextName) : "",
                             );
                           }
                         }}

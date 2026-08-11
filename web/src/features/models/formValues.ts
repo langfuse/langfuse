@@ -63,7 +63,13 @@ const pricesByRowKey = (
 export const buildFormValues = (source: ModelFormSource): FormUpsertModel => {
   if (source.action === "create") {
     const modelName = source.prefilledModelData?.modelName ?? "";
-    const prices = source.prefilledModelData?.prices ?? CREATE_DEFAULT_PRICES;
+    // A generation whose usage details only carry `total` prefills {} — that
+    // would open the dialog with no price rows at all.
+    const prefilled = source.prefilledModelData?.prices;
+    const prices =
+      prefilled && Object.keys(prefilled).length > 0
+        ? prefilled
+        : CREATE_DEFAULT_PRICES;
     const usageTypes = toUsageTypeRows(Object.keys(prices));
 
     return {

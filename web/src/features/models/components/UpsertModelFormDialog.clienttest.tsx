@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { type GetModelResult } from "@/src/features/models/validation";
 
@@ -109,6 +115,19 @@ const openEditDialog = (pricingTiers: GetModelResult["pricingTiers"]) => {
   fireEvent.click(screen.getByRole("button", { name: "Open editor" }));
 };
 
+const openCloneDialog = (matchPattern: string) => {
+  render(
+    <UpsertModelFormDialog
+      action="clone"
+      projectId="p1"
+      modelData={{ ...modelData([defaultTier]), matchPattern }}
+    >
+      <button>Open editor</button>
+    </UpsertModelFormDialog>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Open editor" }));
+};
+
 const submit = () =>
   fireEvent.click(screen.getByRole("button", { name: /^(Save|Submit)$/ }));
 
@@ -177,6 +196,30 @@ describe("UpsertModelFormDialog price editor", () => {
         },
       },
     ]);
+  });
+
+  it("renaming a clone keeps a custom match pattern but follows a generated one", () => {
+    const custom = String.raw`(?i)^(gpt-realtime-2\.\d+)$`;
+    openCloneDialog(custom);
+    typeInto(
+      document.querySelector('input[name="modelName"]') as HTMLInputElement,
+      "-mine",
+    );
+    expect(
+      (document.querySelector('input[name="matchPattern"]') as HTMLInputElement)
+        .value,
+    ).toBe(custom);
+
+    cleanup();
+    openCloneDialog("(?i)^(gpt-realtime-2.1)$");
+    typeInto(
+      document.querySelector('input[name="modelName"]') as HTMLInputElement,
+      "-mine",
+    );
+    expect(
+      (document.querySelector('input[name="matchPattern"]') as HTMLInputElement)
+        .value,
+    ).toBe("(?i)^(gpt-realtime-2.1-mine)$");
   });
 
   it("shows inline errors instead of silently refusing to submit", async () => {
