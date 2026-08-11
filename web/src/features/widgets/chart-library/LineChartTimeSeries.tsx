@@ -60,20 +60,110 @@ const computeMetricExtent = (
 };
 
 /**
- * SVG text props for a threshold annotation label ("Alert" / "Warning").
- * Darker than the reference-line stroke, bold, and haloed with the chart
- * background so the text stays legible on the tinted violation band.
+ * Appearance for a threshold annotation chip ("Alert" / "Warning").
+ * White text on a solid tint of the threshold color — readable on both the
+ * translucent violation band and light/dark chart backgrounds.
  */
-const thresholdAnnotationLabelProps = (color: ChartThresholdColor) => ({
-  fill: `var(--color-${color}-800)`,
-  fontSize: 12,
-  className: "font-bold",
-  // paintOrder draws the background stroke under the fill (text halo).
-  paintOrder: "stroke fill" as const,
-  stroke: "var(--color-background)",
-  strokeWidth: 3,
-  strokeLinejoin: "round" as const,
+const thresholdAnnotationChipAppearance = (color: ChartThresholdColor) => ({
+  background: `var(--color-${color}-600)`,
+  foreground: "#fff",
+  fontSize: 11,
+  paddingX: 5,
+  paddingY: 2,
+  /** Approx. average glyph width at `fontSize` for short Latin labels. */
+  glyphWidthFactor: 0.62,
+  gapFromLine: 4,
+  gapFromRight: 4,
+  cornerRadius: 3,
 });
+
+/** Layout for a chip anchored to the top-right of a horizontal reference line. */
+const layoutThresholdAnnotationChip = ({
+  label,
+  viewBox,
+  appearance,
+}: {
+  label: string;
+  viewBox: { x: number; y: number; width: number };
+  appearance: ReturnType<typeof thresholdAnnotationChipAppearance>;
+}) => {
+  const textWidth = Math.max(
+    label.length * appearance.fontSize * appearance.glyphWidthFactor,
+    appearance.fontSize,
+  );
+  const width = textWidth + appearance.paddingX * 2;
+  const height = appearance.fontSize + appearance.paddingY * 2;
+  const x = viewBox.x + viewBox.width - width - appearance.gapFromRight;
+  // Prefer above the line; if that would clip off the chart top, drop below.
+  const yAbove = viewBox.y - height - appearance.gapFromLine;
+  const y = yAbove < 0 ? viewBox.y + appearance.gapFromLine : yAbove;
+  return {
+    x,
+    y,
+    width,
+    height,
+    textX: x + width / 2,
+    textY: y + height / 2,
+  };
+};
+
+type ThresholdLabelViewBox = {
+  x?: number;
+  y?: number;
+  width?: number;
+};
+
+/** ThresholdAnnotationChip renders a solid high-contrast label at the line's top-right. */
+const ThresholdAnnotationChip = ({
+  viewBox,
+  value,
+  color,
+}: {
+  viewBox?: ThresholdLabelViewBox;
+  value?: string | number;
+  color: ChartThresholdColor;
+}) => {
+  if (
+    value == null ||
+    viewBox?.x == null ||
+    viewBox.y == null ||
+    viewBox.width == null
+  ) {
+    return null;
+  }
+  const label = String(value);
+  const appearance = thresholdAnnotationChipAppearance(color);
+  const layout = layoutThresholdAnnotationChip({
+    label,
+    viewBox: { x: viewBox.x, y: viewBox.y, width: viewBox.width },
+    appearance,
+  });
+
+  return (
+    <g data-testid="threshold-annotation-chip">
+      <rect
+        x={layout.x}
+        y={layout.y}
+        width={layout.width}
+        height={layout.height}
+        rx={appearance.cornerRadius}
+        ry={appearance.cornerRadius}
+        fill={appearance.background}
+      />
+      <text
+        x={layout.textX}
+        y={layout.textY}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill={appearance.foreground}
+        fontSize={appearance.fontSize}
+        className="font-bold"
+      >
+        {label}
+      </text>
+    </g>
+  );
+};
 
 /** ThresholdOverlay returns the ReferenceLine + (operator-derived) ReferenceArea recharts elements for a single ChartThreshold. */
 const ThresholdOverlay = ({
@@ -180,8 +270,13 @@ const ThresholdOverlay = ({
       {threshold.label && (
         <Label
           value={threshold.label}
-          position="insideTopRight"
-          {...thresholdAnnotationLabelProps(threshold.color)}
+          content={(props) => (
+            <ThresholdAnnotationChip
+              viewBox={props.viewBox as ThresholdLabelViewBox | undefined}
+              value={props.value}
+              color={threshold.color}
+            />
+          )}
         />
       )}
     </ReferenceLine>,
@@ -190,7 +285,10 @@ const ThresholdOverlay = ({
   return <>{elements}</>;
 };
 
-export const __test = { thresholdAnnotationLabelProps };
+export const __test = {
+  thresholdAnnotationChipAppearance,
+  layoutThresholdAnnotationChip,
+};
 
 /**
  * LineChartTimeSeries component

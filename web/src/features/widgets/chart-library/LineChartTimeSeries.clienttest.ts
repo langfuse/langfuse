@@ -2,32 +2,50 @@ import { describe, expect, it } from "vitest";
 
 import { __test } from "./LineChartTimeSeries";
 
-const { thresholdAnnotationLabelProps } = __test;
+const { thresholdAnnotationChipAppearance, layoutThresholdAnnotationChip } =
+  __test;
 
 /**
- * Contrast contract for threshold annotation labels ("Alert" / "Warning").
- * The prior styling reused the reference-line stroke (`*-600`) at 11px with no
- * weight or halo, so red "Alert" text washed out against the tinted violation
- * band and was easy to miss on the monitor live preview.
+ * Contrast contract for threshold annotation chips ("Alert" / "Warning").
+ * Bare colored text on the translucent violation band was easy to miss on the
+ * monitor live preview; chips use solid fills with white labels instead.
  */
-describe("thresholdAnnotationLabelProps", () => {
-  it("uses a darker palette step than the reference-line stroke for fill", () => {
-    const props = thresholdAnnotationLabelProps("red");
-    // Reference line stroke is `*-600`; the label must be at least `*-800`.
-    expect(props.fill).toBe("var(--color-red-800)");
-    expect(props.fill).not.toBe("var(--color-red-600)");
+describe("thresholdAnnotationChipAppearance", () => {
+  it("pairs a solid threshold-color fill with white foreground text", () => {
+    const appearance = thresholdAnnotationChipAppearance("red");
+    expect(appearance.background).toBe("var(--color-red-600)");
+    expect(appearance.foreground).toBe("#fff");
   });
 
-  it("renders at a readable size with the app bold weight role", () => {
-    const props = thresholdAnnotationLabelProps("yellow");
-    expect(props.fontSize).toBeGreaterThanOrEqual(12);
-    expect(props.className).toContain("font-bold");
+  it("keeps the chip compact but bold-readable", () => {
+    const appearance = thresholdAnnotationChipAppearance("yellow");
+    expect(appearance.fontSize).toBeGreaterThanOrEqual(11);
+    expect(appearance.paddingX).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("layoutThresholdAnnotationChip", () => {
+  it("anchors the chip to the top-right of the reference-line viewBox", () => {
+    const appearance = thresholdAnnotationChipAppearance("red");
+    const layout = layoutThresholdAnnotationChip({
+      label: "Alert",
+      viewBox: { x: 40, y: 120, width: 400 },
+      appearance,
+    });
+
+    expect(layout.x + layout.width).toBe(40 + 400 - appearance.gapFromRight);
+    expect(layout.y + layout.height).toBe(120 - appearance.gapFromLine);
+    expect(layout.width).toBeGreaterThan(layout.height);
   });
 
-  it("paints a background-colored halo so the label stays legible on the tint", () => {
-    const props = thresholdAnnotationLabelProps("red");
-    expect(props.paintOrder).toBe("stroke fill");
-    expect(props.stroke).toBe("var(--color-background)");
-    expect(props.strokeWidth).toBeGreaterThanOrEqual(3);
+  it("drops the chip below the line when above would clip the chart top", () => {
+    const appearance = thresholdAnnotationChipAppearance("red");
+    const layout = layoutThresholdAnnotationChip({
+      label: "Alert",
+      viewBox: { x: 40, y: 8, width: 400 },
+      appearance,
+    });
+
+    expect(layout.y).toBe(8 + appearance.gapFromLine);
   });
 });
