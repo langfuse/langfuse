@@ -29,8 +29,14 @@ const getLowerBoundTimeFilter = (
 
 export function useEvalConfigFilterOptions({
   projectId,
+  useEventsTable,
+  includeLegacyTraceOptions,
 }: {
   projectId: string;
+  useEventsTable: boolean;
+  // Legacy trace-target evaluators stay editable on v4, and their options
+  // still come from the legacy traces table.
+  includeLegacyTraceOptions: boolean;
 }) {
   const filterOptionsFrom = useMemo(
     () => getBucketedEvalFilterOptionsFrom(),
@@ -42,7 +48,22 @@ export function useEvalConfigFilterOptions({
       projectId,
       timestampFilter: getLowerBoundTimeFilter("timestamp", filterOptionsFrom),
     },
-    evalFilterOptionsQueryOptions,
+    {
+      ...evalFilterOptionsQueryOptions,
+      enabled: !useEventsTable || includeLegacyTraceOptions,
+    },
+  );
+
+  const eventsFilterOptionsResponse = api.events.filterOptions.useQuery(
+    {
+      projectId,
+      startTimeFilter: getLowerBoundTimeFilter("startTime", filterOptionsFrom),
+      columns: ["traceName", "traceTags", "name", "calledToolNames"],
+    },
+    {
+      ...evalFilterOptionsQueryOptions,
+      enabled: useEventsTable,
+    },
   );
 
   const environmentFilterOptionsResponse =
@@ -64,7 +85,10 @@ export function useEvalConfigFilterOptions({
           filterOptionsFrom,
         ),
       },
-      evalFilterOptionsQueryOptions,
+      {
+        ...evalFilterOptionsQueryOptions,
+        enabled: !useEventsTable,
+      },
     );
 
   const traceFilterOptions = useMemo(() => {
@@ -122,27 +146,41 @@ export function useEvalConfigFilterOptions({
   }, [datasets.data]);
 
   const observationEvalFilterOptions: ObservationEvalOptions = useMemo(() => {
+    const traceNames = useEventsTable
+      ? eventsFilterOptionsResponse.data?.traceName
+      : traceFilterOptionsResponse.data?.name;
+    const traceTags = useEventsTable
+      ? eventsFilterOptionsResponse.data?.traceTags
+      : traceFilterOptionsResponse.data?.tags;
+    const observationNames = useEventsTable
+      ? eventsFilterOptionsResponse.data?.name
+      : observationsFilterOptionsResponse.data?.name;
+    const calledToolNames = useEventsTable
+      ? eventsFilterOptionsResponse.data?.calledToolNames
+      : observationsFilterOptionsResponse.data?.calledToolNames;
+
     return {
       environment: environmentFilterOptionsResponse.data?.map((e) => ({
         value: e.environment,
       })),
       tags: sortOptionValues(
-        traceFilterOptionsResponse.data?.tags?.map((t) => ({
-          value: t.value,
+        traceTags?.map((tag) => ({
+          value: tag.value,
         })),
       ),
-      traceName: traceFilterOptionsResponse.data?.name?.map((n) => ({
-        value: n.value,
+      traceName: traceNames?.map((name) => ({
+        value: name.value,
       })),
-      name: observationsFilterOptionsResponse.data?.name?.map((n) => ({
-        value: n.value,
+      name: observationNames?.map((name) => ({
+        value: name.value,
       })),
-      calledToolNames:
-        observationsFilterOptionsResponse.data?.calledToolNames?.map((t) => ({
-          value: t.value,
-        })),
+      calledToolNames: calledToolNames?.map((toolName) => ({
+        value: toolName.value,
+      })),
     };
   }, [
+    useEventsTable,
+    eventsFilterOptionsResponse.data,
     traceFilterOptionsResponse.data,
     environmentFilterOptionsResponse.data,
     observationsFilterOptionsResponse.data,
