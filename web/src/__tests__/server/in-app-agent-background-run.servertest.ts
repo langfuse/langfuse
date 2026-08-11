@@ -244,12 +244,13 @@ describe("in-app agent background runs", () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
-    const { runId } = await caller.startRun({
+    const { conversationId, runId } = await caller.startRun({
       projectId,
       conversationId: conversation.id,
       message: "why did these traces fail?",
       context: [{ description: "current_url", value: "/project/x/traces" }],
     });
+    expect(conversationId).toBe(conversation.id);
 
     const run = await prisma.inAppAgentRun.findFirstOrThrow({
       where: { id: runId, projectId },
