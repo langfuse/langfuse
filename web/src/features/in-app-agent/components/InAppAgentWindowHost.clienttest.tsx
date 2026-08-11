@@ -61,17 +61,20 @@ describe("InAppAgentWindowHost", () => {
     HTMLElement.prototype.setPointerCapture = vi.fn();
     HTMLElement.prototype.releasePointerCapture = vi.fn();
 
-    // The `agent` overlay layer container normally declared in _document.
+    // The overlay layer containers normally declared in _document.
     const overlayRoot = document.createElement("div");
     overlayRoot.setAttribute("data-overlay-root", "");
-    const agentLayer = document.createElement("div");
-    agentLayer.setAttribute("data-layer", "agent");
-    overlayRoot.appendChild(agentLayer);
+    for (const layer of ["panel", "agent"]) {
+      const layerNode = document.createElement("div");
+      layerNode.setAttribute("data-layer", layer);
+      overlayRoot.appendChild(layerNode);
+    }
     document.body.appendChild(overlayRoot);
   });
 
   afterEach(() => {
     document.querySelector("[data-overlay-root]")?.remove();
+    vi.unstubAllGlobals();
   });
 
   it("keeps geometry while open and resets it on close/reopen", () => {
@@ -126,5 +129,24 @@ describe("InAppAgentWindowHost", () => {
     expect(screen.getByTestId("movable-resizable-panel").style.top).toBe(
       "88px",
     );
+  });
+
+  it("renders a full-screen drawer instead of the movable panel on a handheld", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    mocks.open = true;
+
+    render(<InAppAgentWindowHost />);
+
+    // No drag/resize on touch, and the drawer is the modal that scroll-locks
+    // the page behind it.
+    expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
+    expect(document.querySelector("#in-app-agent-drawer")).not.toBeNull();
   });
 });
