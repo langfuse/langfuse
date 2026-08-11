@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -220,6 +221,43 @@ describe("UpsertModelFormDialog price editor", () => {
       (document.querySelector('input[name="matchPattern"]') as HTMLInputElement)
         .value,
     ).toBe("(?i)^(gpt-realtime-2.1-mine)$");
+  });
+
+  it("saving is a checkpoint: saved values are clean, an in-flight edit is not", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    // Saved values become the new baseline: closing needs no confirmation.
+    openEditDialog([defaultTier]);
+    retype(priceInputs()[0], "0.000009");
+    await act(async () => submit());
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(document.querySelector('div[role="dialog"]')).toBeNull();
+
+    cleanup();
+
+    // An edit typed while the save is in flight was never submitted, so it
+    // stays unsaved work and the discard guard still fires for it.
+    let settleSave: (model: {
+      id: string;
+      modelName: string;
+    }) => void = () => {};
+    upsertMutateAsync.mockImplementationOnce(
+      () => new Promise((resolve) => (settleSave = resolve)),
+    );
+    openEditDialog([defaultTier]);
+    retype(priceInputs()[0], "0.000009");
+    await act(async () => submit());
+    retype(priceInputs()[0], "0.000011");
+    await act(async () => {
+      settleSave({ id: "model-1", modelName: "gpt-realtime-2.1" });
+    });
+
+    expect(priceInputs()[0].value).toBe("0.000011");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('div[role="dialog"]')).not.toBeNull();
+    confirm.mockRestore();
   });
 
   it("shows inline errors instead of silently refusing to submit", async () => {

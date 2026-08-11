@@ -1,5 +1,7 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 /* eslint @repo/no-style-props: "off" */
+import cloneDeep from "lodash/cloneDeep";
+import isEqual from "lodash/isEqual";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -88,34 +90,18 @@ export const UpsertModelFormDialog = (({
 
   const tokenizerId = form.watch("tokenizerId");
 
-  const upsertModelMutation = api.models.upsert.useMutation({
-    onSuccess: (upsertedModel) => {
-      utils.models.invalidate();
-      showSuccessToast({
-        title: `Model ${props.action === "edit" ? "updated" : "created"}`,
-        description: `The model '${upsertedModel.modelName}' has been successfully ${props.action === "edit" ? "updated" : "created"}. New generations will use these model prices.`,
-      });
-
-      // Editing is a checkpoint, not an exit: keep the dialog and its context.
-      if (props.action === "edit") {
-        form.reset(form.getValues());
-        return;
-      }
-
-      setOpen(false);
-      router.push(
-        `/project/${props.projectId}/settings/models/${upsertedModel.id}`,
-      );
-    },
-    onError: (error) => setFormError(error.message),
-  });
+  const upsertModelMutation = api.models.upsert.useMutation();
 
   const onSubmit = async (values: FormUpsertModel) => {
     capture("models:new_form_submit");
     setFormError(null);
+    // Snapshot before the await: nothing typed while the save is in flight may
+    // become part of the saved baseline, or the dirty guard would let it go.
+    // getValues() copies only the top level, so the clone is load-bearing.
+    const submitted = cloneDeep(form.getValues());
 
-    await upsertModelMutation
-      .mutateAsync({
+    try {
+      const upsertedModel = await upsertModelMutation.mutateAsync({
         modelId: props.action === "edit" ? props.modelData.id : null,
         projectId: props.projectId,
         modelName:
@@ -130,10 +116,32 @@ export const UpsertModelFormDialog = (({
           typeof JSON.parse(values.tokenizerConfig) === "object"
             ? (JSON.parse(values.tokenizerConfig) as Record<string, number>)
             : undefined,
-      })
-      .catch((error) => {
-        setFormError(error.message);
       });
+
+      utils.models.invalidate();
+      showSuccessToast({
+        title: `Model ${props.action === "edit" ? "updated" : "created"}`,
+        description: `The model '${upsertedModel.modelName}' has been successfully ${props.action === "edit" ? "updated" : "created"}. New generations will use these model prices.`,
+      });
+
+      // Editing is a checkpoint, not an exit: keep the dialog and its context.
+      if (props.action === "edit") {
+        const live = form.getValues();
+        form.reset(submitted); // what we saved is the new clean baseline
+        if (!isEqual(live, submitted)) {
+          // Typed while the save was in flight: still the user's unsaved work.
+          form.reset(live, { keepDefaultValues: true });
+        }
+        return;
+      }
+
+      setOpen(false);
+      router.push(
+        `/project/${props.projectId}/settings/models/${upsertedModel.id}`,
+      );
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const requestClose = () => {

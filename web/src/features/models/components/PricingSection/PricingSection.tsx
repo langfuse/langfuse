@@ -73,7 +73,7 @@ export function PricingSection({ form }: PricingSectionProps) {
     tiers.append({
       name: `Custom Tier ${suffix}`,
       isDefault: false,
-      conditions: [NEW_TIER_CONDITION],
+      conditions: [{ ...NEW_TIER_CONDITION }],
       // Prices are keyed by usage type row key, so this copies by identity.
       prices: { ...(existing.find((tier) => tier.isDefault)?.prices ?? {}) },
     });
