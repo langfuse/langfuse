@@ -41,6 +41,12 @@ export const dashboardColumnDefinitions: UiColumnMappings = [
   },
   {
     clickhouseTableName: "scores",
+    clickhouseSelect: "comment",
+    uiTableId: "scoreComment",
+    uiTableName: "Score Comment",
+  },
+  {
+    clickhouseTableName: "scores",
     clickhouseSelect: "data_type",
     uiTableId: "scoreDataType",
     uiTableName: "Scores Data Type",
