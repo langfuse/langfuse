@@ -17,6 +17,7 @@ import {
   type SandboxOperation,
   type WriteSandboxOperation,
 } from "./contracts.js";
+import { createSerialQueue } from "./sandboxQueue.js";
 
 const SERVER_PORT = 5000;
 const WORKSPACE_ROOT = "/workspace";
@@ -24,6 +25,7 @@ const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
 const MICROVM_RUNTIME_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
 const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024;
 let requestCounter = 0;
+const runSandboxOperationExclusive = createSerialQueue();
 
 const server = createServer(async (request, response) => {
   const requestId = `req-${++requestCounter}`;
@@ -138,21 +140,27 @@ async function routeRequest(request: IncomingMessage, requestId: string) {
       requestId,
       operation: summarizeOperation(body),
     });
-    await syncToolCallFiles(body.toolCallFiles, requestId);
 
-    if (body.operation === "read") {
-      return { statusCode: 200, body: await readOperation(body, requestId) };
-    }
+    return runSandboxOperationExclusive(async () => {
+      await syncToolCallFiles(body.toolCallFiles, requestId);
 
-    if (body.operation === "write") {
-      return { statusCode: 200, body: await writeOperation(body, requestId) };
-    }
+      if (body.operation === "read") {
+        return { statusCode: 200, body: await readOperation(body, requestId) };
+      }
 
-    if (body.operation === "edit") {
-      return { statusCode: 200, body: await editOperation(body, requestId) };
-    }
+      if (body.operation === "write") {
+        return {
+          statusCode: 200,
+          body: await writeOperation(body, requestId),
+        };
+      }
 
-    return { statusCode: 200, body: await bashOperation(body, requestId) };
+      if (body.operation === "edit") {
+        return { statusCode: 200, body: await editOperation(body, requestId) };
+      }
+
+      return { statusCode: 200, body: await bashOperation(body, requestId) };
+    });
   }
 
   return { statusCode: 404, body: { error: "Not found" } };
