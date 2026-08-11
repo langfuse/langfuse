@@ -357,7 +357,11 @@ async function waitForBridge(params: {
   let lastError: unknown;
 
   while (Date.now() - startedAt < BRIDGE_READY_TIMEOUT_MS) {
-    const microvm = await getMicrovm(params.client, params.microvmId);
+    const microvm = await withBridgeRequestTimeout({
+      startedAt,
+      requestName: "status request",
+      request: (signal) => getMicrovm(params.client, params.microvmId, signal),
+    });
     if (!microvm) {
       throw new Error(
         `[Lambda MicroVM Sandbox] startup failed before bridge became ready: session ${params.microvmId} no longer exists`,
@@ -378,15 +382,17 @@ async function waitForBridge(params: {
         endpointPort: getEndpointPort(params.endpoint),
         sandboxServerPort: DEFAULT_SANDBOX_SERVER_PORT,
       });
-      const authToken = (await createMicrovmAuthToken(params)).value;
-      const remainingMs = BRIDGE_READY_TIMEOUT_MS - (Date.now() - startedAt);
-      if (remainingMs <= 0) {
-        break;
-      }
+      const authToken = (
+        await withBridgeRequestTimeout({
+          startedAt,
+          requestName: "auth token request",
+          request: (signal) => createMicrovmAuthToken(params, signal),
+        })
+      ).value;
 
-      const healthResult = await withRequestTimeout({
-        timeoutMs: remainingMs,
-        timeoutMessage: `Lambda MicroVM bridge health probe timed out after ${remainingMs}ms`,
+      const healthResult = await withBridgeRequestTimeout({
+        startedAt,
+        requestName: "health probe",
         request: async (signal) => {
           const response = await fetch(
             `${normalizeEndpoint(params.endpoint)}/health`,
@@ -419,7 +425,7 @@ async function waitForBridge(params: {
       lastError = error;
     }
 
-    const remainingMs = BRIDGE_READY_TIMEOUT_MS - (Date.now() - startedAt);
+    const remainingMs = getRemainingBridgeReadyMs(startedAt);
     if (remainingMs <= 0) {
       break;
     }
@@ -434,11 +440,14 @@ async function waitForBridge(params: {
     : new Error("[Lambda MicroVM Sandbox] bridge did not become ready");
 }
 
-async function createMicrovmAuthToken(params: {
-  client: LambdaMicrovmsClient;
-  microvmId: string;
-  endpoint: string;
-}) {
+async function createMicrovmAuthToken(
+  params: {
+    client: LambdaMicrovmsClient;
+    microvmId: string;
+    endpoint: string;
+  },
+  abortSignal?: AbortSignal,
+) {
   const endpointPort = getEndpointPort(params.endpoint);
   logger.debug("[Lambda MicroVM Sandbox] creating auth token", {
     microvmId: params.microvmId,
@@ -454,6 +463,7 @@ async function createMicrovmAuthToken(params: {
       expirationInMinutes: DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES,
       allowedPorts: [{ allPorts: {} }],
     }),
+    abortSignal ? { abortSignal } : undefined,
   );
 
   const token =
@@ -480,11 +490,16 @@ async function createMicrovmAuthToken(params: {
   };
 }
 
-async function getMicrovm(client: LambdaMicrovmsClient, microvmId: string) {
+async function getMicrovm(
+  client: LambdaMicrovmsClient,
+  microvmId: string,
+  abortSignal?: AbortSignal,
+) {
   try {
     return readMicrovmInfo(
       await client.send(
         new GetMicrovmCommand({ microvmIdentifier: microvmId }),
+        abortSignal ? { abortSignal } : undefined,
       ),
     );
   } catch (error) {
@@ -563,6 +578,28 @@ async function withRequestTimeout<T>(params: {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function withBridgeRequestTimeout<T>(params: {
+  startedAt: number;
+  requestName: string;
+  request: (signal: AbortSignal) => Promise<T>;
+}) {
+  const remainingMs = getRemainingBridgeReadyMs(params.startedAt);
+  const timeoutMessage = `Lambda MicroVM bridge ${params.requestName} timed out after ${Math.max(remainingMs, 0)}ms`;
+  if (remainingMs <= 0) {
+    throw new Error(timeoutMessage);
+  }
+
+  return withRequestTimeout({
+    timeoutMs: remainingMs,
+    timeoutMessage,
+    request: params.request,
+  });
+}
+
+function getRemainingBridgeReadyMs(startedAt: number) {
+  return BRIDGE_READY_TIMEOUT_MS - (Date.now() - startedAt);
 }
 
 function isMissingMicrovmError(error: unknown) {

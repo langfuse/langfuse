@@ -342,4 +342,67 @@ describe("in-app agent lambda microvm sandbox provider", () => {
     expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
     expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
   });
+
+  it("aborts a hung auth token request within the bridge readiness deadline", async () => {
+    vi.useFakeTimers();
+
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+
+    microvmSendMock.mockImplementation(
+      async (
+        command: { input: unknown },
+        options?: { abortSignal?: AbortSignal },
+      ) => {
+        if (
+          command.constructor.name === "RunMicrovmCommand" ||
+          command.constructor.name === "GetMicrovmCommand"
+        ) {
+          return {
+            microvmId: "microvm-1",
+            endpoint: "https://microvm.example.com:8443",
+            state: "RUNNING",
+          };
+        }
+
+        if (command.constructor.name === "CreateMicrovmAuthTokenCommand") {
+          return new Promise((_resolve, reject) => {
+            options?.abortSignal?.addEventListener(
+              "abort",
+              () => reject(options.abortSignal?.reason),
+              { once: true },
+            );
+          });
+        }
+
+        throw new Error(`Unexpected command ${command.constructor.name}`);
+      },
+    );
+
+    const { createLambdaMicrovmSandboxProvider } =
+      await import("@langfuse/shared/in-app-agent/server/sandbox/providers/lambdaMicrovm");
+    const provider = createLambdaMicrovmSandboxProvider({
+      imageIdentifier: "image-1",
+      executionRoleArn: "arn:aws:iam::123456789012:role/sandbox",
+      region: "us-east-1",
+    });
+
+    const ensureSession = provider.ensureSession({
+      conversationId: "conversation-1",
+    });
+    const rejection = expect(ensureSession).rejects.toThrow(
+      "Lambda MicroVM bridge auth token request timed out",
+    );
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await rejection;
+
+    const authTokenCall = microvmSendMock.mock.calls.find(
+      ([command]) =>
+        command.constructor.name === "CreateMicrovmAuthTokenCommand",
+    );
+    expect(authTokenCall?.[1]?.abortSignal).toBeInstanceOf(AbortSignal);
+    expect(authTokenCall?.[1]?.abortSignal?.aborted).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
