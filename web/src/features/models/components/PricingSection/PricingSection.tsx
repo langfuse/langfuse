@@ -7,9 +7,9 @@ import {
   derivePriorities,
   makeUsageTypeKeys,
 } from "@/src/features/models/formValues";
-import { TierAccordionItem } from "./TierAccordionItem";
-import { TierPriceEditor } from "./TierPriceEditor";
-import { TierPrefillButtons } from "./TierPrefillButtons";
+import { TierAccordionItem } from "./components/TierAccordionItem";
+import { TierPriceEditor } from "./components/TierPriceEditor";
+import { TierPrefillButtons } from "./components/TierPrefillButtons";
 import type { UseFormReturn } from "react-hook-form";
 import type { FormUpsertModel } from "@/src/features/models/validation";
 

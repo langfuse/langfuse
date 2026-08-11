@@ -49,7 +49,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/router";
 
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { PricingSection } from "./pricing-tiers/PricingSection";
+import { PricingSection } from "@/src/features/models/components/PricingSection/PricingSection";
 
 type UpsertModelDialogProps =
   | {
