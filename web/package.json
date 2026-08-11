@@ -134,7 +134,7 @@
     "langfuse": "3.38.4",
     "lodash": "^4.18.1",
     "lucide-react": "^0.552.0",
-    "nanoid": "3.3.16",
+    "nanoid": "3.3.17",
     "next": "16.2.11",
     "next-auth": "^4.24.14",
     "next-query-params": "^5.1.0",
