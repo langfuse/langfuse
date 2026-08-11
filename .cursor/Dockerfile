@@ -67,6 +67,12 @@ RUN mkdir -p /etc/docker \
     && update-alternatives --set iptables /usr/sbin/iptables-legacy \
     && update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
+# /run (and the /var/run symlink target) can land mode 0700 in nested Docker
+# VMs. Keep the directory searchable so the docker-group ubuntu user can reach
+# docker.sock. start-cursor-cloud.sh also repairs this at runtime after
+# `service docker start`, which may recreate a private /var/run.
+RUN chmod 755 /run /var/run 2>/dev/null || true
+
 RUN id -u ubuntu >/dev/null 2>&1 || useradd -m -s /bin/bash ubuntu \
     && groupadd -f docker \
     && usermod -aG docker,sudo ubuntu \
