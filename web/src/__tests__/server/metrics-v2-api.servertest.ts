@@ -542,13 +542,9 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     it.each([
       ["id", "observations"],
       ["traceId", "observations"],
-      ["userId", "observations"],
-      ["sessionId", "observations"],
       ["parentObservationId", "observations"],
       ["id", "scores-numeric"],
       ["traceId", "scores-numeric"],
-      ["userId", "scores-numeric"],
-      ["sessionId", "scores-numeric"],
       ["observationId", "scores-numeric"],
     ])(
       "should reject high cardinality dimension %s in %s view without LIMIT and ORDER DESC",

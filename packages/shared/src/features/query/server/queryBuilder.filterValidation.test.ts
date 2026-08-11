@@ -312,4 +312,27 @@ describe("legacy traces compatibility when routed through v2", () => {
       expect(validateQuery(query, "v2")).toEqual({ valid: true });
     },
   );
+
+  it.each([
+    ["observations", "userId"],
+    ["observations", "sessionId"],
+    ["scores-numeric", "userId"],
+    ["scores-numeric", "sessionId"],
+  ] as const)(
+    "allows %s %s time-series breakdowns in v2 without high-cardinality block",
+    (view, dimension) => {
+      const query = {
+        view,
+        dimensions: [{ field: dimension }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: { granularity: "auto" },
+        fromTimestamp: "2025-01-01T00:00:00.000Z",
+        toTimestamp: "2025-01-02T00:00:00.000Z",
+        orderBy: null,
+      } as QueryType;
+
+      expect(validateQuery(query, "v2")).toEqual({ valid: true });
+    },
+  );
 });

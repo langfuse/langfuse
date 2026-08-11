@@ -144,7 +144,7 @@ function validateEntityDimension(
  * Validates a query for safety before execution.
  * Performs sanity checks for high cardinality dimension validation.
  *
- * High cardinality dimensions (id, traceId, userId, sessionId, etc.) are only allowed when:
+ * High cardinality dimensions (id, traceId, observationId, etc.) are only allowed when:
  * 1. timeDimension is NOT set (timeseries with high cardinality produces unbounded results)
  * 2. config.row_limit (or chartConfig.row_limit) is explicitly specified (LIMIT)
  * 3. orderBy with direction 'desc' on a measure field is specified (for top-N queries)

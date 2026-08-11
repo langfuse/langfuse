@@ -4485,7 +4485,7 @@ describe("validateQuery", () => {
   it("should return invalid when high cardinality dimension is used without ORDER DESC", () => {
     const query: QueryType = {
       ...baseQuery,
-      dimensions: [{ field: "userId" }], // high cardinality
+      dimensions: [{ field: "traceId" }], // high cardinality
       chartConfig: { type: "table", row_limit: 10 },
       orderBy: [{ field: "sum_totalCost", direction: "asc" }], // asc, not desc
     };
@@ -4494,7 +4494,7 @@ describe("validateQuery", () => {
 
     expect(result.valid).toBe(false);
     expect((result as { valid: false; reason: string }).reason).toContain(
-      "High cardinality dimension(s) 'userId'",
+      "High cardinality dimension(s) 'traceId'",
     );
     expect((result as { valid: false; reason: string }).reason).toContain(
       "require both 'config.row_limit' and 'orderBy' with direction 'desc'",
@@ -4554,7 +4554,7 @@ describe("validateQuery", () => {
   it("should return invalid for multiple high cardinality dimensions without required config", () => {
     const query: QueryType = {
       ...baseQuery,
-      dimensions: [{ field: "traceId" }, { field: "sessionId" }], // both high cardinality
+      dimensions: [{ field: "traceId" }, { field: "id" }], // both high cardinality
       // missing row_limit and orderBy desc
     };
 
@@ -4564,9 +4564,7 @@ describe("validateQuery", () => {
     expect((result as { valid: false; reason: string }).reason).toContain(
       "traceId",
     );
-    expect((result as { valid: false; reason: string }).reason).toContain(
-      "sessionId",
-    );
+    expect((result as { valid: false; reason: string }).reason).toContain("id");
   });
 
   it("should support public API 'config' field name for row_limit", () => {
@@ -4639,6 +4637,34 @@ describe("validateQuery", () => {
 
     expect(result).toEqual({ valid: true });
   });
+
+  it.each(["userId", "sessionId"] as const)(
+    "should allow %s time-series breakdowns on observations (not high-cardinality)",
+    (field) => {
+      const query: QueryType = {
+        ...baseQuery,
+        dimensions: [{ field }],
+        timeDimension: { granularity: "day" },
+      };
+
+      expect(validateQuery(query, "v2")).toEqual({ valid: true });
+    },
+  );
+
+  it.each(["userId", "sessionId"] as const)(
+    "should allow %s time-series breakdowns on scores-numeric (not high-cardinality)",
+    (field) => {
+      const query: QueryType = {
+        ...baseQuery,
+        view: "scores-numeric",
+        dimensions: [{ field }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        timeDimension: { granularity: "day" },
+      };
+
+      expect(validateQuery(query, "v2")).toEqual({ valid: true });
+    },
+  );
 });
 
 describe("getValidAggregationsForMeasureType", () => {

@@ -718,12 +718,15 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
 
 // v2 scores dimensions
 const scoresV2BaseDimensions: DimensionsDeclarationType = {
+  // Keep sessionId/userId cardinality aligned with v1 and events_traces: these
+  // are common widget breakdowns (including time series). Do not mark them
+  // highCardinality — that hard-blocks timeDimension queries even for small
+  // projects. Truly unbounded ids (traceId, observationId, …) stay flagged below.
   sessionId: {
     sql: "scores.session_id",
     alias: "sessionId",
     type: "string",
     description: "Identifier of the session.",
-    highCardinality: true,
   },
   // Run-level scores (dataset_run_id on scores table). Used by experiment
   // widgets via entityDimension + filters.
@@ -749,7 +752,6 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     type: "string",
     relationTable: "events_traces",
     description: "Identifier of the user.",
-    highCardinality: true,
   },
   tags: {
     sql: "events_traces.tags",
@@ -1171,20 +1173,22 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description: "Version of the observation.",
     },
-    // Denormalized trace fields from events table
+    // Denormalized trace fields from events table.
+    // Keep userId/sessionId cardinality aligned with v1: widgets commonly break
+    // down time series by these fields, and highCardinality would hard-block
+    // those queries even when cardinality is small. Unbounded identifiers
+    // (id/traceId/parentObservationId) remain highCardinality + uiHidden above.
     userId: {
       sql: "nullIf(events_observations.user_id, '')",
       alias: "userId",
       type: "string",
       description: "Identifier of the user triggering the observation.",
-      highCardinality: true,
     },
     sessionId: {
       sql: "nullIf(events_observations.session_id, '')",
       alias: "sessionId",
       type: "string",
       description: "Identifier of the session triggering the observation.",
-      highCardinality: true,
     },
     tags: {
       sql: "events_observations.tags",

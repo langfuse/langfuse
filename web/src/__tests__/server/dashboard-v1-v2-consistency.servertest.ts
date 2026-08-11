@@ -693,7 +693,7 @@ describe("dashboard v1 vs v2 consistency", () => {
           },
         ],
         timeDimension: null,
-        // userId is high-cardinality in v2, so we need orderBy + row_limit
+        // Cap to a stable top-N so v1/v2 comparisons stay bounded.
         orderBy: [{ field: "sum_totalCost", direction: "desc" }],
         chartConfig: { type: "table", row_limit: 100 },
         fromTimestamp: from,
