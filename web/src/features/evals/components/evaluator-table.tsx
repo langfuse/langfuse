@@ -204,6 +204,20 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         );
       },
     }),
+    columnHelper.accessor("isLegacy", {
+      id: "isLegacy",
+      header: "Eval Version",
+      size: 180,
+      enableHiding: true,
+      loadingCell: <TableBadgeLoadingCell />,
+      cell: (row) => {
+        // Set by useEvaluatorTableData only for active legacy evaluators with
+        // a NEW time scope — the ones that actually require migration.
+        if (!row.row.original.isLegacy) return null;
+
+        return <DeprecatedChipCell />;
+      },
+    }),
     columnHelper.accessor("totalCost", {
       header: "Total Cost (7d)",
       id: "totalCost",
@@ -293,20 +307,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Updated At",
       enableSorting: true,
       size: 150,
-    }),
-    columnHelper.accessor("isLegacy", {
-      id: "isLegacy",
-      header: "Eval Version",
-      size: 180,
-      enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: (row) => {
-        // Set by useEvaluatorTableData only for active legacy evaluators with
-        // a NEW time scope — the ones that actually require migration.
-        if (!row.row.original.isLegacy) return null;
-
-        return <DeprecatedChipCell />;
-      },
     }),
     columnHelper.accessor("target", {
       id: "target",
