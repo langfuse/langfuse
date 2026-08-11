@@ -28,7 +28,7 @@ export const InAppAgentRunStatusSchema = z.enum(InAppAgentRunStatus);
  * tolerate unknown strings rather than parse against this enum.
  */
 export enum InAppAgentRunErrorCode {
-  /** Unfinished run lazily closed because its foreground stream died. */
+  /** Retained so persisted run errors remain readable. */
   STALE = "stale",
   /** Client aborted the request. */
   CANCELLED = "cancelled",
