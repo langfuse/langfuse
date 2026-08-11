@@ -138,6 +138,9 @@ export function InAppAgentWindowHost() {
           <InAppAgentWindowShell
             floatingPanelHandle={floatingPanelHandle}
             isExpanded={isExpanded}
+            onClose={() => {
+              setOpen(false);
+            }}
             panelRef={panelRef}
           >
             {({ isHeaderDragHandleEnabled }) => (

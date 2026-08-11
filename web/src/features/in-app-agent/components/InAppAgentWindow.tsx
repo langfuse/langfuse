@@ -35,7 +35,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
-import { useIsMobile } from "@/src/hooks/use-mobile";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { formatApproximateDuration } from "@/src/utils/dates";
 import {
   InAppAgentMessage,
@@ -400,8 +400,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
   );
   const capture = usePostHogClientCapture();
-  // No auto-focus on mobile — it springs the keyboard and buries the panel.
-  const isMobile = useIsMobile();
+  // A phone renders the assistant full-screen (see InAppAgentWindowShell), so
+  // it drops the window chrome and never auto-focuses — that springs the
+  // keyboard over the conversation.
+  const isHandheld = useIsHandheld();
   const isRateLimited = isInAppAgentRateLimited(error);
   const isComposerDisabled = isConversationInteractionDisabled;
   const isSubmitDisabled =
@@ -506,13 +508,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         ((previousIsInputDisabledRef.current && !isComposerDisabled) ||
           (previousIsAssistantTurnInProgressRef.current &&
             !isAssistantTurnInProgress)) &&
-        !isMobile;
+        !isHandheld;
 
       if (input && shouldRefocusInput) {
         input.focus();
       }
     },
-    [isAssistantTurnInProgress, isComposerDisabled, isMobile],
+    [isAssistantTurnInProgress, isComposerDisabled, isHandheld],
   );
 
   useEffect(() => {
@@ -529,7 +531,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   return (
     <section
       aria-label="Assistant"
-      className="bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5"
+      className={cn(
+        "bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
+        // Full-bleed on mobile: the drawer owns the edge, so drop the window chrome.
+        isHandheld && "rounded-none border-0 shadow-none",
+      )}
     >
       <header
         data-in-app-agent-window-drag-handle={
@@ -669,29 +675,32 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Tooltip delayDuration={100} disableHoverableContent>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-6"
-                aria-label={isExpanded ? "Collapse window" : "Expand window"}
-                onClick={() => {
-                  onExpandedChange(!isExpanded);
-                }}
-              >
-                {isExpanded ? (
-                  <Minimize2 className="size-3" />
-                ) : (
-                  <Maximize2 className="size-3" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isExpanded ? "Collapse window" : "Expand window"}
-            </TooltipContent>
-          </Tooltip>
+          {/* Mobile is always full-screen, so there is nothing to expand. */}
+          {!isHandheld ? (
+            <Tooltip delayDuration={100} disableHoverableContent>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  aria-label={isExpanded ? "Collapse window" : "Expand window"}
+                  onClick={() => {
+                    onExpandedChange(!isExpanded);
+                  }}
+                >
+                  {isExpanded ? (
+                    <Minimize2 className="size-3" />
+                  ) : (
+                    <Maximize2 className="size-3" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isExpanded ? "Collapse window" : "Expand window"}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
           {props.showCloseButton !== false ? (
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>
@@ -714,7 +723,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div
           ref={viewportRef}
-          className="min-h-0 flex-1 overflow-y-auto"
+          // `overscroll-contain`: the conversation is the only scroller, so its
+          // rubber-band must not chain out to whatever is behind it.
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
           onScroll={(event) => {
             const viewport = event.currentTarget;
             const distanceFromBottom =
@@ -972,7 +983,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             }}
           >
             <textarea
-              autoFocus={!isExpanded && !isMobile}
+              autoFocus={!isExpanded && !isHandheld}
               ref={setInputRef}
               value={input}
               onChange={(event) => {

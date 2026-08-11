@@ -8,6 +8,8 @@ import {
   type MovableResizablePanelSize,
   useMovableResizablePanelControl,
 } from "@/src/components/movable-resizable-panel";
+import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
 
 const IN_APP_AGENT_WINDOW_SHELL_BOUNDS_PADDING_PX = 8;
 const IN_APP_AGENT_WINDOW_SHELL_DEFAULT_WIDTH_PX = 448;
@@ -62,6 +64,7 @@ type InAppAgentWindowShellProps = {
   children: (props: { isHeaderDragHandleEnabled: boolean }) => ReactNode;
   floatingPanelHandle: MovableResizablePanelHandle;
   isExpanded: boolean;
+  onClose: () => void;
   panelRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -69,8 +72,41 @@ export function InAppAgentWindowShell({
   children,
   floatingPanelHandle,
   isExpanded,
+  onClose,
   panelRef,
 }: InAppAgentWindowShellProps) {
+  const isHandheld = useIsHandheld();
+
+  // A phone has one presentation: the whole screen below the banner. A real
+  // (Vaul) modal drawer — the same treatment as the support / migration
+  // drawers — so the page behind is scroll-locked and there is exactly one
+  // scroller, and never the movable panel (drag/resize is meaningless on
+  // touch). `h-auto` drops the drawer's default height so top/bottom anchoring
+  // owns the geometry; Vaul still overrides the height to dodge the on-screen
+  // keyboard.
+  if (isHandheld) {
+    return (
+      <Drawer
+        open
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            onClose();
+          }
+        }}
+        forceDirection="bottom"
+      >
+        <DrawerContent
+          id="in-app-agent-drawer"
+          size="full"
+          className="top-banner-offset inset-x-0 bottom-0 h-auto rounded-none border-0"
+        >
+          <DrawerTitle className="sr-only">Assistant</DrawerTitle>
+          {children({ isHeaderDragHandleEnabled: false })}
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
   if (!isExpanded && !floatingPanelHandle.geometry) {
     return null;
   }
