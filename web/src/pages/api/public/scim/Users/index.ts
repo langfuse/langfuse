@@ -172,16 +172,16 @@ export default async function handler(
         }
       }
 
-      // A `password` in the request body is accepted and ignored (LFINT-1989).
-      // Setting it created a usable login credential for an email address
-      // nobody had verified, so an org-scoped key could pre-register an
-      // account for someone else's address. Ignoring rather than rejecting is
-      // deliberate: RFC 7644 3.3 lets a service provider ignore POSTed
-      // content, the attribute is `returned: "never"` so no conformant client
-      // can observe the difference, and Okta sends a placeholder password on
-      // every create even when password sync is disabled — rejecting it would
-      // break those syncs. Users authenticate via SSO, or claim the account
-      // through the password-reset flow.
+      // A `password` in the request body is accepted and ignored. Setting it
+      // created a usable login credential for an email address nobody had
+      // verified, so an org-scoped key could pre-register an account for
+      // someone else's address. Ignoring rather than rejecting is deliberate:
+      // RFC 7644 3.3 lets a service provider ignore POSTed content, the
+      // attribute is `returned: "never"` so no conformant client can observe
+      // the difference, and Okta sends a placeholder password on every create
+      // even when password sync is disabled — rejecting it would break those
+      // syncs. Users authenticate via SSO, or claim the account through the
+      // password-reset flow.
       const { userName, name, displayName, roles } = body;
 
       if (!userName) {

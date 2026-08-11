@@ -227,7 +227,7 @@ describe("SCIM API", () => {
         "urn:ietf:params:scim:schemas:core:2.0:User",
       );
       // `password` must not be advertised: schema discovery is how a SCIM
-      // client learns the attribute is unsupported (LFINT-1989).
+      // client learns the attribute is unsupported.
       const attributeNames = response.body.Resources[0].attributes.map(
         (attribute) => (attribute as { name: string }).name,
       );
@@ -523,9 +523,9 @@ describe("SCIM API", () => {
         expect(user?.email).toBe(uniqueEmail);
         expect(user?.name).toBe("Test User With Password");
         // The password attribute is ignored, so the account has no usable
-        // credential and cannot be signed into with the supplied value
-        // (LFINT-1989). Okta sends a placeholder password on every create, so
-        // the request must still succeed rather than 4xx.
+        // credential and cannot be signed into with the supplied value. Okta
+        // sends a placeholder password on every create, so the request must
+        // still succeed rather than 4xx.
         expect(user?.password).toBeNull();
       });
 
