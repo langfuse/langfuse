@@ -10,6 +10,18 @@ export const eventsTableIsRootObservationSql =
 export const eventsTableTraceNameSqlForAlias = (alias: string) =>
   `COALESCE(nullIf(${alias}.trace_name, ''), if(${eventsTableIsRootObservationSqlForAlias(alias)}, nullIf(${alias}.name, ''), NULL))`;
 export const eventsTableTraceNameSql = eventsTableTraceNameSqlForAlias("e");
+// Row-projection variant. The fallback above is Nullable(String), but
+// events_core.trace_name is a non-null String. Projecting the nullable
+// expression under the column's own name while a filter reads the physical
+// column puts two `trace_name` headers of different types into one pipeline,
+// and ClickHouse 25.x rejects that with AMBIGUOUS_COLUMN_NAME (code 352) as
+// soon as the query also sorts (LFE-14924). Matching the stored String type
+// keeps the alias — an export/stream wire name — stable. "no trace name" is
+// therefore '' on the wire; JS consumers map it back to null.
+export const eventsTableTraceNameSelectSqlForAlias = (alias: string) =>
+  `ifNull(${eventsTableTraceNameSqlForAlias(alias)}, '')`;
+export const eventsTableTraceNameSelectSql =
+  eventsTableTraceNameSelectSqlForAlias("e");
 export const eventsTableTraceNameAggregationSqlForAlias = (alias: string) =>
   `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, ${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> ''), ''))`;
 export const eventsTableTraceNameAggregationSql =

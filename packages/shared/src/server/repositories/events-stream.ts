@@ -100,6 +100,9 @@ export const getEventsStreamForEval = async (props: {
           ...row,
           span_id: row.id,
           parent_span_id: row.parent_observation_id,
+          // The events table ships "no trace name" as '' (see
+          // eventsTableTraceNameSelectSql); evals expect null.
+          trace_name: row.trace_name || null,
         };
       }
     })(),
