@@ -173,7 +173,11 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-appear: appear 0.2s ease-out forwards;
-  --animate-table-refetch: table-refetch 1.1s ease-in-out infinite;
+  /* The sweep runs from the element's first frame; the one-shot fade rides on
+     top of it, so the bar never appears mid-sweep at full opacity. */
+  --animate-table-refetch:
+    table-refetch 1.1s ease-in-out infinite,
+    table-refetch-fade-in 200ms ease-out;
 
   /* Sweeps a highlight along the table's refetch bar. Animates
      background-position (not a transform) so the bar can never overflow its
@@ -185,6 +189,12 @@
 
     to {
       background-position: 100% 0;
+    }
+  }
+
+  @keyframes table-refetch-fade-in {
+    from {
+      opacity: 0;
     }
   }
 

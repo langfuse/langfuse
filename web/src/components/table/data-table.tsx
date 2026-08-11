@@ -434,18 +434,9 @@ export function DataTable<TData extends object, TValue>({
               per busy period, not per fetch: one sweep from the left per
               refresh, and no restart between a refresh's stages. */}
           <div className="sticky top-0 z-30 h-0">
-            <div
+            <TableRefetchBar
               key={refetchBar.epoch}
-              aria-hidden="true"
-              className={cn(
-                // The fade uses an arbitrary transition, not `duration-*`:
-                // that utility sets --tw-duration, which `animate-*` reads as
-                // its animation-duration too, and turned the sweep into a strobe.
-                "from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat [transition:opacity_200ms_ease-out]",
-                refetchBar.active && !data.isLoading
-                  ? "opacity-100"
-                  : "opacity-0 [animation-play-state:paused]",
-              )}
+              active={refetchBar.active && !data.isLoading}
             />
           </div>
           <Table>
@@ -642,6 +633,34 @@ export function DataTable<TData extends object, TValue>({
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * The thin bar shown while a fetch runs over rows that are already on screen.
+ * Both edges are soft: the sweep is already running when the bar fades in (a
+ * one-shot fade rides on the sweep animation), and on the way out it fades
+ * first and only stops animating once that fade has finished. Mounted once per
+ * busy period — the caller keys it — so the sweep always starts from the left.
+ */
+function TableRefetchBar({ active }: { active: boolean }) {
+  const [stopped, setStopped] = useState(false);
+
+  return (
+    <div
+      aria-hidden="true"
+      onTransitionEnd={(event) => {
+        if (event.propertyName === "opacity" && !active) setStopped(true);
+      }}
+      className={cn(
+        // The fade-out uses an arbitrary transition, not `duration-*`: that
+        // utility sets --tw-duration, which `animate-*` reads as its
+        // animation-duration too, and turned the sweep into a strobe.
+        "from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat [transition:opacity_200ms_ease-out]",
+        active ? "opacity-100" : "opacity-0",
+        stopped && "[animation-play-state:paused]",
+      )}
+    />
   );
 }
 
