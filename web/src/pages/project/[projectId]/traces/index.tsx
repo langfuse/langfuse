@@ -11,6 +11,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { ProjectMemberNames } from "@/src/features/rbac/components/ProjectMemberNames";
 
 export default function Traces() {
   const router = useRouter();
@@ -61,6 +62,9 @@ export default function Traces() {
       headerProps={{
         title: "Tracing",
         titleBadges: <V4MigrationDelayBadge />,
+        breadcrumbBadges: isBetaEnabled ? (
+          <ProjectMemberNames projectId={projectId} />
+        ) : undefined,
         help: {
           description: (
             <>
