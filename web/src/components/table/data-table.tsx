@@ -407,7 +407,8 @@ export function DataTable<TData extends object, TValue>({
 
   // Held for whole sweeps of the bar's animation: a 200ms refetch would
   // otherwise flash a single frame.
-  const refetchBar = useAnimatedBusy(isFetching, 1100);
+  // Cycle length matches the sweep, so a held refresh ends on a whole sweep.
+  const refetchBar = useAnimatedBusy(isFetching, 1400);
 
   const tableHeaders = shouldRenderGroupHeaders
     ? table.getHeaderGroups()
@@ -653,10 +654,13 @@ function TableRefetchBar({ active }: { active: boolean }) {
         if (event.propertyName === "opacity" && !active) setStopped(true);
       }}
       className={cn(
+        // A faint full-width track under the moving highlight: without it the
+        // bar is invisible whenever the highlight is between sweeps, which is
+        // what made it read as blinking rather than loading.
         // The fade-out uses an arbitrary transition, not `duration-*`: that
         // utility sets --tw-duration, which `animate-*` reads as its
         // animation-duration too, and turned the sweep into a strobe.
-        "from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat [transition:opacity_200ms_ease-out]",
+        "bg-primary-accent/20 from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat [transition:opacity_200ms_ease-out]",
         active ? "opacity-100" : "opacity-0",
         stopped && "[animation-play-state:paused]",
       )}

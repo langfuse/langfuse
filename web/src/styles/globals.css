@@ -176,19 +176,24 @@
   /* The sweep runs from the element's first frame; the one-shot fade rides on
      top of it, so the bar never appears mid-sweep at full opacity. */
   --animate-table-refetch:
-    table-refetch 1.1s ease-in-out infinite,
-    table-refetch-fade-in 200ms ease-out;
+    table-refetch 1.4s linear infinite, table-refetch-fade-in 200ms ease-out;
 
   /* Sweeps a highlight along the table's refetch bar. Animates
      background-position (not a transform) so the bar can never overflow its
-     scroll container. */
+     scroll container.
+
+     The range runs past both edges: background-position percentages resolve
+     against (container - image), so with a 40%-wide highlight it clears the
+     container at -67%/167%. Ending outside means the jump back to the start is
+     never visible — inside the box it would read as a blink every cycle. Linear,
+     because eased motion makes that wrap even more obvious. */
   @keyframes table-refetch {
     from {
-      background-position: 0% 0;
+      background-position: -70% 0;
     }
 
     to {
-      background-position: 100% 0;
+      background-position: 170% 0;
     }
   }
 
