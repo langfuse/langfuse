@@ -147,8 +147,8 @@ describe("in-app agent persistence", () => {
       userId: params.userId,
     });
 
-  // Persistence tests control their exact event rows, so create only the
-  // claimed run record here and exercise lifecycle behavior in its own suite.
+  // Create only the claimed run record so persistence tests can control their
+  // exact event rows while exercising transitions through lifecycle APIs.
   const createClaimedRunFixture = async (params: {
     projectId: string;
     conversationId: string;
