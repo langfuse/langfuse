@@ -282,11 +282,11 @@ const inputProjectSchema = z.object({
   projectId: z.string(),
 });
 
-const scheduleBackendActivity = (
+const trackPosthogActivity = (
   activity: Parameters<typeof recordBackendActivity>[0],
 ) => {
   recordBackendActivity(activity).catch((error) => {
-    logger.warn("Failed to schedule backend activity", { error });
+    logger.warn("Failed to track PostHog activity", { error });
   });
 };
 
@@ -340,7 +340,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         projectId,
         orgId: dbProject.orgId,
       });
-      scheduleBackendActivity({
+      trackPosthogActivity({
         userId: ctx.session.user.id,
         organizationId: dbProject.orgId,
         projectId,
@@ -375,7 +375,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     });
   }
 
-  scheduleBackendActivity({
+  trackPosthogActivity({
     userId: ctx.session.user.id,
     organizationId: sessionProject.organization.id,
     projectId,
@@ -476,7 +476,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     });
   }
 
-  scheduleBackendActivity({
+  trackPosthogActivity({
     userId: ctx.session.user.id,
     organizationId: orgId,
   });
