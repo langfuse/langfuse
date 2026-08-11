@@ -40,18 +40,41 @@ const OpenAIInputMessagesSchema = z
     { message: "Messages with top-level parts are not OpenAI format" },
   );
 
-// Role-less item types normalizeMessage converts. Role-less items with other
-// types (e.g. LangChain's "human"/"ai") are not Responses API items.
+// Role-less Responses input item types. normalizeMessage converts the common
+// conversation items and preserves built-in tool items as JSON passthrough.
+// Reference: https://platform.openai.com/docs/api-reference/responses/create
 const RESPONSES_ITEM_TYPES = new Set([
   "reasoning",
   "function_call",
   "tool_call",
   "function_call_output",
+  "file_search_call",
+  "computer_call",
+  "computer_call_output",
+  "web_search_call",
+  "code_interpreter_call",
+  "image_generation_call",
+  "local_shell_call",
+  "local_shell_call_output",
+  "shell_call",
+  "shell_call_output",
+  "apply_patch_call",
+  "apply_patch_call_output",
+  "mcp_list_tools",
+  "mcp_approval_request",
+  "mcp_approval_response",
+  "mcp_call",
+  "custom_tool_call",
+  "custom_tool_call_output",
+  "tool_search_call",
+  "tool_search_output",
+  "compaction",
+  "item_reference",
 ]);
 
 /**
  * Check that a Responses API request `input` array holds role-based messages
- * or typed items normalizeMessage handles. Rejects string items
+ * or typed Responses items normalizeMessage converts or preserves. Rejects string items
  * (embeddings-style input) and messages with top-level parts (Microsoft
  * Agent/Gemini format).
  */
@@ -130,7 +153,8 @@ const OpenAIOutputSingleMessageSchema = z.looseObject({
  * Format: { type: "reasoning", content: [...], summary: [...] }
  */
 function extractReasoningContent(item: Record<string, unknown>): {
-  thinking: Array<{ type: "thinking"; content: string; summary?: string }>;
+  thinking?: Array<{ type: "thinking"; content: string; summary?: string }>;
+  redacted_thinking?: Array<{ type: "redacted_thinking"; data: string }>;
 } | null {
   if (item.type !== "reasoning") return null;
 
@@ -161,7 +185,19 @@ function extractReasoningContent(item: Record<string, unknown>): {
     .filter(Boolean)
     .join("\n");
 
-  if (!contentText && !summaryText) return null;
+  if (!contentText && !summaryText) {
+    return typeof item.encrypted_content === "string" &&
+      item.encrypted_content !== ""
+      ? {
+          redacted_thinking: [
+            {
+              type: "redacted_thinking",
+              data: item.encrypted_content,
+            },
+          ],
+        }
+      : null;
+  }
 
   return {
     thinking: [
@@ -348,6 +384,17 @@ function flattenToolDefinition(tool: unknown): Record<string, unknown> {
   return toolDef;
 }
 
+function normalizeMessagesWithTools(
+  messages: unknown[],
+  tools: unknown[],
+): Array<Record<string, unknown>> {
+  const normalizedTools = tools.map(flattenToolDefinition);
+  return messages.map((message) => ({
+    ...normalizeMessage(message),
+    tools: normalizedTools,
+  }));
+}
+
 function preprocessData(data: unknown): unknown {
   if (!data) return data;
 
@@ -366,10 +413,7 @@ function preprocessData(data: unknown): unknown {
 
     if (Array.isArray(messagesArray) && Array.isArray(obj.tools)) {
       // Attach tools to all messages
-      return messagesArray.map((msg) => ({
-        ...normalizeMessage(msg),
-        tools: (obj.tools as unknown[]).map(flattenToolDefinition),
-      }));
+      return normalizeMessagesWithTools(messagesArray, obj.tools);
     }
   }
 
@@ -396,12 +440,13 @@ function preprocessData(data: unknown): unknown {
         : (data.input as unknown[]);
     const messages =
       typeof data.instructions === "string" && data.instructions !== ""
-        ? [{ role: "system", content: data.instructions }, ...items]
+        ? (
+            [{ role: "system", content: data.instructions }] as unknown[]
+          ).concat(items)
         : items;
     if (Array.isArray(data.tools)) {
       // Attach tools to all messages
-      const tools = (data.tools as unknown[]).map(flattenToolDefinition);
-      return messages.map((msg) => ({ ...normalizeMessage(msg), tools }));
+      return normalizeMessagesWithTools(messages, data.tools);
     }
     return messages.map(normalizeMessage);
   }
@@ -590,5 +635,13 @@ export const openAIAdapter: ProviderAdapter = {
     _ctx: NormalizerContext,
   ): unknown {
     return preprocessData(data);
+  },
+
+  getConsumedInputKeys(data: unknown): string[] {
+    if (!isOpenAIResponsesRequest(data)) return [];
+
+    return typeof data.instructions === "string" && data.instructions !== ""
+      ? ["input", "instructions"]
+      : ["input"];
   },
 };

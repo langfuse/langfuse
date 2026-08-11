@@ -11,7 +11,6 @@ import {
   ChatMlMessageSchema,
 } from "../IORepresentation/chatML/types";
 import { selectAdapter, type NormalizerContext } from "./adapters";
-import { isOpenAIResponsesRequest } from "./adapters/openai";
 
 type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
@@ -85,14 +84,15 @@ export function cleanLegacyOutput(output: unknown, fallback?: unknown) {
 export function extractAdditionalInput(
   input: unknown,
 ): Record<string, unknown> | undefined {
+  const adapter = selectAdapter({ metadata: input, data: input });
+  const consumedInputKeys = new Set(
+    ["messages"].concat(adapter.getConsumedInputKeys?.(input) ?? []),
+  );
   const additionalInput =
     typeof input === "object" && input !== null && !Array.isArray(input)
       ? Object.fromEntries(
           Object.entries(input as object).filter(
-            ([key]) =>
-              key !== "messages" &&
-              // `input` holds the conversation only in Responses API requests
-              !(key === "input" && isOpenAIResponsesRequest(input)),
+            ([key]) => !consumedInputKeys.has(key),
           ),
         )
       : undefined;

@@ -425,6 +425,14 @@ describe("OpenAI Adapter", () => {
       expect(result.data?.[1].role).toBe("user");
       expect(Array.isArray(result.data?.[1].content)).toBe(true);
 
+      // Encrypted-only reasoning renders as redacted thinking, not a roleless
+      // JSON bubble.
+      expect(result.data?.[2].role).toBe("assistant");
+      expect(result.data?.[2].content).toBe("");
+      expect(result.data?.[2].redacted_thinking).toEqual([
+        { type: "redacted_thinking", data: "gAAAAA..." },
+      ]);
+
       // function_call item converted to assistant message with tool_calls
       expect(result.data?.[3].role).toBe("assistant");
       expect(result.data?.[3].tool_calls?.[0]).toEqual({
@@ -492,6 +500,36 @@ describe("OpenAI Adapter", () => {
       );
     });
 
+    it("should handle built-in tool items in a Responses API conversation", () => {
+      const input = {
+        input: [
+          { role: "user", content: "Search for the latest policy" },
+          {
+            type: "web_search_call",
+            id: "ws_123",
+            status: "completed",
+            action: { type: "search", query: "latest expense policy" },
+          },
+        ],
+      };
+
+      expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(true);
+
+      const result = normalizeInput(input, {});
+
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(2);
+      expect(result.data?.[0].role).toBe("user");
+      expect(result.data?.[1]).toMatchObject({
+        type: "web_search_call",
+        json: {
+          id: "ws_123",
+          status: "completed",
+          action: { type: "search", query: "latest expense policy" },
+        },
+      });
+    });
+
     it("should map string input with a tools sibling to a user message", () => {
       // langfuse-python logs {input: "...", tools, ...} when tool fields are set
       const input = {
@@ -529,6 +567,8 @@ describe("OpenAI Adapter", () => {
       );
       expect(result.data?.[1].role).toBe("user");
       expect(result.data?.[1].content).toBe("Can I expense a $50 team lunch?");
+
+      expect(extractAdditionalInput(input)).toEqual({});
     });
 
     it("should not claim bare string input without request siblings", () => {
