@@ -247,6 +247,20 @@ Always fetch pricing from the provider's official docs before editing.
   `o4-mini-2025-04-16`), explicitly confirm which table a fetched price came from before
   applying it to the bare (non-`ft:`) entry — a summarizer can silently pick either table
   when both rows share the same model name.
+- **`gpt-5-chat-latest` mislabeled "deprecated" on the models/all overview page (confirmed
+  false August 11 2026)** — A WebFetch summary of
+  `https://developers.openai.com/api/docs/models/all` reported `gpt-5-chat-latest` as
+  "Confirmed listed as deprecated, with no pricing shown." A follow-up targeted fetch of its
+  own dedicated page (`https://developers.openai.com/api/docs/models/gpt-5-chat-latest`)
+  found **no deprecation notice, shutdown date, or retirement status**, and confirmed active
+  pricing unchanged at $1.25/MTok input, $0.125/MTok cached input, $10.00/MTok output —
+  matching the pricing file exactly. This model has no dated snapshot and is easy to
+  mis-scan on catalog/overview pages that emphasize dated releases; the overview page's
+  "deprecated"-sounding categorization appears to be a summarizer artifact of the page
+  layout, not an official deprecation notice. Lesson: never treat a catalog/overview page's
+  categorization of an undated alias model as a deprecation signal — always confirm
+  deprecation status and pricing via the model's own dedicated page, consistent with the
+  existing `gpt-5-chat-latest` guidance above.
 
 Capture:
 
