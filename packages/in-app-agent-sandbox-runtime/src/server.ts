@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import {
   createServer,
@@ -6,6 +5,8 @@ import {
   type ServerResponse,
 } from "node:http";
 import path from "node:path";
+
+import { runCommand } from "./command.js";
 
 import {
   SandboxFileSchema,
@@ -292,102 +293,6 @@ async function terminateHook(requestId: string) {
 async function ensureWorkspaceRoots() {
   await mkdir(WORKSPACE_ROOT, { recursive: true });
   await mkdir(TOOL_CALLS_ROOT, { recursive: true });
-}
-
-function runCommand(
-  command: string,
-  timeoutMs: number | undefined,
-  requestId: string,
-) {
-  return new Promise<{
-    stdout: string;
-    stderr: string;
-    exitCode: number;
-    startedAt: string;
-    completedAt: string;
-  }>((resolve, reject) => {
-    const child = spawn("sh", ["-lc", command], { cwd: WORKSPACE_ROOT });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const startedAt = new Date().toISOString();
-    const startedAtMs = Date.now();
-
-    logSandboxServer("bash.start", {
-      requestId,
-      pid: child.pid ?? null,
-      command,
-      timeoutMs: timeoutMs ?? null,
-    });
-
-    child.stdout.on("data", (chunk: Buffer | string) => {
-      stdout += chunk.toString("utf8");
-    });
-    child.stderr.on("data", (chunk: Buffer | string) => {
-      stderr += chunk.toString("utf8");
-    });
-    child.on("error", (error) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      logSandboxServer("bash.error", {
-        requestId,
-        pid: child.pid ?? null,
-        durationMs: Date.now() - startedAtMs,
-        error: error.message,
-      });
-      reject(error);
-    });
-
-    const timeoutId =
-      timeoutMs === undefined
-        ? undefined
-        : setTimeout(() => {
-            if (settled) {
-              return;
-            }
-
-            settled = true;
-            child.kill("SIGKILL");
-            resolve({
-              stdout,
-              stderr: `${stderr}Sandbox command timed out after ${timeoutMs}ms`,
-              exitCode: 124,
-              startedAt,
-              completedAt: new Date().toISOString(),
-            });
-          }, timeoutMs);
-
-    child.on("close", (code) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-
-      logSandboxServer("bash.processComplete", {
-        requestId,
-        pid: child.pid ?? null,
-        exitCode: code ?? 1,
-        durationMs: Date.now() - startedAtMs,
-        stdoutBytes: Buffer.byteLength(stdout, "utf8"),
-        stderrBytes: Buffer.byteLength(stderr, "utf8"),
-      });
-
-      resolve({
-        stdout,
-        stderr,
-        exitCode: code ?? 1,
-        startedAt,
-        completedAt: new Date().toISOString(),
-      });
-    });
-  });
 }
 
 function logSandboxServer(event: string, details?: Record<string, unknown>) {
