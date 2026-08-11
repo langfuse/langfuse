@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { parseMetadataCHRecordToDomain } from "../../../packages/shared/src/server/utils/metadata_conversion";
+import { getEventsStreamForDataset } from "../features/database-read-stream/event-stream";
 
 const chainableQueryBuilder = {
   selectFieldSet: vi.fn().mockReturnThis(),
@@ -29,8 +30,6 @@ vi.mock("@langfuse/shared/src/server", () => ({
   queryClickhouseStream: mocks.queryClickhouseStream,
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
-
-import { getEventsStreamForDataset } from "../features/database-read-stream/event-stream";
 
 describe("getEventsStreamForDataset metadata parsing", () => {
   it("parses JSON-string metadata values into objects/arrays, like the read API does", async () => {
