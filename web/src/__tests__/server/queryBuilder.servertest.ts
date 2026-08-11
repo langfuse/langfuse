@@ -4336,6 +4336,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "missing_top_n",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
@@ -4372,6 +4378,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "entity_dimension_unbounded",
+        dimensions: ["experimentName"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension 'experimentName'",
     );
@@ -4456,6 +4468,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "additional_entity_dimension",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
@@ -4494,6 +4512,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "invalid_order_by",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
@@ -4590,6 +4614,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "time_dimension",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "traceId",
     );
