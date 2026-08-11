@@ -844,6 +844,9 @@ export default function SignIn({
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Sign in to your account
           </h2>
+          <p className="text-muted-foreground mt-2 text-center text-sm">
+            hello
+          </p>
         </div>
 
         {isLangfuseCloud && (
