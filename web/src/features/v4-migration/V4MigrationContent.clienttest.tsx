@@ -394,13 +394,16 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
     expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
     // The public key deep-links to the exact evidence: the events table
-    // filtered by this key over the detection lookback window.
+    // filtered by this key + SDK name/version over the detection lookback
+    // window, so two SDK versions on the same key link to distinct results.
     expect(
       screen.getByRole("link", { name: "pk-lf-123…abcdef" }),
     ).toHaveAttribute(
       "href",
       `/project/project-1/observations?filter=${encodeURIComponent(
-        "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef",
+        "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef," +
+          "ingestionSdkName;stringOptions;;any of;python," +
+          "ingestionSdkVersion;stringOptions;;any of;2.60.3",
       )}&dateRange=14d`,
     );
     expect(
@@ -536,6 +539,16 @@ describe("V4MigrationDetailsContent", () => {
       ).getByText("1"),
     ).toBeInTheDocument();
     expect(screen.getByText("Custom instrumentation")).toBeInTheDocument();
+    // Unattributed series ("unknown" SDK name/version) keep a key-only
+    // evidence link — "unknown" is the fallback bucket, not an exact value.
+    expect(
+      screen.getByRole("link", { name: "pk-lf-123…abcdef" }),
+    ).toHaveAttribute(
+      "href",
+      `/project/project-1/observations?filter=${encodeURIComponent(
+        "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef",
+      )}&dateRange=14d`,
+    );
     expect(
       screen.getByRole("link", { name: "Python or JS SDK" }),
     ).toHaveAttribute(
