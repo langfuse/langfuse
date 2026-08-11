@@ -1241,7 +1241,7 @@ export function V4MigrationDetailsContent({
         </button>
         <span>·</span>
         <a
-          href="https://cal.com/team/langfuse/welcome-to-langfuse"
+          href="https://cal.com/team/langfuse/v4-upgrade"
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => capture("v4_migration:contact_book_call_clicked")}
