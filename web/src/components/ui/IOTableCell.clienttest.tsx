@@ -192,4 +192,22 @@ describe("IOTableCell media chip rendering", () => {
 
     expect(container.textContent).toContain("truncated");
   });
+
+  it("multi-line: scrollable content is not clipped by an inner overflow-hidden", () => {
+    // Long table-cell text must scroll via `.io-message-content.overflow-y-auto`.
+    // An inner `overflow-hidden` on the JSONView body clips before that
+    // scrollport can take effect, making overflow unreachable.
+    const { container } = renderCell({
+      data: "y".repeat(2000),
+      singleLine: false,
+    });
+
+    const scrollContainer = container.querySelector(
+      ".io-message-content.overflow-y-auto",
+    );
+    expect(scrollContainer).not.toBeNull();
+
+    const contentDiv = scrollContainer?.querySelector(".flex-1");
+    expect(contentDiv?.classList.contains("overflow-hidden")).toBe(false);
+  });
 });
