@@ -1,6 +1,10 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// vi.mock is hoisted above these imports, and the mock state lives in
+// vi.hoisted, so the hook still loads against the mocked api module.
+import { useEvalConfigFilterOptions } from "./useEvalConfigFilterOptions";
+
 const mocks = vi.hoisted(() => ({
   eventsData: {} as Record<string, unknown>,
   eventsInput: undefined as unknown,
@@ -50,8 +54,6 @@ vi.mock("@/src/utils/api", () => ({
     },
   },
 }));
-
-import { useEvalConfigFilterOptions } from "./useEvalConfigFilterOptions";
 
 describe("useEvalConfigFilterOptions", () => {
   beforeEach(() => {
