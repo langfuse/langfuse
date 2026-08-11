@@ -1,19 +1,18 @@
 import { z } from "zod";
+
+import { parsePriceInput } from "@/src/features/models/fns/parsePriceInput";
 import {
   PricingTierConditionSchema,
   PricingTierInputSchema,
   validatePricingTiers,
 } from "@langfuse/shared";
 
-export const USAGE_TYPE_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const USAGE_TYPE_PATTERN = /^[a-zA-Z0-9_-]+$/;
 export const UsageTypeSchema = z.string().regex(USAGE_TYPE_PATTERN);
 export const PriceSchema = z.number().nonnegative();
 export const TokenizerSchema = z.enum(["openai", "claude"]).nullish();
 // Input version: allows optional prices for form
-export const PriceMapInputSchema = z.record(
-  UsageTypeSchema,
-  PriceSchema.optional(),
-);
+const PriceMapInputSchema = z.record(UsageTypeSchema, PriceSchema.optional());
 
 // Output version: filtered to only defined prices
 export const PriceMapSchema = PriceMapInputSchema.transform((obj) => {
@@ -38,7 +37,7 @@ export type PricingTier = z.infer<typeof PricingTierSchema>;
  * name is the value being edited, and deriving row identity from it is what
  * broke renames twice (LFE-8160, LFE-8629).
  */
-export const FormUsageTypeSchema = z.object({
+const FormUsageTypeSchema = z.object({
   key: z.string(),
   name: z.string(),
 });
@@ -56,14 +55,6 @@ export const FormPricingTierSchema = z.object({
 
 // Use input type for form (allows optional/default fields)
 export type FormPricingTier = z.input<typeof FormPricingTierSchema>;
-
-/** Returns the price as a number, or null when the input is not a usable price. */
-export const parsePriceInput = (raw: string | undefined): number | null => {
-  const trimmed = raw?.trim();
-  if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-};
 
 export const GetModelResultSchema = z.object({
   id: z.string(),

@@ -3,10 +3,8 @@ import { useFieldArray } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { FormDescription, FormLabel } from "@/src/components/ui/form";
 import { Accordion } from "@/src/components/ui/accordion";
-import {
-  derivePriorities,
-  makeUsageTypeKeys,
-} from "@/src/features/models/fns/buildFormValues";
+import { derivePriorities } from "@/src/features/models/fns/derivePriorities";
+import { makeUsageTypeKeys } from "@/src/features/models/fns/makeUsageTypeKeys";
 import { TierAccordionItem } from "./components/TierAccordionItem";
 import { TierPriceEditor } from "./components/TierPriceEditor";
 import { TierPrefillButtons } from "./components/TierPrefillButtons";

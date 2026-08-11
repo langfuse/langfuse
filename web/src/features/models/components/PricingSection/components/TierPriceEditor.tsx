@@ -9,7 +9,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { parsePriceInput } from "@/src/features/models/validation";
+import { parsePriceInput } from "@/src/features/models/fns/parsePriceInput";
 import { PricePreview } from "@/src/features/models/components/PricePreview";
 import type { FieldArrayWithId, UseFormReturn } from "react-hook-form";
 import type { FormUpsertModel } from "@/src/features/models/validation";
