@@ -62,9 +62,7 @@ export default function Traces() {
       headerProps={{
         title: "Tracing",
         titleBadges: <V4MigrationDelayBadge />,
-        breadcrumbBadges: isBetaEnabled ? (
-          <ProjectMemberNames projectId={projectId} />
-        ) : undefined,
+        breadcrumbBadges: <ProjectMemberNames projectId={projectId} />,
         help: {
           description: (
             <>
