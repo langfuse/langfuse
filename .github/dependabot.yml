@@ -5,6 +5,8 @@ updates:
     open-pull-requests-limit: 0
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     ignore:
       - dependency-name: "*"
 
@@ -13,5 +15,7 @@ updates:
     open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     ignore:
       - dependency-name: "*"
