@@ -215,8 +215,8 @@ export const MonitorForm = ({
   const router = useRouter();
   /** isEdit is true when the form is bound to an existing monitor. */
   const isEdit = Boolean(monitor);
-  /** hasAccess gates write controls behind the monitors:CUD RBAC scope. */
-  const hasAccess = useHasProjectAccess({ projectId, scope: "monitors:CUD" });
+  /** hasAccess gates write controls behind the alerts:CUD RBAC scope. */
+  const hasAccess = useHasProjectAccess({ projectId, scope: "alerts:CUD" });
   /** utils is the tRPC utils handle used to invalidate caches after mutations. */
   const utils = api.useUtils();
 
@@ -260,12 +260,12 @@ export const MonitorForm = ({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
-        title: "Monitor created",
+        title: "Alert created",
         description: `"${variables.name}" is now active.`,
       });
-      router.replace(`/project/${projectId}/monitors`);
+      router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to create monitor", e.message),
+    onError: (e) => showErrorToast("Failed to create alert", e.message),
   });
 
   /** updateMutation saves edits to an existing monitor and returns to the monitors list on success. */
@@ -273,12 +273,12 @@ export const MonitorForm = ({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
-        title: "Monitor saved",
+        title: "Alert saved",
         description: `Your changes to "${variables.name}" have been applied.`,
       });
-      router.replace(`/project/${projectId}/monitors`);
+      router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to save monitor", e.message),
+    onError: (e) => showErrorToast("Failed to save alert", e.message),
   });
 
   /** onSubmit normalizes filter columns into view-space and dispatches the create or update mutation. */
@@ -447,7 +447,7 @@ export const MonitorForm = ({
         <div className="h-full min-h-0 w-full min-w-107.5 md:w-1/3">
           <Card className="flex h-full flex-col">
             <CardHeader>
-              <CardTitle>Monitor Configuration</CardTitle>
+              <CardTitle>Alert Configuration</CardTitle>
               <CardDescription>
                 Receive notifications when a metric crosses a threshold. (eg.
                 &ldquo;sudden cost increase&rdquo;, &ldquo;accuracy has
@@ -858,7 +858,7 @@ export const MonitorForm = ({
                     <FormItem>
                       <FormControl>
                         <TagManager
-                          itemName="monitor"
+                          itemName="alert"
                           tags={(field.value ?? []) as string[]}
                           allTags={
                             monitorFilterOptions.data?.tags.map(
@@ -916,7 +916,7 @@ export const MonitorForm = ({
                   className="w-full"
                   disabled={!hasAccess || submitting}
                 >
-                  {isEdit ? "Save Monitor" : "Create Monitor"}
+                  {isEdit ? "Save Alert" : "Create Alert"}
                 </Button>
               </div>
             </CardFooter>

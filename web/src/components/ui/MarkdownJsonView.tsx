@@ -62,20 +62,22 @@ export function MarkdownJsonViewHeader({
   );
 }
 
-const isSupportedMarkdownFormat = (
+/**
+ * Whether `content` renders through MarkdownView (inline text/image/audio
+ * parts) rather than as a JSON table. Narrows to the schema's INPUT type:
+ * `MediaReferenceStringSchema` transforms `@@@langfuseMedia:…@@@` into a parsed
+ * object, and the renderer's own part guards re-validate the untransformed
+ * shape — so the raw content is what must reach it (LFE-14815).
+ *
+ * Exported so callers deduping the media strip against what rendered inline
+ * ask the same question the renderer answered.
+ */
+export const canRenderContentAsMarkdown = (
   content: unknown,
-  contentValidation: z.ZodSafeParseResult<z.infer<typeof OpenAIContentSchema>>,
-): content is z.infer<typeof OpenAIContentSchema> => {
-  if (!contentValidation.success) return false;
-
+): content is z.input<typeof OpenAIContentSchema> =>
+  OpenAIContentSchema.safeParse(content).success &&
   // Don't render if markdown content is huge
-  const contentSize = JSON.stringify(content || {}).length;
-  if (contentSize > MARKDOWN_RENDER_CHARACTER_LIMIT) {
-    return false;
-  }
-
-  return true;
-};
+  JSON.stringify(content || {}).length <= MARKDOWN_RENDER_CHARACTER_LIMIT;
 
 // MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
 // otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
@@ -103,23 +105,18 @@ export function MarkdownJsonView({
       the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
 }) {
-  const validatedOpenAIContent = useMemo(
-    () => OpenAIContentSchema.safeParse(content),
+  // Boxed so a renderable `null` content stays distinguishable from
+  // "not renderable as markdown", without re-widening the narrowed type.
+  const markdownContent = useMemo(
+    () => (canRenderContentAsMarkdown(content) ? { value: content } : null),
     [content],
-  );
-
-  const canEnableMarkdown = isSupportedMarkdownFormat(
-    content,
-    validatedOpenAIContent,
   );
 
   return (
     <>
-      {canEnableMarkdown ? (
+      {markdownContent ? (
         <MarkdownView
-          markdown={
-            validatedOpenAIContent.success ? validatedOpenAIContent.data : null
-          }
+          markdown={markdownContent.value}
           title={title}
           titleIcon={titleIcon}
           audio={audio}

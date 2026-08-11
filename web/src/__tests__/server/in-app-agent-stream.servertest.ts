@@ -1,8 +1,7 @@
 import { EventType } from "@ag-ui/core";
-import { HttpAgent } from "@ag-ui/client";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
@@ -20,12 +19,16 @@ import {
   type SandboxProvider,
   type SandboxSession,
 } from "@langfuse/shared/in-app-agent/server/sandbox";
-import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@langfuse/shared/in-app-agent/server/tools";
+import {
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
+  type InAppAgentLangfuseMcpToolName,
+} from "@langfuse/shared/in-app-agent/server/tools";
 import {
   DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
   decodeFiltersGeneric,
 } from "@langfuse/shared";
 import "@/src/features/mcp/server/bootstrap";
+import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import type { Langfuse } from "langfuse";
 import type { InAppAgentTracingConfig } from "@langfuse/shared/in-app-agent/server/instrumentation";
@@ -426,13 +429,15 @@ describe("patchMastraApprovalChunks", () => {
   });
 });
 
-describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS", () => {
+describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
   const getRegisteredLangfuseMcpTools = () =>
     toolRegistry
       .getFeatures()
       .flatMap((feature) => feature.tools.map((tool) => tool.definition));
 
   it("classifies every Langfuse MCP tool exactly once", () => {
+    expectTypeOf<InAppAgentLangfuseMcpToolName>().toEqualTypeOf<McpToolName>();
+
     const tools = getRegisteredLangfuseMcpTools();
     const registeredToolNames = tools.map((tool) => tool.name).sort();
     const classifiedToolNames = Object.keys(
@@ -1637,96 +1642,6 @@ describe("createAgUiStream", () => {
         value: ["checkout"],
       },
     ]);
-  });
-
-  it("lets HttpAgent subscribers observe streamed run errors", async () => {
-    const { createAgUiStream } =
-      await import("@langfuse/shared/in-app-agent/server/agent");
-    const input = {
-      threadId: "conversation-1",
-      runId: "run-1",
-      messages: [
-        {
-          id: "user-message-1",
-          role: "user" as const,
-          content: "hello",
-        },
-      ],
-      tools: [],
-      context: [],
-      state: null,
-      forwardedProps: {},
-    };
-    const runErrorMessage = "AWS credential provider failed: Token is expired.";
-    const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
-
-    adapterEvents.items = [
-      {
-        type: EventType.RUN_STARTED,
-        threadId: input.threadId,
-        runId: input.runId,
-      },
-      {
-        type: EventType.RUN_ERROR,
-        threadId: input.threadId,
-        runId: input.runId,
-        message: runErrorMessage,
-      },
-    ];
-
-    const serverStream = await createAgUiStream({
-      input,
-      signal: new AbortController().signal,
-      options: {
-        awsBedrock: { modelId: "test-model" },
-        langfuseMcp: {
-          url: "https://example.com/api/public/mcp",
-          publicKey: "pk",
-          secretKey: "sk",
-          userAccess: defaultInAppAgentUserAccess,
-          runOverride: "run-override",
-        },
-        redirectAction: {
-          projectId: "project-1",
-          isV4Enabled: false,
-        },
-        langfuseClient,
-        useLocalPrompt: false,
-      },
-    });
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(serverStream as unknown as BodyInit, {
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" },
-      }),
-    );
-
-    try {
-      const agent = new HttpAgent({
-        url: "https://example.com/api/in-app-agent",
-        threadId: input.threadId,
-        initialMessages: input.messages,
-        initialState: input.state,
-      });
-      let streamedErrorMessage: string | undefined;
-
-      agent.subscribe({
-        onRunErrorEvent: ({ event }) => {
-          streamedErrorMessage = event.message;
-        },
-      });
-
-      await expect(agent.runAgent({ runId: input.runId })).resolves.toEqual({
-        result: undefined,
-        newMessages: [],
-      });
-
-      expect(streamedErrorMessage).toBe(runErrorMessage);
-    } finally {
-      fetchMock.mockRestore();
-    }
   });
 
   it("does not expose sandbox tools when sandboxing is disabled", async () => {

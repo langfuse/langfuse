@@ -10,7 +10,7 @@ import {
   Copy,
   Info,
 } from "lucide-react";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -59,6 +59,8 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
+import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
+import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -495,7 +497,7 @@ export function V4MigrationEvalsSection({
           {assistant && (
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
               <BotMessageSquare className="mr-1.5 h-4 w-4" />
-              Migrate with assistant
+              Use Assistant
             </Button>
           )}
         </>
@@ -1049,25 +1051,25 @@ export function V4MigrationDetailsContent({
     onNavigate?.();
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
-  const { setOpen: setAgentOpen, submit: submitAgentMessage } =
-    useInAppAiAgent();
+  const canUseAssistant = useCanUseInAppAgent();
+  const [evalMigrationDialogOpen, setEvalMigrationDialogOpen] = useState(false);
   const upgradePlan = useEvalUpgradeAssistantPlan({
     projectId,
     orgId: organization?.id,
     enabled: Boolean(projectId),
   });
   const evalsUrl =
-    typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
-  const handleMigrateEvalsWithAgent = async () => {
+    typeof projectId === "string"
+      ? buildDeprecatedEvaluatorsUrl(projectId)
+      : undefined;
+  const handleMigrateEvalsWithAgent = () => {
     capture("v4_migration:migrate_evals_with_agent_clicked");
+    setEvalMigrationDialogOpen(true);
+  };
+  const handleManualEvalUpgrade = () => {
+    setEvalMigrationDialogOpen(false);
     onNavigate?.();
-    if (evalsUrl) {
-      await router.push(evalsUrl).catch(() => undefined);
-    }
-    setAgentOpen(true);
-    await submitAgentMessage(upgradePlan.assistantPrompt, {
-      newConversation: true,
-    });
+    if (evalsUrl) router.push(evalsUrl);
   };
   const integrationsUrl =
     typeof projectId === "string"
@@ -1103,7 +1105,7 @@ export function V4MigrationDetailsContent({
             <V4MigrationEvalsSection
               state={migrationData.evals}
               assistant={
-                upgradePlan.showAssistantButton
+                canUseAssistant
                   ? { onMigrate: handleMigrateEvalsWithAgent }
                   : null
               }
@@ -1213,6 +1215,16 @@ export function V4MigrationDetailsContent({
           Book a call
         </a>
       </div>
+      {projectId ? (
+        <EvaluatorMigrationDialog
+          open={evalMigrationDialogOpen}
+          onOpenChange={setEvalMigrationDialogOpen}
+          scope={{ type: "all" }}
+          assistantPrompt={upgradePlan.assistantPrompt}
+          onManualUpgrade={handleManualEvalUpgrade}
+          onAssistantStarted={() => onNavigate?.()}
+        />
+      ) : null}
     </>
   );
 }

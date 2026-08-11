@@ -10,9 +10,9 @@
  */
 
 import { memo } from "react";
-import { VirtualizedTree } from "./_shared/VirtualizedTree";
-import { VirtualizedTreeNodeWrapper } from "./_shared/VirtualizedTreeNodeWrapper";
-import { type TreeNodeMetadata } from "./_shared/VirtualizedTreeNodeWrapper";
+import { VirtualizedTree } from "./VirtualizedTree";
+import { VirtualizedTreeNodeWrapper } from "./VirtualizedTreeNodeWrapper";
+import { type TreeNodeMetadata } from "./VirtualizedTreeNodeWrapper";
 import { SpanContent } from "./SpanContent";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
@@ -20,7 +20,7 @@ import { useIsObservationActive } from "@/src/features/traces/contexts/PlayheadC
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
 import { useMobileLayoutContextOptional } from "./TraceLayoutMobile";
-import { type TreeNode } from "../fns/types";
+import { type TreeNode } from "../types/treeNode";
 import { cn } from "@/src/utils/tailwind";
 import type Decimal from "decimal.js";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

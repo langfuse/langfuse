@@ -98,6 +98,50 @@ interface MetadataDropContext {
   dropScope: object;
 }
 
+/**
+ * Tracks the total number of array slots that dotted attribute paths would
+ * materialize. A path is reserved transactionally: when it would exceed the
+ * limit, none of its array lengths are committed.
+ *
+ * Multiple attributes can point into the same array, so only growth beyond
+ * that array's previously reserved length consumes budget. For example,
+ * `0.role` and `0.content` together reserve one slot, while `9999.content`
+ * reserves 10,000 slots even though it is only one attribute.
+ */
+class ArraySlotBudget {
+  private usedSlots = 0;
+  private readonly lengthsByPath = new Map<string, number>();
+
+  constructor(private readonly maxSlots: number) {}
+
+  tryReserve(pathParts: readonly string[]): boolean {
+    const pendingLengths = new Map<string, number>();
+    let additionalSlots = 0;
+
+    for (let index = 0; index < pathParts.length; index++) {
+      const segment = pathParts[index];
+      if (!/^\d+$/.test(segment)) continue;
+
+      const arrayPath = pathParts.slice(0, index).join(".");
+      const previousLength =
+        pendingLengths.get(arrayPath) ?? this.lengthsByPath.get(arrayPath) ?? 0;
+      const requiredLength = Number(segment) + 1;
+      if (requiredLength > previousLength) {
+        additionalSlots += requiredLength - previousLength;
+        pendingLengths.set(arrayPath, requiredLength);
+      }
+    }
+
+    if (this.usedSlots + additionalSlots > this.maxSlots) return false;
+
+    this.usedSlots += additionalSlots;
+    pendingLengths.forEach((length, path) =>
+      this.lengthsByPath.set(path, length),
+    );
+    return true;
+  }
+}
+
 interface CreateTraceEventParams {
   traceId: string;
   startTimeISO: string;
@@ -196,12 +240,20 @@ const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
 export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
+  private static readonly OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC =
+    "langfuse.ingestion.otel.array_attribute_dropped";
+
+  // Flattened OTel message attributes name array slots directly, so cap the
+  // total logical array length before reconstructing the value.
+  private static readonly MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS = 10_001;
 
   private static readonly METADATA_DROP_WARN_CAP = 10;
+  private static readonly ARRAY_ATTRIBUTE_DROP_WARN_CAP = 10;
 
   private seenTraces: Set<string> = new Set();
   private reportedMetadataDrops = new WeakMap<object, Set<string>>();
   private metadataDropWarnCount = 0;
+  private arrayAttributeDropWarnCount = 0;
   private isInitialized = false;
   private traceEventCounts = {
     shallow: 0,
@@ -1472,6 +1524,15 @@ export class OtelIngestionProcessor {
     return undefined;
   }
 
+  /**
+   * Rebuilds observation input/output from flattened adapter attributes.
+   *
+   * TraceLoop and OpenInference encode structured messages in attribute names;
+   * for example, `gen_ai.prompt.0.content` becomes `[{ content: value }]`.
+   * Numeric path segments therefore become JavaScript array indices. The total
+   * logical slots across all nested arrays are bounded, since dimensions can
+   * otherwise multiply into a huge sparse structure during serialization.
+   */
   private convertKeyPathToNestedObject(
     input: Record<string, unknown>,
     prefix: string,
@@ -1480,7 +1541,21 @@ export class OtelIngestionProcessor {
       return input[prefix];
     }
 
-    const keys = Object.keys(input).map((key) => key.replace(`${prefix}.`, ""));
+    const keys: string[] = [];
+    const overBudgetKeys: string[] = [];
+    const arraySlotBudget = new ArraySlotBudget(
+      OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS,
+    );
+    for (const inputKey of Object.keys(input)) {
+      const key = inputKey.replace(`${prefix}.`, "");
+      if (!arraySlotBudget.tryReserve(key.split("."))) {
+        overBudgetKeys.push(key);
+        continue;
+      }
+
+      keys.push(key);
+    }
+    this.recordArrayAttributesDropped(prefix, overBudgetKeys);
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
     // Blocklist to prevent prototype pollution via crafted OTel attribute keys
@@ -1508,7 +1583,8 @@ export class OtelIngestionProcessor {
       const result: any[] = [];
       for (const key of keys) {
         const pathParts = key.split(".");
-        const index = parseInt(pathParts[0], 10);
+        const indexSegment = pathParts[0];
+        const index = Number(indexSegment);
         if (!result[index]) {
           result[index] = Object.create(null);
         }
@@ -1537,6 +1613,28 @@ export class OtelIngestionProcessor {
       }
     }
     return result;
+  }
+
+  private recordArrayAttributesDropped(prefix: string, keys: string[]): void {
+    if (keys.length === 0) return;
+
+    recordIncrement(
+      OtelIngestionProcessor.OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC,
+      keys.length,
+      { reason: "reconstruction_budget_exceeded", prefix },
+    );
+    if (
+      this.arrayAttributeDropWarnCount <
+      OtelIngestionProcessor.ARRAY_ATTRIBUTE_DROP_WARN_CAP
+    ) {
+      this.arrayAttributeDropWarnCount += 1;
+      logger.warn("OTEL array attribute dropped", {
+        projectId: this.projectId,
+        prefix,
+        reason: "reconstruction_budget_exceeded",
+        droppedAttributeCount: keys.length,
+      });
+    }
   }
 
   private extractInputAndOutput(params: {
@@ -2668,6 +2766,39 @@ export class OtelIngestionProcessor {
       if (Object.keys(usageDetails).length > 0) return usageDetails;
     }
 
+    if (
+      instrumentationScopeName === "gcp.vertex.agent" &&
+      "gcp.vertex.agent.llm_response" in attributes
+    ) {
+      const usageDetails: Record<string, number | undefined> =
+        this.extractGenericGenAiUsageDetails(attributes);
+
+      // prompt tokens include cached tokens, so the blob cache-read count is subtracted from input
+      if (usageDetails["input_cached_tokens"] === undefined) {
+        const llmResponse = this.parseJsonPayload(
+          attributes["gcp.vertex.agent.llm_response"],
+        );
+        const cachedTokens =
+          llmResponse?.usage_metadata?.cached_content_token_count;
+
+        if (
+          typeof cachedTokens === "number" &&
+          !Number.isNaN(cachedTokens) &&
+          cachedTokens > 0
+        ) {
+          usageDetails["input_cached_tokens"] = cachedTokens;
+          if (usageDetails["input"] !== undefined) {
+            usageDetails["input"] = Math.max(
+              usageDetails["input"] - cachedTokens,
+              0,
+            );
+          }
+        }
+      }
+
+      return usageDetails;
+    }
+
     return this.extractGenericGenAiUsageDetails(attributes);
   }
 
@@ -2722,6 +2853,12 @@ export class OtelIngestionProcessor {
       rawUsageDetails["details.cache_creation_input_tokens"] ??
       rawUsageDetails["prompt_details.cache_write"] ??
       rawUsageDetails["input_cache_creation"];
+    // Reasoning/audio details are included in the emitted output token count
+    // and are therefore subtracted from output below to avoid double counting.
+    const outputReasoningTokens =
+      rawUsageDetails["reasoning.output_tokens"] ??
+      rawUsageDetails["completion_details.reasoning"];
+    const outputAudioTokens = rawUsageDetails["completion_details.audio"];
 
     const normalizedUsageDetails = Object.entries(rawUsageDetails).reduce(
       (acc: Record<string, number>, [key, value]) => {
@@ -2747,6 +2884,9 @@ export class OtelIngestionProcessor {
             "details.cache_creation_input_tokens",
             "prompt_details.cache_write",
             "input_cache_creation",
+            "reasoning.output_tokens",
+            "completion_details.reasoning",
+            "completion_details.audio",
           ].includes(key)
         ) {
           return acc;
@@ -2770,7 +2910,10 @@ export class OtelIngestionProcessor {
     }
 
     if (outputTokens !== undefined) {
-      normalizedUsageDetails.output = outputTokens;
+      normalizedUsageDetails.output = Math.max(
+        outputTokens - (outputReasoningTokens ?? 0) - (outputAudioTokens ?? 0),
+        0,
+      );
     }
 
     if (totalTokens !== undefined) {
@@ -2783,6 +2926,14 @@ export class OtelIngestionProcessor {
 
     if (cacheCreationTokens !== undefined) {
       normalizedUsageDetails.input_cache_creation = cacheCreationTokens;
+    }
+
+    if (outputReasoningTokens !== undefined) {
+      normalizedUsageDetails.output_reasoning_tokens = outputReasoningTokens;
+    }
+
+    if (outputAudioTokens !== undefined) {
+      normalizedUsageDetails.output_audio_tokens = outputAudioTokens;
     }
 
     return normalizedUsageDetails;
