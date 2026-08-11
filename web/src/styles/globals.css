@@ -173,6 +173,20 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-appear: appear 0.2s ease-out forwards;
+  --animate-table-refetch: table-refetch 1.1s ease-in-out infinite;
+
+  /* Sweeps a highlight along the table's refetch bar. Animates
+     background-position (not a transform) so the bar can never overflow its
+     scroll container. */
+  @keyframes table-refetch {
+    from {
+      background-position: 0% 0;
+    }
+
+    to {
+      background-position: 100% 0;
+    }
+  }
 
   @keyframes rainbow {
     0% {

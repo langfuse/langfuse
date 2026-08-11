@@ -61,6 +61,12 @@ import {
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
+  /**
+   * A fetch is in flight while rows are already on screen (refresh, filter,
+   * page, sort). Renders a thin bar above the header instead of blanking the
+   * table: `data.isLoading` stays reserved for a genuine cold load.
+   */
+  isFetching?: boolean;
   pagination?: {
     totalCount: number | null; // null if loading or intentionally unknown
     hasNextPage?: boolean;
@@ -198,6 +204,7 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
 export function DataTable<TData extends object, TValue>({
   columns,
   data,
+  isFetching = false,
   pagination,
   rowSelection,
   setRowSelection,
@@ -418,6 +425,15 @@ export function DataTable<TData extends object, TValue>({
           className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
           style={{ ...columnSizeVars }}
         >
+          {/* Zero-height so an arriving refetch never shifts the table. */}
+          <div className="sticky top-0 z-30 h-0">
+            {isFetching && !data.isLoading ? (
+              <div
+                aria-hidden="true"
+                className="from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat"
+              />
+            ) : null}
+          </div>
           <Table>
             <TableHeader className="sticky top-0 z-20">
               {tableHeaders.map((headerGroup) => (
