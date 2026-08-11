@@ -66,7 +66,7 @@ export function PricingSection({ form }: PricingSectionProps) {
 
   const addTier = () => {
     const existing = form.getValues("pricingTiers");
-    const takenNames = new Set(existing.map((tier) => tier.name));
+    const takenNames = new Set(existing.map((tier) => tier.name.trim()));
     let suffix = 1;
     while (takenNames.has(`Custom Tier ${suffix}`)) suffix++;
 

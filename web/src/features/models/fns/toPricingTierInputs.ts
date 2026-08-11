@@ -11,7 +11,7 @@ export const toPricingTierInputs = (
   const priorities = derivePriorities(values.pricingTiers);
 
   return values.pricingTiers.map((tier, tierIndex) => ({
-    name: tier.name,
+    name: tier.name.trim(),
     isDefault: tier.isDefault,
     priority: priorities[tierIndex],
     conditions: tier.conditions.map((condition) => ({

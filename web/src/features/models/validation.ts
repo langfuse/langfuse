@@ -154,14 +154,25 @@ export const FormUpsertModelSchema = z
 
     const seenTierNames = new Set<string>();
     pricingTiers.forEach((tier, tierIndex) => {
-      if (seenTierNames.has(tier.name)) {
+      // Compared trimmed, like usage types: whitespace must not sneak a second
+      // tier past this check and render as an identical label.
+      const tierName = tier.name.trim();
+      const tierNamePath = ["pricingTiers", tierIndex, "name"];
+
+      if (!tierName) {
         ctx.addIssue({
           code: "custom",
-          path: ["pricingTiers", tierIndex, "name"],
+          path: tierNamePath,
+          message: "Tier name is required",
+        });
+      } else if (seenTierNames.has(tierName)) {
+        ctx.addIssue({
+          code: "custom",
+          path: tierNamePath,
           message: "Tier names must be unique",
         });
       }
-      seenTierNames.add(tier.name);
+      seenTierNames.add(tierName);
 
       if (!tier.isDefault && tier.conditions.length === 0) {
         ctx.addIssue({
