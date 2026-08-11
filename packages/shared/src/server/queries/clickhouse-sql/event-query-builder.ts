@@ -5,7 +5,7 @@ import {
 import {
   eventsTableIsRootObservationSql,
   eventsTableTraceNameAggregationSql,
-  eventsTableTraceNameSql,
+  eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
@@ -132,7 +132,8 @@ const EVENTS_FIELDS = {
   public: "e.public as public",
   userId: 'e.user_id as "user_id"',
   sessionId: 'e.session_id as "session_id"',
-  traceName: `${eventsTableTraceNameSql} as "trace_name"`,
+  // String-typed on purpose; see eventsTableTraceNameSelectSql (LFE-14924).
+  traceName: `${eventsTableTraceNameSelectSql} as "trace_name"`,
 
   // Time fields
   startTime: 'e.start_time as "start_time"',
