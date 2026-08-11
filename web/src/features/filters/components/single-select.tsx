@@ -52,7 +52,7 @@ export function SingleSelect({
   const isCustomValue = hasValue && selectedOption === undefined;
   const label = hasValue ? (selectedOption?.displayValue ?? value) : undefined;
 
-  // Hoist the selected option to the top so it reads as current and clears on re-click.
+  // Hoist the selected option to the top so it reads as current.
   const displayOptions = useMemo<FilterOption[]>(() => {
     const base =
       isCustomValue && value ? [{ value }, ...options] : [...options];
@@ -142,7 +142,16 @@ export function SingleSelect({
                   <InputCommandItem
                     key={option.value}
                     value={option.value}
-                    onSelect={() => commit(isSelected ? "" : option.value)}
+                    // Re-click is inert: an empty key or value is schema-valid,
+                    // so committing "" would apply an unmatchable filter.
+                    onSelect={() => {
+                      if (isSelected) {
+                        setSearch("");
+                        setOpen(false);
+                        return;
+                      }
+                      commit(option.value);
+                    }}
                   >
                     <Check
                       className={cn(
