@@ -142,11 +142,20 @@ describe("InAppAgentWindowHost", () => {
     );
     mocks.open = true;
 
-    render(<InAppAgentWindowHost />);
+    const { rerender } = render(<InAppAgentWindowHost />);
 
     // No drag/resize on touch, and the drawer is the modal that scroll-locks
     // the page behind it.
     expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
     expect(document.querySelector("#in-app-agent-drawer")).not.toBeNull();
+
+    // Closing drives the drawer's own `open` prop rather than unmounting the
+    // tree from under it, so Vaul can animate itself out.
+    mocks.open = false;
+    rerender(<InAppAgentWindowHost />);
+    expect(document.querySelector("#in-app-agent-drawer")).toHaveAttribute(
+      "data-state",
+      "closed",
+    );
   });
 });

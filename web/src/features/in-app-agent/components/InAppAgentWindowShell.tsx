@@ -65,6 +65,7 @@ type InAppAgentWindowShellProps = {
   floatingPanelHandle: MovableResizablePanelHandle;
   isExpanded: boolean;
   onClose: () => void;
+  open: boolean;
   panelRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -73,6 +74,7 @@ export function InAppAgentWindowShell({
   floatingPanelHandle,
   isExpanded,
   onClose,
+  open,
   panelRef,
 }: InAppAgentWindowShellProps) {
   const isHandheld = useIsHandheld();
@@ -81,13 +83,11 @@ export function InAppAgentWindowShell({
   // (Vaul) modal drawer — the same treatment as the support / migration
   // drawers — so the page behind is scroll-locked and there is exactly one
   // scroller, and never the movable panel (drag/resize is meaningless on
-  // touch). `h-auto` drops the drawer's default height so top/bottom anchoring
-  // owns the geometry; Vaul still overrides the height to dodge the on-screen
-  // keyboard.
+  // touch). Stays mounted while closed so Vaul can animate itself out.
   if (isHandheld) {
     return (
       <Drawer
-        open
+        open={open}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
             onClose();
@@ -98,7 +98,14 @@ export function InAppAgentWindowShell({
         <DrawerContent
           id="in-app-agent-drawer"
           size="full"
-          className="top-banner-offset inset-x-0 bottom-0 h-auto rounded-none border-0"
+          // `h-auto` at every breakpoint so top/bottom anchoring owns the
+          // geometry: the drawer's default height variant is `h-1/3 md:h-full`,
+          // and the `md:` half survives tailwind-merge — a landscape phone is
+          // both handheld and wider than `md`, and `top` + `bottom` + `height`
+          // over-constrains the box, dropping `bottom` and pushing the composer
+          // off-screen by the banner offset. Vaul still overrides the height to
+          // dodge the on-screen keyboard.
+          className="top-banner-offset inset-x-0 bottom-0 h-auto rounded-none border-0 md:h-auto"
         >
           <DrawerTitle className="sr-only">Assistant</DrawerTitle>
           {children({ isHeaderDragHandleEnabled: false })}
@@ -107,7 +114,7 @@ export function InAppAgentWindowShell({
     );
   }
 
-  if (!isExpanded && !floatingPanelHandle.geometry) {
+  if (!open || (!isExpanded && !floatingPanelHandle.geometry)) {
     return null;
   }
 
