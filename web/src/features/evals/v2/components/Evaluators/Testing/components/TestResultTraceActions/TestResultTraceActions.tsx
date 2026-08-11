@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ExternalLink, MoreVertical } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -5,14 +6,23 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 
+export function TestResultTraceActionsTrigger() {
+  return (
+    <Button type="button" variant="ghost" size="icon-xs" title="More">
+      <MoreVertical className="h-3.5 w-3.5" />
+    </Button>
+  );
+}
+
 export function TestResultTraceActions({
+  children,
   onOpenSampleTrace,
   executionTraceId,
   onOpenExecutionTrace,
 }: {
+  children: ReactNode;
   onOpenSampleTrace: (() => void) | null;
   executionTraceId: string | null;
   onOpenExecutionTrace: ((executionTraceId: string) => void) | null;
@@ -24,11 +34,7 @@ export function TestResultTraceActions({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-xs" title="More">
-          <MoreVertical className="h-3.5 w-3.5" />
-        </Button>
-      </DropdownMenuTrigger>
+      {children}
       <DropdownMenuContent align="end">
         {onOpenSampleTrace ? (
           <DropdownMenuItem onClick={onOpenSampleTrace}>

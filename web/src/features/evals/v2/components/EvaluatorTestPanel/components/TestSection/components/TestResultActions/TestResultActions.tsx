@@ -1,7 +1,11 @@
 import { useStore } from "zustand";
 
+import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelector/SampleObservationSelector";
-import { TestResultTraceActions } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
+import {
+  TestResultTraceActions,
+  TestResultTraceActionsTrigger,
+} from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function TestResultActions({
@@ -28,6 +32,10 @@ export function TestResultActions({
       onOpenSampleTrace={openSampleTrace}
       executionTraceId={executionTraceId}
       onOpenExecutionTrace={onOpenExecutionTrace}
-    />
+    >
+      <DropdownMenuTrigger asChild>
+        <TestResultTraceActionsTrigger />
+      </DropdownMenuTrigger>
+    </TestResultTraceActions>
   ) : null;
 }
