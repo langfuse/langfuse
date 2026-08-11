@@ -9,10 +9,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { parsePriceInput } from "../../validation";
-import { PricePreview } from "../PricePreview";
+import { parsePriceInput } from "@/src/features/models/validation";
+import { PricePreview } from "@/src/features/models/components/PricePreview";
 import type { FieldArrayWithId, UseFormReturn } from "react-hook-form";
-import type { FormUpsertModel } from "../../validation";
+import type { FormUpsertModel } from "@/src/features/models/validation";
 
 type TierPriceEditorProps = {
   tierIndex: number;

@@ -11,7 +11,7 @@ import { TierAccordionItem } from "./TierAccordionItem";
 import { TierPriceEditor } from "./TierPriceEditor";
 import { TierPrefillButtons } from "./TierPrefillButtons";
 import type { UseFormReturn } from "react-hook-form";
-import type { FormUpsertModel } from "../../validation";
+import type { FormUpsertModel } from "@/src/features/models/validation";
 
 type PricingSectionProps = {
   form: UseFormReturn<FormUpsertModel>;

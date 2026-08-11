@@ -17,7 +17,7 @@ import {
 import { useWatch } from "react-hook-form";
 import { TierConditionsEditor } from "./TierConditionsEditor";
 import type { UseFormReturn, FieldArrayWithId } from "react-hook-form";
-import type { FormUpsertModel } from "../../validation";
+import type { FormUpsertModel } from "@/src/features/models/validation";
 
 type TierAccordionItemProps = {
   tier: FieldArrayWithId<FormUpsertModel, "pricingTiers", "id">;
