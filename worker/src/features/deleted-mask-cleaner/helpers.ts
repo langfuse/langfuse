@@ -1,5 +1,6 @@
 import {
   assertClickhouseIdentifier,
+  qualifiedClickhouseTableName,
   quoteClickhouseIdentifier,
   quoteClickhouseString,
 } from "../../utils/clickhouseIdentifiers";
@@ -152,9 +153,11 @@ export function buildApplyDeletedMaskQuery(
   candidate: WorkCandidateRow,
   config: ClickHouseDdlConfig,
 ): string {
-  const database = quoteClickhouseIdentifier(config.database, "database");
   assertTargetTable(candidate.table);
-  const table = quoteClickhouseIdentifier(candidate.table, "table");
+  const qualifiedTable = qualifiedClickhouseTableName(
+    config.database,
+    candidate.table,
+  );
   assertMonthPartition(candidate.partition_to_clean);
 
   const clusterClause = config.clusterEnabled
@@ -168,7 +171,7 @@ export function buildApplyDeletedMaskQuery(
       })()
     : "";
 
-  return `ALTER TABLE ${database}.${table}${clusterClause} APPLY DELETED MASK IN PARTITION '${candidate.partition_to_clean}'`;
+  return `ALTER TABLE ${qualifiedTable}${clusterClause} APPLY DELETED MASK IN PARTITION '${candidate.partition_to_clean}'`;
 }
 
 export function buildMutationCountQuery(
