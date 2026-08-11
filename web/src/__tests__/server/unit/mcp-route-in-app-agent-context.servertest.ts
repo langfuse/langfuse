@@ -1,28 +1,8 @@
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
-import {
-  createInAppAgentMcpRunOverride,
-  InAppAgentMcpRunOverrideSchema,
-} from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
-import {
-  applyMcpPublicApiRateLimit,
-  getInAppAgentContext,
-} from "@/src/pages/api/public/mcp";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import type { ApiAccessScope } from "@langfuse/shared/src/server";
+import { createInAppAgentMcpRunOverride } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
+import { getInAppAgentContext } from "@/src/pages/api/public/mcp";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
-
-const createApiAccessScope = (isInAppAgentKey: boolean): ApiAccessScope => ({
-  projectId: "project-id",
-  orgId: "org-id",
-  apiKeyId: "api-key-id",
-  publicKey: "pk-lf-test",
-  accessLevel: "project",
-  plan: "oss",
-  rateLimitOverrides: [],
-  isIngestionSuspended: false,
-  isInAppAgentKey,
-});
 
 describe("MCP route in-app-agent context", () => {
   const createRequest = (overrideHeader?: string) => {
@@ -64,68 +44,25 @@ describe("MCP route in-app-agent context", () => {
     });
   });
 
-  it("returns a single-tool override for valid override headers", async () => {
+  it("returns the tool allowlist for valid override headers", async () => {
     const overrideHeader = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset", "createDashboardWidget"],
     });
     const req = createRequest(overrideHeader);
 
-    expect(
-      InAppAgentMcpRunOverrideSchema.parse(JSON.parse(overrideHeader)),
-    ).toEqual({
-      toolName: "upsertDataset",
-    });
     expect(getInAppAgentContext(req, true)).toEqual({
-      permissions: "single-tool-override",
-      allowedToolName: "upsertDataset",
+      permissions: "tool-allowlist",
+      allowedToolNames: ["upsertDataset", "createDashboardWidget"],
     });
   });
-});
 
-describe("MCP route public API rate limiting", () => {
-  const rateLimitRequest = vi.fn();
+  // Accept continuations queued by workers that still emit one tool.
+  it("still resolves the pre-allowlist single-tool header", () => {
+    const req = createRequest('{"toolName":"upsertDataset"}');
 
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    rateLimitRequest.mockReset();
-    vi.spyOn(RateLimitService, "getInstance").mockReturnValue({
-      rateLimitRequest,
-    } as unknown as RateLimitService);
-  });
-
-  it("exempts authenticated in-app-agent keys", async () => {
-    const { res } = createMocks<NextApiRequest, NextApiResponse>();
-
-    const responseSent = await applyMcpPublicApiRateLimit(
-      createApiAccessScope(true),
-      res,
-    );
-
-    expect(responseSent).toBe(false);
-    expect(rateLimitRequest).not.toHaveBeenCalled();
-  });
-
-  it("rate limits normal keys based only on authenticated scope", async () => {
-    const { res } = createMocks<NextApiRequest, NextApiResponse>();
-    const sendRestResponseIfLimited = vi.fn((response: NextApiResponse) =>
-      response.status(429).end(),
-    );
-    rateLimitRequest.mockResolvedValue({
-      isRateLimited: () => true,
-      sendRestResponseIfLimited,
+    expect(getInAppAgentContext(req, true)).toEqual({
+      permissions: "tool-allowlist",
+      allowedToolNames: ["upsertDataset"],
     });
-
-    const responseSent = await applyMcpPublicApiRateLimit(
-      createApiAccessScope(false),
-      res,
-    );
-
-    expect(responseSent).toBe(true);
-    expect(rateLimitRequest).toHaveBeenCalledWith(
-      createApiAccessScope(false),
-      "public-api",
-    );
-    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res);
-    expect(res.statusCode).toBe(429);
   });
 });

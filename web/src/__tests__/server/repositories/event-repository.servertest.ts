@@ -63,6 +63,81 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("getObservationsWithModelDataFromEventsTable", () => {
+    // LFE-14924: the events table projects the resolved trace name (a nullable
+    // fallback expression) under the same name as the non-null events_core
+    // column it reads. With a trace-name filter AND an ORDER BY — the events
+    // table's default shape — ClickHouse 25.x compares the two `trace_name`
+    // block headers and fails with AMBIGUOUS_COLUMN_NAME (code 352). The sort
+    // is load-bearing: without it the same query succeeds.
+    it("filters observations by their resolved trace name while sorting", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const traceName = `trace-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          trace_name: traceName,
+          type: "GENERATION",
+          name: "trace-name-filter-event",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [
+          {
+            column: "traceName",
+            type: "stringOptions",
+            operator: "any of",
+            value: [traceName],
+          },
+        ],
+        orderBy: { column: "startTime", order: "DESC" },
+        limit: 1000,
+        offset: 0,
+      });
+
+      expect(result.map((observation) => observation.id)).toContain(
+        observationId,
+      );
+      expect(
+        result.find((observation) => observation.id === observationId),
+      ).toMatchObject({ traceName });
+    });
+
+    it("returns null when an observation has no resolved trace name", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          parent_span_id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          trace_name: "",
+          type: "SPAN",
+          name: "child-without-trace-name",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      expect(
+        result.find((observation) => observation.id === observationId),
+      ).toMatchObject({ traceName: null });
+    });
+
     it("should return trace tags for events table observations", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
