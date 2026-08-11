@@ -589,6 +589,8 @@ export function DataTableControls({
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
+          keyDetails={filter.keyDetails}
+          valueOptions={filter.valueOptions}
           value={filter.value}
           onChange={filter.onChange}
           isActive={filter.isActive}
@@ -1097,6 +1099,8 @@ interface BooleanKeyValueFacetProps extends BaseFacetProps {
 
 interface StringKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
+  keyDetails?: Record<string, string>;
+  valueOptions?: Record<string, string[]>;
   value: StringKeyValueFilterEntry[];
   onChange: (filters: StringKeyValueFilterEntry[]) => void;
   keyPlaceholder?: string;
@@ -2194,6 +2198,8 @@ export function StringKeyValueFacet({
   expanded: _expanded,
   loading,
   keyOptions,
+  keyDetails,
+  valueOptions,
   value,
   onChange,
   isActive,
@@ -2222,6 +2228,8 @@ export function StringKeyValueFacet({
         <KeyValueFilterBuilder
           mode="string"
           keyOptions={keyOptions}
+          keyDetails={keyDetails}
+          valueOptions={valueOptions}
           activeFilters={value}
           onChange={onChange}
           keyPlaceholder={keyPlaceholder}

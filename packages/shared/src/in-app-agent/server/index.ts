@@ -1,6 +1,5 @@
-// Server entry of the in-app-agent runtime, consumed by web's foreground
-// adapter (handler/router) and, once background execution ships, the worker
-// queue processor.
+// Server entry of the in-app-agent runtime, consumed by web's router/watch
+// adapters and the worker queue processor.
 export * from "./access";
 export * from "./agent";
 export * from "./tools";

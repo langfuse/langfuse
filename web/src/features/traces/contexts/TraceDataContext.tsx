@@ -33,6 +33,7 @@ import {
 } from "@/src/features/traces/fns/timelineCalculations";
 import { useViewPreferences } from "./ViewPreferencesContext";
 import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
+import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/nodeScores";
 
 type TraceType = Omit<
   WithStringifiedMetadata<TraceDomain>,
@@ -49,6 +50,10 @@ interface TraceDataContextValue {
   mergedScores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
   roots: TreeNode[];
+  /** Node ids that own the trace's trace-level scores. Derived from the
+   * STRUCTURAL roots, never the level-filtered ones — hiding a root promotes its
+   * children into `roots`, and a promoted child is not a stand-in for the trace. */
+  traceLevelScoreOwnerIds: Set<string>;
   nodeMap: Map<string, TreeNode>;
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
@@ -150,6 +155,11 @@ export function TraceDataProvider({
     [filteredRoots, traceStartTime],
   );
 
+  const traceLevelScoreOwnerIdSet = useMemo(
+    () => traceLevelScoreOwnerIds(uiData.roots),
+    [uiData.roots],
+  );
+
   // Merge scores with optimistic cache
   const mergedScores = useMergedScores(
     serverScores,
@@ -168,6 +178,7 @@ export function TraceDataProvider({
       mergedScores,
       corrections,
       roots: filteredRoots,
+      traceLevelScoreOwnerIds: traceLevelScoreOwnerIdSet,
       nodeMap: uiData.nodeMap,
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
@@ -182,6 +193,7 @@ export function TraceDataProvider({
       mergedScores,
       corrections,
       filteredRoots,
+      traceLevelScoreOwnerIdSet,
       filteredSearchItems,
       hiddenObservationsCount,
       uiData.nodeMap,

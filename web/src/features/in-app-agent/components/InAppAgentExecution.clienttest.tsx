@@ -5,7 +5,6 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { HttpAgent, type AgentSubscriber } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
 import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
@@ -21,7 +20,6 @@ const providerMocks = vi.hoisted(() => {
   const decideToolApproval = vi.fn();
 
   return {
-    backgroundExecutionEnabled: false,
     capture: vi.fn(),
     startRun,
     cancelRun,
@@ -108,11 +106,6 @@ vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
     organization: { aiFeaturesEnabled: true },
   }),
-}));
-
-vi.mock("@/src/features/in-app-agent/lib/executionMode", () => ({
-  useInAppAgentBackgroundExecutionEnabled: () =>
-    providerMocks.backgroundExecutionEnabled,
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -211,71 +204,11 @@ describe("in-app agent execution", () => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
     vi.unstubAllGlobals();
-    providerMocks.backgroundExecutionEnabled = false;
     providerMocks.conversationQuery.data = undefined;
     window.sessionStorage.clear();
   });
 
-  it("keeps foreground submission and approval working when background execution is disabled", async () => {
-    let subscriber: AgentSubscriber | undefined;
-    const runAgent = vi
-      .spyOn(HttpAgent.prototype, "runAgent")
-      .mockResolvedValue({ result: undefined, newMessages: [] });
-    const abortRun = vi.spyOn(HttpAgent.prototype, "abortRun");
-    vi.spyOn(HttpAgent.prototype, "subscribe").mockImplementation(
-      (nextSubscriber: AgentSubscriber) => {
-        subscriber = nextSubscriber;
-        return { unsubscribe: vi.fn() };
-      },
-    );
-
-    const { unmount } = renderExecutionUi();
-
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /stop run/i }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
-      { target: { value: "Investigate this project" } },
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
-
-    await waitFor(() => {
-      expect(runAgent).toHaveBeenCalledOnce();
-    });
-    expect(providerMocks.startRun).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await subscriber?.onCustomEvent?.({
-        event: {
-          name: "on_interrupt",
-          value: {
-            type: "mastra_suspend",
-            toolCallId: "tool-call-1",
-            toolName: "dangerousTool",
-            runId: "run-1",
-          },
-        },
-      } as never);
-    });
-
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Confirm",
-      }),
-    );
-    await waitFor(() => {
-      expect(runAgent).toHaveBeenCalledTimes(2);
-    });
-
-    unmount();
-    expect(abortRun).toHaveBeenCalled();
-  });
-
   it("always allows a persisted background tool for the conversation", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     const approvedSnapshot = {
       conversation: {
         id: "conversation-1",
@@ -387,7 +320,6 @@ describe("in-app agent execution", () => {
   });
 
   it("replays prompt and dashboard invalidations after a detached run completes", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     const completedSnapshot = {
       conversation: {
         id: "conversation-1",
@@ -494,7 +426,6 @@ describe("in-app agent execution", () => {
   });
 
   it("keeps a hydrated in-flight tool call visibly running", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
@@ -546,7 +477,6 @@ describe("in-app agent execution", () => {
   });
 
   it("keeps approval cancellation visibly stopping until hydration settles", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
@@ -603,7 +533,6 @@ describe("in-app agent execution", () => {
   });
 
   it("does not observe a cached active run while the assistant is closed", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     const runningSnapshot = {
       conversation: { id: "conversation-1", isWriteLocked: false },
       messages: [],
@@ -639,7 +568,6 @@ describe("in-app agent execution", () => {
   });
 
   it("settles the drawer without restarting its activity state after Stop", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({
@@ -813,7 +741,6 @@ describe("in-app agent execution", () => {
   });
 
   it("settles a newly submitted run as soon as Stop receives a terminal status", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({

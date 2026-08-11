@@ -594,7 +594,7 @@ const meta = preview.meta({
   ],
   args: {
     error: null,
-    executionUi: { type: "foreground" as const },
+    executionUi: { notice: null, stop: null },
     isExpanded: false,
     isConversationInteractionDisabled: false,
     conversations,
@@ -1004,7 +1004,6 @@ export const BackgroundRun = meta.story({
   args: {
     isAssistantTurnInProgress: true,
     executionUi: {
-      type: "background",
       notice: null,
       stop: { status: "available", onStop: fn() },
     },
@@ -1094,9 +1093,8 @@ export const BackgroundRunStops = meta.story({
         }
         executionUi={
           isSettled
-            ? { type: "background", notice: null, stop: null }
+            ? { notice: null, stop: null }
             : {
-                type: "background",
                 notice: phase === "stopping" ? "Stopping the run…" : null,
                 stop: {
                   status: phase === "stopping" ? "stopping" : "available",

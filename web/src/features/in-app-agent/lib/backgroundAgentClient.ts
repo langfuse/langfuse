@@ -75,12 +75,10 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     onStatus?: (status: InAppAgentRunStatusUpdate) => void;
     threadId?: string;
     initialMessages?: AgUiMessage[];
-    initialState?: unknown;
   }) {
     super({
       threadId: config.threadId,
       initialMessages: config.initialMessages as never,
-      initialState: config.initialState as never,
     });
 
     this.projectId = config.projectId;

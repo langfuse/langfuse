@@ -446,6 +446,24 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -534,11 +552,6 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(24 * 60 * 60_000),
-  // Rollback switch for the in-app agent: flip to "foreground" and ship.
-  // Nothing sets this per region, so this default is the only place to change.
-  LANGFUSE_IN_APP_AGENT_EXECUTION_MODE: z
-    .enum(["background", "foreground"])
-    .default("background"),
   // Flat safety ceilings on concurrent non-terminal runs. Per region, so a
   // small region (JP, staging) can be tightened below its execution capacity.
   LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce
