@@ -92,7 +92,6 @@ const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   pendingToolApprovals: [],
   cancelStatus: "idle",
   attachment: { status: "detached" },
-  error: null,
 };
 
 export type InAppAgentEntryPoint =
@@ -380,7 +379,6 @@ function InAppAiAgentProviderInner({
       ),
       cancelStatus: "idle",
       attachment: { status: "detached" },
-      error: null,
     };
   }, [conversationQuery.data, selectedConversationId]);
   const backgroundExecutionView = useBackgroundExecutionView(
@@ -388,24 +386,21 @@ function InAppAiAgentProviderInner({
     bootstrapBackgroundView,
   );
   const currentBackgroundRun = backgroundExecutionView.currentRun;
-  const isRunning =
+  const isBackgroundRunning =
     backgroundExecutionView.attachment.status === "attaching" ||
     backgroundExecutionView.attachment.status === "attached" ||
     Boolean(
       currentBackgroundRun &&
       isActiveInAppAgentRunStatus(currentBackgroundRun.status),
     );
-  const backgroundExecutionError = useMemo(
-    () =>
-      backgroundExecutionView.error === null
-        ? null
-        : getInAppAgentError(backgroundExecutionView.error),
-    [backgroundExecutionView.error],
-  );
-  const effectiveError = backgroundExecutionError ?? error;
+  const isRunning = isBackgroundRunning;
+  const effectiveError =
+    backgroundExecutionView.attachment.status === "error"
+      ? getInAppAgentError(backgroundExecutionView.attachment.error)
+      : error;
   const liveMessageVersion = backgroundExecutionView.liveMessageRevision;
 
-  const pendingToolApprovals = useMemo(() => {
+  const effectivePendingToolApprovals = useMemo(() => {
     return backgroundExecutionView.pendingToolApprovals.map(
       ({ runId, approvalRequest, status }): InAppAgentPendingToolApproval => ({
         id: approvalRequest.toolCallId,
@@ -442,12 +437,12 @@ function InAppAiAgentProviderInner({
     return {
       messages: backgroundExecutionView.messages,
       displayState: backgroundExecutionView.displayState,
-      isSettled: !isRunning,
+      isSettled: !isBackgroundRunning,
     };
   }, [
     backgroundExecutionView.displayState,
     backgroundExecutionView.messages,
-    isRunning,
+    isBackgroundRunning,
     isSelectedConversationNotFound,
   ]);
   const messagesWithUiState = useMemo(() => {
@@ -604,8 +599,7 @@ function InAppAiAgentProviderInner({
     };
   }, [resetAgent]);
 
-  const rateLimitRetryAt =
-    effectiveError?.type === "rate_limit" ? effectiveError.retryAt : null;
+  const rateLimitRetryAt = error?.type === "rate_limit" ? error.retryAt : null;
 
   useEffect(() => {
     if (rateLimitRetryAt === null) {
@@ -614,7 +608,6 @@ function InAppAiAgentProviderInner({
 
     const timeout = window.setTimeout(
       () => {
-        backgroundSessionRef.current?.clearError();
         setError((currentError) => {
           if (
             currentError?.type !== "rate_limit" ||
@@ -634,7 +627,7 @@ function InAppAiAgentProviderInner({
     };
   }, [rateLimitRetryAt]);
 
-  const sessionSubscriber = useMemo(
+  const sharedAgentSubscriber = useMemo(
     () =>
       ({
         onEvent: ({ event }) => {
@@ -691,6 +684,9 @@ function InAppAiAgentProviderInner({
             });
           }
         },
+        onRunErrorEvent: ({ event }) => {
+          setError(getInAppAgentError(event));
+        },
       }) satisfies AgentSubscriber,
     [clearLoadingEvents, updateLoadingEvent, utils],
   );
@@ -742,7 +738,7 @@ function InAppAiAgentProviderInner({
 
       const nextBackgroundSession = new BackgroundExecutionSessionController({
         agent,
-        subscriber: sessionSubscriber,
+        subscriber: sharedAgentSubscriber,
         initialView: {
           messages: initialMessages,
           displayState: deserializeInAppAgentDisplayState(
@@ -778,7 +774,7 @@ function InAppAiAgentProviderInner({
             ),
           } satisfies Omit<
             BackgroundExecutionView,
-            "attachment" | "cancelStatus" | "liveMessageRevision" | "error"
+            "attachment" | "cancelStatus" | "liveMessageRevision"
           >;
         },
         cancelRun: (runId) =>
@@ -830,7 +826,7 @@ function InAppAiAgentProviderInner({
       projectId,
       releaseSubmitLock,
       resetAgent,
-      sessionSubscriber,
+      sharedAgentSubscriber,
       startRunMutation,
       utils,
     ],
@@ -941,7 +937,7 @@ function InAppAiAgentProviderInner({
       if (
         !content ||
         isRunning ||
-        isInAppAgentRateLimited(effectiveError) ||
+        isInAppAgentRateLimited(error) ||
         (options?.newConversation !== true &&
           isSelectedConversationHydrating) ||
         submitInFlightRef.current
@@ -1020,7 +1016,11 @@ function InAppAiAgentProviderInner({
         clearLoadingEvents();
         backgroundSession
           .run(createRunInput(undefined, options?.quickAction, entryPoint))
-          .catch(() => undefined);
+          .catch((error: unknown) => {
+            if (backgroundSession.getSnapshot().attachment.status !== "error") {
+              setError(getInAppAgentError(error));
+            }
+          });
         return true;
       } catch (error) {
         setError(getInAppAgentError(error));
@@ -1035,7 +1035,7 @@ function InAppAiAgentProviderInner({
       conversationQuery.data,
       capture,
       clearLoadingEvents,
-      effectiveError,
+      error,
       createRunInput,
       getOrCreateAgent,
       isSelectedConversationHydrating,
@@ -1270,7 +1270,7 @@ function InAppAiAgentProviderInner({
         return;
       }
 
-      const approval = pendingToolApprovals.find(
+      const approval = effectivePendingToolApprovals.find(
         (approval) => approval.id === approvalId,
       );
 
@@ -1278,7 +1278,7 @@ function InAppAiAgentProviderInner({
         !approval ||
         !selectedConversationId ||
         isRunning ||
-        isInAppAgentRateLimited(effectiveError)
+        isInAppAgentRateLimited(error)
       ) {
         return;
       }
@@ -1298,8 +1298,8 @@ function InAppAiAgentProviderInner({
     [
       capture,
       decideBackgroundToolApproval,
-      pendingToolApprovals,
-      effectiveError,
+      effectivePendingToolApprovals,
+      error,
       isRunning,
       selectedConversationId,
       selectedConversationIsWriteLocked,
@@ -1337,7 +1337,7 @@ function InAppAiAgentProviderInner({
       isSubmitting,
       pendingToolApprovals: isSelectedConversationNotFound
         ? []
-        : pendingToolApprovals,
+        : effectivePendingToolApprovals,
       isSelectedConversationHydrating,
       execution,
       error: effectiveError,
@@ -1376,7 +1376,7 @@ function InAppAiAgentProviderInner({
       open,
       openAssistant,
       execution,
-      pendingToolApprovals,
+      effectivePendingToolApprovals,
       rejectToolCall,
       setAgentOpen,
       invalidateConversations,

@@ -189,6 +189,54 @@ describe("in-app agent persistence", () => {
             : InAppAgentRunStatus.FAILED,
     });
 
+  it("finishes claimed runs once and preserves the first terminal error", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createClaimedRunFixture({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await expect(
+      finishClaimedRun({
+        prisma,
+        projectId,
+        runId: run.id,
+        status: InAppAgentRunStatus.FAILED,
+        errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
+        errorMessage: "Original agent error",
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      finishClaimedRun({
+        prisma,
+        projectId,
+        runId: run.id,
+        status: InAppAgentRunStatus.CANCELLED,
+        errorCode: InAppAgentRunErrorCode.CANCELLED,
+        errorMessage: "Client aborted request",
+      }),
+    ).resolves.toBe(false);
+
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: run.id, projectId } },
+        select: {
+          status: true,
+          finishedAt: true,
+          errorCode: true,
+          errorMessage: true,
+        },
+      }),
+    ).resolves.toEqual({
+      status: InAppAgentRunStatus.FAILED,
+      finishedAt: expect.any(Date),
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
+      errorMessage: "Original agent error",
+    });
+  });
+
   it("rejects users without the in-app agent entitlement", async () => {
     const { caller, projectId } = await createCaller(
       `user-${randomUUID()}`,
