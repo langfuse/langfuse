@@ -526,7 +526,7 @@ export function V4MigrationEvalsSection({
                 input/output
               </>
             )}
-            , which v4 no longer sets. Repointing{" "}
+            , which v4 no longer sets. Repoint{" "}
             {state.count === 1 ? "it" : "them"} at observations.
           </p>
           {assistant && (

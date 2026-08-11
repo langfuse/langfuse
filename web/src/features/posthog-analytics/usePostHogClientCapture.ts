@@ -331,7 +331,6 @@ export const events = {
     "migrate_evals_with_agent_clicked",
     "overview_banner_status_clicked",
     "overview_banner_docs_clicked",
-    "panel_status_link_clicked",
     "panel_docs_link_clicked",
     "create_project_keys_clicked",
   ],
