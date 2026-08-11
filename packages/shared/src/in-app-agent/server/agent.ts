@@ -13,7 +13,10 @@ import {
   type InAppAgentToolApprovalRequest,
   type ResumeForwardedProps,
 } from "../schema";
-import { createManualToolApprovalRunInput } from "./human-in-the-loop";
+import {
+  createInAppAgentMcpRunOverride,
+  createManualToolApprovalRunInput,
+} from "./human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
@@ -23,8 +26,10 @@ import {
   createSandboxTools,
   createRedirectActionTool,
   filterInAppAgentAvailableLangfuseMcpTools,
+  getInAppAgentMcpAllowedToolNames,
+  getInAppAgentRegistryToolName,
   type CompletedInAppAgentMcpToolCall,
-  type InAppAgentUserAccess,
+  type InAppAgentToolPolicy,
   withOptionalSilentMcpOutput,
   withInAppAgentToolApproval,
 } from "./tools";
@@ -171,7 +176,7 @@ type CreateAgUiStreamOptions = {
     url: string;
     publicKey: string;
     secretKey: string;
-    userAccess: InAppAgentUserAccess;
+    toolPolicy: InAppAgentToolPolicy;
     runOverride?: string;
   };
   redirectAction: {
@@ -498,14 +503,24 @@ export async function createAgUiStream(params: {
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
           currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
 
+          // Drop a one-off override after its call; standing grants remain in the policy.
+          const oneOffApprovedToolName =
+            forwardedProps?.command?.resume?.approved === true
+              ? getInAppAgentRegistryToolName(
+                  forwardedProps.command.resume.approvalRequest?.toolName,
+                )
+              : undefined;
+
           if (
-            forwardedProps?.command?.resume?.approved === true &&
-            params.options.langfuseMcp.runOverride
+            oneOffApprovedToolName &&
+            params.options.langfuseMcp.runOverride &&
+            !params.options.langfuseMcp.toolPolicy.autoApproved.has(
+              oneOffApprovedToolName,
+            )
           ) {
-            // The override is intentionally single-use: execute the approved
-            // mutating MCP tool with the first client, then rebuild the MCP
-            // client without the override so the continuation returns to the
-            // normal read-only in-app-agent policy.
+            const standingAllowedToolNames = getInAppAgentMcpAllowedToolNames(
+              params.options.langfuseMcp.toolPolicy,
+            );
 
             await currentAdapter.cleanup();
 
@@ -517,7 +532,12 @@ export async function createAgUiStream(params: {
                 ...params.options,
                 langfuseMcp: {
                   ...params.options.langfuseMcp,
-                  runOverride: undefined,
+                  runOverride:
+                    standingAllowedToolNames.length > 0
+                      ? await createInAppAgentMcpRunOverride({
+                          toolNames: standingAllowedToolNames,
+                        })
+                      : undefined,
                 },
               },
               awsProfile,
@@ -782,31 +802,34 @@ async function createMastraAdapter(params: {
     // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
     // discovery, then prefix tool names for constructor-based tools so the
     // model sees the same names that later appear in AG-UI tool-call events.
-    const tools = withInAppAgentToolApproval({
-      ...withOptionalSilentMcpOutput({
-        tools: prefixToolsetTools(
-          "langfuse",
-          filterInAppAgentAvailableLangfuseMcpTools({
-            tools: toolsets.langfuse,
-            userAccess: params.options.langfuseMcp.userAccess,
-          }),
-        ),
-        sandbox: params.options.sandbox,
-        onToolCallCompleted: params.options.onMcpToolCallCompleted,
-      }),
-      ...withOptionalSilentMcpOutput({
-        tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
-        sandbox: params.options.sandbox,
-        onToolCallCompleted: params.options.onMcpToolCallCompleted,
-      }),
-      [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
-        projectId: params.options.redirectAction.projectId,
-        isV4Enabled: params.options.redirectAction.isV4Enabled,
-      }),
-      ...(params.options.sandbox
-        ? createSandboxTools(params.options.sandbox)
-        : {}),
-    });
+    const tools = withInAppAgentToolApproval(
+      {
+        ...withOptionalSilentMcpOutput({
+          tools: prefixToolsetTools(
+            "langfuse",
+            filterInAppAgentAvailableLangfuseMcpTools({
+              tools: toolsets.langfuse,
+              policy: params.options.langfuseMcp.toolPolicy,
+            }),
+          ),
+          sandbox: params.options.sandbox,
+          onToolCallCompleted: params.options.onMcpToolCallCompleted,
+        }),
+        ...withOptionalSilentMcpOutput({
+          tools: prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+          sandbox: params.options.sandbox,
+          onToolCallCompleted: params.options.onMcpToolCallCompleted,
+        }),
+        [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
+          projectId: params.options.redirectAction.projectId,
+          isV4Enabled: params.options.redirectAction.isV4Enabled,
+        }),
+        ...(params.options.sandbox
+          ? createSandboxTools(params.options.sandbox)
+          : {}),
+      },
+      params.options.langfuseMcp.toolPolicy,
+    );
     params.onToolsAvailable?.(tools);
 
     const reasoningProviderOptions = getBedrockReasoningProviderOptions(

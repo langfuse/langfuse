@@ -96,6 +96,7 @@ import {
   prepareConfigsForTemplateUpgrade,
   prepareVariableMappingForEvaluatorUpgrade,
 } from "@/src/features/evals/server/evaluatorUpgrade";
+import { deleteJobConfigurationWithExecutions } from "@/src/features/evals/server/evaluatorRepository";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
@@ -1751,11 +1752,10 @@ export const evalRouter = createTRPCRouter({
         action: "delete",
       });
 
-      await ctx.prisma.jobConfiguration.delete({
-        where: {
-          id: evalConfigId,
-          projectId: projectId,
-        },
+      await deleteJobConfigurationWithExecutions({
+        prisma: ctx.prisma,
+        projectId,
+        jobConfigurationId: evalConfigId,
       });
 
       // Clear the "no job configs" caches to ensure they are re-evaluated
