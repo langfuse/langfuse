@@ -20,12 +20,18 @@ import {
 import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
+import { type HomeDashboardPresetId } from "@langfuse/shared";
 import {
-  HOME_DASHBOARD_PRESET_IDS,
-  type HomeDashboardPresetId,
-} from "@langfuse/shared";
-import { HOME_PRESET_METADATA } from "@/src/features/dashboard/components/home-preset-registry";
+  isSuggestedWidgetView,
+  type ViewVersion,
+} from "@langfuse/shared/query";
+import {
+  getSuggestedHomePresetIds,
+  HOME_PRESET_METADATA,
+} from "@/src/features/dashboard/components/home-preset-registry";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
 
 export type WidgetItem = {
   id: string;
@@ -62,7 +68,7 @@ function WidgetRow({
     <button type="button" onClick={onClick} className={rowClassName}>
       <RowIllustration type={widget.chartType} />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium" title={widget.name}>
+        <div className="truncate font-bold" title={widget.name}>
           {widget.name}
         </div>
         {widget.description ? (
@@ -129,7 +135,23 @@ export function SelectWidgetDialog({
     },
   );
 
-  const projectWidgets = widgets.data?.widgets ?? [];
+  // Suggestions obey the same view allowlist the widget editor uses for new
+  // definitions, so v4 users are never offered a v3 trace-based widget.
+  // Legacy trace widgets stay listed and editable under /widgets. (LFE-14444)
+  const { isBetaEnabled, isInitializing } = useV4Beta();
+  const suggestedVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const allProjectWidgets = widgets.data?.widgets ?? [];
+  const projectWidgets = allProjectWidgets.filter((widget) =>
+    isSuggestedWidgetView(widget.view, suggestedVersion),
+  );
+  const hiddenWidgetCount = allProjectWidgets.length - projectWidgets.length;
+  const suggestedPresetIds = getSuggestedHomePresetIds(suggestedVersion);
+  // Replaces the generic empty state when it hid every widget, so the two can
+  // never contradict each other.
+  const hiddenWidgetsNote =
+    hiddenWidgetCount > 0
+      ? `${hiddenWidgetCount} trace-based widget${hiddenWidgetCount === 1 ? "" : "s"} hidden — the Traces view is not available for new charts. Manage them under Widgets.`
+      : null;
 
   const selectWidget = (widget: WidgetItem) => {
     capture("dashboard:widget_added", {
@@ -151,7 +173,9 @@ export function SelectWidgetDialog({
         </DialogHeader>
 
         <DialogBody>
-          {widgets.isPending ? (
+          {/* isInitializing: an unresolved session reads as v1, which would
+              briefly offer the unfiltered list to a v4 user. */}
+          {widgets.isPending || isInitializing ? (
             <div className="py-8 text-center">Loading widgets...</div>
           ) : widgets.isError ? (
             <div className="text-destructive py-8 text-center">
@@ -159,6 +183,9 @@ export function SelectWidgetDialog({
             </div>
           ) : (
             <div className="flex flex-col gap-3 p-1">
+              <InAppAgentWidgetComposer
+                onSubmitted={() => onOpenChange(false)}
+              />
               <button
                 type="button"
                 onClick={() => {
@@ -174,7 +201,7 @@ export function SelectWidgetDialog({
               >
                 <RowIllustration type="CUSTOM" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium">Custom Chart</div>
+                  <div className="font-bold">Custom Chart</div>
                   <div className="text-muted-foreground text-xs">
                     Pick a data view, metrics, and chart type from scratch
                   </div>
@@ -182,8 +209,12 @@ export function SelectWidgetDialog({
               </button>
 
               <Tabs
+                // Open on the project tab when it has something to say — a
+                // hidden-widget note included, so it is not missed.
                 defaultValue={
-                  projectWidgets.length > 0 ? "project" : "home-cards"
+                  projectWidgets.length > 0 || hiddenWidgetsNote
+                    ? "project"
+                    : "home-cards"
                 }
                 onValueChange={(tab) =>
                   capture("dashboard:add_widget_tab_switch", { tab })
@@ -195,32 +226,35 @@ export function SelectWidgetDialog({
                   </TabsTrigger>
                   {onSelectPreset && (
                     <TabsTrigger value="home-cards">
-                      Home cards ({HOME_DASHBOARD_PRESET_IDS.length})
+                      Home cards ({suggestedPresetIds.length})
                     </TabsTrigger>
                   )}
                 </TabsList>
                 <TabsContent value="project">
                   <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
+                    {projectWidgets.map((widget) => (
+                      <WidgetRow
+                        key={widget.id}
+                        widget={widget as WidgetItem}
+                        onClick={() => selectWidget(widget as WidgetItem)}
+                      />
+                    ))}
                     {projectWidgets.length === 0 ? (
                       <div className="text-muted-foreground py-8 text-center text-sm">
-                        No saved widgets in this project yet — build one with
-                        Custom Chart.
+                        {hiddenWidgetsNote ??
+                          "No saved widgets in this project yet — build one with Custom Chart."}
                       </div>
-                    ) : (
-                      projectWidgets.map((widget) => (
-                        <WidgetRow
-                          key={widget.id}
-                          widget={widget as WidgetItem}
-                          onClick={() => selectWidget(widget as WidgetItem)}
-                        />
-                      ))
-                    )}
+                    ) : hiddenWidgetsNote ? (
+                      <div className="text-muted-foreground px-1 py-2 text-xs">
+                        {hiddenWidgetsNote}
+                      </div>
+                    ) : null}
                   </div>
                 </TabsContent>
                 {onSelectPreset && (
                   <TabsContent value="home-cards">
                     <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
-                      {HOME_DASHBOARD_PRESET_IDS.map((presetId) => {
+                      {suggestedPresetIds.map((presetId) => {
                         const meta = HOME_PRESET_METADATA[presetId];
                         return (
                           <button
@@ -235,7 +269,7 @@ export function SelectWidgetDialog({
                             <RowIllustration type={meta.illustration} />
                             <div className="min-w-0 flex-1">
                               <div
-                                className="truncate font-medium"
+                                className="truncate font-bold"
                                 title={meta.name}
                               >
                                 {meta.name}

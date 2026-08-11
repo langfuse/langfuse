@@ -35,6 +35,21 @@ export const isLegacyEvalTarget = (targetObject: string): boolean => {
   );
 };
 
+/**
+ * True when the legacy-migration nag (deprecated badge, callout, migration
+ * dialog count) should show: the evaluator targets a legacy object AND is
+ * actively evaluating new data. Inactive or backfill-only (EXISTING) legacy
+ * evaluators keep working and need no action, so they get no label.
+ */
+export const requiresLegacyMigrationAction = (evaluator: {
+  targetObject: string;
+  status: string;
+  timeScope: string[];
+}): boolean =>
+  isLegacyEvalTarget(evaluator.targetObject) &&
+  evaluator.status === "ACTIVE" &&
+  evaluator.timeScope.includes("NEW");
+
 export const isTraceTarget = (targetObject: string): boolean => {
   return targetObject === EvalTargetObject.TRACE;
 };

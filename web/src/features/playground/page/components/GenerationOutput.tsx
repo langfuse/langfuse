@@ -5,7 +5,7 @@ import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
 import { BracesIcon, Check, Copy, Plus } from "lucide-react";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { ThinkingBlock } from "@/src/components/trace/components/IOPreview/components/ThinkingBlock";
+import { ThinkingBlock } from "@/src/features/traces";
 
 export const GenerationOutput = () => {
   const [isCopied, setIsCopied] = useState(false);
@@ -107,7 +107,7 @@ export const GenerationOutput = () => {
       >
         <div className="bg-muted sticky top-0 z-10 p-3">
           <div className="flex w-full items-center">
-            <p className="flex-1 text-xs font-semibold">Output</p>
+            <p className="flex-1 text-xs font-bold">Output</p>
             {copyButton}
           </div>
         </div>

@@ -156,6 +156,7 @@ const getMetricsFilterColumnSpecs = ({
 
   if (
     selectedView === "scores-numeric" ||
+    selectedView === "scores-boolean" ||
     selectedView === "scores-categorical"
   ) {
     filterColumns.push(
@@ -217,6 +218,14 @@ const getMetricsFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
+            } satisfies MetricsFilterColumnSpec,
+            {
+              column: {
+                name: "Is Root Observation",
+                id: "isRootObservation",
+                type: "boolean",
+                internal: "internalValue",
+              },
             } satisfies MetricsFilterColumnSpec,
           ]
         : []),
@@ -308,6 +317,17 @@ const getMetricsFilterColumnSpecs = ({
         name: "Score Value",
         id: "value",
         type: "number",
+        internal: "internalValue",
+      },
+    });
+  }
+
+  if (selectedView === "scores-boolean") {
+    filterColumns.push({
+      column: {
+        name: "Boolean Value",
+        id: "booleanValue",
+        type: "boolean",
         internal: "internalValue",
       },
     });

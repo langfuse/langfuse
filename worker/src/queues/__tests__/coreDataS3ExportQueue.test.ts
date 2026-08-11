@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Readable } from "node:stream";
 import { type StorageService } from "@langfuse/shared/src/server";
 import {
+  mapJobConfigurationToCoreDataRow,
   mapUserToCoreDataRow,
   uploadTableCoreDataJsonl,
 } from "../coreDataS3ExportQueue";
@@ -45,6 +46,45 @@ describe("mapUserToCoreDataRow", () => {
     });
 
     expect(row).toStrictEqual({ id: "user-2", authMethods: [] });
+  });
+});
+
+describe("mapJobConfigurationToCoreDataRow", () => {
+  const decimal = (value: number) => ({ toNumber: () => value });
+
+  it("flattens the eval template and casts sampling to a number", () => {
+    const row = mapJobConfigurationToCoreDataRow({
+      id: "config-1",
+      projectId: "project-1",
+      scoreName: "toxicity",
+      evalTemplateId: "template-1",
+      evalTemplate: { name: "toxicity-v2" },
+      sampling: decimal(0.5),
+    });
+
+    expect(row).toStrictEqual({
+      id: "config-1",
+      projectId: "project-1",
+      scoreName: "toxicity",
+      evalTemplateId: "template-1",
+      evalTemplateName: "toxicity-v2",
+      sampling: 0.5,
+    });
+    expect(JSON.stringify(row)).toContain('"sampling":0.5');
+  });
+
+  it("exports null for configurations without an eval template", () => {
+    const row = mapJobConfigurationToCoreDataRow({
+      id: "config-2",
+      evalTemplate: null,
+      sampling: decimal(1),
+    });
+
+    expect(row).toStrictEqual({
+      id: "config-2",
+      evalTemplateName: null,
+      sampling: 1,
+    });
   });
 });
 

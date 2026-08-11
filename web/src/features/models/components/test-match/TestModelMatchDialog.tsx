@@ -83,7 +83,7 @@ export function TestModelMatchDialog({
               <div className="space-y-6">
                 {/* Model Name Input */}
                 <div className="space-y-2">
-                  <div className="text-sm font-medium">Model Name *</div>
+                  <div className="text-sm font-bold">Model Name *</div>
                   <div className="text-muted-foreground text-sm">
                     The model name on your generations.
                   </div>
@@ -150,7 +150,7 @@ export function TestModelMatchDialog({
                           <>
                             <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 dark:border-green-900 dark:bg-green-950">
                               <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                              <span className="text-sm font-medium text-green-900 dark:text-green-100">
+                              <span className="text-sm font-bold text-green-900 dark:text-green-100">
                                 Match Found
                               </span>
                             </div>

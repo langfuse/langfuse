@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { type EvalTemplate } from "@langfuse/shared";
 
 import {

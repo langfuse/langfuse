@@ -234,7 +234,6 @@ export default async function handler(
 const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([
   eventTypes.SCORE_CREATE,
   eventTypes.SDK_LOG,
-  eventTypes.DATASET_RUN_ITEM_CREATE,
 ]);
 
 function filterBatchForEventsOnly(
@@ -278,7 +277,7 @@ function filterBatchForEventsOnly(
         id,
         status: 400,
         message: "Event type not accepted",
-        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score, log, and dataset-run-item events.`,
+        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score and log events.`,
       });
     }
   }

@@ -100,6 +100,7 @@ describe("chatCompletionHandler", () => {
       model: { adapter: "openai", id: "gpt-4.1" },
       connection: { secretKey: "encrypted-key" },
       messages: [{ role: "user", content: "Hello" }],
+      timeout: 95_000,
     });
   });
 
@@ -167,6 +168,34 @@ describe("chatCompletionHandler", () => {
     );
   });
 
+  it("preserves extracted tool names for provider validation", async () => {
+    const toolSet = { "ns:get_time": { description: "Get the time" } };
+    mocks.createToolSet.mockReturnValue(toolSet);
+    mocks.generate.mockResolvedValue({
+      text: "",
+      finalStep: {},
+      toolCalls: [],
+    });
+
+    const toolDefinition = {
+      name: "ns:get_time",
+      description: "Get the time",
+      parameters: { type: "object", properties: {} },
+    };
+    const response = await chatCompletionHandler(
+      createRequest({
+        ...baseBody,
+        tools: [toolDefinition],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.createToolSet).toHaveBeenCalledWith([toolDefinition]);
+    expect(mocks.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: toolSet }),
+    );
+  });
+
   it("preserves the text/plain streaming response", async () => {
     const textStream = new ReadableStream<string>({
       start(controller) {
@@ -185,6 +214,11 @@ describe("chatCompletionHandler", () => {
       "text/plain; charset=utf-8",
     );
     expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.stream).toHaveBeenCalledWith({
+      model: { adapter: "openai", id: "gpt-4.1" },
+      connection: { secretKey: "encrypted-key" },
+      messages: [{ role: "user", content: "Hello" }],
+    });
   });
 
   it("preserves terminal LLM configuration status codes", async () => {

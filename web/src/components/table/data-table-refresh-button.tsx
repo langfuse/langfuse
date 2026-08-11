@@ -24,6 +24,13 @@ interface DataTableRefreshButtonProps {
   isRefreshing: boolean;
   interval: RefreshInterval;
   setInterval: (interval: RefreshInterval) => void;
+  /**
+   * Space-tight variant (e.g. the mobile Filters sheet header): the split
+   * control drops the "Off" label when auto-refresh is disabled and gains an
+   * accent border (plus the interval label, e.g. "30s") once an interval is
+   * set. Default (non-compact) is unchanged.
+   */
+  compact?: boolean;
 }
 
 export function DataTableRefreshButton({
@@ -31,8 +38,11 @@ export function DataTableRefreshButton({
   isRefreshing,
   interval,
   setInterval,
+  compact = false,
 }: DataTableRefreshButtonProps) {
   const activeInterval = REFRESH_INTERVALS.find((i) => i.value === interval);
+  // Only a real interval counts as active; null ("Off") is the resting state.
+  const isActive = interval != null;
 
   return (
     <div className="flex items-center">
@@ -41,7 +51,10 @@ export function DataTableRefreshButton({
         size="icon"
         onClick={onRefresh}
         disabled={isRefreshing}
-        className="rounded-r-none border-r-0"
+        className={cn(
+          "rounded-r-none border-r-0",
+          compact && isActive && "border-primary",
+        )}
         title="Refresh"
       >
         <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
@@ -51,12 +64,22 @@ export function DataTableRefreshButton({
           <Button
             variant="outline"
             size="icon"
-            className="w-auto rounded-l-none border-l-0 px-2"
+            className={cn(
+              "w-auto rounded-l-none border-l-0 px-2",
+              compact && isActive && "border-primary text-primary",
+            )}
           >
             <ChevronDown className="h-4 w-4" />
-            <span className="ml-1 text-sm">
-              {activeInterval?.label ?? "Off"}
-            </span>
+            {compact ? (
+              // Drop the "Off" label; surface the interval only when set.
+              isActive && (
+                <span className="ml-1 text-sm">{activeInterval?.label}</span>
+              )
+            ) : (
+              <span className="ml-1 text-sm">
+                {activeInterval?.label ?? "Off"}
+              </span>
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

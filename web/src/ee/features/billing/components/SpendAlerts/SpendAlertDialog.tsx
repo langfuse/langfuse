@@ -18,7 +18,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { toast } from "sonner";
 import { Info } from "lucide-react";
@@ -102,7 +102,7 @@ export function SpendAlertDialog({
       }
       onSuccess();
     } catch (error) {
-      console.error("Failed to save spend alert:", error);
+      reportNonTrpcError(error, "billing");
       toast.error(
         `Failed to ${alert ? "update" : "create"} spend alert. Please try again.`,
       );
@@ -167,7 +167,7 @@ export function SpendAlertDialog({
             <div className="text-muted-foreground text-xs">
               <div className="flex flex-row items-center">
                 <Info className="mr-2 h-3 w-3" />
-                <span className="font-medium">How it works</span>
+                <span className="font-bold">How it works</span>
               </div>
               <ul className="list-disc pl-5">
                 <li>

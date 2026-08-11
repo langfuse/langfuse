@@ -129,7 +129,7 @@ export function CloneFirstDialog({
         <DialogBody>
           <div className="text-muted-foreground grid gap-3 py-4 text-sm">
             <p>
-              <span className="text-foreground font-medium">
+              <span className="text-foreground font-bold">
                 &ldquo;{dashboardName}&rdquo;
               </span>{" "}
               is maintained by Langfuse and can&rsquo;t be edited directly.
@@ -146,7 +146,7 @@ export function CloneFirstDialog({
               <div className="bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
                 <span>
                   You already have a copy:{" "}
-                  <span className="text-foreground font-medium">
+                  <span className="text-foreground font-bold">
                     &ldquo;{existingClone.name}&rdquo;
                   </span>
                   {pendingDefinition

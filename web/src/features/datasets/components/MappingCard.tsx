@@ -48,11 +48,11 @@ function SchemaKeyDropZone({
     >
       {mappedColumns.length === 0 ? (
         <div className="flex h-full min-h-[52px] flex-col justify-start p-2">
-          <div className="mb-1 text-sm font-medium">{schemaKey}</div>
+          <div className="mb-1 text-sm font-bold">{schemaKey}</div>
         </div>
       ) : (
         <div className="p-2">
-          <div className="mb-1 text-sm font-medium">{schemaKey}</div>
+          <div className="mb-1 text-sm font-bold">{schemaKey}</div>
           <div className="flex flex-wrap gap-1.5">
             {mappedColumns.map((column) => (
               <MappedColumnBadge
@@ -125,7 +125,7 @@ function MappedColumnBadge({
     <div
       ref={setNodeRef}
       className={cn(
-        "bg-accent-dark-blue text-muted group flex cursor-grab items-center gap-1 rounded-md px-2 py-1 text-sm font-medium active:cursor-grabbing",
+        "bg-accent-dark-blue text-muted group flex cursor-grab items-center gap-1 rounded-md px-2 py-1 text-sm font-bold active:cursor-grabbing",
         isDragging && "opacity-30",
       )}
       {...attributes}
@@ -178,7 +178,7 @@ export function MappingCard({
   return (
     <Card className="flex h-full flex-col overflow-hidden">
       <CardHeader className="shrink-0 border-b p-3">
-        <CardTitle className="text-base font-semibold">
+        <CardTitle className="text-base font-bold">
           Map to Dataset Items
         </CardTitle>
       </CardHeader>
@@ -186,7 +186,7 @@ export function MappingCard({
         {/* INPUT SECTION */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-muted-foreground text-sm font-semibold tracking-wide">
+            <h3 className="text-muted-foreground text-sm font-bold tracking-wide">
               Input
             </h3>
             {inputSchemaKeys && inputSchemaKeys.length > 0 && (
@@ -244,7 +244,7 @@ export function MappingCard({
         {/* OUTPUT SECTION */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-muted-foreground text-sm font-semibold tracking-wide">
+            <h3 className="text-muted-foreground text-sm font-bold tracking-wide">
               Expected Output
             </h3>
             {expectedOutputSchemaKeys &&
@@ -302,7 +302,7 @@ export function MappingCard({
 
         {/* METADATA SECTION */}
         <div className="space-y-2">
-          <h3 className="text-muted-foreground text-sm font-semibold tracking-wide">
+          <h3 className="text-muted-foreground text-sm font-bold tracking-wide">
             Metadata
           </h3>
           <FreeformDropZone

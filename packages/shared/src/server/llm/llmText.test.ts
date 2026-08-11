@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { createOpenAI } from "@ai-sdk/openai";
@@ -6,11 +6,13 @@ import { APICallError, tool } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { encrypt } from "../../encryption";
+import { env } from "../../env";
 import { LLMValidationError } from "./errors";
 import {
   createLLMOutput,
   createLLMToolSet,
   generateLLMText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   mapLegacyLLMCompletionParams,
   streamLLMText,
 } from "./llmText";
@@ -55,6 +57,26 @@ function openAIOptions() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("getClientInitiatedNonStreamingLlmTimeoutMs", () => {
+  const configuredTimeout = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
+
+  afterEach(() => {
+    env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS = configuredTimeout;
+  });
+
+  it.each([
+    { configured: 120_000, expected: 95_000 },
+    { configured: 60_000, expected: 60_000 },
+  ])(
+    "returns $expected for a configured $configured ms timeout",
+    ({ configured, expected }) => {
+      env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS = configured;
+
+      expect(getClientInitiatedNonStreamingLlmTimeoutMs()).toBe(expected);
+    },
+  );
 });
 
 describe("generateLLMText", () => {
@@ -408,22 +430,26 @@ describe("legacy compatibility boundary", () => {
     });
   });
 
-  it("preserves explicit non-reasoning OpenAI gpt-5.4 mini/nano handling", () => {
-    const mapped = mapLegacyLLMCompletionParams({
-      messages: legacyMessages,
-      modelParams: {
-        provider: "openai",
-        adapter: LLMAdapter.OpenAI,
-        model: "gpt-5.4-mini",
-        providerOptions: { service_tier: "flex" },
-      },
-      connection: encryptedConnection,
-    });
+  it.each(["gpt-5.4-mini", "gpt-5.4-nano"])(
+    "uses portable non-reasoning defaults for OpenAI %s",
+    (model) => {
+      const mapped = mapLegacyLLMCompletionParams({
+        messages: legacyMessages,
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model,
+          providerOptions: { service_tier: "flex" },
+        },
+        connection: encryptedConnection,
+      });
 
-    expect(mapped.providerOptions).toEqual({
-      openai: { serviceTier: "flex", forceReasoning: false },
-    });
-  });
+      expect(mapped).toMatchObject({
+        reasoning: "none",
+        providerOptions: { openai: { serviceTier: "flex" } },
+      });
+    },
+  );
 
   it("passes unknown OpenAI provider options through for OpenAI-compatible endpoints", () => {
     const mapped = mapLegacyLLMCompletionParams({

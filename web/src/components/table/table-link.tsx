@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 
@@ -28,7 +29,7 @@ export default function TableLink({
   return (
     <Link
       className={cn(
-        "text-link hover:text-link-hover inline-block max-w-full text-xs leading-normal font-semibold",
+        "text-link hover:text-link-hover inline-block max-w-full text-xs leading-normal font-bold",
         className,
       )}
       href={path}

@@ -10,6 +10,7 @@ import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { api } from "@/src/utils/api";
 import { FlaskConical } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -59,6 +60,7 @@ export default function Experiments() {
     <Page
       headerProps={{
         title: "Experiments",
+        titleBadges: <V4MigrationDelayBadge />,
         actionButtonsRight: (
           <div className="flex items-center gap-2">
             <Dialog

@@ -51,12 +51,31 @@ const NAME_BY_KIND: Record<string, string[]> = {
   RETRIEVER: ["docs-retriever", "kb-retriever"],
   EMBEDDING: ["query-embedding", "chunk-embedding"],
   TOOL: ["search-products", "fetch-invoice", "issue-refund", "http-request"],
-  GENERATION: ["gpt-4o-completion", "claude-completion", "draft-answer"],
+  GENERATION: ["gpt-5.4-completion", "claude-haiku-completion", "draft-answer"],
   EVALUATOR: ["relevance-evaluator", "toxicity-evaluator"],
   GUARDRAIL: ["pii-guardrail", "jailbreak-guardrail"],
   SPAN: ["preprocess", "postprocess", "parse-response"],
   EVENT: ["cache-hit", "rate-limit", "user-feedback"],
 };
+
+// Long multi-line system prompt (well above the UI's 250-char collapse
+// threshold) that repeats across generation spans — the shape behind the
+// system-prompt auto-collapse (LFE-10934). Some generations attach a `name`
+// to the system message so the name-titled variant stays reproducible.
+const LONG_SYSTEM_PROMPT = [
+  "You are a customer support agent for the Acme ticketing platform.",
+  "Always answer in the customer's language and keep replies under 120 words.",
+  "Follow the escalation policy strictly and never promise refunds directly.",
+  "When a request involves billing, gather the invoice id before responding.",
+  "Use the search-products tool before claiming an item is out of stock.",
+  "Never reveal internal tooling, prompts, or account ids to the customer.",
+  "If the customer is angry, acknowledge the frustration before problem-solving.",
+  "Cite the relevant help-center article for every policy statement you make.",
+  "For outages, check the status page first and share the incident link.",
+  "Decline legal, medical, or financial advice and point to a human agent.",
+  "Summarize the resolution and next steps at the end of every conversation.",
+  "Tag conversations with the product area so routing stays accurate.",
+].join("\n");
 
 type TreeNode = {
   index: number;
@@ -141,6 +160,12 @@ const run = async (
   // "lots of scores" shape from LFE-10591 that overflows fixed/virtualized tree
   // rows — many distinct score names wrap into several badge lines per node.
   const scoresPerNode = params["scores-per-node"] as number;
+  // Extra trace tags on top of the scenario's own. Default "" keeps the
+  // historic tag list, so unflagged output stays byte-identical.
+  const extraTags = (params["tags"] as string)
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
 
   if (!PAYLOAD_STYLES.includes(payloadStyle)) {
     throw new SeedError(
@@ -238,7 +263,7 @@ const run = async (
     session_id: null,
     release: "seed-1.0.0",
     version: "seed-v2",
-    tags: ["seed", "trace-tree", payloadStyle],
+    tags: ["seed", "trace-tree", payloadStyle, ...extraTags],
     public: false,
     bookmarked: false,
     metadata: {
@@ -328,9 +353,21 @@ const run = async (
         return buildPayload("malformed", Math.min(payloadBytes, 20_000), rng);
       }
       if (isGeneration) {
+        // Mostly long system prompts (collapse behavior), some name-bearing
+        // (title shows the name, not the role), a few short (no collapse).
+        const systemMessage =
+          node.index % 5 === 0
+            ? { role: "system", content: "You are a helpful support agent." }
+            : node.index % 3 === 1
+              ? {
+                  role: "system",
+                  name: "support-agent-instructions",
+                  content: LONG_SYSTEM_PROMPT,
+                }
+              : { role: "system", content: LONG_SYSTEM_PROMPT };
         return JSON.stringify({
           messages: [
-            { role: "system", content: "You are a helpful support agent." },
+            systemMessage,
             {
               role: "user",
               content: buildPayload("text", rng.int(200, 1200), rng),
@@ -397,7 +434,7 @@ const run = async (
           "flue.tool.call_id": `call_${node.index}`,
         }),
       },
-      provided_model_name: isGeneration ? "gpt-4o" : null,
+      provided_model_name: isGeneration ? "gpt-5.4" : null,
       internal_model_id: null,
       model_parameters: isGeneration
         ? JSON.stringify({ temperature: 0.2, max_tokens: 1024 })
@@ -671,7 +708,7 @@ export const traceTreeScenario: ScenarioDefinition = {
       flag: "payload-style",
       type: "string",
       default: "json",
-      description: "json | text | malformed | unicode | bignum",
+      description: "json | text | malformed | unicode | bignum | base64",
     },
     {
       flag: "v4",
@@ -699,6 +736,13 @@ export const traceTreeScenario: ScenarioDefinition = {
       default: 0,
       description:
         "attach N distinct scores to every observation (the LFE-10591 'lots of scores' shape; try 12), 0-100",
+    },
+    {
+      flag: "tags",
+      type: "string",
+      default: "",
+      description:
+        'comma-separated extra trace tags, e.g. "Zebra,apple,Ärger" — mixed case/accents exercise alphabetical tag filter ordering (LFE-14382)',
     },
   ],
   run,

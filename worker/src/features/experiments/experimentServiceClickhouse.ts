@@ -8,6 +8,7 @@ import {
   ChatMessage,
   convertDateToClickhouseDateTime,
   createLLMOutput,
+  createLLMToolSet,
   createUnknownSdkIngestionAttribution,
   createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
@@ -222,9 +223,12 @@ async function processLLMCall(
   await generateLLMText({
     ...llmParams,
     maxRetries: 1,
+    // Setup rejects the unsupported tools + structured-output combination.
     ...(config.structuredOutputSchema
       ? { output: createLLMOutput(config.structuredOutputSchema) }
-      : {}),
+      : config.tools.length > 0
+        ? { tools: createLLMToolSet(config.tools) }
+        : {}),
     trace: traceSinkParams,
   }).catch(() => undefined); // catch errors and do not retry
 

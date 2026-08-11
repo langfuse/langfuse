@@ -18,6 +18,13 @@
       "cache": true,
       "outputLogs": "errors-only"
     },
+    "build:test": {
+      "dependsOn": ["db:generate", "^build"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "cache": true,
+      "outputLogs": "errors-only"
+    },
     "start": {
       "dependsOn": ["^start"]
     },
@@ -101,6 +108,13 @@
     "@repo/eslint-plugin#build": {
       "dependsOn": [],
       "outputs": ["dist/**"],
+      "cache": true,
+      "outputLogs": "errors-only"
+    },
+    "@repo/in-app-agent-sandbox-runtime#build:docker-image": {
+      "dependsOn": ["build"],
+      "inputs": ["Dockerfile", "package.json", "tsconfig.json"],
+      "outputs": [".local-image-built"],
       "cache": true,
       "outputLogs": "errors-only"
     },

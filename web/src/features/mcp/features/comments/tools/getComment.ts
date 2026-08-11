@@ -4,7 +4,7 @@ import {
   GetCommentV1Response,
 } from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
-import { buildCommentObjectUrl } from "@/src/utils/product-url";
+import { buildCommentObjectUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [getCommentTool, handleGetComment] = defineTool({

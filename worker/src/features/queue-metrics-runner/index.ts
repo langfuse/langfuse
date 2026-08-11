@@ -51,6 +51,10 @@ function emitDepth(
 }
 
 export class QueueMetricsRunner extends PeriodicRunner {
+  constructor() {
+    super("queue_metrics_runner");
+  }
+
   protected get name(): string {
     return "queue-metrics-runner";
   }
@@ -71,6 +75,7 @@ export class QueueMetricsRunner extends PeriodicRunner {
       updateActiveIngestFailureProjectsMetric()
         .then(() => undefined)
         .catch((err) => {
+          this.markRunFailed(err);
           logger.error(
             "Queue metrics: failed to record active ingestion failure projects",
             err,
@@ -89,26 +94,33 @@ export class QueueMetricsRunner extends PeriodicRunner {
       const metricBase = convertQueueNameToMetricName(queueName);
 
       promises.push(
+        queue
+          .getFailed(-1, -1)
+          .then((jobs) => {
+            recordGauge(
+              metricBase + ".dlq_oldest_age",
+              WorkerManager.computeDlqOldestAgeMs(jobs, Date.now()),
+              { unit: "milliseconds" },
+            );
+          })
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              `Queue metrics: failed to collect dlq oldest age for ${queueName}`,
+              err,
+            );
+          }),
+      );
+
+      promises.push(
         collectDepth(queue)
           .then((depths) => {
             if (depths) {
               emitDepth(metricBase, depths);
-              // Old-style metrics for backward compatibility.
-              // These duplicate what workerManager.metricWrapper emits on job
-              // completion. Both sources coexist during migration — once dashboards
-              // switch to the new .depth metrics, remove all but .depth
-              recordGauge(metricBase + ".length", depths.waiting, {
-                unit: "records",
-              });
-              recordGauge(metricBase + ".dlq_length", depths.failed, {
-                unit: "records",
-              });
-              recordGauge(metricBase + ".active", depths.active, {
-                unit: "records",
-              });
             }
           })
           .catch((err) => {
+            this.markRunFailed(err);
             logger.error(
               `Queue metrics: failed to collect depth for ${queueName}`,
               err,
@@ -126,6 +138,49 @@ export class QueueMetricsRunner extends PeriodicRunner {
 
       const metricBase = convertQueueNameToMetricName(config.baseQueueName);
 
+      const agePromises = shardNames.map((shardName) => {
+        const queue = config.getInstance(shardName);
+        if (!queue) return Promise.resolve(null);
+
+        return queue
+          .getFailed(-1, -1)
+          .then((jobs) => {
+            const age = WorkerManager.computeDlqOldestAgeMs(jobs, Date.now());
+            recordGauge(metricBase + ".dlq_oldest_age", age, {
+              shard: shardName,
+              unit: "milliseconds",
+            });
+            return age;
+          })
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              `Queue metrics: failed to collect dlq oldest age for ${shardName}`,
+              err,
+            );
+            return null;
+          });
+      });
+
+      // Aggregate is the max across shards (the oldest job overall); unlike
+      // depth there is nothing to extrapolate for failed shards.
+      promises.push(
+        Promise.allSettled(agePromises).then((results) => {
+          const ages: number[] = [];
+          for (const result of results) {
+            if (result.status === "fulfilled" && result.value !== null) {
+              ages.push(result.value);
+            }
+          }
+          if (ages.length === 0) return;
+
+          recordGauge(metricBase + ".dlq_oldest_age", Math.max(...ages), {
+            shard: "all",
+            unit: "milliseconds",
+          });
+        }),
+      );
+
       const shardPromises = shardNames.map((shardName) => {
         const queue = config.getInstance(shardName);
         if (!queue) return Promise.resolve(null);
@@ -140,6 +195,7 @@ export class QueueMetricsRunner extends PeriodicRunner {
             return depths;
           })
           .catch((err) => {
+            this.markRunFailed(err);
             logger.error(
               `Queue metrics: failed to collect depth for ${shardName}`,
               err,

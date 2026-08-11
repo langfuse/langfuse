@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
@@ -173,7 +174,7 @@ export const BigNumber: React.FC<ChartProps> = ({
             {displayValue.negative && (
               <span
                 className={cn(
-                  "text-foreground font-extrabold tracking-tight",
+                  "text-foreground font-bold tracking-tight",
                   fontSize,
                 )}
               >
@@ -185,7 +186,7 @@ export const BigNumber: React.FC<ChartProps> = ({
         )}
         <span
           ref={textRef}
-          className={cn("text-center font-extrabold tracking-tight", fontSize)}
+          className={cn("text-center font-bold tracking-tight", fontSize)}
           title={calculatedMetric.toString()}
         >
           {displayValue.negative && !displayValue.prefix ? "-" : ""}

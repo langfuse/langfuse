@@ -2,7 +2,7 @@ import { PlusCircle, Trash2 } from "lucide-react";
 import { useFieldArray } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import {
   FormControl,
   FormDescription,
@@ -69,7 +69,7 @@ export function TierConditionsEditor({
       {fields.map((condition, conditionIndex) => (
         <div key={condition.id} className="space-y-3 rounded-lg border p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">
+            <span className="text-sm font-bold">
               Condition {conditionIndex + 1}
             </span>
             <Button

@@ -17,7 +17,7 @@ export const LLMApiKeyComponent = (p: {
   if (!hasAccess) {
     return (
       <div>
-        <Label className="text-xs font-semibold">API key</Label>
+        <Label className="text-xs font-bold">API key</Label>
         <p className="text-muted-foreground text-sm">
           LLM API Key only visible to Owner and Admin roles.
         </p>
@@ -32,7 +32,7 @@ export const LLMApiKeyComponent = (p: {
   if (apiKeys.isPending) {
     return (
       <div>
-        <Label className="text-xs font-semibold">API key</Label>
+        <Label className="text-xs font-bold">API key</Label>
         <p className="text-muted-foreground text-sm">Loading...</p>
       </div>
     );
@@ -43,7 +43,7 @@ export const LLMApiKeyComponent = (p: {
 
   return (
     <div className="space-y-2 text-xs">
-      <Label className="text-xs font-semibold">API key</Label>
+      <Label className="text-xs font-bold">API key</Label>
       <div>
         {apiKey ? (
           <Link href={`/project/${p.projectId}/settings/llm-connections`}>

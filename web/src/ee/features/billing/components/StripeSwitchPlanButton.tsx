@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -17,7 +18,6 @@ import { toast } from "sonner";
 import { nanoid } from "nanoid";
 
 export const StripeSwitchPlanButton = ({
-  className,
   orgId,
   currentPlan,
   newPlanTitle,
@@ -35,7 +35,6 @@ export const StripeSwitchPlanButton = ({
   stripeProductId: string;
   onProcessing: (id: string | null) => void;
   processing: boolean;
-  className?: string;
 }) => {
   const [_opId, setOpId] = useState<string | null>(null);
 
@@ -135,7 +134,6 @@ export const StripeSwitchPlanButton = ({
               mutChangePlan.mutate({ orgId, stripeProductId, opId });
             }}
             loading={processing}
-            className={className}
           >
             Confirm
           </ActionButton>

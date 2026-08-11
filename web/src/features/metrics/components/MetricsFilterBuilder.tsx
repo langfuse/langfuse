@@ -21,6 +21,7 @@ import {
 import { useMetadataValueOptions } from "@/src/features/events/hooks/useMetadataValueOptions";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import {
   getMetricsColumnsWithCustomSelect,
   getMetricsFilterColumns,
@@ -303,7 +304,7 @@ const buildV2FilterColumnsParams = ({
     environmentOptions: filterOptions?.environment ?? [],
     nameOptions: normalizeSingleValueOptions(filterOptions?.traceName),
     observationNameOptions: normalizeSingleValueOptions(filterOptions?.name),
-    tagsOptions: filterOptions?.traceTags ?? [],
+    tagsOptions: sortOptionValues(filterOptions?.traceTags ?? []),
     modelOptions: filterOptions?.providedModelName ?? [],
     toolNamesOptions: filterOptions?.toolNames ?? [],
     calledToolNamesOptions: filterOptions?.calledToolNames ?? [],

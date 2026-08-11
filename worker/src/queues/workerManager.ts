@@ -7,17 +7,15 @@ import {
   logger,
   QueueName,
   recordDistribution,
-  recordGauge,
-  recordHistogram,
   recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
-import { env } from "../env";
-import { WORKER_HOST_ID } from "../utils/hostId";
 import {
-  resolveQueueInstance,
-  SHARDED_QUEUE_BASE_NAMES,
-} from "./shardedQueueRegistry";
+  markQueueJobActivity,
+  markQueueWorkerRegistered,
+} from "../features/health/queueConsumption";
+import { WORKER_HOST_ID } from "../utils/hostId";
+import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
@@ -58,26 +56,31 @@ export class WorkerManager {
     };
   }
 
+  // Empty failed set emits 0 so monitors see the gauge reset after a DLQ
+  // drain.
+  public static computeDlqOldestAgeMs(
+    jobs: (Job | undefined)[],
+    nowMs: number,
+  ): number {
+    const oldest = jobs.find(Boolean);
+    return oldest ? nowMs - (oldest.finishedOn ?? oldest.timestamp) : 0;
+  }
+
   private static metricWrapper(
     processor: Processor,
     queueName: QueueName,
   ): Processor {
-    const oldMetric = convertQueueNameToMetricName(queueName);
     const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
 
     return async (job: Job) => {
       const startTime = Date.now();
       const waitTime = Date.now() - job.timestamp;
 
-      recordIncrement(oldMetric + ".request");
       recordIncrement(baseMetric + ".rate", 1, {
         type: "request",
         ...shardTag,
       });
 
-      recordHistogram(oldMetric + ".wait_time", waitTime, {
-        unit: "milliseconds",
-      });
       recordDistribution(baseMetric + ".time_distribution", waitTime, {
         type: "wait",
         unit: "milliseconds",
@@ -95,39 +98,7 @@ export class WorkerManager {
         processor(job),
       );
 
-      const queue = resolveQueueInstance(queueName);
-      // Sample queue depth gauges for sharded queues to reduce metric volume.
-      const shouldSample =
-        !shardTag || Math.random() < env.LANGFUSE_QUEUE_METRICS_SAMPLE_RATE;
-
-      if (shouldSample) {
-        Promise.allSettled([
-          // Here we only consider waiting jobs instead of the default ("waiting" or "delayed"
-          // or "prioritized" or "waiting-children") that count provides
-          queue?.getWaitingCount().then((count) => {
-            recordGauge(oldMetric + ".length", count, {
-              unit: "records",
-            });
-          }),
-          queue?.getFailedCount().then((count) => {
-            recordGauge(oldMetric + ".dlq_length", count, {
-              unit: "records",
-            });
-          }),
-          queue?.getActiveCount().then((count) => {
-            recordGauge(oldMetric + ".active", count, {
-              unit: "records",
-            });
-          }),
-        ]).catch((err) => {
-          logger.error("Failed to record queue length", err);
-        });
-      }
-
       const processingTime = Date.now() - startTime;
-      recordHistogram(oldMetric + ".processing_time", processingTime, {
-        unit: "milliseconds",
-      });
       recordDistribution(baseMetric + ".time_distribution", processingTime, {
         type: "processing",
         unit: "milliseconds",
@@ -180,9 +151,16 @@ export class WorkerManager {
       },
     );
     WorkerManager.workers[queueName] = worker;
+    markQueueWorkerRegistered();
     logger.info(`${queueName} executor started: ${worker.isRunning()}`);
 
-    const oldMetric = convertQueueNameToMetricName(queueName);
+    // Liveness signal for the ?failIfQueueConsumptionStuck=true health check.
+    // "active" and "completed" prove this container's consumption loop is
+    // alive; "failed" is excluded because the stalled-checker emits it for
+    // jobs this container never picked up.
+    worker.on("active", markQueueJobActivity);
+    worker.on("completed", markQueueJobActivity);
+
     const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
 
     // Add error handling
@@ -192,7 +170,6 @@ export class WorkerManager {
         err,
       );
       traceException(err);
-      recordIncrement(oldMetric + ".failed");
       recordIncrement(baseMetric + ".rate", 1, {
         type: "failed",
         ...shardTag,
@@ -204,7 +181,6 @@ export class WorkerManager {
         failedReason,
       );
       traceException(failedReason);
-      recordIncrement(oldMetric + ".error");
       recordIncrement(baseMetric + ".rate", 1, {
         type: "error",
         ...shardTag,
@@ -218,7 +194,6 @@ export class WorkerManager {
       logger.warn(
         `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) detectedOnHost=${WORKER_HOST_ID}`,
       );
-      recordIncrement(oldMetric + ".stalled");
       recordIncrement(baseMetric + ".rate", 1, {
         type: "stalled",
         ...shardTag,

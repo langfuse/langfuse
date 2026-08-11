@@ -12,8 +12,13 @@ import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
 
-import type { Plan } from "@langfuse/shared";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type Plan,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import type { Prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   generateLLMText,
@@ -22,21 +27,33 @@ import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-} from "@/src/ee/features/in-app-agent/ids";
-import { type AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
-import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
+} from "@langfuse/shared/in-app-agent";
+import {
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
+  type AgUiEvent,
+  type InAppAgentWatchFrame,
+} from "@langfuse/shared/in-app-agent";
+import {
+  deserializeInAppAgentDisplayState,
+  projectInAppAgentMessagesForDisplay,
+} from "@/src/features/in-app-agent/lib/display";
+import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import {
   createRun,
   ensureOwnedConversation,
+  getConversationEvents,
   finishRun,
   getConversationMessagesForReplay,
   maybeInferAndPersistConversationTitle,
-  replaceRunEvents,
+  appendRunEvents,
+  flushPendingRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-} from "@/src/ee/features/in-app-agent/server/persistence";
+} from "@langfuse/shared/in-app-agent/server/persistence";
+import { watchConversationFrames } from "@langfuse/shared/in-app-agent/server/watch";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
@@ -174,29 +191,29 @@ describe("in-app agent persistence", () => {
       role: "user" as const,
       content: params.content,
     };
-    const events: AgUiEvent[] = [
-      {
-        type: EventType.RUN_STARTED,
-        threadId: params.conversationId,
-        runId: params.runId,
-        input: {
-          threadId: params.conversationId,
-          runId: params.runId,
-          state: null,
-          messages: [userMessage],
-          tools: [],
-          context: [],
-          forwardedProps: {},
-        },
-      },
-    ];
+    const events: AgUiEvent[] = [];
 
-    await replaceRunEvents({
+    await appendRunEvents({
       prisma,
       projectId: params.projectId,
       conversationId: params.conversationId,
       runId: params.runId,
-      events,
+      events: [
+        {
+          type: EventType.RUN_STARTED,
+          threadId: params.conversationId,
+          runId: params.runId,
+          input: {
+            threadId: params.conversationId,
+            runId: params.runId,
+            state: null,
+            messages: [userMessage],
+            tools: [],
+            context: [],
+            forwardedProps: {},
+          },
+        },
+      ],
     });
 
     return events;
@@ -221,12 +238,12 @@ describe("in-app agent persistence", () => {
       return;
     }
 
-    await replaceRunEvents({
+    await flushPendingRunEvents({
       prisma,
       projectId: params.projectId,
       conversationId: params.conversationId,
       runId: params.runId,
-      events: params.events,
+      pendingEvents: params.events,
     });
   };
 
@@ -287,6 +304,15 @@ describe("in-app agent persistence", () => {
       runId: run1.id,
       messageId: "user-message-1",
       content: "Please inspect today's traces for outliers",
+    });
+    const sentinelCreatedAt = new Date("2020-01-02T03:04:05.000Z");
+    await prisma.inAppAgentEvent.updateMany({
+      where: {
+        projectId,
+        conversationId: conversation.id,
+        runId: run1.id,
+      },
+      data: { createdAt: sentinelCreatedAt },
     });
     await appendAssistantText({
       projectId,
@@ -388,12 +414,18 @@ describe("in-app agent persistence", () => {
     const events = await prisma.inAppAgentEvent.findMany({
       where: { projectId, conversationId: conversation.id },
       orderBy: { sequenceNumber: "asc" },
-      select: { sequenceNumber: true, type: true, event: true },
+      select: {
+        sequenceNumber: true,
+        type: true,
+        event: true,
+        createdAt: true,
+      },
     });
 
     expect(events.map((event) => event.sequenceNumber)).toEqual([
       0, 1, 2, 3, 4, 5, 6,
     ]);
+    expect(events[0]?.createdAt).toEqual(sentinelCreatedAt);
     expect(events.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.TEXT_MESSAGE_START,
@@ -445,6 +477,113 @@ describe("in-app agent persistence", () => {
     expect(listedConversations.conversations.map((item) => item.id)).toContain(
       conversation.id,
     );
+  });
+
+  // Behavior: append-written multi-run history remains replayable after the latest run is rewritten by the legacy writer.
+  // Crucial: the unflagged rollout must be safely reversible without corrupting event order or changing model context.
+  // Necessary: existing append and fencing tests do not exercise the mixed-version writer transition created by a rollback.
+  it("preserves replay when the latest append-written run is rewritten by the legacy writer", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run1 = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events1 = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run1.id,
+      messageId: "rollback-user-1",
+      content: "Inspect the first trace",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: run1.id,
+      events: events1,
+      messageId: "rollback-assistant-1",
+      chunks: ["First trace inspected."],
+    });
+    await finishRun({ prisma, runId: run1.id, projectId });
+
+    const run2 = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events2 = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run2.id,
+      messageId: "rollback-user-2",
+      content: "Inspect the second trace",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: run2.id,
+      events: events2,
+      messageId: "rollback-assistant-2",
+      chunks: ["Second trace inspected."],
+    });
+
+    const replayBeforeRollback = await getConversationMessagesForReplay({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+    });
+    const latestRunEvents = await prisma.inAppAgentEvent.findMany({
+      where: {
+        projectId,
+        conversationId: conversation.id,
+        runId: run2.id,
+      },
+      orderBy: { sequenceNumber: "asc" },
+      select: { type: true, event: true },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.inAppAgentEvent.deleteMany({
+        where: {
+          projectId,
+          conversationId: conversation.id,
+          runId: run2.id,
+        },
+      });
+      const latestRemainingEvent = await tx.inAppAgentEvent.findFirst({
+        where: { projectId, conversationId: conversation.id },
+        orderBy: { sequenceNumber: "desc" },
+        select: { sequenceNumber: true },
+      });
+      await tx.inAppAgentEvent.createMany({
+        data: latestRunEvents.map((event, index) => ({
+          projectId,
+          conversationId: conversation.id,
+          runId: run2.id,
+          sequenceNumber:
+            (latestRemainingEvent?.sequenceNumber ?? -1) + index + 1,
+          type: event.type,
+          event: event.event as Prisma.InputJsonValue,
+        })),
+      });
+    });
+
+    const rewrittenEvents = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id },
+      orderBy: { sequenceNumber: "asc" },
+      select: { sequenceNumber: true },
+    });
+    expect(rewrittenEvents.map((event) => event.sequenceNumber)).toEqual(
+      rewrittenEvents.map((_, index) => index),
+    );
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual(replayBeforeRollback);
   });
 
   it("does not overwrite user-renamed conversation titles", async () => {
@@ -633,7 +772,7 @@ describe("in-app agent persistence", () => {
     ).resolves.toBe(1);
   });
 
-  it("stores and reduces tool calls, tool results, and activities", async () => {
+  it("hydrates visible reasoning without including it in model replay", async () => {
     const { projectId, userId, caller } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
@@ -700,6 +839,9 @@ describe("in-app agent persistence", () => {
       role: "tool",
     });
     await process({
+      type: EventType.REASONING_START,
+    });
+    await process({
       type: EventType.REASONING_MESSAGE_START,
       messageId: "reasoning-1",
       role: "reasoning",
@@ -707,7 +849,12 @@ describe("in-app agent persistence", () => {
     await process({
       type: EventType.REASONING_MESSAGE_CONTENT,
       messageId: "reasoning-1",
-      delta: "Checking filters",
+      delta: "Checking ",
+    });
+    await process({
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: "reasoning-1",
+      delta: "filters",
     });
     await process({
       type: EventType.REASONING_ENCRYPTED_VALUE,
@@ -720,70 +867,284 @@ describe("in-app agent persistence", () => {
       messageId: "reasoning-1",
     });
     await process({
+      type: EventType.REASONING_END,
+    });
+    await process({
       type: EventType.ACTIVITY_SNAPSHOT,
       messageId: "activity-1",
       activityType: "progress",
       content: { status: "done" },
     });
 
+    const expectedDisplayMessages = [
+      {
+        id: "tool-user",
+        role: "user" as const,
+        content: "Search traces",
+      },
+      {
+        id: "tool-assistant",
+        role: "assistant" as const,
+        content: "I searched traces.",
+        runId: run.id,
+        toolCalls: [
+          {
+            id: "tool-call-1",
+            type: "function" as const,
+            function: {
+              name: "list_traces",
+              arguments: '{"limit":10}',
+            },
+          },
+        ],
+      },
+      {
+        id: "tool-result-1",
+        role: "tool" as const,
+        content: "[]",
+        toolCallId: "tool-call-1",
+      },
+      {
+        id: "reasoning-1",
+        role: "reasoning" as const,
+        content: "Checking filters",
+      },
+      {
+        id: "activity-1",
+        role: "activity" as const,
+        activityType: "progress",
+        content: { status: "done" },
+      },
+    ];
+    const expectedReplayMessages = [
+      {
+        id: "tool-user",
+        role: "user" as const,
+        content: "Search traces",
+      },
+      {
+        id: "tool-assistant",
+        role: "assistant" as const,
+        content: "I searched traces.",
+        toolCalls: [
+          {
+            id: "tool-call-1",
+            type: "function" as const,
+            function: {
+              name: "list_traces",
+              arguments: '{"limit":10}',
+            },
+          },
+        ],
+      },
+      {
+        id: "tool-result-1",
+        role: "tool" as const,
+        content: "[]",
+        toolCallId: "tool-call-1",
+      },
+      {
+        id: "activity-1",
+        role: "activity" as const,
+        activityType: "progress",
+        content: { status: "done" },
+      },
+    ];
+
     await expect(
       caller.getConversation({ projectId, conversationId: conversation.id }),
     ).resolves.toMatchObject({
-      messages: [
-        {
-          id: "tool-user",
-          role: "user",
-          content: "Search traces",
+      messages: expectedDisplayMessages,
+    });
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual(expectedReplayMessages);
+
+    const persistedEvents = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id, runId: run.id },
+      orderBy: { sequenceNumber: "asc" },
+      select: { sequenceNumber: true, type: true, event: true },
+    });
+    expect(
+      persistedEvents
+        .filter((event) => event.type === EventType.REASONING_MESSAGE_CONTENT)
+        .map((event) => event.event),
+    ).toEqual([
+      expect.objectContaining({
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        delta: "Checking filters",
+      }),
+    ]);
+    expect(JSON.stringify(persistedEvents)).not.toContain(
+      "encrypted-reasoning",
+    );
+
+    await prisma.inAppAgentEvent.create({
+      data: {
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        sequenceNumber: (persistedEvents.at(-1)?.sequenceNumber ?? -1) + 1,
+        type: "FUTURE_REASONING_METADATA",
+        event: {
+          type: "FUTURE_REASONING_METADATA",
+          payload: "ignored",
         },
+      },
+    });
+
+    await expect(
+      caller.getConversation({ projectId, conversationId: conversation.id }),
+    ).resolves.toMatchObject({
+      messages: expectedDisplayMessages,
+    });
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual(expectedReplayMessages);
+  });
+
+  it("preserves reasoning order when hydrating an assistant message that continues afterward", async () => {
+    const { projectId, userId, caller } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events: [
         {
-          id: "tool-assistant",
-          role: "assistant",
-          content: "I searched traces.",
-          toolCalls: [
-            {
-              id: "tool-call-1",
-              type: "function",
-              function: {
-                name: "list_traces",
-                arguments: '{"limit":10}',
+          type: EventType.RUN_STARTED,
+          threadId: conversation.id,
+          runId: run.id,
+          input: {
+            threadId: conversation.id,
+            runId: run.id,
+            state: null,
+            messages: [
+              {
+                id: "interleaved-user",
+                role: "user",
+                content: "Investigate this",
               },
-            },
-          ],
+            ],
+            tools: [],
+            context: [],
+            forwardedProps: {},
+          },
         },
         {
-          id: "tool-result-1",
-          role: "tool",
-          content: "[]",
-          toolCallId: "tool-call-1",
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: "interleaved-assistant",
+          role: "assistant",
         },
         {
-          id: "activity-1",
-          role: "activity",
-          activityType: "progress",
-          content: { status: "done" },
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "interleaved-assistant",
+          delta: "Initial answer.",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_START,
+          messageId: "interleaved-reasoning",
+          role: "reasoning",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_CONTENT,
+          messageId: "interleaved-reasoning",
+          delta: "A later thought.",
+        },
+        {
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: "interleaved-reasoning",
         },
       ],
     });
 
-    await expect(
-      prisma.inAppAgentEvent.count({
-        where: { projectId, conversationId: conversation.id, runId: run.id },
-      }),
-    ).resolves.toBe(9);
+    // Persist the continuation separately, as it would arrive after the
+    // snapshot prefix containing the interleaved reasoning message.
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events: [
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "interleaved-assistant",
+          delta: " Final answer.",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: "interleaved-assistant",
+        },
+      ],
+    });
 
-    const persistedEventTypes = (
-      await prisma.inAppAgentEvent.findMany({
-        where: { projectId, conversationId: conversation.id, runId: run.id },
-        select: { type: true },
-      })
-    ).map((event) => event.type);
-    expect(persistedEventTypes).not.toContain(
-      EventType.REASONING_MESSAGE_START,
-    );
-    expect(persistedEventTypes).not.toContain(
-      EventType.REASONING_MESSAGE_CONTENT,
-    );
-    expect(persistedEventTypes).not.toContain(EventType.REASONING_MESSAGE_END);
+    // The wire carries canonical messages: the assistant message keeps its full
+    // content so a resumed run can append to it. Interleaved ordering travels
+    // separately, in the display state.
+    const snapshot = await caller.getConversation({
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    expect(snapshot.messages).toMatchObject([
+      {
+        id: "interleaved-user",
+        role: "user",
+        content: "Investigate this",
+      },
+      {
+        id: "interleaved-assistant",
+        role: "assistant",
+        content: "Initial answer. Final answer.",
+      },
+      {
+        id: "interleaved-reasoning",
+        role: "reasoning",
+        content: "A later thought.",
+      },
+    ]);
+    expect(
+      projectInAppAgentMessagesForDisplay(
+        snapshot.messages,
+        deserializeInAppAgentDisplayState(snapshot.displayState),
+      ),
+    ).toMatchObject([
+      {
+        id: "interleaved-user",
+        role: "user",
+        content: "Investigate this",
+      },
+      {
+        id: "interleaved-assistant",
+        role: "assistant",
+        content: "Initial answer.",
+      },
+      {
+        id: "interleaved-reasoning",
+        role: "reasoning",
+        content: "A later thought.",
+      },
+      {
+        id: "display-text-interleaved-assistant-1",
+        role: "assistant",
+        content: " Final answer.",
+      },
+    ]);
   });
 
   it("stores only compact events and skips raw adapter payloads", async () => {
@@ -1103,6 +1464,84 @@ describe("in-app agent persistence", () => {
     ]);
   });
 
+  it("redacts silent MCP output from replayed conversation history", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "user-1",
+      content: "search observations silently",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "tool-call-1",
+      toolCallName: "langfuse_listObservations",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "tool-call-1",
+      delta: JSON.stringify({ silent: true, traceId: "trace-1" }),
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "tool-call-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "tool-call-1",
+      content: JSON.stringify({
+        type: "silent-mcp-output",
+        output: { data: [{ id: "observation-1" }] },
+      }),
+      role: "tool",
+    });
+
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toContainEqual({
+      id: "tool-result-1",
+      role: "tool",
+      content: "Output saved to /workspace/tool_calls",
+      toolCallId: "tool-call-1",
+    });
+
+    const persistedEvents = await getConversationEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+    });
+    expect(persistedEvents).toContainEqual(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: EventType.TOOL_CALL_ARGS,
+          delta: JSON.stringify({ silent: true, traceId: "trace-1" }),
+        }),
+      }),
+    );
+  });
+
   it("drops assistant tool calls without results from loaded conversation history", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -1184,7 +1623,24 @@ describe("in-app agent persistence", () => {
       conversationId: conversation.id,
     });
 
-    expect(detail.messages).toEqual([
+    // The snapshot stays canonical and keeps the unpaired call: a run resuming
+    // from here still needs it present for its result to attach to, and a
+    // pending approval renders against it.
+    expect(
+      detail.messages.flatMap((message) =>
+        message.role === "assistant" ? (message.toolCalls ?? []) : [],
+      ),
+    ).toMatchObject([
+      { id: "paired-tool-call" },
+      { id: "unapproved-tool-call" },
+    ]);
+
+    // Settled transcripts prune it at render time instead.
+    expect(
+      dropEmptyAssistantMessages(
+        dropUnpairedAssistantToolCalls(detail.messages),
+      ),
+    ).toEqual([
       { id: "user-1", role: "user", content: "search" },
       {
         id: "assistant-1",
@@ -1208,8 +1664,8 @@ describe("in-app agent persistence", () => {
     ]);
   });
 
-  it("drops failed redirect tool results before replay", async () => {
-    const { projectId, userId } = await createCaller();
+  it("flushes sibling tools while retaining only successful redirect actions for display", async () => {
+    const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
       projectId,
@@ -1253,6 +1709,60 @@ describe("in-app agent persistence", () => {
       toolCallId: "redirect-tool-call",
     });
     await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "sibling-tool-call",
+      toolCallName: "list_traces",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "sibling-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "sibling-tool-call",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "sibling-tool-result",
+      toolCallId: "sibling-tool-call",
+      content: "[]",
+      role: "tool",
+    });
+
+    const expectedReplayMessages = [
+      { id: "user-1", role: "user" as const, content: "open a trace" },
+      {
+        id: "assistant-1",
+        role: "assistant" as const,
+        toolCalls: [
+          {
+            id: "sibling-tool-call",
+            type: "function" as const,
+            function: { name: "list_traces", arguments: "{}" },
+          },
+        ],
+      },
+      {
+        id: "sibling-tool-result",
+        role: "tool" as const,
+        content: "[]",
+        toolCallId: "sibling-tool-call",
+      },
+    ];
+
+    // A completed sibling tool unit must reach the Postgres-backed replay
+    // surface without waiting for an unrelated redirect result.
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual(expectedReplayMessages);
+
+    await process({
       type: EventType.TOOL_CALL_RESULT,
       messageId: "tool-result-1",
       toolCallId: "redirect-tool-call",
@@ -1260,15 +1770,79 @@ describe("in-app agent persistence", () => {
       role: "tool",
     });
 
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "successful-redirect-tool-call",
+      toolCallName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "successful-redirect-tool-call",
+      delta: '{"destination":"trace"}',
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "successful-redirect-tool-call",
+    });
+    const redirectActionContent = JSON.stringify({
+      type: "redirectAction",
+      label: "Open trace",
+      href: `/project/${projectId}/traces/trace-1`,
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "successful-redirect-result",
+      toolCallId: "successful-redirect-tool-call",
+      content: redirectActionContent,
+      role: "tool",
+    });
+
+    // Successful redirect actions must survive refresh as render-only results,
+    // while failed redirects and their evolving call arguments stay absent.
+    await expect(
+      caller.getConversation({
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toMatchObject({
+      messages: [
+        { id: "user-1", role: "user", content: "open a trace" },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          runId: run.id,
+          toolCalls: [
+            {
+              id: "sibling-tool-call",
+              type: "function",
+              function: { name: "list_traces", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          id: "sibling-tool-result",
+          role: "tool",
+          content: "[]",
+          toolCallId: "sibling-tool-call",
+        },
+        {
+          id: "successful-redirect-result",
+          role: "tool",
+          content: redirectActionContent,
+          toolCallId: "successful-redirect-tool-call",
+        },
+      ],
+    });
+
+    // Render-only redirect actions must never enter the next model request.
     await expect(
       getConversationMessagesForReplay({
         prisma,
         projectId,
         conversationId: conversation.id,
       }),
-    ).resolves.toEqual([
-      { id: "user-1", role: "user", content: "open a trace" },
-    ]);
+    ).resolves.toEqual(expectedReplayMessages);
   });
 
   it("drops empty assistant messages after removing orphan tool calls before replay", async () => {
@@ -1369,7 +1943,7 @@ describe("in-app agent persistence", () => {
       prisma,
       runId: orphanToolRun.id,
       projectId,
-      errorCode: "aborted",
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
       errorMessage: "Aborted before tool result",
     });
 
@@ -1427,7 +2001,7 @@ describe("in-app agent persistence", () => {
       prisma,
       runId: failedRun.id,
       projectId,
-      errorCode: "upstream_error",
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
       errorMessage: "Failed before output",
     });
 
@@ -1567,14 +2141,14 @@ describe("in-app agent persistence", () => {
       prisma,
       runId: run.id,
       projectId,
-      errorCode: "agent_error",
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
       errorMessage: "Original agent error",
     });
     await finishRun({
       prisma,
       runId: run.id,
       projectId,
-      errorCode: "cancelled",
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
       errorMessage: "Client aborted request",
     });
 
@@ -1640,6 +2214,139 @@ describe("in-app agent persistence", () => {
     ]);
   });
 
+  it("tails only post-cursor events, across runs, from one conversation-rooted read", async () => {
+    // The watch poll is a single joined read of the conversation's latest run
+    // and its post-cursor events (LFE-14629). Its unit suite fakes that read
+    // and reimplements the cursor filter in JS, so this is the only coverage
+    // that the nested where/orderBy/take actually compose against Postgres.
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    const firstRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: firstRun.id,
+      events: [
+        {
+          type: EventType.RUN_STARTED,
+          threadId: conversation.id,
+          runId: firstRun.id,
+          input: {
+            threadId: conversation.id,
+            runId: firstRun.id,
+            state: null,
+            messages: [{ id: "tail-user", role: "user", content: "Look" }],
+            tools: [],
+            context: [],
+            forwardedProps: {},
+          },
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: "tail-first",
+          role: "assistant",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "tail-first",
+          delta: "Parked answer.",
+        },
+        { type: EventType.TEXT_MESSAGE_END, messageId: "tail-first" },
+      ],
+      finish: { status: InAppAgentRunStatus.SUCCEEDED },
+    });
+
+    const secondRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    // A continuation's first persisted row is a plain event, not RUN_STARTED,
+    // which is what forces the synthetic open in the tail below.
+    await appendRunEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      runId: secondRun.id,
+      events: [
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: "tail-second",
+          role: "assistant",
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: "tail-second",
+          delta: "Continued answer.",
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          threadId: conversation.id,
+          runId: secondRun.id,
+        },
+      ],
+      finish: { status: InAppAgentRunStatus.SUCCEEDED },
+    });
+
+    // Sequence 0 is the first run's RUN_STARTED and 1 its assistant
+    // TEXT_MESSAGE_START, so a cursor of 1 starts the tail mid-run.
+    const frames: InAppAgentWatchFrame[] = [];
+    for await (const frame of watchConversationFrames({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+      cursor: 1,
+      now: () => 0,
+      sleep: async () => undefined,
+    })) {
+      if (frame !== null) {
+        frames.push(frame);
+      }
+    }
+
+    const relayed = frames.flatMap((frame) =>
+      frame.type === "event" ? [frame.event] : [],
+    );
+
+    // A dropped cursor predicate would relay sequences 0 and 1 too, adding the
+    // first run's persisted RUN_STARTED and a second TEXT_MESSAGE_START.
+    expect(relayed.map((event) => event.type)).toEqual([
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_END,
+      EventType.RUN_FINISHED,
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_START,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.RUN_FINISHED,
+    ]);
+
+    // The tail spans runs: the events relation is conversation-scoped, so a
+    // window can hold a parked parent's rows below its continuation's.
+    expect(
+      relayed.flatMap((event) => ("runId" in event ? [event.runId] : [])),
+    ).toEqual([firstRun.id, firstRun.id, secondRun.id, secondRun.id]);
+
+    expect(frames.filter((frame) => frame.type === "status")).toEqual([
+      {
+        type: "status",
+        runId: secondRun.id,
+        status: InAppAgentRunStatus.SUCCEEDED,
+        errorCode: null,
+        cancelRequested: false,
+      },
+    ]);
+    expect(frames.at(-1)).toEqual({ type: "done" });
+  });
+
   it("blocks a second active run in the same conversation", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -1657,6 +2364,34 @@ describe("in-app agent persistence", () => {
         userId,
       }),
     ).rejects.toThrow("Assistant is already responding in this conversation");
+  });
+
+  it("rethrows a replayed run id instead of reporting an active-run conflict", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    const finished = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await finishRun({ prisma, runId: finished.id, projectId });
+
+    // Replaying the id of a finished run violates the (id, project_id) primary
+    // key, not the active-run backstop index — the caller must not be told the
+    // assistant is still responding. Asserting on meta.target pins the shape
+    // the createRun catch discriminates on.
+    await expect(
+      createConversationRun({
+        projectId,
+        conversationId: conversation.id,
+        userId,
+        runId: finished.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "P2002",
+      meta: { target: ["id", "project_id"] },
+    });
   });
 
   it("marks old unfinished runs stale before starting a new run", async () => {
@@ -1684,10 +2419,136 @@ describe("in-app agent persistence", () => {
         where: { id_projectId: { id: staleRun.id, projectId } },
       }),
     ).resolves.toMatchObject({
+      status: "FAILED",
       errorCode: "stale",
       errorMessage: "Run was marked stale before starting a new run",
     });
     expect(newRun.finishedAt).toBeNull();
+  });
+
+  it("leaves a claimed background run alone when a foreground run starts", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const backgroundRun = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    // A background run legitimately runs for up to RUN_MAX_DURATION, far past
+    // the 150s foreground staleness window. Execution mode is not sticky per
+    // conversation, so a foreground submit landing here is a normal state — and
+    // it must not fence a healthy worker, which stale-closing would (both
+    // finishRun and the event append guard on the run still being open).
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: backgroundRun.id, projectId } },
+      data: {
+        createdAt: new Date("2026-05-20T10:00:00.000Z"),
+        claimedAt: new Date("2026-05-20T10:00:01.000Z"),
+        heartbeatAt: new Date(),
+      },
+    });
+
+    await expect(
+      createConversationRun({
+        projectId,
+        conversationId: conversation.id,
+        userId,
+      }),
+    ).rejects.toMatchObject({
+      message: "Assistant is already responding in this conversation",
+    });
+
+    await expect(
+      prisma.inAppAgentRun.findUniqueOrThrow({
+        where: { id_projectId: { id: backgroundRun.id, projectId } },
+      }),
+    ).resolves.toMatchObject({
+      status: "RUNNING",
+      finishedAt: null,
+      errorCode: null,
+    });
+  });
+
+  it("writes run lifecycle status on the foreground path", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    const succeeded = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    expect(succeeded.status).toBe("RUNNING");
+    await finishRun({ prisma, runId: succeeded.id, projectId });
+
+    const failed = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await finishRun({
+      prisma,
+      runId: failed.id,
+      projectId,
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
+      errorMessage: "boom",
+    });
+
+    const cancelled = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await finishRun({
+      prisma,
+      runId: cancelled.id,
+      projectId,
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
+      errorMessage: "Client aborted request",
+    });
+
+    const runs = await prisma.inAppAgentRun.findMany({
+      where: { projectId, conversationId: conversation.id },
+      select: { id: true, status: true },
+    });
+    expect(new Map(runs.map((run) => [run.id, run.status]))).toEqual(
+      new Map([
+        [succeeded.id, "SUCCEEDED"],
+        [failed.id, "FAILED"],
+        [cancelled.id, "CANCELLED"],
+      ]),
+    );
+  });
+
+  it("enforces the single-active-run backstop index at the database level", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    // Bypass createRun's conversation lock and conflict check: the partial
+    // unique index is the DB-level invariant against two unfinished runs in
+    // one conversation. Asserting on meta.target pins the shape the createRun
+    // catch discriminates on (Prisma resolves the raw-SQL index to its
+    // column names).
+    await expect(
+      prisma.inAppAgentRun.create({
+        data: {
+          id: createInAppAgentRunId(),
+          projectId,
+          conversationId: conversation.id,
+          status: InAppAgentRunStatus.RUNNING,
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "P2002",
+      meta: { target: ["project_id", "conversation_id"] },
+    });
   });
 
   it("paginates conversation list with a stable cursor", async () => {

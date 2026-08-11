@@ -210,7 +210,6 @@ export const addUserToSpan = (
   attributes: {
     userId?: string;
     projectId?: string;
-    email?: string;
     orgId?: string;
     plan?: string;
     apiKeyId?: string;
@@ -234,12 +233,6 @@ export const addUserToSpan = (
       value: attributes.userId,
     });
     activeSpan.setAttribute("user.id", attributes.userId);
-  }
-  if (attributes.email) {
-    baggage = baggage.setEntry("user.email", {
-      value: attributes.email,
-    });
-    activeSpan.setAttribute("user.email", attributes.email);
   }
   if (attributes.projectId) {
     baggage = baggage.setEntry("langfuse.project.id", {
@@ -326,7 +319,7 @@ const flushMetricsToCloudWatch = () => {
 
 // Metrics ending with these suffixes have their tags flattened into the
 // CloudWatch metric name (excluding "unit"). Other metrics are unaffected.
-const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate"];
+const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate", ".dlq_oldest_age"];
 
 function buildCloudWatchKey(
   stat: string,

@@ -1,8 +1,8 @@
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { InvalidRequestError } from "../../errors";
 import { OrderByState } from "../../interfaces/orderBy";
 import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
   CTEQueryBuilder,
   DateTimeFilter,
@@ -18,8 +18,11 @@ import {
   eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
-import { sessionCols } from "../tableMappings/mapSessionTable";
-import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
+import {
+  sessionEventsCols,
+  sessionEventsOrderByCols,
+} from "../tableMappings/mapSessionTable";
+import { sessionsEventsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
 
@@ -49,6 +52,8 @@ export type SessionTraceFromEvents = {
   timestamp: Date;
   environment: string | null;
   userId: string | null;
+  observationCount: number;
+  latencyMs: number | null;
 };
 
 export const getSessionTracesFromEvents = async (props: {
@@ -70,31 +75,28 @@ export const getSessionTracesFromEvents = async (props: {
     ${tracesCte.query}
   `;
 
-  const rows = await measureAndReturn({
-    operationName: "getSessionTracesFromEvents",
-    projectId: props.projectId,
-    input: {
-      params: {
-        ...tracesCte.params,
-        projectId: props.projectId,
-        sessionId: props.sessionId,
-      },
-      tags: { projectId: props.projectId },
+  const input = {
+    params: {
+      ...tracesCte.params,
+      projectId: props.projectId,
+      sessionId: props.sessionId,
     },
-    fn: async (input) => {
-      return queryClickhouse<{
-        id: string;
-        name: string | null;
-        timestamp: string;
-        environment: string | null;
-        user_id: string | null;
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+    tags: { projectId: props.projectId },
+  };
+
+  const rows = await queryClickhouse<{
+    id: string;
+    name: string | null;
+    timestamp: string;
+    environment: string | null;
+    user_id: string | null;
+    observation_count: number | string;
+    latency_milliseconds: number | string | null;
+  }>({
+    query,
+    params: input.params,
+    tags: input.tags,
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({
@@ -103,6 +105,11 @@ export const getSessionTracesFromEvents = async (props: {
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
     environment: row.environment,
     userId: row.user_id,
+    observationCount: Number(row.observation_count),
+    latencyMs:
+      row.latency_milliseconds === null
+        ? null
+        : Number(row.latency_milliseconds),
   }));
 };
 
@@ -197,8 +204,24 @@ const getSessionsTableFromEventsGeneric = async <T>(
   const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
     props;
 
+  const nullMetadataFilter = filter.find(
+    (candidate) =>
+      candidate.type === "null" &&
+      findUiColumnMapping(sessionEventsCols, candidate.column)?.uiTableId ===
+        "metadata",
+  );
+  if (nullMetadataFilter) {
+    throw new InvalidRequestError(
+      `Invalid filter type 'null' for column '${nullMetadataFilter.column}'. Expected filter type 'stringObject'.`,
+    );
+  }
+
   const sessionFilters = new FilterList(
-    createFilterFromFilterState(filter, sessionCols, sessionsViewCols),
+    createFilterFromFilterState(
+      filter,
+      sessionEventsCols,
+      sessionsEventsViewCols,
+    ),
   );
   const sessionsFilterRes = sessionFilters.apply();
 
@@ -220,8 +243,12 @@ const getSessionsTableFromEventsGeneric = async <T>(
 
   const requiresScoresJoin =
     sessionFilters.some((f) => f.clickhouseTable === "scores") ||
-    findUiColumnMapping(sessionCols, orderBy?.column)?.clickhouseTableName ===
-      "scores";
+    findUiColumnMapping(sessionEventsOrderByCols, orderBy?.column)
+      ?.clickhouseTableName === "scores";
+  const requiresMetadata = sessionFilters.some(
+    (filter) =>
+      filter.clickhouseTable === "events_proto" && filter.field === "metadata",
+  );
 
   // Build session_data CTE
   const sessionsBuilder = eventsSessionsAggregation({
@@ -230,6 +257,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
     startTimeFrom: traceTimestampFilter
       ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
       : null,
+    includeMetadata: requiresMetadata,
   });
 
   // Compose query using CTEQueryBuilder
@@ -300,7 +328,10 @@ const getSessionsTableFromEventsGeneric = async <T>(
     queryBuilder.whereRaw(sessionsFilterRes.query, sessionsFilterRes.params);
   }
 
-  const orderBySql = orderByToClickhouseSql(orderBy ?? null, sessionCols);
+  const orderBySql = orderByToClickhouseSql(
+    orderBy ?? null,
+    sessionEventsOrderByCols,
+  );
   if (orderBySql) {
     queryBuilder.orderBy(orderBySql);
   }
@@ -311,24 +342,19 @@ const getSessionsTableFromEventsGeneric = async <T>(
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  return measureAndReturn({
-    operationName: "getSessionsTableFromEventsGeneric",
-    projectId,
-    input: {
-      params: {
-        ...params,
-        projectId,
-      },
-      tags: { ...(props.tags ?? {}), projectId },
+  const input = {
+    params: {
+      ...params,
+      projectId,
     },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+    tags: { ...(props.tags ?? {}), projectId },
+  };
+
+  return queryClickhouse<T>({
+    query,
+    params: input.params,
+    tags: input.tags,
+    clickhouseConfigs,
+    preferredClickhouseService: "EventsReadOnly",
   });
 };

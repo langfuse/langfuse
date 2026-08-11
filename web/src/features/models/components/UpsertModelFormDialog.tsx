@@ -1,3 +1,5 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint @repo/no-style-props: "off" */
 import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -452,8 +454,8 @@ export const UpsertModelFormDialog = (({
             </DialogFooter>
           </form>
           {formError ? (
-            <p className="text-destructive my-2 text-center text-sm font-medium">
-              <span className="font-semibold">Error:</span> {formError}
+            <p className="text-destructive my-2 text-center text-sm font-bold">
+              <span className="font-bold">Error:</span> {formError}
             </p>
           ) : null}
         </Form>

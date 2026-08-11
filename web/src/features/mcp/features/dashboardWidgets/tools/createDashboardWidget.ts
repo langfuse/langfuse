@@ -1,16 +1,21 @@
 import { z } from "zod";
-import { DashboardWidgetChartType } from "@langfuse/shared";
+import {
+  DashboardWidgetChartType,
+  InvalidRequestError,
+} from "@langfuse/shared";
 import { metricAggregations } from "@langfuse/shared/query";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 import { createPublicDashboardWidget } from "@/src/features/widgets/server/public-dashboard-widget-service";
+import { getWidgetImportFilterConfig } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
   PostUnstableDashboardWidgetBody,
   PostUnstableDashboardWidgetView,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { buildDashboardWidgetUrl } from "@/src/utils/product-url";
+import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { buildDashboardWidgetUrl } from "@langfuse/shared/src/server";
 
-const DashboardWidgetFilterBaseSchema = z
+export const DashboardWidgetFilterBaseSchema = z
   .object({
     column: z.string(),
     operator: z.string(),
@@ -20,8 +25,8 @@ const DashboardWidgetFilterBaseSchema = z
   })
   .loose();
 
-const DashboardWidgetChartConfigBaseSchema = z.object({
-  type: z.enum(DashboardWidgetChartType),
+export const DashboardWidgetChartConfigBaseSchema = z.object({
+  type: z.enum(DashboardWidgetChartType).optional(),
   row_limit: z.number().int().positive().max(1000).optional(),
   show_value_labels: z.boolean().optional(),
   bins: z.number().int().min(1).max(100).optional(),
@@ -35,7 +40,10 @@ const DashboardWidgetChartConfigBaseSchema = z.object({
 
 const CreateDashboardWidgetBaseSchema = z.object({
   name: z.string().min(1).describe("Human-readable widget name."),
-  description: z.string().describe("Human-readable widget description."),
+  description: z
+    .string()
+    .optional()
+    .describe("Human-readable widget description. Defaults to empty."),
   view: PostUnstableDashboardWidgetView.describe(
     "Data view for the widget. Traces widgets are not supported by this unstable API.",
   ),
@@ -59,24 +67,49 @@ const CreateDashboardWidgetBaseSchema = z.object({
       "Widget filters in the same shape as exported dashboard widget JSON.",
     ),
   chartType: z.enum(DashboardWidgetChartType),
-  chartConfig: DashboardWidgetChartConfigBaseSchema.describe(
-    "Chart-specific config. chartConfig.type must match chartType.",
+  chartConfig: DashboardWidgetChartConfigBaseSchema.optional().describe(
+    "Chart-specific config. Optional; type defaults to chartType and must match it when given.",
   ),
-  minVersion: z
-    .number()
-    .int()
-    .min(2)
-    .optional()
-    .describe("Widget data-model version. Defaults to 2."),
 });
+
+const throwActionableDashboardWidgetError = (
+  error: unknown,
+  input: z.infer<typeof PostUnstableDashboardWidgetBody>,
+): never => {
+  if (!(error instanceof UnstablePublicApiError)) throw error;
+
+  const field = error.details?.field;
+  const allowedValues =
+    error.details?.allowedValues ??
+    (field === "filters"
+      ? Array.from(getWidgetImportFilterConfig(input.view).allowedColumns)
+      : []);
+  const fieldLabel = field?.startsWith("dimensions")
+    ? "dimensions"
+    : field?.endsWith(".agg")
+      ? "aggregations"
+      : field?.endsWith(".measure")
+        ? "measures"
+        : field === "filters"
+          ? "filter columns"
+          : "values";
+  const supportedValuesHint =
+    allowedValues.length > 0
+      ? ` Supported ${fieldLabel} for "${input.view}": ${allowedValues.join(", ")}.`
+      : "";
+
+  throw new InvalidRequestError(
+    `${error.message}.${supportedValuesHint} Call getMetricsSchema with view "${input.view}" for broader query schema details; use the widget-compatible values listed above when present.`,
+  );
+};
 
 export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
   defineTool({
     name: "createDashboardWidget",
     description: [
-      "Create a reusable dashboard widget.",
+      "Create a dashboard widget (a standalone chart definition you place on any dashboard).",
       "Widgets are useful to visualize Langfuse project data and give informative breakdowns to the user.",
-      "This creates the widget only; placing it on a dashboard requires updating that dashboard's definition in the Langfuse UI.",
+      "This creates the widget only; place it on a dashboard with the addDashboardPlacement tool.",
       "The result includes a url field; use it to link to the created widget.",
     ].join(" "),
     baseSchema: CreateDashboardWidgetBaseSchema,
@@ -95,7 +128,9 @@ export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
             projectId: context.projectId,
             input,
             auditScope: context,
-          });
+          }).catch((error) =>
+            throwActionableDashboardWidgetError(error, input),
+          );
 
           span.setAttribute("mcp.dashboard_widget_id", widget.id);
 

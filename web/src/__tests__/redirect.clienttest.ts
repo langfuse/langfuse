@@ -237,6 +237,87 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath([])).toBe("/");
     });
   });
+
+  describe("control character injection", () => {
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_BASE_PATH = undefined;
+    });
+
+    it("should strip newlines from paths", () => {
+      // Newline injection (HTTP header / log forging) is sanitized
+      expect(getSafeRedirectPath("/abc\nevil.com")).toBe("/abcevil.com");
+      // CRLF is also stripped
+      expect(getSafeRedirectPath("/abc\r\ndef")).toBe("/abcdef");
+      // Multiple newlines collapse safely
+      expect(getSafeRedirectPath("/a\n\n\nb")).toBe("/ab");
+    });
+
+    it("should strip null bytes from paths", () => {
+      // Null-byte injection (path-extension confusion) is sanitized
+      expect(getSafeRedirectPath("/dashboard\u0000.png")).toBe(
+        "/dashboard.png",
+      );
+      expect(getSafeRedirectPath("/abc\u0000evil")).toBe("/abcevil");
+    });
+
+    it("should strip DEL and other control characters from the C0 range", () => {
+      // DEL (U+007F) is the boundary control char; stripped.
+      expect(getSafeRedirectPath("/abc\u007Fdef")).toBe("/abcdef");
+      // Tab (U+0009) is in the C0 range; stripped.
+      expect(getSafeRedirectPath("/abc\tdef")).toBe("/abcdef");
+      // Unit-separator (U+001F) is the upper edge of the C0 range;
+      // stripped.
+      expect(getSafeRedirectPath("/abc\u001Fdef")).toBe("/abcdef");
+    });
+
+    it("should NOT strip Unicode bidi-formatting characters outside the C0 range", () => {
+      // The C0 control-char strip is intentionally scoped to 0x00-0x1F
+      // and 0x7F (ASCII control characters per RFC 3986). Unicode bidi
+      // chars like RTL-override (U+202E) are out of scope for THIS fix;
+      // they require a separate, larger change. This test pins the
+      // current scope so future regressions are visible.
+      // Note: when this PR is merged, file a follow-up issue for
+      // bidi-formatting-character handling.
+      const pathWithRtl = "/abc\u202eevil";
+      const result = getSafeRedirectPath(pathWithRtl);
+      // The current implementation does not strip U+202E, so the
+      // character passes through.
+      expect(result).toContain("\u202e");
+    });
+
+    it("should fall back to safe default when path is only control characters", () => {
+      // A path that is nothing but ASCII control characters is fully
+      // stripped to empty, so the safe default is returned.
+      expect(getSafeRedirectPath("\n")).toBe("/");
+      expect(getSafeRedirectPath("\u0000\u0000")).toBe("/");
+    });
+
+    it("should fall back to safe default for path with no leading slash after stripping", () => {
+      // U+202E (RTL-override) is not stripped by this fix, but it
+      // also doesn't start with "/" so the safe default is returned.
+      // This case is documented separately from the control-character
+      // case above because the rejection happens at the startWith("/")
+      // guard, not in the strip step.
+      expect(getSafeRedirectPath("\u202e")).toBe("/");
+    });
+
+    it("should preserve internal whitespace", () => {
+      // Tabs, spaces, etc. that are NOT control chars (i.e. U+0020
+      // SPACE) are preserved. This is a regression test for the strip
+      // being scoped to control characters only.
+      expect(getSafeRedirectPath("/abc def")).toBe("/abc def");
+      expect(getSafeRedirectPath("/a b c")).toBe("/a b c");
+    });
+
+    it("should keep protocol-relative and absolute-URL guards working with control characters", () => {
+      // Regression: the existing // guard still wins after the strip.
+      // "//\nevil.com" → strip newline → "//evil.com" → still matches
+      // startsWith("//") → safe default.
+      expect(getSafeRedirectPath("//\nevil.com")).toBe("/");
+      // "http:\n//evil.com" → "http://evil.com" → safe default.
+      expect(getSafeRedirectPath("http:\n//evil.com")).toBe("/");
+    });
+  });
 });
 
 describe("stripBasePath", () => {
@@ -288,6 +369,27 @@ describe("stripBasePath", () => {
 
     it("only strips the first occurrence", () => {
       expect(stripBasePath("/apps/apps/dashboard")).toBe("/apps/dashboard");
+    });
+
+    it("strips ASCII control characters from the path", () => {
+      // Newline (header-injection vector)
+      expect(stripBasePath("/apps\n/dashboard")).toBe("/dashboard");
+      // CRLF
+      expect(stripBasePath("/apps\r\n/dashboard")).toBe("/dashboard");
+      // Null byte (path-extension confusion)
+      expect(stripBasePath("/apps\u0000/dashboard")).toBe("/dashboard");
+      // DEL (0x7F)
+      expect(stripBasePath("/apps\u007F/dashboard")).toBe("/dashboard");
+      // Multiple control chars in one path
+      expect(stripBasePath("/apps\n\r\u0000/dashboard")).toBe("/dashboard");
+    });
+
+    it("does NOT strip Unicode bidi-formatting characters outside the C0 range", () => {
+      // U+202E (RTL-override) is intentionally out of scope for this fix;
+      // it lives at 0x202E, beyond the 0x00-0x1F / 0x7F regex scope. The
+      // result still has a leading "/" so it survives the path-vs-leading-
+      // slash guard; downstream code decides whether to display it.
+      expect(stripBasePath("/apps\u202E/dashboard")).toBe("/\u202E/dashboard");
     });
 
     it("leaves paths without basePath untouched", () => {

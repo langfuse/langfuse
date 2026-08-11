@@ -1,5 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import { getGclidFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
@@ -59,7 +60,9 @@ export async function signupApiHandler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  if (req.method !== "POST") return;
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Method not allowed" });
+  }
 
   // Block direct signup when email verification is required
   if (isEmailVerificationRequired()) {
@@ -95,6 +98,7 @@ export async function signupApiHandler(
       body.email,
       body.password,
       body.name,
+      { gclid: getGclidFromRequest(req) },
     );
   } catch (error) {
     const message =

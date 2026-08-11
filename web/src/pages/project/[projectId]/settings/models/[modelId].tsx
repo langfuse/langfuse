@@ -99,7 +99,7 @@ export default function ModelDetailPage() {
   if (!isLoading && !model) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <div className="mb-4 text-xl font-medium">Model not found</div>
+        <div className="mb-4 text-xl font-bold">Model not found</div>
         <Button variant="outline" asChild>
           <Link href={`/project/${projectId}/settings/models`}>
             Return to Models page
@@ -167,14 +167,14 @@ export default function ModelDetailPage() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <div>
-              <div className="text-muted-foreground text-sm font-medium">
+              <div className="text-muted-foreground text-sm font-bold">
                 Match Pattern
               </div>
               <div className="mt-1 font-mono text-sm">{model.matchPattern}</div>
             </div>
 
             <div>
-              <div className="text-muted-foreground text-sm font-medium">
+              <div className="text-muted-foreground text-sm font-bold">
                 Maintained by
               </div>
               <div className="mt-1 text-sm">
@@ -183,7 +183,7 @@ export default function ModelDetailPage() {
             </div>
 
             <div>
-              <div className="text-muted-foreground text-sm font-medium">
+              <div className="text-muted-foreground text-sm font-bold">
                 Tokenizer
               </div>
               <div className="mt-1 text-sm">{model.tokenizerId || "None"}</div>
@@ -191,7 +191,7 @@ export default function ModelDetailPage() {
 
             {model.tokenizerId && (
               <div>
-                <div className="text-muted-foreground text-sm font-medium">
+                <div className="text-muted-foreground text-sm font-bold">
                   Tokenizer Config
                 </div>
                 <pre className="bg-muted mt-1 rounded p-2 text-sm">
@@ -208,7 +208,7 @@ export default function ModelDetailPage() {
               <CardTitle>Pricing</CardTitle>
               {model.pricingTiers.length > 1 && (
                 <div className="flex items-center gap-4">
-                  <label className="text-muted-foreground text-sm font-medium">
+                  <label className="text-muted-foreground text-sm font-bold">
                     Pricing Tier
                   </label>
                   <Select
@@ -242,7 +242,7 @@ export default function ModelDetailPage() {
                         className="max-h-[80vh] w-[400px] overflow-auto"
                         collisionPadding={20}
                       >
-                        <p className="text-sm font-medium">
+                        <p className="text-sm font-bold">
                           Pricing Tier Conditions
                         </p>
                         <p className="text-muted-foreground pt-2 text-sm">
@@ -271,7 +271,7 @@ export default function ModelDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-2">
-              <div className="border-border text-muted-foreground grid grid-cols-2 gap-2 border-b text-sm font-medium">
+              <div className="border-border text-muted-foreground grid grid-cols-2 gap-2 border-b text-sm font-bold">
                 <span>Usage Type</span>
                 <span className="flex items-center gap-2">
                   <span>Price {priceUnit}</span>

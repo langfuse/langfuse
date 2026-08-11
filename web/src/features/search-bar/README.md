@@ -45,11 +45,14 @@ Generally available on the v4 events tables (no opt-in). Based on the
   `statusMessage:chat` bare (contains default), `statusMessage:=chat` exact
   (quote a literal `*`, e.g. `statusMessage:"a*b"`). `name:`/`id:` work the same
   way (bare = contains, `:=` = exact) but still suggest observed values.
-- `metadata.region:eu`, `scores.accuracy:>0.8`, `traceScores.nps:positive`
+- `metadata.region:eu`, `scores.accuracy:>0.8` — `scores.` is level-agnostic
+  (matches a score at observation OR trace level, LFE-10596). The legacy
+  `traceScores.` namespace (trace-only) still parses/lowers so saved queries
+  and URLs keep working, but it is no longer offered in suggestions.
 - dot-path names with spaces/grammar chars are **quoted after the prefix**:
-  `scores."Rouge Score":>=1`, `traceScores."Hallucination Check":faithful`,
-  `metadata."my key":eu` (the quotes are stripped to the real key when lowering;
-  the reverse adapter and completions re-quote them — so they round-trip)
+  `scores."Rouge Score":>=1`, `metadata."my key":eu` (the quotes are stripped
+  to the real key when lowering; the reverse adapter and completions re-quote
+  them — so they round-trip)
 - `has:endTime` / `-has:endTime` null checks
 - full-text search (see below): bare text, or `input:`/`output:`/`name:`/`id:`
 
@@ -181,9 +184,9 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   committed text — the derive direction), `completions.ts` (pure completion
   planner), `composer-segments.ts` (draft text → renderable token segments),
   `edits.ts` (span-local chip removal with AST-surgery fallback),
-  `observed-options.ts` (filterOptions → per-column observed values),
-  `metadata-paths.ts` (client-side metadata structure analysis; see "Metadata
-  key suggestions"), `searchBarInvariants.ts` (pure, registry-shaped
+  `observed-options.ts` (filterOptions → per-column observed values, plus
+  `withMetadataPathOptions` — see "Metadata key suggestions"),
+  `searchBarInvariants.ts` (pure, registry-shaped
   property-test harness — the universal safety net reused per view; see
   Hardening).
 - `store/searchBarStore.ts` — per-mount vanilla zustand store, **draft only**
@@ -191,9 +194,12 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   no commit workflow. Provided with the container's `commit` via
   `store/SearchBarStoreProvider.tsx` (`useSearchBarStore` selector,
   `useSearchBarCommit`).
-- `store/observedMetadataStore.ts` — global zustand store persisted to
-  localStorage: per-project map of observed metadata keys → types (the
-  suggestions cache behind "Metadata key suggestions" below).
+- The observed-metadata suggestions cache is **shared with the filter sidebar**,
+  so it lives outside this feature: `src/stores/observedMetadataStore.ts`
+  (global zustand store persisted to localStorage, per-project map of observed
+  metadata keys → types), `src/fns/observedMetadata/metadataPaths.ts` (the pure
+  analysis + option projection) and `src/hooks/useObservedMetadata.ts` (the
+  harvest/read bridge). See "Metadata key suggestions" below.
 - `hooks/useEventsSearchBar.ts` — the container/bridge. Derives `committedText`
   (memo), runs the one `resetTo` effect, and owns the `commit()` workflow
   (planCommit → write filter state + record recent). No URL param of its own;
@@ -306,11 +312,11 @@ The API does not enumerate metadata keys, and backend metadata-structure
 analysis is deferred (until CH26), so `metadata.` completions are fed
 **client-side from rows the user has already loaded**:
 
-- On each fetch, `hooks/useObservedMetadata.ts` samples the visible rows'
+- On each fetch, `src/hooks/useObservedMetadata.ts` samples the visible rows'
   metadata (same first-30 sampling as the AI-context path), records their
   **top-level keys** with the observed JSON value type
-  (`lib/metadata-paths.ts`), and unions the result into
-  `store/observedMetadataStore.ts` — persisted to localStorage, **per
+  (`src/fns/observedMetadata/metadataPaths.ts`), and unions the result into
+  `src/stores/observedMetadataStore.ts` — persisted to localStorage, **per
   project** (one global `Record<projectId, …>` map, the globalDateRangeStore
   shape).
 - `EventsTable` merges the project's map into the observed options where the

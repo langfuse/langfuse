@@ -24,9 +24,9 @@ import {
   SESSION_COLUMN_TO_BACKEND_KEY,
   type SessionOmittableFilterColumn,
 } from "@/src/features/filters/config/sessions-config";
-import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import {
+  DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type FilterState,
   BatchExportTableName,
   TableViewPresetTableName,
@@ -34,7 +34,10 @@ import {
   BatchActionType,
   ActionId,
   type TimeFilter,
+  type ScoreAggregate,
 } from "@langfuse/shared";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
@@ -55,7 +58,6 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { Badge } from "@/src/components/ui/badge";
-import { type ScoreAggregate } from "@langfuse/shared";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { type TableAction } from "@/src/features/table/types";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
@@ -106,8 +108,8 @@ export default function SessionsTable({
   showControlsInPageHeader = false,
 }: SessionTableProps) {
   const sessionsFilterConfig = useMemo(
-    () => getSessionFilterConfig(omittedFilter),
-    [omittedFilter],
+    () => getSessionFilterConfig(omittedFilter, isBetaEnabled),
+    [isBetaEnabled, omittedFilter],
   );
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
@@ -246,7 +248,8 @@ export default function SessionsTable({
           value: u.value,
           count: Number(u.count),
         })) ?? undefined,
-      tags: filterOptions.data?.tags.map((t) => t.value) ?? undefined, // tags don't have counts
+      // tags don't have counts; they read A→Z
+      tags: sortOptionValues(filterOptions.data?.tags.map((t) => t.value)),
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],
@@ -268,11 +271,15 @@ export default function SessionsTable({
     () => ({
       loading: isSidebarFilterLoading,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        userId ? "user" : undefined,
+      ),
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      isV4: isBetaEnabled,
     }),
-    [isSidebarFilterLoading, projectId],
+    [isBetaEnabled, isSidebarFilterLoading, projectId, userId],
   );
 
   const queryFilter = useSidebarFilterState(

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -36,7 +37,7 @@ type DrawerContentProps = React.ComponentPropsWithoutRef<
 // https://tailwindcss.com/docs/responsive-design
 const TAILWIND_MD_MEDIA_QUERY = 768;
 
-const drawerVariants = cva("fixed flex flex-col border bg-background", {
+const drawerVariants = cva("fixed flex flex-col border bg-modal", {
   variants: {
     direction: {
       bottom: "inset-x-0 bottom-0 rounded-t-lg",
@@ -195,10 +196,7 @@ const DrawerTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Title
     ref={ref}
-    className={cn(
-      "text-lg leading-none font-semibold tracking-tight",
-      className,
-    )}
+    className={cn("text-lg leading-none font-bold tracking-tight", className)}
     {...props}
   />
 ));

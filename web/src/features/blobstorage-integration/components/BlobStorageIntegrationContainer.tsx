@@ -6,9 +6,8 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import {
-  isLegacyBlobExportAllowed,
-  isLegacyBlobExporter,
   type BlobStorageIntegration,
+  type ExportSourceContext,
 } from "@langfuse/shared";
 import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -28,31 +27,41 @@ export const BlobStorageIntegrationContainer = ({
   projectId,
   isLoading,
   isEnrichedExportAvailable,
+  legacyWritesActive,
 }: {
   config: Partial<BlobStorageIntegration> | null;
   projectId: string;
   isLoading: boolean;
   isEnrichedExportAvailable: boolean;
+  legacyWritesActive: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { project } = useQueryProject();
 
-  const isPostCutoffCloud =
-    project?.createdAt != null &&
-    !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
-  const eventsExportAvailable = isEnrichedExportAvailable;
-  // Integration-level cutoff (Cloud only): a row predating the exporter cutoff
-  // keeps legacy options; a new or post-cutoff row is locked to EVENTS.
-  const isLegacyExporter = isLegacyBlobExporter(
-    config?.createdAt ? new Date(config.createdAt) : null,
-    isLangfuseCloud,
-  );
-  const forceEventsExport =
-    isPostCutoffCloud || (eventsExportAvailable && !isLegacyExporter);
-  const availability = useMemo(
-    () => ({ eventsExportAvailable, forceEventsExport }),
-    [eventsExportAvailable, forceEventsExport],
+  // Policy context for the export-source selector; the policy itself lives in
+  // export-source-policy.ts. null integrationCreatedAt = new row.
+  const projectCreatedAt = project?.createdAt;
+  const integrationCreatedAt = config?.createdAt;
+  const exportSourceCtx: ExportSourceContext = useMemo(
+    () => ({
+      isCloud: isLangfuseCloud,
+      enrichedAvailable: isEnrichedExportAvailable,
+      legacyWritesActive,
+      projectCreatedAt: projectCreatedAt
+        ? new Date(projectCreatedAt)
+        : undefined,
+      integrationCreatedAt: integrationCreatedAt
+        ? new Date(integrationCreatedAt)
+        : null,
+    }),
+    [
+      isLangfuseCloud,
+      isEnrichedExportAvailable,
+      legacyWritesActive,
+      projectCreatedAt,
+      integrationCreatedAt,
+    ],
   );
 
   const utils = api.useUtils();
@@ -116,9 +125,9 @@ export const BlobStorageIntegrationContainer = ({
       key={`${projectId}:${config ? "configured" : "new"}`}
       initialValues={buildBlobStorageFormValues(
         config ?? undefined,
-        availability,
+        exportSourceCtx,
       )}
-      availability={availability}
+      exportSourceCtx={exportSourceCtx}
       persistedExportSource={config?.exportSource}
       isSaving={mut.isPending}
       onSubmit={handleSubmit}

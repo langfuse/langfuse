@@ -464,19 +464,13 @@ export const AutomationForm = ({
     if (actionType === "WEBHOOK") {
       // Use action handler to get default values with proper typing
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const webhookDefaults = handler.getDefaultValues(
-        automation,
-        resolvedEventSource,
-      );
+      const webhookDefaults = handler.getDefaultValues(automation);
       return {
         ...baseValues,
         actionType: "WEBHOOK" as const,
         webhook: {
           url: webhookDefaults.webhook.url || "",
           headers: webhookDefaults.webhook.headers || [],
-          apiVersion: webhookDefaults.webhook.apiVersion || {
-            prompt: "v1" as const,
-          },
         },
       };
     } else if (actionType === "SLACK") {
@@ -539,7 +533,10 @@ export const AutomationForm = ({
       return;
     }
 
-    const actionConfig = handler.buildActionConfig(data);
+    const actionConfig = handler.buildActionConfig(
+      data,
+      data.eventSource as TriggerEventSource,
+    );
 
     // Project-notification names are auto-generated from the destination (the
     // name field is hidden for this source; regenerated on every save so the
@@ -605,10 +602,7 @@ export const AutomationForm = ({
 
     if (value === "WEBHOOK") {
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const defaultValues = handler.getDefaultValues(
-        undefined,
-        form.getValues("eventSource") as TriggerEventSource,
-      );
+      const defaultValues = handler.getDefaultValues();
       form.setValue("webhook", defaultValues.webhook);
     } else if (value === "SLACK") {
       const handler = ActionHandlerRegistry.getHandler("SLACK");
@@ -651,6 +645,13 @@ export const AutomationForm = ({
   const isProjectNotification =
     watchedEventSource === TriggerEventSource.ProjectNotification;
 
+  // A monitor-sourced trigger has nothing to configure, so with the source
+  // locked (e.g. created from the monitor form) the card is pure noise.
+  const hideTriggerCard =
+    isProjectNotification ||
+    (Boolean(lockedEventSource) &&
+      watchedEventSource === TriggerEventSource.Monitor);
+
   /** handleEventSourceChange resets eventAction + filter to defaults appropriate for the picked source. */
   const handleEventSourceChange = (value: TriggerEventSource) => {
     form.setValue("eventSource", value);
@@ -680,7 +681,7 @@ export const AutomationForm = ({
                         {...field}
                         autoFocus={!automation}
                         disabled={!hasAccess || !isEditing}
-                        className="border-border rounded-none border-0 border-b bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
+                        className="border-border rounded-none border-0 border-b bg-transparent px-0 text-2xl font-bold focus-visible:ring-0 focus-visible:ring-offset-0"
                       />
                     </FormControl>
                     <FormMessage />
@@ -693,7 +694,7 @@ export const AutomationForm = ({
               name="status"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center gap-2">
-                  <FormLabel className="text-sm font-medium">Active</FormLabel>
+                  <FormLabel className="text-sm font-bold">Active</FormLabel>
                   <FormControl>
                     <Switch
                       checked={field.value === "ACTIVE"}
@@ -710,8 +711,7 @@ export const AutomationForm = ({
           </div>
         )}
 
-        {/* Project-notification triggers are match-all, so there is nothing to configure. */}
-        {!isProjectNotification && (
+        {!hideTriggerCard && (
           <Card>
             <CardHeader>
               <CardTitle>Trigger</CardTitle>

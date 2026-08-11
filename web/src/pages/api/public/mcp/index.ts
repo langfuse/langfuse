@@ -33,16 +33,26 @@ import {
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
+import {
+  addTagsToCurrentSpan,
+  addUserToSpan,
+  logger,
+  redis,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
-import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import {
+  BaseError,
+  UnauthorizedError,
+  ForbiddenError,
+  safeJsonParse,
+} from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
-import { InAppAgentMcpRunOverrideSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
-import { safeJsonParse } from "@/src/utils/json";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
+import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -116,15 +126,8 @@ export default async function handler(
       );
     }
 
-    // Rate limit MCP requests
-    const rateLimitCheck =
-      await RateLimitService.getInstance().rateLimitRequest(
-        authCheck.scope,
-        "public-api",
-      );
-
-    if (rateLimitCheck?.isRateLimited()) {
-      return rateLimitCheck.sendRestResponseIfLimited(res);
+    if (await applyMcpPublicApiRateLimit(authCheck.scope, res)) {
+      return;
     }
 
     // Build ServerContext from authenticated scope. In-app-agent keys need a
@@ -137,6 +140,8 @@ export default async function handler(
       apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
+      plan: authCheck.scope.plan,
+      rateLimitOverrides: authCheck.scope.rateLimitOverrides,
       userAgent: req.headers["user-agent"],
       inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
     };
@@ -182,6 +187,34 @@ export default async function handler(
       });
     }
   }
+}
+
+export async function applyMcpPublicApiRateLimit(
+  scope: ApiAccessScope,
+  res: NextApiResponse,
+): Promise<boolean> {
+  const isInAppAgent = scope.isInAppAgentKey === true;
+
+  addTagsToCurrentSpan({
+    "mcp.is_in_app_agent": isInAppAgent,
+  });
+
+  // Assistant runs have separate limits; trust only the authenticated key flag for this exemption.
+  if (isInAppAgent) {
+    return false;
+  }
+
+  const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
+    scope,
+    "public-api",
+  );
+
+  if (!rateLimitCheck?.isRateLimited()) {
+    return false;
+  }
+
+  rateLimitCheck.sendRestResponseIfLimited(res);
+  return true;
 }
 
 export function getInAppAgentContext(

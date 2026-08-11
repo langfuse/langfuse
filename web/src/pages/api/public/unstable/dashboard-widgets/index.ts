@@ -3,12 +3,24 @@ import {
   withUnstablePublicApiMiddlewares,
 } from "@/src/features/public-api/server/unstable-public-api-route";
 import {
+  GetUnstableDashboardWidgetsQuery,
+  GetUnstableDashboardWidgetsResponse,
   PostUnstableDashboardWidgetBody,
   PostUnstableDashboardWidgetResponse,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { createPublicDashboardWidget } from "@/src/features/widgets/server/public-dashboard-widget-service";
+import {
+  createPublicDashboardWidget,
+  listPublicDashboardWidgets,
+} from "@/src/features/widgets/server/public-dashboard-widget-service";
 
 export default withUnstablePublicApiMiddlewares({
+  GET: createUnstablePublicApiRoute({
+    name: "List Unstable Dashboard Widgets",
+    querySchema: GetUnstableDashboardWidgetsQuery,
+    responseSchema: GetUnstableDashboardWidgetsResponse,
+    fn: ({ query, auth }) =>
+      listPublicDashboardWidgets({ projectId: auth.scope.projectId, ...query }),
+  }),
   POST: createUnstablePublicApiRoute({
     name: "Create Unstable Dashboard Widget",
     bodySchema: PostUnstableDashboardWidgetBody,

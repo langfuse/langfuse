@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 

@@ -56,6 +56,24 @@ export const mapUserToCoreDataRow = ({
   ],
 });
 
+type JobConfigurationCoreDataInput = {
+  evalTemplate: { name: string } | null;
+  sampling: { toNumber: () => number };
+} & Record<string, unknown>;
+
+// Flattens the joined eval template into a plain column so the export stays
+// one JSONL row per configured evaluator. The sampling Decimal is cast to a
+// JS number so it lands as a JSON number instead of a quoted string.
+export const mapJobConfigurationToCoreDataRow = ({
+  evalTemplate,
+  sampling,
+  ...jobConfiguration
+}: JobConfigurationCoreDataInput) => ({
+  ...jobConfiguration,
+  sampling: sampling.toNumber(),
+  evalTemplateName: evalTemplate?.name ?? null,
+});
+
 type TablePageArgs<TCursor> = {
   lastRow: TCursor | null;
   take: number;
@@ -421,6 +439,43 @@ const coreDataTableExports: Array<
             updatedAt: true,
           },
         }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "jobConfigurations",
+      // blockMessage is excluded as free-text; the eval template relation is
+      // flattened to evalTemplateName below
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.jobConfiguration.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            jobType: true,
+            status: true,
+            blockedAt: true,
+            blockReason: true,
+            evalTemplateId: true,
+            scoreName: true,
+            filter: true,
+            targetObject: true,
+            variableMapping: true,
+            sampling: true,
+            delay: true,
+            timeScope: true,
+            createdAt: true,
+            updatedAt: true,
+            evalTemplate: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        }),
+      mapRow: mapJobConfigurationToCoreDataRow,
     }),
 ];
 

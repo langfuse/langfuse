@@ -72,13 +72,20 @@ describe("unsupportedViewFilters", () => {
 });
 
 describe("buildV2FilterColumnsParams", () => {
-  const getColumn = (view: "observations", id: string) => {
+  const getColumn = (
+    view: "observations",
+    id: string,
+    viewVersion?: "v1" | "v2",
+  ) => {
     const params = buildV2FilterColumnsParams({
       view,
       filterOptions: undefined,
       datasets: undefined,
     });
-    return getMetricsFilterColumns(params).find((c) => c.id === id);
+    return getMetricsFilterColumns({
+      ...params,
+      viewVersion: viewVersion ?? params.viewVersion,
+    }).find((c) => c.id === id);
   };
 
   it("offers every Observation Type value even when discovery data is empty", () => {
@@ -199,5 +206,39 @@ describe("buildV2FilterColumnsParams", () => {
     const custom = getMetricsColumnsWithCustomSelect(params);
     expect(custom).not.toContain("type");
     expect(custom).not.toContain("level");
+  });
+
+  it("boolean score view: offers booleanValue instead of value", () => {
+    const booleanParams = buildV2FilterColumnsParams({
+      view: "scores-boolean",
+      filterOptions: undefined,
+      datasets: undefined,
+    });
+    const booleanColumns = getMetricsFilterColumns(booleanParams);
+    expect(
+      booleanColumns.find((column) => column.id === "booleanValue")?.type,
+    ).toBe("boolean");
+    expect(booleanColumns.some((column) => column.id === "value")).toBe(false);
+
+    const numericParams = buildV2FilterColumnsParams({
+      view: "scores-numeric",
+      filterOptions: undefined,
+      datasets: undefined,
+    });
+    expect(
+      getMetricsFilterColumns(numericParams).some(
+        (column) => column.id === "booleanValue",
+      ),
+    ).toBe(false);
+  });
+
+  it("semantic-root filtering: offered for v2 observations only", () => {
+    expect(getColumn("observations", "isRootObservation")).toMatchObject({
+      name: "Is Root Observation",
+      type: "boolean",
+    });
+    expect(
+      getColumn("observations", "isRootObservation", "v1"),
+    ).toBeUndefined();
   });
 });

@@ -80,5 +80,3 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
     </ChartContainer>
   );
 };
-
-export default VerticalBarChart;

@@ -4,7 +4,7 @@ import { LATEST_PROMPT_LABEL, type Prompt } from "@langfuse/shared";
 import { getPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 
 import { defineTool } from "../../../core/define-tool";
-import { buildPromptUrl } from "@/src/utils/product-url";
+import { buildPromptUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { UserInputError } from "../../../core/errors";
 import {

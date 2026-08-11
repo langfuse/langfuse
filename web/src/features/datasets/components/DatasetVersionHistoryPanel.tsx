@@ -148,7 +148,7 @@ export function DatasetVersionHistoryPanel({
           variant="ghost"
           className={cn(
             "hover:bg-muted/50 flex h-auto flex-1 flex-col items-start gap-1 rounded-md px-3 py-2.5 text-left text-sm transition-colors",
-            isSelected && "bg-muted hover:bg-muted font-medium",
+            isSelected && "bg-muted hover:bg-muted font-bold",
           )}
         >
           <div className="flex w-full items-center justify-between gap-2">
@@ -167,7 +167,7 @@ export function DatasetVersionHistoryPanel({
               </span>
             </div>
             {isLatest && (
-              <span className="bg-accent-light-green text-accent-dark-green dark:bg-accent-dark-green dark:text-accent-light-green shrink-0 rounded-md px-2 py-0.5 text-xs font-medium">
+              <span className="bg-accent-light-green text-accent-dark-green dark:bg-accent-dark-green dark:text-accent-light-green shrink-0 rounded-md px-2 py-0.5 text-xs font-bold">
                 Latest
               </span>
             )}
@@ -222,7 +222,7 @@ export function DatasetVersionHistoryPanel({
     <div className="flex h-full w-full flex-col">
       {/* Header */}
       <div className="border-b p-4">
-        <h3 className="text-lg font-semibold">Version History</h3>
+        <h3 className="text-lg font-bold">Version History</h3>
         <p className="text-muted-foreground text-sm">
           {versions.length} version{versions.length !== 1 ? "s" : ""}
         </p>
@@ -234,7 +234,7 @@ export function DatasetVersionHistoryPanel({
           {/* Today */}
           {groupedVersions.today.length > 0 && (
             <AccordionItem value="today" className="px-2">
-              <AccordionTrigger className="text-sm font-medium">
+              <AccordionTrigger className="text-sm font-bold">
                 Today ({groupedVersions.today.length})
               </AccordionTrigger>
               <AccordionContent>
@@ -248,7 +248,7 @@ export function DatasetVersionHistoryPanel({
           {/* Yesterday */}
           {groupedVersions.yesterday.length > 0 && (
             <AccordionItem value="yesterday" className="px-2">
-              <AccordionTrigger className="text-sm font-medium">
+              <AccordionTrigger className="text-sm font-bold">
                 Yesterday ({groupedVersions.yesterday.length})
               </AccordionTrigger>
               <AccordionContent>
@@ -264,7 +264,7 @@ export function DatasetVersionHistoryPanel({
           {/* Last 7 Days */}
           {groupedVersions.last7Days.length > 0 && (
             <AccordionItem value="last7days" className="px-2">
-              <AccordionTrigger className="text-sm font-medium">
+              <AccordionTrigger className="text-sm font-bold">
                 Last 7 Days ({groupedVersions.last7Days.length})
               </AccordionTrigger>
               <AccordionContent>
@@ -280,7 +280,7 @@ export function DatasetVersionHistoryPanel({
           {/* Last 30 Days */}
           {groupedVersions.last30Days.length > 0 && (
             <AccordionItem value="last30days" className="px-2">
-              <AccordionTrigger className="text-sm font-medium">
+              <AccordionTrigger className="text-sm font-bold">
                 Last 30 Days ({groupedVersions.last30Days.length})
               </AccordionTrigger>
               <AccordionContent>
@@ -296,7 +296,7 @@ export function DatasetVersionHistoryPanel({
           {/* Older */}
           {groupedVersions.older.length > 0 && (
             <AccordionItem value="older" className="px-2">
-              <AccordionTrigger className="text-sm font-medium">
+              <AccordionTrigger className="text-sm font-bold">
                 Older ({groupedVersions.older.length})
               </AccordionTrigger>
               <AccordionContent>

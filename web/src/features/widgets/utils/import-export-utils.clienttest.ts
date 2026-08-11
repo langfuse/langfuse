@@ -2,6 +2,7 @@ import {
   buildWidgetExport,
   buildWidgetImportAllowedValues,
   importWidgetFile,
+  parseImportedWidgetJson,
   parseAndNormalizeImportedWidget,
   parsePastedWidget,
   WIDGET_FILE_FORMAT_VERSION,
@@ -150,6 +151,69 @@ describe("parseAndNormalizeImportedWidget", () => {
 
     expect(result.snapshot.selectedView).toBe("traces");
     expect(result.snapshot.widgetMinVersion).toBe(1);
+  });
+
+  it("accepts v2-only imported fields without rewriting the version hint", () => {
+    const rootFilter = {
+      column: "isRootObservation",
+      type: "boolean" as const,
+      operator: "=" as const,
+      value: true,
+    };
+    const result = parseImportedWidgetJson({
+      parsedJson: {
+        ...baseWidget,
+        view: "observations",
+        dimensions: [{ field: "experimentName" }],
+        chartType: "VERTICAL_BAR",
+        chartConfig: { type: "VERTICAL_BAR" },
+        filters: [rootFilter],
+      },
+      isBetaEnabled: false,
+    });
+
+    expect(result.widget.minVersion).toBe(1);
+    expect(result.widget.filters).toEqual([rootFilter]);
+  });
+
+  it("imports boolean score widgets with boolean filters intact", async () => {
+    const result = await importWidgetFile({
+      file: {
+        text: async () =>
+          JSON.stringify({
+            ...baseWidget,
+            view: "scores-boolean",
+            dimensions: [{ field: "booleanValue" }],
+            metrics: [{ measure: "value", agg: "avg" }],
+            filters: [
+              {
+                column: "booleanValue",
+                type: "boolean",
+                operator: "=",
+                value: true,
+              },
+            ],
+            minVersion: 2,
+          }),
+      } as File,
+      optionSets: { observationLevels: [] },
+      isBetaEnabled: true,
+    });
+
+    expect(result.snapshot).toMatchObject({
+      selectedView: "scores-boolean",
+      selectedDimension: "booleanValue",
+      selectedMeasure: "value",
+      selectedAggregation: "avg",
+      userFilterState: [
+        {
+          column: "Boolean Value",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
   });
 
   it("accepts an enveloped export file (round-trip)", async () => {

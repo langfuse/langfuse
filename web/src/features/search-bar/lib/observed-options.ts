@@ -6,11 +6,15 @@
 //   scores_avg / trace_scores_avg   → numeric score NAMES
 //   score_categories[.<name>]       → categorical score names / their values
 //   (metadata key paths are not enumerated by the API — they are merged in
-//   client-side from the observed-metadata store; see lib/metadata-paths.ts
-//   withMetadataPathOptions, which fills the `metadata` key)
+//   client-side from the observed-metadata store by withMetadataPathOptions
+//   below; see fns/observedMetadata/metadataPaths.ts)
 
 import type { ScoreTypeContext } from "./adapter";
 import { SCORE_COLUMNS } from "./fields";
+import {
+  observedMetadataOptions,
+  type StoredKeyInfo,
+} from "../../../fns/observedMetadata/metadataPaths";
 
 export type ObservedValue = {
   value: string;
@@ -102,6 +106,23 @@ export function toObservedOptions(
 }
 
 /**
+ * Merge the observed-metadata suggestions into the map the completion planner
+ * reads (see fns/observedMetadata/metadataPaths.ts). `undefined` observed
+ * (filter options still loading) stays `undefined` so the planner's loading
+ * semantics are untouched.
+ */
+export function withMetadataPathOptions(
+  observed: ObservedOptions | undefined,
+  paths: Record<string, StoredKeyInfo> | undefined,
+): ObservedOptions | undefined {
+  if (observed === undefined) return observed;
+  const suggestions = observedMetadataOptions(paths);
+  return Object.keys(suggestions).length === 0
+    ? observed
+    : { ...observed, ...suggestions };
+}
+
+/**
  * Derive the score-name→type sets the adapter needs to route
  * `scores.<name>:<value>` to the numeric (`scores_avg`) vs categorical
  * (`score_categories`) column. Built from the same observed map the completion
@@ -137,8 +158,10 @@ export const MAX_SCORE_NAME_LENGTH = 256;
 export type ObservedScoreNames = {
   numeric?: string[];
   categorical?: string[];
+  booleans?: string[];
   traceNumeric?: string[];
   traceCategorical?: string[];
+  traceBooleans?: string[];
 };
 
 /**
@@ -167,8 +190,10 @@ export function observedScoreNamesFromOptions(
   return {
     numeric: names("scores_avg"),
     categorical: names("score_categories"),
+    booleans: names("score_booleans"),
     traceNumeric: names("trace_scores_avg"),
     traceCategorical: names("trace_score_categories"),
+    traceBooleans: names("trace_score_booleans"),
   };
 }
 

@@ -1,6 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import Link from "next/link";
@@ -113,6 +113,7 @@ export default function BlobStorageIntegrationSettings() {
               isEnrichedExportAvailable={
                 state.data?.isEnrichedExportAvailable ?? false
               }
+              legacyWritesActive={state.data?.legacyWritesActive ?? true}
             />
           </Card>
         </>

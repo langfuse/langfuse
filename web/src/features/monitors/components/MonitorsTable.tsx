@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { MoreVertical, PauseCircle, PlayCircle, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -182,7 +183,7 @@ export function MonitorsTable() {
       cell: ({ row }) => (
         <span
           className={cn(
-            "text-sm font-medium",
+            "text-sm font-bold",
             row.original.severity === "PAUSED" && "opacity-50",
           )}
         >

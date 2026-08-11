@@ -113,7 +113,7 @@ trace-level fields the v4 aggregations read, and root observations hang off
 it. `events_core` fills via the materialized view. Facts that matter:
 
 - `events_full` has no `id` column; `span_id` is the row identifier
-- the v4 read path is the per-user "Fast (Preview)" sidebar toggle or
+- the v4 read path is the per-user "V4 Preview" sidebar toggle or
   `LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only` server-side; the trace URL
   is identical in both modes
 - `many-traces` is deliberately v3-only — its traces correctly show "not

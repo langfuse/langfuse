@@ -11,15 +11,15 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { type AnalyticsIntegrationExportSource } from "@langfuse/shared";
+import {
+  type AnalyticsIntegrationExportSource,
+  type ExportSourceContext,
+} from "@langfuse/shared";
 import {
   blobStorageIntegrationFormSchema,
   type BlobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
-import {
-  isExportSourceSelectable,
-  type ExportSourceAvailability,
-} from "@/src/features/blobstorage-integration/exportSource";
+import { isExportSourceSelectable } from "@/src/features/analytics-integrations/exportSource";
 import { type BlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
 import { StorageProviderFields } from "@/src/features/blobstorage-integration/components/StorageProviderFields";
 import { ExportScheduleFields } from "@/src/features/blobstorage-integration/components/ExportScheduleFields";
@@ -35,14 +35,14 @@ import { GzipCompressionField } from "@/src/features/blobstorage-integration/com
 // never patched in place.
 export const BlobStorageIntegrationForm = ({
   initialValues,
-  availability,
+  exportSourceCtx,
   persistedExportSource,
   isSaving,
   onSubmit,
   children,
 }: {
   initialValues: BlobStorageFormValues;
-  availability: ExportSourceAvailability;
+  exportSourceCtx: ExportSourceContext;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
   isSaving: boolean;
   onSubmit: (values: BlobStorageIntegrationFormSchema) => void;
@@ -52,13 +52,13 @@ export const BlobStorageIntegrationForm = ({
   children?: ReactNode;
 }) => {
   // Block the save when the persisted source is no longer selectable rather
-  // than silently rewriting it (LFE-10296). Availability is fixed for the
-  // lifetime of this mount: it derives from the project and config identity,
-  // and any identity change remounts the form via the container key.
+  // than silently rewriting it (LFE-10296). The policy context is fixed for
+  // the lifetime of this mount: it derives from the project and config
+  // identity, and any identity change remounts the form via the container key.
   const formSchema = useMemo(
     () =>
       blobStorageIntegrationFormSchema.superRefine((data, ctx) => {
-        if (!isExportSourceSelectable(data.exportSource, availability)) {
+        if (!isExportSourceSelectable(data.exportSource, exportSourceCtx)) {
           ctx.addIssue({
             code: "custom",
             path: ["exportSource"],
@@ -67,7 +67,7 @@ export const BlobStorageIntegrationForm = ({
           });
         }
       }),
-    [availability],
+    [exportSourceCtx],
   );
 
   const blobStorageForm = useForm({
@@ -88,7 +88,7 @@ export const BlobStorageIntegrationForm = ({
         <ExportSourceField
           control={control}
           persistedExportSource={persistedExportSource}
-          availability={availability}
+          exportSourceCtx={exportSourceCtx}
         />
         <ExportFieldGroupsField control={control} />
         <GzipCompressionField control={control} />

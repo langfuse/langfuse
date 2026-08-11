@@ -1,6 +1,5 @@
 import { type ZodType } from "zod";
 
-import { ProxyAgent } from "undici";
 import {
   Output,
   generateText,
@@ -13,6 +12,7 @@ import {
   type GenerateTextResult,
   type Experimental_DownloadFunction,
   type JSONValue,
+  type LanguageModelCallOptions,
   type ModelMessage,
   type StreamTextOnErrorCallback,
   type StreamTextResult,
@@ -31,6 +31,7 @@ import { translateBedrockProviderOptions } from "./ai-sdk/providers/bedrock";
 import { translateGoogleProviderOptions } from "./ai-sdk/providers/google";
 import {
   isOpenAICompatibleEndpoint,
+  isOpenRouterEndpoint,
   translateOpenAIProviderOptions,
 } from "./ai-sdk/providers/openai";
 import type {
@@ -59,6 +60,15 @@ import { decryptAndParseExtraHeaders } from "./utils";
 
 type RuntimeContext = Record<string, unknown>;
 type ProviderOptions = Record<string, Record<string, JSONValue>>;
+
+const CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_CAP_MS = 95_000;
+
+// Finish client-initiated non-streaming calls before the 102-second load balancer timeout.
+export const getClientInitiatedNonStreamingLlmTimeoutMs = () =>
+  Math.min(
+    env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS,
+    CLIENT_INITIATED_NON_STREAMING_LLM_TIMEOUT_CAP_MS,
+  );
 
 export type LLMModelRef = {
   adapter: LLMAdapter;
@@ -99,6 +109,7 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
   maxOutputTokens?: number;
   temperature?: number;
   topP?: number;
+  reasoning?: LanguageModelCallOptions["reasoning"];
   /** Canonical, provider-namespaced AI SDK options. */
   providerOptions?: ProviderOptions;
   maxRetries?: number;
@@ -143,6 +154,7 @@ type PreparedLLMTextCall<TOOLS extends ToolSet> = {
     maxOutputTokens?: number;
     temperature?: number;
     topP?: number;
+    reasoning?: LanguageModelCallOptions["reasoning"];
     providerOptions?: ProviderOptions;
     maxRetries?: number;
     timeout: TimeoutConfiguration<TOOLS>;
@@ -278,14 +290,19 @@ async function prepareLLMTextCall<
   });
   recordAiSdkExecution({ model: options.model, modelConfig });
 
+  const providerOptions = addOpenRouterInternalTraceProvenance({
+    model: options.model,
+    baseURL: options.connection.baseURL,
+    apiMode: modelConfig.openAIApiMode,
+    providerOptions: options.providerOptions,
+    trace: options.trace,
+  });
+
   const apiKey = decrypt(options.connection.secretKey);
   const extraHeaders = decryptAndParseExtraHeaders(
     options.connection.extraHeaders,
   );
 
-  const proxyDispatcher = env.HTTPS_PROXY
-    ? new ProxyAgent(env.HTTPS_PROXY)
-    : undefined;
   const createFetch = (
     logContext: string,
     additionalSensitiveHeaders?: string[],
@@ -298,7 +315,6 @@ async function prepareLLMTextCall<
       additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
         Object.keys(extraHeaders ?? {}),
       ),
-      dispatcher: proxyDispatcher,
     });
 
   const languageModel = await buildAiSdkModel({
@@ -331,7 +347,8 @@ async function prepareLLMTextCall<
       maxOutputTokens: options.maxOutputTokens,
       temperature: options.temperature,
       topP: options.topP,
-      providerOptions: options.providerOptions,
+      reasoning: options.reasoning,
+      providerOptions,
       maxRetries: options.maxRetries,
       timeout,
       abortSignal: options.abortSignal,
@@ -341,6 +358,47 @@ async function prepareLLMTextCall<
       ...(capture ? { telemetry: capture.telemetry } : {}),
     },
   };
+}
+
+function addOpenRouterInternalTraceProvenance(params: {
+  model: LLMModelRef;
+  baseURL?: string | null;
+  apiMode?: "responses" | "chat-completions";
+  providerOptions?: ProviderOptions;
+  trace?: TraceSinkParams;
+}): ProviderOptions | undefined {
+  if (
+    params.model.adapter !== LLMAdapter.OpenAI ||
+    params.apiMode !== "chat-completions" ||
+    !params.trace ||
+    !isOpenRouterEndpoint(params.baseURL)
+  ) {
+    return params.providerOptions;
+  }
+
+  const openAIOptions = params.providerOptions?.openai ?? {};
+  const existingTrace = isJsonObject(openAIOptions.trace)
+    ? openAIOptions.trace
+    : {};
+
+  return {
+    ...params.providerOptions,
+    openai: {
+      ...openAIOptions,
+      trace: {
+        ...existingTrace,
+        // This marker controls evaluator recursion prevention and must remain
+        // system-owned even when the caller supplies other Broadcast metadata.
+        environment: params.trace.environment,
+      },
+    },
+  };
+}
+
+function isJsonObject(
+  value: JSONValue | undefined,
+): value is Record<string, JSONValue> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
@@ -438,6 +496,7 @@ export type LegacyLLMTextOptions = {
   maxOutputTokens?: number;
   temperature?: number;
   topP?: number;
+  reasoning?: LanguageModelCallOptions["reasoning"];
   providerOptions?: ProviderOptions;
   credentialSource: LLMCredentialSource;
 };
@@ -467,6 +526,11 @@ export function mapLegacyLLMCompletionParams(params: {
     maxOutputTokens: modelParams.max_tokens,
     temperature: modelParams.temperature,
     topP: modelParams.top_p,
+    reasoning:
+      modelParams.adapter === LLMAdapter.OpenAI &&
+      isOpenAIDefaultNonReasoningModel(modelParams.model)
+        ? "none"
+        : undefined,
     providerOptions,
     credentialSource: params.credentialSource ?? "user",
   };
@@ -490,16 +554,10 @@ function translateLegacyProviderOptions(params: {
         passthroughUnknown: useOpenAICompatibleChat,
         target: useOpenAICompatibleChat ? "openai-compatible" : "openai",
       });
-      if (
-        translated.ok &&
-        isOpenAINonReasoningChatModel(modelParams.model) &&
-        translated.value?.forceReasoning === undefined
-      ) {
-        translated.value = {
-          ...(translated.value ?? {}),
-          forceReasoning: false,
-        };
-      }
+      // Never add Langfuse-derived controls to these translated options.
+      // Custom OpenAI-compatible connections intentionally forward unknown
+      // keys to the wire. Portable controls such as reasoning belong on the
+      // top-level AI SDK call instead.
       break;
     }
     case LLMAdapter.Azure:
@@ -558,7 +616,7 @@ function translateLegacyProviderOptions(params: {
     : undefined;
 }
 
-function isOpenAINonReasoningChatModel(model: string): boolean {
+function isOpenAIDefaultNonReasoningModel(model: string): boolean {
   return /^gpt-5\.4-(mini|nano)(-\d{4}-\d{2}-\d{2})?$/i.test(
     model.replace(/^openai\//i, ""),
   );

@@ -20,6 +20,8 @@ report over an uncertain code change.
   `references/model-audit-memory.md`; treat it as orientation, not evidence
 - Official provider pricing pages from
   `references/provider-sources-and-price-keys.md`
+- Provider capability and alias requirements from
+  `references/provider-usage-key-matrix.md`
 - Deterministic reports from:
   - `node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs`
 
@@ -30,8 +32,10 @@ report over an uncertain code change.
    recent major text, chat, reasoning, or multimodal LLM launches, renames,
    pricing changes, and gaps in Langfuse coverage. Do not limit the audit to
    model names already present in `default-model-prices.json`.
-3. Fetch official provider pricing pages before changing prices or adding a
-   model.
+3. Fetch official provider pricing and usage-shape pages before changing prices
+   or adding a model. Compare the provider usage object, Langfuse ingestion
+   normalization, and a mature sibling entry. Do not copy a sibling key set
+   mechanically.
 4. Apply only changes with clear official evidence:
    - corrected input, output, cache write, or cache read prices;
    - missing default pricing entries for selectable models;
@@ -50,7 +54,8 @@ report over an uncertain code change.
    retaining the complete current per-model result would materially help a
    future audit. Do not persist a partial table, append unbounded run history,
    or update it only to refresh the audit date.
-8. Re-run the validator.
+8. Re-run the validator, including changed-entry usage-key validation against
+   the pre-audit pricing file.
 
 ## Edit Rules
 
@@ -87,6 +92,8 @@ entry and these columns:
 | Provider              | Provider whose official source was checked                                                                                                           |
 | Model / pricing entry | Exact model or pricing-entry name reviewed                                                                                                           |
 | Pricing checked       | Every relevant input, output, cache-read, and cache-write price with the provider unit and converted per-token value                                 |
+| Usage keys checked    | Every applicable semantic bucket and exact raw/normalized alias expected from provider usage plus Langfuse ingestion                                 |
+| Usage-key coverage    | `Yes` only when every supported bucket is represented by all applicable aliases; otherwise `No` with the gap in comments                             |
 | Price confirmed       | `Yes` only when official evidence fetched in the current run confirms every current price; otherwise `No`                                            |
 | Tiering checked       | Every applicable tier name, threshold, and condition, or a statement that no provider tiering applies                                                |
 | Tiering correct       | `Yes` when every applicable threshold and tier price is confirmed, `No` when it is not, or `N/A` only when no provider tiering dimension applies     |
@@ -104,6 +111,7 @@ For every changed model, include:
 - model name;
 - whether the change updates an existing entry or adds a newly discovered model;
 - changed JSON keys or `matchPattern` behavior;
+- supported usage buckets and exact aliases checked;
 - official source URL;
 - provider price unit and converted per-token value;
 - validation commands run.

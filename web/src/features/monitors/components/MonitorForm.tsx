@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import React, { useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";
@@ -560,7 +561,7 @@ export const MonitorForm = ({
                         <span className="text-sm whitespace-nowrap">
                           Threshold
                         </span>
-                        <span className="mr-1.5 ml-1 font-mono text-xs font-semibold">
+                        <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
                           {
                             operatorSymbol[
                               (watched.thresholdOperator ??
@@ -604,7 +605,7 @@ export const MonitorForm = ({
                         <span className="text-sm whitespace-nowrap">
                           Threshold
                         </span>
-                        <span className="mr-1.5 ml-1 font-mono text-xs font-semibold">
+                        <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
                           {
                             operatorSymbol[
                               (watched.thresholdOperator ??
@@ -667,7 +668,7 @@ export const MonitorForm = ({
                 />
                 <Accordion type="single" collapsible>
                   <AccordionItem value="advanced" className="border-b-0">
-                    <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-medium [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
+                    <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
                       Advanced Options
                     </AccordionTrigger>
                     <AccordionContent className="space-y-6 px-1 pt-2">
@@ -837,7 +838,7 @@ const Header = ({
   <div className="bg-card sticky top-0 z-10">
     <h3 className="flex items-center gap-2 py-2 text-lg font-bold">
       {step != null ? (
-        <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-semibold">
+        <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold">
           {step}
         </span>
       ) : null}

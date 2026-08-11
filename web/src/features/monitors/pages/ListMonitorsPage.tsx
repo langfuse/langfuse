@@ -102,8 +102,14 @@ const MainPage = ({ projectId }: { projectId: string }) => {
               <ActionButton
                 icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
                 hasAccess={hasCUDAccess}
-                limit={monitorEntitlementLimit}
-                limitValue={monitorCountQuery.data?.count}
+                usageLimit={
+                  typeof monitorEntitlementLimit === "number"
+                    ? {
+                        current: monitorCountQuery.data?.count,
+                        max: monitorEntitlementLimit,
+                      }
+                    : undefined
+                }
                 href={`/project/${projectId}/monitors/new`}
                 variant="default"
               >

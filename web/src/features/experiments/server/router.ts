@@ -48,6 +48,10 @@ import {
   timeFilter,
   AGGREGATABLE_SCORE_TYPES,
   filterAndValidateDbScoreList,
+  hasPromptToolStructuredOutputConflict,
+  InvalidRequestError,
+  parsePromptToolConfig,
+  PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -230,6 +234,19 @@ export const experimentsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "promptExperiments:CUD",
       });
+
+      if (input.structuredOutputSchema) {
+        const prompt = await ctx.prisma.prompt.findUnique({
+          where: { id: input.promptId, projectId: input.projectId },
+          select: { config: true },
+        });
+        const toolConfig = parsePromptToolConfig(prompt?.config);
+        if (hasPromptToolStructuredOutputConflict(toolConfig, true)) {
+          throw new InvalidRequestError(
+            PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+          );
+        }
+      }
 
       if (!redis) {
         throw new UnauthorizedError("Experiment creation failed");

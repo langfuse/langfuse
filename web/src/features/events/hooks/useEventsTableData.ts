@@ -37,6 +37,17 @@ type UseEventsTableDataParams = {
   selectAll: boolean;
   setSelectedRows: (rows: Record<string, boolean>) => void;
   appRootFallbackEnabled?: boolean;
+  /**
+   * Gate the row + batched-I/O queries. Defaults to true; the events table
+   * passes `false` in chart mode so the (hidden) table's expensive row/IO
+   * fetches don't run alongside the chart's aggregate query.
+   */
+  rowsEnabled?: boolean;
+  /**
+   * Chars of I/O to fetch per cell. Undefined keeps the cheap pre-truncated
+   * read, which holds too little text to fill a taller row (LFE-14586).
+   */
+  ioCharLimit?: number;
 };
 
 export function useEventsTableData({
@@ -50,6 +61,8 @@ export function useEventsTableData({
   selectAll,
   setSelectedRows,
   appRootFallbackEnabled = false,
+  rowsEnabled = true,
+  ioCharLimit,
 }: UseEventsTableDataParams) {
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -81,6 +94,7 @@ export function useEventsTableData({
   const silentHttpCodes = [422];
 
   const observations = api.events.all.useQuery(getAllPayload, {
+    enabled: rowsEnabled,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
     meta: {
@@ -104,7 +118,9 @@ export function useEventsTableData({
     rootRowCount: observations.data?.observations.length ?? 0,
   });
   const appRootFallbackQuery = api.events.all.useQuery(fallbackPayload, {
-    enabled: shouldRunAppRootFallback,
+    // Also gate on rowsEnabled (matches the primary + I/O queries): otherwise a
+    // stale-cached fallback condition could fire a real row fetch in chart mode.
+    enabled: rowsEnabled && shouldRunAppRootFallback,
     refetchOnWindowFocus: false,
     staleTime: Infinity,
     retry: false,
@@ -148,17 +164,24 @@ export function useEventsTableData({
       })),
       minStartTime,
       maxStartTime,
+      // events_core's pre-truncated I/O can't fill a taller row, so ask for a
+      // bounded slice of the full I/O instead.
+      ...(ioCharLimit !== undefined
+        ? { truncated: false as const, ioCharLimit }
+        : {}),
     };
   }, [
     activeObservations.data?.observations,
     activeObservations.isPlaceholderData,
     projectId,
+    ioCharLimit,
   ]);
 
   // Fetch I/O data
   const ioDataQuery = api.events.batchIO.useQuery(batchIOPayload!, {
     ...sendAsPostOption,
-    enabled: activeObservations.isSuccess && batchIOPayload !== null,
+    enabled:
+      rowsEnabled && activeObservations.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });

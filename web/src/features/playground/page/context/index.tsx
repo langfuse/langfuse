@@ -50,6 +50,7 @@ import {
 import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/MessageSearch";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 type PlaygroundContextType = {
   windowId: string;
@@ -633,7 +634,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
             // malformed localStorage value — fall back to default
           }
 
-          handleSubmit(streaming).catch((err) => console.error(err));
+          handleSubmit(streaming).catch((err) =>
+            captureUnknownError("playground.run", err),
+          );
         }
         // If no content, skip silently
       }

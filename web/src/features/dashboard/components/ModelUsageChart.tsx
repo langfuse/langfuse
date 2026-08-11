@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {

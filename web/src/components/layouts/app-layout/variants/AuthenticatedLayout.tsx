@@ -4,14 +4,25 @@
  * Used for all main application pages when user is authenticated
  */
 
-import { useEffect, useState, type PropsWithChildren } from "react";
+import {
+  useEffect,
+  useState,
+  type ComponentProps,
+  type PropsWithChildren,
+} from "react";
 import Head from "next/head";
 import { useRouter, type NextRouter } from "next/router";
-import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
-import { AppSidebar } from "@/src/components/nav/app-sidebar";
+import {
+  SidebarProvider,
+  SidebarInset,
+  useSidebar,
+} from "@/src/components/ui/sidebar";
+import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
+import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
 import { TopBannerProvider } from "@/src/features/top-banner";
+import { VersionUpdateBanner } from "@/src/features/version-update";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
@@ -24,6 +35,19 @@ import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
+import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { api } from "@/src/utils/api";
+import { usePlan } from "@/src/features/entitlements/hooks";
+import { env } from "@/src/env.mjs";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useSession } from "next-auth/react";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+
+const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
 const CommandMenu = dynamic(
   () =>
@@ -39,6 +63,16 @@ const PaymentBanner = dynamic(
   () =>
     import("@/src/features/payment-banner").then((mod) => ({
       default: mod.PaymentBanner,
+    })),
+  {
+    ssr: false,
+  },
+);
+
+const PreviewDeploymentBanner = dynamic(
+  () =>
+    import("@/src/features/preview-deployment-banner").then((mod) => ({
+      default: mod.PreviewDeploymentBanner,
     })),
   {
     ssr: false,
@@ -99,6 +133,7 @@ export function AuthenticatedLayout({
 
   const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
     (region) => ({
+      type: "action" as const,
       name: region.name,
       content: `${region.flag} ${region.name}`,
       onClick: () => {
@@ -112,46 +147,54 @@ export function AuthenticatedLayout({
     }),
   );
 
-  // Currently there are no feature previews available
-  const hasFeaturePreviews = false;
+  const hasFeaturePreviews = isLangfuseCloud || user.v4BetaEnabled === true;
 
   // User navigation items for sidebar dropdown
-  const userNavProps = {
-    user: {
-      name: user.name ?? "",
-      email: user.email ?? "",
-      avatar: user.image ?? "",
-    },
-    items: [
-      { name: "Account Settings", href: "/account/settings" },
-      { name: "Theme", onClick: () => {}, content: <ThemeToggle /> },
-      ...(hasFeaturePreviews
-        ? [
-            {
-              name: "Feature Preview",
-              onClick: () => setFeaturePreviewOpen(true),
-            },
-          ]
-        : []),
-      ...(isLangfuseCloud
-        ? [
-            {
-              name: "Regions",
-              subItems: regionMenuItems,
-              content: (
-                <>
-                  Regions
-                  <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
-                    Current: {currentRegion}
-                  </div>
-                </>
-              ),
-            },
-          ]
-        : []),
-      { name: "Sign out", onClick: onSignOut },
-    ],
+  const sidebarUser = {
+    name: user.name ?? "",
+    email: user.email ?? "",
+    avatar: user.image ?? "",
   };
+  const userMenuItems = [
+    {
+      type: "link" as const,
+      name: "Account Settings",
+      href: "/account/settings",
+    },
+    {
+      type: "action" as const,
+      name: "Theme",
+      onClick: () => {},
+      content: <ThemeToggle />,
+    },
+    ...(hasFeaturePreviews
+      ? [
+          {
+            type: "action" as const,
+            name: "Feature Preview",
+            onClick: () => setFeaturePreviewOpen(true),
+          },
+        ]
+      : []),
+    ...(isLangfuseCloud
+      ? [
+          {
+            type: "submenu" as const,
+            name: "Regions",
+            subItems: regionMenuItems,
+            content: (
+              <>
+                Regions
+                <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
+                  Current: {currentRegion}
+                </div>
+              </>
+            ),
+          },
+        ]
+      : []),
+    { type: "action" as const, name: "Sign out", onClick: onSignOut },
+  ];
 
   return (
     <>
@@ -168,40 +211,177 @@ export function AuthenticatedLayout({
       </Head>
 
       <TopBannerProvider>
-        <SidebarProvider>
-          <div className="flex h-dvh w-full flex-col">
-            <PaymentBanner />
-            <div className="pt-banner-offset flex min-h-0 flex-1">
-              <AppSidebar
-                navItems={navigation.mainNavigation}
-                secondaryNavItems={navigation.secondaryNavigation}
-                userNavProps={userNavProps}
-              />
-              <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-                <AppContentWithRightDrawer>
-                  {children}
-                </AppContentWithRightDrawer>
-                {/* Toasts render in the `toast` overlay layer — the last layer
-                    in LAYER_ORDER — so they paint above every overlay (incl. a
-                    non-modal peek) by DOM order alone, no z-index. Sonner's
-                    Toaster is position:fixed, so nesting it in the fixed
-                    full-screen layer container is positionally identical. */}
-                <Layer name="toast">
-                  <Toaster visibleToasts={1} />
-                </Layer>
-                <CommandMenu mainNavigation={navigation.navigation} />
-              </SidebarInset>
+        <SidebarPresenceProvider>
+          <SidebarProvider>
+            <div className="flex h-dvh w-full flex-col">
+              <PaymentBanner />
+              <PreviewDeploymentBanner />
+              <VersionUpdateBanner />
+              <div className="pt-banner-offset flex min-h-0 flex-1">
+                <ConnectedAppSidebar
+                  navItems={navigation.mainNavigation}
+                  secondaryNavItems={navigation.secondaryNavigation}
+                  user={sidebarUser}
+                  userMenuItems={userMenuItems}
+                  isLangfuseCloud={isLangfuseCloud}
+                  routerProjectId={
+                    typeof router.query.projectId === "string"
+                      ? router.query.projectId
+                      : undefined
+                  }
+                />
+                <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
+                  <AppContentWithRightDrawer>
+                    {children}
+                  </AppContentWithRightDrawer>
+                  {/* Toasts render in the `toast` overlay layer — the last layer
+                      in LAYER_ORDER — so they paint above every overlay (incl. a
+                      non-modal peek) by DOM order alone, no z-index. Sonner's
+                      Toaster is position:fixed, so nesting it in the fixed
+                      full-screen layer container is positionally identical. */}
+                  <Layer name="toast">
+                    <Toaster visibleToasts={1} />
+                  </Layer>
+                  <CommandMenu mainNavigation={navigation.navigation} />
+                  {/* Assistant window host lives here (not in PageHeader with
+                      its launcher button) so the open window and its geometry
+                      survive route changes. */}
+                  <InAppAgentWindowHost />
+                </SidebarInset>
+              </div>
+              {hasFeaturePreviews ? (
+                <ControlledFeaturePreviewModal
+                  open={featurePreviewOpen}
+                  onOpenChange={setFeaturePreviewOpen}
+                />
+              ) : null}
             </div>
-            {hasFeaturePreviews ? (
-              <ControlledFeaturePreviewModal
-                open={featurePreviewOpen}
-                onOpenChange={setFeaturePreviewOpen}
-              />
-            ) : null}
-          </div>
-        </SidebarProvider>
+          </SidebarProvider>
+        </SidebarPresenceProvider>
       </TopBannerProvider>
     </>
+  );
+}
+
+function ConnectedAppSidebar({
+  navItems,
+  secondaryNavItems,
+  user,
+  userMenuItems,
+  isLangfuseCloud,
+  routerProjectId,
+}: {
+  navItems: GroupedNavigation;
+  secondaryNavItems: GroupedNavigation;
+  user: ComponentProps<typeof AppSidebar>["user"];
+  userMenuItems: ComponentProps<typeof AppSidebar>["userMenuItems"];
+  isLangfuseCloud: boolean;
+  routerProjectId?: string;
+}) {
+  const { isMobile } = useSidebar();
+  const uiCustomization = useUiCustomization();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const plan = usePlan();
+  const capture = usePostHogClientCapture();
+  const session = useSession();
+  const { organization, project } = useQueryProjectOrOrganization();
+  const canCreateProjects = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "projects:create",
+  });
+  const [dismissedNotificationIds, setDismissedNotificationIds] =
+    useLocalStorage<string[]>(DISMISSED_SIDEBAR_NOTIFICATIONS_KEY, []);
+
+  const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
+    undefined,
+    {
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      enabled: !isLangfuseCloud,
+      throwOnError: false,
+    },
+  );
+
+  const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    enabled: !isLangfuseCloud,
+    throwOnError: false,
+  });
+
+  const selfHostedPlan =
+    plan === "self-hosted:pro" || plan === "self-hosted:enterprise"
+      ? plan
+      : "oss";
+
+  const versionState: ComponentProps<typeof AppSidebar>["versionState"] =
+    isLangfuseCloud
+      ? { deployment: "cloud" }
+      : {
+          deployment: "self-hosted",
+          plan: selfHostedPlan,
+          release: checkUpdate.data?.updateType
+            ? {
+                status: "update-available",
+                updateType: checkUpdate.data.updateType,
+                latestRelease: checkUpdate.data.latestRelease,
+              }
+            : { status: "current" },
+          migration:
+            backgroundMigrationStatus.data &&
+            backgroundMigrationStatus.data.status !== "FINISHED"
+              ? {
+                  status: "in-progress",
+                  phase: backgroundMigrationStatus.data.status.toLowerCase(),
+                }
+              : { status: "idle" },
+        };
+
+  return (
+    <AppSidebar
+      navItems={navItems}
+      secondaryNavItems={secondaryNavItems}
+      user={user}
+      userMenuItems={userMenuItems}
+      isMobile={isMobile}
+      logo={{
+        lightModeHref: uiCustomization?.logoLightModeHref,
+        darkModeHref: uiCustomization?.logoDarkModeHref,
+      }}
+      versionState={versionState}
+      v4UpgradeUiEnabled={v4UpgradeUiEnabled}
+      notificationState={{
+        dismissedIds: dismissedNotificationIds,
+        onDismiss: (id) => {
+          capture("notification:dismiss_notification", {
+            notification_id: id,
+          });
+          setDismissedNotificationIds((current) => [...current, id]);
+        },
+        onLinkClick: (id) => {
+          capture("notification:click_link", {
+            notification_id: id,
+          });
+        },
+      }}
+      organization={
+        organization ? { id: organization.id, name: organization.name } : null
+      }
+      project={project ? { id: project.id, name: project.name } : null}
+      organizations={session.data?.user?.organizations ?? null}
+      canCreateOrganizations={
+        session.data?.user?.canCreateOrganizations ?? false
+      }
+      canCreateProjects={canCreateProjects}
+      showDemoBadge={Boolean(
+        env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+        routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+        isLangfuseCloud,
+      )}
+    />
   );
 }
 

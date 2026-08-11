@@ -26,10 +26,10 @@ export function AgentToolsBanner() {
         </Button>
       )}
     >
-      <div className="flex items-center gap-2">
-        <Bot className="h-4 w-4 shrink-0" />
+      <div className="flex items-start gap-2 sm:items-center">
+        <Bot className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
         <span>
-          <span className="font-semibold">
+          <span className="font-bold">
             Langfuse works great with your AI coding agents.
           </span>{" "}
           Connect Claude Code, Codex, and other agents to your data with the

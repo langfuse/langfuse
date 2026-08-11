@@ -1,4 +1,5 @@
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { type PropsWithChildren } from "react";
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
@@ -26,6 +27,17 @@ const DynamicSupportDrawer = dynamic(
   },
 );
 
+const DynamicV4MigrationPanel = dynamic(
+  () =>
+    import("@/src/features/v4-migration/V4MigrationPanel").then((mod) => ({
+      default: mod.V4MigrationPanel,
+    })),
+  {
+    ssr: false,
+    loading: () => <RightDrawerLoadingFallback />,
+  },
+);
+
 function RightDrawerLoadingFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center">
@@ -43,18 +55,23 @@ function RightDrawerLoadingFallback() {
 export function AppContentWithRightDrawer({ children }: PropsWithChildren) {
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const { open: supportOpen } = useSupportDrawer();
+  const { open: migrationOpen } = useV4MigrationPanel();
 
   if (!isDesktop) {
     return <DynamicMobileRightDrawer>{children}</DynamicMobileRightDrawer>;
   }
 
-  const rightDrawerContent = supportOpen ? <DynamicSupportDrawer /> : null;
+  const rightDrawerContent = supportOpen ? (
+    <DynamicSupportDrawer />
+  ) : migrationOpen ? (
+    <DynamicV4MigrationPanel />
+  ) : null;
 
   return (
     <ResizableSplitLayout
       primaryContent={children}
       secondaryContent={rightDrawerContent}
-      open={supportOpen}
+      open={supportOpen || migrationOpen}
       defaultPrimarySize={70}
       defaultSecondarySize={30}
       minPrimarySize={30}
