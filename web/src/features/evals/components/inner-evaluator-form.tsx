@@ -37,7 +37,8 @@ import {
   observationVariableMapping,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { TRPCClientError } from "@trpc/client";
+import { reportError } from "@/src/utils/reportError";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -45,6 +46,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   evalConfigFormSchema,
+  getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
   getTargetDisplayName,
   inferDefaultMapping,
@@ -337,7 +339,10 @@ export const InnerEvaluatorForm = (props: {
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
-  renderFooter?: (params: { isLoading: boolean }) => React.ReactNode;
+  renderFooter?: (params: {
+    isLoading: boolean;
+    isSaveDisabled: boolean;
+  }) => React.ReactNode;
   oldConfigId?: string;
 }) => {
   const capture = usePostHogClientCapture();
@@ -371,7 +376,11 @@ export const InnerEvaluatorForm = (props: {
     observationEvalFilterOptions,
     experimentEvalFilterOptions,
     datasetFilterOptions,
-  } = useEvalConfigFilterOptions({ projectId: props.projectId });
+  } = useEvalConfigFilterOptions({
+    projectId: props.projectId,
+    useEventsTable: isBetaEnabled,
+    includeLegacyTraceOptions: showLegacyTargetOptions,
+  });
 
   const targetState = useEvaluatorTargetState();
 
@@ -465,6 +474,9 @@ export const InnerEvaluatorForm = (props: {
   }) as UseFormReturn<EvalFormType>;
 
   const currentMapping = form.watch("mapping") ?? [];
+  const hasJsonPathCompatibilityError = currentMapping.some((mappingRow) =>
+    Boolean(getActiveJsonPathCompatibilityWarning(mappingRow)),
+  );
   const syncStatus = useVariableMappingSync({
     templateVars: isCodeEvalConfig ? [] : props.evalTemplate?.vars,
     currentMapping: currentMapping,
@@ -525,15 +537,13 @@ export const InnerEvaluatorForm = (props: {
   ]);
 
   const utils = api.useUtils();
+  // No onError override: the react-query default (handleTrpcError) owns
+  // classification, Sentry capture, and the standard error toast.
   const createJobMutation = api.evals.createJob.useMutation({
     onSuccess: () => utils.models.invalidate(),
-    // Defining onError replaces the react-query default that shows the
-    // standard error toast, so trigger it explicitly.
-    onError: trpcErrorToast,
   });
   const updateJobMutation = api.evals.updateEvalJob.useMutation({
     onSuccess: () => utils.evals.invalidate(),
-    onError: trpcErrorToast,
   });
   const [availableVariables, setAvailableVariables] = useState<
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
@@ -713,10 +723,17 @@ export const InnerEvaluatorForm = (props: {
         }
       })
       .catch((error) => {
-        // Mutation failures are surfaced via the onError toast; this catch
-        // also swallows post-success errors (onFormSuccess, router.push),
-        // so keep a console trace for those.
-        console.error("Evaluator form submission failed", error);
+        // Mutation failures were already classified + toasted by the
+        // react-query default onError; only post-success errors
+        // (onFormSuccess, router.push) need reporting here. reportError
+        // captures with an area tag and warns — console.error would mint a
+        // second, unclassified Sentry event via captureConsoleIntegration.
+        if (!(error instanceof TRPCClientError)) {
+          reportError(error, {
+            area: "evals",
+            extra: { context: "evaluator-form-post-submit" },
+          });
+        }
       });
   }
 
@@ -1340,13 +1357,17 @@ export const InnerEvaluatorForm = (props: {
     createJobMutation.isPending || updateJobMutation.isPending;
 
   const formFooter = props.renderFooter ? (
-    props.renderFooter({ isLoading: mutationIsLoading })
+    props.renderFooter({
+      isLoading: mutationIsLoading,
+      isSaveDisabled: hasJsonPathCompatibilityError,
+    })
   ) : (
     <div className="flex w-full flex-col items-end gap-4">
       {!props.disabled ? (
         <Button
           type="submit"
           loading={mutationIsLoading}
+          disabled={hasJsonPathCompatibilityError}
           className="mt-3 max-w-fit"
         >
           {props.mode === "edit" ? "Update" : "Execute"}

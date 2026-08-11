@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { V4_CODING_AGENT_PROMPT } from "./useV4UpgradeAssistantSupport";
+
+vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
+  useCanUseInAppAgent: () => true,
+}));
 
 describe("V4_CODING_AGENT_PROMPT", () => {
   it("hands coding agents off to the canonical v4 migration skill", () => {

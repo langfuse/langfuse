@@ -58,7 +58,7 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import React from "react";
@@ -88,6 +88,8 @@ import {
   getTraceFilterConfig,
   type TraceOmittableFilterColumn,
 } from "@/src/features/filters/config/traces-config";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -325,9 +327,10 @@ export default function TracesTable({
           value: n.value,
           count: Number(n.count),
         })) ?? undefined,
-      // tags don't have counts
-      traceTags:
-        traceFilterOptionsResponse.data?.tags?.map((t) => t.value) ?? undefined,
+      // tags don't have counts; they read A→Z
+      traceTags: sortOptionValues(
+        traceFilterOptionsResponse.data?.tags?.map((t) => t.value),
+      ),
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) ??
         undefined,
@@ -383,9 +386,12 @@ export default function TracesTable({
     return {
       ...baseOptions,
       stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
+      sessionFilterContextId: buildSidebarFilterSessionContextId(
+        projectId,
+        userId ? "user" : undefined,
+      ),
     };
-  }, [hideControls, isSidebarFilterLoading, peekContext, projectId]);
+  }, [hideControls, isSidebarFilterLoading, peekContext, projectId, userId]);
 
   const queryFilter = useSidebarFilterState(
     tracesFilterConfig,

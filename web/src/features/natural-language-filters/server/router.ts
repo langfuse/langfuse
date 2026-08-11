@@ -9,6 +9,7 @@ import {
   LangfuseInternalTraceEnvironment,
   logger,
   generateLangfuseAIText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
@@ -122,6 +123,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
             type: ChatMessageType.PublicAPICreated,
           })),
           maxTokens: 1000,
+          timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
                 environment:

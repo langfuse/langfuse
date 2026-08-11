@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
 import {
   mapLegacyToModernTarget,
@@ -130,8 +130,8 @@ export default function RemapEvaluatorPage() {
           break;
       }
     } catch (err) {
-      // Error already handled in mutation onError
-      console.error(`Failed to ${legacyAction} old eval:`, err);
+      // The mutations' local onError owns the UX; this owns classification + capture.
+      reportTrpcErrorWithoutToast(err, "evals");
     }
   };
 
@@ -248,12 +248,13 @@ export default function RemapEvaluatorPage() {
                   hideAdvancedSettings={true}
                   evalCapabilities={evalCapabilities}
                   oldConfigId={evalConfigId}
-                  renderFooter={({ isLoading }) => (
+                  renderFooter={({ isLoading, isSaveDisabled }) => (
                     <div className="flex w-full flex-col items-end gap-4">
                       <div className="flex items-center">
                         <Button
                           type="submit"
                           loading={isLoading}
+                          disabled={isSaveDisabled}
                           className="mt-3 rounded-l-md rounded-r-none"
                         >
                           {legacyAction === "keep-active"

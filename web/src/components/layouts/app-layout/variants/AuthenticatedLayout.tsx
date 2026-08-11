@@ -69,6 +69,16 @@ const PaymentBanner = dynamic(
   },
 );
 
+const PreviewDeploymentBanner = dynamic(
+  () =>
+    import("@/src/features/preview-deployment-banner").then((mod) => ({
+      default: mod.PreviewDeploymentBanner,
+    })),
+  {
+    ssr: false,
+  },
+);
+
 /** Grouped navigation structure returned by processNavigation */
 type GroupedNavigation = {
   ungrouped: NavigationItem[];
@@ -205,6 +215,7 @@ export function AuthenticatedLayout({
           <SidebarProvider>
             <div className="flex h-dvh w-full flex-col">
               <PaymentBanner />
+              <PreviewDeploymentBanner />
               <VersionUpdateBanner />
               <div className="pt-banner-offset flex min-h-0 flex-1">
                 <ConnectedAppSidebar

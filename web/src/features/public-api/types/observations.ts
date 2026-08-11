@@ -336,6 +336,7 @@ export const GetObservationsV2Query = z.object({
   type: ObservationType.nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
+  sessionId: z.string().nullish(),
   level: z.enum(ObservationLevel).nullish(),
   traceId: z.string().nullish(),
   version: z.string().nullish(),

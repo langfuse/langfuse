@@ -1,7 +1,7 @@
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job } from "bullmq";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
   TQueueJobTypes,
@@ -1168,6 +1168,13 @@ const removeBlobExportDeprecationNotice = async (params: {
   }
 };
 
+// LFE-14894: the integration can be deleted while a run is in flight; a row
+// write racing that delete throws P2025, which must mark the job obsolete
+// rather than fail it.
+const isRecordNotFoundError = (error: unknown): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2025";
+
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
@@ -1207,17 +1214,23 @@ export const handleBlobStorageIntegrationProjectJob = async (
     logger.info(
       `[BLOB INTEGRATION] Blob storage integration is disabled for project ${projectId}`,
     );
-    await prisma.blobStorageIntegration.update({
+    await prisma.blobStorageIntegration.updateMany({
       where: { projectId },
       data: { runStartedAt: null },
     });
     return;
   }
 
-  await prisma.blobStorageIntegration.update({
+  const { count: claimed } = await prisma.blobStorageIntegration.updateMany({
     where: { projectId },
     data: { runStartedAt: new Date() },
   });
+  if (claimed === 0) {
+    logger.info(
+      `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted before the run started; dropping obsolete job`,
+    );
+    return;
+  }
 
   // Sync between lastSyncAt and now - 30 minutes
   // Cap the export to one frequency period to enable chunked historic exports
@@ -1258,7 +1271,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     logger.info(
       `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
     );
-    await prisma.blobStorageIntegration.update({
+    await prisma.blobStorageIntegration.updateMany({
       where: { projectId },
       data: {
         runStartedAt: null,
@@ -1487,19 +1500,29 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    // Update integration after successful processing
-    await prisma.blobStorageIntegration.update({
-      where: {
-        projectId,
+    // Update integration after successful processing. count === 0 means the
+    // integration was deleted mid-run — skip the catch-up re-enqueue below,
+    // the job is obsolete.
+    const { count: persisted } = await prisma.blobStorageIntegration.updateMany(
+      {
+        where: {
+          projectId,
+        },
+        data: {
+          lastSyncAt: maxTimestamp,
+          nextSyncAt,
+          lastError: null,
+          lastErrorAt: null,
+          runStartedAt: null,
+        },
       },
-      data: {
-        lastSyncAt: maxTimestamp,
-        nextSyncAt,
-        lastError: null,
-        lastErrorAt: null,
-        runStartedAt: null,
-      },
-    });
+    );
+    if (persisted === 0) {
+      logger.info(
+        `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after successful export`,
+      );
+      return;
+    }
 
     // If still catching up, immediately queue the next chunk job
     if (!caughtUp) {
@@ -1579,6 +1602,15 @@ export const handleBlobStorageIntegrationProjectJob = async (
         }
       }
     } catch (persistError) {
+      if (isRecordNotFoundError(persistError)) {
+        // Integration deleted mid-run: nothing to persist, nobody to notify —
+        // the notification would reference a config that no longer exists.
+        // Complete the obsolete job instead of failing it.
+        logger.info(
+          `[BLOB INTEGRATION] Blob storage integration for project ${projectId} was deleted mid-run; dropping obsolete job after error: ${errorMessage}`,
+        );
+        return;
+      }
       logger.error(
         `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
         persistError,

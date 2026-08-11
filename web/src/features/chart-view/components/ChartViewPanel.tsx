@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import React, { useCallback, useState } from "react";
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";

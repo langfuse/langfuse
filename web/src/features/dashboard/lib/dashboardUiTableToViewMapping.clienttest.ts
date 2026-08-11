@@ -5,23 +5,27 @@ import {
   mapWidgetUiTableFilterToView,
 } from "./dashboardUiTableToViewMapping";
 
-describe("boolean score widget filter mappings", () => {
-  const booleanFilter = {
-    column: "booleanValue",
-    type: "boolean" as const,
-    operator: "=" as const,
-    value: true,
-  };
+describe("widget filter mappings", () => {
+  it.each([
+    ["scores-boolean", "booleanValue", "Boolean Value"],
+    ["observations", "isRootObservation", "Is Root Observation"],
+  ] as const)(
+    "round-trips the %s boolean filter between editor and query view space",
+    (view, canonicalColumn, editorColumn) => {
+      const canonicalFilter = {
+        column: canonicalColumn,
+        type: "boolean" as const,
+        operator: "=" as const,
+        value: true,
+      };
+      const editorFilter = { ...canonicalFilter, column: editorColumn };
 
-  it("round-trips Boolean Value between editor and query view space", () => {
-    expect(
-      mapWidgetUiTableFilterToView("scores-boolean", [
-        { ...booleanFilter, column: "Boolean Value" },
-      ]),
-    ).toEqual([booleanFilter]);
-
-    expect(
-      mapViewFilterToUiTableFilter("scores-boolean", [booleanFilter]),
-    ).toEqual([{ ...booleanFilter, column: "Boolean Value" }]);
-  });
+      expect(mapWidgetUiTableFilterToView(view, [editorFilter])).toEqual([
+        canonicalFilter,
+      ]);
+      expect(mapViewFilterToUiTableFilter(view, [canonicalFilter])).toEqual([
+        editorFilter,
+      ]);
+    },
+  );
 });

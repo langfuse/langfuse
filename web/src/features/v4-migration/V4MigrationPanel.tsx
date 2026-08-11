@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Separator } from "@/src/components/ui/separator";
@@ -53,6 +54,7 @@ export const V4MigrationPanel = ({
       <div className="flex-1 overflow-y-auto border-t">
         <div className="bg-background sticky top-0 z-[1] px-4 pt-4">
           <V4MigrationHeaderContent
+            key={project?.id}
             projectName={project?.name}
             projectId={project?.id}
             onNavigate={() => setOpen(false)}

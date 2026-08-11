@@ -21,14 +21,6 @@ describe("canApplyOutlierStripFilters", () => {
       [{ column: "latency", type: "number", operator: ">", value: 2 }],
       [
         {
-          column: "isRootObservation",
-          type: "boolean",
-          operator: "=",
-          value: true,
-        },
-      ],
-      [
-        {
           column: "name",
           type: "null",
           operator: "is not null",

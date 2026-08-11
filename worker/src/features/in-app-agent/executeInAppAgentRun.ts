@@ -28,16 +28,18 @@ import {
   createAgUiStream,
   createInAppAgentMcpRunOverride,
   createInAppAgentSandbox,
+  createSandboxToolCallFileAccumulator,
   finishClaimedRun,
   flushPendingRunEvents,
   getConversationEvents,
   getConversationMessagesForReplay,
   getInAppAgentPromptClient,
-  getSandboxToolCallFiles,
   heartbeatClaimedRun,
   IN_APP_AGENT_HEARTBEAT_INTERVAL_MS,
   isInAppAgentConversationWriteLocked,
-  isMcpToolName,
+  createInAppAgentToolPolicy,
+  getInAppAgentMcpAllowedToolNames,
+  getInAppAgentRegistryToolName,
   maybeInferAndPersistConversationTitle,
   parseInAppAgentInterruptEvent,
   shouldFlushPersistedEvent,
@@ -260,7 +262,7 @@ export async function executeInAppAgentRun(params: {
       state: null,
       messages: [...replayMessages],
       tools: [],
-      context: request.kind === "userMessage" ? request.context : [],
+      context: request.context,
       forwardedProps:
         request.kind === "approvalDecision" && approvalRequest
           ? {
@@ -277,18 +279,33 @@ export async function executeInAppAgentRun(params: {
     isApprovedContinuation =
       request.kind === "approvalDecision" && request.approved;
     const approvedRegistryToolName = isApprovedContinuation
-      ? getRegistryToolName(approvalRequest?.toolName)
+      ? getInAppAgentRegistryToolName(approvalRequest?.toolName)
       : undefined;
-    const runOverride = approvedRegistryToolName
-      ? await createInAppAgentMcpRunOverride({
-          toolName: approvedRegistryToolName,
-        })
-      : undefined;
+
+    const userAccess: InAppAgentUserAccess = {
+      projectRole: access.projectRole,
+      isAdmin: access.isAdmin,
+    };
+
+    // Rebuild each run so grants invalidated by role changes drop out.
+    const toolPolicy = createInAppAgentToolPolicy({
+      userAccess,
+      alwaysAllowedTools: conversation.alwaysAllowedTools,
+    });
+
+    const allowedToolNames = getInAppAgentMcpAllowedToolNames(
+      toolPolicy,
+      approvedRegistryToolName,
+    );
+    const runOverride =
+      allowedToolNames.length > 0
+        ? await createInAppAgentMcpRunOverride({ toolNames: allowedToolNames })
+        : undefined;
 
     // ---- Sandbox (session created/resumed lazily per tool call). ----
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
     const sandboxProvider =
-      sandboxProviderType === null || env.NODE_ENV === "test"
+      sandboxProviderType === null
         ? undefined
         : await createInAppAgentSandboxProvider(sandboxProviderType);
 
@@ -298,14 +315,15 @@ export async function executeInAppAgentRun(params: {
       );
     }
 
+    const sandboxToolCallFiles =
+      createSandboxToolCallFileAccumulator(conversationEvents);
     const sandboxState = sandboxProvider
       ? await createInAppAgentSandbox({
           conversationId: conversation.id,
           projectId,
           providerSessionId: conversation.providerSessionId,
           provider: sandboxProvider,
-          getToolCallFiles: async () =>
-            getSandboxToolCallFiles(conversationEvents),
+          getToolCallFiles: async () => sandboxToolCallFiles.getFiles(),
           saveState: async (state) => {
             await prisma.inAppAgentConversation.update({
               where: { id_projectId: { id: conversation.id, projectId } },
@@ -362,34 +380,19 @@ export async function executeInAppAgentRun(params: {
 
     // ---- Run the loop; persistence via onEvent, no consumer for the SSE text. ----
     const pendingPersistedEvents: AgUiEvent[] = [];
-    const flushPersistedRunEvents = () =>
+    const flushPersistedRunEvents = (
+      finish?: Parameters<typeof flushPendingRunEvents>[0]["finish"],
+    ) =>
       flushPendingRunEvents({
         prisma,
         projectId,
         conversationId: conversation.id,
         runId,
         pendingEvents: pendingPersistedEvents,
+        finish,
       });
 
     let interruptRequest: InAppAgentToolApprovalRequest | undefined;
-
-    const finishWith = async (params2: {
-      status: Parameters<typeof finishClaimedRun>[0]["status"];
-      errorCode?: InAppAgentRunErrorCode;
-      errorMessage?: string;
-    }) => {
-      await finishClaimedRun({
-        prisma,
-        projectId,
-        runId,
-        ...params2,
-      });
-    };
-
-    const userAccess: InAppAgentUserAccess = {
-      projectRole: access.projectRole,
-      isAdmin: access.isAdmin,
-    };
 
     const stream = await createAgUiStream({
       input: agentInput,
@@ -427,6 +430,11 @@ export async function executeInAppAgentRun(params: {
           }
 
           pendingPersistedEvents.push(persistedEvent);
+          sandboxToolCallFiles.processEvent({
+            event: persistedEvent,
+            runId,
+            createdAt: new Date(),
+          });
 
           if (!shouldFlushPersistedEvent(persistedEvent)) {
             return;
@@ -434,9 +442,9 @@ export async function executeInAppAgentRun(params: {
 
           return flushPersistedRunEvents();
         },
+        onMcpToolCallCompleted: sandboxToolCallFiles.processToolCall,
         onComplete: async () => {
-          await flushPersistedRunEvents();
-          await finishWith(
+          await flushPersistedRunEvents(
             interruptRequest
               ? { status: InAppAgentRunStatus.AWAITING_APPROVAL }
               : { status: InAppAgentRunStatus.SUCCEEDED },
@@ -456,7 +464,6 @@ export async function executeInAppAgentRun(params: {
           );
         },
         onAbort: async () => {
-          await flushPersistedRunEvents();
           const reason = abortController.signal.reason as AbortReason;
 
           if (reason === "fenced") {
@@ -471,7 +478,7 @@ export async function executeInAppAgentRun(params: {
             // and recording plain CANCELLED would read as "nothing happened".
             const unknownOutcome = failureCode();
 
-            await finishWith(
+            await flushPersistedRunEvents(
               unknownOutcome
                 ? { status: InAppAgentRunStatus.FAILED, ...unknownOutcome }
                 : {
@@ -483,7 +490,7 @@ export async function executeInAppAgentRun(params: {
             return;
           }
 
-          await finishWith({
+          await flushPersistedRunEvents({
             status: InAppAgentRunStatus.FAILED,
             ...(failureCode() ?? {
               errorCode: InAppAgentRunErrorCode.WORKER_SHUTDOWN,
@@ -492,8 +499,7 @@ export async function executeInAppAgentRun(params: {
           });
         },
         onError: async (error) => {
-          await flushPersistedRunEvents();
-          await finishWith({
+          await flushPersistedRunEvents({
             status: InAppAgentRunStatus.FAILED,
             ...(failureCode() ?? {
               errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
@@ -517,7 +523,7 @@ export async function executeInAppAgentRun(params: {
           url: getLangfuseMcpUrl(),
           publicKey: mcpApiKey.publicKey,
           secretKey: mcpApiKey.secretKey,
-          userAccess,
+          toolPolicy,
           runOverride,
         },
         redirectAction: {
@@ -646,16 +652,6 @@ function findPersistedApprovalRequest(
   }
 
   return undefined;
-}
-
-function getRegistryToolName(toolName: string | undefined) {
-  if (!toolName?.startsWith("langfuse_")) {
-    return undefined;
-  }
-
-  const registryToolName = toolName.slice("langfuse_".length);
-
-  return isMcpToolName(registryToolName) ? registryToolName : undefined;
 }
 
 function getLangfuseMcpUrl(): string {

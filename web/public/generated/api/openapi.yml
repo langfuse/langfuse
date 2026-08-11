@@ -2765,6 +2765,9 @@ paths:
 
         - Direct access to tags and release fields on observations
 
+        - Semantic-root filtering and grouping through the v2-only
+        `isRootObservation` dimension
+
         - Backwards-compatible: traceName, traceRelease, traceVersion dimensions
         are still available on observations view
 
@@ -2813,6 +2816,10 @@ paths:
         - `promptName` - Name of the prompt used
 
         - `promptVersion` - Version of the prompt used
+
+        - `isRootObservation` - Boolean semantic-root status. `true` includes
+        physical roots and app roots whose SDK parent is external (so
+        `parentObservationId` may be non-null).
 
         - `startTimeMonth` - Month of start_time in YYYY-MM format
 
@@ -3028,6 +3035,22 @@ paths:
                 "bins": number,         // Optional. Number of bins for histogram aggregation (1-100), default: 10
                 "row_limit": number     // Optional. Maximum number of rows to return (1-1000), default: 100
               }
+            }
+
+            ```
+
+
+            For example, to count semantic roots (including app roots with a
+            non-null external parent), use a boolean filter:
+
+            ```json
+
+            {
+              "view": "observations",
+              "metrics": [{"measure": "count", "aggregation": "count"}],
+              "filters": [{"column": "isRootObservation", "operator": "=", "value": true, "type": "boolean"}],
+              "fromTimestamp": "2025-01-01T00:00:00.000Z",
+              "toTimestamp": "2025-02-01T00:00:00.000Z"
             }
 
             ```
@@ -3375,6 +3398,13 @@ paths:
             nullable: true
         - name: userId
           in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sessionId
+          in: query
+          description: Filter by session ID.
           required: false
           schema:
             type: string
@@ -15024,6 +15054,8 @@ components:
 
         - `stringObject`: same operators as `string`
 
+        - `boolean`: `"="`, `"<>"`
+
         - `null`: `is null`, `is not null`
 
 
@@ -15040,6 +15072,7 @@ components:
           - `sessionId`: `string`
           - `tags`: `arrayOptions`, operators `any of` / `none of` / `all of`
           - `metadata`: `stringObject` with `key`
+          - `isRootObservation`: `boolean`, operators `=` / `<>`; true when the observation has no parent or is explicitly marked as an application root
           - `parentObservationId`: `null`, operators `is null` / `is not null`
           - `calledToolNames`: `arrayOptions`, operators `any of` / `none of` / `all of`
           - `toolCalls`: `number`

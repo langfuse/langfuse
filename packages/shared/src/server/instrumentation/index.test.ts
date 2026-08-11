@@ -1,9 +1,14 @@
-import { context } from "@opentelemetry/api";
+import {
+  context,
+  propagation,
+  ROOT_CONTEXT,
+  type Span,
+} from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { normalizeClickHouseQueryTags } from "../clickhouse/queryTags";
 import { contextWithLangfuseProps } from "../headerPropagation";
-import { instrumentAsync, instrumentSync } from ".";
+import { addUserToSpan, instrumentAsync, instrumentSync } from ".";
 
 describe("instrumentation baggage propagation", () => {
   // Baggage only propagates through context.with once a manager is registered.
@@ -55,5 +60,28 @@ describe("instrumentation baggage propagation", () => {
       route: "langfuse.queue.monitor",
       projectId: "project-1",
     });
+  });
+
+  it("does not add user emails to span attributes or baggage", () => {
+    const span = {
+      setAttribute: vi.fn(),
+    } as unknown as Span;
+    const attributes = {
+      userId: "user-1",
+      email: "user@example.com",
+    } as Parameters<typeof addUserToSpan>[0];
+
+    const userContext = context.with(ROOT_CONTEXT, () =>
+      addUserToSpan(attributes, span),
+    );
+
+    expect(span.setAttribute).toHaveBeenCalledWith("user.id", "user-1");
+    expect(span.setAttribute).not.toHaveBeenCalledWith(
+      "user.email",
+      "user@example.com",
+    );
+    expect(propagation.getBaggage(userContext!)?.getEntry("user.email")).toBe(
+      undefined,
+    );
   });
 });

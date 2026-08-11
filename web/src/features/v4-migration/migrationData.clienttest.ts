@@ -2,12 +2,16 @@ import {
   aggregateLegacyApiUsage,
   createV4MigrationDetectionRange,
   getLegacyIntegrationLabels,
+  getMigrationActionState,
   getMigrationCountState,
   getProjectMigrationReadiness,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
 
 const loaded = (count: number) => ({ status: "loaded" as const, count });
+const loadedAction = (
+  result: "required" | "not_required" | "sdk_usage_inconclusive",
+) => ({ status: "loaded" as const, result });
 const migrationStatus = (
   overrides: Partial<ProjectMigrationStatus> = {},
 ): ProjectMigrationStatus => ({
@@ -18,6 +22,7 @@ const migrationStatus = (
     delayedOtelIngestionCount: 0,
   },
   evals: loaded(0),
+  experiments: loadedAction("not_required"),
   apis: loaded(0),
   exports: loaded(0),
   ...overrides,
@@ -48,6 +53,22 @@ describe("v4 migration data", () => {
         return data.count;
       }),
     ).toEqual(loaded(0));
+    expect(getMigrationActionState(null, () => "required")).toEqual({
+      status: "loading",
+      result: null,
+    });
+    expect(
+      getMigrationActionState(
+        { data: { result: "required" as const }, isError: false },
+        (data) => data.result,
+      ),
+    ).toEqual(loadedAction("required"));
+    expect(
+      getMigrationActionState(
+        { data: { result: "check_failed" as const }, isError: false },
+        (data) => data.result,
+      ),
+    ).toEqual({ status: "error", result: null });
   });
 
   it("only marks a fully loaded project without affected items as ready", () => {
@@ -77,6 +98,18 @@ describe("v4 migration data", () => {
     ).toBe("action-needed");
     expect(
       getProjectMigrationReadiness(
+        migrationStatus({ experiments: loadedAction("required") }),
+      ),
+    ).toBe("action-needed");
+    expect(
+      getProjectMigrationReadiness(
+        migrationStatus({
+          experiments: loadedAction("sdk_usage_inconclusive"),
+        }),
+      ),
+    ).toBe("action-needed");
+    expect(
+      getProjectMigrationReadiness(
         migrationStatus({ evals: { status: "loading", count: 0 } }),
       ),
     ).toBe("checking");
@@ -101,19 +134,28 @@ describe("v4 migration data", () => {
           time: "2026-07-23T09:00:00Z",
           entrypoint: "publicapi: GET /api/public/traces",
           count: 2,
+          lastSeen: "2026-07-23T09:42:00Z",
         },
         {
           time: "2026-07-23T10:00:00Z",
           entrypoint: "publicapi: GET /api/public/traces",
           count: 3,
+          lastSeen: "2026-07-23T10:37:00Z",
         },
         {
           time: "2026-07-23T10:00:00Z",
           entrypoint: "",
           count: 0,
+          lastSeen: null,
         },
       ]),
-    ).toEqual([{ endpoint: "GET /api/public/traces", count: 5 }]);
+    ).toEqual([
+      {
+        endpoint: "GET /api/public/traces",
+        count: 5,
+        lastSeen: "2026-07-23T10:37:00Z",
+      },
+    ]);
   });
 
   it("returns only enabled legacy integration labels", () => {

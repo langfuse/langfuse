@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { Terminal, ChevronDown } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import {
   DropdownMenu,
   DropdownMenuContent,

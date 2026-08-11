@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";

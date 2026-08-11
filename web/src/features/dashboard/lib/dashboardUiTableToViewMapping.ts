@@ -162,6 +162,10 @@ const viewFilterDefinitions: Record<
       "experimentId",
       sourceSpec("Experiment ID", { uiTableId: "experimentId" }),
     ),
+    defineField(
+      "isRootObservation",
+      sourceSpec("Is Root Observation", { uiTableId: "isRootObservation" }),
+    ),
   ],
   "scores-numeric": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),

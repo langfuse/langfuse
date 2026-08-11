@@ -388,6 +388,50 @@ const coreDataTableExports: Array<
   (args) =>
     uploadTableCoreDataJsonl({
       ...args,
+      tableName: "posthogIntegrations",
+      // encryptedPosthogApiKey is excluded as it holds the project's API key
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ projectId: string }>) =>
+        prisma.posthogIntegration.findMany({
+          take,
+          ...(lastRow
+            ? { cursor: { projectId: lastRow.projectId }, skip: 1 }
+            : {}),
+          orderBy: { projectId: "asc" },
+          select: {
+            projectId: true,
+            posthogHostName: true,
+            lastSyncAt: true,
+            enabled: true,
+            exportSource: true,
+            createdAt: true,
+          },
+        }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "mixpanelIntegrations",
+      // encryptedMixpanelProjectToken is excluded as it holds the project token
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ projectId: string }>) =>
+        prisma.mixpanelIntegration.findMany({
+          take,
+          ...(lastRow
+            ? { cursor: { projectId: lastRow.projectId }, skip: 1 }
+            : {}),
+          orderBy: { projectId: "asc" },
+          select: {
+            projectId: true,
+            mixpanelRegion: true,
+            lastSyncAt: true,
+            enabled: true,
+            exportSource: true,
+            createdAt: true,
+          },
+        }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
       tableName: "ssoConfigs",
       // authConfig is excluded as it may contain client secrets
       fetchPage: ({ lastRow, take }: TablePageArgs<{ domain: string }>) =>

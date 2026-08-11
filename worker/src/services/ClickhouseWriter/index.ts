@@ -5,6 +5,7 @@ import {
   getCurrentSpan,
   ObservationRecordInsertType,
   ObservationBatchStagingRecordInsertType,
+  recordDistribution,
   recordGauge,
   recordHistogram,
   recordIncrement,
@@ -375,6 +376,15 @@ export class ClickhouseWriter {
       recordHistogram("langfuse.queue.clickhouse_writer.wait_time", waitTime, {
         unit: "milliseconds",
       });
+      recordDistribution(
+        "langfuse.queue.clickhouse_writer.time_distribution",
+        waitTime,
+        {
+          entity_type: tableName,
+          type: "wait",
+          unit: "milliseconds",
+        },
+      );
     });
 
     const currentSpan = getCurrentSpan();
@@ -488,10 +498,21 @@ export class ClickhouseWriter {
       );
 
       // Log processing time
+      const processingTime = Date.now() - processingStartTime;
+
       recordHistogram(
         "langfuse.queue.clickhouse_writer.processing_time",
-        Date.now() - processingStartTime,
+        processingTime,
         {
+          unit: "milliseconds",
+        },
+      );
+      recordDistribution(
+        "langfuse.queue.clickhouse_writer.time_distribution",
+        processingTime,
+        {
+          entity_type: tableName,
+          type: "processing",
           unit: "milliseconds",
         },
       );

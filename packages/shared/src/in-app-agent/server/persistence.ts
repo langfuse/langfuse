@@ -4,7 +4,6 @@ import { EventType } from "@ag-ui/core";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
-  LangfuseConflictError,
   LangfuseNotFoundError,
 } from "../../index";
 import {
@@ -30,18 +29,23 @@ import {
   type AgUiEvent,
   type AgUiMessage,
 } from "../schema";
+import {
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
+} from "../messages";
+import { assertConversationAccess } from "./access";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
-import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./tools";
+import {
+  type CompletedInAppAgentMcpToolCall,
+  getPublicInAppAgentMcpToolResultContent,
+  getSandboxInAppAgentMcpToolResultContent,
+  IN_APP_AGENT_SANDBOX_TOOL_NAMES,
+} from "./tools";
 
-// Keep this close to the route maxDuration (120s) so a killed foreground stream
-// does not block the conversation long after the route can no longer respond.
-const ACTIVE_RUN_STALE_AFTER_MS = 150 * 1000;
-const ACTIVE_RUN_CONFLICT_MESSAGE =
+export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
-const STALE_RUN_ERROR_MESSAGE =
-  "Run was marked stale before starting a new run";
 const SANDBOX_CONVERSATION_WRITE_WINDOW_MS = 8 * 60 * 60 * 1000;
 
 export type SerializedInAppAgentConversation = {
@@ -56,6 +60,13 @@ export type PersistedConversationEvent = {
   event: AgUiEvent;
   runId: string;
   createdAt: Date;
+  /**
+   * Per-conversation monotonic position. This is the watch cursor: the
+   * hydration snapshot's high-water mark is definitionally the maximum over
+   * the events it returned, so attaching the tail with `> cursor` is
+   * gap-free and duplicate-free by construction.
+   */
+  sequenceNumber: number;
 };
 
 export function serializeConversation(
@@ -76,7 +87,7 @@ export function serializeConversation(
 
 export function isInAppAgentConversationWriteLocked(params: {
   conversation: Pick<InAppAgentConversation, "createdAt">;
-  events: readonly PersistedConversationEvent[];
+  events: readonly Pick<PersistedConversationEvent, "event">[];
   now?: Date;
 }) {
   const now = params.now ?? new Date();
@@ -110,14 +121,17 @@ export async function getOwnedConversationOrThrow(params: {
     where: {
       id: params.conversationId,
       projectId: params.projectId,
-      createdByUserId: params.userId,
-      deletedAt: null,
     },
   });
 
   if (!conversation) {
     throw new LangfuseNotFoundError("Agent conversation not found");
   }
+
+  assertConversationAccess({
+    conversation,
+    userId: params.userId,
+  });
 
   return conversation;
 }
@@ -138,9 +152,10 @@ export async function ensureOwnedConversation(params: {
   });
 
   if (existing) {
-    if (existing.createdByUserId !== params.userId || existing.deletedAt) {
-      throw new LangfuseNotFoundError("Agent conversation not found");
-    }
+    assertConversationAccess({
+      conversation: existing,
+      userId: params.userId,
+    });
 
     return existing;
   }
@@ -155,142 +170,59 @@ export async function ensureOwnedConversation(params: {
   });
 }
 
-export async function createRun(params: {
-  prisma: PrismaClient;
-  runId: string;
-  projectId: string;
-  conversationId: string;
-  triggeredByUserId: string;
-  model?: string;
-  mcpApiKeyId?: string;
-}) {
-  const now = new Date();
-  const staleBefore = new Date(now.getTime() - ACTIVE_RUN_STALE_AFTER_MS);
-
-  return params.prisma.$transaction(async (tx) => {
-    await lockConversation(tx, params.projectId, params.conversationId);
-
-    // The v1 agent is foreground-only. If a stream dies before finishRun runs,
-    // lazily mark the old run stale so it does not block the conversation forever.
-    await tx.inAppAgentRun.updateMany({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        finishedAt: null,
-        createdAt: { lt: staleBefore },
-      },
-      data: {
-        status: InAppAgentRunStatus.FAILED,
-        finishedAt: now,
-        errorCode: InAppAgentRunErrorCode.STALE,
-        errorMessage: STALE_RUN_ERROR_MESSAGE,
-      },
-    });
-
-    const activeRun = await tx.inAppAgentRun.findFirst({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        finishedAt: null,
-      },
-      select: { id: true },
-    });
-
-    if (activeRun) {
-      throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
-    }
-
-    try {
-      return await tx.inAppAgentRun.create({
-        data: {
-          id: params.runId,
-          projectId: params.projectId,
-          conversationId: params.conversationId,
-          triggeredByUserId: params.triggeredByUserId,
-          model: params.model,
-          mcpApiKeyId: params.mcpApiKeyId,
-          // The foreground path has no queue/claim step; runs start executing.
-          status: InAppAgentRunStatus.RUNNING,
-        },
-      });
-    } catch (error) {
-      // Backstop: the partial unique index on active runs. The conversation
-      // lock above should make this unreachable; surface it as the same
-      // conflict as the primary check instead of a 500. The insert can also
-      // violate the (id, project_id) primary key (a replayed runId), so only
-      // map the active-run index — Prisma reports it via its column names.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002" &&
-        Array.isArray(error.meta?.target) &&
-        error.meta.target.includes("conversation_id")
-      ) {
-        throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
-      }
-      throw error;
-    }
-  });
-}
-
-export async function finishRun(params: {
-  prisma: PrismaClient;
-  runId: string;
-  projectId: string;
-  errorCode?: InAppAgentRunErrorCode | null;
-  errorMessage?: string | null;
-}) {
-  const errorCode = params.errorCode ?? null;
-  const status =
-    errorCode == null
-      ? InAppAgentRunStatus.SUCCEEDED
-      : errorCode === InAppAgentRunErrorCode.CANCELLED
-        ? InAppAgentRunStatus.CANCELLED
-        : InAppAgentRunStatus.FAILED;
-  await params.prisma.inAppAgentRun
-    .updateMany({
-      where: {
-        id: params.runId,
-        projectId: params.projectId,
-        finishedAt: null,
-      },
-      data: {
-        status,
-        finishedAt: new Date(),
-        errorCode,
-        errorMessage: params.errorMessage ?? null,
-      },
-    })
-    .catch((error: unknown) =>
-      logger.error("Failed to finish in-app agent run", {
-        error,
-        runId: params.runId,
-        projectId: params.projectId,
-      }),
-    );
-}
-
 export async function appendRunEvents(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
   runId: string;
   events: readonly AgUiEvent[];
+  finish?: {
+    status:
+      | InAppAgentRunStatus.SUCCEEDED
+      | InAppAgentRunStatus.FAILED
+      | InAppAgentRunStatus.CANCELLED
+      | InAppAgentRunStatus.AWAITING_APPROVAL;
+    errorCode?: InAppAgentRunErrorCode;
+    errorMessage?: string;
+  };
 }): Promise<boolean> {
   return params.prisma.$transaction(async (tx) => {
-    await lockConversation(tx, params.projectId, params.conversationId);
+    await lockConversationRow(tx, params.projectId, params.conversationId);
 
-    const activeRun = await tx.inAppAgentRun.findFirst({
-      where: {
-        id: params.runId,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        status: InAppAgentRunStatus.RUNNING,
-      },
-      select: { id: true },
-    });
+    if (params.finish) {
+      const finished = await tx.inAppAgentRun.updateMany({
+        where: {
+          id: params.runId,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          status: InAppAgentRunStatus.RUNNING,
+          finishedAt: null,
+        },
+        data: {
+          status: params.finish.status,
+          finishedAt: new Date(),
+          errorCode: params.finish.errorCode ?? null,
+          errorMessage: params.finish.errorMessage ?? null,
+        },
+      });
 
-    if (!activeRun) {
-      return false;
+      if (finished.count === 0) {
+        return false;
+      }
+    } else {
+      const activeRun = await tx.inAppAgentRun.findFirst({
+        where: {
+          id: params.runId,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          status: InAppAgentRunStatus.RUNNING,
+        },
+        select: { id: true },
+      });
+
+      if (!activeRun) {
+        return false;
+      }
     }
 
     const latestEvent = await tx.inAppAgentEvent.findFirst({
@@ -334,7 +266,7 @@ export async function appendRunEvents(params: {
 }
 
 export async function getConversationEvents(params: {
-  prisma: PrismaClient;
+  prisma: PrismaClient | Prisma.TransactionClient;
   projectId: string;
   conversationId: string;
 }): Promise<PersistedConversationEvent[]> {
@@ -344,22 +276,25 @@ export async function getConversationEvents(params: {
       conversationId: params.conversationId,
     },
     orderBy: { sequenceNumber: "asc" },
-    select: { event: true, runId: true, createdAt: true },
+    select: {
+      event: true,
+      runId: true,
+      createdAt: true,
+      sequenceNumber: true,
+    },
   });
 
-  return events.map(({ event, runId, createdAt }) => ({
+  return events.map(({ event, runId, createdAt, sequenceNumber }) => ({
     event: event as unknown as AgUiEvent,
     runId,
     createdAt,
+    sequenceNumber,
   }));
 }
 
-/**
- * Returns `tool_calls` file payloads reconstructed from prior non-sandbox tool
- * calls so each sandbox session can mount the same context.
- */
-export function getSandboxToolCallFiles(
-  events: readonly PersistedConversationEvent[],
+/** Builds sandbox `tool_calls` files from persisted and live MCP calls. */
+export function createSandboxToolCallFileAccumulator(
+  events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
 ) {
   const drafts = new Map<
     string,
@@ -370,14 +305,43 @@ export function getSandboxToolCallFiles(
     }
   >();
   const files: Array<{ path: string; content: string }> = [];
+  const completedToolCallIds = new Set<string>();
 
-  for (const { event, createdAt } of events) {
+  const processToolCall = (toolCall: CompletedInAppAgentMcpToolCall) => {
+    if (completedToolCallIds.has(toolCall.toolCallId)) {
+      return;
+    }
+
+    const draft = drafts.get(toolCall.toolCallId);
+    drafts.delete(toolCall.toolCallId);
+    completedToolCallIds.add(toolCall.toolCallId);
+    files.push({
+      path: `tool_calls/${formatSandboxToolCallTimestamp(draft?.createdAt ?? toolCall.createdAt)}_${draft?.toolName ?? toolCall.toolName}_${toolCall.toolCallId}.json`,
+      content: JSON.stringify(
+        {
+          request: draft
+            ? parseSandboxToolCallValue(draft.request)
+            : toolCall.request,
+          response: toolCall.response,
+          error: toolCall.error,
+        },
+        null,
+        2,
+      ),
+    });
+  };
+
+  const processEvent = ({
+    event,
+    createdAt,
+  }: Omit<PersistedConversationEvent, "sequenceNumber">) => {
     if (event.type === EventType.TOOL_CALL_START) {
       const toolCallId = getString(event, "toolCallId");
       const toolName = getString(event, "toolCallName");
 
       if (
         toolCallId &&
+        !completedToolCallIds.has(toolCallId) &&
         toolName &&
         !IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName)
       ) {
@@ -387,7 +351,7 @@ export function getSandboxToolCallFiles(
           request: "",
         });
       }
-      continue;
+      return;
     }
 
     if (event.type === EventType.TOOL_CALL_ARGS) {
@@ -397,36 +361,54 @@ export function getSandboxToolCallFiles(
       if (draft) {
         draft.request += getString(event, "delta") ?? "";
       }
-      continue;
+      return;
     }
 
     if (event.type !== EventType.TOOL_CALL_RESULT) {
-      continue;
+      return;
     }
 
     const toolCallId = getString(event, "toolCallId");
     const draft = toolCallId ? drafts.get(toolCallId) : undefined;
 
-    if (!toolCallId || !draft) {
-      continue;
+    if (!toolCallId || completedToolCallIds.has(toolCallId) || !draft) {
+      return;
     }
 
     drafts.delete(toolCallId);
+    completedToolCallIds.add(toolCallId);
     files.push({
       path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
-          response: parseSandboxToolCallValue(getString(event, "content")),
+          response: parseSandboxToolCallValue(
+            getString(event, "content"),
+            getSandboxInAppAgentMcpToolResultContent,
+          ),
           error: getString(event, "error") ?? null,
         },
         null,
         2,
       ),
     });
+  };
+
+  for (const event of events) {
+    processEvent(event);
   }
 
-  return files;
+  return {
+    processEvent,
+    processToolCall,
+    getFiles: () => files,
+  };
+}
+
+export function getSandboxToolCallFiles(
+  events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
+) {
+  return createSandboxToolCallFileAccumulator(events).getFiles();
 }
 
 export async function getConversationMessages(params: {
@@ -442,8 +424,18 @@ export async function getConversationMessagesForDisplay(params: {
   projectId: string;
   conversationId: string;
 }) {
-  const messages = await getConversationMessages(params);
-  return dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages));
+  return getConversationMessagesForDisplayFromEvents(
+    await getConversationEvents(params),
+  );
+}
+
+export function getConversationMessagesForDisplayFromEvents(
+  events: readonly PersistedConversationEvent[],
+) {
+  const messages = getMessagesFromPersistedEvents(events);
+  return redactSilentToolMessages(
+    dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages)),
+  );
 }
 
 export async function getConversationMessagesForReplay(params: {
@@ -623,7 +615,7 @@ function getMessagesFromPersistedEvents(
     accumulator.processEvent(event, runId);
   }
 
-  return accumulator.getMessages();
+  return redactSilentToolMessages(accumulator.getMessages());
 }
 
 function sanitizeConversationMessagesForReplay(
@@ -641,6 +633,25 @@ function sanitizeConversationMessagesForReplay(
   return stripAssistantRunIds(
     dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
   );
+}
+
+export function redactSilentToolMessages(messages: readonly AgUiMessage[]) {
+  let changed = false;
+  const sanitizedMessages = messages.map((message): AgUiMessage => {
+    if (message.role !== "tool") {
+      return message;
+    }
+
+    const content = getPublicInAppAgentMcpToolResultContent(message.content);
+    if (content === message.content) {
+      return message;
+    }
+
+    changed = true;
+    return { ...message, content };
+  });
+
+  return changed ? sanitizedMessages : messages;
 }
 
 export function shouldFlushPersistedEvent(event: AgUiEvent) {
@@ -707,10 +718,11 @@ export async function flushPendingRunEvents(params: {
   conversationId: string;
   runId: string;
   pendingEvents: AgUiEvent[];
+  finish?: Parameters<typeof appendRunEvents>[0]["finish"];
 }) {
   const pendingEventCount = params.pendingEvents.length;
 
-  if (pendingEventCount === 0) {
+  if (pendingEventCount === 0 && !params.finish) {
     return;
   }
 
@@ -718,13 +730,14 @@ export async function flushPendingRunEvents(params: {
     params.pendingEvents.slice(0, pendingEventCount),
   );
 
-  if (eventsToAppend.length > 0) {
+  if (eventsToAppend.length > 0 || params.finish) {
     const appended = await appendRunEvents({
       prisma: params.prisma,
       projectId: params.projectId,
       conversationId: params.conversationId,
       runId: params.runId,
       events: eventsToAppend,
+      finish: params.finish,
     });
 
     if (!appended) {
@@ -1051,6 +1064,12 @@ export function createConversationMessageAccumulator(
       if (draft) {
         draft.content += delta;
         draft.runId ??= runId;
+        return upsertMessage({
+          id: draft.id,
+          role: "assistant",
+          content: draft.content,
+          ...(draft.runId ? { runId: draft.runId } : {}),
+        });
       }
       return false;
     }
@@ -1272,20 +1291,40 @@ function stripAssistantRunIds(messages: readonly AgUiMessage[]) {
   return changed ? sanitizedMessages : messages;
 }
 
-type InAppAgentTx = Prisma.TransactionClient;
+export type InAppAgentTx = Prisma.TransactionClient;
 
-async function lockConversation(
+/** Serialize run mutations and reject conversations deleted while waiting. */
+export async function lockConversation(
   tx: InAppAgentTx,
   projectId: string,
   conversationId: string,
 ) {
-  await tx.$queryRaw`
-    SELECT 1
+  const conversation = await lockConversationRow(tx, projectId, conversationId);
+
+  if (conversation.deletedAt) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
+}
+
+async function lockConversationRow(
+  tx: InAppAgentTx,
+  projectId: string,
+  conversationId: string,
+) {
+  const conversations = await tx.$queryRaw<Array<{ deletedAt: Date | null }>>`
+    SELECT "deleted_at" AS "deletedAt"
     FROM "in_app_agent_conversations"
     WHERE "id" = ${conversationId}
       AND "project_id" = ${projectId}
     FOR UPDATE
   `;
+
+  const conversation = conversations[0];
+  if (!conversation) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
+
+  return conversation;
 }
 
 function parseMessages(messages: unknown[]): AgUiMessage[] {
@@ -1373,41 +1412,6 @@ function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
   });
 }
 
-function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {
-  const toolResultIds = new Set(
-    messages.flatMap((message) =>
-      message.role === "tool" ? [message.toolCallId] : [],
-    ),
-  );
-  let changed = false;
-
-  const sanitizedMessages = messages.map((message): AgUiMessage => {
-    if (message.role !== "assistant" || !message.toolCalls?.length) {
-      return message;
-    }
-
-    const pairedToolCalls = message.toolCalls.filter((toolCall) =>
-      toolResultIds.has(toolCall.id),
-    );
-
-    if (pairedToolCalls.length === message.toolCalls.length) {
-      return message;
-    }
-
-    changed = true;
-
-    if (pairedToolCalls.length === 0) {
-      const sanitizedMessage = { ...message };
-      delete sanitizedMessage.toolCalls;
-      return sanitizedMessage;
-    }
-
-    return { ...message, toolCalls: pairedToolCalls };
-  });
-
-  return changed ? sanitizedMessages : messages;
-}
-
 function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
   let changed = false;
   const sanitizedMessages = messages.filter((message) => {
@@ -1416,26 +1420,6 @@ function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
 
     changed = changed || !keep;
     return keep;
-  });
-
-  return changed ? sanitizedMessages : messages;
-}
-
-function dropEmptyAssistantMessages(messages: readonly AgUiMessage[]) {
-  let changed = false;
-  const sanitizedMessages = messages.filter((message) => {
-    if (message.role !== "assistant") {
-      return true;
-    }
-
-    const hasContent =
-      typeof message.content === "string" && message.content.length > 0;
-    const hasToolCalls =
-      message.toolCalls !== undefined && message.toolCalls.length > 0;
-    const keepMessage = hasContent || hasToolCalls;
-
-    changed = changed || !keepMessage;
-    return keepMessage;
   });
 
   return changed ? sanitizedMessages : messages;
@@ -1505,9 +1489,20 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
   ) as T;
 }
 
-function parseSandboxToolCallValue(value: string | undefined) {
+function parseSandboxToolCallValue(
+  value: string | undefined,
+  transform?: (value: string) => unknown,
+) {
   if (!value) {
     return null;
+  }
+
+  if (transform) {
+    try {
+      return transform(value);
+    } catch {
+      return value;
+    }
   }
 
   const parsed = safeJsonParse(value);

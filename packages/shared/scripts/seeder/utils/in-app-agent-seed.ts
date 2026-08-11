@@ -1,4 +1,5 @@
 import {
+  InAppAgentRunStatus,
   type Prisma,
   type PrismaClient,
   type Prompt,
@@ -328,6 +329,7 @@ export async function seedInAppAgentDemoConversation({
           conversationId,
           triggeredByUserId: userId,
           model: "claude-haiku-4-5",
+          status: InAppAgentRunStatus.SUCCEEDED,
           finishedAt: firstRunFinishedAt,
           createdAt: firstRunCreatedAt,
           updatedAt: firstRunFinishedAt,
@@ -338,6 +340,7 @@ export async function seedInAppAgentDemoConversation({
           conversationId,
           triggeredByUserId: userId,
           model: "claude-haiku-4-5",
+          status: InAppAgentRunStatus.SUCCEEDED,
           finishedAt: secondRunFinishedAt,
           createdAt: secondRunCreatedAt,
           updatedAt: secondRunFinishedAt,

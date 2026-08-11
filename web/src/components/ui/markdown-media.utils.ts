@@ -2,6 +2,7 @@ import {
   MEDIA_REFERENCE_PATTERN,
   MediaReferenceStringSchema,
   isOpenAIImageContentPart,
+  isMediaReferencePart,
   type OpenAIContentSchema,
   type OpenAIOutputAudioType,
   type ParsedMediaReferenceType,
@@ -40,7 +41,7 @@ export const getRenderedInlineMediaIds = ({
   markdown,
   audio,
 }: {
-  markdown: string | z.infer<typeof OpenAIContentSchema>;
+  markdown: string | z.input<typeof OpenAIContentSchema>;
   audio?: OpenAIOutputAudioType;
 }): Set<string> => {
   const mediaIds = new Set<string>();
@@ -54,7 +55,12 @@ export const getRenderedInlineMediaIds = ({
     });
   } else {
     (markdown ?? []).forEach((content) => {
-      if (isOpenAIImageContentPart(content)) {
+      if (isMediaReferencePart(content)) {
+        const mediaId = getMediaReferenceId(content);
+        if (mediaId) {
+          mediaIds.add(mediaId);
+        }
+      } else if (isOpenAIImageContentPart(content)) {
         const mediaId = getMediaReferenceId(content.image_url.url);
         if (mediaId) {
           mediaIds.add(mediaId);

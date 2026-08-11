@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import React from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";

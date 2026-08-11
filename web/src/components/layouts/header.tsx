@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Badge } from "@/src/components/ui/badge";

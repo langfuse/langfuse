@@ -24,6 +24,18 @@ const EnvSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().optional(),
 
+  // ClickHouse Billing cutoff, shared with web via the provider resolver in
+  // @langfuse/shared (getBillingProvider). The worker only consults it in the
+  // defensive usage-metering guard; unset = CHB routing off. Date-only
+  // (YYYY-MM-DD) so the cutline is a single unambiguous instant of UTC
+  // midnight, which is what new Date() yields for a date-only string. Parsed
+  // here so every consumer gets the same instant; keep in sync with
+  // web/src/env.mjs.
+  LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso
+    .date()
+    .optional()
+    .transform((date) => (date ? new Date(date) : null)),
+
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -136,6 +148,9 @@ const EnvSchema = z.object({
   // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports
   // and avoid overwhelming the target instance (see issue #12786).
   LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
+  // Timeout (ms) for each Mixpanel import request, so an unresponsive endpoint
+  // cannot hold the integration job indefinitely (see issue #15958).
+  LANGFUSE_MIXPANEL_TIMEOUT_MS: z.coerce.number().positive().default(30000),
   // Delay (ms) after each PostHog flush. Together with 1,000-event flushes,
   // this bounds the export rate for fast-acknowledging target instances.
   LANGFUSE_POSTHOG_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
@@ -365,6 +380,14 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2 * 1024 * 1024),
 
   // Metering data Postgres export - Langfuse Cloud
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
@@ -514,6 +537,21 @@ const EnvSchema = z.object({
   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
     .enum(["dual_write", "direct"])
     .default("direct"),
+  // Cloud-only rollout boundary for automatic direct OTel event writes.
+  // Organizations created on or after this date are past the point where the v4
+  // preview is force-enabled and cannot be switched off, so the events table is
+  // the only surface they read; their OTLP traffic therefore takes the direct
+  // write even without an `x-langfuse-ingestion-version: 4` header. Applies to
+  // non-Langfuse-SDK exports only — an older SDK keeps its established
+  // dual-write shape. An ISO date (YYYY-MM-DD) read as midnight UTC; a plain
+  // date is enough precision and easier to reason about than a timestamp.
+  // Unset disables the rule, which is the right default when self-hosting:
+  // those deployments move the whole deployment at once via
+  // LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct instead of rolling a
+  // tenant cohort forward.
+  LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CREATED_CUTOFF: z.iso
+    .date()
+    .optional(),
   LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
     .enum(["true", "false"])
     .default("true"),

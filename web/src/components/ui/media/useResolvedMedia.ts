@@ -17,7 +17,7 @@ type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 export function useResolvedMedia(
   descriptor: LangfuseRefDescriptor,
   { enabled }: { enabled: boolean },
-): { status: MediaTagStatus; url?: string } {
+): { status: MediaTagStatus; url?: string; contentLength?: number } {
   const projectId = useProjectIdFromURL();
 
   const query = api.media.getById.useQuery(
@@ -36,6 +36,11 @@ export function useResolvedMedia(
 
   if (!enabled || !projectId) return { status: "idle" };
   if (query.isError) return { status: "error" };
-  if (query.data?.url) return { status: "ready", url: query.data.url };
+  if (query.data?.url)
+    return {
+      status: "ready",
+      url: query.data.url,
+      contentLength: query.data.contentLength,
+    };
   return { status: "loading" };
 }

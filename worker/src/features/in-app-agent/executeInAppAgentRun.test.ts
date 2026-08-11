@@ -8,9 +8,11 @@ import {
   createInAppAgentRunId,
 } from "@langfuse/shared/in-app-agent";
 
-// Env knobs must be set before any import evaluates the shared env/tunables.
 vi.hoisted(() => {
-  process.env.LANGFUSE_IN_APP_AGENT_HEARTBEAT_INTERVAL_MS = "50";
+  // This suite uses mocked agent execution and does not exercise a sandbox
+  // provider. Keep its provider selection explicit rather than inheriting the
+  // developer's root .env.
+  delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
   process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ??= "DEV";
   process.env.NEXTAUTH_URL ??= "http://localhost:3000";
   process.env.LANGFUSE_AWS_BEDROCK_REGION ??= "eu-central-1";
@@ -24,9 +26,21 @@ vi.hoisted(() => {
  * MCP-key lifecycle, event persistence — runs against the real database.
  */
 type AgentScenario = (ctx: {
-  input: { threadId: string; runId: string; forwardedProps: unknown };
+  input: {
+    threadId: string;
+    runId: string;
+    context: Array<{ description: string; value: string }>;
+    forwardedProps: unknown;
+  };
   signal: AbortSignal;
   options: {
+    langfuseMcp: {
+      toolPolicy: {
+        available: ReadonlySet<string>;
+        autoApproved: ReadonlySet<string>;
+      };
+      runOverride?: string;
+    };
     onEvent: (event: unknown) => Promise<void> | void;
     onApprovedToolCallExecuted?: () => Promise<void> | void;
     onComplete: () => Promise<void>;
@@ -50,6 +64,7 @@ vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
 
   return {
     ...actual,
+    IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: 50,
     createAgUiStream: async (params: {
       input: never;
       signal: AbortSignal;
@@ -133,6 +148,7 @@ async function seedBackgroundRun(opts?: {
   request?: unknown;
   status?: string;
   aiFeaturesEnabled?: boolean;
+  alwaysAllowedTools?: string[];
 }) {
   const { projectId } = await createOrgProjectAndApiKey();
   const project = await prisma.project.findUniqueOrThrow({
@@ -157,6 +173,7 @@ async function seedBackgroundRun(opts?: {
       projectId,
       createdByUserId: user.id,
       title: "background test",
+      alwaysAllowedTools: opts?.alwaysAllowedTools,
     },
   });
   const run = await prisma.inAppAgentRun.create({
@@ -183,8 +200,13 @@ const getInAppAgentApiKeys = (projectId: string) =>
   prisma.apiKey.findMany({ where: { projectId, isInAppAgentKey: true } });
 
 /** A run resuming an approved tool call whose interrupt event is persisted on a parked parent run. */
-async function seedApprovedContinuation() {
-  const seeded = await seedBackgroundRun();
+async function seedApprovedContinuation(opts?: {
+  context?: Array<{ description: string; value: string }>;
+  alwaysAllowedTools?: string[];
+}) {
+  const seeded = await seedBackgroundRun({
+    alwaysAllowedTools: opts?.alwaysAllowedTools,
+  });
   const { projectId, conversation, run, user } = seeded;
   const parentRun = await prisma.inAppAgentRun.create({
     data: {
@@ -214,6 +236,7 @@ async function seedApprovedContinuation() {
         parentRunId: parentRun.id,
         toolCallId: "tc-1",
         approved: true,
+        ...(opts?.context ? { context: opts.context } : {}),
       },
     },
   });
@@ -222,6 +245,58 @@ async function seedApprovedContinuation() {
 }
 
 describe("executeInAppAgentRun", () => {
+  it("passes persisted continuation context to the agent input", async () => {
+    const context = [
+      {
+        description: "current_url",
+        value: '{"pathname":"/project/project-1/traces"}',
+      },
+      { description: "browser_languages", value: '["de-DE"]' },
+    ];
+    const { projectId, run } = await seedApprovedContinuation({ context });
+
+    scenarioRef.current = async ({ input, options }) => {
+      expect(input.context).toEqual(context);
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+  });
+
+  it("defaults legacy continuation context to an empty array", async () => {
+    const { projectId, run } = await seedApprovedContinuation();
+
+    scenarioRef.current = async ({ input, options }) => {
+      expect(input.context).toEqual([]);
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+    expect((await getRun(projectId, run.id)).status).toBe("SUCCEEDED");
+  });
+
+  it("applies persisted grants to the next continuation's MCP policy", async () => {
+    const { projectId, run } = await seedApprovedContinuation({
+      alwaysAllowedTools: ["langfuse_upsertDataset"],
+    });
+
+    scenarioRef.current = async ({ options }) => {
+      expect(options.langfuseMcp.toolPolicy.autoApproved).toContain(
+        "upsertDataset",
+      );
+      expect(JSON.parse(options.langfuseMcp.runOverride ?? "")).toEqual({
+        toolName: "createTextPrompt",
+        toolNames: ["createTextPrompt", "upsertDataset"],
+      });
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+  });
+
   it("executes a queued run to SUCCEEDED with persisted events and full MCP-key lifecycle", async () => {
     const { projectId, conversation, run } = await seedBackgroundRun();
 
@@ -354,6 +429,39 @@ describe("executeInAppAgentRun", () => {
 
     const cancelled = await getRun(projectId, run.id);
     expect(cancelled.status).toBe("CANCELLED");
+    expect(cancelled.errorCode).toBe("cancelled");
+    expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
+  });
+
+  it("finishes cancellation after its conversation is soft-deleted", async () => {
+    const { projectId, conversation, run } = await seedBackgroundRun();
+
+    scenarioRef.current = async ({ signal, options }) => {
+      await prisma.$transaction([
+        prisma.inAppAgentRun.update({
+          where: { id_projectId: { id: run.id, projectId } },
+          data: { cancelRequestedAt: new Date() },
+        }),
+        prisma.inAppAgentConversation.update({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          data: { deletedAt: new Date() },
+        }),
+      ]);
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) return resolve();
+        signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+      await options.onAbort();
+      await options.onFinish();
+    };
+
+    await expect(
+      executeInAppAgentRun({ projectId, runId: run.id }),
+    ).resolves.toBeUndefined();
+
+    const cancelled = await getRun(projectId, run.id);
+    expect(cancelled.status).toBe("CANCELLED");
+    expect(cancelled.finishedAt).not.toBeNull();
     expect(cancelled.errorCode).toBe("cancelled");
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
   });

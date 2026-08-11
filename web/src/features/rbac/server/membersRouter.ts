@@ -652,6 +652,23 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
+      const project = await ctx.prisma.project.findFirst({
+        where: {
+          id: input.projectId,
+          orgId: input.orgId,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+        },
+      });
+      if (!project) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
+      }
+
       // check org membership id, can be trusted after this check
       const orgMembership = await ctx.prisma.organizationMembership.findUnique({
         where: {

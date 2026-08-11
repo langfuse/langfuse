@@ -27,6 +27,12 @@ export const [getObservationFieldSchemaTool, handleGetObservationFieldSchema] =
               default: Boolean(definition.default),
               expensive: Boolean(definition.expensive),
               sensitive: Boolean(definition.sensitive),
+              ...(definition.requiresScope
+                ? {
+                    requiresScope: true,
+                    scopeRequirement: definition.scopeRequirement,
+                  }
+                : {}),
               ...(definition.description
                 ? { description: definition.description }
                 : {}),

@@ -81,8 +81,8 @@ export function V4MigrationBanner() {
         </>
       )}
     >
-      <div className="flex items-center gap-2">
-        <Zap className="h-4 w-4 shrink-0" />
+      <div className="flex items-start gap-2 sm:items-center">
+        <Zap className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
         <span>
           <span className="font-bold">
             Langfuse v4 is here: real-time and up to 165× faster.

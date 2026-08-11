@@ -1,8 +1,53 @@
 import { type ColumnDefinition } from "./tableDefinitions";
 
 export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
+export const eventsTableIsRootObservationSqlForAlias = (alias: string) => {
+  const prefix = alias ? `${alias}.` : "";
+  return `(${prefix}parent_span_id = '' OR ${prefix}is_app_root = true)`;
+};
 export const eventsTableIsRootObservationSql =
-  "(e.parent_span_id = '' OR e.is_app_root = true)";
+  eventsTableIsRootObservationSqlForAlias("e");
+export const eventsTableTraceNameSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(${alias}.trace_name, ''), if(${eventsTableIsRootObservationSqlForAlias(alias)}, nullIf(${alias}.name, ''), NULL))`;
+export const eventsTableTraceNameSql = eventsTableTraceNameSqlForAlias("e");
+// Row-projection variant. The fallback above is Nullable(String), but
+// events_core.trace_name is a non-null String. Projecting the nullable
+// expression under the column's own name while a filter reads the physical
+// column puts two `trace_name` headers of different types into one pipeline,
+// and ClickHouse 25.x rejects that with AMBIGUOUS_COLUMN_NAME (code 352) as
+// soon as the query also sorts (LFE-14924). Matching the stored String type
+// keeps the alias — an export/stream wire name — stable. "no trace name" is
+// therefore '' on the wire; JS consumers map it back to null.
+export const eventsTableTraceNameSelectSqlForAlias = (alias: string) =>
+  `ifNull(${eventsTableTraceNameSqlForAlias(alias)}, '')`;
+export const eventsTableTraceNameSelectSql =
+  eventsTableTraceNameSelectSqlForAlias("e");
+/**
+ * Maps the wire form of `eventsTableTraceNameSelectSql` ('' == no trace name)
+ * back to the null every JS-facing surface uses - tRPC/UI, the public API, the
+ * eval stream, analytics integrations, and batch export.
+ *
+ * Blob storage export deliberately does NOT use this: its published contract
+ * types `trace_name` as a plain string
+ * (https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields),
+ * and its raw JSONL / Parquet paths never pass through JS, so normalizing only
+ * the enriched path would make the three export formats disagree.
+ */
+export const normalizeEventsTraceName = (
+  traceName: string | null | undefined,
+): string | null => traceName || null;
+export const eventsTableTraceNameAggregationSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, ${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> ''), ''))`;
+export const eventsTableTraceNameAggregationSql =
+  eventsTableTraceNameAggregationSqlForAlias("e");
+
+export const isRootObservation = ({
+  parentObservationId,
+  isAppRoot,
+}: {
+  parentObservationId: string | null | undefined;
+  isAppRoot: boolean | null | undefined;
+}): boolean => !parentObservationId || isAppRoot === true;
 // True when the observation carries input / output. NULL/'' both count as
 // absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
 export const eventsTableHasInputSql = "e.input != ''";
@@ -81,6 +126,13 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "Release",
+    id: "release",
+    type: "string",
+    internal: "e.release",
+    nullable: true,
+  },
+  {
     name: "User ID",
     id: "userId",
     type: "string",
@@ -98,7 +150,7 @@ const eventsTableColsDefinition = [
     name: "Trace Name",
     id: "traceName",
     type: "stringOptions",
-    internal: "e.trace_name",
+    internal: eventsTableTraceNameSql,
     options: [], // to be added at runtime
     nullable: true,
   },

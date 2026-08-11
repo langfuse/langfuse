@@ -1,7 +1,7 @@
 import startCase from "lodash/startCase";
 import { type z } from "zod";
 
-import { requiresV2, type metricAggregations } from "@langfuse/shared/query";
+import { type metricAggregations } from "@langfuse/shared/query";
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
@@ -19,7 +19,7 @@ import {
   deriveEffectiveSort,
   deriveWidgetBaseMinVersion,
   deriveWidgetSuggestions,
-  resolveWidgetViewVersion,
+  resolveWidgetFormVersion,
   toDefaultValues,
   toSavePayload,
   type WidgetFormValues,
@@ -29,10 +29,10 @@ import {
 
 /** The view version the app would seed with for a given widget (non-beta). */
 const fixtureViewVersion = (iv: WidgetInitialValues) =>
-  resolveWidgetViewVersion({
+  resolveWidgetFormVersion({
     view: iv.view,
     baseMinVersion: deriveWidgetBaseMinVersion(iv),
-    isBetaEnabled: false,
+    activeVersion: "v1",
   });
 
 /**
@@ -194,14 +194,6 @@ function legacyReconstruct(iv: WidgetInitialValues): WidgetSavePayload {
     filters: normalizedUserFilters,
     chartType: iv.chartType,
     chartConfig,
-    minVersion: requiresV2({
-      view: iv.view,
-      dimensions: saveDimensions,
-      measures: saveMetrics.map((m) => ({ measure: m.measure })),
-      filters: normalizedUserFilters,
-    })
-      ? 2
-      : 1,
   };
 }
 
@@ -358,7 +350,6 @@ describe("widget form adapters round-trip parity", () => {
       filters: [],
       chartType: "LINE_TIME_SERIES",
       chartConfig: { type: "LINE_TIME_SERIES" },
-      minVersion: 1,
     });
   });
 
@@ -396,6 +387,51 @@ describe("widget form adapters round-trip parity", () => {
     expect(payload.chartConfig).toEqual({ type: "NUMBER", row_limit: 100 });
     expect(payload.metrics).toEqual([{ measure: "count", agg: "count" }]);
     expect(payload.name).toBe("Count (Observations)");
+  });
+});
+
+describe("widget form view version", () => {
+  it("keeps a v1 base version for a v1-compatible create shape", () => {
+    expect(deriveWidgetBaseMinVersion(fixtures["regular line (create)"])).toBe(
+      1,
+    );
+  });
+
+  it("promotes a legacy widget when its current shape requires v2", () => {
+    expect(
+      resolveWidgetFormVersion({
+        view: "observations",
+        baseMinVersion: 1,
+        activeVersion: "v1",
+        shape: {
+          dimensions: [],
+          metrics: [{ measure: "count" }],
+          filters: [
+            {
+              column: "isRootObservation",
+              type: "boolean",
+              operator: "=",
+              value: true,
+            },
+          ],
+        },
+      }),
+    ).toBe("v2");
+  });
+
+  it("uses the events-backed v2 declaration for legacy trace widgets in v4", () => {
+    expect(
+      resolveWidgetFormVersion({
+        view: "traces",
+        baseMinVersion: 1,
+        activeVersion: "v2",
+        shape: {
+          dimensions: [],
+          metrics: [{ measure: "count" }],
+          filters: [],
+        },
+      }),
+    ).toBe("v2");
   });
 });
 

@@ -109,6 +109,7 @@ export default function EvaluatorsPage() {
             </ActionButton>
           </>
         ),
+        actionButtonsRightClassName: "justify-end",
       }}
     >
       <EvaluatorTable projectId={projectId} />
