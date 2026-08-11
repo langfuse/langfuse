@@ -15,6 +15,7 @@ import { type z } from "zod";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
+  displayNameForFilterColumn,
   mapViewFilterToUiTableFilter,
   partitionWidgetUiTableFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
@@ -189,7 +190,7 @@ const MetricsFilterView = ({
     new Set(
       editorFilters
         .filter((filter) => !resolvesToColumn(filter, columns))
-        .map((filter) => filter.column),
+        .map((filter) => displayNameForFilterColumn(filter.column)),
     ),
   ).join(", ");
 

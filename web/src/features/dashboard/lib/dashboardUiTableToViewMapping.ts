@@ -485,6 +485,13 @@ export const normalizeStoredWidgetFiltersForEditor = (
   };
 };
 
+/** displayNameForFilterColumn resolves any filter column spelling to the label the filter builder shows. */
+export const displayNameForFilterColumn = (column: string): string =>
+  allWidgetFilterMappings.find(
+    (mapping) =>
+      mapping.viewName === column || matchesFilterMapping(mapping, column),
+  )?.uiTableName ?? column;
+
 export const mapViewFilterToUiTableFilter = (
   view: z.infer<typeof views>,
   filters: z.infer<typeof FilterArray>,
