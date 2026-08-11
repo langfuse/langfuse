@@ -50,6 +50,9 @@ export function TierPrefillButtons({
               cache_read_input_tokens: 0,
               input_cache_creation_5m: 0,
               input_cache_creation_1h: 0,
+              input_cache_creation: 0,
+              input_cache_read: 0,
+              input_cached_tokens: 0,
               ...prices,
             });
           }}
