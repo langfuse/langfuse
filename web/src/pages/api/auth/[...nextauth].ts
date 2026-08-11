@@ -59,6 +59,21 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
     return res.status(200).end();
   }
 
+  // next-auth answers non-POST requests to the credentials callback with a
+  // bare, unlogged 500, so scanners probing this URL page our error-rate
+  // monitors. Reject them with a 405 before next-auth sees them.
+  const isCredentialsCallback =
+    Array.isArray(req.query.nextauth) &&
+    req.query.nextauth[0] === "callback" &&
+    req.query.nextauth[1] === "credentials";
+  if (isCredentialsCallback && req.method !== "POST") {
+    logger.warn(
+      `[NEXT_AUTH] Rejected ${req.method} to credentials callback with 405`,
+    );
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ message: "Method Not Allowed" });
+  }
+
   // next-auth rejects malformed callbackUrl values (query param or cookie)
   // with a hardcoded 500, so vulnerability scanners probing auth routes page
   // our server-error monitors. Malformed client input is a 4xx; reject it
