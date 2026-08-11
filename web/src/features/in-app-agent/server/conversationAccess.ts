@@ -1,5 +1,5 @@
-import { LangfuseNotFoundError } from "../../index";
-import type { InAppAgentConversation } from "../../db";
+import { LangfuseNotFoundError } from "@langfuse/shared";
+import type { InAppAgentConversation } from "@langfuse/shared/src/db";
 
 /** Owner-only authorization with a non-enumerating failure. */
 export function assertConversationAccess(params: {

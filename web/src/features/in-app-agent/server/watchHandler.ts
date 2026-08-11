@@ -1,9 +1,9 @@
 import { BaseError, ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
-import type { InAppAgentWatchFrame } from "@langfuse/shared/in-app-agent";
-import { assertConversationAccess } from "@langfuse/shared/in-app-agent/server/access";
-import { watchConversationFrames } from "@langfuse/shared/in-app-agent/server/watch";
+import type { InAppAgentWatchFrame } from "../watchFrames";
+import { assertConversationAccess } from "./conversationAccess";
+import { watchConversationFrames } from "./watch";
 import { z } from "zod";
 
 import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";

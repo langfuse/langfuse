@@ -1,27 +1,23 @@
 import { EventType } from "@ag-ui/core";
 import { Buffer } from "node:buffer";
-import { getInternalTracingHandler, logger } from "../../server";
+import { getInternalTracingHandler, logger } from "@langfuse/shared/src/server";
 
 import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   getInAppAgentLlmCallObservationId,
-} from "../constants";
-import {
-  ResumeForwardedPropsSchema,
-  type AgUiEvent,
-  type AgUiMessage,
-  type AgUiRunAgentInput,
-} from "../schema";
-import { compactTextMessageChunks } from "./eventCompaction";
+} from "@langfuse/shared/in-app-agent";
+import type { AgUiEvent, AgUiMessage } from "@langfuse/shared/in-app-agent";
+import { ResumeForwardedPropsSchema, type AgUiRunAgentInput } from "./types";
+import { compactTextMessageChunks } from "@langfuse/shared/in-app-agent/server/eventCompaction";
+import type { InAppAgentUserAccess } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import {
   getToolFailureMessage,
   isRecord,
   normalizeToolOutput,
   parseJsonOrString,
 } from "./toolErrors";
-import type { InAppAgentUserAccess } from "./mcpPolicy";
-import { assertUnreachable } from "../../utils/typeChecks";
+import { assertUnreachable } from "@langfuse/shared";
 
 export type InAppAgentTracingConfig = {
   environment: string;

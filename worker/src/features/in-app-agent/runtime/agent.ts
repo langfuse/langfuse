@@ -1,6 +1,6 @@
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
-import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "./prompts/in-app-agent-system-prompt";
+import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
 import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Agent } from "@mastra/core/agent";
@@ -9,14 +9,10 @@ import type { Langfuse } from "langfuse";
 
 import {
   type AgUiEvent,
-  type AgUiRunAgentInput,
   type InAppAgentToolApprovalRequest,
-  type ResumeForwardedProps,
-} from "../schema";
-import {
-  createInAppAgentMcpRunOverride,
-  createManualToolApprovalRunInput,
-} from "./human-in-the-loop";
+} from "@langfuse/shared/in-app-agent";
+import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
+import { createManualToolApprovalRunInput } from "./human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
@@ -34,31 +30,33 @@ import {
   hasCallableExecute,
   withOptionalSilentMcpOutput,
 } from "./tools";
-import type { CompletedInAppAgentMcpToolCall } from "./toolResults";
 import {
+  toPublicInAppAgentEvent,
+  type CompletedInAppAgentMcpToolCall,
+} from "@langfuse/shared/in-app-agent/server/toolResults";
+import {
+  createInAppAgentMcpRunOverride,
   filterInAppAgentAvailableLangfuseMcpTools,
   getInAppAgentMcpAllowedToolNames,
   getInAppAgentRegistryToolName,
   type InAppAgentToolPolicy,
   withInAppAgentToolApproval,
-} from "./mcpPolicy";
-import { toPublicEvent } from "./watch";
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "../../features/filters/internalEnvironments";
-import { env } from "../../env";
-import { logger } from "../../server";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
-  IN_APP_AGENT_MCP_USER_AGENT,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
-} from "../constants";
+} from "@langfuse/shared/in-app-agent";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
 const MAX_AGENT_STEPS = 20;
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
+const IN_APP_AGENT_MCP_USER_AGENT = "langfuse-in-app-agent";
 
 // Screen context is included as data only. Tool execution safety is enforced by
 // deterministic in-app tool approval below, not by model instructions.
@@ -214,7 +212,7 @@ export async function createAgUiStream(params: {
   options: CreateAgUiStreamOptions;
 }) {
   const encoder = new TextEncoder();
-  const awsProfile = env.AWS_PROFILE ?? params.options.awsBedrock.profile;
+  const awsProfile = params.options.awsBedrock.profile;
 
   const langfuseMcpAuthHeader = `Basic ${Buffer.from(
     `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
@@ -427,7 +425,7 @@ export async function createAgUiStream(params: {
 
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify(toPublicEvent(agUiEvent))}\n\n`,
+                `data: ${JSON.stringify(toPublicInAppAgentEvent(agUiEvent))}\n\n`,
               ),
             );
           })

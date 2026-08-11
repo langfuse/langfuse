@@ -2,8 +2,11 @@ import { EventType } from "@ag-ui/core";
 import type { AgentSubscriber } from "@ag-ui/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import { InAppAgentBackgroundClient } from "./backgroundAgentClient";
 import {

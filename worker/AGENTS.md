@@ -63,6 +63,17 @@
 - Prefer explicit env-flag gating in `src/app.ts` for new consumers.
 - Keep queue payload parsing/schema validation centralized in shared contracts.
 
+## In-App Agent Runtime
+
+- `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
+  instrumentation, prompt loading, continuation handling, tools, skills, and
+  sandbox providers.
+- Worker env owns queue consumer/concurrency, sandbox configuration, and the
+  development-only in-app-agent AWS profile. Shared lifecycle policy values
+  must be configured identically on web and worker deployments.
+- Persisted/queued contracts, lifecycle, storage, MCP policy, tool-result
+  handling, and the seeded system prompt remain explicit shared subpaths.
+
 ## Package-Specific Rules
 
 - Keep tests independent; no ordering assumptions.

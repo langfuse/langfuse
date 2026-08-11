@@ -1,7 +1,9 @@
 import { BaseError, type Plan } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { env } from "@langfuse/shared/src/env";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { IN_APP_AGENT_HEARTBEAT_STALE_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { recordIncrement } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 /**
  * Flat safety ceiling on concurrent non-terminal runs, checked at admission.
@@ -36,15 +38,15 @@ export async function assertInAppAgentRunCapacity(params: {
   // wins because a hung tool may keep renewing its heartbeat").
   const reconcilableBefore = new Date(
     Date.now() -
-      env.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
-      env.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS,
+      sharedEnv.LANGFUSE_IN_APP_AGENT_QUEUE_TIMEOUT_MS -
+      sharedEnv.LANGFUSE_IN_APP_AGENT_RUN_MAX_DURATION_MS,
   );
   // Which is why a fresh heartbeat overrides that test. It is the one positive
   // liveness signal a row carries, and a run still holding a worker must keep
   // counting however old it is, or the ceiling leaks exactly when hung runs are
   // accumulating.
   const heartbeatAliveSince = new Date(
-    Date.now() - env.LANGFUSE_IN_APP_AGENT_HEARTBEAT_STALE_MS,
+    Date.now() - IN_APP_AGENT_HEARTBEAT_STALE_MS,
   );
 
   // Grouped by user so one query answers both ceilings. Scoped through the

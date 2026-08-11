@@ -4,7 +4,7 @@ import type {
   SandboxFile,
   SandboxProvider,
 } from "./types";
-import { logger, recordIncrement } from "../../../server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 
 export async function createInAppAgentSandbox(params: {
   conversationId: string;

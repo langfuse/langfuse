@@ -51,7 +51,7 @@ describe("in-app agent lambda microvm sandbox provider", () => {
 
   it("uses suspend for suspendSession and terminate for terminateSession", async () => {
     const { createLambdaMicrovmSandboxProvider } =
-      await import("@langfuse/shared/in-app-agent/server/sandbox/providers/lambdaMicrovm");
+      await import("./lambdaMicrovm");
 
     const provider = createLambdaMicrovmSandboxProvider({
       imageIdentifier: "image-1",
@@ -111,7 +111,7 @@ describe("in-app agent lambda microvm sandbox provider", () => {
     });
 
     const { createLambdaMicrovmSandboxProvider } =
-      await import("@langfuse/shared/in-app-agent/server/sandbox/providers/lambdaMicrovm");
+      await import("./lambdaMicrovm");
     const provider = createLambdaMicrovmSandboxProvider({
       imageIdentifier: "image-1",
       executionRoleArn: "arn:aws:iam::123456789012:role/sandbox",
@@ -170,7 +170,7 @@ describe("in-app agent lambda microvm sandbox provider", () => {
     });
 
     const { createLambdaMicrovmSandboxProvider } =
-      await import("@langfuse/shared/in-app-agent/server/sandbox/providers/lambdaMicrovm");
+      await import("./lambdaMicrovm");
     const provider = createLambdaMicrovmSandboxProvider({
       imageIdentifier: "image-1",
       executionRoleArn: "arn:aws:iam::123456789012:role/sandbox",
@@ -264,7 +264,7 @@ describe("in-app agent lambda microvm sandbox provider", () => {
     });
 
     const { createLambdaMicrovmSandboxProvider } =
-      await import("@langfuse/shared/in-app-agent/server/sandbox/providers/lambdaMicrovm");
+      await import("./lambdaMicrovm");
     const provider = createLambdaMicrovmSandboxProvider({
       imageIdentifier: "image-1",
       executionRoleArn: "arn:aws:iam::123456789012:role/sandbox",

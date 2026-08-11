@@ -1,20 +1,22 @@
 import { EventType } from "@ag-ui/core";
 
-import { InAppAgentRunStatus, InAppAgentRunStatusSchema } from "../../index";
-import { type PrismaClient } from "../../db";
+import {
+  InAppAgentRunStatus,
+  InAppAgentRunStatusSchema,
+  type AgUiEvent,
+} from "@langfuse/shared/in-app-agent";
+import { type PrismaClient } from "@langfuse/shared/src/db";
+import { reconcileConversationRuns } from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import { toPublicInAppAgentEvent } from "@langfuse/shared/in-app-agent/server/toolResults";
+import { IN_APP_AGENT_HEARTBEAT_STALE_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import {
   isActiveInAppAgentRunStatus,
   type InAppAgentWatchFrame,
-} from "../backgroundWatch";
-import type { AgUiEvent } from "../schema";
-import { reconcileConversationRuns } from "./runLifecycle";
-import { getPublicInAppAgentMcpToolResultContent } from "./toolResults";
-import {
-  IN_APP_AGENT_HEARTBEAT_STALE_MS,
-  IN_APP_AGENT_WATCH_KEEPALIVE_MS,
-  IN_APP_AGENT_WATCH_MAX_CONNECTION_MS,
-  IN_APP_AGENT_WATCH_TAIL_POLL_MS,
-} from "./tunables";
+} from "../watchFrames";
+
+const IN_APP_AGENT_WATCH_TAIL_POLL_MS = 1_000;
+const IN_APP_AGENT_WATCH_KEEPALIVE_MS = 15_000;
+const IN_APP_AGENT_WATCH_MAX_CONNECTION_MS = 90_000;
 
 /**
  * Tail persisted events while preserving AG-UI run framing. Synthetic frames
@@ -136,7 +138,7 @@ export async function* watchConversationFrames(params: {
       yield {
         type: "event",
         sequenceNumber: row.sequenceNumber,
-        event: toPublicEvent(event),
+        event: toPublicInAppAgentEvent(event),
       };
 
       if (
@@ -235,29 +237,6 @@ function isStaleClaimedRun(
   }
 
   return now - lastSign.getTime() > IN_APP_AGENT_HEARTBEAT_STALE_MS;
-}
-
-/** Withhold private persisted event payloads from the browser watch stream. */
-export function toPublicEvent(event: AgUiEvent): AgUiEvent {
-  if (event.type === EventType.RUN_STARTED && event.input !== undefined) {
-    const publicEvent = { ...event };
-    delete publicEvent.input;
-
-    return publicEvent;
-  }
-
-  if (event.type === EventType.TOOL_CALL_RESULT) {
-    if (typeof event.content !== "string") {
-      return event;
-    }
-
-    return {
-      ...event,
-      content: getPublicInAppAgentMcpToolResultContent(event.content),
-    };
-  }
-
-  return event;
 }
 
 function syntheticFrame(

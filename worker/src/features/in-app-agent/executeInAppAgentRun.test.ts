@@ -3,11 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  createInAppAgentConversationId,
-  createInAppAgentRunId,
-  ResumeForwardedPropsSchema,
-} from "@langfuse/shared/in-app-agent";
+import { ResumeForwardedPropsSchema } from "./runtime/types";
+
+const createConversationId = () => `aconv_${randomUUID()}`;
+const createRunId = () => `arun_${randomUUID()}`;
 
 vi.hoisted(() => {
   // This suite uses mocked agent execution and does not exercise a sandbox
@@ -58,18 +57,10 @@ const scenarioRef = vi.hoisted(() => ({
   titleInferenceCalls: 0,
 }));
 
-vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("@langfuse/shared/in-app-agent/server")
-    >();
-
+vi.mock("./runtime/agent", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./runtime/agent")>();
   return {
     ...actual,
-    IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: 50,
-    maybeInferAndPersistConversationTitle: async () => {
-      scenarioRef.titleInferenceCalls += 1;
-    },
     createAgUiStream: async (params: {
       input: never;
       signal: AbortSignal;
@@ -97,6 +88,16 @@ vi.mock("@langfuse/shared/in-app-agent/server", async (importOriginal) => {
     },
   };
 });
+
+vi.mock(
+  "@langfuse/shared/in-app-agent/server/tunables",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@langfuse/shared/in-app-agent/server/tunables")
+    >()),
+    IN_APP_AGENT_HEARTBEAT_INTERVAL_MS: 50,
+  }),
+);
 
 vi.mock("@langfuse/shared/src/server/auth/apiKeys", async (importOriginal) => {
   const actual =
@@ -174,7 +175,7 @@ async function seedBackgroundRun(opts?: {
   });
   const conversation = await prisma.inAppAgentConversation.create({
     data: {
-      id: createInAppAgentConversationId(),
+      id: createConversationId(),
       projectId,
       createdByUserId: user.id,
       title: "background test",
@@ -183,7 +184,7 @@ async function seedBackgroundRun(opts?: {
   });
   const run = await prisma.inAppAgentRun.create({
     data: {
-      id: createInAppAgentRunId(),
+      id: createRunId(),
       projectId,
       conversationId: conversation.id,
       triggeredByUserId: user.id,
@@ -219,7 +220,7 @@ async function seedApprovedContinuation(opts?: {
   const { projectId, conversation, run, user } = seeded;
   const parentRun = await prisma.inAppAgentRun.create({
     data: {
-      id: createInAppAgentRunId(),
+      id: createRunId(),
       projectId,
       conversationId: conversation.id,
       triggeredByUserId: user.id,

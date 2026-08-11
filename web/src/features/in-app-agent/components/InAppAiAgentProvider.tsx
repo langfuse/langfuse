@@ -16,20 +16,21 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
-import {
-  createInAppAgentConversationId,
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
-} from "@langfuse/shared/in-app-agent";
+import { createInAppAgentConversationId } from "../ids";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import {
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
-  isActiveInAppAgentRunStatus,
   type AgUiMessage,
-  type InAppAgentMessageFeedback,
-  type InAppAgentMessageFeedbackValue,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
+import { isActiveInAppAgentRunStatus } from "../watchFrames";
+import type {
+  InAppAgentMessageFeedback,
+  InAppAgentMessageFeedbackValue,
+  InAppAgentUiMessage,
+} from "../schema";
 import {
   createInAppAgentDisplayState,
   deserializeInAppAgentDisplayState,
@@ -1525,7 +1526,7 @@ function isAgentConversationMessage(message: unknown): message is AgUiMessage {
 function mergeMessagesWithFeedback(
   messages: readonly AgUiMessage[],
   feedbackByMessageId: Record<string, InAppAgentMessageFeedback> | undefined,
-): readonly AgUiMessage[] {
+): readonly InAppAgentUiMessage[] {
   if (!feedbackByMessageId || Object.keys(feedbackByMessageId).length === 0) {
     return messages;
   }

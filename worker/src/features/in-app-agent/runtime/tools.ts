@@ -4,7 +4,7 @@ import {
 } from "@mastra/core/schema";
 import { createTool, Tool } from "@mastra/core/tools";
 import type { InAppAgentSandbox } from "./sandbox";
-import { assertUnreachable } from "../../utils/typeChecks";
+import { assertUnreachable } from "@langfuse/shared";
 import {
   buildDashboardsPath,
   buildDashboardWidgetPath,
@@ -22,21 +22,24 @@ import {
   buildSessionsPath,
   buildTracePath,
   buildTracesPath,
-} from "../../server/utils/productUrl";
+} from "@langfuse/shared/src/server";
 import z from "zod";
-import { TABLE_AGGREGATION_OPTIONS } from "../../utils/dateRanges";
-import { ObservationLevelDomain, TracingSearchType } from "../../index";
+import { getToolFailureMessage } from "./toolErrors";
+import {
+  ObservationLevelDomain,
+  TABLE_AGGREGATION_OPTIONS,
+  TracingSearchType,
+} from "@langfuse/shared";
 import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
-} from "../constants";
-import { getToolFailureMessage } from "./toolErrors";
+} from "@langfuse/shared/in-app-agent";
 import {
   isSilentInAppAgentMcpToolOutput,
   type CompletedInAppAgentMcpToolCall,
   type SilentInAppAgentMcpToolOutput,
-} from "./toolResults";
+} from "@langfuse/shared/in-app-agent/server/toolResults";
 export function createSandboxTools(sandbox: InAppAgentSandbox) {
   return {
     read: createTool({
