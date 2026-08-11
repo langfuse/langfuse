@@ -208,8 +208,8 @@ describe("in-app agent execution", () => {
     window.sessionStorage.clear();
   });
 
-  it("renders persisted background messages and approval actions in the drawer", async () => {
-    providerMocks.conversationQuery.data = {
+  it("always allows a persisted background tool for the conversation", async () => {
+    const approvedSnapshot = {
       conversation: {
         id: "conversation-1",
         isWriteLocked: false,
@@ -224,9 +224,37 @@ describe("in-app agent execution", () => {
           id: "persisted-assistant",
           role: "assistant",
           content: "I need approval.",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_createTextPrompt",
+                arguments: "{}",
+              },
+            },
+            {
+              id: "tool-call-2",
+              type: "function",
+              function: {
+                name: "langfuse_createDashboardWidget",
+                arguments: "{}",
+              },
+            },
+          ],
         },
       ],
       eventCursor: 12,
+      latestRun: {
+        id: "run-2",
+        status: InAppAgentRunStatus.RUNNING,
+        errorCode: null,
+        cancelRequested: false,
+      },
+      pendingToolApprovals: [],
+    } satisfies NonNullable<typeof providerMocks.conversationQuery.data>;
+    providerMocks.conversationQuery.data = {
+      ...approvedSnapshot,
       latestRun: {
         id: "run-1",
         status: InAppAgentRunStatus.AWAITING_APPROVAL,
@@ -245,6 +273,10 @@ describe("in-app agent execution", () => {
         },
       ],
     };
+    providerMocks.decideToolApproval.mockResolvedValueOnce({});
+    providerMocks.utils.inAppAgent.getConversation.fetch.mockResolvedValueOnce(
+      approvedSnapshot,
+    );
     window.sessionStorage.setItem(
       "langfuse:in-app-ai-agent-selected-conversation:project-1",
       JSON.stringify("conversation-1"),
@@ -254,16 +286,37 @@ describe("in-app agent execution", () => {
 
     expect(await screen.findByText("Create the prompt")).toBeInTheDocument();
     expect(screen.getByText("I need approval.")).toBeInTheDocument();
-    expect(
+    fireEvent.click(
       screen.getByRole("button", {
-        name: "Confirm",
+        name: "Always approve for this conversation",
       }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: "Reject",
-      }),
-    ).toBeInTheDocument();
+    );
+
+    await waitFor(() => {
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledOnce();
+      expect(providerMocks.decideToolApproval).toHaveBeenCalledWith({
+        projectId: "project-1",
+        conversationId: "conversation-1",
+        runId: "run-1",
+        toolCallId: "tool-call-1",
+        approved: true,
+        approvalScope: "conversation",
+      });
+      expect(providerMocks.capture).toHaveBeenCalledOnce();
+      expect(providerMocks.capture).toHaveBeenCalledWith(
+        "in_app_agent:tool_approval_decided",
+        {
+          isApproved: true,
+          toolName: "langfuse_createTextPrompt",
+          approvalScope: "conversation",
+        },
+      );
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText(/^createDashboardWidget:/),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("replays prompt and dashboard invalidations after a detached run completes", async () => {
