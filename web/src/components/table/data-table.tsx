@@ -52,6 +52,7 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   type TableSelectionStoreLike,
   useTableRowIsSelected,
@@ -404,6 +405,10 @@ export function DataTable<TData extends object, TValue>({
     columnVisibility,
   ]);
 
+  // Held for whole sweeps of the bar's animation: a 200ms refetch would
+  // otherwise flash a single frame.
+  const showRefetchBar = useAnimatedBusy(isFetching, 1100);
+
   const tableHeaders = shouldRenderGroupHeaders
     ? table.getHeaderGroups()
     : [table.getHeaderGroups().slice(-1)[0]];
@@ -427,7 +432,7 @@ export function DataTable<TData extends object, TValue>({
         >
           {/* Zero-height so an arriving refetch never shifts the table. */}
           <div className="sticky top-0 z-30 h-0">
-            {isFetching && !data.isLoading ? (
+            {showRefetchBar && !data.isLoading ? (
               <div
                 aria-hidden="true"
                 className="from-primary-accent/0 via-primary-accent to-primary-accent/0 animate-table-refetch absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r bg-[length:40%_100%] bg-no-repeat"

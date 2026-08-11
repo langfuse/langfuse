@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
+import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 
 export const REFRESH_INTERVALS = [
   { label: "Off", value: null },
@@ -43,6 +44,10 @@ export function DataTableRefreshButton({
   const activeInterval = REFRESH_INTERVALS.find((i) => i.value === interval);
   // Only a real interval counts as active; null ("Off") is the resting state.
   const isActive = interval != null;
+  // A fast refresh would otherwise show a single frame of spinner. Not disabled
+  // while it spins either: the flash of the disabled state read as a glitch, and
+  // refreshing again mid-flight is harmless.
+  const isSpinning = useAnimatedBusy(isRefreshing);
 
   return (
     <div className="flex items-center">
@@ -50,14 +55,14 @@ export function DataTableRefreshButton({
         variant="outline"
         size="icon"
         onClick={onRefresh}
-        disabled={isRefreshing}
+        aria-busy={isSpinning}
         className={cn(
           "rounded-r-none border-r-0",
           compact && isActive && "border-primary",
         )}
         title="Refresh"
       >
-        <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+        <RefreshCw className={cn("h-4 w-4", isSpinning && "animate-spin")} />
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
