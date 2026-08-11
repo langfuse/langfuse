@@ -789,8 +789,14 @@ describe("in-app agent execution", () => {
       },
     };
     providerMocks.startRun
-      .mockResolvedValueOnce({ runId: "run-1" })
-      .mockResolvedValueOnce({ runId: "run-2" });
+      .mockResolvedValueOnce({
+        conversationId: "conversation-1",
+        runId: "run-1",
+      })
+      .mockResolvedValueOnce({
+        conversationId: "conversation-1",
+        runId: "run-2",
+      });
     providerMocks.cancelRun.mockResolvedValue({
       cancelledImmediately: false,
       status: InAppAgentRunStatus.RUNNING,
@@ -953,7 +959,6 @@ describe("in-app agent concurrent conversations", () => {
     // The submit guard used to read `isRunning` before resolving the target
     // conversation, so a running conversation refused a brand-new one --
     // silently, by returning false. That is the whole feature failing closed.
-    providerMocks.backgroundExecutionEnabled = true;
     providerMocks.conversationQuery.data = {
       conversation: { id: "conversation-1", isWriteLocked: false },
       messages: [],
@@ -966,7 +971,12 @@ describe("in-app agent concurrent conversations", () => {
       },
       pendingToolApprovals: [],
     };
-    providerMocks.startRun.mockResolvedValue({ runId: "run-2" });
+    providerMocks.startRun.mockImplementation(
+      async (input: { conversationId: string }) => ({
+        conversationId: input.conversationId,
+        runId: "run-2",
+      }),
+    );
     window.sessionStorage.setItem(
       "langfuse:in-app-ai-agent-selected-conversation:project-1",
       JSON.stringify("conversation-1"),
@@ -1004,7 +1014,6 @@ describe("in-app agent concurrent conversations", () => {
   });
 
   it("waits for startRun before fetching a new conversation", async () => {
-    providerMocks.backgroundExecutionEnabled = true;
     providerMocks.getConversation.mockClear();
     providerMocks.startRun.mockReset();
 

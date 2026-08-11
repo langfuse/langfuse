@@ -306,6 +306,9 @@ function InAppAiAgentProviderInner({
   const [submittingConversationId, setSubmittingConversationId] = useState<
     string | null
   >(null);
+  const [unpersistedConversationIds, setUnpersistedConversationIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   const [loadingEventIds, setLoadingEventIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -333,24 +336,15 @@ function InAppAiAgentProviderInner({
     },
     {
       /**
-       * The submit lock suppresses this refetch only on the foreground path,
-       * where the in-flight turn lives in memory and a snapshot would flash the
-       * transcript backwards to before the user's message.
-       *
-       * A background submit commits its user message before the run starts, so
-       * the snapshot is already correct and the suppression would instead be
-       * harmful: the lock is held for the whole run, so returning to a
-       * still-running conversation would find this query disabled, no session
-       * (leaving disposed it) and therefore nothing to render at all.
-       *
-       * Keyed against the raw id because `selectedConversationId` is derived
-       * from this very query's error state.
+       * A new id is selected optimistically so its first user message renders
+       * immediately. It becomes fetchable only after `startRun` returns the id,
+       * which confirms the server has persisted the conversation. Existing
+       * conversations stay fetchable for the full lifetime of a background run.
        */
       enabled:
         open &&
         Boolean(_selectedConversationId) &&
-        (backgroundExecutionEnabled ||
-          submittingConversationId !== _selectedConversationId),
+        !unpersistedConversationIds.has(_selectedConversationId ?? ""),
     },
   );
   const deleteConversationMutation =
@@ -770,13 +764,37 @@ function InAppAiAgentProviderInner({
         threadId: conversationId,
         initialMessages,
         cursor: initialCursor,
-        startRun: (params) =>
-          startRunMutation.mutateAsync({
-            projectId,
-            conversationId,
-            message: params.message,
-            context: [...params.context],
-          }),
+        startRun: async (params) => {
+          try {
+            const started = await startRunMutation.mutateAsync({
+              projectId,
+              conversationId,
+              message: params.message,
+              context: [...params.context],
+            });
+            setUnpersistedConversationIds((current) => {
+              if (!current.has(started.conversationId)) {
+                return current;
+              }
+
+              const next = new Set(current);
+              next.delete(started.conversationId);
+              return next;
+            });
+            return started;
+          } catch (error) {
+            setUnpersistedConversationIds((current) => {
+              if (!current.has(conversationId)) {
+                return current;
+              }
+
+              const next = new Set(current);
+              next.delete(conversationId);
+              return next;
+            });
+            throw error;
+          }
+        },
       });
 
       agentRef.current = agent;
@@ -1023,6 +1041,9 @@ function InAppAiAgentProviderInner({
       let startedRun = false;
       try {
         if (isNewConversation) {
+          setUnpersistedConversationIds((current) =>
+            new Set(current).add(conversationId),
+          );
           setSelectedConversationId(conversationId);
         }
 
