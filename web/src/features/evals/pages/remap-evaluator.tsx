@@ -35,6 +35,7 @@ import {
   DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
 } from "@/src/features/evals/utils/evaluator-constants";
 import { buildModernEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const EVAL_MIGRATION_DOCS_URL =
@@ -136,6 +137,8 @@ export default function RemapEvaluatorPage() {
     },
   });
 
+  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+
   // Map old config to new config with modern target
   // Only copy scoreName - filters and variable mapping will be initialized fresh
   const mappedConfig: PartialConfig | null = useMemo(() => {
@@ -149,9 +152,9 @@ export default function RemapEvaluatorPage() {
       jobType: oldConfig.jobType,
       filter:
         oldConfig.targetObject === "trace"
-          ? sdk.status === "legacy"
-            ? DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING_V3
-            : DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING
+          ? isV4BetaEnabled
+            ? DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING
+            : DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING_V3
           : [],
       variableMapping: [],
       sampling: oldConfig.sampling,
@@ -160,7 +163,7 @@ export default function RemapEvaluatorPage() {
       // Always set to NEW for remapped evals - new eval types cannot run on existing data
       timeScope: ["NEW"],
     };
-  }, [oldConfig, sdk.status]);
+  }, [oldConfig, isV4BetaEnabled]);
 
   const handleFormSuccess = async () => {
     if (!oldConfig) return;
