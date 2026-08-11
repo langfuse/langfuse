@@ -22,6 +22,20 @@ export const eventsTableTraceNameSelectSqlForAlias = (alias: string) =>
   `ifNull(${eventsTableTraceNameSqlForAlias(alias)}, '')`;
 export const eventsTableTraceNameSelectSql =
   eventsTableTraceNameSelectSqlForAlias("e");
+/**
+ * Maps the wire form of `eventsTableTraceNameSelectSql` ('' == no trace name)
+ * back to the null every JS-facing surface uses - tRPC/UI, the public API, the
+ * eval stream, analytics integrations, and batch export.
+ *
+ * Blob storage export deliberately does NOT use this: its published contract
+ * types `trace_name` as a plain string
+ * (https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields),
+ * and its raw JSONL / Parquet paths never pass through JS, so normalizing only
+ * the enriched path would make the three export formats disagree.
+ */
+export const normalizeEventsTraceName = (
+  traceName: string | null | undefined,
+): string | null => traceName || null;
 export const eventsTableTraceNameAggregationSqlForAlias = (alias: string) =>
   `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, ${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> ''), ''))`;
 export const eventsTableTraceNameAggregationSql =

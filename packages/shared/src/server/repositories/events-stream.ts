@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import { normalizeEventsTraceName } from "../../eventsTable";
 import type { FilterCondition } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
 import { buildEventsStreamQuery } from "../queries";
@@ -100,9 +101,7 @@ export const getEventsStreamForEval = async (props: {
           ...row,
           span_id: row.id,
           parent_span_id: row.parent_observation_id,
-          // The events table ships "no trace name" as '' (see
-          // eventsTableTraceNameSelectSql); evals expect null.
-          trace_name: row.trace_name || null,
+          trace_name: normalizeEventsTraceName(row.trace_name),
         };
       }
     })(),

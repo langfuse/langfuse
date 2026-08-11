@@ -9,6 +9,7 @@
 
 import {
   FilterCondition,
+  normalizeEventsTraceName,
   type ScoreDataTypeType,
   TracingSearchType,
 } from "@langfuse/shared";
@@ -192,9 +193,7 @@ export const getEventsStream = async (props: {
     const eventRow: BatchExportEventsRow = {
       id: bufferedRow.id,
       traceId: bufferedRow.trace_id,
-      // The events table ships "no trace name" as '' (see
-      // eventsTableTraceNameSelectSql); the export column stays nullable.
-      traceName: bufferedRow.trace_name || null,
+      traceName: normalizeEventsTraceName(bufferedRow.trace_name),
       type: bufferedRow.type,
       name: bufferedRow.name ?? "",
       startTime: bufferedRow.start_time,
