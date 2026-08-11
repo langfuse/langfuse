@@ -995,11 +995,14 @@ function InAppAiAgentProviderInner({
       // hydration and the write lock all describe the *selected* conversation,
       // so testing them against a brand-new conversation would refuse a turn
       // the user is entitled to start while something else is still running.
-      const isNewConversation =
+      const startsNewConversation =
         options?.newConversation === true || !selectedConversationId;
-      const conversationId = isNewConversation
+      const conversationId = startsNewConversation
         ? createInAppAgentConversationId()
         : selectedConversationId;
+      const shouldRestorePersistedMessages =
+        !startsNewConversation &&
+        !unpersistedConversationIds.has(conversationId ?? "");
 
       if (
         !content ||
@@ -1013,13 +1016,13 @@ function InAppAiAgentProviderInner({
       }
 
       if (
-        !isNewConversation &&
+        !startsNewConversation &&
         (isRunning || isSelectedConversationHydrating)
       ) {
         return false;
       }
 
-      if (!isNewConversation && selectedConversationIsWriteLocked) {
+      if (!startsNewConversation && selectedConversationIsWriteLocked) {
         setError({
           type: "generic",
           message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
@@ -1033,7 +1036,7 @@ function InAppAiAgentProviderInner({
 
       let startedRun = false;
       try {
-        if (isNewConversation) {
+        if (startsNewConversation) {
           setUnpersistedConversationIds((current) =>
             new Set(current).add(conversationId),
           );
@@ -1044,9 +1047,9 @@ function InAppAiAgentProviderInner({
           conversationQuery.data?.conversation.id === conversationId
             ? conversationQuery.data.messages
             : undefined;
-        const initialMessages = isNewConversation
-          ? []
-          : (storedMessages?.filter(isAgentConversationMessage) ?? []);
+        const initialMessages = shouldRestorePersistedMessages
+          ? (storedMessages?.filter(isAgentConversationMessage) ?? [])
+          : [];
         // TODO: Avoid hydrating the full history once the agent client can send
         // only the latest user turn; the server rebuilds history from persistence.
         const agent = getOrCreateAgent(conversationId, initialMessages);
@@ -1056,7 +1059,7 @@ function InAppAiAgentProviderInner({
         }
 
         // Start background turns from the persisted transcript and cursor.
-        if (!isNewConversation) {
+        if (shouldRestorePersistedMessages) {
           agent.setMessages(initialMessages);
         }
 
@@ -1068,7 +1071,7 @@ function InAppAiAgentProviderInner({
 
         agent.addMessage(userMessage);
         const entryPoint = options?.entryPoint ?? "chat";
-        if (isNewConversation) {
+        if (startsNewConversation) {
           capture("in_app_agent:new_chat_started", { entryPoint });
         }
         capture("in_app_agent:new_chat_turn", { entryPoint });
@@ -1110,6 +1113,7 @@ function InAppAiAgentProviderInner({
       selectedConversationId,
       selectedConversationIsWriteLocked,
       setSelectedConversationId,
+      unpersistedConversationIds,
     ],
   );
 

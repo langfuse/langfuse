@@ -1144,9 +1144,12 @@ describe("in-app agent concurrent conversations", () => {
     expect(screen.getByText("Ready")).toBeInTheDocument();
   });
 
-  it("keeps a failed new conversation unqueryable until persistence is acknowledged", async () => {
+  it("keeps a failed new conversation provisional and preserves its messages on retry", async () => {
     providerMocks.getConversation.mockClear();
-    providerMocks.startRun.mockRejectedValueOnce(new Error("Rate limited"));
+    providerMocks.startRun
+      .mockReset()
+      .mockRejectedValueOnce(new Error("Start failed"))
+      .mockImplementationOnce(() => new Promise<never>(() => undefined));
 
     renderExecutionUi();
 
@@ -1169,5 +1172,23 @@ describe("in-app agent concurrent conversations", () => {
       );
     });
     expect(screen.getByText("First question")).toBeVisible();
+
+    fireEvent.change(input, { target: { value: "Retry question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByText("First question")).toBeVisible();
+    expect(screen.getByText("Retry question")).toBeVisible();
+    expect(providerMocks.capture).toHaveBeenCalledWith(
+      "in_app_agent:new_chat_started",
+      { entryPoint: "chat" },
+    );
+    expect(
+      providerMocks.capture.mock.calls.filter(
+        ([event]) => event === "in_app_agent:new_chat_started",
+      ),
+    ).toHaveLength(1);
   });
 });
