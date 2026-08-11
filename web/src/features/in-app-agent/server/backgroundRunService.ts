@@ -23,7 +23,6 @@ import {
   type AgUiRunAgentInput,
 } from "@langfuse/shared/in-app-agent";
 import { parseInAppAgentInterruptEvent } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
-import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/tools";
 import {
   ensureOwnedConversation,
   getConversationEvents,
@@ -340,7 +339,6 @@ export async function decideBackgroundApproval(params: {
   runId: string;
   toolCallId: string;
   approved: boolean;
-  approvalScope?: "once" | "conversation";
   userId: string;
   model: string | undefined;
 }) {
@@ -366,28 +364,16 @@ export async function decideBackgroundApproval(params: {
     );
   }
 
-  let approvalRequest: ReturnType<typeof parseInAppAgentInterruptEvent>;
-  for (const persisted of events) {
-    if (persisted.runId !== params.runId) {
-      continue;
-    }
-
-    const parsedRequest = parseInAppAgentInterruptEvent(persisted.event);
-    if (parsedRequest?.toolCallId === params.toolCallId) {
-      approvalRequest = parsedRequest;
-      break;
-    }
-  }
+  const approvalRequest = events.find(
+    (persisted) =>
+      persisted.runId === params.runId &&
+      parseInAppAgentInterruptEvent(persisted.event)?.toolCallId ===
+        params.toolCallId,
+  );
 
   if (!approvalRequest) {
     throw new LangfuseNotFoundError("Approval request not found");
   }
-
-  // Resolve the granted tool from the persisted interrupt, never client input.
-  const alwaysAllowToolName =
-    params.approvalScope === "conversation" && params.approved
-      ? getInAppAgentPrefixedToolName(approvalRequest.toolName)
-      : undefined;
 
   const continuationRun = await decideToolApproval({
     prisma: params.prisma,
@@ -397,7 +383,6 @@ export async function decideBackgroundApproval(params: {
     continuationRunId: createInAppAgentRunId(),
     toolCallId: params.toolCallId,
     approved: params.approved,
-    alwaysAllowToolName,
     decidedByUserId: params.userId,
     model: params.model,
   });

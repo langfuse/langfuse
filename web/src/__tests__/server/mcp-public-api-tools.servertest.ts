@@ -201,11 +201,11 @@ describe("MCP public API tools", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("resolves allowlisted mutating tools plus reads for in-app agent keys", async () => {
+  it("resolves only the overridden mutating tool for in-app agent keys", async () => {
     const context = mockServerContext({
       inAppAgent: {
-        permissions: "tool-allowlist",
-        allowedToolNames: ["upsertDataset"],
+        permissions: "single-tool-override",
+        allowedToolName: "upsertDataset",
       },
     });
 
@@ -217,14 +217,14 @@ describe("MCP public API tools", () => {
     ).resolves.toBeUndefined();
     await expect(
       toolRegistry.getEnabledTool("listDatasets", context),
-    ).resolves.toBeTruthy();
+    ).resolves.toBeUndefined();
   });
 
   it("resolves the dashboard widget creation override for in-app agent keys", async () => {
     const context = mockServerContext({
       inAppAgent: {
-        permissions: "tool-allowlist",
-        allowedToolNames: ["createDashboardWidget"],
+        permissions: "single-tool-override",
+        allowedToolName: "createDashboardWidget",
       },
     });
 

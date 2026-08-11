@@ -20,7 +20,6 @@ import {
   type SandboxSession,
 } from "@langfuse/shared/in-app-agent/server/sandbox";
 import {
-  createInAppAgentToolPolicy,
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
   type InAppAgentLangfuseMcpToolName,
 } from "@langfuse/shared/in-app-agent/server/tools";
@@ -107,10 +106,6 @@ const defaultInAppAgentUserAccess = {
   projectRole: "OWNER" as const,
   isAdmin: false,
 };
-
-const defaultInAppAgentToolPolicy = createInAppAgentToolPolicy({
-  userAccess: defaultInAppAgentUserAccess,
-});
 
 async function createTestSandbox() {
   let sandboxState: {
@@ -589,7 +584,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          toolPolicy: defaultInAppAgentToolPolicy,
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -888,7 +883,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          toolPolicy: defaultInAppAgentToolPolicy,
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -908,75 +903,6 @@ describe("createAgUiStream", () => {
       maxSteps: expect.any(Number),
     });
     expect(agentConfig?.defaultOptions).not.toHaveProperty("providerOptions");
-  });
-
-  it("stops gating a tool the user approved for the conversation", async () => {
-    const { createAgUiStream } =
-      await import("@langfuse/shared/in-app-agent/server/agent");
-    const input = {
-      threadId: "conversation-1",
-      runId: "run-1",
-      messages: [
-        { id: "user-message-1", role: "user" as const, content: "hello" },
-      ],
-      tools: [],
-      context: [],
-      state: {
-        type: "existingConversation" as const,
-        projectId: "project-1",
-        conversationId: "conversation-1",
-      },
-      forwardedProps: {},
-    };
-    const langfuseClient = {
-      getPrompt: promptMocks.getPrompt,
-    } as unknown as Langfuse;
-
-    adapterEvents.items = [
-      {
-        type: EventType.RUN_STARTED,
-        threadId: input.threadId,
-        runId: input.runId,
-      },
-      {
-        type: EventType.RUN_FINISHED,
-        threadId: input.threadId,
-        runId: input.runId,
-      },
-    ];
-
-    const grantedPolicy = createInAppAgentToolPolicy({
-      userAccess: defaultInAppAgentUserAccess,
-      alwaysAllowedTools: ["langfuse_upsertDataset"],
-    });
-
-    const stream = await createAgUiStream({
-      input,
-      signal: new AbortController().signal,
-      options: {
-        awsBedrock: { modelId: "eu.anthropic.claude-opus-4-8" },
-        langfuseMcp: {
-          url: "https://example.com/api/public/mcp",
-          publicKey: "pk",
-          secretKey: "sk",
-          toolPolicy: grantedPolicy,
-          runOverride: "conversation-grant",
-        },
-        redirectAction: { projectId: "project-1", isV4Enabled: false },
-        langfuseClient,
-        useLocalPrompt: false,
-      },
-    });
-
-    await readStream(stream);
-
-    const { Agent } = await import("@mastra/core/agent");
-    const agentTools = getAgentTools(vi.mocked(Agent).mock.calls[0]?.[0]);
-
-    expect(agentTools?.langfuse_upsertDataset).not.toHaveProperty(
-      "requireApproval",
-    );
-    expect(agentTools?.langfuse_createScoreConfig?.requireApproval).toBe(true);
   });
 
   it("executes approved tools manually and continues with tool result history", async () => {
@@ -1008,7 +934,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          toolPolicy: defaultInAppAgentToolPolicy,
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1214,7 +1140,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          toolPolicy: defaultInAppAgentToolPolicy,
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1292,7 +1218,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          toolPolicy: defaultInAppAgentToolPolicy,
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1438,7 +1364,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          toolPolicy: defaultInAppAgentToolPolicy,
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1520,7 +1446,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          toolPolicy: defaultInAppAgentToolPolicy,
+          userAccess: defaultInAppAgentUserAccess,
         },
         redirectAction: {
           projectId: "project-1",
@@ -1670,7 +1596,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          toolPolicy: defaultInAppAgentToolPolicy,
+          userAccess: defaultInAppAgentUserAccess,
           runOverride: "run-override",
         },
         redirectAction: {
@@ -1759,7 +1685,7 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
-          toolPolicy: defaultInAppAgentToolPolicy,
+          userAccess: defaultInAppAgentUserAccess,
         },
         redirectAction: {
           projectId: "project-1",

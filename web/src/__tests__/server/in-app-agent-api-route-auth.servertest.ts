@@ -6,10 +6,7 @@ import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import {
-  createInAppAgentToolPolicy,
-  filterInAppAgentAvailableLangfuseMcpTools,
-} from "@langfuse/shared/in-app-agent/server/tools";
+import { filterInAppAgentAvailableLangfuseMcpTools } from "@langfuse/shared/in-app-agent/server/tools";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createAndAddApiKeysToDb,
@@ -111,9 +108,10 @@ describe("in-app agent public API route auth", () => {
     expect(
       filterInAppAgentAvailableLangfuseMcpTools({
         tools,
-        policy: createInAppAgentToolPolicy({
-          userAccess: { projectRole: "MEMBER", isAdmin: false },
-        }),
+        userAccess: {
+          projectRole: "MEMBER",
+          isAdmin: false,
+        },
       }),
     ).toEqual({
       listDatasets: { id: "listDatasets" },
@@ -123,9 +121,10 @@ describe("in-app agent public API route auth", () => {
     expect(
       filterInAppAgentAvailableLangfuseMcpTools({
         tools,
-        policy: createInAppAgentToolPolicy({
-          userAccess: { projectRole: "OWNER", isAdmin: false },
-        }),
+        userAccess: {
+          projectRole: "OWNER",
+          isAdmin: false,
+        },
       }),
     ).toEqual(tools);
   });
