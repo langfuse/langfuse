@@ -16,6 +16,41 @@ import {
 } from "@langfuse/shared/src/server";
 import { createObservation, createTrace } from "@langfuse/shared/src/server";
 
+const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+// POST /api/public/comments only accepts an authorUserId that belongs to a
+// member of the project's organization. CI provisions the seed project through
+// LANGFUSE_INIT_* instead of the Postgres seeder, so seeded ids such as
+// "user-1" do not exist there. Create a member of the project's organization
+// and use its id wherever a valid comment author is needed.
+let orgMemberUserId: string;
+
+beforeAll(async () => {
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: seedProjectId },
+    select: { orgId: true },
+  });
+
+  const user = await prisma.user.create({
+    data: {
+      name: "Comments API Author",
+      email: `comments-api-author-${randomUUID()}@langfuse.com`,
+    },
+  });
+  orgMemberUserId = user.id;
+
+  await prisma.organizationMembership.create({
+    data: { orgId: project.orgId, userId: orgMemberUserId, role: "MEMBER" },
+  });
+});
+
+afterAll(async () => {
+  await prisma.organizationMembership.deleteMany({
+    where: { userId: orgMemberUserId },
+  });
+  await prisma.user.delete({ where: { id: orgMemberUserId } });
+});
+
 describe("Create and get comments", () => {
   beforeAll(async () => {
     const traces = [
@@ -39,7 +74,7 @@ describe("Create and get comments", () => {
         objectId: "1234",
         objectType: "TRACE",
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-1",
+        authorUserId: orgMemberUserId,
       },
     );
 
@@ -58,7 +93,7 @@ describe("Create and get comments", () => {
       objectId: "1234",
       objectType: "TRACE",
       content: "hello",
-      authorUserId: "user-1",
+      authorUserId: orgMemberUserId,
     });
   });
 
@@ -370,7 +405,7 @@ describe("Public API does NOT process mentions", () => {
         objectId: "no-mention-processing-trace",
         objectType: "TRACE",
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-1",
+        authorUserId: orgMemberUserId,
       },
     );
 
@@ -391,7 +426,7 @@ describe("Public API does NOT process mentions", () => {
 });
 
 describe("POST /api/public/comments authorUserId scoping", () => {
-  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  const projectId = seedProjectId;
   const objectId = "author-scoping-trace";
   let otherOrgId: string;
   let otherOrgUserId: string;
@@ -487,7 +522,7 @@ describe("POST /api/public/comments authorUserId scoping", () => {
   });
 
   it("should accept an authorUserId of an organization member without project-level ownership", async () => {
-    // user-2 is a MEMBER of the seed organization, not its owner.
+    // orgMemberUserId has an organization membership but no project membership.
     const commentResponse = await makeZodVerifiedAPICall(
       PostCommentsV1Response,
       "POST",
@@ -497,14 +532,14 @@ describe("POST /api/public/comments authorUserId scoping", () => {
         objectId,
         objectType: "TRACE",
         projectId,
-        authorUserId: "user-2",
+        authorUserId: orgMemberUserId,
       },
     );
 
     const comment = await prisma.comment.findUnique({
       where: { id: commentResponse.body.id },
     });
-    expect(comment?.authorUserId).toBe("user-2");
+    expect(comment?.authorUserId).toBe(orgMemberUserId);
   });
 
   it("should still create comments without an authorUserId", async () => {
