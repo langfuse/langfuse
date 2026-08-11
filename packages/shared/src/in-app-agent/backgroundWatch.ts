@@ -17,6 +17,8 @@ export const InAppAgentApprovalDecisionSchema = z.object({
   toolCallId: z.string().min(1),
   approved: z.boolean(),
   decidedByUserId: z.string().min(1),
+  /** Optional render-only scope; durable policy comes from conversation grants. */
+  scope: z.enum(["once", "conversation"]).optional(),
 });
 
 export type InAppAgentApprovalDecision = z.infer<

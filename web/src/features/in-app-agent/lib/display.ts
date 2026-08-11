@@ -45,6 +45,10 @@ type InAppAgentDisplayMessage = AgUiMessage & {
   feedbackMessageId?: string;
 };
 
+type InAppAgentToolCall = NonNullable<
+  Extract<AgUiMessage, { role: "assistant" }>["toolCalls"]
+>[number];
+
 const InAppAgentDisplayPlacementSchema = z.object({
   anchorMessageId: z.string(),
   order: z.number(),
@@ -271,6 +275,21 @@ export function projectInAppAgentMessagesForDisplay(
 ): InAppAgentDisplayMessage[] {
   // Canonical messages stay untouched for persistence and subsequent runs.
   const messageIds = new Set(messages.map((message) => message.id));
+  const firstToolCallMessageIds = new Map<string, string>();
+  for (const message of messages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+
+    for (const toolCall of message.toolCalls ?? []) {
+      if (
+        toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+        !firstToolCallMessageIds.has(toolCall.id)
+      ) {
+        firstToolCallMessageIds.set(toolCall.id, message.id);
+      }
+    }
+  }
   const placementsByAnchor = new Map<
     string,
     Array<{ order: number; message: InAppAgentDisplayMessage }>
@@ -302,7 +321,8 @@ export function projectInAppAgentMessagesForDisplay(
       const placement = state.toolCallPlacements[toolCall.id];
       if (
         !placement ||
-        toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME
+        toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME ||
+        firstToolCallMessageIds.get(toolCall.id) !== message.id
       ) {
         continue;
       }
@@ -340,6 +360,13 @@ export function projectInAppAgentMessagesForDisplay(
     }
   }
 
+  const isDuplicateToolCallForMessage = (
+    toolCall: InAppAgentToolCall,
+    messageId: string,
+  ) =>
+    toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+    firstToolCallMessageIds.get(toolCall.id) !== messageId;
+
   return messages.flatMap<InAppAgentDisplayMessage>((message) => {
     const projectedMessage =
       message.role === "assistant"
@@ -349,22 +376,37 @@ export function projectInAppAgentMessagesForDisplay(
               state.textByMessageId[message.id]?.nativeContent ??
               message.content,
             toolCalls: message.toolCalls?.filter((toolCall) => {
+              if (isDuplicateToolCallForMessage(toolCall, message.id)) {
+                return false;
+              }
+
+              if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+                return true;
+              }
+
               const placement = state.toolCallPlacements[toolCall.id];
-              return (
-                toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME ||
-                !placement ||
-                !messageIds.has(placement.anchorMessageId)
-              );
+              return !placement || !messageIds.has(placement.anchorMessageId);
             }),
           }
         : message;
+    const isEmptyDuplicateToolCallMessage =
+      message.role === "assistant" &&
+      projectedMessage.role === "assistant" &&
+      !projectedMessage.content?.trim() &&
+      Boolean(message.toolCalls?.length) &&
+      message.toolCalls?.every((toolCall) =>
+        isDuplicateToolCallForMessage(toolCall, message.id),
+      );
+    const projectedMessages = isEmptyDuplicateToolCallMessage
+      ? []
+      : [projectedMessage];
     const placements = placementsByAnchor.get(message.id);
     if (!placements) {
-      return [projectedMessage];
+      return projectedMessages;
     }
 
     return [
-      projectedMessage,
+      ...projectedMessages,
       ...placements
         .sort((left, right) => left.order - right.order)
         .map(({ message: placedMessage }) => placedMessage),
