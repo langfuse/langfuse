@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  type Dispatch,
   type KeyboardEvent,
+  type SetStateAction,
   useCallback,
   useEffect,
   useRef,
@@ -266,6 +268,7 @@ export type InAppAgentWindowExecutionUi = {
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
+  draft?: string;
   disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   executionUi: InAppAgentWindowExecutionUi;
@@ -276,6 +279,7 @@ export type InAppAgentWindowProps = {
   isConversationInteractionDisabled: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
+  onDraftChange?: Dispatch<SetStateAction<string>>;
   onExpandedChange: (isExpanded: boolean) => void;
   onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onLoadMoreConversations: () => void;
@@ -368,6 +372,7 @@ function InAppAgentGenericError({
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     conversations,
+    draft,
     disablePendingToolApprovalActions = false,
     error,
     executionUi,
@@ -378,6 +383,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
     messages,
+    onDraftChange,
     onDeleteConversation,
     onExpandedChange,
     onLoadMoreConversations,
@@ -412,11 +418,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const shouldPlaceCaretAtEndRef = useRef(true);
+  const shouldRestoreComposerFocusRef = useRef(false);
   const previousIsInputDisabledRef = useRef(isComposerDisabled);
   const previousIsAssistantTurnInProgressRef = useRef(
     isAssistantTurnInProgress,
   );
-  const [input, setInput] = useState("");
+  const [localDraft, setLocalDraft] = useState("");
+  const input = draft ?? localDraft;
+  const setInput = onDraftChange ?? setLocalDraft;
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
   const hasUserMessage = messages.some((message) => message.role === "user");
@@ -494,9 +504,24 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     previousIsAssistantTurnInProgressRef.current = isAssistantTurnInProgress;
   }, [isAssistantTurnInProgress, isComposerDisabled]);
 
+  const focusInputAtEnd = useCallback(() => {
+    const input = inputRef.current;
+
+    if (!input || isMobile) {
+      return;
+    }
+
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, [isMobile]);
+
   const setInputRef = useCallback(
     (input: HTMLTextAreaElement | null) => {
       inputRef.current = input;
+
+      if (!input) {
+        return;
+      }
 
       // Skip on mobile: refocusing after a turn re-springs the keyboard, even
       // for the quick-action flow that never focused the input.
@@ -505,12 +530,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           (previousIsAssistantTurnInProgressRef.current &&
             !isAssistantTurnInProgress)) &&
         !isMobile;
+      const shouldFocusDraftAtEnd =
+        shouldPlaceCaretAtEndRef.current && !isMobile && input.value.length > 0;
 
-      if (input && shouldRefocusInput) {
-        input.focus();
+      if (shouldRefocusInput || shouldFocusDraftAtEnd) {
+        focusInputAtEnd();
       }
+
+      shouldPlaceCaretAtEndRef.current = false;
     },
-    [isAssistantTurnInProgress, isComposerDisabled, isMobile],
+    [focusInputAtEnd, isAssistantTurnInProgress, isComposerDisabled, isMobile],
   );
 
   useEffect(() => {
@@ -675,8 +704,20 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6"
                 aria-label={isExpanded ? "Collapse window" : "Expand window"}
+                onMouseDown={(event) => {
+                  shouldRestoreComposerFocusRef.current =
+                    event.button === 0 &&
+                    document.activeElement === inputRef.current;
+                }}
                 onClick={() => {
+                  const shouldRestoreComposerFocus =
+                    shouldRestoreComposerFocusRef.current;
+                  shouldRestoreComposerFocusRef.current = false;
                   onExpandedChange(!isExpanded);
+
+                  if (shouldRestoreComposerFocus) {
+                    focusInputAtEnd();
+                  }
                 }}
               >
                 {isExpanded ? (
