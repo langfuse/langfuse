@@ -1110,7 +1110,6 @@ export const BackgroundRunStops = meta.story({
   },
 });
 
-/** Mid-switch: no transcript yet, and deliberately no welcome screen either. */
 export const LoadingConversation = meta.story({
   name: "(Test) Loading Conversation",
   args: {

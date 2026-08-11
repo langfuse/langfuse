@@ -295,14 +295,7 @@ function InAppAiAgentProviderInner({
       {},
     );
   const [isExpanded, setIsExpanded] = useState(false);
-  /**
-   * Which conversation has a turn being submitted, not whether one is.
-   *
-   * Keyed because submitting into a *new* conversation resets the agent for the
-   * old one, and an unkeyed release would drop the lock the submit had just
-   * taken. Everything user-facing derives from whether this names the
-   * conversation currently on screen.
-   */
+  // Key by conversation so another conversation cannot release its submit lock.
   const [submittingConversationId, setSubmittingConversationId] = useState<
     string | null
   >(null);
@@ -335,12 +328,7 @@ function InAppAiAgentProviderInner({
       conversationId: _selectedConversationId ?? "",
     },
     {
-      /**
-       * A new id is selected optimistically so its first user message renders
-       * immediately. It becomes fetchable only after `startRun` returns the id,
-       * which confirms the server has persisted the conversation. Existing
-       * conversations stay fetchable for the full lifetime of a background run.
-       */
+      // Provisional ids become fetchable after `startRun` acknowledges persistence.
       enabled:
         open &&
         Boolean(_selectedConversationId) &&
@@ -359,7 +347,6 @@ function InAppAiAgentProviderInner({
   const selectedConversationId = isSelectedConversationNotFound
     ? null
     : _selectedConversationId;
-  // A submit into another conversation must not make this one look busy.
   const isSubmitting =
     submittingConversationId !== null &&
     submittingConversationId === selectedConversationId;
@@ -718,11 +705,7 @@ function InAppAiAgentProviderInner({
     [clearLoadingEvents, updateLoadingEvent, utils],
   );
 
-  /**
-   * Release the submit lock, but only if it still belongs to the conversation
-   * the caller is finishing. A later submit into another conversation owns the
-   * lock by then and must keep it.
-   */
+  // Release only the caller's lock; a newer conversation may own it.
   const releaseSubmitLock = useCallback((conversationId: string | null) => {
     if (
       conversationId !== null &&
@@ -991,10 +974,7 @@ function InAppAiAgentProviderInner({
 
   const submit = useCallback(
     async (content: string, options?: InAppAgentSubmitOptions) => {
-      // Resolve the target conversation before guarding on it. `isRunning`,
-      // hydration and the write lock all describe the *selected* conversation,
-      // so testing them against a brand-new conversation would refuse a turn
-      // the user is entitled to start while something else is still running.
+      // A new conversation must not inherit the selected conversation's guards.
       const startsNewConversation =
         options?.newConversation === true || !selectedConversationId;
       const conversationId = startsNewConversation
@@ -1008,8 +988,6 @@ function InAppAiAgentProviderInner({
         !content ||
         !conversationId ||
         isInAppAgentRateLimited(error) ||
-        // A turn already going into this same conversation is the only
-        // submit-side conflict; one per conversation remains the rule.
         submitInFlightRef.current === conversationId
       ) {
         return false;

@@ -274,10 +274,7 @@ export type InAppAgentWindowProps = {
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isConversationInteractionDisabled: boolean;
-  /**
-   * The selected conversation's transcript is still loading. Distinct from
-   * having no messages: one is "nothing yet", the other is "nothing to say".
-   */
+  /** Distinguishes a loading transcript from an empty conversation. */
   isSelectedConversationHydrating: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];

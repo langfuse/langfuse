@@ -1008,9 +1008,6 @@ describe("in-app agent concurrent conversations", () => {
   });
 
   it("starts a new conversation while another one is still running", async () => {
-    // The submit guard used to read `isRunning` before resolving the target
-    // conversation, so a running conversation refused a brand-new one --
-    // silently, by returning false. That is the whole feature failing closed.
     providerMocks.conversationQuery.data = {
       conversation: { id: "conversation-1", isWriteLocked: false },
       messages: [],
@@ -1036,7 +1033,6 @@ describe("in-app agent concurrent conversations", () => {
 
     renderExecutionUi();
 
-    // Starting another conversation is reachable while the first one runs.
     const newConversationButton = await screen.findByRole("button", {
       name: "Start new conversation",
     });
@@ -1061,7 +1057,6 @@ describe("in-app agent concurrent conversations", () => {
         }),
       );
     });
-    // The first conversation was left running, not cancelled.
     expect(providerMocks.cancelRun).not.toHaveBeenCalled();
   });
 

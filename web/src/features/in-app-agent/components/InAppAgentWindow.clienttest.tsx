@@ -249,8 +249,6 @@ describe("ControlledInAppAgentWindow composer", () => {
   });
 
   it("blocks another turn here but still lets you leave", () => {
-    // A parked approval owns this conversation's composer, not the whole
-    // assistant: the run is durable, so leaving does not abandon it.
     controlledAgent.value.isRunning = false;
     controlledAgent.value.pendingToolApprovals = [{ id: "approval-1" }];
     controlledAgent.value.submit = vi.fn();
