@@ -120,7 +120,10 @@ vi.mock("@/src/utils/api", () => ({
         useInfiniteQuery: () => providerMocks.listQuery,
       },
       getConversation: {
-        useQuery: () => providerMocks.conversationQuery,
+        useQuery: (...args: unknown[]) => {
+          providerMocks.getConversation(...args);
+          return providerMocks.conversationQuery;
+        },
       },
       deleteConversation: {
         useMutation: () => ({ mutateAsync: vi.fn() }),
@@ -998,5 +1001,51 @@ describe("in-app agent concurrent conversations", () => {
     });
     // The first conversation was left running, not cancelled.
     expect(providerMocks.cancelRun).not.toHaveBeenCalled();
+  });
+
+  it("waits for startRun before fetching a new conversation", async () => {
+    providerMocks.backgroundExecutionEnabled = true;
+    providerMocks.getConversation.mockClear();
+    providerMocks.startRun.mockReset();
+
+    let resolveStartRun:
+      | ((result: { runId: string; conversationId: string }) => void)
+      | undefined;
+    providerMocks.startRun.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStartRun = resolve;
+        }),
+    );
+
+    renderExecutionUi();
+
+    const input = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    fireEvent.change(input, { target: { value: "First question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(providerMocks.startRun).toHaveBeenCalledOnce();
+    });
+    const conversationId = providerMocks.startRun.mock.calls[0]?.[0]
+      ?.conversationId as string;
+
+    expect(providerMocks.getConversation).toHaveBeenLastCalledWith(
+      expect.objectContaining({ conversationId }),
+      expect.objectContaining({ enabled: false }),
+    );
+
+    await act(async () => {
+      resolveStartRun?.({ runId: "run-1", conversationId });
+    });
+
+    await waitFor(() => {
+      expect(providerMocks.getConversation).toHaveBeenLastCalledWith(
+        expect.objectContaining({ conversationId }),
+        expect.objectContaining({ enabled: true }),
+      );
+    });
   });
 });
