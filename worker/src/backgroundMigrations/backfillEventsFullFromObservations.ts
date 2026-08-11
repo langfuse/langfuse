@@ -352,7 +352,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
         -- Skip observations of DRI-referenced traces: M4 owns those traces
         -- end-to-end (every observation, enriched). Keeps ownership disjoint
         -- with M1/M4. Relies on the same per-project co-location as the join.
-        AND (o.project_id, o.trace_id) NOT IN (
+        AND (o.project_id, o.trace_id) GLOBAL NOT IN (
           SELECT project_id, trace_id FROM dataset_run_items_rmt
         )
       SETTINGS

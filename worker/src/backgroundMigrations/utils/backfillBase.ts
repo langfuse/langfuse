@@ -92,6 +92,29 @@ export function onClusterClause(): string {
   return "";
 }
 
+const SAFE_CLICKHOUSE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+
+export function buildSystemPartsSource(
+  shardingEnabled: boolean,
+  clusterName: string,
+): string {
+  if (!shardingEnabled) return "system.parts";
+  if (!SAFE_CLICKHOUSE_IDENTIFIER.test(clusterName)) {
+    throw new Error(`Invalid ClickHouse cluster name: ${clusterName}`);
+  }
+  return `cluster('${clusterName}', 'system.parts')`;
+}
+
+export function getBackgroundMigrationSourceTable(
+  table: string,
+  shardingEnabled: boolean,
+): string {
+  if (!SAFE_CLICKHOUSE_IDENTIFIER.test(table)) {
+    throw new Error(`Invalid ClickHouse table name: ${table}`);
+  }
+  return shardingEnabled ? `${table}_local` : table;
+}
+
 /**
  * Returns the engine ClickHouse actually picked for a table. On ClickHouse
  * Cloud the requested engine is silently rewritten to a `Shared*` variant
@@ -183,10 +206,16 @@ export async function loadPartitionsFromClickhouse(
 ): Promise<BaseChunkTodo[]> {
   logger.info(`${logPrefix} Discovering ${table} partitions from system.parts`);
 
+  const shardingEnabled = env.CLICKHOUSE_SHARDING_ENABLED === "true";
+  const source = buildSystemPartsSource(
+    shardingEnabled,
+    env.CLICKHOUSE_CLUSTER_NAME,
+  );
+  const sourceTable = getBackgroundMigrationSourceTable(table, shardingEnabled);
   const rows = await queryClickhouse<{ partition_id: string }>({
     query: `
       SELECT DISTINCT partition_id
-      FROM system.parts
+      FROM ${source}
       WHERE table = {table: String}
         AND database = currentDatabase()
         AND active = 1
@@ -194,7 +223,7 @@ export async function loadPartitionsFromClickhouse(
         AND partition_id != 'all'
       ORDER BY partition_id DESC
     `,
-    params: { table },
+    params: { table: sourceTable },
     tags: {
       surface: "worker",
       route: "background-migration.loadPartitionsFromClickhouse",

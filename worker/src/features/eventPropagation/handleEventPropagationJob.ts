@@ -11,6 +11,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { env } from "../../env";
+import {
+  buildSystemPartsSource,
+  getBackgroundMigrationSourceTable,
+} from "../../backgroundMigrations/utils/backfillBase";
 
 const LAST_PROCESSED_PARTITION_KEY =
   "langfuse:event-propagation:last-processed-partition";
@@ -125,18 +129,30 @@ export const handleEventPropagationJob = async (
 
     // Query for the next partition after the last processed one
     // Filter for partitions older than LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES minutes and order by partition ASC to get the oldest first
+    const shardingEnabled = env.CLICKHOUSE_SHARDING_ENABLED === "true";
+    const systemPartsSource = buildSystemPartsSource(
+      shardingEnabled,
+      env.CLICKHOUSE_CLUSTER_NAME,
+    );
+    const stagingPartsTable = getBackgroundMigrationSourceTable(
+      "observations_batch_staging",
+      shardingEnabled,
+    );
     const partitions = await queryClickhouse<{ partition: string }>({
       query: `
         SELECT DISTINCT partition
-        FROM system.parts
-        WHERE table = 'observations_batch_staging'
+        FROM ${systemPartsSource}
+        WHERE table = {stagingPartsTable: String}
           AND database = currentDatabase()
           AND active = 1
           AND toDateTime(partition) < now() - INTERVAL ${env.LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES} MINUTE
           ${lastProcessedPartition ? `AND partition > {lastProcessedPartition: String}` : ""}
         ORDER BY partition ASC
       `,
-      params: lastProcessedPartition ? { lastProcessedPartition } : undefined,
+      params: {
+        stagingPartsTable,
+        ...(lastProcessedPartition ? { lastProcessedPartition } : {}),
+      },
     });
 
     recordGauge(
@@ -184,7 +200,7 @@ export const handleEventPropagationJob = async (
             project_id,
             trace_id
           from dataset_run_items_rmt
-          where project_id in (select arrayJoin(project_ids) from batch_stats)
+          where project_id GLOBAL IN (select arrayJoin(project_ids) from batch_stats)
             and created_at >= now() - interval 24 hour
         ), relevant_traces as (
           select
@@ -200,8 +216,8 @@ export const handleEventPropagationJob = async (
             t.public,
             t.metadata
           from traces t
-          where t.project_id in (select arrayJoin(project_ids) from batch_stats)
-            and t.id in (select arrayJoin(trace_ids) from batch_stats)
+          where t.project_id GLOBAL IN (select arrayJoin(project_ids) from batch_stats)
+            and t.id GLOBAL IN (select arrayJoin(trace_ids) from batch_stats)
             and (
               -- For some reason clickhouse detects any "date >= '1969-12-31'" as false.
               -- Therefore, we add a fallback condition that limits actively to last 7 days.
