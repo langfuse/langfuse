@@ -208,6 +208,71 @@ function buildSdkUsageEvidenceFilter(usage: V4MigrationSdkUsageSeries): string {
   return encodeFiltersGeneric(filters);
 }
 
+// Bordered code block with a corner copy button that swaps to a check for 2s
+// as inline feedback. The agent prompt and the generated .env block both
+// render through this so the copy affordance stays consistent.
+function CodeBlockWithCopy({
+  text,
+  copyLabel,
+  onCopy,
+  scrollable,
+  className,
+}: {
+  text: string;
+  /** Accessible label for the corner button, e.g. "Copy keys". */
+  copyLabel: string;
+  /** Fired after a successful copy (analytics). */
+  onCopy?: () => void;
+  scrollable?: boolean;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The timeout is an external system: clear it so a panel closed right
+  // after copying cannot fire a state update on an unmounted component.
+  useEffect(
+    () => () => {
+      if (copiedTimeout.current) clearTimeout(copiedTimeout.current);
+    },
+    [],
+  );
+
+  return (
+    <div className={cn("bg-muted/50 relative rounded-md border", className)}>
+      {/* The button anchors to the outer wrapper so it stays in the corner
+          while the content scrolls. */}
+      <div className={cn("p-3", scrollable && "max-h-32 overflow-y-auto")}>
+        <code className="text-muted-foreground font-mono text-[10px] leading-4 break-words whitespace-pre-wrap">
+          {text}
+        </code>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={async () => {
+          // Falls back to a hidden textarea on non-secure contexts
+          // (plain-HTTP self-hosted) where navigator.clipboard is
+          // unavailable.
+          await copyTextToClipboard(text);
+          onCopy?.();
+          setCopied(true);
+          if (copiedTimeout.current) clearTimeout(copiedTimeout.current);
+          copiedTimeout.current = setTimeout(() => setCopied(false), 2000);
+        }}
+        aria-label={copied ? "Copied" : copyLabel}
+        title={copied ? "Copied" : copyLabel}
+        className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5" />
+        ) : (
+          <Copy className="h-3.5 w-3.5" />
+        )}
+      </Button>
+    </div>
+  );
+}
+
 function SdkUsageSeriesRows({
   series,
   needsAction,
@@ -862,17 +927,6 @@ export function V4MigrationAgentUpgradeSection({
     setPromptVisible(true);
   };
 
-  const [envCopied, setEnvCopied] = useState(false);
-  const envCopiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The timeout is an external system: clear it so a panel closed right
-  // after copying cannot fire a state update on an unmounted component.
-  useEffect(
-    () => () => {
-      if (envCopiedTimeout.current) clearTimeout(envCopiedTimeout.current);
-    },
-    [],
-  );
-
   const handleCreateKeys = () => {
     // Guards double-clicks and re-creation once keys exist for this project.
     if (
@@ -952,11 +1006,13 @@ export function V4MigrationAgentUpgradeSection({
           </span>
         </RainbowButton>
         {promptVisible && (
-          <div className="bg-muted/50 my-3 max-h-32 overflow-y-auto rounded-md border p-3">
-            <code className="text-muted-foreground font-mono text-[10px] leading-4 break-words whitespace-pre-wrap">
-              {V4_CODING_AGENT_PROMPT}
-            </code>
-          </div>
+          <CodeBlockWithCopy
+            text={V4_CODING_AGENT_PROMPT}
+            copyLabel="Copy prompt to clipboard"
+            onCopy={() => capture("v4_migration:coding_agent_prompt_copied")}
+            scrollable
+            className="my-3"
+          />
         )}
         {promptVisible && projectId && (
           <div className="flex flex-col gap-2">
@@ -984,37 +1040,7 @@ export function V4MigrationAgentUpgradeSection({
                 ))}
             </div>
             {envBlock && (
-              <div className="bg-muted/50 relative rounded-md border p-3">
-                <code className="text-muted-foreground font-mono text-[10px] leading-4 break-words whitespace-pre-wrap">
-                  {envBlock}
-                </code>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={async () => {
-                    // Falls back to a hidden textarea on non-secure contexts
-                    // (plain-HTTP self-hosted) where navigator.clipboard is
-                    // unavailable.
-                    await copyTextToClipboard(envBlock);
-                    setEnvCopied(true);
-                    if (envCopiedTimeout.current)
-                      clearTimeout(envCopiedTimeout.current);
-                    envCopiedTimeout.current = setTimeout(
-                      () => setEnvCopied(false),
-                      2000,
-                    );
-                  }}
-                  aria-label={envCopied ? "Copied" : "Copy keys"}
-                  title={envCopied ? "Copied" : "Copy keys"}
-                  className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
-                >
-                  {envCopied ? (
-                    <Check className="h-3.5 w-3.5" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </div>
+              <CodeBlockWithCopy text={envBlock} copyLabel="Copy keys" />
             )}
           </div>
         )}
