@@ -36,12 +36,10 @@ else
   echo "Skipping local in-app agent sandbox image build because Docker is not available."
 fi
 
-# Custom Linux images need Playwright's OS libraries as well as Chromium.
-if [ "$(uname -s)" = "Linux" ]; then
-  pnpm --filter web exec playwright install --with-deps chromium
-else
-  pnpm run playwright:install
-fi
+# Install Chromium into the default user-level Playwright cache so frontend
+# browser review works on first bootstrap. Provider-specific OS dependencies
+# belong in the provider setup rather than this shared script.
+pnpm run playwright:install
 
 # Generate the shared Prisma client explicitly in the current worktree before
 # the workspace-wide db:generate task, which may be satisfied by Turbo cache.

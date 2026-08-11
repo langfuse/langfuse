@@ -140,7 +140,7 @@ const formatCursorEnvironment = () =>
       name: config.cursor.environment.name,
       user: config.cursor.environment.user,
       build: config.cursor.environment.build,
-      install: config.shared.setupScript,
+      install: config.cursor.environment.install ?? config.shared.setupScript,
       start: config.cursor.environment.start,
       ports: config.cursor.environment.ports,
       agentCanUpdateSnapshot: config.cursor.environment.agentCanUpdateSnapshot,

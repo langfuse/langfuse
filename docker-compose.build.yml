@@ -15,7 +15,7 @@ services:
       clickhouse:
         condition: service_healthy
     ports:
-      - "${HOST_IP:-127.0.0.1}:${LANGFUSE_WEB_HOST_PORT:-3000}:3000"
+      - "3000:3000"
     environment: &langfuse-web-env
       # Docker injects HOSTNAME=<container-id>; override it so app servers bind on all interfaces.
       HOSTNAME: 0.0.0.0
@@ -73,7 +73,7 @@ services:
         - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
     depends_on: *langfuse-depends-on
     ports:
-      - "${HOST_IP:-127.0.0.1}:${LANGFUSE_WORKER_HOST_PORT:-3030}:3030"
+      - "3030:3030"
     environment:
       <<: *langfuse-web-env
     restart: always
@@ -97,8 +97,8 @@ services:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
-      - "${HOST_IP:-127.0.0.1}:${CLICKHOUSE_HTTP_PORT:-8123}:8123"
-      - "${HOST_IP:-127.0.0.1}:${CLICKHOUSE_NATIVE_PORT:-9000}:9000"
+      - "8123:8123"
+      - "9000:9000"
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
       interval: 5s
@@ -115,8 +115,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
     ports:
-      - "${HOST_IP:-127.0.0.1}:${MINIO_API_PORT:-9090}:9000"
-      - "${HOST_IP:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9091}:9001"
+      - "9090:9000"
+      - "9091:9001"
     volumes:
       - langfuse_minio_data:/data
     healthcheck:
@@ -133,7 +133,7 @@ services:
       --requirepass ${REDIS_AUTH:-myredissecret}
       --maxmemory-policy noeviction
     ports:
-      - "${HOST_IP:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379"
+      - 6379:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -155,7 +155,7 @@ services:
       TZ: UTC
       PGTZ: UTC
     ports:
-      - "${HOST_IP:-127.0.0.1}:${POSTGRES_HOST_PORT:-5432}:5432"
+      - 5432:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
 

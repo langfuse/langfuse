@@ -6,7 +6,7 @@
     "dockerfile": "Dockerfile",
     "context": ".."
   },
-  "install": "bash scripts/agents/setup.sh",
+  "install": "bash scripts/agents/setup-cursor-cloud.sh",
   "start": "bash scripts/agents/start-cursor-cloud.sh",
   "ports": [
     {

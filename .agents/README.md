@@ -91,6 +91,7 @@ Current shape:
         "dockerfile": "Dockerfile",
         "context": ".."
       },
+      "install": "bash scripts/agents/setup-cursor-cloud.sh",
       "start": "bash scripts/agents/start-cursor-cloud.sh",
       "ports": [
         { "name": "Langfuse web", "port": 3000 },
@@ -225,9 +226,11 @@ file for a supported tool. Keep the shared config minimal and neutral.
 ## Cursor Cloud
 
 Cursor Cloud uses the committed environment file to build an Ubuntu 24.04
-machine with Node.js 24 and nested Docker support. Builds run the shared,
-idempotent `scripts/agents/setup.sh`; each agent run starts the six-service
-source stack with `scripts/agents/start-cursor-cloud.sh`.
+machine with Node.js 24 and nested Docker support. Builds run
+`scripts/agents/setup-cursor-cloud.sh`, which delegates to the shared,
+idempotent setup and then installs Cursor's Playwright system dependencies.
+Each agent run starts the six-service source stack with
+`scripts/agents/start-cursor-cloud.sh`.
 
 The start script builds and waits for web, worker, PostgreSQL, ClickHouse,
 Redis, and MinIO, seeds the synthetic demo project, and verifies the web and
@@ -238,8 +241,10 @@ Enterprise resource profile.
 The script deliberately prevents the workspace `.env` and exported application
 variables from participating in Compose interpolation. That file configures
 host processes with `localhost` service URLs, while containers must use Compose
-service names such as `postgres`, `clickhouse`, and `redis`. Only Docker client,
-host-port, and public build controls are passed into Compose.
+service names such as `postgres`, `clickhouse`, and `redis`. Only Docker client
+and public build controls are passed into Compose. The seed command also receives
+explicit local connection URLs so an exported secret cannot redirect it to an
+external database.
 
 ### Cursor team tools
 

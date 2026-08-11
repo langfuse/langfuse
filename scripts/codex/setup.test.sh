@@ -17,11 +17,15 @@ pnpm_log="$tmpdir/pnpm.log"
 mkdir -p "$tmpdir/bin" "$repo_copy/scripts/agents" "$repo_copy/scripts/codex"
 
 cp "$repo_root/scripts/agents/setup.sh" "$repo_copy/scripts/agents/setup.sh"
+cp "$repo_root/scripts/agents/setup-cursor-cloud.sh" "$repo_copy/scripts/agents/setup-cursor-cloud.sh"
 cp "$repo_root/scripts/codex/setup.sh" "$repo_copy/scripts/codex/setup.sh"
 cp "$repo_root/.env.dev.example" "$repo_copy/.env.dev.example"
 cp "$repo_root/.env.test.example" "$repo_copy/.env.test.example"
 
-chmod +x "$repo_copy/scripts/agents/setup.sh" "$repo_copy/scripts/codex/setup.sh"
+chmod +x \
+  "$repo_copy/scripts/agents/setup.sh" \
+  "$repo_copy/scripts/agents/setup-cursor-cloud.sh" \
+  "$repo_copy/scripts/codex/setup.sh"
 
 cat <<'EOF' > "$tmpdir/bin/corepack"
 #!/usr/bin/env bash
@@ -95,8 +99,8 @@ assert_file_contains \
 
 assert_file_contains \
   "$pnpm_log" \
-  "--filter web exec playwright install --with-deps chromium" \
-  "setup.sh should install Playwright and its Linux dependencies for frontend review"
+  "run playwright:install" \
+  "shared setup should install Playwright without changing host packages"
 
 assert_file_contains \
   "$pnpm_log" \
@@ -107,5 +111,15 @@ assert_file_contains \
   "$pnpm_log" \
   "run db:generate" \
   "setup.sh should generate Prisma artifacts"
+
+(
+  cd "$repo_copy"
+  PATH="$tmpdir/bin:$PATH" bash scripts/agents/setup-cursor-cloud.sh
+)
+
+assert_file_contains \
+  "$pnpm_log" \
+  "--filter web exec playwright install-deps chromium" \
+  "Cursor Cloud setup should install Playwright's Linux dependencies"
 
 echo "setup.sh example bootstrap regression test passed"
