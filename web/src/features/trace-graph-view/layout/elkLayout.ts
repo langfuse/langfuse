@@ -85,6 +85,10 @@ const LAYOUT_OPTIONS: Record<string, string> = {
  * costs tens of seconds well before that. Above this bound the graph keeps
  * the RIGHT direction but skips wrapping (a plain ribbon lays out in
  * milliseconds at any size).
+ *
+ * Layout now runs in a Worker, whose stack is SMALLER than the main thread's —
+ * measured, a deep aggregated graph overflows around 500 layers there — so this
+ * bound stays conservative rather than being relaxed.
  */
 const MAX_WRAP_NODES = 300;
 
