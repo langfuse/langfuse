@@ -1135,8 +1135,8 @@ export function DataTableControls({
                   // reach the collapse-on-Escape chrome around it. Inside the
                   // mobile Filters sheet the sheet still closes on the same
                   // keystroke — Radix dismisses from a document capture-phase
-                  // listener, which no handler in the tree can pre-empt — so
-                  // the clear button is the affordance that always works.
+                  // listener, which no handler inside the tree can get ahead
+                  // of — so the clear button always works where this cannot.
                   if (event.key === "Escape" && facetSearch !== "") {
                     event.preventDefault();
                     event.stopPropagation();
