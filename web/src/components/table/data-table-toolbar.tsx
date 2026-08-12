@@ -48,10 +48,8 @@ import {
   DropdownMenuSubContent,
 } from "@/src/components/ui/dropdown-menu";
 import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
-import {
-  DataTableRefreshButton,
-  type RefreshInterval,
-} from "@/src/components/table/data-table-refresh-button";
+import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
+import { type RefreshInterval } from "@/src/components/table/utils/refresh-intervals";
 import {
   getSearchButtonLabel,
   getSearchMode,
