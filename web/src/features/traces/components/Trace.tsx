@@ -9,7 +9,6 @@ import {
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
-import { type DetachedPlacement } from "@/src/features/traces/contexts/TraceDataContext";
 import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { PlayheadProvider } from "@/src/features/traces/contexts/PlayheadContext";
@@ -96,18 +95,15 @@ function TraceWithSelection({
       ? selected.observation
       : null;
 
-  // Where the injected row ends up, which is NOT one question but three:
   // treeBuilding nulls a parentObservationId it cannot resolve, so a row whose
-  // parent also fell past the cap renders at root level without being a root.
-  // That "orphaned" case is the only one the UI has to qualify — a genuine root
-  // keeps root semantics, and a row with a loaded parent nests correctly.
-  const detachedPlacement = useMemo<DetachedPlacement | null>(() => {
-    if (!detachedObservation) return null;
-    const parentId = detachedObservation.parentObservationId;
-    if (!parentId) return "root";
-    return loadedObservations.some((obs) => obs.id === parentId)
-      ? "nested"
-      : "orphaned";
+  // parent ALSO fell past the cap renders at root level without being a root —
+  // the one case the UI has to qualify. A row with a loaded parent nests
+  // correctly, and a row with no parent at all genuinely is a root; neither is
+  // misplaced.
+  const detachedIsMisplaced = useMemo(() => {
+    const parentId = detachedObservation?.parentObservationId;
+    if (!parentId) return false;
+    return !loadedObservations.some((obs) => obs.id === parentId);
   }, [detachedObservation, loadedObservations]);
 
   const observations = useMemo(
@@ -126,7 +122,7 @@ function TraceWithSelection({
       corrections={corrections}
       comments={commentsMap}
       detachedObservationId={detachedObservation?.id ?? null}
-      detachedObservationPlacement={detachedPlacement}
+      detachedObservationIsMisplaced={detachedIsMisplaced}
       truncatedAtObservations={truncatedAtObservations}
     >
       <TraceGraphDataProvider

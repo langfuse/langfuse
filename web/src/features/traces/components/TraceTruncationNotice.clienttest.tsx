@@ -13,15 +13,18 @@ const traceData = (
   overrides: {
     truncatedAtObservations?: number;
     detachedObservationId?: string | null;
-    detachedObservationPlacement?: string | null;
+    detachedObservationIsMisplaced?: boolean;
   } = {},
 ) =>
   mockUseTraceData.mockReturnValue({
     truncatedAtObservations: 10_000,
     detachedObservationId: null,
-    detachedObservationPlacement: null,
+    detachedObservationIsMisplaced: false,
     ...overrides,
   });
+
+const dismiss = () => fireEvent.click(screen.getByLabelText("Dismiss"));
+const isVisible = () => !!screen.queryByText(/Showing the first/);
 
 describe("TraceTruncationNotice", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -41,17 +44,16 @@ describe("TraceTruncationNotice", () => {
 
   it.each([
     // The row carries no marker of its own, so this copy is the only thing
-    // between an orphaned observation and a tree implying it is top-level.
-    { placement: "orphaned", claimsPosition: true },
+    // between a misplaced observation and a tree implying it is top-level.
+    { misplaced: true, claimsPosition: true },
     // A row that nests correctly, or a genuine root, gets no position claim.
-    { placement: "nested", claimsPosition: false },
-    { placement: "root", claimsPosition: false },
-  ] as const)(
-    "describes a $placement detached row without over-claiming",
-    ({ placement, claimsPosition }) => {
+    { misplaced: false, claimsPosition: false },
+  ])(
+    "claims a wrong position only when there is one (misplaced=$misplaced)",
+    ({ misplaced, claimsPosition }) => {
       traceData({
         detachedObservationId: "obs-past-cap",
-        detachedObservationPlacement: placement,
+        detachedObservationIsMisplaced: misplaced,
       });
 
       render(<TraceTruncationNotice />);
@@ -63,32 +65,38 @@ describe("TraceTruncationNotice", () => {
     },
   );
 
-  it("re-shows only when the message gains information, never on the way back", () => {
+  it("re-shows only for a message that says more, never on the way back", () => {
     traceData();
     const { rerender } = render(<TraceTruncationNotice />);
-    fireEvent.click(screen.getByLabelText("Dismiss"));
-    expect(screen.queryByText(/Showing the first/)).not.toBeInTheDocument();
+    dismiss();
+    expect(isVisible()).toBe(false);
 
     // A re-render with the same message must not bring it back...
     rerender(<TraceTruncationNotice />);
-    expect(screen.queryByText(/Showing the first/)).not.toBeInTheDocument();
+    expect(isVisible()).toBe(false);
 
     // ...but opening an observation outside the loaded list adds a sentence, and
     // that is new information rather than the same notice nagging again.
-    traceData({
-      detachedObservationId: "obs-past-cap",
-      detachedObservationPlacement: "nested",
-    });
+    traceData({ detachedObservationId: "obs-past-cap" });
     rerender(<TraceTruncationNotice />);
     expect(screen.getByText(/loaded separately/)).toBeInTheDocument();
 
     // Dismiss that one and select a normal row again: selection flips the
-    // variant BACK, and the notice must stay gone instead of re-appearing on
-    // every click across that boundary.
-    fireEvent.click(screen.getByLabelText("Dismiss"));
+    // message BACK, and it must stay gone instead of re-appearing on every
+    // click across that boundary.
+    dismiss();
     traceData();
     rerender(<TraceTruncationNotice />);
-    expect(screen.queryByText(/Showing the first/)).not.toBeInTheDocument();
+    expect(isVisible()).toBe(false);
+
+    // But the out-of-position caveat says strictly more than what was
+    // dismissed, and it is the only warning that row gets — so it still shows.
+    traceData({
+      detachedObservationId: "obs-past-cap",
+      detachedObservationIsMisplaced: true,
+    });
+    rerender(<TraceTruncationNotice />);
+    expect(screen.getByText(/appears at the top level/)).toBeInTheDocument();
   });
 
   it("renders nothing for a trace under the cap", () => {

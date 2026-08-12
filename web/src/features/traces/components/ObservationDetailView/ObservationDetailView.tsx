@@ -93,7 +93,7 @@ export function ObservationDetailView({
     nodeMap,
     traceLevelScoreOwnerIds,
     detachedObservationId,
-    detachedObservationPlacement,
+    detachedObservationIsMisplaced,
   } = useTraceData();
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
@@ -128,8 +128,7 @@ export function ObservationDetailView({
   const isRoot =
     roots.some((root) => root.id === observation.id) &&
     !(
-      detachedObservationPlacement === "orphaned" &&
-      observation.id === detachedObservationId
+      detachedObservationIsMisplaced && observation.id === detachedObservationId
     );
 
   // Without a TRACE row (v4) this span stands in for the trace, so its badge and

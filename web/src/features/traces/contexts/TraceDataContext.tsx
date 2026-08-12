@@ -43,15 +43,6 @@ type TraceType = Omit<
   output: string | null;
 };
 
-/**
- * Where a merged-in (detached) observation sits in the rendered tree:
- * - `nested` — its parent is loaded, so it renders in its real position
- * - `root` — it genuinely has no parent, so it really is one of the roots
- * - `orphaned` — its parent fell past the cap too, so treeBuilding nulled the
- *   reference and it renders at root level WITHOUT being a root
- */
-export type DetachedPlacement = "nested" | "root" | "orphaned";
-
 interface TraceDataContextValue {
   trace: TraceType;
   observations: ObservationReturnTypeWithMetadata[];
@@ -73,8 +64,15 @@ interface TraceDataContextValue {
    * reads as top-level.
    */
   detachedObservationId: string | null;
-  /** Where that observation landed; see DetachedPlacement. */
-  detachedObservationPlacement: DetachedPlacement | null;
+  /**
+   * True when that observation renders at root level WITHOUT being a root: its
+   * own parent fell past the cap too, so treeBuilding could not resolve the
+   * reference and nulled it. The three cases collapse to this one question —
+   * a loaded parent nests correctly, and a genuinely parentless row IS a root —
+   * but they must not be conflated: reading "no parent" as "parent is loaded"
+   * is what made the UI claim a position it did not have.
+   */
+  detachedObservationIsMisplaced: boolean;
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
   comments: Map<string, number>;
@@ -103,7 +101,7 @@ interface TraceDataProviderProps {
   corrections: ScoreDomain[];
   comments: Map<string, number>;
   detachedObservationId?: string | null;
-  detachedObservationPlacement?: DetachedPlacement | null;
+  detachedObservationIsMisplaced?: boolean;
   truncatedAtObservations?: number;
   children: ReactNode;
 }
@@ -119,7 +117,7 @@ export function TraceDataProvider({
   corrections,
   comments,
   detachedObservationId = null,
-  detachedObservationPlacement = null,
+  detachedObservationIsMisplaced = false,
   truncatedAtObservations,
   children,
 }: TraceDataProviderProps) {
@@ -185,13 +183,11 @@ export function TraceDataProvider({
     () =>
       traceLevelScoreOwnerIds(
         uiData.roots,
-        // Only an orphaned row is an impostor among the roots; a genuine root
+        // Only a misplaced row is an impostor among the roots; a genuine root
         // that happened to fall past the cap is still a root.
-        detachedObservationPlacement === "orphaned"
-          ? detachedObservationId
-          : null,
+        detachedObservationIsMisplaced ? detachedObservationId : null,
       ),
-    [uiData.roots, detachedObservationId, detachedObservationPlacement],
+    [uiData.roots, detachedObservationId, detachedObservationIsMisplaced],
   );
 
   // Merge scores with optimistic cache
@@ -217,7 +213,7 @@ export function TraceDataProvider({
       searchItems: filteredSearchItems,
       hiddenObservationsCount,
       detachedObservationId,
-      detachedObservationPlacement,
+      detachedObservationIsMisplaced,
       truncatedAtObservations,
       comments,
       traceStartTime,
@@ -234,7 +230,7 @@ export function TraceDataProvider({
       filteredSearchItems,
       hiddenObservationsCount,
       detachedObservationId,
-      detachedObservationPlacement,
+      detachedObservationIsMisplaced,
       truncatedAtObservations,
       uiData.nodeMap,
       comments,
